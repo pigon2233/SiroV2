@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SIRO audio stream metadata v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stream_id", "session_id", "turn_id", "generation_id", "speech_id", "codec", "sample_rate", "channels", "frame_samples"],
+  "properties": {
+    "stream_id": {"type": "string", "minLength": 1},
+    "session_id": {"type": "string", "minLength": 1},
+    "turn_id": {"type": "string", "minLength": 1},
+    "generation_id": {"type": "string", "minLength": 1},
+    "speech_id": {"type": "string", "minLength": 1},
+    "codec": {"const": "pcm_s16le"},
+    "sample_rate": {"enum": [16000, 24000, 48000]},
+    "channels": {"const": 1},
+    "frame_samples": {"type": "integer", "minimum": 320, "maximum": 960}
+  }
+}

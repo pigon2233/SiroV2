@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIRO Control</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10141d; color: #e9eef9; }
+      body { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+      section { background: #192131; border: 1px solid #33415c; border-radius: 12px; padding: 1rem; margin: 1rem 0; }
+      input { width: 70%; padding: .7rem; } button { padding: .7rem 1rem; margin: .25rem; }
+      #events { max-height: 18rem; overflow: auto; white-space: pre-wrap; }
+      .ok { color: #7de2a7; } .warn { color: #ffcb6b; }
+    </style>
+  </head>
+  <body>
+    <h1>SIRO Control</h1>
+    <p id="connection" class="warn">連線中</p>
+    <section><h2>身份與健康</h2><pre id="snapshot"></pre></section>
+    <section>
+      <h2>文字對話</h2>
+      <form id="chat"><input id="text" required maxlength="32768"><button>送出</button></form>
+      <button id="cancel">取消目前回覆</button>
+    </section>
+    <section><h2>本機 Kill Switches</h2><div id="switches"></div></section>
+    <section><h2>事件</h2><pre id="events"></pre></section>
+    <script>
+      let token, socket, currentTurn;
+      const headers = () => ({"Authorization": `Bearer ${token}`, "Content-Type": "application/json"});
+      const log = data => { document.querySelector("#events").textContent += JSON.stringify(data) + "\n"; };
+      async function boot() {
+        const session = await fetch("/v1/session", {method: "POST", headers: {"Origin": location.origin}}).then(r => r.json());
+        token = session.token;
+        socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/control`);
+        socket.onopen = () => socket.send(JSON.stringify({type: "authenticate", token}));
+        socket.onmessage = event => {
+          const data = JSON.parse(event.data); log(data);
+          if (data.type === "snapshot") { renderSnapshot(data); }
+          if (data.type === "turn_started") { currentTurn = data.turn_id; }
+          document.querySelector("#connection").textContent = "已連線";
+          document.querySelector("#connection").className = "ok";
+        };
+        socket.onclose = () => { document.querySelector("#connection").textContent = "已斷線，請重新整理"; };
+      }
+      function renderSnapshot(data) {
+        document.querySelector("#snapshot").textContent = JSON.stringify({identity: data.identity, health: data.health, routes: data.routes}, null, 2);
+        const root = document.querySelector("#switches"); root.textContent = "";
+        Object.entries(data.kill_switches).forEach(([name, enabled]) => {
+          const button = document.createElement("button"); button.textContent = `${name}: ${enabled ? "ON" : "OFF"}`;
+          button.onclick = async () => { await fetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})}); location.reload(); };
+          root.appendChild(button);
+        });
+      }
+      document.querySelector("#chat").onsubmit = async event => {
+        event.preventDefault(); const input = document.querySelector("#text");
+        const response = await fetch("/v1/conversations/browser/turns", {method: "POST", headers: headers(), body: JSON.stringify({text: input.value})});
+        currentTurn = (await response.json()).turn_id; input.value = "";
+      };
+      document.querySelector("#cancel").onclick = async () => { if (currentTurn) await fetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
+      boot().catch(error => { document.querySelector("#connection").textContent = error; });
+    </script>
+  </body>
+</html>

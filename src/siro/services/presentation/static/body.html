@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SIRO Renderer</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #111522; color: #eef2ff; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; overflow: hidden; }
+    main { width: min(42rem, 90vw); text-align: center; }
+    #avatar { font-size: clamp(8rem, 28vw, 15rem); line-height: 1; transition: transform .2s ease; }
+    [data-speaking="true"] #avatar { animation: speaking .45s ease-in-out infinite alternate; }
+    @keyframes speaking { to { transform: translateY(-.4rem) scale(1.025); } }
+    #caption { min-height: 4.5rem; margin: 2rem 0 1rem; font-size: 1.35rem; line-height: 1.6; }
+    #state { color: #9ca7c4; font-size: .9rem; }
+    .online { color: #79e5ad; }
+    .offline { color: #ff9b9b; }
+  </style>
+</head>
+<body>
+  <main data-speaking="false">
+    <div id="avatar" role="img" aria-label="SIRO placeholder avatar">◉‿◉</div>
+    <div id="caption" aria-live="polite"></div>
+    <div id="state" class="offline">renderer offline · placeholder, not Live2D</div>
+  </main>
+  <script>
+    const main = document.querySelector('main');
+    const avatar = document.querySelector('#avatar');
+    const caption = document.querySelector('#caption');
+    const state = document.querySelector('#state');
+    const faces = { happy: '◉‿◉', sad: '◉︵◉', angry: '◉益◉', surprised: '⊙△⊙', neutral: '◉‿◉' };
+    let socket;
+    let activeGeneration;
+
+    function render(message) {
+      if (message.v !== 1) return;
+      if (message.type === 'body.speech') {
+        activeGeneration = message.generation_id;
+        caption.textContent = message.text;
+        main.dataset.speaking = 'true';
+      } else if (message.type === 'body.emotion') {
+        avatar.textContent = faces[message.name] || faces.neutral;
+      } else if (message.type === 'body.cancel' && message.generation_id === activeGeneration) {
+        caption.textContent = '';
+        main.dataset.speaking = 'false';
+        activeGeneration = undefined;
+      }
+    }
+
+    async function connect() {
+      try {
+        const session = await fetch('/v1/session', { method: 'POST', headers: { Origin: location.origin } });
+        if (!session.ok) throw new Error(`session ${session.status}`);
+        const { token } = await session.json();
+        const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+        socket = new WebSocket(`${scheme}://${location.host}/ws/body`);
+        socket.addEventListener('open', () => socket.send(JSON.stringify({ type: 'authenticate', token })));
+        socket.addEventListener('message', event => render(JSON.parse(event.data)));
+        socket.addEventListener('open', () => {
+          state.textContent = 'renderer online · placeholder, not Live2D';
+          state.className = 'online';
+        });
+        socket.addEventListener('close', event => {
+          state.textContent = 'renderer offline · reconnecting · placeholder, not Live2D';
+          state.className = 'offline';
+          main.dataset.speaking = 'false';
+          if (event.reason !== 'renderer replaced') setTimeout(connect, 1000);
+        });
+      } catch (_) {
+        state.textContent = 'gateway offline · reconnecting · placeholder, not Live2D';
+        state.className = 'offline';
+        setTimeout(connect, 1000);
+      }
+    }
+    connect();
+  </script>
+</body>
+</html>

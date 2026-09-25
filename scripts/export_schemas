@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Export canonical JSON schemas from contract types."""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+from siro.contracts.events import EVENT_ADAPTER
+
+
+def main() -> None:
+    root = Path(__file__).resolve().parents[1]
+    destination = root / "schemas" / "events" / "event.v1.schema.json"
+    rendered = json.dumps(EVENT_ADAPTER.json_schema(), indent=2, sort_keys=True) + "\n"
+    if "--check" in sys.argv:
+        if not destination.exists() or destination.read_text(encoding="utf-8") != rendered:
+            print(f"stale generated schema: {destination}", file=sys.stderr)
+            raise SystemExit(1)
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(rendered, encoding="utf-8")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,20 @@
+{
+  "id": "sample.echo",
+  "version": "1.0.0",
+  "contract_version": 1,
+  "description": "Return bounded text for worker integration tests",
+  "entrypoint": "python:plugin:run",
+  "input_schema": "input.schema.json",
+  "output_schema": "output.schema.json",
+  "permissions": [
+    {"capability": "text.echo", "scope_required": "none"}
+  ],
+  "risk": "observe",
+  "timeout_ms": 1000,
+  "concurrency": 1,
+  "resource_limits": {"memory_mb": 64, "output_bytes": 4096, "cpu_seconds": 1},
+  "network": "denied",
+  "idempotency": "read_only",
+  "cancellation": "process",
+  "compensation": "none"
+}
