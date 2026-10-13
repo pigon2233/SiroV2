@@ -2,7 +2,7 @@
 
 ## 2026-10-13 — FIX-016 / D53 clean CI repair LOCAL CHECK RUNNING
 
-回應push-triggered Actions失敗（repo查無PR），只修buildtooling：pinnedminimalRust明確宣告rustfmt/clippy；原secretgate只允許六個經官方download驗明、綁完整profileblob的publicpins。既有所有checks/production/oldtests/workflow/版本/locks保留。24新actualscanner/syntheticcredential/變更/錯誤JSON cases PASS，coldisolatedRust RED→PASS，focusedRuff/type/source-docdiff及exact4source-onlyrollback PASS。298baseline中296不改。
+回應push-triggered Actions失敗（repo查無PR），只修buildtooling：pinnedminimalRust明確宣告rustfmt/clippy；原secretgate只允許六個經官方download驗明、綁完整profileblob的publicpins。既有所有checks/production/oldtests/workflow/版本/locks保留。24新actualscanner/syntheticcredential/變更/錯誤JSON cases PASS，coldisolatedRust RED→PASS，focusedRuff/type/source-docdiff及exact5source-onlyrollback PASS。303baseline中300不改。
 
 完整乾淨公開source scripts/check仍在跑，remoteexact-head尚待驗：**FIX-016 IN_PROGRESS / FAILED_VERIFICATION**，RI-005/006後續實作暫BLOCKED_BY_FIX: FIX-016。前兩次中斷與wrongPython3.12harness不算PASS；環境已尊重原.python-version，actual本機3.14.4，GitHub版本另核對。錯誤harness的MQTT停滯rootcauseUNKNOWN，不改product或測試門檻。
 
@@ -10,6 +10,8 @@
 
 [驗收報告](evidence/FIX-016-2026-10-13/REPORT.md)。
 
+
+Remote refinement：f253dec已過fmt/build，cargo unit fixture硬編/usr/bin/python3.14而failed；只允許cfg(test)三個literal改/usr/bin/python3，所有asserts/productionprefix保持。完整Rust checks/6tests與exact5rollbackPASS；final完整local與newheadremote仍PENDING，不能把先前4file驗收稱成finalsourcePASS。
 
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 

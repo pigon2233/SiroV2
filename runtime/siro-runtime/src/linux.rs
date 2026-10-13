@@ -315,7 +315,7 @@ mod tests {
             .execute(
                 "process.run",
                 &json!({
-                    "argv": ["/usr/bin/python3.14", "-c", "print('safe')"],
+                    "argv": ["/usr/bin/python3", "-c", "print('safe')"],
                     "cwd": base,
                     "timeout_ms": 1000
                 }),
@@ -333,7 +333,7 @@ mod tests {
             driver.execute(
                 "process.run",
                 &json!({
-                    "argv": ["/usr/bin/python3.14", "-c", "import time; time.sleep(2)"],
+                    "argv": ["/usr/bin/python3", "-c", "import time; time.sleep(2)"],
                     "cwd": base,
                     "timeout_ms": 20
                 })
@@ -344,7 +344,7 @@ mod tests {
             .execute(
                 "process.start",
                 &json!({
-                    "argv": ["/usr/bin/python3.14", "-c", "import time; time.sleep(2)"],
+                    "argv": ["/usr/bin/python3", "-c", "import time; time.sleep(2)"],
                     "cwd": base
                 }),
             )

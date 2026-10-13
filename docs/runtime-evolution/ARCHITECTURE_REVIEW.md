@@ -2,7 +2,7 @@
 
 ## 2026-10-13 — FIX-016 / D53 clean CI verification review
 
-Overall architecture health仍YELLOW：本卡是buildbootstrap／verification integration局部缺陷，不是productionarchitecture drift。Recent improvements：freshisolatedRust明確工具declared、secretreview只綁六個actualverifiedpublicpins；24meaningful新tests與exact4rollbackPASS。原責任/介面/依賴/DB/API全保留，沒有新runtimeglobalstate或繞過compatibilityboundary。
+Overall architecture health仍YELLOW：本卡是buildbootstrap／verification integration局部缺陷，不是productionarchitecture drift。Recent improvements：freshisolatedRust明確工具declared、secretreview只綁六個actualverifiedpublicpins；24meaningful新tests與exact5rollbackPASS。原責任/介面/依賴/DB/API全保留，沒有新runtimeglobalstate或繞過compatibilityboundary。
 
 Regression risk changes：舊本機預裝Rust遮住freshrunner缺components，已cold RED→PASS；原secretgate6公開digest誤報的blockingpath已重現→局部修復。完整clean scripts/check及exactheadActions尚待完成；不可用歷史1673PASS代稱本次CI。Wrong3.12harness的brokerhang為TEST_GAP/DEFER、rootcauseUNKNOWN；已stop/join，正確本機3.14.4重跑。
 
@@ -14,6 +14,8 @@ Freeze zone changes：CIbuild zone YELLOW直到完整驗收；tests/evidenceGREE
 
 [本次實際證據與限制](../evidence/FIX-016-2026-10-13/REPORT.md)。
 
+
+Remote refinement：f253dec已過fmt/build，cargo unit fixture硬編/usr/bin/python3.14而failed；只允許cfg(test)三個literal改/usr/bin/python3，所有asserts/productionprefix保持。完整Rust checks/6tests與exact5rollbackPASS；final完整local與newheadremote仍PENDING，不能把先前4file驗收稱成finalsourcePASS。
 
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 
