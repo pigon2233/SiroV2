@@ -1,0 +1,36 @@
+{
+  "status": "PASS within FIX-009 scope",
+  "method": "root source/caller inspection plus independent pre-fix design audit and fixed-vector/tamper tests",
+  "production_files": [
+    "src/siro/core/releases.py"
+  ],
+  "actual_callers": [
+    "src/siro/cli.py:_release_stage -> ReleaseManifest.model_validate_json -> stage_and_activate",
+    "tests/integration/test_release_manager.py:manifest (synthetic signer only)"
+  ],
+  "no_signing_cli_or_service_added": true,
+  "canonical_includes": [
+    "signing_format",
+    "version",
+    "source_sha256",
+    "min_schema",
+    "max_schema"
+  ],
+  "signature_excluded": true,
+  "entry_revalidates_unvalidated_model_copy": true,
+  "legacy_fallback": false,
+  "unchanged_flows": [
+    "stage copy",
+    "healthcheck",
+    "atomic activation",
+    "database backup",
+    "whole-database rollback"
+  ],
+  "post_fix_second_agent_review": "NOT_RUN: delegated reviewer unavailable; root review/test evidence recorded instead",
+  "source_graph": "NOT_RUN: fresh callable graph unavailable; source inspection used",
+  "limits": [
+    "Existing digest/copy TOCTOU and arbitrary bundle symlink semantics not repaired or certified by FIX-009",
+    "Whole-DB rollback still does not preserve later data; separate RI-005 gate",
+    "No launcher change, deployment, provider/hardware or live service restart"
+  ]
+}

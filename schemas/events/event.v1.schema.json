@@ -172,6 +172,218 @@
       "title": "ActionRequestedPayload",
       "type": "object"
     },
+    "ActionResultEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "event_id": {
+          "format": "uuid",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/ActionResultPayload"
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority"
+        },
+        "privacy": {
+          "$ref": "#/$defs/Privacy"
+        },
+        "received_at": {
+          "format": "date-time",
+          "title": "Received At",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence": {
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "source": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9._:-]+$",
+          "title": "Source",
+          "type": "string"
+        },
+        "subject_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject Id"
+        },
+        "trace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Trace Id",
+          "type": "string"
+        },
+        "ttl_ms": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 86400000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ttl Ms"
+        },
+        "turn_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Turn Id"
+        },
+        "type": {
+          "const": "action.result.v1",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "type",
+        "source",
+        "occurred_at",
+        "received_at",
+        "trace_id",
+        "sequence",
+        "priority",
+        "privacy",
+        "payload"
+      ],
+      "title": "ActionResultEvent",
+      "type": "object"
+    },
+    "ActionResultPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "format": "uuid",
+          "title": "Action Id",
+          "type": "string"
+        },
+        "controllability": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Controllability",
+          "type": "number"
+        },
+        "expected": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected"
+        },
+        "goal_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Goal Id"
+        },
+        "importance": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "observed": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed"
+        },
+        "outcome": {
+          "enum": [
+            "confirmed",
+            "mismatch",
+            "denied",
+            "unavailable",
+            "error"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "outcome"
+      ],
+      "title": "ActionResultPayload",
+      "type": "object"
+    },
     "CancelRequestedEvent": {
       "additionalProperties": false,
       "properties": {
@@ -331,6 +543,357 @@
         "reason"
       ],
       "title": "CancelRequestedPayload",
+      "type": "object"
+    },
+    "GoalTransitionEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "event_id": {
+          "format": "uuid",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/GoalTransitionPayload"
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority"
+        },
+        "privacy": {
+          "$ref": "#/$defs/Privacy"
+        },
+        "received_at": {
+          "format": "date-time",
+          "title": "Received At",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence": {
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "source": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9._:-]+$",
+          "title": "Source",
+          "type": "string"
+        },
+        "subject_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject Id"
+        },
+        "trace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Trace Id",
+          "type": "string"
+        },
+        "ttl_ms": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 86400000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ttl Ms"
+        },
+        "turn_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Turn Id"
+        },
+        "type": {
+          "const": "goal.transition.v1",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "type",
+        "source",
+        "occurred_at",
+        "received_at",
+        "trace_id",
+        "sequence",
+        "priority",
+        "privacy",
+        "payload"
+      ],
+      "title": "GoalTransitionEvent",
+      "type": "object"
+    },
+    "GoalTransitionPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "goal_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Goal Id",
+          "type": "string"
+        },
+        "importance": {
+          "default": 0.5,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "previous_state": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Previous State",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "goal_id",
+        "previous_state",
+        "state"
+      ],
+      "title": "GoalTransitionPayload",
+      "type": "object"
+    },
+    "MemoryCorrectedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "event_id": {
+          "format": "uuid",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/MemoryCorrectedPayload"
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority"
+        },
+        "privacy": {
+          "$ref": "#/$defs/Privacy"
+        },
+        "received_at": {
+          "format": "date-time",
+          "title": "Received At",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence": {
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Session Id"
+        },
+        "source": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9._:-]+$",
+          "title": "Source",
+          "type": "string"
+        },
+        "subject_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subject Id"
+        },
+        "trace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Trace Id",
+          "type": "string"
+        },
+        "ttl_ms": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 86400000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ttl Ms"
+        },
+        "turn_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Turn Id"
+        },
+        "type": {
+          "const": "memory.corrected.v1",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "type",
+        "source",
+        "occurred_at",
+        "received_at",
+        "trace_id",
+        "sequence",
+        "priority",
+        "privacy",
+        "payload"
+      ],
+      "title": "MemoryCorrectedEvent",
+      "type": "object"
+    },
+    "MemoryCorrectedPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "importance": {
+          "default": 0.7,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Importance",
+          "type": "number"
+        },
+        "memory_id": {
+          "format": "uuid",
+          "title": "Memory Id",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 2,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "memory_id",
+        "revision",
+        "reason"
+      ],
+      "title": "MemoryCorrectedPayload",
       "type": "object"
     },
     "Priority": {
@@ -1531,12 +2094,15 @@
   "discriminator": {
     "mapping": {
       "action.requested.v1": "#/$defs/ActionRequestedEvent",
+      "action.result.v1": "#/$defs/ActionResultEvent",
       "conversation.cancel_requested.v1": "#/$defs/CancelRequestedEvent",
       "conversation.text_delta.v1": "#/$defs/TextDeltaEvent",
       "conversation.turn_cancelled.v1": "#/$defs/TurnCancelledEvent",
       "conversation.turn_finished.v1": "#/$defs/TurnFinishedEvent",
       "conversation.turn_started.v1": "#/$defs/TurnStartedEvent",
       "conversation.user_text.v1": "#/$defs/UserTextEvent",
+      "goal.transition.v1": "#/$defs/GoalTransitionEvent",
+      "memory.corrected.v1": "#/$defs/MemoryCorrectedEvent",
       "system.health.v1": "#/$defs/SystemHealthEvent",
       "world.observed.v1": "#/$defs/WorldObservedEvent"
     },
@@ -1566,6 +2132,15 @@
     },
     {
       "$ref": "#/$defs/ActionRequestedEvent"
+    },
+    {
+      "$ref": "#/$defs/ActionResultEvent"
+    },
+    {
+      "$ref": "#/$defs/GoalTransitionEvent"
+    },
+    {
+      "$ref": "#/$defs/MemoryCorrectedEvent"
     },
     {
       "$ref": "#/$defs/SystemHealthEvent"

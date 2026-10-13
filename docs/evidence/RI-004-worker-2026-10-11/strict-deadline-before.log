@@ -1,0 +1,27 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_absolute_collect_deadline_fences_success_after_delayed_spawn_publication _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-25/test_absolute_collect_deadline0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75ce409fbbb0>
+
+    @pytest.mark.asyncio
+    @REAL
+    async def test_absolute_collect_deadline_fences_success_after_delayed_spawn_publication(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owned = Owned(monkeypatch)
+        owned.publish_delay = 0.35
+        skill = package(tmp_path, "def run(arguments): return arguments\n", timeout_ms=200)
+        task = asyncio.create_task(
+            WorkerSupervisor(profile=STRICT).execute(skill, {"text": "synthetic"})
+        )
+        try:
+>           with pytest.raises(SkillExecutionError, match="timed out"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE SkillExecutionError
+
+tests/integration/test_strict_skill_worker.py:542: Failed
+=========================== short test summary info ============================
+FAILED tests/integration/test_strict_skill_worker.py::test_absolute_collect_deadline_fences_success_after_delayed_spawn_publication
+1 failed, 41 deselected in 0.57s

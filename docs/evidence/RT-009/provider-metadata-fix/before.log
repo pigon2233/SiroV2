@@ -1,0 +1,1104 @@
+FF..FFFF.                                                                [100%]
+=================================== FAILURES ===================================
+_ test_real_main_provider_policy_and_dispatch_gate[candidate-retry_then_tool-False-3-True-completed] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-50/test_real_main_provider_policy0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75dc91b70e90>
+profile = 'candidate', mode = 'retry_then_tool', disabled = False
+expected_requests = 3, expected_effect = True, state = 'completed'
+
+    @pytest.mark.parametrize(
+        "profile,mode,disabled,expected_requests,expected_effect,state",
+        [
+            ("candidate", "retry_then_tool", False, 3, True, "completed"),
+            ("candidate", "always_fail", False, 2, False, "failed"),
+            ("legacy", "always_fail", False, 1, False, "failed"),
+            ("candidate", "always_fail", True, 1, False, "failed"),
+            ("candidate", "tool_then_fail", False, 1, False, "failed"),
+            ("candidate", "text_then_fail", False, 1, False, "failed"),
+            ("candidate", "continuation_tool_failure", False, 2, True, "failed"),
+            ("candidate", "cloud_fail", False, 1, False, "failed"),
+            ("candidate", "cloud_fail", True, 1, False, "failed"),
+        ],
+    )
+    def test_real_main_provider_policy_and_dispatch_gate(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        mode: str,
+        disabled: bool,
+        expected_requests: int,
+        expected_effect: bool,
+        state: str,
+    ) -> None:
+        import siro.adapters.models.ollama as ollama
+        import siro.adapters.models.openai_compatible as cloud
+        from siro.services.presentation.gateway import main
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "0" if disabled else "1")
+        # Both are configured to ensure original local priority does not gain cloud fallback.
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "synthetic-cloud")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic-key-canary")
+        if mode != "cloud_fail":
+            monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-local")
+        marker = tmp_path / "effect.txt"
+        requests: list[ModelRequest] = []
+        cloud_created: list[bool] = []
+    
+        class Local:
+            name = "synthetic-local"
+    
+            def __init__(self, *, model: str) -> None:
+                pass
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                requests.append(request)
+                index = len(requests)
+                failure = mode in {"always_fail", "cloud_fail"} or (
+                    mode == "retry_then_tool" and index == 1
+                )
+                if failure:
+                    if mode == "cloud_fail":
+                        req = httpx.Request("POST", "http://synthetic.invalid")
+                        raise httpx.HTTPStatusError(
+                            "synthetic429", request=req, response=httpx.Response(429, request=req)
+                        )
+                    raise ConnectionError("synthetic unavailable")
+                if mode == "text_then_fail":
+                    yield ModelChunk("text", "partial")
+                    raise ConnectionError("after text")
+                if (
+                    mode == "tool_then_fail"
+                    or (mode == "retry_then_tool" and index == 2)
+                    or (mode == "continuation_tool_failure" and index in {1, 2})
+                ):
+                    yield ModelChunk(
+                        "tool_request",
+                        tool_call=ToolCall(
+                            "repeatable-provider-id-" + str(index),
+                            "computer.execute",
+                            {
+                                "argv": [
+                                    sys.executable,
+                                    "-c",
+                                    "from pathlib import Path; "
+                                    f"Path({str(marker)!r}).write_text('one real effect')",
+                                ]
+                            },
+                        ),
+                    )
+                    if mode == "tool_then_fail" or (mode == "continuation_tool_failure" and index == 2):
+                        raise ConnectionError("after tool intent")
+                else:
+                    yield ModelChunk("text", "confirmed")
+                yield ModelChunk("finished")
+    
+        class Cloud(Local):
+            name = "synthetic-cloud"
+    
+            def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
+                cloud_created.append(True)
+    
+        monkeypatch.setattr(ollama, "OllamaAdapter", Local)
+        monkeypatch.setattr(cloud, "OpenAICompatibleAdapter", Cloud)
+    
+        def run(app: object, **kwargs: object) -> None:
+            # Startup captures the choice; later environment changes cannot alter this generation.
+            monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+            with TestClient(cast(FastAPI, app)) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                response = client.post(
+                    "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+                )
+                assert response.status_code == 200
+                readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+                assert readback["state"] == state
+                runtime = client.get("/v1/runtime", headers=headers).json()
+                assert runtime["routes"]["model"] == (
+                    "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+                )
+                assert "synthetic-key-canary" not in str(runtime)
+                if profile == "candidate":
+                    assert readback["backend"] == (
+                        "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                    )
+                    assert readback["model_rounds"] == (2 if expected_effect else 1)
+                    if mode == "continuation_tool_failure":
+                        assert readback["tool_calls"] == 1
+                        assert len([m for m in readback["messages"] if m["role"] == "tool"]) == 1
+                    if mode in {"tool_then_fail", "text_then_fail", "always_fail", "cloud_fail"}:
+                        assert readback["tool_calls"] == 0
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_provider_retry.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1361: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x75dc61136900>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: object, **kwargs: object) -> None:
+        # Startup captures the choice; later environment changes cannot alter this generation.
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+        with TestClient(cast(FastAPI, app)) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            response = client.post(
+                "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+            )
+            assert response.status_code == 200
+            readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+            assert readback["state"] == state
+            runtime = client.get("/v1/runtime", headers=headers).json()
+            assert runtime["routes"]["model"] == (
+                "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+            )
+            assert "synthetic-key-canary" not in str(runtime)
+            if profile == "candidate":
+>               assert readback["backend"] == (
+                    "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                )
+E               AssertionError: assert 'failover' == 'synthetic-local'
+E                 
+E                 - synthetic-local
+E                 + failover
+
+tests/integration/test_provider_retry.py:144: AssertionError
+_ test_real_main_provider_policy_and_dispatch_gate[candidate-always_fail-False-2-False-failed] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-50/test_real_main_provider_policy1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75dc91b70d60>
+profile = 'candidate', mode = 'always_fail', disabled = False
+expected_requests = 2, expected_effect = False, state = 'failed'
+
+    @pytest.mark.parametrize(
+        "profile,mode,disabled,expected_requests,expected_effect,state",
+        [
+            ("candidate", "retry_then_tool", False, 3, True, "completed"),
+            ("candidate", "always_fail", False, 2, False, "failed"),
+            ("legacy", "always_fail", False, 1, False, "failed"),
+            ("candidate", "always_fail", True, 1, False, "failed"),
+            ("candidate", "tool_then_fail", False, 1, False, "failed"),
+            ("candidate", "text_then_fail", False, 1, False, "failed"),
+            ("candidate", "continuation_tool_failure", False, 2, True, "failed"),
+            ("candidate", "cloud_fail", False, 1, False, "failed"),
+            ("candidate", "cloud_fail", True, 1, False, "failed"),
+        ],
+    )
+    def test_real_main_provider_policy_and_dispatch_gate(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        mode: str,
+        disabled: bool,
+        expected_requests: int,
+        expected_effect: bool,
+        state: str,
+    ) -> None:
+        import siro.adapters.models.ollama as ollama
+        import siro.adapters.models.openai_compatible as cloud
+        from siro.services.presentation.gateway import main
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "0" if disabled else "1")
+        # Both are configured to ensure original local priority does not gain cloud fallback.
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "synthetic-cloud")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic-key-canary")
+        if mode != "cloud_fail":
+            monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-local")
+        marker = tmp_path / "effect.txt"
+        requests: list[ModelRequest] = []
+        cloud_created: list[bool] = []
+    
+        class Local:
+            name = "synthetic-local"
+    
+            def __init__(self, *, model: str) -> None:
+                pass
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                requests.append(request)
+                index = len(requests)
+                failure = mode in {"always_fail", "cloud_fail"} or (
+                    mode == "retry_then_tool" and index == 1
+                )
+                if failure:
+                    if mode == "cloud_fail":
+                        req = httpx.Request("POST", "http://synthetic.invalid")
+                        raise httpx.HTTPStatusError(
+                            "synthetic429", request=req, response=httpx.Response(429, request=req)
+                        )
+                    raise ConnectionError("synthetic unavailable")
+                if mode == "text_then_fail":
+                    yield ModelChunk("text", "partial")
+                    raise ConnectionError("after text")
+                if (
+                    mode == "tool_then_fail"
+                    or (mode == "retry_then_tool" and index == 2)
+                    or (mode == "continuation_tool_failure" and index in {1, 2})
+                ):
+                    yield ModelChunk(
+                        "tool_request",
+                        tool_call=ToolCall(
+                            "repeatable-provider-id-" + str(index),
+                            "computer.execute",
+                            {
+                                "argv": [
+                                    sys.executable,
+                                    "-c",
+                                    "from pathlib import Path; "
+                                    f"Path({str(marker)!r}).write_text('one real effect')",
+                                ]
+                            },
+                        ),
+                    )
+                    if mode == "tool_then_fail" or (mode == "continuation_tool_failure" and index == 2):
+                        raise ConnectionError("after tool intent")
+                else:
+                    yield ModelChunk("text", "confirmed")
+                yield ModelChunk("finished")
+    
+        class Cloud(Local):
+            name = "synthetic-cloud"
+    
+            def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
+                cloud_created.append(True)
+    
+        monkeypatch.setattr(ollama, "OllamaAdapter", Local)
+        monkeypatch.setattr(cloud, "OpenAICompatibleAdapter", Cloud)
+    
+        def run(app: object, **kwargs: object) -> None:
+            # Startup captures the choice; later environment changes cannot alter this generation.
+            monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+            with TestClient(cast(FastAPI, app)) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                response = client.post(
+                    "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+                )
+                assert response.status_code == 200
+                readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+                assert readback["state"] == state
+                runtime = client.get("/v1/runtime", headers=headers).json()
+                assert runtime["routes"]["model"] == (
+                    "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+                )
+                assert "synthetic-key-canary" not in str(runtime)
+                if profile == "candidate":
+                    assert readback["backend"] == (
+                        "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                    )
+                    assert readback["model_rounds"] == (2 if expected_effect else 1)
+                    if mode == "continuation_tool_failure":
+                        assert readback["tool_calls"] == 1
+                        assert len([m for m in readback["messages"] if m["role"] == "tool"]) == 1
+                    if mode in {"tool_then_fail", "text_then_fail", "always_fail", "cloud_fail"}:
+                        assert readback["tool_calls"] == 0
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_provider_retry.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1361: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x75dc6056a900>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: object, **kwargs: object) -> None:
+        # Startup captures the choice; later environment changes cannot alter this generation.
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+        with TestClient(cast(FastAPI, app)) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            response = client.post(
+                "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+            )
+            assert response.status_code == 200
+            readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+            assert readback["state"] == state
+            runtime = client.get("/v1/runtime", headers=headers).json()
+            assert runtime["routes"]["model"] == (
+                "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+            )
+            assert "synthetic-key-canary" not in str(runtime)
+            if profile == "candidate":
+>               assert readback["backend"] == (
+                    "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                )
+E               AssertionError: assert 'failover' == 'synthetic-local'
+E                 
+E                 - synthetic-local
+E                 + failover
+
+tests/integration/test_provider_retry.py:144: AssertionError
+_ test_real_main_provider_policy_and_dispatch_gate[candidate-tool_then_fail-False-1-False-failed] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-50/test_real_main_provider_policy4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75dc6047a030>
+profile = 'candidate', mode = 'tool_then_fail', disabled = False
+expected_requests = 1, expected_effect = False, state = 'failed'
+
+    @pytest.mark.parametrize(
+        "profile,mode,disabled,expected_requests,expected_effect,state",
+        [
+            ("candidate", "retry_then_tool", False, 3, True, "completed"),
+            ("candidate", "always_fail", False, 2, False, "failed"),
+            ("legacy", "always_fail", False, 1, False, "failed"),
+            ("candidate", "always_fail", True, 1, False, "failed"),
+            ("candidate", "tool_then_fail", False, 1, False, "failed"),
+            ("candidate", "text_then_fail", False, 1, False, "failed"),
+            ("candidate", "continuation_tool_failure", False, 2, True, "failed"),
+            ("candidate", "cloud_fail", False, 1, False, "failed"),
+            ("candidate", "cloud_fail", True, 1, False, "failed"),
+        ],
+    )
+    def test_real_main_provider_policy_and_dispatch_gate(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        mode: str,
+        disabled: bool,
+        expected_requests: int,
+        expected_effect: bool,
+        state: str,
+    ) -> None:
+        import siro.adapters.models.ollama as ollama
+        import siro.adapters.models.openai_compatible as cloud
+        from siro.services.presentation.gateway import main
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "0" if disabled else "1")
+        # Both are configured to ensure original local priority does not gain cloud fallback.
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "synthetic-cloud")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic-key-canary")
+        if mode != "cloud_fail":
+            monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-local")
+        marker = tmp_path / "effect.txt"
+        requests: list[ModelRequest] = []
+        cloud_created: list[bool] = []
+    
+        class Local:
+            name = "synthetic-local"
+    
+            def __init__(self, *, model: str) -> None:
+                pass
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                requests.append(request)
+                index = len(requests)
+                failure = mode in {"always_fail", "cloud_fail"} or (
+                    mode == "retry_then_tool" and index == 1
+                )
+                if failure:
+                    if mode == "cloud_fail":
+                        req = httpx.Request("POST", "http://synthetic.invalid")
+                        raise httpx.HTTPStatusError(
+                            "synthetic429", request=req, response=httpx.Response(429, request=req)
+                        )
+                    raise ConnectionError("synthetic unavailable")
+                if mode == "text_then_fail":
+                    yield ModelChunk("text", "partial")
+                    raise ConnectionError("after text")
+                if (
+                    mode == "tool_then_fail"
+                    or (mode == "retry_then_tool" and index == 2)
+                    or (mode == "continuation_tool_failure" and index in {1, 2})
+                ):
+                    yield ModelChunk(
+                        "tool_request",
+                        tool_call=ToolCall(
+                            "repeatable-provider-id-" + str(index),
+                            "computer.execute",
+                            {
+                                "argv": [
+                                    sys.executable,
+                                    "-c",
+                                    "from pathlib import Path; "
+                                    f"Path({str(marker)!r}).write_text('one real effect')",
+                                ]
+                            },
+                        ),
+                    )
+                    if mode == "tool_then_fail" or (mode == "continuation_tool_failure" and index == 2):
+                        raise ConnectionError("after tool intent")
+                else:
+                    yield ModelChunk("text", "confirmed")
+                yield ModelChunk("finished")
+    
+        class Cloud(Local):
+            name = "synthetic-cloud"
+    
+            def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
+                cloud_created.append(True)
+    
+        monkeypatch.setattr(ollama, "OllamaAdapter", Local)
+        monkeypatch.setattr(cloud, "OpenAICompatibleAdapter", Cloud)
+    
+        def run(app: object, **kwargs: object) -> None:
+            # Startup captures the choice; later environment changes cannot alter this generation.
+            monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+            with TestClient(cast(FastAPI, app)) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                response = client.post(
+                    "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+                )
+                assert response.status_code == 200
+                readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+                assert readback["state"] == state
+                runtime = client.get("/v1/runtime", headers=headers).json()
+                assert runtime["routes"]["model"] == (
+                    "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+                )
+                assert "synthetic-key-canary" not in str(runtime)
+                if profile == "candidate":
+                    assert readback["backend"] == (
+                        "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                    )
+                    assert readback["model_rounds"] == (2 if expected_effect else 1)
+                    if mode == "continuation_tool_failure":
+                        assert readback["tool_calls"] == 1
+                        assert len([m for m in readback["messages"] if m["role"] == "tool"]) == 1
+                    if mode in {"tool_then_fail", "text_then_fail", "always_fail", "cloud_fail"}:
+                        assert readback["tool_calls"] == 0
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_provider_retry.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1361: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x75dc604767b0>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: object, **kwargs: object) -> None:
+        # Startup captures the choice; later environment changes cannot alter this generation.
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+        with TestClient(cast(FastAPI, app)) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            response = client.post(
+                "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+            )
+            assert response.status_code == 200
+            readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+            assert readback["state"] == state
+            runtime = client.get("/v1/runtime", headers=headers).json()
+            assert runtime["routes"]["model"] == (
+                "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+            )
+            assert "synthetic-key-canary" not in str(runtime)
+            if profile == "candidate":
+>               assert readback["backend"] == (
+                    "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                )
+E               AssertionError: assert 'failover' == 'synthetic-local'
+E                 
+E                 - synthetic-local
+E                 + failover
+
+tests/integration/test_provider_retry.py:144: AssertionError
+_ test_real_main_provider_policy_and_dispatch_gate[candidate-text_then_fail-False-1-False-failed] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-50/test_real_main_provider_policy5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75dc60511a50>
+profile = 'candidate', mode = 'text_then_fail', disabled = False
+expected_requests = 1, expected_effect = False, state = 'failed'
+
+    @pytest.mark.parametrize(
+        "profile,mode,disabled,expected_requests,expected_effect,state",
+        [
+            ("candidate", "retry_then_tool", False, 3, True, "completed"),
+            ("candidate", "always_fail", False, 2, False, "failed"),
+            ("legacy", "always_fail", False, 1, False, "failed"),
+            ("candidate", "always_fail", True, 1, False, "failed"),
+            ("candidate", "tool_then_fail", False, 1, False, "failed"),
+            ("candidate", "text_then_fail", False, 1, False, "failed"),
+            ("candidate", "continuation_tool_failure", False, 2, True, "failed"),
+            ("candidate", "cloud_fail", False, 1, False, "failed"),
+            ("candidate", "cloud_fail", True, 1, False, "failed"),
+        ],
+    )
+    def test_real_main_provider_policy_and_dispatch_gate(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        mode: str,
+        disabled: bool,
+        expected_requests: int,
+        expected_effect: bool,
+        state: str,
+    ) -> None:
+        import siro.adapters.models.ollama as ollama
+        import siro.adapters.models.openai_compatible as cloud
+        from siro.services.presentation.gateway import main
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "0" if disabled else "1")
+        # Both are configured to ensure original local priority does not gain cloud fallback.
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "synthetic-cloud")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic-key-canary")
+        if mode != "cloud_fail":
+            monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-local")
+        marker = tmp_path / "effect.txt"
+        requests: list[ModelRequest] = []
+        cloud_created: list[bool] = []
+    
+        class Local:
+            name = "synthetic-local"
+    
+            def __init__(self, *, model: str) -> None:
+                pass
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                requests.append(request)
+                index = len(requests)
+                failure = mode in {"always_fail", "cloud_fail"} or (
+                    mode == "retry_then_tool" and index == 1
+                )
+                if failure:
+                    if mode == "cloud_fail":
+                        req = httpx.Request("POST", "http://synthetic.invalid")
+                        raise httpx.HTTPStatusError(
+                            "synthetic429", request=req, response=httpx.Response(429, request=req)
+                        )
+                    raise ConnectionError("synthetic unavailable")
+                if mode == "text_then_fail":
+                    yield ModelChunk("text", "partial")
+                    raise ConnectionError("after text")
+                if (
+                    mode == "tool_then_fail"
+                    or (mode == "retry_then_tool" and index == 2)
+                    or (mode == "continuation_tool_failure" and index in {1, 2})
+                ):
+                    yield ModelChunk(
+                        "tool_request",
+                        tool_call=ToolCall(
+                            "repeatable-provider-id-" + str(index),
+                            "computer.execute",
+                            {
+                                "argv": [
+                                    sys.executable,
+                                    "-c",
+                                    "from pathlib import Path; "
+                                    f"Path({str(marker)!r}).write_text('one real effect')",
+                                ]
+                            },
+                        ),
+                    )
+                    if mode == "tool_then_fail" or (mode == "continuation_tool_failure" and index == 2):
+                        raise ConnectionError("after tool intent")
+                else:
+                    yield ModelChunk("text", "confirmed")
+                yield ModelChunk("finished")
+    
+        class Cloud(Local):
+            name = "synthetic-cloud"
+    
+            def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
+                cloud_created.append(True)
+    
+        monkeypatch.setattr(ollama, "OllamaAdapter", Local)
+        monkeypatch.setattr(cloud, "OpenAICompatibleAdapter", Cloud)
+    
+        def run(app: object, **kwargs: object) -> None:
+            # Startup captures the choice; later environment changes cannot alter this generation.
+            monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+            with TestClient(cast(FastAPI, app)) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                response = client.post(
+                    "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+                )
+                assert response.status_code == 200
+                readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+                assert readback["state"] == state
+                runtime = client.get("/v1/runtime", headers=headers).json()
+                assert runtime["routes"]["model"] == (
+                    "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+                )
+                assert "synthetic-key-canary" not in str(runtime)
+                if profile == "candidate":
+                    assert readback["backend"] == (
+                        "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                    )
+                    assert readback["model_rounds"] == (2 if expected_effect else 1)
+                    if mode == "continuation_tool_failure":
+                        assert readback["tool_calls"] == 1
+                        assert len([m for m in readback["messages"] if m["role"] == "tool"]) == 1
+                    if mode in {"tool_then_fail", "text_then_fail", "always_fail", "cloud_fail"}:
+                        assert readback["tool_calls"] == 0
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_provider_retry.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1361: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x75dc602a9010>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: object, **kwargs: object) -> None:
+        # Startup captures the choice; later environment changes cannot alter this generation.
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+        with TestClient(cast(FastAPI, app)) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            response = client.post(
+                "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+            )
+            assert response.status_code == 200
+            readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+            assert readback["state"] == state
+            runtime = client.get("/v1/runtime", headers=headers).json()
+            assert runtime["routes"]["model"] == (
+                "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+            )
+            assert "synthetic-key-canary" not in str(runtime)
+            if profile == "candidate":
+>               assert readback["backend"] == (
+                    "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                )
+E               AssertionError: assert 'failover' == 'synthetic-local'
+E                 
+E                 - synthetic-local
+E                 + failover
+
+tests/integration/test_provider_retry.py:144: AssertionError
+_ test_real_main_provider_policy_and_dispatch_gate[candidate-continuation_tool_failure-False-2-True-failed] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-50/test_real_main_provider_policy6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75dc60512b50>
+profile = 'candidate', mode = 'continuation_tool_failure', disabled = False
+expected_requests = 2, expected_effect = True, state = 'failed'
+
+    @pytest.mark.parametrize(
+        "profile,mode,disabled,expected_requests,expected_effect,state",
+        [
+            ("candidate", "retry_then_tool", False, 3, True, "completed"),
+            ("candidate", "always_fail", False, 2, False, "failed"),
+            ("legacy", "always_fail", False, 1, False, "failed"),
+            ("candidate", "always_fail", True, 1, False, "failed"),
+            ("candidate", "tool_then_fail", False, 1, False, "failed"),
+            ("candidate", "text_then_fail", False, 1, False, "failed"),
+            ("candidate", "continuation_tool_failure", False, 2, True, "failed"),
+            ("candidate", "cloud_fail", False, 1, False, "failed"),
+            ("candidate", "cloud_fail", True, 1, False, "failed"),
+        ],
+    )
+    def test_real_main_provider_policy_and_dispatch_gate(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        mode: str,
+        disabled: bool,
+        expected_requests: int,
+        expected_effect: bool,
+        state: str,
+    ) -> None:
+        import siro.adapters.models.ollama as ollama
+        import siro.adapters.models.openai_compatible as cloud
+        from siro.services.presentation.gateway import main
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "0" if disabled else "1")
+        # Both are configured to ensure original local priority does not gain cloud fallback.
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "synthetic-cloud")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic-key-canary")
+        if mode != "cloud_fail":
+            monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-local")
+        marker = tmp_path / "effect.txt"
+        requests: list[ModelRequest] = []
+        cloud_created: list[bool] = []
+    
+        class Local:
+            name = "synthetic-local"
+    
+            def __init__(self, *, model: str) -> None:
+                pass
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                requests.append(request)
+                index = len(requests)
+                failure = mode in {"always_fail", "cloud_fail"} or (
+                    mode == "retry_then_tool" and index == 1
+                )
+                if failure:
+                    if mode == "cloud_fail":
+                        req = httpx.Request("POST", "http://synthetic.invalid")
+                        raise httpx.HTTPStatusError(
+                            "synthetic429", request=req, response=httpx.Response(429, request=req)
+                        )
+                    raise ConnectionError("synthetic unavailable")
+                if mode == "text_then_fail":
+                    yield ModelChunk("text", "partial")
+                    raise ConnectionError("after text")
+                if (
+                    mode == "tool_then_fail"
+                    or (mode == "retry_then_tool" and index == 2)
+                    or (mode == "continuation_tool_failure" and index in {1, 2})
+                ):
+                    yield ModelChunk(
+                        "tool_request",
+                        tool_call=ToolCall(
+                            "repeatable-provider-id-" + str(index),
+                            "computer.execute",
+                            {
+                                "argv": [
+                                    sys.executable,
+                                    "-c",
+                                    "from pathlib import Path; "
+                                    f"Path({str(marker)!r}).write_text('one real effect')",
+                                ]
+                            },
+                        ),
+                    )
+                    if mode == "tool_then_fail" or (mode == "continuation_tool_failure" and index == 2):
+                        raise ConnectionError("after tool intent")
+                else:
+                    yield ModelChunk("text", "confirmed")
+                yield ModelChunk("finished")
+    
+        class Cloud(Local):
+            name = "synthetic-cloud"
+    
+            def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
+                cloud_created.append(True)
+    
+        monkeypatch.setattr(ollama, "OllamaAdapter", Local)
+        monkeypatch.setattr(cloud, "OpenAICompatibleAdapter", Cloud)
+    
+        def run(app: object, **kwargs: object) -> None:
+            # Startup captures the choice; later environment changes cannot alter this generation.
+            monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+            with TestClient(cast(FastAPI, app)) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                response = client.post(
+                    "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+                )
+                assert response.status_code == 200
+                readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+                assert readback["state"] == state
+                runtime = client.get("/v1/runtime", headers=headers).json()
+                assert runtime["routes"]["model"] == (
+                    "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+                )
+                assert "synthetic-key-canary" not in str(runtime)
+                if profile == "candidate":
+                    assert readback["backend"] == (
+                        "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                    )
+                    assert readback["model_rounds"] == (2 if expected_effect else 1)
+                    if mode == "continuation_tool_failure":
+                        assert readback["tool_calls"] == 1
+                        assert len([m for m in readback["messages"] if m["role"] == "tool"]) == 1
+                    if mode in {"tool_then_fail", "text_then_fail", "always_fail", "cloud_fail"}:
+                        assert readback["tool_calls"] == 0
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_provider_retry.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1361: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x75dc602ab8c0>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: object, **kwargs: object) -> None:
+        # Startup captures the choice; later environment changes cannot alter this generation.
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+        with TestClient(cast(FastAPI, app)) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            response = client.post(
+                "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+            )
+            assert response.status_code == 200
+            readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+            assert readback["state"] == state
+            runtime = client.get("/v1/runtime", headers=headers).json()
+            assert runtime["routes"]["model"] == (
+                "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+            )
+            assert "synthetic-key-canary" not in str(runtime)
+            if profile == "candidate":
+>               assert readback["backend"] == (
+                    "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                )
+E               AssertionError: assert 'failover' == 'synthetic-local'
+E                 
+E                 - synthetic-local
+E                 + failover
+
+tests/integration/test_provider_retry.py:144: AssertionError
+_ test_real_main_provider_policy_and_dispatch_gate[candidate-cloud_fail-False-1-False-failed] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-50/test_real_main_provider_policy7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75dc602e4f50>
+profile = 'candidate', mode = 'cloud_fail', disabled = False
+expected_requests = 1, expected_effect = False, state = 'failed'
+
+    @pytest.mark.parametrize(
+        "profile,mode,disabled,expected_requests,expected_effect,state",
+        [
+            ("candidate", "retry_then_tool", False, 3, True, "completed"),
+            ("candidate", "always_fail", False, 2, False, "failed"),
+            ("legacy", "always_fail", False, 1, False, "failed"),
+            ("candidate", "always_fail", True, 1, False, "failed"),
+            ("candidate", "tool_then_fail", False, 1, False, "failed"),
+            ("candidate", "text_then_fail", False, 1, False, "failed"),
+            ("candidate", "continuation_tool_failure", False, 2, True, "failed"),
+            ("candidate", "cloud_fail", False, 1, False, "failed"),
+            ("candidate", "cloud_fail", True, 1, False, "failed"),
+        ],
+    )
+    def test_real_main_provider_policy_and_dispatch_gate(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        mode: str,
+        disabled: bool,
+        expected_requests: int,
+        expected_effect: bool,
+        state: str,
+    ) -> None:
+        import siro.adapters.models.ollama as ollama
+        import siro.adapters.models.openai_compatible as cloud
+        from siro.services.presentation.gateway import main
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "0" if disabled else "1")
+        # Both are configured to ensure original local priority does not gain cloud fallback.
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "synthetic-cloud")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic-key-canary")
+        if mode != "cloud_fail":
+            monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-local")
+        marker = tmp_path / "effect.txt"
+        requests: list[ModelRequest] = []
+        cloud_created: list[bool] = []
+    
+        class Local:
+            name = "synthetic-local"
+    
+            def __init__(self, *, model: str) -> None:
+                pass
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                requests.append(request)
+                index = len(requests)
+                failure = mode in {"always_fail", "cloud_fail"} or (
+                    mode == "retry_then_tool" and index == 1
+                )
+                if failure:
+                    if mode == "cloud_fail":
+                        req = httpx.Request("POST", "http://synthetic.invalid")
+                        raise httpx.HTTPStatusError(
+                            "synthetic429", request=req, response=httpx.Response(429, request=req)
+                        )
+                    raise ConnectionError("synthetic unavailable")
+                if mode == "text_then_fail":
+                    yield ModelChunk("text", "partial")
+                    raise ConnectionError("after text")
+                if (
+                    mode == "tool_then_fail"
+                    or (mode == "retry_then_tool" and index == 2)
+                    or (mode == "continuation_tool_failure" and index in {1, 2})
+                ):
+                    yield ModelChunk(
+                        "tool_request",
+                        tool_call=ToolCall(
+                            "repeatable-provider-id-" + str(index),
+                            "computer.execute",
+                            {
+                                "argv": [
+                                    sys.executable,
+                                    "-c",
+                                    "from pathlib import Path; "
+                                    f"Path({str(marker)!r}).write_text('one real effect')",
+                                ]
+                            },
+                        ),
+                    )
+                    if mode == "tool_then_fail" or (mode == "continuation_tool_failure" and index == 2):
+                        raise ConnectionError("after tool intent")
+                else:
+                    yield ModelChunk("text", "confirmed")
+                yield ModelChunk("finished")
+    
+        class Cloud(Local):
+            name = "synthetic-cloud"
+    
+            def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
+                cloud_created.append(True)
+    
+        monkeypatch.setattr(ollama, "OllamaAdapter", Local)
+        monkeypatch.setattr(cloud, "OpenAICompatibleAdapter", Cloud)
+    
+        def run(app: object, **kwargs: object) -> None:
+            # Startup captures the choice; later environment changes cannot alter this generation.
+            monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+            with TestClient(cast(FastAPI, app)) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                response = client.post(
+                    "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+                )
+                assert response.status_code == 200
+                readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+                assert readback["state"] == state
+                runtime = client.get("/v1/runtime", headers=headers).json()
+                assert runtime["routes"]["model"] == (
+                    "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+                )
+                assert "synthetic-key-canary" not in str(runtime)
+                if profile == "candidate":
+                    assert readback["backend"] == (
+                        "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                    )
+                    assert readback["model_rounds"] == (2 if expected_effect else 1)
+                    if mode == "continuation_tool_failure":
+                        assert readback["tool_calls"] == 1
+                        assert len([m for m in readback["messages"] if m["role"] == "tool"]) == 1
+                    if mode in {"tool_then_fail", "text_then_fail", "always_fail", "cloud_fail"}:
+                        assert readback["tool_calls"] == 0
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_provider_retry.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1361: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x75dc60412270>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: object, **kwargs: object) -> None:
+        # Startup captures the choice; later environment changes cannot alter this generation.
+        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
+        with TestClient(cast(FastAPI, app)) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            response = client.post(
+                "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
+            )
+            assert response.status_code == 200
+            readback = client.get("/v1/agent-runs/retry", headers=headers).json()
+            assert readback["state"] == state
+            runtime = client.get("/v1/runtime", headers=headers).json()
+            assert runtime["routes"]["model"] == (
+                "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
+            )
+            assert "synthetic-key-canary" not in str(runtime)
+            if profile == "candidate":
+>               assert readback["backend"] == (
+                    "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
+                )
+E               AssertionError: assert 'failover' == 'synthetic-cloud'
+E                 
+E                 - synthetic-cloud
+E                 + failover
+
+tests/integration/test_provider_retry.py:144: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/integration/test_provider_retry.py::test_real_main_provider_policy_and_dispatch_gate[candidate-retry_then_tool-False-3-True-completed]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+tests/integration/test_provider_retry.py::test_real_main_provider_policy_and_dispatch_gate[candidate-retry_then_tool-False-3-True-completed]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_provider_retry.py::test_real_main_provider_policy_and_dispatch_gate[candidate-retry_then_tool-False-3-True-completed]
+FAILED tests/integration/test_provider_retry.py::test_real_main_provider_policy_and_dispatch_gate[candidate-always_fail-False-2-False-failed]
+FAILED tests/integration/test_provider_retry.py::test_real_main_provider_policy_and_dispatch_gate[candidate-tool_then_fail-False-1-False-failed]
+FAILED tests/integration/test_provider_retry.py::test_real_main_provider_policy_and_dispatch_gate[candidate-text_then_fail-False-1-False-failed]
+FAILED tests/integration/test_provider_retry.py::test_real_main_provider_policy_and_dispatch_gate[candidate-continuation_tool_failure-False-2-True-failed]
+FAILED tests/integration/test_provider_retry.py::test_real_main_provider_policy_and_dispatch_gate[candidate-cloud_fail-False-1-False-failed]
+6 failed, 3 passed, 3 warnings in 3.51s

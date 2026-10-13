@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: scripts/stop PID_FILE" >&2
+  exit 2
+fi
+if [ ! -f "$1" ]; then
+  echo "PID file does not exist: $1" >&2
+  exit 1
+fi
+pid="$(cat "$1")"
+case "$pid" in
+  ''|*[!0-9]*) echo "invalid PID file" >&2; exit 1 ;;
+esac
+kill -TERM "$pid"

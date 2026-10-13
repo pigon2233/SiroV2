@@ -11,7 +11,19 @@ from siro.adapters.models.http import (
     JsonTransport,
     StreamingJsonTransport,
 )
-from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, ToolCall
+from siro.ports.models import CancellationToken, ModelChunk, ModelMessage, ModelRequest, ToolCall
+
+
+def _serialize_message(message: ModelMessage) -> dict[str, object]:
+    serialized: dict[str, object] = {"role": message.role, "content": message.content}
+    if message.tool_calls:
+        serialized["tool_calls"] = [
+            {"function": {"name": call.name, "arguments": call.arguments}}
+            for call in message.tool_calls
+        ]
+    if message.tool_call_id is not None:
+        serialized["tool_call_id"] = message.tool_call_id
+    return serialized
 
 
 class OllamaAdapter:
@@ -37,7 +49,11 @@ class OllamaAdapter:
             return
         payload: dict[str, object] = {
             "model": self._model,
-            "messages": [{"role": "user", "content": request.prompt}],
+            "messages": (
+                [_serialize_message(message) for message in request.messages]
+                if request.messages
+                else [{"role": "user", "content": request.prompt}]
+            ),
             "stream": hasattr(self._transport, "stream_lines"),
             "think": False,
             "options": {"num_predict": request.max_output_tokens},

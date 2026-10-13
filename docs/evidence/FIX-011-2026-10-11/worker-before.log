@@ -1,0 +1,424 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+_______ test_real_worker_complete_valid_large_json_under_manifest_limit ________
+
+self = <siro.adapters.skill_worker.WorkerSupervisor object at 0x7e86a6135550>
+skill = InstalledSkill(manifest=SkillManifest(id='test.lifecycle', version='1.0.0', contract_version=1, description='Synthetic...ma={'type': 'object', 'properties': {'text': {'type': 'string'}}, 'required': ['text'], 'additionalProperties': False})
+arguments = {'text': 'synthetic'}
+
+    async def _execute_one(self, skill: InstalledSkill, arguments: object) -> dict[str, object]:
+        validated = validate_object(skill.input_schema, arguments)
+        limits = skill.manifest.resource_limits
+        bubblewrap = shutil.which("bwrap")
+        if bubblewrap is None or not sys.platform.startswith("linux"):
+            raise SkillExecutionError("a supported bubblewrap sandbox is required")
+        source_root = Path(__file__).parents[2]
+        environment = {
+            "PATH": "/usr/bin:/bin",
+            "LANG": "C.UTF-8",
+            "PYTHONUNBUFFERED": "1",
+            "SIRO_SKILL_ROOT": "/skill",
+            "SIRO_SKILL_ENTRYPOINT": skill.manifest.entrypoint,
+            "SIRO_WORKER_MEMORY_MB": str(limits.memory_mb),
+            "SIRO_WORKER_CPU_SECONDS": str(limits.cpu_seconds),
+        }
+        project_root = source_root.parent
+        home_parts = project_root.parts[1:]
+        directories: list[str] = []
+        current = Path("/")
+        for part in home_parts:
+            current /= part
+            directories.extend(("--dir", str(current)))
+        command = (
+            bubblewrap,
+            "--unshare-net",
+            "--die-with-parent",
+            "--new-session",
+            "--ro-bind",
+            "/usr",
+            "/usr",
+            "--ro-bind",
+            "/lib",
+            "/lib",
+            "--ro-bind",
+            "/lib64",
+            "/lib64",
+            "--proc",
+            "/proc",
+            "--dev",
+            "/dev",
+            "--tmpfs",
+            "/tmp",
+            *directories,
+            "--ro-bind",
+            str(project_root / ".venv"),
+            str(project_root / ".venv"),
+            "--ro-bind",
+            str(source_root),
+            str(source_root),
+            "--ro-bind",
+            str(skill.root),
+            "/skill",
+            "--chdir",
+            "/skill",
+            sys.executable,
+            "-m",
+            "siro.skill_worker",
+        )
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            env=environment,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
+        )
+        assert process.stdin is not None
+        assert process.stdout is not None
+        assert process.stderr is not None
+        process.stdin.write(json.dumps(validated).encode())
+        await process.stdin.drain()
+        process.stdin.close()
+        output_task = asyncio.create_task(process.stdout.read(limits.output_bytes + 1))
+        error_task = asyncio.create_task(process.stderr.read(4097))
+        try:
+            await asyncio.wait_for(process.wait(), skill.manifest.timeout_ms / 1000)
+            output = await output_task
+            error = await error_task
+        except (TimeoutError, asyncio.CancelledError) as failure:
+            process.kill()
+            await process.wait()
+            output_task.cancel()
+            error_task.cancel()
+            if isinstance(failure, asyncio.CancelledError):
+                raise
+            raise SkillExecutionError("skill timed out") from failure
+        if len(output) > limits.output_bytes:
+            raise SkillExecutionError("skill output exceeded its limit")
+        if process.returncode != 0:
+            detail = error.decode(errors="replace")[:1024]
+            raise SkillExecutionError(f"skill worker failed: {detail}")
+        try:
+>           result = json.loads(output)
+                     ^^^^^^^^^^^^^^^^^^
+
+src/siro/adapters/skill_worker.py:173: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7e86a85123c0>
+s = '{"text":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+>           obj, end = self.scan_once(s, idx)
+                       ^^^^^^^^^^^^^^^^^^^^^^
+E           json.decoder.JSONDecodeError: Unterminated string starting at: line 1 column 9 (char 8)
+
+/usr/lib/python3.14/json/decoder.py:361: JSONDecodeError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-1/test_real_worker_complete_vali0')
+
+    @pytest.mark.asyncio
+    async def test_real_worker_complete_valid_large_json_under_manifest_limit(tmp_path: Path) -> None:
+        skill = make_skill(
+            tmp_path,
+            "def run(arguments): return {'text': 'x'*100000}\n",
+            resource_limits={"memory_mb": 64, "output_bytes": 131072, "cpu_seconds": 1},
+        )
+>       result = await asyncio.wait_for(WorkerSupervisor().execute(skill, {"text": "synthetic"}), 3)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_worker_lifecycle.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/asyncio/tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+src/siro/adapters/skill_worker.py:78: in execute
+    return await self._execute_one(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.adapters.skill_worker.WorkerSupervisor object at 0x7e86a6135550>
+skill = InstalledSkill(manifest=SkillManifest(id='test.lifecycle', version='1.0.0', contract_version=1, description='Synthetic...ma={'type': 'object', 'properties': {'text': {'type': 'string'}}, 'required': ['text'], 'additionalProperties': False})
+arguments = {'text': 'synthetic'}
+
+    async def _execute_one(self, skill: InstalledSkill, arguments: object) -> dict[str, object]:
+        validated = validate_object(skill.input_schema, arguments)
+        limits = skill.manifest.resource_limits
+        bubblewrap = shutil.which("bwrap")
+        if bubblewrap is None or not sys.platform.startswith("linux"):
+            raise SkillExecutionError("a supported bubblewrap sandbox is required")
+        source_root = Path(__file__).parents[2]
+        environment = {
+            "PATH": "/usr/bin:/bin",
+            "LANG": "C.UTF-8",
+            "PYTHONUNBUFFERED": "1",
+            "SIRO_SKILL_ROOT": "/skill",
+            "SIRO_SKILL_ENTRYPOINT": skill.manifest.entrypoint,
+            "SIRO_WORKER_MEMORY_MB": str(limits.memory_mb),
+            "SIRO_WORKER_CPU_SECONDS": str(limits.cpu_seconds),
+        }
+        project_root = source_root.parent
+        home_parts = project_root.parts[1:]
+        directories: list[str] = []
+        current = Path("/")
+        for part in home_parts:
+            current /= part
+            directories.extend(("--dir", str(current)))
+        command = (
+            bubblewrap,
+            "--unshare-net",
+            "--die-with-parent",
+            "--new-session",
+            "--ro-bind",
+            "/usr",
+            "/usr",
+            "--ro-bind",
+            "/lib",
+            "/lib",
+            "--ro-bind",
+            "/lib64",
+            "/lib64",
+            "--proc",
+            "/proc",
+            "--dev",
+            "/dev",
+            "--tmpfs",
+            "/tmp",
+            *directories,
+            "--ro-bind",
+            str(project_root / ".venv"),
+            str(project_root / ".venv"),
+            "--ro-bind",
+            str(source_root),
+            str(source_root),
+            "--ro-bind",
+            str(skill.root),
+            "/skill",
+            "--chdir",
+            "/skill",
+            sys.executable,
+            "-m",
+            "siro.skill_worker",
+        )
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            env=environment,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
+        )
+        assert process.stdin is not None
+        assert process.stdout is not None
+        assert process.stderr is not None
+        process.stdin.write(json.dumps(validated).encode())
+        await process.stdin.drain()
+        process.stdin.close()
+        output_task = asyncio.create_task(process.stdout.read(limits.output_bytes + 1))
+        error_task = asyncio.create_task(process.stderr.read(4097))
+        try:
+            await asyncio.wait_for(process.wait(), skill.manifest.timeout_ms / 1000)
+            output = await output_task
+            error = await error_task
+        except (TimeoutError, asyncio.CancelledError) as failure:
+            process.kill()
+            await process.wait()
+            output_task.cancel()
+            error_task.cancel()
+            if isinstance(failure, asyncio.CancelledError):
+                raise
+            raise SkillExecutionError("skill timed out") from failure
+        if len(output) > limits.output_bytes:
+            raise SkillExecutionError("skill output exceeded its limit")
+        if process.returncode != 0:
+            detail = error.decode(errors="replace")[:1024]
+            raise SkillExecutionError(f"skill worker failed: {detail}")
+        try:
+            result = json.loads(output)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+>           raise SkillExecutionError("skill returned invalid JSON") from error
+E           siro.adapters.skill_worker.SkillExecutionError: skill returned invalid JSON
+
+src/siro/adapters/skill_worker.py:175: SkillExecutionError
+____ test_real_worker_cancel_during_spawn_joins_and_reaps_owned_tree[False] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-1/test_real_worker_cancel_during0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e86a5eb0c30>
+repeat = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("repeat", [False, True])
+    async def test_real_worker_cancel_during_spawn_joins_and_reaps_owned_tree(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, repeat: bool
+    ) -> None:
+        owned = OwnedProcesses(monkeypatch)
+        owned.release = asyncio.Event()
+        skill = make_skill(
+            tmp_path, "import time\ndef run(arguments): time.sleep(30); return arguments\n"
+        )
+        task = asyncio.create_task(WorkerSupervisor().execute(skill, {"text": "synthetic"}))
+        try:
+            await owned.observe()
+            task.cancel()
+            await asyncio.sleep(0.01)
+            if repeat:
+                task.cancel()
+            owned.release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(asyncio.shield(task), 2)
+>           assert owned.processes and all(p.returncode is not None for p in owned.processes)
+E           assert ([<Process 16521>] and False)
+E            +  where [<Process 16521>] = <test_skill_worker_lifecycle.OwnedProcesses object at 0x7e86a6135160>.processes
+E            +  and   False = all(<generator object test_real_worker_cancel_during_spawn_joins_and_reaps_owned_tree.<locals>.<genexpr> at 0x7e86a5d0df20>)
+
+tests/integration/test_skill_worker_lifecycle.py:202: AssertionError
+____ test_real_worker_cancel_during_spawn_joins_and_reaps_owned_tree[True] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-1/test_real_worker_cancel_during1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e86a5ec4c00>
+repeat = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("repeat", [False, True])
+    async def test_real_worker_cancel_during_spawn_joins_and_reaps_owned_tree(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, repeat: bool
+    ) -> None:
+        owned = OwnedProcesses(monkeypatch)
+        owned.release = asyncio.Event()
+        skill = make_skill(
+            tmp_path, "import time\ndef run(arguments): time.sleep(30); return arguments\n"
+        )
+        task = asyncio.create_task(WorkerSupervisor().execute(skill, {"text": "synthetic"}))
+        try:
+            await owned.observe()
+            task.cancel()
+            await asyncio.sleep(0.01)
+            if repeat:
+                task.cancel()
+            owned.release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(asyncio.shield(task), 2)
+>           assert owned.processes and all(p.returncode is not None for p in owned.processes)
+E           assert ([<Process 16523>] and False)
+E            +  where [<Process 16523>] = <test_skill_worker_lifecycle.OwnedProcesses object at 0x7e86a5e8e0d0>.processes
+E            +  and   False = all(<generator object test_real_worker_cancel_during_spawn_joins_and_reaps_owned_tree.<locals>.<genexpr> at 0x7e86a61c7ac0>)
+
+tests/integration/test_skill_worker_lifecycle.py:202: AssertionError
+____ test_request_limits_and_finite_json_reject_before_process_spawn[large] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-1/test_request_limits_and_finite0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e86a5f0c850>
+kind = 'large'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kind", ["large", "nonfinite"])
+    async def test_request_limits_and_finite_json_reject_before_process_spawn(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        skill = make_skill(tmp_path, "def run(arguments): return {'text':'synthetic'}\n")
+        arguments: object = {"text": "x" * 65536}
+        if kind == "nonfinite":
+            schema = {
+                "type": "object", "properties": {"value": {"type": "number"}},
+                "required": ["value"], "additionalProperties": False,
+            }
+            (skill.root / "input.json").write_text(json.dumps(schema))
+            skill = load_skill(skill.root)
+            arguments = {"value": float("nan")}
+    
+        async def forbidden(*args: object, **kwargs: object) -> object:
+            raise AssertionError("invalid bounded request must never spawn")
+    
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", forbidden)
+        with pytest.raises((ValueError, SkillExecutionError)):
+>           await WorkerSupervisor().execute(skill, arguments)
+
+tests/integration/test_skill_worker_lifecycle.py:289: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/adapters/skill_worker.py:78: in execute
+    return await self._execute_one(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:139: in _execute_one
+    process = await asyncio.create_subprocess_exec(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = ('/usr/bin/bwrap', '--unshare-net', '--die-with-parent', '--new-session', '--ro-bind', '/usr', ...)
+kwargs = {'env': {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'PYTHONUNBUFFERED': '1', 'SIRO_SKILL_ROOT': '/skill', ...}, 'stdin': -1, 'stdout': -1, 'stderr': -1, ...}
+
+    async def forbidden(*args: object, **kwargs: object) -> object:
+>       raise AssertionError("invalid bounded request must never spawn")
+E       AssertionError: invalid bounded request must never spawn
+
+tests/integration/test_skill_worker_lifecycle.py:285: AssertionError
+__ test_request_limits_and_finite_json_reject_before_process_spawn[nonfinite] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-1/test_request_limits_and_finite1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e86a5f065d0>
+kind = 'nonfinite'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kind", ["large", "nonfinite"])
+    async def test_request_limits_and_finite_json_reject_before_process_spawn(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        skill = make_skill(tmp_path, "def run(arguments): return {'text':'synthetic'}\n")
+        arguments: object = {"text": "x" * 65536}
+        if kind == "nonfinite":
+            schema = {
+                "type": "object", "properties": {"value": {"type": "number"}},
+                "required": ["value"], "additionalProperties": False,
+            }
+            (skill.root / "input.json").write_text(json.dumps(schema))
+            skill = load_skill(skill.root)
+            arguments = {"value": float("nan")}
+    
+        async def forbidden(*args: object, **kwargs: object) -> object:
+            raise AssertionError("invalid bounded request must never spawn")
+    
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", forbidden)
+        with pytest.raises((ValueError, SkillExecutionError)):
+>           await WorkerSupervisor().execute(skill, arguments)
+
+tests/integration/test_skill_worker_lifecycle.py:289: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/adapters/skill_worker.py:78: in execute
+    return await self._execute_one(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:139: in _execute_one
+    process = await asyncio.create_subprocess_exec(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = ('/usr/bin/bwrap', '--unshare-net', '--die-with-parent', '--new-session', '--ro-bind', '/usr', ...)
+kwargs = {'env': {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'PYTHONUNBUFFERED': '1', 'SIRO_SKILL_ROOT': '/skill', ...}, 'stdin': -1, 'stdout': -1, 'stderr': -1, ...}
+
+    async def forbidden(*args: object, **kwargs: object) -> object:
+>       raise AssertionError("invalid bounded request must never spawn")
+E       AssertionError: invalid bounded request must never spawn
+
+tests/integration/test_skill_worker_lifecycle.py:285: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_real_worker_complete_valid_large_json_under_manifest_limit
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_real_worker_cancel_during_spawn_joins_and_reaps_owned_tree[False]
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_real_worker_cancel_during_spawn_joins_and_reaps_owned_tree[True]
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_request_limits_and_finite_json_reject_before_process_spawn[large]
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_request_limits_and_finite_json_reject_before_process_spawn[nonfinite]
+5 failed, 9 deselected in 0.51s

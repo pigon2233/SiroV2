@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from siro.config import SiroSettings
 from siro.doctor import CheckResult, checks_as_dicts, collect_checks
 
 
@@ -22,3 +25,21 @@ def test_check_serialization_is_stable() -> None:
             "required_for": "minimal",
         }
     ]
+
+
+def test_doctor_uses_explicit_service_paths(tmp_path: Path) -> None:
+    config = tmp_path / "config.json"
+    config.write_text(SiroSettings().model_dump_json(), encoding="utf-8")
+    checks = {
+        check.name: check
+        for check in collect_checks(
+            {
+                "SIRO_CONFIG": str(config),
+                "SIRO_DATA_DIR": str(tmp_path / "data"),
+                "SIRO_GATEWAY_PORT": "1",
+            }
+        )
+    }
+    assert checks["config"].state == "available"
+    assert checks["data-directory"].detail == str(tmp_path / "data")
+    assert checks["gateway"].state == "unavailable"

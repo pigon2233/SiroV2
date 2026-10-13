@@ -1,0 +1,138 @@
+{
+  "$defs": {
+    "DeviceAction": {
+      "additionalProperties": false,
+      "properties": {
+        "input_schema": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Input Schema",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input_schema"
+      ],
+      "title": "DeviceAction",
+      "type": "object"
+    },
+    "DeviceProperty": {
+      "additionalProperties": false,
+      "properties": {
+        "readable": {
+          "default": true,
+          "title": "Readable",
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "DeviceProperty",
+      "type": "object"
+    },
+    "Privacy": {
+      "enum": [
+        "local_only",
+        "trusted_lan",
+        "cloud_allowed"
+      ],
+      "title": "Privacy",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "actions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DeviceAction"
+      },
+      "title": "Actions",
+      "type": "object"
+    },
+    "adapter": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Adapter",
+      "type": "string"
+    },
+    "availability_ttl_ms": {
+      "exclusiveMinimum": 0,
+      "maximum": 86400000,
+      "title": "Availability Ttl Ms",
+      "type": "integer"
+    },
+    "device_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-zA-Z0-9._:-]+$",
+      "title": "Device Id",
+      "type": "string"
+    },
+    "events": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "location": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Location"
+    },
+    "privacy": {
+      "$ref": "#/$defs/Privacy"
+    },
+    "properties": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DeviceProperty"
+      },
+      "title": "Properties",
+      "type": "object"
+    }
+  },
+  "required": [
+    "device_id",
+    "adapter",
+    "properties",
+    "actions",
+    "availability_ttl_ms",
+    "privacy"
+  ],
+  "title": "DeviceDescriptor",
+  "type": "object"
+}

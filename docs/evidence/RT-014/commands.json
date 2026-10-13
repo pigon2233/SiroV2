@@ -1,0 +1,33 @@
+[
+  {
+    "command": "uv run pytest -q tests/integration/test_memory_ingress.py tests/integration/test_memory_v2.py tests/integration/test_session_restore.py tests/integration/test_integrated_companion.py",
+    "exit": 0,
+    "result": "27 passed"
+  },
+  {
+    "command": "uv run pytest -q",
+    "exit": 0,
+    "result": "426 passed,5 skipped,3 warnings"
+  },
+  {
+    "command": "uv run ruff check src tests",
+    "exit": 0
+  },
+  {
+    "command": "uv run mypy",
+    "exit": 0,
+    "result": "184 files"
+  },
+  {
+    "command": "uv run ruff format --check [six scoped files]",
+    "exit": 0
+  },
+  {
+    "command": "git apply --reverse --check docs/evidence/RT-014/completion.patch",
+    "exit": 0
+  },
+  {
+    "command": "git diff --check",
+    "exit": 0
+  }
+]

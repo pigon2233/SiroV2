@@ -1,0 +1,103 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_dispatcher_primary_cleanup_error_survives_repeated_snapshot_cleanup_cancel _
+
+self = <test_skill_worker_lifecycle.test_dispatcher_primary_cleanup_error_survives_repeated_snapshot_cleanup_cancel.<locals>.FailingSupervisor object at 0x7b8da1d69e80>
+skill = InstalledSkill(manifest=SkillManifest(id='test.lifecycle', version='1.0.0', contract_version=1, description='Synthetic...ma={'type': 'object', 'properties': {'text': {'type': 'string'}}, 'required': ['text'], 'additionalProperties': False})
+arguments = {'text': 'synthetic'}
+
+    async def execute(self, skill: InstalledSkill, arguments: object) -> dict[str, object]:
+>       raise ExecutionCleanupError("synthetic owned worker cleanup refusal")
+E       siro.adapters.process_execution.ExecutionCleanupError: synthetic owned worker cleanup refusal
+
+tests/integration/test_skill_worker_lifecycle.py:607: ExecutionCleanupError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-12/test_dispatcher_primary_cleanu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b8da1ac0050>
+
+    @pytest.mark.asyncio
+    async def test_dispatcher_primary_cleanup_error_survives_repeated_snapshot_cleanup_cancel(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from siro.adapters.skill_worker import SkillDispatcher
+        from siro.persistence.skills import SQLiteSkillRegistry
+        from siro.persistence.sqlite import SQLiteStore
+    
+        original = skill_worker._prepare_skill
+        entered, release = threading.Event(), threading.Event()
+        snapshots: list[Path] = []
+    
+        def prepare(skill: InstalledSkill) -> skill_worker._PreparedSkill:
+            prepared = original(skill)
+            snapshot = prepared.snapshot.root
+            snapshots.append(snapshot)
+            original_cleanup = prepared.directory.cleanup
+    
+            def blocked_cleanup() -> None:
+                entered.set()
+                assert release.wait(3)
+                original_cleanup()
+    
+            monkeypatch.setattr(prepared.directory, "cleanup", blocked_cleanup)
+            return prepared
+    
+        class FailingSupervisor(WorkerSupervisor):
+            async def execute(self, skill: InstalledSkill, arguments: object) -> dict[str, object]:
+                raise ExecutionCleanupError("synthetic owned worker cleanup refusal")
+    
+        monkeypatch.setattr(skill_worker, "_prepare_skill", prepare)
+        skill = make_skill(tmp_path, "def run(arguments): return arguments\n")
+        store = SQLiteStore(tmp_path / "synthetic-registry.db")
+        await store.initialize()
+        registry = SQLiteSkillRegistry(store)
+        await registry.install(skill)
+        assert await registry.set_enabled(skill.manifest.id, skill.manifest.version, enabled=True)
+        dispatcher = SkillDispatcher(registry, FailingSupervisor())
+        task = asyncio.create_task(dispatcher.execute(skill, {"text": "synthetic"}))
+        try:
+            async with asyncio.timeout(2):
+                while not entered.is_set():
+                    await asyncio.sleep(0.005)
+            task.cancel()
+            await asyncio.sleep(0.01)
+            task.cancel()
+            assert not task.done(), "cancel must retain frozen snapshot cleanup ownership"
+            release.set()
+            with pytest.raises(ExecutionCleanupError, match="synthetic owned worker cleanup refusal"):
+>               await asyncio.wait_for(task, 2)
+
+tests/integration/test_skill_worker_lifecycle.py:628: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/asyncio/tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+src/siro/adapters/skill_worker.py:229: in execute
+    return await self._execute_verified(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:260: in _execute_verified
+    await _join_owned(asyncio.create_task(asyncio.to_thread(prepared.directory.cleanup)))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = <Task finished name='Task-4' coro=<to_thread() done, defined at /usr/lib/python3.14/asyncio/threads.py:12> result=None>
+propagate_cancellation = True
+
+    async def _join_owned[T](task: asyncio.Task[T], *, propagate_cancellation: bool = True) -> T:
+        """Finish owned preparation/cleanup even if the caller repeats cancellation."""
+        cancelled = False
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                cancelled = True
+                continue
+        result = task.result()
+        if cancelled and propagate_cancellation:
+>           raise asyncio.CancelledError
+E           asyncio.exceptions.CancelledError
+
+src/siro/adapters/skill_worker.py:67: CancelledError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_dispatcher_primary_cleanup_error_survives_repeated_snapshot_cleanup_cancel
+1 failed, 23 deselected in 0.22s

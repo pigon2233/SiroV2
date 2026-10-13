@@ -1,0 +1,1056 @@
+diff --git a/src/siro/services/tools/orchestrator.py b/src/siro/services/tools/orchestrator.py
+--- a/src/siro/services/tools/orchestrator.py
++++ b/src/siro/services/tools/orchestrator.py
+@@ -7,7 +7,7 @@
+ import sqlite3
+ from collections.abc import Awaitable, Callable
+ from copy import deepcopy
+-from dataclasses import dataclass, replace
++from dataclasses import asdict, dataclass, replace
+ from datetime import UTC, datetime
+ from enum import StrEnum
+ from typing import cast
+@@ -142,15 +142,75 @@
+     return kind is None
+ 
+ 
++class AvailabilityState(StrEnum):
++    AVAILABLE = "available"
++    UNAVAILABLE = "unavailable"
++    UNKNOWN = "unknown"
++
++
++class AvailabilityReason(StrEnum):
++    READY = "ready"
++    NOT_READY = "not_ready"
++    TOOLS_DISABLED = "tools_disabled"
++    BROWSER_EXECUTABLE_MISSING = "browser_executable_missing"
++    WORKSPACE_UNAVAILABLE = "workspace_unavailable"
++    AVAILABILITY_CHECK_FAILED = "availability_check_failed"
++
++
++@dataclass(frozen=True, slots=True)
++class ToolAvailability:
++    state: AvailabilityState
++    reason: AvailabilityReason
++
++
++@dataclass(frozen=True, slots=True)
++class ToolMetadata:
++    display_name: str | None = None
++    output_contract: str | None = None
++    required_permissions: tuple[str, ...] | None = None
++    risk_level: str | None = None
++    version: str | None = None
++    provenance: str | None = None
++    timeout_seconds: float | None = None
++    failure_behavior: str | None = None
++
++
++@dataclass(frozen=True, slots=True)
++class ToolCatalogSnapshot:
++    definitions: tuple[ToolDefinition, ...]
++    inventory: tuple[dict[str, object], ...]
++    checked_at: str
++
++    def model_context(self) -> str:
++        # Schemas already travel as tools. Hidden compatibility handlers are not model tools.
++        rows = [
++            {k: v for k, v in row.items() if k not in {"input_schema", "checked_at"}}
++            for row in self.inventory
++            if row["model_visible"]
++        ]
++        return json.dumps(
++            {
++                "authorizes_execution": False,
++                "instruction": "Registered capabilities for this request, not proof of success. "
++                "Use only current request tool definitions; null means unknown. "
++                "Unavailable tools must not be bypassed with another capability.",
++                "capabilities": rows,
++            },
++            ensure_ascii=False,
++            separators=(",", ":"),
++        )
++
++
+ @dataclass(frozen=True, slots=True)
+ class ToolDescriptor:
+     name: str
+     definition: ToolDefinition | None
+     executor: ToolExecutor
+-    available: Callable[[], bool]
++    available: Callable[[], bool | ToolAvailability]
+     backend: str
+     effect: str
+     contextual_executor: ContextToolExecutor | None = None
++    metadata: ToolMetadata | None = None
+ 
+ 
+ class ToolCatalog:
+@@ -164,14 +224,35 @@
+             if descriptor.definition is not None and descriptor.definition.name != descriptor.name:
+                 raise ValueError("tool descriptor name differs from schema")
+             self._descriptors[descriptor.name] = replace(
+-                descriptor, definition=deepcopy(descriptor.definition)
+-            )
++                descriptor,
++                definition=deepcopy(descriptor.definition),
++                metadata=deepcopy(descriptor.metadata),
++            )
++
++    @staticmethod
++    def _availability(descriptor: ToolDescriptor) -> ToolAvailability:
++        try:
++            result = descriptor.available()
++        except Exception:
++            # Readiness is descriptive. Never publish exception payloads or enable on failure.
++            return ToolAvailability(
++                AvailabilityState.UNKNOWN, AvailabilityReason.AVAILABILITY_CHECK_FAILED
++            )
++        if isinstance(result, ToolAvailability):
++            return result
++        if result is True:
++            return ToolAvailability(AvailabilityState.AVAILABLE, AvailabilityReason.READY)
++        if result is False:
++            return ToolAvailability(AvailabilityState.UNAVAILABLE, AvailabilityReason.NOT_READY)
++        return ToolAvailability(
++            AvailabilityState.UNKNOWN, AvailabilityReason.AVAILABILITY_CHECK_FAILED
++        )
+ 
+     def require(self, name: str, arguments: dict[str, object]) -> ToolDescriptor:
+         descriptor = self._descriptors.get(name)
+         if descriptor is None:
+             raise ValueError("unsupported tool capability")
+-        if not descriptor.available():
++        if self._availability(descriptor).state is not AvailabilityState.AVAILABLE:
+             raise ToolUnavailableError("tool is unavailable")
+         if descriptor.definition is not None and not _valid_arguments(
+             arguments, descriptor.definition.input_schema
+@@ -180,23 +261,37 @@
+         return descriptor
+ 
+     def definitions(self) -> tuple[ToolDefinition, ...]:
+-        return tuple(
+-            deepcopy(d.definition)
+-            for d in self._descriptors.values()
+-            if d.definition is not None and d.available()
+-        )
++        return self.capture().definitions
+ 
+     def snapshot(self) -> list[dict[str, object]]:
+-        return [
+-            {
+-                "name": d.name,
+-                "available": d.available(),
+-                "backend": d.backend,
+-                "effect": d.effect,
+-                "model_visible": d.definition is not None,
+-            }
+-            for d in self._descriptors.values()
+-        ]
++        return list(self.capture().inventory)
++
++    def capture(self) -> ToolCatalogSnapshot:
++        checked_at = datetime.now(UTC).isoformat()
++        definitions: list[ToolDefinition] = []
++        inventory: list[dict[str, object]] = []
++        for d in self._descriptors.values():
++            status = self._availability(d)
++            available = status.state is AvailabilityState.AVAILABLE
++            definition = deepcopy(d.definition)
++            if available and definition is not None:
++                definitions.append(definition)
++            inventory.append(
++                {
++                    "name": d.name,
++                    "available": available,
++                    "backend": d.backend,
++                    "effect": d.effect,
++                    "model_visible": d.definition is not None,
++                    "availability": status.state.value,
++                    "reason_code": status.reason.value,
++                    "checked_at": checked_at,
++                    "description": definition.description if definition is not None else None,
++                    "input_schema": deepcopy(definition.input_schema) if definition else None,
++                    **asdict(d.metadata or ToolMetadata()),
++                }
++            )
++        return ToolCatalogSnapshot(tuple(definitions), tuple(inventory), checked_at)
+ 
+ 
+ class ProposalState(StrEnum):
+diff --git a/src/siro/services/presentation/integrated.py b/src/siro/services/presentation/integrated.py
+--- a/src/siro/services/presentation/integrated.py
++++ b/src/siro/services/presentation/integrated.py
+@@ -5,7 +5,7 @@
+ import asyncio
+ import json
+ from collections.abc import Awaitable, Callable
+-from dataclasses import asdict
++from dataclasses import asdict, replace
+ from datetime import UTC, datetime
+ from pathlib import Path
+ from uuid import uuid4
+@@ -51,6 +51,8 @@
+ )
+ 
+ _AGENT_TOOLS = DEFAULT_MODEL_TOOLS
++_CAPABILITY_BLOCK_START = "\n\n[SIRO_TOOL_CAPABILITIES_V1]\n"
++_CAPABILITY_BLOCK_END = "\n[/SIRO_TOOL_CAPABILITIES_V1]"
+ 
+ _EMOTION_COMMANDS = {
+     "生氣": ("angry", "現在示範生氣的表情。"),
+@@ -146,13 +148,41 @@
+             return self._tool_orchestrator.model_tools()
+         return _AGENT_TOOLS
+ 
+-    def _checkpoint_callback(self, run_id: str) -> Callable[[], Awaitable[None]] | None:
++    def _model_capabilities(self) -> tuple[tuple[ToolDefinition, ...], str | None]:
++        if (
++            self._runtime_profile == "candidate"
++            and self._tool_orchestrator is not None
++            and self._tool_orchestrator.catalog is not None
++        ):
++            captured = self._tool_orchestrator.catalog.capture()
++            return captured.definitions, captured.model_context()
++        return self._model_tools(), None
++
++    def _checkpoint_callback(
++        self, run_id: str, capability_context: str | None = None
++    ) -> Callable[[], Awaitable[None]] | None:
+         if self._runtime_profile != "candidate":
+             return None
+ 
+         async def ready() -> None:
+             assert self._agent_runs is not None
+-            await self._agent_runs.checkpoint(run_id, self._message_histories[run_id])
++            history = self._message_histories[run_id]
++            if capability_context is not None:
++                if not history or history[0].role != "system":
++                    raise RuntimeError("native history has no system context")
++                content = history[0].content
++                if content.endswith(_CAPABILITY_BLOCK_END):
++                    base, marker, _ = content.rpartition(_CAPABILITY_BLOCK_START)
++                    if marker:
++                        content = base
++                history[0] = replace(
++                    history[0],
++                    content=content
++                    + _CAPABILITY_BLOCK_START
++                    + capability_context
++                    + _CAPABILITY_BLOCK_END,
++                )
++            await self._agent_runs.checkpoint(run_id, history)
+ 
+         return ready
+ 
+@@ -452,6 +482,7 @@
+                 f"attachment={relationship.attachment:.2f}, rupture={relationship.rupture:.2f} "
+                 f"[source:{source_event.event_id}]",
+             )
++            tools, capability_context = self._model_capabilities()
+             result = await self._core.respond(
+                 session_id,
+                 "siro",
+@@ -459,9 +490,9 @@
+                 privacy=self._privacy,
+                 on_delta=delta,
+                 verified_context=verified_preferences,
+-                tools=self._model_tools(),
++                tools=tools,
+                 message_history=self._message_histories.get(agent_run.run_id),
+-                on_messages_ready=self._checkpoint_callback(agent_run.run_id),
++                on_messages_ready=self._checkpoint_callback(agent_run.run_id, capability_context),
+                 recent_messages=recent_messages,
+                 memory_route_privacy=EventPrivacy(self._privacy.value)
+                 if self._runtime_profile == "candidate"
+@@ -688,15 +719,16 @@
+             if run_id not in self._terminated:
+                 await emit({"type": "assistant_delta", "session_id": session_id, "text": value})
+ 
++        tools, capability_context = self._model_capabilities()
+         result = await self._core.respond(
+             session_id,
+             "siro",
+             prompt,
+             privacy=self._privacy,
+             on_delta=continuation_delta,
+-            tools=self._model_tools(),
++            tools=tools,
+             message_history=history,
+-            on_messages_ready=self._checkpoint_callback(run_id),
++            on_messages_ready=self._checkpoint_callback(run_id, capability_context),
+         )
+         if run_id in self._terminated:
+             return
+diff --git a/src/siro/services/presentation/gateway.py b/src/siro/services/presentation/gateway.py
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -43,10 +43,14 @@
+ from siro.services.tools.execution import ExecutionContext
+ from siro.services.tools.orchestrator import (
+     DEFAULT_MODEL_TOOLS,
++    AvailabilityReason,
++    AvailabilityState,
+     ProposalState,
++    ToolAvailability,
+     ToolCatalog,
+     ToolDescriptor,
+     ToolExecutor,
++    ToolMetadata,
+     ToolOrchestrator,
+     ToolProposal,
+ )
+@@ -1513,14 +1517,60 @@
+     if browser_sessions is not None:
+         definitions.update({d.name: d for d in BROWSER_SESSION_TOOLS})
+ 
+-    def readiness(name: str) -> bool:
++    def readiness(name: str) -> ToolAvailability:
+         if not state.kill_switches["tools"]:
+-            return False
++            return ToolAvailability(
++                AvailabilityState.UNAVAILABLE, AvailabilityReason.TOOLS_DISABLED
++            )
+         if name.startswith("filesystem."):
+-            return workspace is not None and workspace.available
++            ready = workspace is not None and workspace.available
++            return ToolAvailability(
++                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
++                AvailabilityReason.READY if ready else AvailabilityReason.WORKSPACE_UNAVAILABLE,
++            )
+         if name.startswith("browser."):
+-            return bool(shutil.which("google-chrome") or shutil.which("chromium"))
+-        return True  # argv/application target checks remain in their existing handlers
++            ready = bool(shutil.which("google-chrome") or shutil.which("chromium"))
++            return ToolAvailability(
++                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
++                AvailabilityReason.READY
++                if ready
++                else AvailabilityReason.BROWSER_EXECUTABLE_MISSING,
++            )
++        # Target checks remain in existing handlers; this is not a successful action probe.
++        return ToolAvailability(AvailabilityState.AVAILABLE, AvailabilityReason.READY)
++
++    def tool_metadata(name: str) -> ToolMetadata:
++        labels = {
++            "computer.execute": "執行電腦任務",
++            "process.start": "啟動應用程式",
++            "browser.navigate+read": "開啟並閱讀網頁",
++            "browser.read": "閱讀目前網頁",
++            "browser.fill": "填寫網頁欄位",
++            "browser.click": "操作網頁按鈕",
++            "browser.close": "關閉目前網頁",
++            "filesystem.read": "讀取工作目錄文字檔",
++            "filesystem.list": "查看工作目錄檔案",
++        }
++        read_only = name in {
++            "browser.navigate+read",
++            "browser.read",
++            "filesystem.read",
++            "filesystem.list",
++        }
++        return ToolMetadata(
++            display_name=labels.get(name),
++            required_permissions=("tool_approval", "workspace_path_grant")
++            if name.startswith("filesystem.")
++            else ("tool_approval",),
++            risk_level="observe/read-only" if read_only else "computer",
++            version="siro-tool-contract-v1",
++            provenance="siro_builtin",
++            timeout_seconds=120
++            if name == "computer.execute"
++            else (30 if name.startswith("browser.") and browser_sessions is not None else None),
++            failure_behavior="Failures produce failed observations. Unknown effects are not "
++            "automatically repeated. Availability is not proof of successful execution.",
++        )
+ 
+     catalog = (
+         ToolCatalog(
+@@ -1545,6 +1595,7 @@
+                     contextual_executor=execute_computer
+                     if name == "computer.execute"
+                     else (browser_contextual.get(name) or workspace_contextual.get(name)),
++                    metadata=tool_metadata(name),
+                 )
+                 for name, handler in handlers.items()
+             )
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -57,7 +57,7 @@
+       </section>
+     </main>
+     <div class="toolbox">
+-      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><div id="tool-proposals"></div><details><summary>指定工作目錄讀取</summary>    <section>
++      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><div id="tool-proposals"></div><details><summary>指定工作目錄讀取</summary>    <section>
+       <h2>我的工作目錄</h2>
+       <p id="workspace-status">讀取狀態中…</p>
+       <p>將要分享的文字檔放入上方目錄，再請 SIRO 閱讀。每份文字檔最多 8 KiB。</p>
+@@ -300,9 +300,29 @@
+         if (!response.ok) throw new Error(data.detail || "操作未完成");
+         return data;
+       }
++      function renderCapabilities(tools = []) {
++        const root = document.querySelector("#capability-items"); root.textContent = "";
++        const reasons = {tools_disabled:"你已暫停電腦操作", browser_executable_missing:"尚未找到可用的瀏覽器", workspace_unavailable:"工作目錄讀取服務尚未就緒", not_ready:"目前尚未就緒", availability_check_failed:"目前無法確認狀態"};
++        if (!tools.length) root.textContent = "目前沒有已註冊的電腦能力。";
++        for (const tool of tools) {
++          const card = document.createElement("div"); card.className = "proposal";
++          const title = document.createElement("strong"); title.textContent = tool.display_name || tool.name;
++          const status = document.createElement("p");
++          status.textContent = tool.availability === "available" ? "目前可用；操作時仍需檢查授權與目標。" : (reasons[tool.reason_code] || "此執行模式尚未提供即時狀態。");
++          const detail = document.createElement("small");
++          detail.textContent = (tool.risk_level === "observe/read-only" ? "讀取用途" : tool.risk_level === "computer" ? "可能改變電腦或網頁狀態" : "操作風險尚未宣告") + (tool.model_visible === false ? " · 相容入口，不會提供給模型選擇" : "");
++          card.append(title, status, detail); root.appendChild(card);
++        }
++      }
++      async function refreshCapabilities() {
++        try { renderCapabilities((await productRequest("/v1/runtime")).tools); }
++        catch { document.querySelector("#capability-items").textContent = "目前無法更新能力狀態，請稍後重試。"; }
++      }
++      document.querySelector("#capabilities-refresh").onclick = refreshCapabilities;
+       async function refreshProduct() {
+         try {
+           const runtime = await productRequest("/v1/runtime");
++          renderCapabilities(runtime.tools);
+           const features = runtime.features || {}, workspace = features.workspace || {};
+           const backend = runtime.routes?.model || "offline";
+           document.querySelector("#model-status").textContent = backend === "offline" ? "尚未連接對話模型" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
+diff --git a/tests/integration/test_capability_inventory.py b/tests/integration/test_capability_inventory.py
+new file mode 100644
+--- /dev/null
++++ b/tests/integration/test_capability_inventory.py
+@@ -0,0 +1,392 @@
++from __future__ import annotations
++
++import json
++from datetime import datetime
++from pathlib import Path
++
++import pytest
++
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import ToolCall, ToolDefinition
++from siro.services.tools.orchestrator import (
++    AvailabilityReason,
++    AvailabilityState,
++    ProposalState,
++    SQLiteToolProposalRepository,
++    ToolAvailability,
++    ToolCatalog,
++    ToolDescriptor,
++    ToolMetadata,
++    ToolOrchestrator,
++    ToolUnavailableError,
++)
++
++
++def _definition(name: str = "fixture.read") -> ToolDefinition:
++    return ToolDefinition(
++        name,
++        "Read a synthetic owner-approved text file.",
++        {
++            "type": "object",
++            "properties": {"path": {"type": "string"}},
++            "required": ["path"],
++            "additionalProperties": False,
++        },
++    )
++
++
++async def _never_execute(arguments: dict[str, object]) -> object:
++    raise AssertionError("capability discovery invoked an executor")
++
++
++def _json_keys(value: object) -> set[str]:
++    if isinstance(value, dict):
++        return set(value) | set().union(*(_json_keys(item) for item in value.values()))
++    if isinstance(value, list):
++        return set().union(*(_json_keys(item) for item in value))
++    return set()
++
++
++def test_capture_uses_one_readiness_result_for_inventory_and_model_tools() -> None:
++    reads: dict[str, int] = {"fixture.read": 0, "fixture.hidden": 0}
++
++    def readiness(name: str) -> bool:
++        reads[name] += 1
++        # A second read would contradict the first result within the same capture.
++        return reads[name] % 2 == 1
++
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "fixture.read",
++                _definition(),
++                _never_execute,
++                lambda: readiness("fixture.read"),
++                "synthetic",
++                "read",
++            ),
++            ToolDescriptor(
++                "fixture.hidden",
++                None,
++                _never_execute,
++                lambda: readiness("fixture.hidden"),
++                "synthetic",
++                "computer",
++            ),
++        )
++    )
++
++    first = catalog.capture()
++    assert reads == {"fixture.read": 1, "fixture.hidden": 1}
++    assert (
++        tuple(item.name for item in first.definitions)
++        == tuple(
++            item["name"] for item in first.inventory if item["model_visible"] and item["available"]
++        )
++        == ("fixture.read",)
++    )
++    assert isinstance(first.inventory, tuple)
++    assert isinstance(first.definitions, tuple)
++    assert datetime.fromisoformat(first.checked_at).tzinfo is not None
++    assert all(item["checked_at"] == first.checked_at for item in first.inventory)
++    # Generating model context must consume this capture, not probe again.
++    first.model_context()
++    assert reads == {"fixture.read": 1, "fixture.hidden": 1}
++
++    second = catalog.capture()
++    assert reads == {"fixture.read": 2, "fixture.hidden": 2}
++    assert second.definitions == ()
++    assert not any(item["available"] for item in second.inventory)
++    assert all(item["available"] for item in first.inventory)
++
++
++@pytest.mark.parametrize(
++    ("state", "reason"),
++    [
++        (AvailabilityState.UNAVAILABLE, AvailabilityReason.TOOLS_DISABLED),
++        (AvailabilityState.UNKNOWN, AvailabilityReason.AVAILABILITY_CHECK_FAILED),
++    ],
++)
++def test_nonavailable_typed_results_are_omitted_and_cannot_authorize(
++    state: AvailabilityState, reason: AvailabilityReason
++) -> None:
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "fixture.read",
++                _definition(),
++                _never_execute,
++                lambda: ToolAvailability(state, reason),
++                "synthetic",
++                "read",
++            ),
++        )
++    )
++
++    capture = catalog.capture()
++    assert capture.definitions == ()
++    row = capture.inventory[0]
++    assert row["available"] is False
++    assert row["availability"] == state.value
++    assert row["reason_code"] == reason.value
++    # Compatibility: model_visible still describes registration, not readiness.
++    assert row["model_visible"] is True
++    with pytest.raises(ToolUnavailableError):
++        catalog.require("fixture.read", {"path": "synthetic.txt"})
++
++
++def test_readiness_exception_is_unknown_without_private_error_content() -> None:
++    canary = "synthetic-private-canary:https://private.invalid/?secret=fixture-only"
++    reads = 0
++
++    def readiness() -> bool:
++        nonlocal reads
++        reads += 1
++        raise RuntimeError(canary)
++
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "fixture.read", _definition(), _never_execute, readiness, "synthetic", "read"
++            ),
++        )
++    )
++    capture = catalog.capture()
++    assert reads == 1
++    assert capture.definitions == ()
++    assert capture.inventory[0]["availability"] == "unknown"
++    assert capture.inventory[0]["reason_code"] == "availability_check_failed"
++    assert canary not in json.dumps(capture.inventory)
++    assert canary not in capture.model_context()
++    assert reads == 1
++    with pytest.raises(ToolUnavailableError) as raised:
++        catalog.require("fixture.read", {"path": "synthetic.txt"})
++    assert canary not in str(raised.value)
++    assert reads == 2
++
++
++def test_returned_schema_and_metadata_cannot_mutate_canonical_contract() -> None:
++    definition = _definition()
++    metadata = ToolMetadata(
++        display_name="Synthetic text read",
++        output_contract="UTF-8 text with bounded output; no write operation.",
++        required_permissions=("owner approval", "synthetic read scope"),
++        risk_level="observe/read-only",
++        version="fixture-v1",
++        provenance="synthetic test adapter",
++        timeout_seconds=5,
++        failure_behavior="No automatic retry after unknown outcome.",
++    )
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "fixture.read",
++                definition,
++                _never_execute,
++                lambda: True,
++                "synthetic",
++                "read",
++                metadata=metadata,
++            ),
++        )
++    )
++    capture = catalog.capture()
++    row = capture.inventory[0]
++    assert row["description"] == definition.description
++    assert row["display_name"] == metadata.display_name
++    permissions = row["required_permissions"]
++    assert isinstance(permissions, (tuple, list))
++    assert tuple(permissions) == metadata.required_permissions
++    assert row["timeout_seconds"] == metadata.timeout_seconds
++    assert row["output_contract"] == metadata.output_contract
++
++    row["required_permissions"] = ["arbitrary host access"]
++    row["risk_level"] = "no approval needed"
++    schema = row["input_schema"]
++    assert isinstance(schema, dict)
++    schema["required"] = []
++    capture.definitions[0].input_schema["required"] = []
++    definition.input_schema["required"] = []
++
++    fresh = catalog.capture().inventory[0]
++    fresh_permissions = fresh["required_permissions"]
++    assert isinstance(fresh_permissions, (tuple, list))
++    assert tuple(fresh_permissions) == metadata.required_permissions
++    assert fresh["risk_level"] == "observe/read-only"
++    fresh_schema = fresh["input_schema"]
++    assert isinstance(fresh_schema, dict)
++    assert fresh_schema["required"] == ["path"]
++    with pytest.raises(ValueError, match="invalid tool arguments"):
++        catalog.require("fixture.read", {})
++    catalog.require("fixture.read", {"path": "synthetic.txt"})
++
++
++@pytest.mark.parametrize("enabled", [False, True])
++def test_legacy_positional_descriptor_preserves_boolean_readiness_and_unknown_metadata(
++    enabled: bool,
++) -> None:
++    async def contextual(arguments: dict[str, object], context: object) -> object:
++        raise AssertionError("inventory invoked the contextual executor")
++
++    # The seventh positional argument remains the existing contextual executor.
++    descriptor = ToolDescriptor(
++        "fixture.read",
++        _definition(),
++        _never_execute,
++        lambda: enabled,
++        "synthetic",
++        "read",
++        contextual,
++    )
++    catalog = ToolCatalog((descriptor,))
++    capture = catalog.capture()
++    row = capture.inventory[0]
++    assert row["name"] == "fixture.read"
++    assert row["available"] is enabled
++    assert row["backend"] == "synthetic"
++    assert row["effect"] == "read"
++    assert row["model_visible"] is True
++    assert row["availability"] == ("available" if enabled else "unavailable")
++    assert row["reason_code"] == ("ready" if enabled else "not_ready")
++    for field in (
++        "display_name",
++        "output_contract",
++        "required_permissions",
++        "risk_level",
++        "version",
++        "provenance",
++        "timeout_seconds",
++        "failure_behavior",
++    ):
++        assert row[field] is None
++    assert bool(capture.definitions) is enabled
++    if enabled:
++        assert catalog.require("fixture.read", {"path": "synthetic.txt"}).contextual_executor is (
++            contextual
++        )
++
++
++def test_model_context_excludes_hidden_and_schemas_and_is_not_a_grant() -> None:
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "fixture.read",
++                _definition(),
++                _never_execute,
++                lambda: ToolAvailability(
++                    AvailabilityState.UNAVAILABLE, AvailabilityReason.BROWSER_EXECUTABLE_MISSING
++                ),
++                "synthetic",
++                "read",
++            ),
++            ToolDescriptor(
++                "fixture.hidden",
++                None,
++                _never_execute,
++                lambda: True,
++                "synthetic",
++                "computer",
++                metadata=ToolMetadata(display_name="hidden-private-canary"),
++            ),
++        )
++    )
++    capture = catalog.capture()
++    text = capture.model_context()
++    context = json.loads(text)
++    assert context["authorizes_execution"] is False
++    assert "fixture.read" in text
++    assert "browser_executable_missing" in text
++    assert "fixture.hidden" not in text
++    assert "hidden-private-canary" not in text
++    assert "input_schema" not in _json_keys(context)
++    assert "output_contract" in _json_keys(context)
++    assert capture.definitions == ()
++    assert len(capture.inventory) == 2
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("revoke_after_approval", [False, True])
++async def test_stale_capture_cannot_bypass_revocation(
++    tmp_path: Path, revoke_after_approval: bool
++) -> None:
++    enabled = True
++    executed: list[dict[str, object]] = []
++
++    async def execute(arguments: dict[str, object]) -> object:
++        executed.append(arguments)
++        return {"text": "synthetic"}
++
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "fixture.read", _definition(), execute, lambda: enabled, "synthetic", "read"
++            ),
++        )
++    )
++    store = SQLiteStore(tmp_path / "inventory.sqlite3")
++    await store.initialize()
++    orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {}, catalog=catalog)
++    old_capture = catalog.capture()
++    assert old_capture.inventory[0]["available"] is True
++    call = ToolCall("synthetic-call", "fixture.read", {"path": "synthetic.txt"})
++
++    if revoke_after_approval:
++        proposal = await orchestrator.propose("synthetic-session", call, risk="observe/read-only")
++        await orchestrator.resolve(
++            proposal.proposal_id, approved=True, arguments=proposal.arguments
++        )
++        enabled = False
++        result = await orchestrator.execute(proposal.proposal_id)
++        assert result.state is ProposalState.FAILED
++        assert result.error == "ToolUnavailableError"
++    else:
++        enabled = False
++        with pytest.raises(ToolUnavailableError):
++            await orchestrator.propose("synthetic-session", call, risk="observe/read-only")
++
++    assert executed == []
++    assert old_capture.inventory[0]["available"] is True
++    assert catalog.capture().inventory[0]["available"] is False
++
++
++@pytest.mark.asyncio
++async def test_read_only_metadata_does_not_approve_a_proposal(tmp_path: Path) -> None:
++    executed: list[dict[str, object]] = []
++
++    async def execute(arguments: dict[str, object]) -> object:
++        executed.append(arguments)
++        return {"text": "synthetic"}
++
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "fixture.read",
++                _definition(),
++                execute,
++                lambda: True,
++                "synthetic",
++                "read",
++                metadata=ToolMetadata(
++                    risk_level="observe/read-only", required_permissions=("owner approval",)
++                ),
++            ),
++        )
++    )
++    store = SQLiteStore(tmp_path / "inventory.sqlite3")
++    await store.initialize()
++    orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {}, catalog=catalog)
++    catalog.capture().model_context()
++    proposal = await orchestrator.propose(
++        "synthetic-session",
++        ToolCall("synthetic-call", "fixture.read", {"path": "synthetic.txt"}),
++        risk="observe/read-only",
++    )
++    assert proposal.state is ProposalState.PENDING
++    with pytest.raises(ValueError):
++        await orchestrator.execute(proposal.proposal_id)
++    assert executed == []
++    rejected = await orchestrator.resolve(
++        proposal.proposal_id, approved=False, arguments=proposal.arguments
++    )
++    assert rejected.state is ProposalState.DENIED
++    assert executed == []
+diff --git a/tests/integration/test_capability_product.py b/tests/integration/test_capability_product.py
+new file mode 100644
+--- /dev/null
++++ b/tests/integration/test_capability_product.py
+@@ -0,0 +1,235 @@
++from __future__ import annotations
++
++import json
++import os
++import subprocess
++from collections.abc import AsyncIterator
++from pathlib import Path
++
++import pytest
++import uvicorn
++from fastapi import FastAPI
++from fastapi.testclient import TestClient
++
++from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, Privacy, ToolCall
++from siro.services.presentation.gateway import GatewayHub, main
++from siro.services.presentation.integrated import IntegratedCompanion
++from siro.services.tools.orchestrator import (
++    DEFAULT_MODEL_TOOLS,
++    SQLiteToolProposalRepository,
++    ToolCatalog,
++    ToolDescriptor,
++    ToolMetadata,
++    ToolOrchestrator,
++)
++
++
++def test_main_reports_current_safe_reasons_without_running_tools(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
++    monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
++    monkeypatch.setenv("SIRO_RUNTIME_BINARY", str(tmp_path / "private-path-canary"))
++    monkeypatch.setenv("SIRO_OPENAI_API_KEY", "private-key-canary")
++    monkeypatch.setattr("shutil.which", lambda name: None)
++    effects: list[object] = []
++
++    async def forbid(*args: object, **kwargs: object) -> None:
++        effects.append(args)
++        raise AssertionError("inventory attempted a subprocess")
++
++    monkeypatch.setattr("asyncio.create_subprocess_exec", forbid)
++
++    def run(app: FastAPI, **kwargs: object) -> None:
++        with TestClient(app) as client:
++            assert client.get("/v1/runtime").status_code == 401
++            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
++                "token"
++            ]
++            headers = {"authorization": f"Bearer {token}"}
++            for _ in range(2):
++                response = client.get("/v1/runtime", headers=headers)
++                rows = {item["name"]: item for item in response.json()["tools"]}
++                assert rows["browser.read"]["reason_code"] == "browser_executable_missing"
++                assert rows["filesystem.read"]["reason_code"] == "workspace_unavailable"
++                assert rows["computer.execute"]["availability"] == "available"
++                assert rows["computer.execute"]["required_permissions"] == ["tool_approval"]
++                assert rows["computer.execute"]["output_contract"] is None
++                assert rows["process.start"]["model_visible"] is False
++                assert "private-path-canary" not in response.text
++                assert "private-key-canary" not in response.text
++            client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": False})
++            rows = client.get("/v1/runtime", headers=headers).json()["tools"]
++            assert all(not item["available"] for item in rows)
++            assert {item["reason_code"] for item in rows} == {"tools_disabled"}
++            client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": True})
++            rows = {
++                item["name"]: item
++                for item in client.get("/v1/runtime", headers=headers).json()["tools"]
++            }
++            assert rows["computer.execute"]["available"]
++            assert rows["browser.read"]["reason_code"] == "browser_executable_missing"
++
++    monkeypatch.setattr(uvicorn, "run", run)
++    main()
++    assert effects == []
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("profile", ["candidate", "legacy"])
++async def test_model_round_inventory_is_current_and_preserves_native_pairs(
++    tmp_path: Path, profile: str
++) -> None:
++    requests: list[ModelRequest] = []
++    enabled = True
++    calls = 0
++
++    class Model:
++        name = "capability-fixture"
++
++        async def stream(
++            self, request: ModelRequest, cancellation: CancellationToken
++        ) -> AsyncIterator[ModelChunk]:
++            requests.append(request)
++            if len(requests) == 1:
++                yield ModelChunk(
++                    "tool_request",
++                    tool_call=ToolCall("cap-1", "computer.execute", {"argv": ["synthetic"]}),
++                )
++            else:
++                yield ModelChunk("text", "synthetic completed answer")
++            yield ModelChunk("finished")
++
++    async def execute(arguments: dict[str, object]) -> object:
++        nonlocal enabled, calls
++        enabled = False
++        calls += 1
++        return {"result": "synthetic-success"}
++
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "computer.execute",
++                DEFAULT_MODEL_TOOLS[1],
++                execute,
++                lambda: enabled,
++                "python.argv",
++                "computer",
++                metadata=ToolMetadata(display_name="電腦任務"),
++            ),
++        )
++    )
++    orchestrator = ToolOrchestrator(
++        SQLiteToolProposalRepository(store),
++        {"computer.execute": execute},
++        catalog=catalog if profile == "candidate" else None,
++    )
++    hub = GatewayHub()
++    controller = IntegratedCompanion(
++        tmp_path,
++        Model(),
++        hub,
++        MinimalWebBodyAdapter(WebSocketBodyTransport()),
++        privacy=Privacy.LOCAL_ONLY,
++        tool_orchestrator=orchestrator,
++        runtime_profile=profile,
++        auto_authorize=lambda: True,
++    )
++    await controller.respond("synthetic", "synthetic original goal")
++    assert calls == 1 and len(requests) == 2
++    marker = "[SIRO_TOOL_CAPABILITIES_V1]"
++    if profile == "candidate":
++        states = []
++        for request in requests:
++            systems = [message for message in request.messages if message.role == "system"]
++            assert len(systems) == 1 and systems[0].content.count(marker) == 1
++            payload = (
++                systems[0]
++                .content.split(marker + "\n")[1]
++                .split("\n[/SIRO_TOOL_CAPABILITIES_V1]")[0]
++            )
++            view = json.loads(payload)
++            assert view["authorizes_execution"] is False
++            row = view["capabilities"][0]
++            assert bool(request.tools) == row["available"]
++            states.append(row["availability"])
++        assert states == ["available", "unavailable"]
++        assert requests[1].tools == ()
++        messages = requests[1].messages
++        assert [message.role for message in messages] == ["system", "user", "assistant", "tool"]
++        assert messages[1].content == "synthetic original goal"
++        assert messages[2].tool_calls[0].call_id == messages[3].tool_call_id == "cap-1"
++        assert "synthetic-success" in messages[3].content
++        # A new request gets a fresh sample; no previous block or state leaks between runs.
++        enabled = True
++        await controller.respond("synthetic", "synthetic next goal")
++        assert len(requests) == 3
++        system = requests[2].messages[0].content
++        assert system.count(marker) == 1
++        assert json.loads(
++            system.split(marker + "\n")[1].split("\n[/SIRO_TOOL_CAPABILITIES_V1]")[0]
++        )["capabilities"][0]["available"]
++    else:
++        assert all(marker not in request.prompt for request in requests)
++        assert requests[1].tools == DEFAULT_MODEL_TOOLS
++    await hub.shutdown()
++
++
++def test_frontend_inventory_is_read_only_refreshable_and_uses_text_content() -> None:
++    html = Path("src/siro/services/presentation/static/index.html").read_text()
++    script = html[
++        html.index("      function renderCapabilities(") : html.index(
++            "      async function refreshProduct("
++        )
++    ]
++    assert "renderCapabilities(runtime.tools)" in html
++    code = r"""
++const assert = require('node:assert/strict');
++class Element {
++  constructor() { this.children = []; this._text = ''; }
++  set textContent(value) { this._text = String(value); this.children = []; }
++  get textContent() { return this._text + this.children.map(c=>c.textContent).join(''); }
++  set innerHTML(value) { throw new Error('metadata entered HTML'); }
++  append(...nodes) { this.children.push(...nodes); }
++  appendChild(node) { this.children.push(node); }
++}
++const root = new Element(), button = new Element();
++const document = {querySelector: s=>s==='#capability-items'?root:button,
++  createElement:()=>new Element()};
++let response = {tools:[]}, failure = false; const calls = [];
++const productRequest = async url=>{
++  calls.push(url); if(failure) throw Error('private-canary'); return response;
++};
++"""
++    checks = r"""
++(async()=>{
++  renderCapabilities([{name:'computer.execute',display_name:'<img src=x onerror=evil()>',
++    availability:'available',risk_level:'computer',model_visible:true}]);
++  assert(root.textContent.includes('<img src=x onerror=evil()>'));
++  assert(root.textContent.includes('仍需檢查授權'));
++  response = {tools:[{name:'browser.read',reason_code:'browser_executable_missing',
++    availability:'unavailable'}]};
++  await button.onclick(); assert(root.textContent.includes('尚未找到可用的瀏覽器'));
++  response = {tools:[{name:'computer.execute',reason_code:'tools_disabled',
++    availability:'unavailable'}]};
++  await button.onclick(); assert(root.textContent.includes('你已暫停電腦操作'));
++  assert(!root.textContent.includes('目前可用'));
++  renderCapabilities([{name:'legacy',available:true}]);
++  assert(root.textContent.includes('尚未提供即時狀態'));
++  failure=true; await button.onclick(); assert(root.textContent.includes('目前無法更新'));
++  assert(!root.textContent.includes('private-canary'));
++  assert(calls.every(url=>url==='/v1/runtime'));
++})().catch(error=>{console.error(error);process.exitCode=1;});
++"""
++    result = subprocess.run(
++        ["node", "-e", code + script + checks], capture_output=True, text=True, timeout=10
++    )
++    assert result.returncode == 0, result.stderr

@@ -25,6 +25,22 @@ config/body-assets/*/
 *.db-shm
 runtime-data/
 /models/
+firmware/esp32/include/secrets.h
 recordings/
 screenshots/
 docs/evidence/**/private/
+
+# Public tokenizer cache is reproducibly provisioned, not committed
+/.siro-data/tokenizers/
+
+# Private local companion service output
+/.siro-data/companion-service.log
+
+# Local, pinned development analysis tool and disposable source graph.
+/.siro-data/developer-tools/
+
+# Private runtime caches/models/audio and machine-specific Codex configuration.
+/.siro-data/
+/.codex/
+docs/evidence/**/*.wav
+/:memory:*

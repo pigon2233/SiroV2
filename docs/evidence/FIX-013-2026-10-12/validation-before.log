@@ -1,0 +1,900 @@
+FFFFFFFFFF.......FF..FFFFFFFF                                            [100%]
+=================================== FAILURES ===================================
+___ test_rejected_metadata_keeps_entire_latest_database_and_source[checksum] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_rejected_metadata_keeps_e0')
+kind = 'checksum'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind",
+        ["checksum", "name", "gap", "future", "negative", "string", "fraction", "null", "duplicate"],
+    )
+    async def test_rejected_metadata_keeps_entire_latest_database_and_source(
+        tmp_path: Path, kind: str
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        latest = snapshot(live)
+        source_bytes = source.read_bytes()
+        store = SQLiteStore(live)
+    
+        with pytest.raises(MigrationError):
+            await store.restore_from(source)
+    
+>       assert snapshot(live) == latest
+E       assert ('BEGIN TRANS... TEXT);', ...) == ('BEGIN TRANS... TEXT);', ...)
+E         
+E         At index 2 diff: 'INSERT INTO "acceptance_conversation" VALUES(\'old-snapshot\');' != 'INSERT INTO "acceptance_conversation" VALUES(\'latest-completed\');'
+E         Use -v to get more diff
+
+tests/integration/test_sqlite_restore_validation.py:90: AssertionError
+_____ test_rejected_metadata_keeps_entire_latest_database_and_source[name] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_rejected_metadata_keeps_e1')
+kind = 'name'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind",
+        ["checksum", "name", "gap", "future", "negative", "string", "fraction", "null", "duplicate"],
+    )
+    async def test_rejected_metadata_keeps_entire_latest_database_and_source(
+        tmp_path: Path, kind: str
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        latest = snapshot(live)
+        source_bytes = source.read_bytes()
+        store = SQLiteStore(live)
+    
+        with pytest.raises(MigrationError):
+            await store.restore_from(source)
+    
+>       assert snapshot(live) == latest
+E       assert ('BEGIN TRANS... TEXT);', ...) == ('BEGIN TRANS... TEXT);', ...)
+E         
+E         At index 2 diff: 'INSERT INTO "acceptance_conversation" VALUES(\'old-snapshot\');' != 'INSERT INTO "acceptance_conversation" VALUES(\'latest-completed\');'
+E         Use -v to get more diff
+
+tests/integration/test_sqlite_restore_validation.py:90: AssertionError
+_____ test_rejected_metadata_keeps_entire_latest_database_and_source[gap] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_rejected_metadata_keeps_e2')
+kind = 'gap'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind",
+        ["checksum", "name", "gap", "future", "negative", "string", "fraction", "null", "duplicate"],
+    )
+    async def test_rejected_metadata_keeps_entire_latest_database_and_source(
+        tmp_path: Path, kind: str
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        latest = snapshot(live)
+        source_bytes = source.read_bytes()
+        store = SQLiteStore(live)
+    
+        with pytest.raises(MigrationError):
+>           await store.restore_from(source)
+
+tests/integration/test_sqlite_restore_validation.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/persistence/sqlite.py:361: in restore_from
+    await asyncio.to_thread(self._restore_sync, source)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:374: in _restore_sync
+    apply_migrations(restored, load_migrations())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+connection = <sqlite3.Connection object at 0x72740e4a47c0>
+migrations = (Migration(version=1, name='events', sql="CREATE TABLE events (\n    event_id TEXT PRIMARY KEY,\n    type TEXT NOT NUL...ARY KEY (identity_id, trait)\n);\n', checksum='945dc07b64d433d524d5bf6e83b575342d29626f57096e70c55c1d3bc8bf9ee3'), ...)
+
+    def apply_migrations(
+        connection: sqlite3.Connection,
+        migrations: Sequence[Migration],
+    ) -> None:
+        """Apply migrations atomically and reject modified applied migrations."""
+    
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                applied_at TEXT NOT NULL
+            )
+            """
+        )
+        applied = {
+            int(row[0]): (str(row[1]), str(row[2]))
+            for row in connection.execute(
+                "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
+            )
+        }
+        for migration in migrations:
+            existing = applied.get(migration.version)
+            if existing is not None:
+                if existing != (migration.name, migration.checksum):
+                    raise MigrationError(f"applied migration {migration.version} was modified")
+                continue
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                for statement in _split_statements(migration.sql):
+>                   connection.execute(statement)
+E                   sqlite3.OperationalError: table identities already exists
+
+src/siro/persistence/sqlite.py:100: OperationalError
+____ test_rejected_metadata_keeps_entire_latest_database_and_source[future] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_rejected_metadata_keeps_e3')
+kind = 'future'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind",
+        ["checksum", "name", "gap", "future", "negative", "string", "fraction", "null", "duplicate"],
+    )
+    async def test_rejected_metadata_keeps_entire_latest_database_and_source(
+        tmp_path: Path, kind: str
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        latest = snapshot(live)
+        source_bytes = source.read_bytes()
+        store = SQLiteStore(live)
+    
+>       with pytest.raises(MigrationError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests/integration/test_sqlite_restore_validation.py:87: Failed
+___ test_rejected_metadata_keeps_entire_latest_database_and_source[negative] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_rejected_metadata_keeps_e4')
+kind = 'negative'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind",
+        ["checksum", "name", "gap", "future", "negative", "string", "fraction", "null", "duplicate"],
+    )
+    async def test_rejected_metadata_keeps_entire_latest_database_and_source(
+        tmp_path: Path, kind: str
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        latest = snapshot(live)
+        source_bytes = source.read_bytes()
+        store = SQLiteStore(live)
+    
+        with pytest.raises(MigrationError):
+>           await store.restore_from(source)
+
+tests/integration/test_sqlite_restore_validation.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/persistence/sqlite.py:361: in restore_from
+    await asyncio.to_thread(self._restore_sync, source)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:374: in _restore_sync
+    apply_migrations(restored, load_migrations())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+connection = <sqlite3.Connection object at 0x72740e4e7790>
+migrations = (Migration(version=1, name='events', sql="CREATE TABLE events (\n    event_id TEXT PRIMARY KEY,\n    type TEXT NOT NUL...ARY KEY (identity_id, trait)\n);\n', checksum='945dc07b64d433d524d5bf6e83b575342d29626f57096e70c55c1d3bc8bf9ee3'), ...)
+
+    def apply_migrations(
+        connection: sqlite3.Connection,
+        migrations: Sequence[Migration],
+    ) -> None:
+        """Apply migrations atomically and reject modified applied migrations."""
+    
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                applied_at TEXT NOT NULL
+            )
+            """
+        )
+        applied = {
+            int(row[0]): (str(row[1]), str(row[2]))
+            for row in connection.execute(
+                "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
+            )
+        }
+        for migration in migrations:
+            existing = applied.get(migration.version)
+            if existing is not None:
+                if existing != (migration.name, migration.checksum):
+                    raise MigrationError(f"applied migration {migration.version} was modified")
+                continue
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                for statement in _split_statements(migration.sql):
+>                   connection.execute(statement)
+E                   sqlite3.OperationalError: table events already exists
+
+src/siro/persistence/sqlite.py:100: OperationalError
+____ test_rejected_metadata_keeps_entire_latest_database_and_source[string] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_rejected_metadata_keeps_e5')
+kind = 'string'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind",
+        ["checksum", "name", "gap", "future", "negative", "string", "fraction", "null", "duplicate"],
+    )
+    async def test_rejected_metadata_keeps_entire_latest_database_and_source(
+        tmp_path: Path, kind: str
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        latest = snapshot(live)
+        source_bytes = source.read_bytes()
+        store = SQLiteStore(live)
+    
+>       with pytest.raises(MigrationError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests/integration/test_sqlite_restore_validation.py:87: Failed
+___ test_rejected_metadata_keeps_entire_latest_database_and_source[fraction] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_rejected_metadata_keeps_e6')
+kind = 'fraction'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind",
+        ["checksum", "name", "gap", "future", "negative", "string", "fraction", "null", "duplicate"],
+    )
+    async def test_rejected_metadata_keeps_entire_latest_database_and_source(
+        tmp_path: Path, kind: str
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        latest = snapshot(live)
+        source_bytes = source.read_bytes()
+        store = SQLiteStore(live)
+    
+>       with pytest.raises(MigrationError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests/integration/test_sqlite_restore_validation.py:87: Failed
+_____ test_rejected_metadata_keeps_entire_latest_database_and_source[null] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_rejected_metadata_keeps_e7')
+kind = 'null'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind",
+        ["checksum", "name", "gap", "future", "negative", "string", "fraction", "null", "duplicate"],
+    )
+    async def test_rejected_metadata_keeps_entire_latest_database_and_source(
+        tmp_path: Path, kind: str
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        latest = snapshot(live)
+        source_bytes = source.read_bytes()
+        store = SQLiteStore(live)
+    
+        with pytest.raises(MigrationError):
+>           await store.restore_from(source)
+
+tests/integration/test_sqlite_restore_validation.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/persistence/sqlite.py:361: in restore_from
+    await asyncio.to_thread(self._restore_sync, source)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:374: in _restore_sync
+    apply_migrations(restored, load_migrations())
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+connection = <sqlite3.Connection object at 0x72740db39c60>
+migrations = (Migration(version=1, name='events', sql="CREATE TABLE events (\n    event_id TEXT PRIMARY KEY,\n    type TEXT NOT NUL...ARY KEY (identity_id, trait)\n);\n', checksum='945dc07b64d433d524d5bf6e83b575342d29626f57096e70c55c1d3bc8bf9ee3'), ...)
+
+    def apply_migrations(
+        connection: sqlite3.Connection,
+        migrations: Sequence[Migration],
+    ) -> None:
+        """Apply migrations atomically and reject modified applied migrations."""
+    
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                applied_at TEXT NOT NULL
+            )
+            """
+        )
+        applied = {
+>           int(row[0]): (str(row[1]), str(row[2]))
+            ^^^^^^^^^^^
+            for row in connection.execute(
+                "SELECT version, name, checksum FROM schema_migrations ORDER BY version"
+            )
+        }
+E       TypeError: int() argument must be a string, a bytes-like object or a real number, not 'NoneType'
+
+src/siro/persistence/sqlite.py:86: TypeError
+__ test_rejected_metadata_keeps_entire_latest_database_and_source[duplicate] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_rejected_metadata_keeps_e8')
+kind = 'duplicate'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind",
+        ["checksum", "name", "gap", "future", "negative", "string", "fraction", "null", "duplicate"],
+    )
+    async def test_rejected_metadata_keeps_entire_latest_database_and_source(
+        tmp_path: Path, kind: str
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        latest = snapshot(live)
+        source_bytes = source.read_bytes()
+        store = SQLiteStore(live)
+    
+>       with pytest.raises(MigrationError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests/integration/test_sqlite_restore_validation.py:87: Failed
+_______ test_migration_sql_failure_after_one_upgrade_never_reaches_live ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_migration_sql_failure_aft0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x72740e46da90>
+
+    @pytest.mark.asyncio
+    async def test_migration_sql_failure_after_one_upgrade_never_reaches_live(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        live, source = tmp_path / "latest.db", tmp_path / "old.db"
+        seed(live, "latest-completed")
+        seed(source, "old-snapshot", version=1)
+        latest, source_bytes = snapshot(live), source.read_bytes()
+        migrations = persistence.load_migrations()
+        failed = Migration(3, "synthetic-failure", "INSERT INTO missing_table VALUES (1)", "synthetic")
+        monkeypatch.setattr(persistence, "load_migrations", lambda: (*migrations[:2], failed))
+    
+        with pytest.raises(sqlite3.OperationalError, match="missing_table"):
+            await SQLiteStore(live).restore_from(source)
+    
+>       assert snapshot(live) == latest
+E       assert ('BEGIN TRANS... TEXT);', ...) == ('BEGIN TRANS... TEXT);', ...)
+E         
+E         At index 2 diff: 'INSERT INTO "acceptance_conversation" VALUES(\'old-snapshot\');' != 'INSERT INTO "acceptance_conversation" VALUES(\'latest-completed\');'
+E         Right contains 54 more items, first extra item: 'INSERT INTO "memory_fts_data" VALUES(1,X\'\');'
+E         Use -v to get more diff
+
+tests/integration/test_sqlite_restore_validation.py:114: AssertionError
+_________ test_invalid_source_never_creates_target_directory[corrupt] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_invalid_source_never_crea1')
+kind = 'corrupt'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kind", ["missing", "corrupt", "checksum"])
+    async def test_invalid_source_never_creates_target_directory(tmp_path: Path, kind: str) -> None:
+        source, live = tmp_path / "backup.db", tmp_path / "untouched" / "latest.db"
+        if kind == "corrupt":
+            source.write_bytes(b"synthetic invalid sqlite")
+        elif kind == "checksum":
+            seed(source, "old-snapshot")
+            damage_metadata(source, kind)
+        error = FileNotFoundError if kind == "missing" else (sqlite3.DatabaseError, MigrationError)
+    
+        with pytest.raises(error):
+            await SQLiteStore(live).restore_from(source)
+    
+>       assert not live.parent.exists()
+E       AssertionError: assert not True
+E        +  where True = exists()
+E        +    where exists = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_invalid_source_never_crea1/untouched').exists
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_invalid_source_never_crea1/untouched') = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_invalid_source_never_crea1/untouched/latest.db').parent
+
+tests/integration/test_sqlite_restore_validation.py:159: AssertionError
+_________ test_invalid_source_never_creates_target_directory[checksum] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_invalid_source_never_crea2')
+kind = 'checksum'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kind", ["missing", "corrupt", "checksum"])
+    async def test_invalid_source_never_creates_target_directory(tmp_path: Path, kind: str) -> None:
+        source, live = tmp_path / "backup.db", tmp_path / "untouched" / "latest.db"
+        if kind == "corrupt":
+            source.write_bytes(b"synthetic invalid sqlite")
+        elif kind == "checksum":
+            seed(source, "old-snapshot")
+            damage_metadata(source, kind)
+        error = FileNotFoundError if kind == "missing" else (sqlite3.DatabaseError, MigrationError)
+    
+        with pytest.raises(error):
+            await SQLiteStore(live).restore_from(source)
+    
+>       assert not live.parent.exists()
+E       AssertionError: assert not True
+E        +  where True = exists()
+E        +    where exists = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_invalid_source_never_crea2/untouched').exists
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_invalid_source_never_crea2/untouched') = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_invalid_source_never_crea2/untouched/latest.db').parent
+
+tests/integration/test_sqlite_restore_validation.py:159: AssertionError
+_ test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[False-False-checksum] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be0')
+kind = 'checksum', bundle = False, existing_target = False
+
+    @pytest.mark.parametrize("kind", ["checksum", "future"])
+    @pytest.mark.parametrize("bundle", [False, True])
+    @pytest.mark.parametrize("existing_target", [False, True])
+    def test_raw_and_zip_cli_reject_before_latest_db_or_config_changes(
+        tmp_path: Path, kind: str, bundle: bool, existing_target: bool
+    ) -> None:
+        data, source = tmp_path / "target", tmp_path / "backup.db"
+        config = tmp_path / "target-config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        config_before = config.read_bytes()
+        if existing_target:
+            data.mkdir()
+            seed(data / "siro.db", "latest-completed")
+        latest = snapshot(data / "siro.db") if existing_target else None
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        source_before = source.read_bytes()
+        arguments = ["restore", "--data", str(data)]
+        if bundle:
+            archive_path = tmp_path / "backup.zip"
+            content = {
+                "siro.db": source.read_bytes(),
+                "config.json": SiroSettings().model_dump_json().encode(),
+            }
+            manifest = {
+                "format": 1,
+                "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()},
+            }
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr("manifest.json", json.dumps(manifest))
+            arguments.extend(["--config", str(config), str(archive_path)])
+        else:
+            arguments.append(str(source))
+    
+        with pytest.raises(MigrationError):
+            main(arguments)
+    
+        if latest is not None:
+            assert snapshot(data / "siro.db") == latest
+        else:
+>           assert not data.exists()
+E           AssertionError: assert not True
+E            +  where True = exists()
+E            +    where exists = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be0/target').exists
+
+tests/integration/test_sqlite_restore_validation.py:243: AssertionError
+_ test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[False-False-future] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be1')
+kind = 'future', bundle = False, existing_target = False
+
+    @pytest.mark.parametrize("kind", ["checksum", "future"])
+    @pytest.mark.parametrize("bundle", [False, True])
+    @pytest.mark.parametrize("existing_target", [False, True])
+    def test_raw_and_zip_cli_reject_before_latest_db_or_config_changes(
+        tmp_path: Path, kind: str, bundle: bool, existing_target: bool
+    ) -> None:
+        data, source = tmp_path / "target", tmp_path / "backup.db"
+        config = tmp_path / "target-config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        config_before = config.read_bytes()
+        if existing_target:
+            data.mkdir()
+            seed(data / "siro.db", "latest-completed")
+        latest = snapshot(data / "siro.db") if existing_target else None
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        source_before = source.read_bytes()
+        arguments = ["restore", "--data", str(data)]
+        if bundle:
+            archive_path = tmp_path / "backup.zip"
+            content = {
+                "siro.db": source.read_bytes(),
+                "config.json": SiroSettings().model_dump_json().encode(),
+            }
+            manifest = {
+                "format": 1,
+                "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()},
+            }
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr("manifest.json", json.dumps(manifest))
+            arguments.extend(["--config", str(config), str(archive_path)])
+        else:
+            arguments.append(str(source))
+    
+>       with pytest.raises(MigrationError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests/integration/test_sqlite_restore_validation.py:237: Failed
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be1/target"}
+_ test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[False-True-checksum] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be2')
+kind = 'checksum', bundle = True, existing_target = False
+
+    @pytest.mark.parametrize("kind", ["checksum", "future"])
+    @pytest.mark.parametrize("bundle", [False, True])
+    @pytest.mark.parametrize("existing_target", [False, True])
+    def test_raw_and_zip_cli_reject_before_latest_db_or_config_changes(
+        tmp_path: Path, kind: str, bundle: bool, existing_target: bool
+    ) -> None:
+        data, source = tmp_path / "target", tmp_path / "backup.db"
+        config = tmp_path / "target-config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        config_before = config.read_bytes()
+        if existing_target:
+            data.mkdir()
+            seed(data / "siro.db", "latest-completed")
+        latest = snapshot(data / "siro.db") if existing_target else None
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        source_before = source.read_bytes()
+        arguments = ["restore", "--data", str(data)]
+        if bundle:
+            archive_path = tmp_path / "backup.zip"
+            content = {
+                "siro.db": source.read_bytes(),
+                "config.json": SiroSettings().model_dump_json().encode(),
+            }
+            manifest = {
+                "format": 1,
+                "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()},
+            }
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr("manifest.json", json.dumps(manifest))
+            arguments.extend(["--config", str(config), str(archive_path)])
+        else:
+            arguments.append(str(source))
+    
+        with pytest.raises(MigrationError):
+            main(arguments)
+    
+        if latest is not None:
+            assert snapshot(data / "siro.db") == latest
+        else:
+>           assert not data.exists()
+E           AssertionError: assert not True
+E            +  where True = exists()
+E            +    where exists = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be2/target').exists
+
+tests/integration/test_sqlite_restore_validation.py:243: AssertionError
+_ test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[False-True-future] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be3')
+kind = 'future', bundle = True, existing_target = False
+
+    @pytest.mark.parametrize("kind", ["checksum", "future"])
+    @pytest.mark.parametrize("bundle", [False, True])
+    @pytest.mark.parametrize("existing_target", [False, True])
+    def test_raw_and_zip_cli_reject_before_latest_db_or_config_changes(
+        tmp_path: Path, kind: str, bundle: bool, existing_target: bool
+    ) -> None:
+        data, source = tmp_path / "target", tmp_path / "backup.db"
+        config = tmp_path / "target-config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        config_before = config.read_bytes()
+        if existing_target:
+            data.mkdir()
+            seed(data / "siro.db", "latest-completed")
+        latest = snapshot(data / "siro.db") if existing_target else None
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        source_before = source.read_bytes()
+        arguments = ["restore", "--data", str(data)]
+        if bundle:
+            archive_path = tmp_path / "backup.zip"
+            content = {
+                "siro.db": source.read_bytes(),
+                "config.json": SiroSettings().model_dump_json().encode(),
+            }
+            manifest = {
+                "format": 1,
+                "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()},
+            }
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr("manifest.json", json.dumps(manifest))
+            arguments.extend(["--config", str(config), str(archive_path)])
+        else:
+            arguments.append(str(source))
+    
+>       with pytest.raises(MigrationError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests/integration/test_sqlite_restore_validation.py:237: Failed
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be3/target"}
+_ test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[True-False-checksum] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be4')
+kind = 'checksum', bundle = False, existing_target = True
+
+    @pytest.mark.parametrize("kind", ["checksum", "future"])
+    @pytest.mark.parametrize("bundle", [False, True])
+    @pytest.mark.parametrize("existing_target", [False, True])
+    def test_raw_and_zip_cli_reject_before_latest_db_or_config_changes(
+        tmp_path: Path, kind: str, bundle: bool, existing_target: bool
+    ) -> None:
+        data, source = tmp_path / "target", tmp_path / "backup.db"
+        config = tmp_path / "target-config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        config_before = config.read_bytes()
+        if existing_target:
+            data.mkdir()
+            seed(data / "siro.db", "latest-completed")
+        latest = snapshot(data / "siro.db") if existing_target else None
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        source_before = source.read_bytes()
+        arguments = ["restore", "--data", str(data)]
+        if bundle:
+            archive_path = tmp_path / "backup.zip"
+            content = {
+                "siro.db": source.read_bytes(),
+                "config.json": SiroSettings().model_dump_json().encode(),
+            }
+            manifest = {
+                "format": 1,
+                "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()},
+            }
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr("manifest.json", json.dumps(manifest))
+            arguments.extend(["--config", str(config), str(archive_path)])
+        else:
+            arguments.append(str(source))
+    
+        with pytest.raises(MigrationError):
+            main(arguments)
+    
+        if latest is not None:
+>           assert snapshot(data / "siro.db") == latest
+E           assert ('BEGIN TRANS... TEXT);', ...) == ('BEGIN TRANS... TEXT);', ...)
+E             
+E             At index 2 diff: 'INSERT INTO "acceptance_conversation" VALUES(\'old-snapshot\');' != 'INSERT INTO "acceptance_conversation" VALUES(\'latest-completed\');'
+E             Use -v to get more diff
+
+tests/integration/test_sqlite_restore_validation.py:241: AssertionError
+_ test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[True-False-future] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be5')
+kind = 'future', bundle = False, existing_target = True
+
+    @pytest.mark.parametrize("kind", ["checksum", "future"])
+    @pytest.mark.parametrize("bundle", [False, True])
+    @pytest.mark.parametrize("existing_target", [False, True])
+    def test_raw_and_zip_cli_reject_before_latest_db_or_config_changes(
+        tmp_path: Path, kind: str, bundle: bool, existing_target: bool
+    ) -> None:
+        data, source = tmp_path / "target", tmp_path / "backup.db"
+        config = tmp_path / "target-config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        config_before = config.read_bytes()
+        if existing_target:
+            data.mkdir()
+            seed(data / "siro.db", "latest-completed")
+        latest = snapshot(data / "siro.db") if existing_target else None
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        source_before = source.read_bytes()
+        arguments = ["restore", "--data", str(data)]
+        if bundle:
+            archive_path = tmp_path / "backup.zip"
+            content = {
+                "siro.db": source.read_bytes(),
+                "config.json": SiroSettings().model_dump_json().encode(),
+            }
+            manifest = {
+                "format": 1,
+                "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()},
+            }
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr("manifest.json", json.dumps(manifest))
+            arguments.extend(["--config", str(config), str(archive_path)])
+        else:
+            arguments.append(str(source))
+    
+>       with pytest.raises(MigrationError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests/integration/test_sqlite_restore_validation.py:237: Failed
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be5/target"}
+_ test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[True-True-checksum] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be6')
+kind = 'checksum', bundle = True, existing_target = True
+
+    @pytest.mark.parametrize("kind", ["checksum", "future"])
+    @pytest.mark.parametrize("bundle", [False, True])
+    @pytest.mark.parametrize("existing_target", [False, True])
+    def test_raw_and_zip_cli_reject_before_latest_db_or_config_changes(
+        tmp_path: Path, kind: str, bundle: bool, existing_target: bool
+    ) -> None:
+        data, source = tmp_path / "target", tmp_path / "backup.db"
+        config = tmp_path / "target-config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        config_before = config.read_bytes()
+        if existing_target:
+            data.mkdir()
+            seed(data / "siro.db", "latest-completed")
+        latest = snapshot(data / "siro.db") if existing_target else None
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        source_before = source.read_bytes()
+        arguments = ["restore", "--data", str(data)]
+        if bundle:
+            archive_path = tmp_path / "backup.zip"
+            content = {
+                "siro.db": source.read_bytes(),
+                "config.json": SiroSettings().model_dump_json().encode(),
+            }
+            manifest = {
+                "format": 1,
+                "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()},
+            }
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr("manifest.json", json.dumps(manifest))
+            arguments.extend(["--config", str(config), str(archive_path)])
+        else:
+            arguments.append(str(source))
+    
+        with pytest.raises(MigrationError):
+            main(arguments)
+    
+        if latest is not None:
+>           assert snapshot(data / "siro.db") == latest
+E           assert ('BEGIN TRANS... TEXT);', ...) == ('BEGIN TRANS... TEXT);', ...)
+E             
+E             At index 2 diff: 'INSERT INTO "acceptance_conversation" VALUES(\'old-snapshot\');' != 'INSERT INTO "acceptance_conversation" VALUES(\'latest-completed\');'
+E             Use -v to get more diff
+
+tests/integration/test_sqlite_restore_validation.py:241: AssertionError
+_ test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[True-True-future] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be7')
+kind = 'future', bundle = True, existing_target = True
+
+    @pytest.mark.parametrize("kind", ["checksum", "future"])
+    @pytest.mark.parametrize("bundle", [False, True])
+    @pytest.mark.parametrize("existing_target", [False, True])
+    def test_raw_and_zip_cli_reject_before_latest_db_or_config_changes(
+        tmp_path: Path, kind: str, bundle: bool, existing_target: bool
+    ) -> None:
+        data, source = tmp_path / "target", tmp_path / "backup.db"
+        config = tmp_path / "target-config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        config_before = config.read_bytes()
+        if existing_target:
+            data.mkdir()
+            seed(data / "siro.db", "latest-completed")
+        latest = snapshot(data / "siro.db") if existing_target else None
+        seed(source, "old-snapshot")
+        damage_metadata(source, kind)
+        source_before = source.read_bytes()
+        arguments = ["restore", "--data", str(data)]
+        if bundle:
+            archive_path = tmp_path / "backup.zip"
+            content = {
+                "siro.db": source.read_bytes(),
+                "config.json": SiroSettings().model_dump_json().encode(),
+            }
+            manifest = {
+                "format": 1,
+                "files": {name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()},
+            }
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr("manifest.json", json.dumps(manifest))
+            arguments.extend(["--config", str(config), str(archive_path)])
+        else:
+            arguments.append(str(source))
+    
+>       with pytest.raises(MigrationError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE MigrationError
+
+tests/integration/test_sqlite_restore_validation.py:237: Failed
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-72/test_raw_and_zip_cli_reject_be7/target"}
+=========================== short test summary info ============================
+FAILED tests/integration/test_sqlite_restore_validation.py::test_rejected_metadata_keeps_entire_latest_database_and_source[checksum]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_rejected_metadata_keeps_entire_latest_database_and_source[name]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_rejected_metadata_keeps_entire_latest_database_and_source[gap]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_rejected_metadata_keeps_entire_latest_database_and_source[future]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_rejected_metadata_keeps_entire_latest_database_and_source[negative]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_rejected_metadata_keeps_entire_latest_database_and_source[string]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_rejected_metadata_keeps_entire_latest_database_and_source[fraction]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_rejected_metadata_keeps_entire_latest_database_and_source[null]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_rejected_metadata_keeps_entire_latest_database_and_source[duplicate]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_migration_sql_failure_after_one_upgrade_never_reaches_live
+FAILED tests/integration/test_sqlite_restore_validation.py::test_invalid_source_never_creates_target_directory[corrupt]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_invalid_source_never_creates_target_directory[checksum]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[False-False-checksum]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[False-False-future]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[False-True-checksum]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[False-True-future]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[True-False-checksum]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[True-False-future]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[True-True-checksum]
+FAILED tests/integration/test_sqlite_restore_validation.py::test_raw_and_zip_cli_reject_before_latest_db_or_config_changes[True-True-future]
+20 failed, 9 passed in 1.18s

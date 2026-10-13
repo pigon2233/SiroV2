@@ -1,0 +1,204 @@
+--- before/src/siro/services/agent/native_context.py
++++ after/src/siro/services/agent/native_context.py
+@@ -66,18 +66,53 @@
+             ):
+                 raise ContextBudgetUnavailable("reference template cannot count this message role")
+             calls = message.get("tool_calls", [])
+-            if len(calls) > 1:
+-                raise ContextBudgetUnavailable("reference template supports one call per message")
+             for call in calls:
+                 call["function"]["arguments"] = json.loads(call["function"]["arguments"])
++        messages = payload["messages"]
++        normalized = []
++        batch_reserve = 0
++        index = 0
++        while index < len(messages):
++            message = messages[index]
++            calls = message.get("tool_calls", [])
++            if len(calls) <= 1:
++                normalized.append(message)
++                index += 1
++                continue
++            results = messages[index + 1 : index + 1 + len(calls)]
++            ids = [call["id"] for call in calls]
++            if (
++                len(set(ids)) != len(ids)
++                or len(results) != len(calls)
++                or any(result["role"] != "tool" for result in results)
++                or set(result.get("tool_call_id") for result in results) != set(ids)
++            ):
++                raise ContextBudgetUnavailable("multi-call batch requires exact complete pairing")
++            paired = {result["tool_call_id"]: result for result in results}
++            for call_index, call in enumerate(calls):
++                normalized.append(
++                    {
++                        **message,
++                        "content": message.get("content", "") if call_index == 0 else "",
++                        "tool_calls": [call],
++                    }
++                )
++                normalized.append(paired[call["id"]])
++            # Account for original multi-call JSON framing as an extra local reserve.
++            batch_reserve += len(
++                self._tokenizer.encode(
++                    json.dumps([message, *results], ensure_ascii=False), add_special_tokens=False
++                ).ids
++            )
++            index += 1 + len(calls)
+         rendered = self._template.render(
+-            messages=payload["messages"],
++            messages=normalized,
+             tools=payload.get("tools", []),
+             add_generation_prompt=True,
+             raise_exception=_raise_template,
+             strftime_now=lambda fmt: datetime.now(UTC).strftime(fmt),
+         )
+-        return len(self._tokenizer.encode(rendered, add_special_tokens=False).ids)
++        return len(self._tokenizer.encode(rendered, add_special_tokens=False).ids) + batch_reserve
+ 
+     def validate(self, request: ModelRequest) -> int:
+         if request.max_output_tokens > self._max_output:
+--- before/scripts/check
++++ after/scripts/check
+@@ -14,6 +14,9 @@
+ fi
+ 
+ "$uv_command" sync --locked --all-groups
++
++# Native tests require public pinned assets even in a clean checkout.
++"$uv_command" run python scripts/setup_context_tokenizer.py
+ 
+ if [[ -f Cargo.toml ]]; then
+   cargo_command="$(command -v cargo || true)"
+--- before/tests/integration/test_native_context_budget.py
++++ after/tests/integration/test_native_context_budget.py
+@@ -244,3 +244,129 @@
+     finally:
+         release.set()
+         await task
++
++
++@pytest.mark.parametrize("size", [10, 10000])
++def test_completed_batch_counts_all_calls_results_without_wire_mutation(size: int) -> None:
++    adapter = provider(Transport())
++    request = ModelRequest(
++        "goal",
++        "g",
++        Privacy.CLOUD_ALLOWED,
++        messages=(
++            ModelMessage("user", "goal"),
++            ModelMessage(
++                "assistant",
++                "batch content",
++                (
++                    ToolCall("a", "first", {"value": "a"}),
++                    ToolCall("b", "second", {"value": "b" * size}),
++                ),
++            ),
++            ModelMessage("tool", "one", tool_call_id="a"),
++            ModelMessage("tool", "two" * size, tool_call_id="b"),
++        ),
++    )
++    before = adapter.request_payload(request)
++    budget = GPTOSSBudget(ASSETS, adapter.request_payload)
++    count = budget.validate(request)
++    assert count > size // 2
++    assert adapter.request_payload(request) == before
++    with pytest.raises(ContextBudgetExceeded):
++        GPTOSSBudget(
++            ASSETS, adapter.request_payload, context_window=count + request.max_output_tokens + 255
++        ).validate(request)
++
++
++@pytest.mark.parametrize("oversized", [False, True])
++def test_actual_main_native_two_tool_continuation_effects_once(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, oversized: bool
++) -> None:
++    import json
++    import sys
++    from typing import Any
++
++    from siro.services.presentation import gateway
++
++    marker = tmp_path / "effects.txt"
++
++    class BatchTransport(Transport):
++        async def post(
++            self, url: str, payload: dict[str, object], headers: dict[str, str], timeout: float
++        ) -> dict[str, object]:
++            self.payloads.append(payload)
++            if len(self.payloads) == 1:
++                code = (
++                    f"from pathlib import Path; p=Path({str(marker)!r}); "
++                    "p.write_text((p.read_text() if p.exists() else '')+'effect\\n'); "
++                    + ("print('測試' * 10000)" if oversized else "print('confirmed')")
++                )
++                return {
++                    "choices": [
++                        {
++                            "message": {
++                                "content": "",
++                                "tool_calls": [
++                                    {
++                                        "id": name,
++                                        "type": "function",
++                                        "function": {
++                                            "name": "computer.execute",
++                                            "arguments": json.dumps(
++                                                {"argv": [sys.executable, "-c", code]}
++                                            ),
++                                        },
++                                    }
++                                    for name in ("first", "second")
++                                ],
++                            }
++                        }
++                    ]
++                }
++            return {"choices": [{"message": {"content": "synthetic done"}}]}
++
++    transport = BatchTransport()
++
++    class Adapter(OpenAICompatibleAdapter):
++        def __init__(self, *args: Any, **kwargs: Any) -> None:
++            kwargs["transport"] = transport
++            super().__init__(*args, **kwargs)
++
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
++    monkeypatch.setenv("SIRO_OPENAI_MODEL", "openai/gpt-oss-20b")
++    monkeypatch.setenv("SIRO_OPENAI_BASE_URL", "https://api.groq.com/openai")
++    monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic")
++    monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "0")
++    monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", "8192")
++    monkeypatch.setattr("siro.adapters.models.openai_compatible.OpenAICompatibleAdapter", Adapter)
++    apps: list[FastAPI] = []
++    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: apps.append(app))
++    gateway.main()
++    with TestClient(apps[0]) as client:
++        token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
++            "token"
++        ]
++        headers = {"authorization": f"Bearer {token}"}
++        client.post(
++            "/v1/conversations/batch/turns",
++            headers=headers,
++            json={"text": "synthetic two tool goal"},
++        )
++        run = client.get("/v1/agent-runs/batch", headers=headers).json()
++        assert marker.read_text().splitlines() == ["effect", "effect"]
++        assert run["state"] == ("failed" if oversized else "completed")
++        assert len(transport.payloads) == (1 if oversized else 2)
++        if oversized:
++            assert run["error"] == "ContextBudgetExceeded"
++        else:
++            messages = cast(list[dict[str, Any]], transport.payloads[1]["messages"])
++            assistant = next(m for m in messages if m.get("tool_calls"))
++            assert len(assistant["tool_calls"]) == 2
++            assert {m["tool_call_id"] for m in messages if m["role"] == "tool"} == {
++                "first",
++                "second",
++            }

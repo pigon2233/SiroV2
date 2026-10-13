@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import shutil
 import signal
 import tempfile
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+
+from siro.core.outcomes import ActionOutcomeReporter
 
 
 class ScopeViolation(PermissionError):
@@ -95,13 +99,108 @@ class ScopedFileDriver:
         return resolved
 
 
+class AsyncScopedFileDriver:
+    """Async outcome boundary over the atomic scoped file primitives."""
+
+    def __init__(
+        self,
+        driver: ScopedFileDriver,
+        *,
+        outcome_reporter: ActionOutcomeReporter | None = None,
+    ) -> None:
+        self._driver = driver
+        self._outcomes = outcome_reporter
+        self._reported: dict[str, tuple[object, ...]] = {}
+
+    async def write_text(self, action_id: str, path: Path, text: str) -> int:
+        signature = ("write", str(path), hashlib.sha256(text.encode()).hexdigest())
+        replay = self._replay(action_id, signature)
+        result = await asyncio.to_thread(self._driver.write_text, action_id, path, text)
+        if replay:
+            return result
+        observed = await asyncio.to_thread(self._driver.read_text, path)
+        observed_hash = hashlib.sha256(observed.encode()).hexdigest()
+        expected_hash = str(signature[2])
+        outcome = "confirmed" if observed_hash == expected_hash else "mismatch"
+        await self._record(
+            action_id,
+            signature,
+            outcome,
+            expected=expected_hash,
+            observed=observed_hash,
+        )
+        if outcome == "mismatch":
+            raise ComputerActionError("file write readback hash mismatch")
+        return result
+
+    async def move(self, action_id: str, source: Path, destination: Path) -> str:
+        signature = ("move", str(source), str(destination))
+        replay = self._replay(action_id, signature)
+        result = await asyncio.to_thread(self._driver.move, action_id, source, destination)
+        if replay:
+            return result
+        destination_exists = destination.exists()
+        source_absent = not source.exists()
+        outcome = "confirmed" if destination_exists and source_absent else "mismatch"
+        await self._record(
+            action_id,
+            signature,
+            outcome,
+            expected={"source_absent": True, "destination_exists": True},
+            observed={
+                "source_absent": source_absent,
+                "destination_exists": destination_exists,
+            },
+        )
+        if outcome == "mismatch":
+            raise ComputerActionError("file move readback mismatch")
+        return result
+
+    def _replay(self, action_id: str, signature: tuple[object, ...]) -> bool:
+        previous = self._reported.get(action_id)
+        if previous is None:
+            return False
+        if previous != signature:
+            raise ComputerActionError("file action id was reused with different arguments")
+        return True
+
+    async def _record(
+        self,
+        action_id: str,
+        signature: tuple[object, ...],
+        outcome: str,
+        *,
+        expected: object,
+        observed: object,
+    ) -> None:
+        self._reported[action_id] = signature
+        if self._outcomes is not None:
+            await self._outcomes.report_action(
+                action_id,
+                "confirmed" if outcome == "confirmed" else "mismatch",
+                occurred_at=datetime.now(UTC),
+                importance=0.55,
+                controllability=0.9,
+                expected=expected,
+                observed=observed,
+            )
+
+
 class ProcessDriver:
-    def __init__(self, allowed_cwds: tuple[Path, ...], *, output_limit: int = 1024 * 1024) -> None:
+    def __init__(
+        self,
+        allowed_cwds: tuple[Path, ...],
+        *,
+        output_limit: int = 1024 * 1024,
+        outcome_reporter: ActionOutcomeReporter | None = None,
+    ) -> None:
         self._allowed_cwds = tuple(path.resolve(strict=True) for path in allowed_cwds)
         self._output_limit = output_limit
         self._managed: dict[int, asyncio.subprocess.Process] = {}
         self._start_ledger: dict[str, int] = {}
+        self._stop_ledger: dict[str, int] = {}
         self._run_ledger: dict[str, ProcessResult] = {}
+        self._outcomes = outcome_reporter
 
     def list_managed(self) -> tuple[int, ...]:
         return tuple(
@@ -123,9 +222,23 @@ class ProcessDriver:
         )
         self._managed[process.pid] = process
         self._start_ledger[action_id] = process.pid
+        if self._outcomes is not None:
+            await self._outcomes.report_action(
+                action_id,
+                "confirmed",
+                occurred_at=datetime.now(UTC),
+                importance=0.55,
+                controllability=0.8,
+                expected="process running",
+                observed=process.pid,
+            )
         return process.pid
 
-    async def stop(self, pid: int, *, timeout: float = 1.0) -> None:
+    async def stop(self, pid: int, *, timeout: float = 1.0, action_id: str | None = None) -> None:
+        if action_id is not None and action_id in self._stop_ledger:
+            if self._stop_ledger[action_id] != pid:
+                raise ComputerActionError("stop action id was reused for another process")
+            return
         process = self._managed.get(pid)
         if process is None:
             raise ScopeViolation("process is not owned by this driver")
@@ -137,6 +250,18 @@ class ProcessDriver:
                 os.killpg(pid, signal.SIGKILL)
                 await process.wait()
         self._managed.pop(pid, None)
+        if action_id is not None:
+            self._stop_ledger[action_id] = pid
+            if self._outcomes is not None:
+                await self._outcomes.report_action(
+                    action_id,
+                    "confirmed",
+                    occurred_at=datetime.now(UTC),
+                    importance=0.55,
+                    controllability=0.9,
+                    expected="process stopped",
+                    observed=process.returncode,
+                )
 
     async def run(
         self, action_id: str, argv: tuple[str, ...], cwd: Path, *, timeout: float
@@ -156,16 +281,48 @@ class ProcessDriver:
         )
         try:
             stdout, stderr = await asyncio.wait_for(self._collect(process), timeout)
+        except ComputerActionError:
+            if self._outcomes is not None:
+                await self._outcomes.report_action(
+                    action_id,
+                    "error",
+                    occurred_at=datetime.now(UTC),
+                    importance=0.6,
+                    controllability=0.7,
+                    expected="bounded process output",
+                    observed="output limit exceeded",
+                )
+            raise
         except (TimeoutError, asyncio.CancelledError) as failure:
             os.killpg(process.pid, signal.SIGKILL)
             await process.wait()
             if isinstance(failure, asyncio.CancelledError):
                 raise
+            if self._outcomes is not None:
+                await self._outcomes.report_action(
+                    action_id,
+                    "error",
+                    occurred_at=datetime.now(UTC),
+                    importance=0.6,
+                    controllability=0.7,
+                    expected="exit before timeout",
+                    observed="timeout",
+                )
             raise ComputerActionError("process timed out") from failure
         if len(stdout) + len(stderr) > self._output_limit:
             raise ComputerActionError("process output exceeds limit")
         result = ProcessResult(process.returncode or 0, stdout, stderr)
         self._run_ledger[action_id] = result
+        if self._outcomes is not None:
+            await self._outcomes.report_action(
+                action_id,
+                "confirmed" if result.returncode == 0 else "error",
+                occurred_at=datetime.now(UTC),
+                importance=0.6,
+                controllability=0.8,
+                expected=0,
+                observed=result.returncode,
+            )
         return result
 
     def _validate_command(self, argv: tuple[str, ...], cwd: Path) -> Path:

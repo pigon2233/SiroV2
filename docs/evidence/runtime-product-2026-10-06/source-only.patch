@@ -1,0 +1,973 @@
+--- a/src/siro/services/agent/context.py
++++ b/src/siro/services/agent/context.py
+@@ -5,7 +5,7 @@
+ import asyncio
+ import json
+ from collections.abc import AsyncIterator
+-from dataclasses import asdict
++from dataclasses import asdict, replace
+ from typing import Protocol
+ 
+ from siro.ports.models import CancellationToken, LanguageModel, ModelChunk, ModelRequest
+@@ -45,6 +45,7 @@
+         *,
+         max_bytes: int | None,
+         token_budget: TokenBudget | None = None,
++        summary_enabled: bool = False,
+     ) -> None:
+         if max_bytes is not None and max_bytes < 1:
+             raise ValueError("context max_bytes must be positive")
+@@ -54,12 +55,33 @@
+         self._model = model
+         self._max_bytes = max_bytes
+         self._token_budget = token_budget
++        self.summary_enabled = summary_enabled
++        self.summarized_requests = 0
+ 
+     async def stream(
+         self, request: ModelRequest, cancellation: CancellationToken
+     ) -> AsyncIterator[ModelChunk]:
+         if cancellation.cancelled:
+             return
++        try:
++            await self._validate(request)
++        except ContextBudgetExceeded:
++            if not self.summary_enabled:
++                raise
++            from siro.services.agent.summary import summarize_completed
++
++            compacted = replace(request, messages=summarize_completed(request.messages))
++            if compacted == request:
++                raise
++            await self._validate(compacted)
++            request = compacted
++            self.summarized_requests += 1
++        if cancellation.cancelled:
++            return
++        async for chunk in self._model.stream(request, cancellation):
++            yield chunk
++
++    async def _validate(self, request: ModelRequest) -> None:
+         if self._max_bytes is not None:
+             size = request_size_bytes(request)
+             if size > self._max_bytes:
+@@ -68,7 +90,3 @@
+                 )
+         if self._token_budget is not None:
+             await asyncio.to_thread(self._token_budget.validate, request)
+-        if cancellation.cancelled:
+-            return
+-        async for chunk in self._model.stream(request, cancellation):
+-            yield chunk
+--- /dev/null
++++ b/src/siro/services/agent/organization.py
+@@ -0,0 +1,160 @@
++"""One idle owner for a disposable, source-checked memory digest. Never writes facts."""
++
++from __future__ import annotations
++
++import asyncio
++import hashlib
++import time
++from collections.abc import Callable
++from contextlib import suppress
++from datetime import UTC, datetime
++
++from siro.core.memory import Memory, MemoryKind, MemoryService
++
++
++def _version(items: list[Memory]) -> str:
++    return hashlib.sha256(
++        "\n".join(
++            f"{m.memory_id}:{m.revision}:{m.text}:{m.source_event_ids}" for m in items
++        ).encode()
++    ).hexdigest()
++
++
++class MemoryOrganizer:
++    def __init__(
++        self,
++        memory: MemoryService,
++        busy: Callable[[], bool],
++        *,
++        enabled: bool = True,
++        idle_seconds: float = 15,
++        poll_seconds: float = 5,
++        clock: Callable[[], float] = time.monotonic,
++    ) -> None:
++        self._memory, self._busy = memory, busy
++        self.enabled = enabled
++        self._idle_seconds, self._poll_seconds = idle_seconds, poll_seconds
++        self._clock = clock
++        self._last_foreground = self._clock()
++        self._wake = asyncio.Event()
++        self._task: asyncio.Task[None] | None = None
++        self._work: asyncio.Task[None] | None = None
++        self._source_version = ""
++        self._groups: list[dict[str, object]] = []
++        self._requested = False
++        self.state = "waiting" if enabled else "disabled"
++        self.updated_at: str | None = None
++
++    async def _sources(self) -> list[Memory]:
++        return [
++            m
++            for m in await self._memory.browse("siro", person_id="owner", limit=100)
++            if m.kind is MemoryKind.EPISODIC
++        ]
++
++    async def start(self) -> None:
++        if self._task is None:
++            self._task = asyncio.create_task(self._loop(), name="siro-memory-organization")
++
++    async def configure(self, enabled: bool) -> None:
++        self.enabled = enabled
++        if not enabled:
++            await self.foreground()
++            self._groups = []
++            self._source_version = ""
++            self.state = "disabled"
++        self._wake.set()
++
++    def request(self) -> None:
++        self._requested = True  # Coalesce any number of triggers into one slot.
++        self._wake.set()
++
++    async def foreground(self) -> None:
++        self._last_foreground = self._clock()
++        self._requested = False
++        if self._work is not None:
++            self._work.cancel()
++            await asyncio.gather(self._work, return_exceptions=True)
++            self._work = None
++        if self.enabled:
++            self.state = "foreground"
++
++    async def snapshot(self) -> dict[str, object]:
++        sources = await self._sources()
++        if _version(sources) != self._source_version:
++            self._groups = []
++            if self.enabled:
++                self.state = "waiting"
++        return {
++            "enabled": self.enabled,
++            "state": self.state,
++            "updated_at": self.updated_at,
++            "groups": list(self._groups),
++            "source_limit": 100,
++            "mode": "local_source_digest",
++            "writes_facts": False,
++        }
++
++    async def _organize(self) -> None:
++        async with asyncio.timeout(5):
++            sources = await self._sources()
++            version = _version(sources)
++            grouped: dict[str, list[Memory]] = {}
++            for memory in sources:
++                # Exact normalized duplicate grouping; no inference or semantic merge.
++                grouped.setdefault(" ".join(memory.text.split()), []).append(memory)
++            groups: list[dict[str, object]] = []
++            for memories in grouped.values():
++                groups.append(
++                    {
++                        "text": memories[0].text[:512],
++                        "truncated": len(memories[0].text) > 512,
++                        "duplicates": len(memories) - 1,
++                        "sources": [
++                            {
++                                "memory_id": str(m.memory_id),
++                                "revision": m.revision,
++                                "event_ids": [str(e) for e in m.source_event_ids],
++                            }
++                            for m in memories
++                        ],
++                    }
++                )
++                await asyncio.sleep(0)
++            if not self.enabled or self._busy():
++                return
++            if version != _version(await self._sources()):
++                self.state = "waiting"
++                return
++            self._groups, self._source_version = groups, version
++            self.updated_at = datetime.now(UTC).isoformat()
++            self.state = "ready"
++
++    async def _loop(self) -> None:
++        while True:
++            with suppress(TimeoutError):
++                await asyncio.wait_for(self._wake.wait(), self._poll_seconds)
++            self._wake.clear()
++            if not self.enabled:
++                continue
++            if self._busy():
++                self._last_foreground = self._clock()
++                self.state = "foreground"
++                continue
++            if not self._requested and self._clock() - self._last_foreground < self._idle_seconds:
++                continue
++            self._requested = False
++            self.state = "organizing"
++            self._work = asyncio.create_task(self._organize(), name="siro-memory-digest")
++            result = await asyncio.gather(self._work, return_exceptions=True)
++            self._work = None
++            if isinstance(result[0], Exception):
++                self.state = "error"
++
++    async def close(self) -> None:
++        await self.foreground()
++        if self._task is not None:
++            self._task.cancel()
++            await asyncio.gather(self._task, return_exceptions=True)
++            self._task = None
++        self.state = "stopped"
+--- a/src/siro/services/agent/runs.py
++++ b/src/siro/services/agent/runs.py
+@@ -442,20 +442,32 @@
+         return await self._store.run_transaction(write)
+ 
+     async def recent_session_messages(
+-        self, session_id: str, *, privacy: str, max_messages: int = 12
++        self,
++        session_id: str,
++        *,
++        privacy: str,
++        max_messages: int = 12,
++        summary_enabled: bool = False,
+     ) -> tuple[ModelMessage, ...]:
+         """Restore bounded completed dialogue, never old prompts or executable intents."""
+         if max_messages < 2:
+             raise ValueError("session context requires room for a complete dialogue pair")
+ 
+         def read(c: sqlite3.Connection) -> tuple[ModelMessage, ...]:
++            cutoff = ""
++            if summary_enabled:
++                mutation = c.execute(
++                    "SELECT MAX(changed_at) FROM memory_revisions WHERE revision > 1"
++                ).fetchone()
++                cutoff = str(mutation[0]) if mutation and mutation[0] else ""
+             rows = c.execute(
+                 "SELECT j.messages_json,r.goal FROM run_journal j "
+                 "JOIN agent_runs r ON r.run_id=j.run_id "
+                 "WHERE r.session_id=? AND r.state='completed' AND j.status='terminal' "
+                 "AND j.version=1 AND j.runtime_profile='candidate' AND j.privacy=? "
++                "AND r.created_at>=? "
+                 "ORDER BY r.created_at DESC,r.rowid DESC LIMIT ?",
+-                (session_id, privacy, max_messages // 2),
++                (session_id, privacy, cutoff, max_messages // 2),
+             ).fetchall()
+             restored: list[ModelMessage] = []
+             for row in reversed(rows):
+@@ -479,6 +491,10 @@
+                         ModelMessage("assistant", messages[-1]["content"]),
+                     )
+                 )
++            if summary_enabled:
++                from siro.services.agent.summary import summarize_completed
++
++                return summarize_completed(tuple(restored))
+             return tuple(restored)
+ 
+         return await self._store.run_transaction(read)
+--- /dev/null
++++ b/src/siro/services/agent/summary.py
+@@ -0,0 +1,51 @@
++"""Disposable extractive context summaries. Sources stay in the canonical journal."""
++
++from __future__ import annotations
++
++import hashlib
++from dataclasses import replace
++
++from siro.ports.models import ModelMessage
++
++
++def summarize_completed(
++    messages: tuple[ModelMessage, ...], *, keep_tail: int = 2
++) -> tuple[ModelMessage, ...]:
++    """Preserve user/system text and pairing; only excerpt old completed responses.
++
++    This is deliberately an extract, not a claim that omitted details were understood.
++    Latest context and pending tool results are never shortened.
++    """
++    output = list(messages)
++    completed_tools: set[int] = set()
++    for index, message in enumerate(messages):
++        if message.role != "assistant" or not message.tool_calls:
++            continue
++        ids = {call.call_id for call in message.tool_calls}
++        results = messages[index + 1 : index + 1 + len(ids)]
++        after = index + 1 + len(ids)
++        if (
++            len(ids) == len(message.tool_calls)
++            and len(results) == len(ids)
++            and all(m.role == "tool" for m in results)
++            and {m.tool_call_id for m in results} == ids
++            and any(m.role == "assistant" for m in messages[after:])
++        ):
++            completed_tools.update(range(index + 1, after))
++    for index, message in enumerate(messages[: max(0, len(messages) - keep_tail)]):
++        eligible = (
++            message.role == "assistant" and not message.tool_calls
++        ) or index in completed_tools
++        if not eligible or len(message.content) <= 1024:
++            continue
++        digest = hashlib.sha256(message.content.encode()).hexdigest()
++        content = (
++            f"[Extractive summary v1; source message {index}; sha256:{digest}; "
++            f"original characters:{len(message.content)}. Middle content omitted; "
++            "do not infer omitted details.]\n"
++            + message.content[:384]
++            + "\n[… omitted …]\n"
++            + message.content[-384:]
++        )
++        output[index] = replace(message, content=content)
++    return tuple(output)
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -31,6 +31,7 @@
+ from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
+ from siro.core.memory import Memory, MemoryService
+ from siro.ports.models import ToolCall
++from siro.services.agent.organization import MemoryOrganizer
+ from siro.services.audio.protocol import (
+     AudioFrame,
+     AudioMetadata,
+@@ -49,6 +50,7 @@
+     ToolOrchestrator,
+     ToolProposal,
+ )
++from siro.services.tools.workspace import WorkspaceRuntime
+ 
+ 
+ class JsonSocket(Protocol):
+@@ -435,6 +437,10 @@
+     on_startup: Callable[[], Awaitable[None]] | None = None,
+     on_shutdown: Callable[[], Awaitable[None]] | None = None,
+     on_recovery: Callable[[str], Awaitable[dict[str, object] | None]] | None = None,
++    feature_status: Callable[[], dict[str, object]] | None = None,
++    memory_organizer: MemoryOrganizer | None = None,
++    workspace_service: WorkspaceRuntime | None = None,
++    on_memory_invalidated: Callable[[], Awaitable[None]] | None = None,
+ ) -> FastAPI:
+     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
+     gateway_state = state or GatewayState()
+@@ -604,6 +610,7 @@
+     ) -> dict[str, object]:
+         require_token(authorization)
+         return {
++            "features": feature_status() if feature_status is not None else {},
+             "runtime_profile": runtime_profile,
+             "configuration_source": configuration_source,
+             "catalog_enabled": tool_orchestrator is not None
+@@ -620,6 +627,56 @@
+             },
+             "tools": tool_orchestrator.tool_status() if tool_orchestrator is not None else [],
+         }
++
++    @app.post("/v1/workspace/{action}")
++    async def workspace_readback(
++        action: Literal["read", "list"],
++        path: str = Query(default=".", min_length=1, max_length=4096),
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_token(authorization)
++        if not gateway_state.kill_switches["tools"]:
++            raise HTTPException(status_code=403, detail="tools are disabled")
++        if workspace_service is None or not workspace_service.available:
++            raise HTTPException(status_code=503, detail="workspace is unavailable")
++        # This is an explicit authenticated owner read, not model-supplied approval.
++        context = ExecutionContext(str(uuid4()), "owner-workspace", str(uuid4()), authorized=True)
++        if memory_organizer is not None:
++            await memory_organizer.foreground()
++        try:
++            result = await workspace_service.execute(
++                "filesystem." + action, {"path": path}, context
++            )
++        except PermissionError as error:
++            raise HTTPException(status_code=403, detail=str(error)) from error
++        except (ValueError, OSError) as error:
++            raise HTTPException(status_code=400, detail="workspace path cannot be read") from error
++        except Exception as error:
++            raise HTTPException(status_code=502, detail="workspace read failed") from error
++        return {"path": path, "result": result, "backend": "rust.scoped"}
++
++    @app.get("/v1/memory-organization")
++    async def organization_status(
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_token(authorization)
++        if memory_organizer is None:
++            return {"enabled": False, "state": "unavailable", "groups": []}
++        return await memory_organizer.snapshot()
++
++    @app.post("/v1/memory-organization")
++    async def organization_control(
++        enabled: bool = Query(),
++        refresh: bool = Query(default=False),
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_token(authorization)
++        if memory_organizer is None:
++            raise HTTPException(status_code=503, detail="memory organization unavailable")
++        await memory_organizer.configure(enabled)
++        if refresh and enabled:
++            memory_organizer.request()
++        return await memory_organizer.snapshot()
+ 
+     @app.get("/v1/snapshot")
+     async def snapshot(authorization: str | None = Header(default=None)) -> dict[str, object]:
+@@ -671,6 +728,8 @@
+             )
+             gateway_state.active_turns[session_id]["state"] = "awaiting_approval"
+             return {"turn_id": turn_id}
++        if memory_organizer is not None:
++            await memory_organizer.foreground()
+         await on_turn(session_id, body.text, body.input_mode)
+         gateway_state.active_turns[session_id]["state"] = "completed"
+         return {"turn_id": turn_id}
+@@ -834,6 +893,8 @@
+             )
+         except KeyError as error:
+             raise HTTPException(status_code=404, detail="memory not found") from error
++        if on_memory_invalidated is not None:
++            await on_memory_invalidated()
+         await on_memory_correction(source, corrected)
+         return _memory_json(corrected)
+ 
+@@ -848,6 +909,8 @@
+             raise HTTPException(status_code=503, detail="memory service is unavailable")
+         if not await memory_service.delete(memory_id, reason=reason):
+             raise HTTPException(status_code=404, detail="memory not found")
++        if on_memory_invalidated is not None:
++            await on_memory_invalidated()
+         return {"memory_id": str(memory_id), "status": "deleted"}
+ 
+     @app.websocket("/ws/control")
+@@ -1041,6 +1104,10 @@
+         privacy = ModelPrivacy.CLOUD_ALLOWED
+     else:
+         model = OfflineDemoModel()
++    summary_enabled = (
++        runtime_profile == "candidate"
++        and os.environ.get("SIRO_CONTEXT_SUMMARY_ENABLED", "1") == "1"
++    )
+     selected_provider = model
+     if runtime_profile == "candidate":
+         from siro.adapters.models.failover import FailoverModel
+@@ -1099,7 +1166,10 @@
+                     token_budget = UnavailableTokenBudget()
+         if context_max_bytes or token_budget is not None:
+             model = ContextBudgetModel(
+-                model, max_bytes=context_max_bytes or None, token_budget=token_budget
++                model,
++                max_bytes=context_max_bytes or None,
++                token_budget=token_budget,
++                summary_enabled=summary_enabled,
+             )
+     data_dir = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
+     state = GatewayState()
+@@ -1340,6 +1410,21 @@
+             "truncated": len(stdout) > output_limit or len(stderr) > output_limit,
+         }
+ 
++    from siro.services.tools.workspace import WORKSPACE_TOOLS
++
++    workspace = (
++        WorkspaceRuntime(
++            Path(os.environ.get("SIRO_WORKSPACE_DIR", str(data_dir / "workspace"))),
++            Path(
++                os.environ.get(
++                    "SIRO_RUNTIME_BINARY", str(project_root / "target/debug/siro-runtime")
++                )
++            ),
++        )
++        if runtime_profile == "candidate" and os.environ.get("SIRO_WORKSPACE_ENABLED", "1") == "1"
++        else None
++    )
++
+     handlers: dict[str, ToolExecutor] = {
+         "browser.navigate+read": execute_browser,
+         "process.start": execute_application,
+@@ -1363,13 +1448,23 @@
+             handlers[name] = browser_without_context
+             browser_contextual[name] = partial(session_browser, action)
+ 
++    workspace_contextual = {}
++    if workspace is not None:
++        for definition in WORKSPACE_TOOLS:
++            handlers[definition.name] = browser_without_context
++            workspace_contextual[definition.name] = partial(workspace.execute, definition.name)
++
+     definitions = {definition.name: definition for definition in DEFAULT_MODEL_TOOLS}
++    if workspace is not None:
++        definitions.update({d.name: d for d in WORKSPACE_TOOLS})
+     if browser_sessions is not None:
+         definitions.update({d.name: d for d in BROWSER_SESSION_TOOLS})
+ 
+     def readiness(name: str) -> bool:
+         if not state.kill_switches["tools"]:
+             return False
++        if name.startswith("filesystem."):
++            return workspace is not None and workspace.available
+         if name.startswith("browser."):
+             return bool(shutil.which("google-chrome") or shutil.which("chromium"))
+         return True  # argv/application target checks remain in their existing handlers
+@@ -1382,13 +1477,21 @@
+                     definitions.get(name),
+                     handler,
+                     available=partial(readiness, name),
+-                    backend="playwright" if name.startswith("browser.") else "python.argv",
++                    backend="rust.scoped"
++                    if name.startswith("filesystem.")
++                    else ("playwright" if name.startswith("browser.") else "python.argv"),
+                     effect="read"
+-                    if name in {"browser.navigate+read", "browser.read"}
++                    if name
++                    in {
++                        "browser.navigate+read",
++                        "browser.read",
++                        "filesystem.read",
++                        "filesystem.list",
++                    }
+                     else "computer",
+                     contextual_executor=execute_computer
+                     if name == "computer.execute"
+-                    else browser_contextual.get(name),
++                    else (browser_contextual.get(name) or workspace_contextual.get(name)),
+                 )
+                 for name, handler in handlers.items()
+             )
+@@ -1399,7 +1502,11 @@
+     tool_orchestrator = ToolOrchestrator(
+         SQLiteToolProposalRepository(shared_store),
+         handlers,
+-        contextual_executors={"computer.execute": execute_computer, **browser_contextual}
++        contextual_executors={
++            "computer.execute": execute_computer,
++            **browser_contextual,
++            **workspace_contextual,
++        }
+         if runtime_profile == "candidate"
+         else None,
+         catalog=catalog,
+@@ -1426,13 +1533,57 @@
+         runtime_profile=runtime_profile,
+         session_restore_enabled=session_restore_enabled,
+         memory_ingress_enabled=memory_ingress_enabled,
++        summary_enabled=summary_enabled,
+         auto_authorize=lambda: state.authorization_mode == "full" and state.kill_switches["tools"],
+     )
+ 
++    organizer = (
++        MemoryOrganizer(
++            memory_service,
++            lambda: controller.foreground_active,
++            enabled=os.environ.get("SIRO_MEMORY_ORGANIZATION_ENABLED", "1") == "1",
++        )
++        if runtime_profile == "candidate"
++        else None
++    )
++
+     async def start_controller() -> None:
+         await controller.startup()
++        if organizer is not None:
++            await organizer.start()
++        if workspace is not None:
++            await workspace.start()
+         if browser_sessions is not None:
+             await browser_sessions.start()
++
++    async def stop_controller() -> None:
++        try:
++            if organizer is not None:
++                await organizer.close()
++        finally:
++            try:
++                if browser_sessions is not None:
++                    await browser_sessions.close()
++            finally:
++                if workspace is not None:
++                    await workspace.close()
++
++    def product_features() -> dict[str, object]:
++        return {
++            "summary": {
++                "enabled": summary_enabled,
++                "mode": "extractive",
++                "history_pairs": 24 if summary_enabled else 6,
++                "budget_compactions": getattr(model, "summarized_requests", 0),
++            },
++            "memory_organization": {"enabled": organizer is not None and organizer.enabled},
++            "workspace": {
++                "enabled": workspace is not None,
++                "available": workspace is not None and workspace.available,
++                "directory": str(workspace.root) if workspace is not None else None,
++                "error": workspace.error if workspace is not None else None,
++            },
++        }
+ 
+     async def cancel_controller(turn_id: str, reason: str) -> None:
+         if runtime_profile == "candidate" and turn_id != "active":
+@@ -1473,15 +1624,20 @@
+             hub=hub,
+             runtime_profile=runtime_profile,
+             configuration_source="gateway_env_and_defaults",
++            allowed_origins={f"http://127.0.0.1:{port}", f"http://localhost:{port}"},
+             body_transport=body_transport,
+             memory_service=memory_service,
+             speech_to_text=speech_to_text,
+             text_to_speech=text_to_speech,
+             live2d_dist=live2d_dist,
+             on_startup=start_controller,
+-            on_shutdown=browser_sessions.close if browser_sessions is not None else None,
++            on_shutdown=stop_controller,
++            feature_status=product_features,
+             on_recovery=controller.recovery_readback,
+             on_turn=controller.respond,
++            memory_organizer=organizer,
++            workspace_service=workspace,
++            on_memory_invalidated=controller.invalidate_memory_context,
+             on_cancel=cancel_controller,
+             on_memory_correction=controller.memory_corrected,
+             on_tool_result=controller.continue_after_tool,
+--- a/src/siro/services/presentation/integrated.py
++++ b/src/siro/services/presentation/integrated.py
+@@ -96,12 +96,14 @@
+         runtime_profile: str = "legacy",
+         session_restore_enabled: bool = True,
+         memory_ingress_enabled: bool = True,
++        summary_enabled: bool = False,
+     ) -> None:
+         if runtime_profile not in {"legacy", "candidate"}:
+             raise ValueError("runtime_profile must be legacy or candidate")
+         self._runtime_profile = runtime_profile
+         self._session_restore_enabled = session_restore_enabled
+         self._memory_ingress_enabled = memory_ingress_enabled
++        self._summary_enabled = summary_enabled
+         self._memory_service: MemoryService | None = None
+         self._run_proposals: dict[str, list[str]] = {}
+         self._batches: dict[str, tuple[str, ...]] = {}
+@@ -133,6 +135,10 @@
+         self._affect = AffectSystem()
+         self._expression = ExpressionPolicy()
+ 
++    @property
++    def foreground_active(self) -> bool:
++        return bool(self._active_sessions or self._run_ids)
++
+     def _model_tools(self) -> tuple[ToolDefinition, ...]:
+         if self._tool_orchestrator is None:
+             return ()
+@@ -173,7 +179,10 @@
+         ):
+             assert self._agent_runs is not None
+             recent_messages = await self._agent_runs.recent_session_messages(
+-                session_id, privacy=self._privacy.value
++                session_id,
++                privacy=self._privacy.value,
++                max_messages=48 if self._summary_enabled else 12,
++                summary_enabled=self._summary_enabled,
+             )
+         stream_id = str(uuid4())
+ 
+@@ -918,6 +927,10 @@
+                 await conversation.cancel(target_session)
+         await self._body.cancel("active", reason)
+ 
++    async def invalidate_memory_context(self) -> None:
++        if self._summary_enabled:
++            await self.cancel("active", "memory sources changed")
++
+     async def memory_corrected(self, source: UserTextEvent, memory: Memory) -> None:
+         await self._ensure_core()
+         assert self._store is not None
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -52,6 +52,34 @@
+       <span id="tts-status" class="warn">TTS 待命</span>
+     </section>
+     <section>
++      <h2>我的工作目錄</h2>
++      <p id="workspace-status">讀取狀態中…</p>
++      <p>將要分享的文字檔放入上方目錄，再請 SIRO 閱讀。每份文字檔最多 8 KiB。</p>
++      <input id="workspace-file" placeholder="例如 notes.txt" aria-label="工作目錄內檔名">
++      <button id="workspace-list" type="button">列出檔案</button>
++      <button id="workspace-read" type="button">讀取檔案</button>
++      <pre id="workspace-result" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></pre>
++      <p>這個讀檔入口只允許工作目錄；一般電腦操作仍依上方授權模式。</p>
++    </section>
++    <section>
++      <h2>閒置記憶整理</h2>
++      <p>只在本機整理已記住的內容，將相同內容放在一起；保留原記憶，不推測新的事實，也不主動打擾。</p>
++      <p id="organization-status" aria-live="polite">讀取狀態中…</p>
++      <button id="organization-on" type="button">開啟閒置整理</button>
++      <button id="organization-off" type="button">暫停整理</button>
++      <button id="organization-refresh" type="button">現在整理</button>
++      <button id="product-refresh" type="button">重新整理畫面</button>
++      <div id="organization-items"></div>
++      <h3>原始記憶</h3>
++      <p>對 SIRO 說「記住：…」即可新增。更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p>
++      <div id="memory-items"></div>
++    </section>
++    <section>
++      <h2>長對話續作</h2>
++      <p id="summary-status">讀取狀態中…</p>
++      <p>較舊的長回覆採摘錄摘要，省略處會標示；目標、授權與尚未完成的工具結果保留。摘要不是永久記憶。</p>
++    </section>
++    <section>
+       <h2>音訊驗收</h2>
+       <p><a href="/audio-field-test">執行 20 次真人打斷與 AEC 欄位測試</a></p>
+     </section>
+@@ -86,6 +114,7 @@
+       async function boot() {
+         const session = await fetch("/v1/session", {method: "POST", headers: {"Origin": location.origin}}).then(r => r.json());
+         token = session.token;
++        await refreshProduct();
+         const recovery = await fetch("/v1/agent-runs/browser", {headers: headers()});
+         if (recovery.ok) {
+           const run = await recovery.json();
+@@ -145,6 +174,79 @@
+           meter.appendChild(fill); card.append(label, meter); root.appendChild(card);
+         });
+       }
++      async function productRequest(url, options = {}) {
++        const response = await fetch(url, {...options, headers: headers()});
++        const data = await response.json();
++        if (!response.ok) throw new Error(data.detail || "操作未完成");
++        return data;
++      }
++      async function refreshProduct() {
++        try {
++          const runtime = await productRequest("/v1/runtime");
++          const features = runtime.features || {}, workspace = features.workspace || {};
++          document.querySelector("#workspace-status").textContent = workspace.available
++            ? `可讀取：${workspace.directory}` : `工作目錄尚未就緒${workspace.directory ? "：" + workspace.directory : "（此執行模式未啟用）"}`;
++          document.querySelector("#workspace-list").disabled = !workspace.available;
++          document.querySelector("#workspace-read").disabled = !workspace.available;
++          const summary = features.summary || {};
++          document.querySelector("#summary-status").textContent = summary.enabled
++            ? `已啟用摘錄摘要，可帶入最近 ${summary.history_pairs} 組對話；本次啟動已縮減 ${summary.budget_compactions} 次超限請求。`
++            : "目前使用原始近期對話，未啟用摘要。";
++          const report = await productRequest("/v1/memory-organization");
++          const labels = {ready:"已整理", waiting:"等待閒置", foreground:"先回應你", organizing:"整理中", disabled:"已暫停", unavailable:"此執行模式未啟用", error:"整理未完成，稍後重試", stopped:"已停止"};
++          document.querySelector("#organization-status").textContent = (labels[report.state] || report.state) + (report.updated_at ? ` · ${new Date(report.updated_at).toLocaleString()}` : "");
++          const groups = document.querySelector("#organization-items"); groups.textContent = "";
++          for (const group of report.groups || []) {
++            const item = document.createElement("p");
++            item.textContent = group.text + (group.truncated ? "…（摘錄）" : "") + (group.duplicates ? `（${group.duplicates + 1} 筆相同內容）` : "");
++            const source = document.createElement("small");
++            source.textContent = "來源：" + group.sources.map(s => `${s.memory_id} · 第 ${s.revision} 版`).join("；");
++            groups.append(item, source);
++          }
++          const memories = await productRequest("/v1/memories?limit=100");
++          const root = document.querySelector("#memory-items"); root.textContent = "";
++          if (!memories.items.length) root.textContent = "還沒有記憶。可以先說：記住：我喜歡喝無糖茶。";
++          for (const memory of memories.items) {
++            const card = document.createElement("div"); card.className = "message";
++            const text = document.createElement("p"); text.textContent = memory.text;
++            const source = document.createElement("small"); source.textContent = `第 ${memory.revision} 版 · 來源 ${(memory.source_event_ids || []).join(", ")}`;
++            const correct = document.createElement("button"); correct.textContent = "更正";
++            correct.onclick = async () => {
++              const value = window.prompt("更正這筆記憶", memory.text);
++              if (!value || value === memory.text) return;
++              try { await productRequest(`/v1/memories/${memory.memory_id}/correct`, {method:"POST", body:JSON.stringify({text:value, reason:"owner correction from memory panel"})}); await refreshProduct(); }
++              catch (error) { document.querySelector("#organization-status").textContent = error.message; }
++            };
++            const remove = document.createElement("button"); remove.textContent = "刪除記憶";
++            remove.onclick = async () => {
++              if (!window.confirm("刪除這筆記憶及其已連結的衍生內容？原始對話與備份不會一併刪除。")) return;
++              try { await productRequest(`/v1/memories/${memory.memory_id}`, {method:"DELETE"}); await refreshProduct(); }
++              catch (error) { document.querySelector("#organization-status").textContent = error.message; }
++            };
++            card.append(text, source, correct, remove); root.appendChild(card);
++          }
++        } catch (error) { document.querySelector("#organization-status").textContent = error.message; }
++      }
++      async function setOrganization(enabled, refresh = false) {
++        try { await productRequest(`/v1/memory-organization?enabled=${enabled}&refresh=${refresh}`, {method:"POST"}); await refreshProduct(); if (refresh) setTimeout(refreshProduct, 1000); }
++        catch (error) { document.querySelector("#organization-status").textContent = error.message; }
++      }
++      document.querySelector("#organization-on").onclick = () => setOrganization(true);
++      document.querySelector("#organization-off").onclick = () => setOrganization(false);
++      document.querySelector("#organization-refresh").onclick = () => setOrganization(true, true);
++      document.querySelector("#product-refresh").onclick = refreshProduct;
++      async function readWorkspace(action, path) {
++        const output = document.querySelector("#workspace-result"); output.textContent = "讀取中…";
++        try {
++          const data = await productRequest(`/v1/workspace/${action}?path=${encodeURIComponent(path)}`, {method:"POST"});
++          output.textContent = typeof data.result?.text === "string" ? data.result.text : JSON.stringify(data.result, null, 2);
++        } catch (error) { output.textContent = error.message; }
++      }
++      document.querySelector("#workspace-list").onclick = () => readWorkspace("list", ".");
++      document.querySelector("#workspace-read").onclick = () => {
++        const path = document.querySelector("#workspace-file").value.trim();
++        if (path) readWorkspace("read", path);
++      };
+       function renderSnapshot(data) {
+         authorizationMode = data.authorization_mode || "safe";
+         document.querySelector("#authorization-status").textContent = authorizationMode === "full"
+--- /dev/null
++++ b/src/siro/services/tools/workspace.py
+@@ -0,0 +1,160 @@
++"""Owned, unprivileged Rust read-only workspace; authorization stays in the tool path."""
++
++from __future__ import annotations
++
++import asyncio
++import hashlib
++import hmac
++import json
++import os
++import secrets
++import tempfile
++import time
++from pathlib import Path
++from stat import S_ISREG
++from uuid import uuid4
++
++from siro.adapters.runtime import LocalRuntimeClient
++from siro.ports.models import ToolDefinition
++from siro.ports.runtime import GrantToken, RuntimeRequest, RuntimeUnavailable
++from siro.services.tools.execution import ExecutionContext
++
++WORKSPACE_TOOLS = tuple(
++    ToolDefinition(
++        "filesystem." + action,
++        description + " Only the owner-selected workspace is allowed. Use a relative path. "
++        "Never bypass a workspace refusal with computer.execute.",
++        {
++            "type": "object",
++            "properties": {"path": {"type": "string"}},
++            "required": ["path"],
++            "additionalProperties": False,
++        },
++    )
++    for action, description in (
++        ("read", "Read a small UTF-8 text file (up to 8 KiB)."),
++        ("list", 'List names in a workspace directory; use path="." for its root.'),
++    )
++)
++
++
++class WorkspaceRuntime:
++    def __init__(self, root: Path, binary: Path) -> None:
++        self.root = root.expanduser().resolve()
++        self._binary = binary.resolve()
++        self._process: asyncio.subprocess.Process | None = None
++        self._temporary: tempfile.TemporaryDirectory[str] | None = None
++        self._client: LocalRuntimeClient | None = None
++        self._secret = secrets.token_hex(32).encode()
++        self.error: str | None = None
++
++    @property
++    def available(self) -> bool:
++        return (
++            self._process is not None
++            and self._process.returncode is None
++            and self._client is not None
++        )
++
++    async def start(self) -> None:
++        if self.available:
++            return
++        self.root.mkdir(parents=True, exist_ok=True)
++        if not self._binary.is_file():
++            self.error = "runtime_binary_missing"
++            return
++        await self.close()
++        self._temporary = tempfile.TemporaryDirectory(prefix="siro-read-")
++        directory = Path(self._temporary.name)
++        # The private socket/ledger are outside the readable workspace. Do not inherit model keys.
++        environment = {
++            "PATH": os.defpath,
++            "SIRO_RUNTIME_ROOTS": str(self.root),
++            "SIRO_RUNTIME_SOCKET": str(directory / "rpc.sock"),
++            "SIRO_RUNTIME_DB": str(directory / "ledger.sqlite3"),
++            "SIRO_RUNTIME_SECRET": self._secret.decode(),
++        }
++        try:
++            self._process = await asyncio.create_subprocess_exec(
++                str(self._binary),
++                env=environment,
++                stdin=asyncio.subprocess.DEVNULL,
++                stdout=asyncio.subprocess.DEVNULL,
++                stderr=asyncio.subprocess.DEVNULL,
++            )
++            client = LocalRuntimeClient(directory / "rpc.sock")
++            for _ in range(50):
++                if self._process.returncode is not None:
++                    raise RuntimeUnavailable("runtime exited")
++                if (directory / "rpc.sock").exists():
++                    await client.health()
++                    self._client = client
++                    self.error = None
++                    return
++                await asyncio.sleep(0.02)
++            raise RuntimeUnavailable("runtime startup timeout")
++        except Exception as error:
++            self.error = type(error).__name__
++            await self.close()
++        except asyncio.CancelledError:
++            await self.close()
++            raise
++
++    async def execute(
++        self, capability: str, arguments: dict[str, object], context: ExecutionContext
++    ) -> object:
++        context.check()
++        if not context.authorized:
++            raise PermissionError("trusted tool approval is required")
++        if capability not in {"filesystem.read", "filesystem.list"}:
++            raise PermissionError("workspace is read-only")
++        raw = arguments.get("path")
++        if not isinstance(raw, str) or not raw or len(raw) > 4096:
++            raise ValueError("path must be a non-empty workspace path")
++        path = await asyncio.to_thread((self.root / raw).resolve, strict=True)
++        if not path.is_relative_to(self.root):
++            raise PermissionError("path is outside the workspace")
++        if capability == "filesystem.read":
++            stat = await asyncio.to_thread(path.stat)
++            if not S_ISREG(stat.st_mode) or stat.st_size > 8192:
++                raise ValueError("workspace read requires a regular UTF-8 file up to 8 KiB")
++        if not self.available or self._client is None:
++            raise RuntimeUnavailable("workspace runtime is unavailable")
++        context.check()
++        args: dict[str, object] = {"path": str(path)}
++        claims = {
++            "grant_id": str(uuid4()),
++            "actor": "siro-owner",
++            "capability": capability,
++            "scope": {"path": [str(path)]},
++            "args_hash": hashlib.sha256(
++                json.dumps(args, ensure_ascii=False, separators=(",", ":")).encode()
++            ).hexdigest(),
++            "expires_at_unix": int(time.time()) + 10,
++            "uses_remaining": 1,
++        }
++        encoded = json.dumps(claims, separators=(",", ":")).encode()
++        grant = GrantToken(
++            tuple(encoded), hmac.new(self._secret, encoded, hashlib.sha256).hexdigest()
++        )
++        result = await self._client.execute(
++            RuntimeRequest(str(uuid4()), capability, args, "path", str(path), grant)
++        )
++        context.check()
++        return result.result
++
++    async def close(self) -> None:
++        self._client = None
++        process = self._process
++        if process is not None:
++            if process.returncode is None:
++                process.terminate()
++                try:
++                    await asyncio.wait_for(process.wait(), 1)
++                except TimeoutError:
++                    process.kill()
++                    await process.wait()
++            self._process = None
++        if self._temporary is not None:
++            self._temporary.cleanup()
++            self._temporary = None

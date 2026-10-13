@@ -1,0 +1,676 @@
+restored_before_sources=['siro/adapters/browser.py', 'siro/services/presentation/gateway.py', 'siro/services/presentation/integrated.py', 'siro/services/tools/browser_session.py', 'siro/services/tools/orchestrator.py']
+exit_code=1
+browser_source=/tmp/siro-fix002-before-contract-1o9c4ysx/src/siro/adapters/browser.py
+FFFFF......FFFFFFFFF.                                                    [100%]
+=================================== FAILURES ===================================
+_ test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason[redirect_denied] _
+
+reason = 'redirect_denied'
+
+    @pytest.mark.parametrize("reason", ["redirect_denied", None, CANARY])
+    def test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason(
+        reason: str | None,
+    ) -> None:
+        proposal = _proposal(
+            ProposalState.FAILED,
+            error="ScopeViolation",
+            observation={
+                "error": "forged-success",
+                "reason": reason,
+                "url": "https://synthetic.invalid/?query=" + CANARY,
+                "message": CANARY,
+                "arbitrary": {"credentials": CANARY},
+            },
+        )
+        expected = {"error": "ScopeViolation"}
+        if reason == "redirect_denied":
+            expected["reason"] = reason
+>       result = proposal.model_observation()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ToolProposal' object has no attribute 'model_observation'
+
+tests/integration/test_browser_failure_contract.py:71: AttributeError
+_ test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason[None] _
+
+reason = None
+
+    @pytest.mark.parametrize("reason", ["redirect_denied", None, CANARY])
+    def test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason(
+        reason: str | None,
+    ) -> None:
+        proposal = _proposal(
+            ProposalState.FAILED,
+            error="ScopeViolation",
+            observation={
+                "error": "forged-success",
+                "reason": reason,
+                "url": "https://synthetic.invalid/?query=" + CANARY,
+                "message": CANARY,
+                "arbitrary": {"credentials": CANARY},
+            },
+        )
+        expected = {"error": "ScopeViolation"}
+        if reason == "redirect_denied":
+            expected["reason"] = reason
+>       result = proposal.model_observation()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ToolProposal' object has no attribute 'model_observation'
+
+tests/integration/test_browser_failure_contract.py:71: AttributeError
+_ test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason[synthetic-private-error-canary:not-a-real-secret] _
+
+reason = 'synthetic-private-error-canary:not-a-real-secret'
+
+    @pytest.mark.parametrize("reason", ["redirect_denied", None, CANARY])
+    def test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason(
+        reason: str | None,
+    ) -> None:
+        proposal = _proposal(
+            ProposalState.FAILED,
+            error="ScopeViolation",
+            observation={
+                "error": "forged-success",
+                "reason": reason,
+                "url": "https://synthetic.invalid/?query=" + CANARY,
+                "message": CANARY,
+                "arbitrary": {"credentials": CANARY},
+            },
+        )
+        expected = {"error": "ScopeViolation"}
+        if reason == "redirect_denied":
+            expected["reason"] = reason
+>       result = proposal.model_observation()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ToolProposal' object has no attribute 'model_observation'
+
+tests/integration/test_browser_failure_contract.py:71: AttributeError
+___ test_denial_does_not_reuse_failed_observation_or_claim_a_browser_failure ___
+
+    def test_denial_does_not_reuse_failed_observation_or_claim_a_browser_failure() -> None:
+        proposal = _proposal(
+            ProposalState.DENIED,
+            observation={"reason": "redirect_denied", "message": CANARY},
+        )
+>       assert proposal.model_observation() == {"error": "denied"}
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ToolProposal' object has no attribute 'model_observation'
+
+tests/integration/test_browser_failure_contract.py:81: AttributeError
+____ test_completed_readback_retains_existing_success_and_partial_contract _____
+
+    def test_completed_readback_retains_existing_success_and_partial_contract() -> None:
+        observation = {
+            "url": PUBLIC_URL,
+            "title": "Synthetic source",
+            "text": "Synthetic visible content",
+            "screen_version": "fixture-version",
+            "load_status": "partial",
+            "reason": "subresource_denied",
+        }
+>       assert _proposal(ProposalState.COMPLETED, observation=observation).model_observation() == (
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            observation
+        )
+E       AttributeError: 'ToolProposal' object has no attribute 'model_observation'
+
+tests/integration/test_browser_failure_contract.py:93: AttributeError
+_ test_typed_failure_reaches_continuation_ui_and_persistent_journal[invalid_url-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_typed_failure_reaches_con0')
+profile = 'candidate', reason = 'invalid_url'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    @pytest.mark.parametrize(
+        "reason", ["invalid_url", "main_origin_denied", "redirect_denied", "subresource_denied"]
+    )
+    async def test_typed_failure_reaches_continuation_ui_and_persistent_journal(
+        tmp_path: Path, profile: str, reason: str
+    ) -> None:
+        executed: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            executed.append(arguments)
+            # A synthetic executor supplies the adapter's trusted failure type. It does not browse.
+            raise browser.BrowserScopeViolation(browser.BrowserScopeReason(reason))
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        catalog = ToolCatalog(
+            (
+                ToolDescriptor(
+                    "browser.navigate+read",
+                    DEFAULT_MODEL_TOOLS[0],
+                    execute,
+                    lambda: True,
+                    "synthetic-browser",
+                    "read",
+                ),
+            )
+        )
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store),
+            {"browser.navigate+read": execute},
+            catalog=catalog if profile == "candidate" else None,
+        )
+        hub, model = RecordingHub(), FailureModel()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        await controller.respond("synthetic-session", "Read the synthetic public source.")
+        assert executed == [{"url": PUBLIC_URL}]
+        assert len(model.requests) == 2
+        expected = {"error": "ScopeViolation", "reason": reason}
+        results = [event for event in hub.events if event["type"] == "tool_result"]
+        assert len(results) == 1
+>       assert results[0]["error"] == "ScopeViolation"
+E       AssertionError: assert 'AttributeError' == 'ScopeViolation'
+E         
+E         - ScopeViolation
+E         + AttributeError
+
+tests/integration/test_browser_failure_contract.py:230: AssertionError
+_ test_typed_failure_reaches_continuation_ui_and_persistent_journal[invalid_url-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_typed_failure_reaches_con1')
+profile = 'legacy', reason = 'invalid_url'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    @pytest.mark.parametrize(
+        "reason", ["invalid_url", "main_origin_denied", "redirect_denied", "subresource_denied"]
+    )
+    async def test_typed_failure_reaches_continuation_ui_and_persistent_journal(
+        tmp_path: Path, profile: str, reason: str
+    ) -> None:
+        executed: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            executed.append(arguments)
+            # A synthetic executor supplies the adapter's trusted failure type. It does not browse.
+            raise browser.BrowserScopeViolation(browser.BrowserScopeReason(reason))
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        catalog = ToolCatalog(
+            (
+                ToolDescriptor(
+                    "browser.navigate+read",
+                    DEFAULT_MODEL_TOOLS[0],
+                    execute,
+                    lambda: True,
+                    "synthetic-browser",
+                    "read",
+                ),
+            )
+        )
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store),
+            {"browser.navigate+read": execute},
+            catalog=catalog if profile == "candidate" else None,
+        )
+        hub, model = RecordingHub(), FailureModel()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        await controller.respond("synthetic-session", "Read the synthetic public source.")
+        assert executed == [{"url": PUBLIC_URL}]
+        assert len(model.requests) == 2
+        expected = {"error": "ScopeViolation", "reason": reason}
+        results = [event for event in hub.events if event["type"] == "tool_result"]
+        assert len(results) == 1
+>       assert results[0]["error"] == "ScopeViolation"
+E       AssertionError: assert 'AttributeError' == 'ScopeViolation'
+E         
+E         - ScopeViolation
+E         + AttributeError
+
+tests/integration/test_browser_failure_contract.py:230: AssertionError
+_ test_typed_failure_reaches_continuation_ui_and_persistent_journal[main_origin_denied-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_typed_failure_reaches_con2')
+profile = 'candidate', reason = 'main_origin_denied'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    @pytest.mark.parametrize(
+        "reason", ["invalid_url", "main_origin_denied", "redirect_denied", "subresource_denied"]
+    )
+    async def test_typed_failure_reaches_continuation_ui_and_persistent_journal(
+        tmp_path: Path, profile: str, reason: str
+    ) -> None:
+        executed: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            executed.append(arguments)
+            # A synthetic executor supplies the adapter's trusted failure type. It does not browse.
+            raise browser.BrowserScopeViolation(browser.BrowserScopeReason(reason))
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        catalog = ToolCatalog(
+            (
+                ToolDescriptor(
+                    "browser.navigate+read",
+                    DEFAULT_MODEL_TOOLS[0],
+                    execute,
+                    lambda: True,
+                    "synthetic-browser",
+                    "read",
+                ),
+            )
+        )
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store),
+            {"browser.navigate+read": execute},
+            catalog=catalog if profile == "candidate" else None,
+        )
+        hub, model = RecordingHub(), FailureModel()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        await controller.respond("synthetic-session", "Read the synthetic public source.")
+        assert executed == [{"url": PUBLIC_URL}]
+        assert len(model.requests) == 2
+        expected = {"error": "ScopeViolation", "reason": reason}
+        results = [event for event in hub.events if event["type"] == "tool_result"]
+        assert len(results) == 1
+>       assert results[0]["error"] == "ScopeViolation"
+E       AssertionError: assert 'AttributeError' == 'ScopeViolation'
+E         
+E         - ScopeViolation
+E         + AttributeError
+
+tests/integration/test_browser_failure_contract.py:230: AssertionError
+_ test_typed_failure_reaches_continuation_ui_and_persistent_journal[main_origin_denied-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_typed_failure_reaches_con3')
+profile = 'legacy', reason = 'main_origin_denied'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    @pytest.mark.parametrize(
+        "reason", ["invalid_url", "main_origin_denied", "redirect_denied", "subresource_denied"]
+    )
+    async def test_typed_failure_reaches_continuation_ui_and_persistent_journal(
+        tmp_path: Path, profile: str, reason: str
+    ) -> None:
+        executed: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            executed.append(arguments)
+            # A synthetic executor supplies the adapter's trusted failure type. It does not browse.
+            raise browser.BrowserScopeViolation(browser.BrowserScopeReason(reason))
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        catalog = ToolCatalog(
+            (
+                ToolDescriptor(
+                    "browser.navigate+read",
+                    DEFAULT_MODEL_TOOLS[0],
+                    execute,
+                    lambda: True,
+                    "synthetic-browser",
+                    "read",
+                ),
+            )
+        )
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store),
+            {"browser.navigate+read": execute},
+            catalog=catalog if profile == "candidate" else None,
+        )
+        hub, model = RecordingHub(), FailureModel()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        await controller.respond("synthetic-session", "Read the synthetic public source.")
+        assert executed == [{"url": PUBLIC_URL}]
+        assert len(model.requests) == 2
+        expected = {"error": "ScopeViolation", "reason": reason}
+        results = [event for event in hub.events if event["type"] == "tool_result"]
+        assert len(results) == 1
+>       assert results[0]["error"] == "ScopeViolation"
+E       AssertionError: assert 'AttributeError' == 'ScopeViolation'
+E         
+E         - ScopeViolation
+E         + AttributeError
+
+tests/integration/test_browser_failure_contract.py:230: AssertionError
+_ test_typed_failure_reaches_continuation_ui_and_persistent_journal[redirect_denied-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_typed_failure_reaches_con4')
+profile = 'candidate', reason = 'redirect_denied'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    @pytest.mark.parametrize(
+        "reason", ["invalid_url", "main_origin_denied", "redirect_denied", "subresource_denied"]
+    )
+    async def test_typed_failure_reaches_continuation_ui_and_persistent_journal(
+        tmp_path: Path, profile: str, reason: str
+    ) -> None:
+        executed: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            executed.append(arguments)
+            # A synthetic executor supplies the adapter's trusted failure type. It does not browse.
+            raise browser.BrowserScopeViolation(browser.BrowserScopeReason(reason))
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        catalog = ToolCatalog(
+            (
+                ToolDescriptor(
+                    "browser.navigate+read",
+                    DEFAULT_MODEL_TOOLS[0],
+                    execute,
+                    lambda: True,
+                    "synthetic-browser",
+                    "read",
+                ),
+            )
+        )
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store),
+            {"browser.navigate+read": execute},
+            catalog=catalog if profile == "candidate" else None,
+        )
+        hub, model = RecordingHub(), FailureModel()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        await controller.respond("synthetic-session", "Read the synthetic public source.")
+        assert executed == [{"url": PUBLIC_URL}]
+        assert len(model.requests) == 2
+        expected = {"error": "ScopeViolation", "reason": reason}
+        results = [event for event in hub.events if event["type"] == "tool_result"]
+        assert len(results) == 1
+>       assert results[0]["error"] == "ScopeViolation"
+E       AssertionError: assert 'AttributeError' == 'ScopeViolation'
+E         
+E         - ScopeViolation
+E         + AttributeError
+
+tests/integration/test_browser_failure_contract.py:230: AssertionError
+_ test_typed_failure_reaches_continuation_ui_and_persistent_journal[redirect_denied-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_typed_failure_reaches_con5')
+profile = 'legacy', reason = 'redirect_denied'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    @pytest.mark.parametrize(
+        "reason", ["invalid_url", "main_origin_denied", "redirect_denied", "subresource_denied"]
+    )
+    async def test_typed_failure_reaches_continuation_ui_and_persistent_journal(
+        tmp_path: Path, profile: str, reason: str
+    ) -> None:
+        executed: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            executed.append(arguments)
+            # A synthetic executor supplies the adapter's trusted failure type. It does not browse.
+            raise browser.BrowserScopeViolation(browser.BrowserScopeReason(reason))
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        catalog = ToolCatalog(
+            (
+                ToolDescriptor(
+                    "browser.navigate+read",
+                    DEFAULT_MODEL_TOOLS[0],
+                    execute,
+                    lambda: True,
+                    "synthetic-browser",
+                    "read",
+                ),
+            )
+        )
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store),
+            {"browser.navigate+read": execute},
+            catalog=catalog if profile == "candidate" else None,
+        )
+        hub, model = RecordingHub(), FailureModel()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        await controller.respond("synthetic-session", "Read the synthetic public source.")
+        assert executed == [{"url": PUBLIC_URL}]
+        assert len(model.requests) == 2
+        expected = {"error": "ScopeViolation", "reason": reason}
+        results = [event for event in hub.events if event["type"] == "tool_result"]
+        assert len(results) == 1
+>       assert results[0]["error"] == "ScopeViolation"
+E       AssertionError: assert 'AttributeError' == 'ScopeViolation'
+E         
+E         - ScopeViolation
+E         + AttributeError
+
+tests/integration/test_browser_failure_contract.py:230: AssertionError
+_ test_typed_failure_reaches_continuation_ui_and_persistent_journal[subresource_denied-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_typed_failure_reaches_con6')
+profile = 'candidate', reason = 'subresource_denied'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    @pytest.mark.parametrize(
+        "reason", ["invalid_url", "main_origin_denied", "redirect_denied", "subresource_denied"]
+    )
+    async def test_typed_failure_reaches_continuation_ui_and_persistent_journal(
+        tmp_path: Path, profile: str, reason: str
+    ) -> None:
+        executed: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            executed.append(arguments)
+            # A synthetic executor supplies the adapter's trusted failure type. It does not browse.
+            raise browser.BrowserScopeViolation(browser.BrowserScopeReason(reason))
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        catalog = ToolCatalog(
+            (
+                ToolDescriptor(
+                    "browser.navigate+read",
+                    DEFAULT_MODEL_TOOLS[0],
+                    execute,
+                    lambda: True,
+                    "synthetic-browser",
+                    "read",
+                ),
+            )
+        )
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store),
+            {"browser.navigate+read": execute},
+            catalog=catalog if profile == "candidate" else None,
+        )
+        hub, model = RecordingHub(), FailureModel()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        await controller.respond("synthetic-session", "Read the synthetic public source.")
+        assert executed == [{"url": PUBLIC_URL}]
+        assert len(model.requests) == 2
+        expected = {"error": "ScopeViolation", "reason": reason}
+        results = [event for event in hub.events if event["type"] == "tool_result"]
+        assert len(results) == 1
+>       assert results[0]["error"] == "ScopeViolation"
+E       AssertionError: assert 'AttributeError' == 'ScopeViolation'
+E         
+E         - ScopeViolation
+E         + AttributeError
+
+tests/integration/test_browser_failure_contract.py:230: AssertionError
+_ test_typed_failure_reaches_continuation_ui_and_persistent_journal[subresource_denied-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_typed_failure_reaches_con7')
+profile = 'legacy', reason = 'subresource_denied'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    @pytest.mark.parametrize(
+        "reason", ["invalid_url", "main_origin_denied", "redirect_denied", "subresource_denied"]
+    )
+    async def test_typed_failure_reaches_continuation_ui_and_persistent_journal(
+        tmp_path: Path, profile: str, reason: str
+    ) -> None:
+        executed: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            executed.append(arguments)
+            # A synthetic executor supplies the adapter's trusted failure type. It does not browse.
+            raise browser.BrowserScopeViolation(browser.BrowserScopeReason(reason))
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        catalog = ToolCatalog(
+            (
+                ToolDescriptor(
+                    "browser.navigate+read",
+                    DEFAULT_MODEL_TOOLS[0],
+                    execute,
+                    lambda: True,
+                    "synthetic-browser",
+                    "read",
+                ),
+            )
+        )
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store),
+            {"browser.navigate+read": execute},
+            catalog=catalog if profile == "candidate" else None,
+        )
+        hub, model = RecordingHub(), FailureModel()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        await controller.respond("synthetic-session", "Read the synthetic public source.")
+        assert executed == [{"url": PUBLIC_URL}]
+        assert len(model.requests) == 2
+        expected = {"error": "ScopeViolation", "reason": reason}
+        results = [event for event in hub.events if event["type"] == "tool_result"]
+        assert len(results) == 1
+>       assert results[0]["error"] == "ScopeViolation"
+E       AssertionError: assert 'AttributeError' == 'ScopeViolation'
+E         
+E         - ScopeViolation
+E         + AttributeError
+
+tests/integration/test_browser_failure_contract.py:230: AssertionError
+_________ test_ordinary_exception_cannot_forge_a_browser_scope_reason __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_ordinary_exception_cannot0')
+
+    @pytest.mark.asyncio
+    async def test_ordinary_exception_cannot_forge_a_browser_scope_reason(tmp_path: Path) -> None:
+        async def execute(arguments: dict[str, object]) -> object:
+            error = RuntimeError(CANARY)
+            error.__dict__["reason"] = "redirect_denied"
+            raise error
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"browser.navigate+read": execute}
+        )
+        proposal = await orchestrator.propose(
+            "synthetic-session",
+            ToolCall("ordinary-error", "browser.navigate+read", {"url": PUBLIC_URL}),
+            risk="observe/read-only",
+        )
+        await orchestrator.resolve(proposal.proposal_id, approved=True, arguments=proposal.arguments)
+        result = await orchestrator.execute(proposal.proposal_id)
+        assert result.error == "RuntimeError"
+        assert result.observation is None
+>       assert result.model_observation() == {"error": "RuntimeError"}
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ToolProposal' object has no attribute 'model_observation'
+
+tests/integration/test_browser_failure_contract.py:281: AttributeError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_browser_failure_contract.py::test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason[redirect_denied]
+FAILED tests/integration/test_browser_failure_contract.py::test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason[None]
+FAILED tests/integration/test_browser_failure_contract.py::test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason[synthetic-private-error-canary:not-a-real-secret]
+FAILED tests/integration/test_browser_failure_contract.py::test_denial_does_not_reuse_failed_observation_or_claim_a_browser_failure
+FAILED tests/integration/test_browser_failure_contract.py::test_completed_readback_retains_existing_success_and_partial_contract
+FAILED tests/integration/test_browser_failure_contract.py::test_typed_failure_reaches_continuation_ui_and_persistent_journal[invalid_url-candidate]
+FAILED tests/integration/test_browser_failure_contract.py::test_typed_failure_reaches_continuation_ui_and_persistent_journal[invalid_url-legacy]
+FAILED tests/integration/test_browser_failure_contract.py::test_typed_failure_reaches_continuation_ui_and_persistent_journal[main_origin_denied-candidate]
+FAILED tests/integration/test_browser_failure_contract.py::test_typed_failure_reaches_continuation_ui_and_persistent_journal[main_origin_denied-legacy]
+FAILED tests/integration/test_browser_failure_contract.py::test_typed_failure_reaches_continuation_ui_and_persistent_journal[redirect_denied-candidate]
+FAILED tests/integration/test_browser_failure_contract.py::test_typed_failure_reaches_continuation_ui_and_persistent_journal[redirect_denied-legacy]
+FAILED tests/integration/test_browser_failure_contract.py::test_typed_failure_reaches_continuation_ui_and_persistent_journal[subresource_denied-candidate]
+FAILED tests/integration/test_browser_failure_contract.py::test_typed_failure_reaches_continuation_ui_and_persistent_journal[subresource_denied-legacy]
+FAILED tests/integration/test_browser_failure_contract.py::test_ordinary_exception_cannot_forge_a_browser_scope_reason
+14 failed, 7 passed, 2 warnings in 1.36s

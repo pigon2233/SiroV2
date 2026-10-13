@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -17,6 +18,13 @@ from siro.core.identity import IdentityService, ImmutableCore
 from siro.persistence.conversation import SQLiteConversationRepository
 from siro.persistence.sqlite import SQLiteStore
 from siro.persistence.state import SQLiteIdentityRepository
+from siro.ports.models import (
+    CancellationToken,
+    ModelChunk,
+    ModelRequest,
+    ToolCall,
+    ToolDefinition,
+)
 
 
 async def engine(
@@ -70,6 +78,41 @@ async def test_stream_completes_in_order(tmp_path: Path) -> None:
     assert {signal.trace_id for signal in signals} == {result.trace_id}
     assert [signal.index for signal in signals if signal.kind == "text_delta"] == [0, 1, 2]
     assert sum(signal.kind == "terminal" for signal in signals) == 1
+
+
+@pytest.mark.asyncio
+async def test_model_tool_request_is_preserved_for_orchestration(tmp_path: Path) -> None:
+    class ToolModel:
+        name = "tool-model"
+
+        async def stream(
+            self, request: ModelRequest, cancellation: CancellationToken
+        ) -> AsyncIterator[ModelChunk]:
+            del cancellation
+            assert [tool.name for tool in request.tools] == ["computer"]
+            yield ModelChunk(
+                "tool_request",
+                tool_call=ToolCall(
+                    "call-1",
+                    "computer",
+                    {"goal": "install and open VS Code"},
+                ),
+            )
+            yield ModelChunk("finished")
+
+    subject = await engine(tmp_path, ToolModel())  # type: ignore[arg-type]
+    result = await subject.respond(
+        "session",
+        "siro",
+        "下載安裝並開啟 VS Code",
+        tools=(ToolDefinition("computer", "Operate the computer", {"type": "object"}),),
+    )
+
+    assert result.state is TurnState.COMPLETED
+    assert result.text == ""
+    assert result.tool_calls == (
+        ToolCall("call-1", "computer", {"goal": "install and open VS Code"}),
+    )
 
 
 @pytest.mark.asyncio

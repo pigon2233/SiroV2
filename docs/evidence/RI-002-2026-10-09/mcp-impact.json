@@ -1,0 +1,838 @@
+{
+  "timestamp_utc": "2026-10-09T15:36:13Z",
+  "status": "HISTORICAL_MCP_SNAPSHOT_PLUS_CURRENT_STATIC_CROSSCHECK",
+  "startup_attempts": [
+    {
+      "exit_code": 2,
+      "reason": "session.lock already owned; no scope bypass or reindex attempted",
+      "stderr": "[Errno 11] Resource temporarily unavailable\n"
+    }
+  ],
+  "source_before": {
+    "timestamp_utc": "2026-10-09T15:35:58Z",
+    "files": {
+      "src/siro/services/tools/orchestrator.py": "6b174e84cf9f281ee2620195f53edba00be40c8f1c0c7b529dacc294d3b2106c",
+      "src/siro/services/presentation/integrated.py": "2f6d497750773a3673e7d426fa39b0eaa16e1b4d55e865ee072b247e5014f699",
+      "src/siro/services/presentation/gateway.py": "a4bc4d1582a1d1836c9300697bc80ec9d054f8c4d1add7a360621cf127d528bf"
+    }
+  },
+  "completed_at_utc": "2026-10-09T15:38:01Z",
+  "live_MCP_this_run": "NOT_RUN: server startup failed with existing session lock; no owner stopped, lease bypassed, or source reindexed",
+  "historical_graph": {
+    "file": "docs/evidence/runtime-intelligence-2026-10-09/mcp-callchains.json",
+    "sha256": "9672de74f41c861b5ba4e8d69533c5a8a41a83d1167759e525452469954e6b1c",
+    "baseline_file": "docs/evidence/runtime-intelligence-2026-10-09/baseline.json",
+    "reuse_authorized": "Root explicitly instructed reuse after session contention",
+    "queries_reused": [
+      {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 6,
+          "method": "tools/call",
+          "params": {
+            "name": "trace_path",
+            "arguments": {
+              "project": "SiroV2",
+              "function_name": "SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion.respond",
+              "direction": "outbound",
+              "depth": 2,
+              "limit": 45,
+              "format": "json",
+              "include_evidence": true,
+              "max_output_tokens": 8000
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 6,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"function\":\"SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion.respond\",\"direction\":\"outbound\",\"callees_total\":104,\"callees_total_relation\":\"eq\",\"callees\":{\"qn_rule\":\"qn = qn_prefix == \\\"\\\" ? name : qn_prefix + \\\".\\\" + name\",\"cols\":[\"name\",\"hop\",\"strategy\",\"confidence\"],\"groups\":[{\"qn_prefix\":\"SiroV2.src.siro.services.presentation.integrated\",\"rows\":[[\"_emotion_command\",1,\"lsp\",0.95],[\"_local_status_command\",1,\"lsp\",0.95]]},{\"qn_prefix\":\"SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion\",\"rows\":[[\"_model_tools\",1,\"lsp\",0.9],[\"_checkpoint_callback\",1,\"lsp\",0.9],[\"_propose_tool_calls\",1,\"lsp\",0.9],[\"_finish_candidate\",1,\"lsp\",0.9],[\"_ensure_core\",1,\"lsp\",0.9]]},{\"qn_prefix\":\"builtins\",\"rows\":[[\"str\",1,\"lsp\",0.88]]},{\"qn_prefix\":\"builtins.dict\",\"rows\":[[\"get\",1,\"lsp\",0.88]]},{\"qn_prefix\":\"SiroV2.src.siro.core.affect\",\"rows\":[[\"SelfConcern\",1,\"lsp\",0.85],[\"concern_outcome_from_text\",1,\"lsp\",0.97]]},{\"qn_prefix\":\"SiroV2.src.siro.core.affect.AffectSystem\",\"rows\":[[\"configuration\",1,\"lsp\",0.9],[\"advance_time\",1,\"lsp\",0.9],[\"appraise_user_event\",1,\"lsp\",0.9],[\"appraise_concern_outcome\",1,\"lsp\",0.9],[\"restore\",1,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.persistence.sqlite.SQLiteStore\",\"rows\":[[\"record_event\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.contracts.events\",\"rows\":[[\"Privacy\",1,\"heuristic\",0.95],[\"UserTextPayload\",1,\"lsp\",0.85],[\"UserTextEvent\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.adapters.body.web.MinimalWebBodyAdapter\",\"rows\":[[\"speak\",1,\"lsp\",0.9],[\"set_emotion\",1,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.core.expression.ExpressionPolicy\",\"rows\":[[\"decide\",1,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.core.expression\",\"rows\":[[\"expression_context_from_text\",1,\"lsp\",0.97]]},{\"qn_prefix\":\"SiroV2.src.siro.persistence.relationships.SQLiteRelationshipRepository\",\"rows\":[[\"current\",1,\"lsp\",0.85],[\"record\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.ports.body\",\"rows\":[[\"SpeechIntent\",1,\"lsp\",0.85],[\"EmotionIntent\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.ports.events.Clock\",\"rows\":[[\"now\",1,\"heuristic\",0.12]]},{\"qn_prefix\":\"SiroV2.src.siro.core.preferences\",\"rows\":[[\"extract_explicit_preference\",1,\"lsp\",0.97]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator\",\"rows\":[[\"start_run\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.services.agent.runs.SQLiteAgentRunRepository\",\"rows\":[[\"start\",1,\"lsp\",0.85],[\"append\",1,\"lsp\",0.85],[\"reserve_round\",1,\"lsp\",0.85],[\"recent_session_messages\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.persistence.affect\",\"rows\":[[\"Preference\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.persistence.affect.SQLiteAffectRepository\",\"rows\":[[\"state\",1,\"lsp\",0.85],[\"record\",1,\"lsp\",0.85],[\"dynamics\",1,\"lsp\",0.85],[\"elapsed_hours\",1,\"lsp\",0.85],[\"record_result\",1,\"lsp\",0.85],[\"put_preference\",1,\"lsp\",0.85],[\"preferences\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.core.memory.MemoryService\",\"rows\":[[\"ingest_owner_request\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.core.relationships.RelationshipSystem\",\"rows\":[[\"update\",1,\"lsp\",0.9]]}]},\"truncated\":true,\"has_more\":true,\"truncation_reason\":\"page_limit\",\"next_cursor\":\"c1.o.u8f3f421e971166eeg2.ccbb7fc0eaa99537.1.2533\"}"
+              }
+            ],
+            "structuredContent": {
+              "function": "SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion.respond",
+              "direction": "outbound",
+              "callees_total": 104,
+              "callees_total_relation": "eq",
+              "callees": {
+                "qn_rule": "qn = qn_prefix == \"\" ? name : qn_prefix + \".\" + name",
+                "cols": [
+                  "name",
+                  "hop",
+                  "strategy",
+                  "confidence"
+                ],
+                "groups": [
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.presentation.integrated",
+                    "rows": [
+                      [
+                        "_emotion_command",
+                        1,
+                        "lsp",
+                        0.95
+                      ],
+                      [
+                        "_local_status_command",
+                        1,
+                        "lsp",
+                        0.95
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion",
+                    "rows": [
+                      [
+                        "_model_tools",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "_checkpoint_callback",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "_propose_tool_calls",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "_finish_candidate",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "_ensure_core",
+                        1,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "builtins",
+                    "rows": [
+                      [
+                        "str",
+                        1,
+                        "lsp",
+                        0.88
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "builtins.dict",
+                    "rows": [
+                      [
+                        "get",
+                        1,
+                        "lsp",
+                        0.88
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.core.affect",
+                    "rows": [
+                      [
+                        "SelfConcern",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "concern_outcome_from_text",
+                        1,
+                        "lsp",
+                        0.97
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.core.affect.AffectSystem",
+                    "rows": [
+                      [
+                        "configuration",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "advance_time",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "appraise_user_event",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "appraise_concern_outcome",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "restore",
+                        1,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.persistence.sqlite.SQLiteStore",
+                    "rows": [
+                      [
+                        "record_event",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.contracts.events",
+                    "rows": [
+                      [
+                        "Privacy",
+                        1,
+                        "heuristic",
+                        0.95
+                      ],
+                      [
+                        "UserTextPayload",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "UserTextEvent",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.adapters.body.web.MinimalWebBodyAdapter",
+                    "rows": [
+                      [
+                        "speak",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "set_emotion",
+                        1,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.core.expression.ExpressionPolicy",
+                    "rows": [
+                      [
+                        "decide",
+                        1,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.core.expression",
+                    "rows": [
+                      [
+                        "expression_context_from_text",
+                        1,
+                        "lsp",
+                        0.97
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.persistence.relationships.SQLiteRelationshipRepository",
+                    "rows": [
+                      [
+                        "current",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "record",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.ports.body",
+                    "rows": [
+                      [
+                        "SpeechIntent",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "EmotionIntent",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.ports.events.Clock",
+                    "rows": [
+                      [
+                        "now",
+                        1,
+                        "heuristic",
+                        0.12
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.core.preferences",
+                    "rows": [
+                      [
+                        "extract_explicit_preference",
+                        1,
+                        "lsp",
+                        0.97
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator",
+                    "rows": [
+                      [
+                        "start_run",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.agent.runs.SQLiteAgentRunRepository",
+                    "rows": [
+                      [
+                        "start",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "append",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "reserve_round",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "recent_session_messages",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.persistence.affect",
+                    "rows": [
+                      [
+                        "Preference",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.persistence.affect.SQLiteAffectRepository",
+                    "rows": [
+                      [
+                        "state",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "record",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "dynamics",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "elapsed_hours",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "record_result",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "put_preference",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "preferences",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.core.memory.MemoryService",
+                    "rows": [
+                      [
+                        "ingest_owner_request",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.core.relationships.RelationshipSystem",
+                    "rows": [
+                      [
+                        "update",
+                        1,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  }
+                ]
+              },
+              "truncated": true,
+              "has_more": true,
+              "truncation_reason": "page_limit",
+              "next_cursor": "c1.o.u8f3f421e971166eeg2.ccbb7fc0eaa99537.1.2533"
+            },
+            "isError": false
+          }
+        },
+        "seconds": 0.016931
+      },
+      {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "method": "tools/call",
+          "params": {
+            "name": "trace_path",
+            "arguments": {
+              "project": "SiroV2",
+              "function_name": "SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator.execute",
+              "direction": "outbound",
+              "depth": 2,
+              "limit": 45,
+              "format": "json",
+              "include_evidence": true,
+              "max_output_tokens": 8000
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 7,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"function\":\"SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator.execute\",\"direction\":\"outbound\",\"callees_total\":13,\"callees_total_relation\":\"eq\",\"callees\":{\"qn_rule\":\"qn = qn_prefix == \\\"\\\" ? name : qn_prefix + \\\".\\\" + name\",\"cols\":[\"name\",\"hop\",\"strategy\",\"confidence\"],\"groups\":[{\"qn_prefix\":\"builtins.dict\",\"rows\":[[\"get\",1,\"lsp\",0.88]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.orchestrator.ToolCatalog\",\"rows\":[[\"require\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.orchestrator.SQLiteToolProposalRepository\",\"rows\":[[\"get\",1,\"lsp\",0.9],[\"journal_owner\",1,\"lsp\",0.9],[\"transition\",1,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator\",\"rows\":[[\"cancel_run\",1,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.execution\",\"rows\":[[\"ExecutionCancelled\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.execution.ExecutionContext\",\"rows\":[[\"check\",1,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.persistence.sqlite.SQLiteStore\",\"rows\":[[\"run_transaction\",2,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.orchestrator\",\"rows\":[[\"ToolUnavailableError\",2,\"lsp\",0.85],[\"_valid_arguments\",2,\"lsp\",0.95]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.orchestrator.SQLiteToolProposalRepository\",\"rows\":[[\"_from_row\",2,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.execution\",\"rows\":[[\"ExecutionCleanupError\",2,\"lsp\",0.85]]}]}}"
+              }
+            ],
+            "structuredContent": {
+              "function": "SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator.execute",
+              "direction": "outbound",
+              "callees_total": 13,
+              "callees_total_relation": "eq",
+              "callees": {
+                "qn_rule": "qn = qn_prefix == \"\" ? name : qn_prefix + \".\" + name",
+                "cols": [
+                  "name",
+                  "hop",
+                  "strategy",
+                  "confidence"
+                ],
+                "groups": [
+                  {
+                    "qn_prefix": "builtins.dict",
+                    "rows": [
+                      [
+                        "get",
+                        1,
+                        "lsp",
+                        0.88
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.orchestrator.ToolCatalog",
+                    "rows": [
+                      [
+                        "require",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.orchestrator.SQLiteToolProposalRepository",
+                    "rows": [
+                      [
+                        "get",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "journal_owner",
+                        1,
+                        "lsp",
+                        0.9
+                      ],
+                      [
+                        "transition",
+                        1,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator",
+                    "rows": [
+                      [
+                        "cancel_run",
+                        1,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.execution",
+                    "rows": [
+                      [
+                        "ExecutionCancelled",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.execution.ExecutionContext",
+                    "rows": [
+                      [
+                        "check",
+                        1,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.persistence.sqlite.SQLiteStore",
+                    "rows": [
+                      [
+                        "run_transaction",
+                        2,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.orchestrator",
+                    "rows": [
+                      [
+                        "ToolUnavailableError",
+                        2,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "_valid_arguments",
+                        2,
+                        "lsp",
+                        0.95
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.orchestrator.SQLiteToolProposalRepository",
+                    "rows": [
+                      [
+                        "_from_row",
+                        2,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.execution",
+                    "rows": [
+                      [
+                        "ExecutionCleanupError",
+                        2,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  }
+                ]
+              }
+            },
+            "isError": false
+          }
+        },
+        "seconds": 0.013624
+      },
+      {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 12,
+          "method": "tools/call",
+          "params": {
+            "name": "trace_path",
+            "arguments": {
+              "project": "SiroV2",
+              "function_name": "SiroV2.src.siro.services.tools.orchestrator.ToolCatalog.require",
+              "direction": "inbound",
+              "depth": 2,
+              "limit": 45,
+              "format": "json",
+              "include_evidence": true,
+              "max_output_tokens": 8000
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 12,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\"function\":\"SiroV2.src.siro.services.tools.orchestrator.ToolCatalog.require\",\"direction\":\"inbound\",\"callers_total\":3,\"callers_total_relation\":\"eq\",\"callers\":{\"qn_rule\":\"qn = qn_prefix == \\\"\\\" ? name : qn_prefix + \\\".\\\" + name\",\"cols\":[\"name\",\"hop\",\"strategy\",\"confidence\"],\"groups\":[{\"qn_prefix\":\"SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator\",\"rows\":[[\"propose\",1,\"lsp\",0.85],[\"execute\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion\",\"rows\":[[\"_propose_tool_calls\",2,\"lsp\",0.9]]}]}}"
+              }
+            ],
+            "structuredContent": {
+              "function": "SiroV2.src.siro.services.tools.orchestrator.ToolCatalog.require",
+              "direction": "inbound",
+              "callers_total": 3,
+              "callers_total_relation": "eq",
+              "callers": {
+                "qn_rule": "qn = qn_prefix == \"\" ? name : qn_prefix + \".\" + name",
+                "cols": [
+                  "name",
+                  "hop",
+                  "strategy",
+                  "confidence"
+                ],
+                "groups": [
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator",
+                    "rows": [
+                      [
+                        "propose",
+                        1,
+                        "lsp",
+                        0.85
+                      ],
+                      [
+                        "execute",
+                        1,
+                        "lsp",
+                        0.85
+                      ]
+                    ]
+                  },
+                  {
+                    "qn_prefix": "SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion",
+                    "rows": [
+                      [
+                        "_propose_tool_calls",
+                        2,
+                        "lsp",
+                        0.9
+                      ]
+                    ]
+                  }
+                ]
+              }
+            },
+            "isError": false
+          }
+        },
+        "seconds": 0.013984
+      }
+    ],
+    "queries_not_run_this_round": [
+      "ToolCatalog.definitions inbound",
+      "ToolCatalog.snapshot inbound",
+      "ToolOrchestrator.model_tools inbound",
+      "ToolOrchestrator.tool_status inbound",
+      "IntegratedCompanion._model_tools inbound"
+    ]
+  },
+  "source_crosscheck": [
+    {
+      "file": "src/siro/services/tools/orchestrator.py",
+      "sha256_at_static_check": "6b174e84cf9f281ee2620195f53edba00be40c8f1c0c7b529dacc294d3b2106c",
+      "sha256_recorded_before": "6b174e84cf9f281ee2620195f53edba00be40c8f1c0c7b529dacc294d3b2106c",
+      "sha256_prior_RI001_baseline": "6b174e84cf9f281ee2620195f53edba00be40c8f1c0c7b529dacc294d3b2106c",
+      "prior_snapshot_matches_before": true,
+      "source_unchanged_during_check": true
+    },
+    {
+      "file": "src/siro/services/presentation/integrated.py",
+      "sha256_at_static_check": "2f6d497750773a3673e7d426fa39b0eaa16e1b4d55e865ee072b247e5014f699",
+      "sha256_recorded_before": "2f6d497750773a3673e7d426fa39b0eaa16e1b4d55e865ee072b247e5014f699",
+      "sha256_prior_RI001_baseline": "2f6d497750773a3673e7d426fa39b0eaa16e1b4d55e865ee072b247e5014f699",
+      "prior_snapshot_matches_before": true,
+      "source_unchanged_during_check": true
+    },
+    {
+      "file": "src/siro/services/presentation/gateway.py",
+      "sha256_at_static_check": "a4bc4d1582a1d1836c9300697bc80ec9d054f8c4d1add7a360621cf127d528bf",
+      "sha256_recorded_before": "a4bc4d1582a1d1836c9300697bc80ec9d054f8c4d1add7a360621cf127d528bf",
+      "sha256_prior_RI001_baseline": "a4bc4d1582a1d1836c9300697bc80ec9d054f8c4d1add7a360621cf127d528bf",
+      "prior_snapshot_matches_before": true,
+      "source_unchanged_during_check": true
+    }
+  ],
+  "direct_callers_from_current_AST": [
+    {
+      "target": "ToolCatalog.definitions",
+      "file": "src/siro/services/tools/orchestrator.py",
+      "line": 418,
+      "caller": "ToolOrchestrator.model_tools",
+      "expression": "self.catalog.definitions"
+    },
+    {
+      "target": "ToolCatalog.snapshot",
+      "file": "src/siro/services/tools/orchestrator.py",
+      "line": 423,
+      "caller": "ToolOrchestrator.tool_status",
+      "expression": "self.catalog.snapshot"
+    },
+    {
+      "target": "ToolCatalog.require",
+      "file": "src/siro/services/tools/orchestrator.py",
+      "line": 485,
+      "caller": "ToolOrchestrator.propose",
+      "expression": "self.catalog.require"
+    },
+    {
+      "target": "ToolCatalog.require",
+      "file": "src/siro/services/tools/orchestrator.py",
+      "line": 553,
+      "caller": "ToolOrchestrator.execute",
+      "expression": "self.catalog.require"
+    },
+    {
+      "target": "ToolCatalog.require",
+      "file": "src/siro/services/tools/orchestrator.py",
+      "line": 573,
+      "caller": "ToolOrchestrator.execute.invoke",
+      "expression": "self.catalog.require"
+    },
+    {
+      "target": "ToolOrchestrator.model_tools",
+      "file": "src/siro/services/presentation/integrated.py",
+      "line": 146,
+      "caller": "IntegratedCompanion._model_tools",
+      "expression": "self._tool_orchestrator.model_tools"
+    },
+    {
+      "target": "IntegratedCompanion._model_tools",
+      "file": "src/siro/services/presentation/integrated.py",
+      "line": 462,
+      "caller": "IntegratedCompanion.respond",
+      "expression": "self._model_tools"
+    },
+    {
+      "target": "IntegratedCompanion._model_tools",
+      "file": "src/siro/services/presentation/integrated.py",
+      "line": 697,
+      "caller": "IntegratedCompanion.continue_after_tool",
+      "expression": "self._model_tools"
+    },
+    {
+      "target": "ToolOrchestrator.tool_status",
+      "file": "src/siro/services/presentation/gateway.py",
+      "line": 668,
+      "caller": "create_app.runtime_configuration",
+      "expression": "tool_orchestrator.tool_status"
+    }
+  ],
+  "graph_limits": [
+    "Prior respond trace returned 45 visible outbound nodes of 104 total with truncation; it is a partial view, not a full impact inventory.",
+    "Prior ToolCatalog.require trace lists propose/execute direct and _propose_tool_calls at hop2; direct source also proves nested execute.invoke revalidates immediately before dispatch.",
+    "Stored MCP call chains are static inferred edges, not runtime execution proof."
+  ],
+  "repair_scope": [
+    "Extend metadata on existing ToolDescriptor/ToolCatalog only; preserve tool names, input validation, execution route and availability gates.",
+    "Catalog.snapshot feeds /v1/runtime; keep existing keys/types compatible and copy returned schemas.",
+    "ToolDefinition model payload remains name/description/input_schema unless a separately reviewed contract changes it.",
+    "Keep require at proposal, execution, and final contextual dispatch; discovery must not invoke executor or obtain permission.",
+    "Keep candidate catalog and legacy DEFAULT_MODEL_TOOLS/_AGENT_TOOLS paths intact."
+  ],
+  "suggested_regressions": [
+    "tests/integration/test_tool_catalog.py",
+    "tests/integration/test_tool_orchestrator.py",
+    "tests/integration/test_integrated_companion.py",
+    "tests/integration/test_agent_batches.py",
+    "tests/integration/test_context_budget.py",
+    "tests/integration/test_execution_lifecycle.py",
+    "tests/integration/test_gateway.py",
+    "tests/contract/test_model_adapters.py"
+  ],
+  "tests_run_this_subtask": []
+}

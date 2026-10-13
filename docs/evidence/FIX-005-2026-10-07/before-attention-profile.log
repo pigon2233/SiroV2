@@ -1,0 +1,44 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________________ test_cuda_attention_profile_isolates_cpu_cache ________________
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-162/test_cuda_attention_profile_is0/synthetic-packages'), 'mod...e_is0/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-162/test_cuda_attention_profile_is0/cache')}
+
+    def test_cuda_attention_profile_isolates_cpu_cache(worker_fixture: dict[str, Path]) -> None:
+        _, cpu = run_worker(worker_fixture, ["same text"])
+        profile = worker_fixture["packages"] / "qwen_tts.profile"
+        assert json.loads(profile.read_text())["attn_implementation"] == "eager"
+        torch = worker_fixture["packages"] / "torch.py"
+        torch.write_text(torch.read_text().replace("lambda:False", "lambda:True"))
+        _, cuda = run_worker(worker_fixture, ["same text"])
+        selected = json.loads(profile.read_text())
+        assert selected["device_map"] == "cuda:0"
+>       assert selected["attn_implementation"] == "sdpa"
+E       AssertionError: assert 'eager' == 'sdpa'
+E         
+E         - sdpa
+E         + eager
+
+tests/test_qwen_worker_completion.py:423: AssertionError
+__________________ test_fingerprint_binds_effective_attention __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-162/test_fingerprint_binds_effecti0')
+
+    def test_fingerprint_binds_effective_attention(tmp_path: Path) -> None:
+        worker = runpy.run_path(str(WORKER))
+        model = tmp_path / "model"
+        model.mkdir()
+        (model / "weights.bin").write_bytes(b"synthetic")
+        reference = tmp_path / "reference.wav"
+        reference.write_bytes(b"synthetic")
+        fingerprint = worker["cache_fingerprint"]
+        args = (model, reference, "synthetic", {"qwen-tts": "0.1.1"}, {"max_new_tokens": 512})
+>       assert fingerprint(*args, attention="eager") != fingerprint(*args, attention="sdpa")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: cache_fingerprint() got an unexpected keyword argument 'attention'
+
+tests/test_qwen_worker_completion.py:440: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_qwen_worker_completion.py::test_cuda_attention_profile_isolates_cpu_cache
+FAILED tests/test_qwen_worker_completion.py::test_fingerprint_binds_effective_attention
+2 failed, 37 deselected in 0.53s

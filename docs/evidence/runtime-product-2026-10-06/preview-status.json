@@ -1,0 +1,72 @@
+{
+  "features": {
+    "summary": {
+      "enabled": true,
+      "mode": "extractive",
+      "history_pairs": 24,
+      "budget_compactions": 0
+    },
+    "memory_organization": {
+      "enabled": true
+    },
+    "workspace": {
+      "enabled": true,
+      "available": true,
+      "directory": "/tmp/siro-product-preview-1c6kac37/workspace",
+      "error": null
+    }
+  },
+  "runtime_profile": "candidate",
+  "configuration_source": "gateway_env_and_defaults",
+  "catalog_enabled": true,
+  "json_settings_applied": false,
+  "authorization_mode": "full",
+  "kill_switches": {
+    "cloud": false,
+    "tools": true,
+    "microphone": false
+  },
+  "routes": {
+    "model": "offline",
+    "audio": "disabled",
+    "body": "websocket",
+    "tts": "edge:zh-TW-HsiaoChenNeural"
+  },
+  "tools": [
+    {
+      "name": "browser.navigate+read",
+      "available": true,
+      "backend": "playwright",
+      "effect": "read",
+      "model_visible": true
+    },
+    {
+      "name": "process.start",
+      "available": true,
+      "backend": "python.argv",
+      "effect": "computer",
+      "model_visible": false
+    },
+    {
+      "name": "computer.execute",
+      "available": true,
+      "backend": "python.argv",
+      "effect": "computer",
+      "model_visible": true
+    },
+    {
+      "name": "filesystem.read",
+      "available": true,
+      "backend": "rust.scoped",
+      "effect": "read",
+      "model_visible": true
+    },
+    {
+      "name": "filesystem.list",
+      "available": true,
+      "backend": "rust.scoped",
+      "effect": "read",
+      "model_visible": true
+    }
+  ]
+}

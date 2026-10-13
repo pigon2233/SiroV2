@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -21,6 +22,9 @@ class CheckResult:
 
 
 def _data_dir(environment: dict[str, str]) -> Path:
+    configured = environment.get("SIRO_DATA_DIR")
+    if configured:
+        return Path(configured)
     base = environment.get("XDG_DATA_HOME")
     if base:
         return Path(base) / "siro"
@@ -53,6 +57,32 @@ def _nvidia_check() -> CheckResult:
     return CheckResult("nvidia", "available", result.stdout.strip(), "local-ai")
 
 
+def _config_check(environment: dict[str, str]) -> CheckResult:
+    from siro.config import load_settings
+
+    configured = environment.get("SIRO_CONFIG")
+    path = Path(configured) if configured else Path.home() / ".config/siro/config.json"
+    if not path.is_file():
+        return CheckResult("config", "unavailable", str(path), "companion")
+    try:
+        load_settings(path)
+    except (OSError, ValueError) as error:
+        return CheckResult("config", "unavailable", type(error).__name__, "companion")
+    return CheckResult("config", "available", str(path), "companion")
+
+
+def _gateway_check(environment: dict[str, str]) -> CheckResult:
+    port = environment.get("SIRO_GATEWAY_PORT", "8000")
+    url = f"http://127.0.0.1:{port}/health/ready"
+    try:
+        with urllib.request.urlopen(url, timeout=0.5) as response:
+            if response.status == 200:
+                return CheckResult("gateway", "available", url, "companion")
+    except (OSError, ValueError):
+        pass
+    return CheckResult("gateway", "unavailable", url, "companion")
+
+
 def collect_checks(environment: dict[str, str] | None = None) -> list[CheckResult]:
     """Collect diagnostics without changing the host."""
 
@@ -68,6 +98,8 @@ def collect_checks(environment: dict[str, str] | None = None) -> list[CheckResul
             str(data_dir),
             "minimal",
         ),
+        _config_check(selected_environment),
+        _gateway_check(selected_environment),
         _command_check("wpctl", "companion audio"),
         _command_check("docker", "broker integration tests"),
         _command_check("rustc", "runtime"),

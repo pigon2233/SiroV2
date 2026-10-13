@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIRO Control</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10141d; color: #e9eef9; }
+      body { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+      section { background: #192131; border: 1px solid #33415c; border-radius: 12px; padding: 1rem; margin: 1rem 0; }
+      input { width: 70%; padding: .7rem; } button { padding: .7rem 1rem; margin: .25rem; }
+      #voice-status { min-height: 1.5rem; }
+      #events { max-height: 18rem; overflow: auto; white-space: pre-wrap; }
+      #messages { min-height: 8rem; max-height: 28rem; overflow: auto; }
+      #companion { width: 100%; height: 25rem; border: 0; border-radius: 10px; background: #111522; }
+      .message { padding: .75rem 1rem; margin: .5rem 0; border-radius: 10px; white-space: pre-wrap; }
+      .user { background: #263554; margin-left: 15%; } .assistant { background: #203d36; margin-right: 15%; }
+      .ok { color: #7de2a7; } .warn { color: #ffcb6b; }
+      #affect-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .7rem; }
+      .affect-card { background: #111827; border-radius: 8px; padding: .7rem; }
+      .meter { height: .5rem; background: #273449; border-radius: 1rem; overflow: hidden; margin-top: .25rem; }
+      .meter span { display: block; height: 100%; background: #8ab4f8; }
+      .proposal { border: 1px solid #ffcb6b; border-radius: 10px; padding: .8rem; margin: .5rem 0; }
+    </style>
+  </head>
+  <body>
+    <h1>SIRO Control</h1>
+    <p id="connection" class="warn">連線中</p>
+    <section>
+      <h2>角色反應</h2>
+      <iframe id="companion" src="__SIRO_RENDERER_PATH__" title="SIRO 角色反應"></iframe>
+      <p class="warn">__SIRO_RENDERER_STATUS__</p>
+    </section>
+    <section>
+      <h2>電腦操作授權</h2>
+      <p id="authorization-status">SIRO 目前預設自動授權操作；tools kill switch 可立即停用新操作。</p>
+      <div id="tool-proposals"><span class="warn">目前沒有待授權操作</span></div>
+    </section>
+    <section><h2>身份與健康</h2><pre id="snapshot"></pre></section>
+    <section>
+      <h2>SIRO 內在狀態</h2>
+      <p id="affect-summary">尚無事件評估</p>
+      <div id="affect-grid"></div>
+    </section>
+    <section>
+      <h2>文字對話</h2>
+      <div id="messages" aria-live="polite"></div>
+      <form id="chat"><input id="text" required maxlength="32768"><button>送出</button></form>
+      <button id="cancel">取消目前回覆</button>
+      <button id="voice" type="button">開始說話</button>
+      <span id="voice-status" class="warn">麥克風待命</span>
+      <span id="tts-status" class="warn">TTS 待命</span>
+    </section>
+    <section>
+      <h2>音訊驗收</h2>
+      <p><a href="/audio-field-test">執行 20 次真人打斷與 AEC 欄位測試</a></p>
+    </section>
+    <section><h2>本機 Kill Switches</h2><div id="switches"></div></section>
+    <section><h2>事件</h2><pre id="events"></pre></section>
+    <script>
+      let token, socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
+      let recorder, recordedChunks = [], ttsAudio;
+      let ttsController, ttsGeneration = 0, speechCancelled = false;
+      const headers = () => ({"Authorization": `Bearer ${token}`, "Content-Type": "application/json"});
+      const log = data => { document.querySelector("#events").textContent += JSON.stringify(data) + "\n"; };
+      function createTerminalFence(limit = 1024) {
+        const ended = new Set(), order = [];
+        const progress = new Set(["assistant_started", "assistant_delta", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
+        return data => {
+          if (typeof data.stream_id !== "string") return true;
+          if (ended.has(data.stream_id) && (progress.has(data.type) || data.type === "assistant_terminal")) return false;
+          if (data.type === "assistant_terminal") {
+            ended.add(data.stream_id); order.push(data.stream_id);
+            if (order.length > limit) ended.delete(order.shift());
+          }
+          return true;
+        };
+      }
+      const acceptRunEvent = createTerminalFence();
+      function recoveryNotice(run) {
+        if (run.recovery_status !== "interrupted") return null;
+        return run.error === "outcome_unknown"
+          ? "上次工作中斷，有些操作的結果未知。我沒有重新執行；請先確認實際結果。"
+          : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
+      }
+      async function boot() {
+        const session = await fetch("/v1/session", {method: "POST", headers: {"Origin": location.origin}}).then(r => r.json());
+        token = session.token;
+        const recovery = await fetch("/v1/agent-runs/browser", {headers: headers()});
+        if (recovery.ok) {
+          const run = await recovery.json();
+          const notice = recoveryNotice(run);
+          if (notice) appendMessage("assistant", notice);
+        }
+        socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/control`);
+        socket.onopen = () => socket.send(JSON.stringify({type: "authenticate", token}));
+        socket.onmessage = event => {
+          const data = JSON.parse(event.data);
+          if (!acceptRunEvent(data)) return;
+          log(data);
+          if (data.type === "snapshot") { renderSnapshot(data); }
+          if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
+          if (data.type === "affect_state") { renderAffect(data); }
+          if (data.type === "assistant_started") {
+            assistantBubble = appendMessage("assistant", "");
+          }
+          if (data.type === "assistant_delta") {
+            if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
+            assistantBubble.textContent += data.text;
+            document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;
+          }
+          if (data.type === "assistant_terminal") {
+            const spokenText = assistantBubble?.textContent || "";
+            if (data.state !== "completed" && assistantBubble && !assistantBubble.textContent) {
+              assistantBubble.textContent = `回覆${data.state}${data.error ? `：${data.error}` : ""}`;
+            }
+            if (data.state !== "completed") stopTts();
+            if (data.state === "completed" && spokenText && !speechCancelled) playTts(spokenText, data.prosody || {});
+            assistantBubble = undefined; currentTurn = undefined;
+          }
+          if (data.type === "tool_proposal") renderToolProposal(data);
+          if (data.type === "tool_started") updateToolProposal(data.proposal_id, "執行中…");
+          if (data.type === "tool_result") renderToolResult(data);
+          document.querySelector("#connection").textContent = "已連線";
+          document.querySelector("#connection").className = "ok";
+        };
+        socket.onclose = () => { document.querySelector("#connection").textContent = "已斷線，請重新整理"; };
+      }
+      function renderAffect(data) {
+        const emotions = data.mixed_emotions.map(item => `${item.name} ${item.intensity.toFixed(2)}`).join("、") || "neutral";
+        document.querySelector("#affect-summary").textContent =
+          `主要：${data.dominant}｜混合：${emotions}｜調節：${data.coping}｜原因：${data.reason}`;
+        const values = {...data.drives, "mood pleasure": (data.mood.pleasure + 1) / 2,
+          "mood arousal": data.mood.arousal, "mood dominance": (data.mood.dominance + 1) / 2,
+          "relationship trust": data.relationship.trust,
+          "relationship familiarity": data.relationship.familiarity,
+          "relationship attachment": data.relationship.attachment,
+          "relationship rupture": data.relationship.rupture};
+        const root = document.querySelector("#affect-grid"); root.textContent = "";
+        Object.entries(values).forEach(([name, value]) => {
+          const card = document.createElement("div"); card.className = "affect-card";
+          const label = document.createElement("div"); label.textContent = `${name}: ${value.toFixed(2)}`;
+          const meter = document.createElement("div"); meter.className = "meter";
+          const fill = document.createElement("span"); fill.style.width = `${Math.max(0, Math.min(1, value)) * 100}%`;
+          meter.appendChild(fill); card.append(label, meter); root.appendChild(card);
+        });
+      }
+      function renderSnapshot(data) {
+        authorizationMode = data.authorization_mode || "safe";
+        document.querySelector("#authorization-status").textContent = authorizationMode === "full"
+          ? "完整權限模式：目前支援的一般使用者操作會自動授權；tools kill switch 可立即停用新操作。"
+          : "安全模式：操作需要逐次授權。";
+        document.querySelector("#snapshot").textContent = JSON.stringify({identity: data.identity, health: data.health, routes: data.routes, authorization_mode: authorizationMode}, null, 2);
+        const root = document.querySelector("#switches"); root.textContent = "";
+        microphoneEnabled = Boolean(data.kill_switches.microphone);
+        document.querySelector("#voice-status").textContent = microphoneEnabled ? "麥克風待命" : "請先開啟 microphone switch";
+        Object.entries(data.kill_switches).forEach(([name, enabled]) => {
+          const button = document.createElement("button"); button.textContent = `${name}: ${enabled ? "ON" : "OFF"}`;
+          button.onclick = async () => { await fetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})}); location.reload(); };
+          root.appendChild(button);
+        });
+      }
+      function appendMessage(role, text) {
+        const item = document.createElement("div"); item.className = `message ${role}`;
+        item.textContent = text; document.querySelector("#messages").appendChild(item); return item;
+      }
+      function renderToolProposal(data) {
+        const root = document.querySelector("#tool-proposals"); root.textContent = "";
+        const card = document.createElement("div"); card.className = "proposal"; card.id = `tool-${data.proposal_id}`;
+        const description = document.createElement("p");
+        const operation = data.capability === "process.start" ? "啟動應用程式" :
+          data.capability === "browser.navigate+read" ? "開啟並讀取頁面" : data.capability;
+        description.textContent = `操作：${operation}\n範圍：${data.scope}\n目標：${data.target}\n風險：${data.risk}`;
+        const button = document.createElement("button"); button.textContent = "授權這一次";
+        button.onclick = async () => {
+          button.disabled = true;
+          const response = await fetch(`/v1/tool-proposals/${data.proposal_id}/approve`, {
+            method: "POST", headers: headers(), body: JSON.stringify({approved: true})
+          });
+          if (!response.ok) updateToolProposal(data.proposal_id, `未執行：${(await response.json()).detail}`);
+        };
+        card.append(description);
+        if (authorizationMode !== "full") card.appendChild(button);
+        root.appendChild(card);
+        if (authorizationMode === "full") updateToolProposal(data.proposal_id, "已自動授權，等待執行…");
+      }
+      function updateToolProposal(id, status) {
+        const card = document.querySelector(`#tool-${id}`); if (!card) return;
+        let node = card.querySelector(".tool-status");
+        if (!node) { node = document.createElement("p"); node.className = "tool-status"; card.appendChild(node); }
+        node.textContent = status;
+      }
+      function renderToolResult(data) {
+        if (data.error) { updateToolProposal(data.proposal_id, `失敗：${data.error}`); return; }
+        const result = data.result;
+        if (data.capability === "process.start") {
+          const detail = result.pid ? `PID ${result.pid}` : "桌面啟動器已確認";
+          const message = `${result.application} 已啟動（${detail}）`;
+          updateToolProposal(data.proposal_id, `完成：${message}`);
+          appendMessage("assistant", message); return;
+        }
+        if (data.capability === "browser.navigate+read") {
+          updateToolProposal(data.proposal_id, `完成：${result.title}\n${result.url}\n\n${result.text}`);
+          return;
+        }
+        updateToolProposal(data.proposal_id, `完成：${JSON.stringify(result, null, 2)}`);
+      }
+      async function submitText(value, inputMode = "text") {
+        stopTts(); speechCancelled = false;
+        appendMessage("user", value);
+        const response = await fetch("/v1/conversations/browser/turns", {method: "POST", headers: headers(), body: JSON.stringify({text: value, input_mode: inputMode})});
+        if (!response.ok) appendMessage("assistant", `請求失敗：${response.status}`);
+        else currentTurn = (await response.json()).turn_id;
+      }
+      function stopTts() {
+        ttsGeneration++;
+        ttsController?.abort(); ttsController = undefined;
+        if (ttsAudio) {
+          ttsAudio.onplay = null; ttsAudio.onended = null;
+          ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src); ttsAudio = undefined;
+        }
+        const status = document.querySelector("#tts-status");
+        status.textContent = "TTS 待命"; status.className = "warn";
+      }
+      async function playTts(text, prosody) {
+        stopTts();
+        const generation = ttsGeneration;
+        const controller = new AbortController(); ttsController = controller;
+        const current = () => generation === ttsGeneration && !controller.signal.aborted;
+        const status = document.querySelector("#tts-status"); status.textContent = "語音生成中…";
+        try {
+          const response = await fetch("/v1/audio/speech", {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify({text, ...prosody})});
+          if (!current()) return;
+          if (!response.ok) throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+          const blob = await response.blob();
+          if (!current()) return;
+          const audio = new Audio(URL.createObjectURL(blob)); ttsAudio = audio;
+          audio.onplay = () => { if (current()) { status.textContent = "SIRO 正在說話"; status.className = "ok"; } };
+          audio.onended = () => { if (current()) { status.textContent = "TTS 待命"; status.className = "warn"; } };
+          await audio.play();
+          if (!current()) audio.pause();
+        } catch (error) {
+          if (current() && error.name !== "AbortError") { status.textContent = `TTS 失敗：${error.message}`; status.className = "warn"; }
+        } finally { if (ttsController === controller) ttsController = undefined; }
+      }
+      function wavFromBuffer(buffer) {
+        const samples = buffer.getChannelData(0), data = new ArrayBuffer(44 + samples.length * 2);
+        const view = new DataView(data), write = (offset, text) => [...text].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+        write(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); write(8, "WAVE"); write(12, "fmt ");
+        view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+        view.setUint32(24, buffer.sampleRate, true); view.setUint32(28, buffer.sampleRate * 2, true);
+        view.setUint16(32, 2, true); view.setUint16(34, 16, true); write(36, "data"); view.setUint32(40, samples.length * 2, true);
+        samples.forEach((sample, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sample)) * (sample < 0 ? 32768 : 32767), true));
+        return new Blob([data], {type: "audio/wav"});
+      }
+      async function transcribeRecording() {
+        const status = document.querySelector("#voice-status"); status.textContent = "辨識中…";
+        const encoded = await new Blob(recordedChunks).arrayBuffer();
+        const context = new AudioContext();
+        try {
+          const decoded = await context.decodeAudioData(encoded);
+          const response = await fetch("/v1/audio/transcriptions?language=zh", {method: "POST", headers: {"Authorization": `Bearer ${token}`, "Content-Type": "audio/wav"}, body: wavFromBuffer(decoded)});
+          if (!response.ok) throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+          const result = await response.json();
+          if (!result.text) throw new Error("沒有辨識到語音");
+          document.querySelector("#text").value = result.text;
+          status.textContent = `辨識：${result.text}`; status.className = "ok";
+          await submitText(result.text, "speech");
+        } finally { await context.close(); }
+      }
+      document.querySelector("#chat").onsubmit = async event => {
+        event.preventDefault(); const input = document.querySelector("#text");
+        const value = input.value; input.value = ""; await submitText(value);
+      };
+      document.querySelector("#voice").onclick = async () => {
+        const button = document.querySelector("#voice"), status = document.querySelector("#voice-status");
+        if (!microphoneEnabled) { status.textContent = "請先開啟 microphone switch"; return; }
+        if (recorder?.state === "recording") { recorder.stop(); button.textContent = "開始說話"; return; }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, channelCount: 1}});
+          recordedChunks = []; recorder = new MediaRecorder(stream);
+          recorder.ondataavailable = event => { if (event.data.size) recordedChunks.push(event.data); };
+          recorder.onstop = async () => { stream.getTracks().forEach(track => track.stop()); try { await transcribeRecording(); } catch (error) { status.textContent = `語音失敗：${error.message}`; status.className = "warn"; } };
+          recorder.start(); button.textContent = "停止並送出"; status.textContent = "正在聆聽…"; status.className = "ok";
+        } catch (error) { status.textContent = `無法使用麥克風：${error.message}`; status.className = "warn"; }
+      };
+      document.querySelector("#cancel").onclick = async () => { speechCancelled = true; stopTts(); if (currentTurn) await fetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
+      boot().catch(error => { document.querySelector("#connection").textContent = error; });
+    </script>
+  </body>
+</html>

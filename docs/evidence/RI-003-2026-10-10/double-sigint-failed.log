@@ -1,0 +1,72 @@
+.............................................F.......................... [ 66%]
+.....................................                                    [100%]
+=================================== FAILURES ===================================
+________ test_actual_cli_sigint_reaps_owned_namespace_and_workspace[2] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-100/test_actual_cli_sigint_reaps_o1')
+interruptions = 2
+
+    @real_profile
+    @pytest.mark.parametrize("interruptions", [1, 2])
+    def test_actual_cli_sigint_reaps_owned_namespace_and_workspace(
+        tmp_path: Path, interruptions: int
+    ) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text(proposal(new="import time\ntime.sleep(30)\nVALUE=2\n").model_dump_json())
+        temporary = tmp_path / "workspaces"
+        temporary.mkdir()
+        repository = Path(__file__).resolve().parents[2]
+        process = subprocess.Popen(
+            [sys.executable, "-m", "siro.cli", "verify-patch", str(path), "--project-root", str(root)],
+            env={"PATH": os.defpath, "PYTHONPATH": str(repository / "src"), "TMPDIR": str(temporary)},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        owned: set[int] = set()
+        handles: dict[int, int] = {}
+        try:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and process.poll() is None:
+                children = Path(f"/proc/{process.pid}/task/{process.pid}/children").read_text().split()
+                ready = False
+                for value in children:
+                    child = int(value)
+                    try:
+                        command = Path(f"/proc/{child}/cmdline").read_bytes()
+                    except FileNotFoundError:
+                        continue
+                    if b"bwrap" in command and b"--probe" not in command:
+                        owned.add(child)
+                        pending = [child]
+                        while pending:
+                            parent = pending.pop()
+                            for p in Path(f"/proc/{parent}/task/{parent}/children").read_text().split():
+                                pid = int(p)
+                                if pid not in owned:
+                                    owned.add(pid)
+                                    pending.append(pid)
+                        handles.update({pid: os.pidfd_open(pid) for pid in owned})
+                        ready = True
+                if ready:
+                    break
+                time.sleep(0.01)
+            assert owned, "CLI never reached the owned candidate namespace"
+            process.send_signal(signal.SIGINT)
+            if interruptions == 2:
+                time.sleep(0.01)
+                process.send_signal(signal.SIGINT)
+            stdout, stderr = process.communicate(timeout=8)
+            assert process.returncode == 130, stdout + stderr
+            assert not list(temporary.iterdir())
+            for pid in owned:
+>               with pytest.raises(ProcessLookupError):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE ProcessLookupError
+
+tests/integration/test_verify_patch_cli.py:117: Failed
+=========================== short test summary info ============================
+FAILED tests/integration/test_verify_patch_cli.py::test_actual_cli_sigint_reaps_owned_namespace_and_workspace[2]
+1 failed, 108 passed in 11.01s

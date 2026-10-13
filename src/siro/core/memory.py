@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
-from siro.contracts.events import Event
+from siro.contracts.events import Event, Privacy, UserTextEvent
 from siro.core.identity import IdentityState
 
 
@@ -90,6 +90,7 @@ class MemoryRepository(Protocol):
         kinds: tuple[MemoryKind, ...] = (),
         as_of: datetime | None = None,
         source_event_id: UUID | None = None,
+        route_privacy: Privacy | None = None,
         limit: int = 5,
     ) -> list[Memory]: ...
 
@@ -121,6 +122,36 @@ class MemoryService:
             raise ValueError("memory must cite the supplied source event")
         await self._repository.add(memory, source_event)
 
+    async def ingest_owner_request(self, identity_id: str, source: UserTextEvent) -> Memory | None:
+        """Explicit owner statement only; never called with tool/model text."""
+        if source.source != "siro.presentation" or not source.session_id:
+            raise PermissionError("memory ingress requires the trusted user entry")
+        text = source.payload.text.strip()
+        prefixes = (
+            "請記住\uff1a",
+            "幫我記住\uff1a",
+            "記住\uff1a",
+            "請記住:",
+            "幫我記住:",
+            "記住:",
+            "please remember:",
+            "remember:",
+        )
+        prefix = next((p for p in prefixes if text.lower().startswith(p)), None)
+        if prefix is None:
+            return None
+        statement = text[len(prefix) :].strip()
+        if not statement:
+            raise ValueError("explicit memory statement is empty")
+        existing = await self.recall(identity_id, statement, source_event_id=source.event_id)
+        memory_id = uuid5(NAMESPACE_URL, f"siro:owner-memory:{identity_id}:{source.event_id}")
+        for item in existing:
+            if item.memory_id == memory_id:
+                return item
+        memory = Memory(memory_id, identity_id, statement, (source.event_id,), source.occurred_at)
+        await self.remember(memory, source)
+        return memory
+
     async def remember_fact(self, memory: Memory, source_event: Event, fact: SemanticFact) -> None:
         if memory.kind is not MemoryKind.SEMANTIC:
             raise ValueError("semantic facts require semantic memory")
@@ -139,6 +170,7 @@ class MemoryService:
         kinds: tuple[MemoryKind, ...] = (),
         as_of: datetime | None = None,
         source_event_id: UUID | None = None,
+        route_privacy: Privacy | None = None,
         limit: int = 5,
     ) -> list[Memory]:
         return await self._repository.search(
@@ -148,6 +180,7 @@ class MemoryService:
             kinds=kinds,
             as_of=as_of,
             source_event_id=source_event_id,
+            **({"route_privacy": route_privacy} if route_privacy is not None else {}),
             limit=limit,
         )
 
@@ -215,6 +248,7 @@ def assemble_prompt(
     user_text: str,
     memories: Sequence[Memory],
     working: Sequence[WorkingMessage] = (),
+    verified_context: Sequence[str] = (),
 ) -> str:
     values = ", ".join(identity.core.core_values)
     evidence = "\n".join(
@@ -225,8 +259,31 @@ def assemble_prompt(
     recent = "\n".join(f"{message.role}: {message.text}" for message in working)
     if not recent:
         recent = "(none)"
+    context = "\n".join(f"- {item}" for item in verified_context) or "- (none)"
     return (
         f"Identity: {identity.core.name} ({identity.identity_id})\n"
         f"Baseline: {identity.core.baseline_identity}\nValues: {values}\n"
-        f"Verified memories:\n{evidence}\nRecent conversation:\n{recent}\nUser: {user_text}"
+        "Conversation policy:\n"
+        "- Respond naturally in Traditional Chinese unless the user chooses another language.\n"
+        "- Speak warmly and concisely as SIRO, a close digital companion. Avoid repeated "
+        "customer-service introductions or ending every greeting with an offer of assistance.\n"
+        "- Greetings and questions about your abilities do not require episodic memory evidence.\n"
+        "- NO_SOURCE only means no relevant verified personal memory was retrieved; do not use it "
+        "as a generic refusal or claim that you have no memory system.\n"
+        "- You can retain explicit remember statements with sources; the owner can correct "
+        "or delete them in the memory panel. SIRO records the source automatically; the owner "
+        "does not need to supply source IDs. Saved memories persist locally across restarts. "
+        "Do not claim a particular memory unless provided.\n"
+        "- Use the available tools for requested computer tasks. Describe actual observations; "
+        "never claim an action succeeded before its result. Workspace tools are one scoped option; "
+        "explicit owner requests elsewhere use the separately authorized computer tools.\n"
+        f"Verified memories:\n{evidence}\nVerified preferences:\n{context}\n"
+        "Affect policy:\n"
+        "- Treat sourced internal affect as bounded machine state that changes tone and coping.\n"
+        "- repair: acknowledge the specific error and propose a verifiable repair.\n"
+        "- seek_information: ask one focused question before assuming.\n"
+        "- problem_solve: propose a concrete next step; seek_support: listen and ask what helps.\n"
+        "- Affect never overrides facts, permissions, privacy, or user control, and is not proof "
+        "of consciousness.\n"
+        f"Recent conversation:\n{recent}\nUser: {user_text}"
     )

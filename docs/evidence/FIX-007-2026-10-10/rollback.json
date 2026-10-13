@@ -1,0 +1,58 @@
+{
+  "status": "PASS",
+  "scope": "exact4file temporary repair rollback/reapply; no live source/registry/DB rollback",
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--reverse",
+        "--check",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--reverse",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--check",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "before_sha256": {
+    "src/siro/core/skills.py": "47160bf68c55cf8493081367e1a9eb56aa31539f44178425679f41d76df17536",
+    "src/siro/persistence/skills.py": "eb831c431070d303b2e75b827b9315b6313d9e13e6691acf3ab229e85d2b4a4e",
+    "src/siro/adapters/skill_worker.py": "9f7c04edf267ab0ce465a38812f148bf3df52fbac30e49bd6d3a42c9776f25c3",
+    "tests/integration/test_skill_package_identity.py": null
+  },
+  "after_sha256": {
+    "src/siro/core/skills.py": "55ab18773536359a6b0349641d3de0102120570b512c51b238cee177937fcaee",
+    "src/siro/persistence/skills.py": "20f21896f911bff3f7b644786820a6d06d12c26525f3223726f285c09b7428f9",
+    "src/siro/adapters/skill_worker.py": "b3eddc2a974bc124bdcdf9a0d4f8c615377281bfc1144ab662aa32551488afa2",
+    "tests/integration/test_skill_package_identity.py": "6ab3a964872129c0747683137f1a3b0542e730a9a8aa94421b037ddb7f757c7c"
+  },
+  "temporary_removed": true,
+  "requires_dispatch_disabled_before_revert": true,
+  "requires_owned_workers_drained": true,
+  "legacy_or_new_hash_rows_not_safe_to_dispatch_with_old_binary": true
+}

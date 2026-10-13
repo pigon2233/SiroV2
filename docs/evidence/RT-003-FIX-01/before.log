@@ -1,0 +1,100 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____________ test_provider_call_id_reused_across_runs_and_restart _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_provider_call_id_reused_a0')
+
+    @pytest.mark.asyncio
+    async def test_provider_call_id_reused_across_runs_and_restart(tmp_path: Path) -> None:
+        from typing import cast
+    
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"effect": len(effects)}
+    
+        controller, _, store, hub = await setup(tmp_path, cast(BatchModel, ReusedCallModel()), execute)
+        owners: list[str] = []
+        for index in range(3):
+            if index == 2:
+                orchestrator = ToolOrchestrator(
+                    SQLiteToolProposalRepository(store), {"computer.execute": execute}
+                )
+                controller = IntegratedCompanion(
+                    tmp_path,
+                    cast(LanguageModel, ReusedCallModel()),
+                    hub,
+                    MinimalWebBodyAdapter(WebSocketBodyTransport()),
+                    privacy=Privacy.LOCAL_ONLY,
+                    tool_orchestrator=orchestrator,
+                    runtime_profile="candidate",
+                    auto_authorize=lambda: True,
+                )
+            await controller.respond("reuse", f"goal-{index}")
+            readback = await controller.recovery_readback("reuse")
+>           assert readback is not None and readback["state"] == "completed"
+E           AssertionError: assert ({'run_id': '4bca5fc2-07e2-4276-ac8e-8c7f66939e4b', 'goal': 'goal-1', 'state': 'failed', 'error': 'duplicate_or_excess_tool_calls', ...} is not None and 'failed' == 'completed'
+E             
+E             - completed
+E             + failed)
+
+tests/integration/test_agent_batches.py:500: AssertionError
+_______ test_old_callback_with_reused_id_cannot_finish_new_manual_batch ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_old_callback_with_reused_0')
+
+    @pytest.mark.asyncio
+    async def test_old_callback_with_reused_id_cannot_finish_new_manual_batch(tmp_path: Path) -> None:
+        from typing import cast
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"ok": True}
+    
+        controller, orchestrator, store, hub = await setup(
+            tmp_path, cast(BatchModel, ReusedCallModel()), execute, automatic=False
+        )
+        await controller.respond("reuse", "first")
+        row = await store.run_transaction(
+            lambda c: c.execute("SELECT proposal_id FROM tool_proposals").fetchone()
+        )
+        first = await orchestrator.get(row[0])
+        assert first is not None and first.call_id == "call-0"
+        await orchestrator.resolve(first.proposal_id, approved=True, arguments=first.arguments)
+        old = await orchestrator.execute(first.proposal_id)
+        await controller.continue_after_tool(old)
+        await controller.respond("reuse", "second")
+        before = await controller.recovery_readback("reuse")
+        events = len(hub.events)
+        await controller.continue_after_tool(old)
+        assert await controller.recovery_readback("reuse") == before
+        assert len(hub.events) == events
+        row = await store.run_transaction(
+            lambda c: c.execute(
+                "SELECT proposal_id FROM tool_proposals WHERE state='pending'"
+            ).fetchone()
+        )
+>       second = await orchestrator.get(row[0])
+                                        ^^^^^^
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests/integration/test_agent_batches.py:546: TypeError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_agent_batches.py::test_provider_call_id_reused_across_runs_and_restart
+FAILED tests/integration/test_agent_batches.py::test_old_callback_with_reused_id_cannot_finish_new_manual_batch
+2 failed, 42 deselected, 2 warnings in 0.93s

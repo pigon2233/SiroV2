@@ -1,0 +1,278 @@
+{
+  "phase": "before",
+  "timestamp_utc": "2026-10-09T16:35:54Z",
+  "scope": "Real Chromium and trusted ephemeral A/B HTTP origins; purely synthetic fixtures",
+  "source_sha256_start": {
+    "src/siro/adapters/browser.py": "02ced9b4632278f0d8a49f4a93f927d67facd0a19ce457ac5aa3939b725f9a8d",
+    "src/siro/services/tools/browser_session.py": "a1ad3cd6aa553d49fdf816b79b883a7a292c50fcafd833aec7dd9712349d0a6f",
+    "src/siro/services/tools/orchestrator.py": "630de5bb1eae647ed43d982fdb189b55709d1a43ba8362b2adb322b9ba35a930",
+    "src/siro/services/presentation/integrated.py": "756ebe261167a5d29711869e352b2d24295b0b64e639de93016f9475935b0ba8",
+    "src/siro/services/presentation/gateway.py": "8a7027a00cac63f74af214a1b203a12d15bfd4e2ac1616e5031b415dfda56550"
+  },
+  "privacy": {
+    "private_data_read": false,
+    "production_8026_accessed": false,
+    "external_websites_accessed": false,
+    "raw_error_or_sensitive_URL_written": false,
+    "canary": "synthetic query and userinfo markers; values omitted from request evidence"
+  },
+  "cases": [
+    {
+      "fixture": "allowed_A",
+      "outcome": "observation",
+      "title_is_A": true,
+      "text_contains_A": true,
+      "load_status": null,
+      "reason": null,
+      "final_observed_origin_allowed": true,
+      "page_current_origin_allowed": true,
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "direct_B",
+      "outcome": "error",
+      "exception_type": "ScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [],
+      "B_hits": 0
+    },
+    {
+      "fixture": "direct_B_userinfo",
+      "outcome": "error",
+      "exception_type": "ScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_redirect_B",
+      "outcome": "error",
+      "exception_type": "ScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_with_B_image",
+      "outcome": "error",
+      "exception_type": "ScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "image",
+          "is_navigation_request": false,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_with_B_script",
+      "outcome": "error",
+      "exception_type": "ScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "script",
+          "is_navigation_request": false,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_with_B_iframe",
+      "outcome": "observation",
+      "title_is_A": true,
+      "text_contains_A": true,
+      "load_status": null,
+      "reason": null,
+      "final_observed_origin_allowed": true,
+      "page_current_origin_allowed": true,
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": false,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_script_main_navigation_B",
+      "outcome": "error",
+      "exception_type": "ScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_iframe_script_main_navigation_B",
+      "outcome": "observation",
+      "title_is_A": false,
+      "text_contains_A": true,
+      "load_status": null,
+      "reason": null,
+      "final_observed_origin_allowed": true,
+      "page_current_origin_allowed": false,
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": false,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_button_main_navigation_B",
+      "outcome": "observation",
+      "title_is_A": false,
+      "text_contains_A": false,
+      "load_status": null,
+      "reason": null,
+      "final_observed_origin_allowed": false,
+      "page_current_origin_allowed": false,
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    }
+  ],
+  "origins": {
+    "B": "http://127.0.0.1:41481",
+    "A": "http://127.0.0.1:43951"
+  },
+  "chromium_version": "154.0.8037.92",
+  "cleanup": {
+    "all_browser_drivers_closed": true,
+    "all_server_threads_stopped": true,
+    "server_sockets_closed": true
+  },
+  "B_total_hits": 0,
+  "B_hit_metadata": [],
+  "A_fixture_hits": [
+    "/plain",
+    "/redirect",
+    "/image",
+    "/script",
+    "/iframe",
+    "/script-top",
+    "/iframe-top",
+    "/frame-top",
+    "/button-top"
+  ],
+  "source_sha256_finish": {
+    "src/siro/adapters/browser.py": "02ced9b4632278f0d8a49f4a93f927d67facd0a19ce457ac5aa3939b725f9a8d",
+    "src/siro/services/tools/browser_session.py": "a1ad3cd6aa553d49fdf816b79b883a7a292c50fcafd833aec7dd9712349d0a6f",
+    "src/siro/services/tools/orchestrator.py": "630de5bb1eae647ed43d982fdb189b55709d1a43ba8362b2adb322b9ba35a930",
+    "src/siro/services/presentation/integrated.py": "756ebe261167a5d29711869e352b2d24295b0b64e639de93016f9475935b0ba8",
+    "src/siro/services/presentation/gateway.py": "8a7027a00cac63f74af214a1b203a12d15bfd4e2ac1616e5031b415dfda56550"
+  },
+  "same_source": true,
+  "completed_at_utc": "2026-10-09T16:36:02Z",
+  "verification_status": "CAPTURE_COMPLETE"
+}

@@ -1,0 +1,83 @@
+................F..                                                      [100%]
+=================================== FAILURES ===================================
+______ test_process_cleanup_failure_survives_late_request_cleanup_cancel _______
+
+args = (('/usr/bin/bwrap', '--unshare-net', '--unshare-pid', '--die-with-parent', '--ro-bind', '/usr', ...),)
+kwargs = {'cwd': PosixPath('/tmp/siro-skill-request-z0rgrf21'), 'environment': {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'PYTHONUNBUFFERED': '1', 'SIRO_SKILL_ROOT': '/skill', ...}, 'timeout': 1.0, 'output_limit': 4096}
+
+    async def process_failure(*args: object, **kwargs: object) -> object:
+>       raise ExecutionCleanupError("synthetic owned process cleanup refusal")
+E       siro.adapters.process_execution.ExecutionCleanupError: synthetic owned process cleanup refusal
+
+tests/integration/test_skill_worker_lifecycle.py:465: ExecutionCleanupError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-5/test_process_cleanup_failure_s0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7616c9f67af0>
+
+    @pytest.mark.asyncio
+    async def test_process_cleanup_failure_survives_late_request_cleanup_cancel(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        original = skill_worker._remove_request
+        entered, release = threading.Event(), threading.Event()
+        workspaces: list[Path] = []
+    
+        async def process_failure(*args: object, **kwargs: object) -> object:
+            raise ExecutionCleanupError("synthetic owned process cleanup refusal")
+    
+        def blocked(workspace: Path) -> None:
+            workspaces.append(workspace)
+            entered.set()
+            assert release.wait(3)
+            original(workspace)
+    
+        monkeypatch.setattr(skill_worker, "execute_bounded_argv", process_failure)
+        monkeypatch.setattr(skill_worker, "_remove_request", blocked)
+        skill = make_skill(tmp_path, "def run(arguments): return arguments\n")
+        task = asyncio.create_task(WorkerSupervisor().execute(skill, {"text": "synthetic"}))
+        try:
+            async with asyncio.timeout(2):
+                while not entered.is_set():
+                    await asyncio.sleep(0.005)
+            task.cancel()
+            await asyncio.sleep(0.01)
+            task.cancel()
+            release.set()
+            with pytest.raises(ExecutionCleanupError, match="synthetic owned process cleanup refusal"):
+>               await asyncio.wait_for(task, 2)
+
+tests/integration/test_skill_worker_lifecycle.py:486: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/asyncio/tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+src/siro/adapters/skill_worker.py:124: in execute
+    return await self._execute_one(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:211: in _execute_one
+    await _join_owned(asyncio.create_task(asyncio.to_thread(_remove_request, workspace)))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+task = <Task finished name='Task-175' coro=<to_thread() done, defined at /usr/lib/python3.14/asyncio/threads.py:12> result=None>
+propagate_cancellation = True
+
+    async def _join_owned[T](task: asyncio.Task[T], *, propagate_cancellation: bool = True) -> T:
+        """Finish owned preparation/cleanup even if the caller repeats cancellation."""
+        cancelled = False
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                cancelled = True
+                continue
+        result = task.result()
+        if cancelled and propagate_cancellation:
+>           raise asyncio.CancelledError
+E           asyncio.exceptions.CancelledError
+
+src/siro/adapters/skill_worker.py:67: CancelledError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_process_cleanup_failure_survives_late_request_cleanup_cancel
+1 failed, 18 passed in 3.00s

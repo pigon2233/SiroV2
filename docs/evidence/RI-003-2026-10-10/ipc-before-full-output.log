@@ -1,0 +1,36 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________________ test_ipc_kernel_allocations_are_denied ____________________
+tests/integration/test_isolated_patch_verification.py:322: in test_ipc_kernel_allocations_are_denied
+    assert result.status == "passed", "".join(result.outputs)
+E   AssertionError: E
+E     ======================================================================
+E     ERROR: test_value (unittest.loader._FailedTest.test_value)
+E     ----------------------------------------------------------------------
+E     ImportError: Failed to import test module: test_value
+E     Traceback (most recent call last):
+E       File "/usr/lib/python3.14/unittest/loader.py", line 426, in _find_test_path
+E         module = self._get_module_from_name(name)
+E       File "/usr/lib/python3.14/unittest/loader.py", line 367, in _get_module_from_name
+E         __import__(name)
+E         ~~~~~~~~~~^^^^^^
+E       File "/candidate/tests/test_value.py", line 2, in <module>
+E         from value import VALUE
+E       File "/candidate/src/value.py", line 24, in <module>
+E         assert not violations, violations
+E                ^^^^^^^^^^^^^^
+E     AssertionError: ['semget allowed', 'msgget allowed', 'mq_open allowed']
+E     
+E     
+E     ----------------------------------------------------------------------
+E     Ran 1 test in 0.000s
+E     
+E     FAILED (errors=1)
+E     
+E   assert 'failed_checks' == 'passed'
+E     
+E     - passed
+E     + failed_checks
+=========================== short test summary info ============================
+FAILED tests/integration/test_isolated_patch_verification.py::test_ipc_kernel_allocations_are_denied
+1 failed, 37 deselected in 0.25s

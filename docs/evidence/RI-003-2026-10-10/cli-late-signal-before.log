@@ -1,0 +1,47 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_cli_signal_after_completed_task_cannot_print_passed ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-109/test_cli_signal_after_complete0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74f5d48deea0>
+capsys = <_pytest.capture.CaptureFixture object at 0x74f5d462c050>
+
+    def test_cli_signal_after_completed_task_cannot_print_passed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from siro import cli
+        from siro.services.tools import patch_verification
+    
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text(proposal().model_dump_json())
+    
+        async def completed(
+            root: Path, candidate: PatchProposal, *, profile: str
+        ) -> VerificationReport:
+            return VerificationReport(candidate.proposal_id, "passed", ("src/value.py",), (), True)
+    
+        original_run = asyncio.run
+        previous_handler = signal.getsignal(signal.SIGINT)
+    
+        def finish_with_interrupt(
+            coroutine: Coroutine[Any, Any, VerificationReport],
+        ) -> VerificationReport:
+            report = original_run(coroutine)
+            # Verification and its cleanup have finished; CLI handler is still active.
+            signal.raise_signal(signal.SIGINT)
+            return report
+    
+        monkeypatch.setattr(patch_verification, "verify_isolated_patch", completed)
+        monkeypatch.setattr(asyncio, "run", finish_with_interrupt)
+>       assert cli.main(["verify-patch", str(path), "--project-root", str(root)]) == 130
+E       AssertionError: assert 0 == 130
+E        +  where 0 = <function main at 0x74f5d46d38a0>(['verify-patch', '/tmp/pytest-of-jasonliao/pytest-109/test_cli_signal_after_complete0/proposal.json', '--project-root', '/tmp/pytest-of-jasonliao/pytest-109/test_cli_signal_after_complete0/project'])
+E        +    where <function main at 0x74f5d46d38a0> = <module 'siro.cli' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/cli.py'>.main
+
+tests/integration/test_verify_patch_cli.py:94: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"proposal_id": "2826b551-5242-4644-960c-8199b8c3518a", "status": "passed", "changed_paths": ["src/value.py"], "outputs": [], "workspace_removed": true}
+=========================== short test summary info ============================
+FAILED tests/integration/test_verify_patch_cli.py::test_cli_signal_after_completed_task_cannot_print_passed
+1 failed, 9 deselected in 0.13s

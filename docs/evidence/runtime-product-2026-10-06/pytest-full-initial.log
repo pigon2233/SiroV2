@@ -1,0 +1,661 @@
+........................................................................ [ 16%]
+....................................................F.FF................ [ 32%]
+........................................................................ [ 48%]
+........................................................................ [ 65%]
+........................................................................ [ 81%]
+.....F.FF.......sssss................................................... [ 97%]
+.........                                                                [100%]
+=================================== FAILURES ===================================
+___________ test_main_catalog_real_browser_across_runs_and_shutdown ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-101/test_main_catalog_real_browser0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71f9327639a0>
+origin = 'http://127.0.0.1:42147'
+
+    def test_main_catalog_real_browser_across_runs_and_shutdown(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, origin: str
+    ) -> None:
+        import uvicorn
+        from fastapi.testclient import TestClient
+    
+        from siro.ports.models import ToolCall
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        captured: dict[str, Any] = {}
+        original = gateway.create_app
+    
+        def capture(**kwargs: Any) -> Any:
+            captured.update(kwargs)
+            return original(**kwargs)
+    
+        monkeypatch.setattr(gateway, "create_app", capture)
+        monkeypatch.setattr(uvicorn, "run", lambda *args, **kwargs: None)
+        gateway.main()
+        from siro.ports.models import CancellationToken, ModelChunk, ModelRequest
+    
+        class Model:
+            name = "synthetic browser runtime"
+            step = 0
+    
+            def __init__(self) -> None:
+                self.observations: list[dict[str, str]] = []
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                observations = [json.loads(m.content) for m in request.messages if m.role == "tool"]
+                if observations:
+                    self.observations.append(observations[-1])
+                names = {tool.name for tool in request.tools}
+                assert {"browser.read", "browser.fill", "browser.click", "browser.close"} <= names
+                if self.step == 0:
+                    call = ToolCall("nav", "browser.navigate+read", {"url": origin})
+                elif self.step == 1:
+                    call = ToolCall(
+                        "fill",
+                        "browser.fill",
+                        {
+                            "role": "textbox",
+                            "name": "Name",
+                            "value": "Runtime",
+                            "screen_version": observations[-1]["screen_version"],
+                        },
+                    )
+                elif self.step == 2:
+                    call = ToolCall(
+                        "click",
+                        "browser.click",
+                        {
+                            "role": "button",
+                            "name": "Save",
+                            "screen_version": observations[-1]["screen_version"],
+                        },
+                    )
+                elif self.step in {3, 5}:
+                    call = ToolCall("read", "browser.read", {})
+                else:
+                    yield ModelChunk("text_delta", text="Synthetic complete")
+                    yield ModelChunk("finished")
+                    self.step += 1
+                    return
+                self.step += 1
+                yield ModelChunk("tool_request", tool_call=call)
+                yield ModelChunk("finished")
+    
+        model = Model()
+        controller = captured["on_turn"].__self__
+        controller._model = model
+        with TestClient(original(**captured)) as client:
+            assert client.portal is not None
+            client.portal.call(controller.respond, "A", "synthetic form task")
+            assert "Saved Runtime" in model.observations[-1]["text"]
+            client.portal.call(controller.respond, "A", "synthetic same-session read")
+            assert "Saved Runtime" in model.observations[-1]["text"]
+>           pool = captured["on_shutdown"].__self__
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'function' object has no attribute '__self__'. Did you mean: '__call__'?
+
+tests/integration/test_browser_sessions.py:294: AttributeError
+________________ test_main_rollback_stateless_browser[legacy-1] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-101/test_main_rollback_stateless_b0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71f9320d2190>
+profile = 'legacy', enabled = '1'
+
+    @pytest.mark.parametrize("profile,enabled", [("legacy", "1"), ("candidate", "0")])
+    def test_main_rollback_stateless_browser(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, enabled: str
+    ) -> None:
+        import uvicorn
+    
+        from siro.adapters import browser as module
+        from siro.adapters.browser import BrowserObservation
+        from siro.services.presentation import gateway
+    
+        instances: list[Any] = []
+    
+        class Driver(ScopedBrowserDriver):
+            def __init__(self, origins: tuple[str, ...]) -> None:
+                self.closed = False
+                instances.append(self)
+    
+            async def __aenter__(self) -> Any:
+                return self
+    
+            async def navigate(self, url: str) -> BrowserObservation:
+                return BrowserObservation(url, "synthetic", "readback", "version")
+    
+            async def __aexit__(self, *_error: object) -> None:
+                self.closed = True
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_BROWSER_SESSION_ENABLED", enabled)
+        monkeypatch.setattr(module, "ScopedBrowserDriver", Driver)
+        captured: dict[str, Any] = {}
+        original = gateway.create_app
+    
+        def capture(**kwargs: Any) -> Any:
+            captured.update(kwargs)
+            return original(**kwargs)
+    
+        monkeypatch.setattr(gateway, "create_app", capture)
+        monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+        gateway.main()
+        tools = captured["tool_orchestrator"]
+        assert not {"browser.read", "browser.fill", "browser.click", "browser.close"} & {
+            d.name for d in tools.model_tools()
+        }
+    
+        async def flow() -> None:
+            for _ in range(2):
+                result = await captured["on_browser_tool"]("http://localhost")
+                assert result["screen_version"] == "version"
+    
+        asyncio.run(flow())
+        assert len(instances) == 2 and all(d.closed for d in instances)
+>       assert captured["on_shutdown"] is None
+E       assert <function main.<locals>.stop_controller at 0x71f9195d1850> is None
+
+tests/integration/test_browser_sessions.py:414: AssertionError
+______________ test_main_rollback_stateless_browser[candidate-0] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-101/test_main_rollback_stateless_b1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71f91bb1cde0>
+profile = 'candidate', enabled = '0'
+
+    @pytest.mark.parametrize("profile,enabled", [("legacy", "1"), ("candidate", "0")])
+    def test_main_rollback_stateless_browser(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, enabled: str
+    ) -> None:
+        import uvicorn
+    
+        from siro.adapters import browser as module
+        from siro.adapters.browser import BrowserObservation
+        from siro.services.presentation import gateway
+    
+        instances: list[Any] = []
+    
+        class Driver(ScopedBrowserDriver):
+            def __init__(self, origins: tuple[str, ...]) -> None:
+                self.closed = False
+                instances.append(self)
+    
+            async def __aenter__(self) -> Any:
+                return self
+    
+            async def navigate(self, url: str) -> BrowserObservation:
+                return BrowserObservation(url, "synthetic", "readback", "version")
+    
+            async def __aexit__(self, *_error: object) -> None:
+                self.closed = True
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_BROWSER_SESSION_ENABLED", enabled)
+        monkeypatch.setattr(module, "ScopedBrowserDriver", Driver)
+        captured: dict[str, Any] = {}
+        original = gateway.create_app
+    
+        def capture(**kwargs: Any) -> Any:
+            captured.update(kwargs)
+            return original(**kwargs)
+    
+        monkeypatch.setattr(gateway, "create_app", capture)
+        monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
+        gateway.main()
+        tools = captured["tool_orchestrator"]
+        assert not {"browser.read", "browser.fill", "browser.click", "browser.close"} & {
+            d.name for d in tools.model_tools()
+        }
+    
+        async def flow() -> None:
+            for _ in range(2):
+                result = await captured["on_browser_tool"]("http://localhost")
+                assert result["screen_version"] == "version"
+    
+        asyncio.run(flow())
+        assert len(instances) == 2 and all(d.closed for d in instances)
+>       assert captured["on_shutdown"] is None
+E       assert <function main.<locals>.stop_controller at 0x71f9301c9b10> is None
+
+tests/integration/test_browser_sessions.py:414: AssertionError
+__________ test_real_main_effective_config_and_live_switch[candidate] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-101/test_real_main_effective_confi1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71f91953b690>
+profile = 'candidate'
+
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    def test_real_main_effective_config_and_live_switch(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str
+    ) -> None:
+        import os
+    
+        import uvicorn
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+    
+        from siro.services.presentation.gateway import main
+    
+        for key in list(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        # Synthetic providers have no native tokenizer; preserve this fixture scope.
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_OLLAMA_MODEL", "local-test-model")
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "unused-cloud-model")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "test-private-canary")
+        # Current browser backend uses the same executable discovery.
+        monkeypatch.setattr("shutil.which", lambda name: None)
+    
+        def run(app: FastAPI, **kwargs: object) -> None:
+            monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "changed-after-startup")
+            with TestClient(app) as client:
+                assert client.get("/v1/runtime").status_code == 401
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                response = client.get("/v1/runtime", headers=headers)
+                assert response.status_code == 200
+                snapshot = response.json()
+                assert snapshot["runtime_profile"] == profile
+                assert snapshot["routes"]["model"] == "ollama:local-test-model"
+                assert snapshot["authorization_mode"] == "full"
+                assert snapshot["json_settings_applied"] is False
+                assert "test-private-canary" not in response.text
+                assert "API_KEY" not in response.text
+                assert "unused-cloud-model" not in response.text
+                tools = {item["name"]: item for item in snapshot["tools"]}
+                expected = {"computer.execute", "browser.navigate+read", "process.start"}
+                if profile == "candidate":
+                    expected |= {"browser.read", "browser.fill", "browser.click", "browser.close"}
+                assert set(tools) == expected
+                assert tools["process.start"]["model_visible"] is False
+                if profile == "candidate":
+                    assert tools["browser.navigate+read"]["available"] is False
+                    assert tools["computer.execute"]["available"] is True
+                client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": False})
+                disabled = client.get("/v1/runtime", headers=headers).json()
+                assert disabled["kill_switches"]["tools"] is False
+                if profile == "candidate":
+                    assert not any(item["available"] for item in disabled["tools"])
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_tool_catalog.py:188: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1590: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x71f91a495550>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: FastAPI, **kwargs: object) -> None:
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "changed-after-startup")
+        with TestClient(app) as client:
+            assert client.get("/v1/runtime").status_code == 401
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            response = client.get("/v1/runtime", headers=headers)
+            assert response.status_code == 200
+            snapshot = response.json()
+            assert snapshot["runtime_profile"] == profile
+            assert snapshot["routes"]["model"] == "ollama:local-test-model"
+            assert snapshot["authorization_mode"] == "full"
+            assert snapshot["json_settings_applied"] is False
+            assert "test-private-canary" not in response.text
+            assert "API_KEY" not in response.text
+            assert "unused-cloud-model" not in response.text
+            tools = {item["name"]: item for item in snapshot["tools"]}
+            expected = {"computer.execute", "browser.navigate+read", "process.start"}
+            if profile == "candidate":
+                expected |= {"browser.read", "browser.fill", "browser.click", "browser.close"}
+>           assert set(tools) == expected
+E           AssertionError: assert {'browser.cli...execute', ...} == {'browser.cli...execute', ...}
+E             
+E             Extra items in the left set:
+E             'filesystem.list'
+E             'filesystem.read'
+E             Use -v to get more diff
+
+tests/integration/test_tool_catalog.py:176: AssertionError
+_____ test_main_model_catalog_routes_every_visible_tool[computer.execute] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-101/test_main_model_catalog_routes0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71f930b4a0b0>
+capability = 'computer.execute'
+
+    @pytest.mark.parametrize("capability", ["computer.execute", "browser.navigate+read"])
+    def test_main_model_catalog_routes_every_visible_tool(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capability: str
+    ) -> None:
+        import os
+        import sys
+        import time
+        from collections.abc import AsyncIterator
+    
+        import uvicorn
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+    
+        from siro.adapters.browser import BrowserObservation
+        from siro.ports.models import CancellationToken, ModelChunk, ModelRequest
+        from siro.services.presentation.gateway import main
+    
+        requests: list[ModelRequest] = []
+        observations: list[str] = []
+    
+        class Model:
+            name = "main-catalog-fixture"
+    
+            def __init__(self, **kwargs: object) -> None:
+                pass
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                requests.append(request)
+                if len(requests) == 1:
+                    args: dict[str, object] = (
+                        {"argv": [sys.executable, "-c", "print('catalog-route-ok')"]}
+                        if capability == "computer.execute"
+                        else {"url": "https://synthetic.example/"}
+                    )
+                    yield ModelChunk("tool_request", tool_call=ToolCall("route", capability, args))
+                else:
+                    yield ModelChunk("text", "done")
+                yield ModelChunk("finished")
+    
+        class Browser:
+            def __init__(self, origins: tuple[str, ...]) -> None:
+                pass
+    
+            async def __aenter__(self) -> Browser:
+                return self
+    
+            async def __aexit__(self, *args: object) -> None:
+                pass
+    
+            async def navigate(self, url: str) -> BrowserObservation:
+                observations.append(url)
+                return BrowserObservation(url, "synthetic", "synthetic visible text", "v1")
+    
+        for key in list(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        # Synthetic providers have no native tokenizer; preserve this fixture scope.
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic")
+        monkeypatch.setattr("siro.adapters.models.ollama.OllamaAdapter", Model)
+        monkeypatch.setattr("siro.adapters.browser.ScopedBrowserDriver", Browser)
+        monkeypatch.setattr("shutil.which", lambda name: "/synthetic/browser")
+    
+        def run(app: FastAPI, **kwargs: object) -> None:
+            with TestClient(app) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                status = client.get("/v1/runtime", headers=headers).json()
+                assert status["catalog_enabled"] is True
+                assert status["configuration_source"] == "gateway_env_and_defaults"
+                client.post(
+                    "/v1/conversations/catalog/turns", headers=headers, json={"text": "synthetic goal"}
+                )
+                deadline = time.monotonic() + 10
+                while len(requests) < 2 and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                assert len(requests) == 2
+                assert {tool.name for tool in requests[0].tools} == {
+                    "computer.execute",
+                    "browser.navigate+read",
+                    "browser.read",
+                    "browser.fill",
+                    "browser.click",
+                    "browser.close",
+                }
+                tool_message = next(m for m in requests[1].messages if m.role == "tool")
+                assert tool_message.tool_call_id == "route"
+                assert (
+                    "catalog-route-ok" if capability == "computer.execute" else "synthetic visible text"
+                ) in tool_message.content
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_tool_catalog.py:357: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1590: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x71f91a3d8980>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: FastAPI, **kwargs: object) -> None:
+        with TestClient(app) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            status = client.get("/v1/runtime", headers=headers).json()
+            assert status["catalog_enabled"] is True
+            assert status["configuration_source"] == "gateway_env_and_defaults"
+            client.post(
+                "/v1/conversations/catalog/turns", headers=headers, json={"text": "synthetic goal"}
+            )
+            deadline = time.monotonic() + 10
+            while len(requests) < 2 and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert len(requests) == 2
+>           assert {tool.name for tool in requests[0].tools} == {
+                "computer.execute",
+                "browser.navigate+read",
+                "browser.read",
+                "browser.fill",
+                "browser.click",
+                "browser.close",
+            }
+E           AssertionError: assert {'browser.cli...execute', ...} == {'browser.cli...uter.execute'}
+E             
+E             Extra items in the left set:
+E             'filesystem.list'
+E             'filesystem.read'
+E             Use -v to get more diff
+
+tests/integration/test_tool_catalog.py:342: AssertionError
+___ test_main_model_catalog_routes_every_visible_tool[browser.navigate+read] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-101/test_main_model_catalog_routes1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71f930ba2120>
+capability = 'browser.navigate+read'
+
+    @pytest.mark.parametrize("capability", ["computer.execute", "browser.navigate+read"])
+    def test_main_model_catalog_routes_every_visible_tool(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capability: str
+    ) -> None:
+        import os
+        import sys
+        import time
+        from collections.abc import AsyncIterator
+    
+        import uvicorn
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+    
+        from siro.adapters.browser import BrowserObservation
+        from siro.ports.models import CancellationToken, ModelChunk, ModelRequest
+        from siro.services.presentation.gateway import main
+    
+        requests: list[ModelRequest] = []
+        observations: list[str] = []
+    
+        class Model:
+            name = "main-catalog-fixture"
+    
+            def __init__(self, **kwargs: object) -> None:
+                pass
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                requests.append(request)
+                if len(requests) == 1:
+                    args: dict[str, object] = (
+                        {"argv": [sys.executable, "-c", "print('catalog-route-ok')"]}
+                        if capability == "computer.execute"
+                        else {"url": "https://synthetic.example/"}
+                    )
+                    yield ModelChunk("tool_request", tool_call=ToolCall("route", capability, args))
+                else:
+                    yield ModelChunk("text", "done")
+                yield ModelChunk("finished")
+    
+        class Browser:
+            def __init__(self, origins: tuple[str, ...]) -> None:
+                pass
+    
+            async def __aenter__(self) -> Browser:
+                return self
+    
+            async def __aexit__(self, *args: object) -> None:
+                pass
+    
+            async def navigate(self, url: str) -> BrowserObservation:
+                observations.append(url)
+                return BrowserObservation(url, "synthetic", "synthetic visible text", "v1")
+    
+        for key in list(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        # Synthetic providers have no native tokenizer; preserve this fixture scope.
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic")
+        monkeypatch.setattr("siro.adapters.models.ollama.OllamaAdapter", Model)
+        monkeypatch.setattr("siro.adapters.browser.ScopedBrowserDriver", Browser)
+        monkeypatch.setattr("shutil.which", lambda name: "/synthetic/browser")
+    
+        def run(app: FastAPI, **kwargs: object) -> None:
+            with TestClient(app) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                status = client.get("/v1/runtime", headers=headers).json()
+                assert status["catalog_enabled"] is True
+                assert status["configuration_source"] == "gateway_env_and_defaults"
+                client.post(
+                    "/v1/conversations/catalog/turns", headers=headers, json={"text": "synthetic goal"}
+                )
+                deadline = time.monotonic() + 10
+                while len(requests) < 2 and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                assert len(requests) == 2
+                assert {tool.name for tool in requests[0].tools} == {
+                    "computer.execute",
+                    "browser.navigate+read",
+                    "browser.read",
+                    "browser.fill",
+                    "browser.click",
+                    "browser.close",
+                }
+                tool_message = next(m for m in requests[1].messages if m.role == "tool")
+                assert tool_message.tool_call_id == "route"
+                assert (
+                    "catalog-route-ok" if capability == "computer.execute" else "synthetic visible text"
+                ) in tool_message.content
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_tool_catalog.py:357: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1590: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x71f91a3db8c0>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: FastAPI, **kwargs: object) -> None:
+        with TestClient(app) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            status = client.get("/v1/runtime", headers=headers).json()
+            assert status["catalog_enabled"] is True
+            assert status["configuration_source"] == "gateway_env_and_defaults"
+            client.post(
+                "/v1/conversations/catalog/turns", headers=headers, json={"text": "synthetic goal"}
+            )
+            deadline = time.monotonic() + 10
+            while len(requests) < 2 and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert len(requests) == 2
+>           assert {tool.name for tool in requests[0].tools} == {
+                "computer.execute",
+                "browser.navigate+read",
+                "browser.read",
+                "browser.fill",
+                "browser.click",
+                "browser.close",
+            }
+E           AssertionError: assert {'browser.cli...execute', ...} == {'browser.cli...uter.execute'}
+E             
+E             Extra items in the left set:
+E             'filesystem.list'
+E             'filesystem.read'
+E             Use -v to get more diff
+
+tests/integration/test_tool_catalog.py:342: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/real/test_model_providers.py:41: set SIRO_RUN_REAL_PROVIDERS=1 to permit an external request
+SKIPPED [1] tests/real/test_model_providers.py:62: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+SKIPPED [1] tests/real/test_model_providers.py:80: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+SKIPPED [1] tests/real/test_speech_providers.py:18: set GROQ_API_KEY for the opt-in Groq speech test
+SKIPPED [1] tests/real/test_speech_providers.py:32: set GROQ_API_KEY for the opt-in Groq speech test
+FAILED tests/integration/test_browser_sessions.py::test_main_catalog_real_browser_across_runs_and_shutdown
+FAILED tests/integration/test_browser_sessions.py::test_main_rollback_stateless_browser[legacy-1]
+FAILED tests/integration/test_browser_sessions.py::test_main_rollback_stateless_browser[candidate-0]
+FAILED tests/integration/test_tool_catalog.py::test_real_main_effective_config_and_live_switch[candidate]
+FAILED tests/integration/test_tool_catalog.py::test_main_model_catalog_routes_every_visible_tool[computer.execute]
+FAILED tests/integration/test_tool_catalog.py::test_main_model_catalog_routes_every_visible_tool[browser.navigate+read]
+6 failed, 430 passed, 5 skipped, 3 warnings in 93.95s (0:01:33)

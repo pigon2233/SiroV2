@@ -1,6 +1,6 @@
 # SIRO 2 — 開發計劃與 Sol 執行入口
 
-本儲存庫是**規劃完成、T00–T11、T13–T15、T17–T23 已完成自動驗證，T12/T16 等待外部驗收**的 SIRO 2。文件更新：2026-09-25；目前具備持久 Core、真正串流的 Groq/Ollama adapter、JetStream、認證 gateway、版本化音訊協定、Groq Whisper STT、TTS/播放/打斷管線、主動性決策、受限 Rust Runtime 與 Linux skill sandbox。真 Live2D、Orpheus 條款後的真 TTS、AEC 與真人打斷仍待驗。
+本儲存庫是**規劃完成、T00–T33 已完成各任務所標示層級驗證**的 SIRO 2；T34 與 T36–T38 只有部分 L1 實作，不能視為整張任務卡完成。文件更新：2026-09-26；目前具備持久 Core、真正串流的 Groq/Ollama adapter、JetStream、認證 gateway、真 Live2D renderer、版本化音訊協定、Groq Whisper/Orpheus、播放/打斷管線、主動性決策、受限 Rust Runtime、Linux skill sandbox、scoped Chrome driver、allowlisted user-systemd、device registry、authenticated MQTT simulator、Home Assistant REST/WebSocket adapter、受 policy/readback 保護的房間閉環，以及 review-only procedural-memory candidates。未驗平台與能力均明示 unsupported 或 simulator-only；ESP32 與真實 Home Assistant instance 尚未驗證。
 
 目標：建立可長期陪伴、保留人格與記憶、使用電腦與外部設備、擴充技能及受控迭代的數位角色。開發流程以使用者在 Codex 選用 Sol（GPT-5.6 Sol）逐項實作為設計前提；SIRO 執行時使用哪個模型則是獨立設定。
 
@@ -17,6 +17,7 @@
 | [使用體驗與設定](docs/EXPERIENCE.md) | 首次設定、日常流程、畫面、錯誤與使用者控制 |
 | [安全與隱私](docs/SECURITY_PRIVACY.md) | 信任區、威脅模型、資料生命週期與 kill switches |
 | [目前進度](docs/STATUS.md) | 已完成內容、待辦與下次起點 |
+| [本機操作手冊](docs/OPERATIONS.md) | locked 安裝、user service、診斷、啟停、log retention、備份還原 |
 | [決策紀錄](docs/DECISIONS.md) | 暫定技術基線與變更歷史 |
 | [規劃完成度稽核](docs/PLANNING_AUDIT.md) | 逐項核對規劃需求與證據，區分規劃和產品狀態 |
 
@@ -51,7 +52,9 @@ SIRO_OLLAMA_MODEL=qwen3:4b uv run pytest -m real_provider tests/real/test_model_
 uv run siro-gateway
 ```
 
-開啟 `http://127.0.0.1:8000/` 查看控制頁，或 `http://127.0.0.1:8000/body` 查看 renderer shell。下載的 Cubism Core、角色資產與授權接受紀錄不得提交 Git；格式見 `config/body-assets/README.md`。
+開啟 `http://127.0.0.1:8000/` 查看控制頁，或設定 `SIRO_LIVE2D_DIST` 後開啟
+`http://127.0.0.1:8000/live2d/` 查看真 Cubism renderer。下載的 Cubism Core、角色資產與
+授權接受紀錄不得提交 Git；可重現準備命令與格式見 `config/body-assets/README.md`。
 
 ## 開發環境
 
@@ -63,5 +66,8 @@ scripts/check
 uv run siro doctor
 uv run siro config-schema
 ```
+
+建立本機 user service 與操作流程見 [本機操作手冊](docs/OPERATIONS.md)。預設安裝不會自行啟動；檢視
+unit 後以 `scripts/install --enable` 啟用。
 
 `doctor` 是唯讀診斷；minimal profile 不需要模型、API key、GPU 或外部設備。當前主機與部署限制見 [環境盤點](docs/ENVIRONMENT.md) 和 [初始部署政策](docs/DEPLOYMENT_POLICY.md)。

@@ -1,0 +1,2172 @@
+diff --git a/scripts/qwen_tts_worker.py b/scripts/qwen_tts_worker.py
+index 85ba292..1fbd5de 100644
+--- a/scripts/qwen_tts_worker.py
++++ b/scripts/qwen_tts_worker.py
+@@ -7,33 +7,276 @@ import base64
+ import hashlib
+ import io
+ import json
++import os
+ import sys
++import tempfile
++from importlib.metadata import version
+ from pathlib import Path
++from typing import Any
+ 
+-import soundfile as sf
+-import torch
+-from qwen_tts import Qwen3TTSModel
++COMPLETION_PROTOCOL = 2
++MAX_NEW_TOKENS = 512
++SEGMENT_VERSION = "sentence-v1-80"
++CACHE_VERSION = "completion-v2"
++MAX_CACHE_BYTES = 16 * 1024 * 1024
++
++
++class QwenOutputIncomplete(ValueError):
++    """The owned talker call did not prove complete, uncapped generation."""
++
++
++def verified_completion(value: object) -> dict[str, object] | None:
++    if not isinstance(value, dict) or set(value) != {
++        "status",
++        "eos_observed",
++        "cap_reached",
++        "generated_tokens",
++        "max_new_tokens",
++        "observer_calls",
++    }:
++        return None
++    count = value.get("generated_tokens")
++    if (
++        value.get("status") != "complete"
++        or value.get("eos_observed") is not True
++        or value.get("cap_reached") is not False
++        or type(count) is not int
++        or not 0 < count < MAX_NEW_TOKENS
++        or type(value.get("max_new_tokens")) is not int
++        or value.get("max_new_tokens") != MAX_NEW_TOKENS
++        or type(value.get("observer_calls")) is not int
++        or value.get("observer_calls") != 1
++    ):
++        return None
++    return dict(value)
++
++
++def observe_voice_clone(model: Any, text: str, voice: Any) -> tuple[Any, int, dict[str, object]]:
++    """Observe only this instance's top-level talker, keeping its result untouched."""
++    talker = model.model.talker
++    original = talker.generate
++    had_override = "generate" in vars(talker)
++    prior_override = vars(talker).get("generate")
++    calls = 0
++    completion: dict[str, object] | None = None
++
++    def observed(*args: Any, **kwargs: Any) -> Any:
++        nonlocal calls, completion
++        calls += 1
++        # This installed SDK uses inputs_embeds with an initially empty input_ids.
++        # Other call shapes cannot establish how many returned tokens are new.
++        eos = kwargs.get("eos_token_id")
++        if (
++            calls != 1
++            or args
++            or kwargs.get("inputs_embeds") is None
++            or kwargs.get("input_ids") is not None
++            or type(eos) is not int
++            or eos < 0
++            or type(kwargs.get("max_new_tokens")) is not int
++            or kwargs.get("max_new_tokens") != MAX_NEW_TOKENS
++        ):
++            raise QwenOutputIncomplete("unsupported talker generation call")
++        result = original(*args, **kwargs)
++        sequences = getattr(result, "sequences", None)
++        if sequences is None:
++            raise QwenOutputIncomplete("unobservable talker output")
++        try:
++            shape = tuple(sequences.shape)
++            rows = sequences.tolist()
++        except Exception as error:
++            raise QwenOutputIncomplete("unobservable talker output") from error
++        if (
++            len(shape) != 2
++            or any(type(dimension) is not int for dimension in shape)
++            or shape[0] != 1
++            or not isinstance(rows, list)
++            or len(rows) != 1
++            or not isinstance(rows[0], list)
++            or not rows[0]
++            or shape[1] != len(rows[0])
++            or any(type(token) is not int or token < 0 for token in rows[0])
++        ):
++            raise QwenOutputIncomplete("unsupported talker output shape")
++        tokens = rows[0]
++        candidate: dict[str, object] = {
++            "status": "complete",
++            "eos_observed": tokens[-1] == eos,
++            "cap_reached": len(tokens) >= MAX_NEW_TOKENS,
++            "generated_tokens": len(tokens),
++            "max_new_tokens": MAX_NEW_TOKENS,
++            "observer_calls": calls,
++        }
++        completion = verified_completion(candidate)
++        if completion is None or eos in tokens[:-1]:
++            raise QwenOutputIncomplete("talker did not finish before the generation cap")
++        return result
++
++    talker.generate = observed
++    primary_error: BaseException | None = None
++    try:
++        wavs, sample_rate = model.generate_voice_clone(
++            text=text,
++            language="Chinese",
++            voice_clone_prompt=voice,
++            non_streaming_mode=True,
++            max_new_tokens=MAX_NEW_TOKENS,
++        )
++        if calls != 1 or completion is None:
++            raise QwenOutputIncomplete("missing talker completion observation")
++        return wavs, sample_rate, completion
++    except BaseException as error:
++        primary_error = error
++        raise
++    finally:
++        try:
++            if had_override:
++                talker.generate = prior_override
++            else:
++                del talker.generate
++        except Exception as error:
++            if primary_error is None:
++                raise QwenOutputIncomplete("cannot restore talker observer") from error
++            primary_error.add_note("talker observer restoration failed")
++
++
++def file_sha256(path: Path) -> str:
++    digest = hashlib.sha256()
++    with path.open("rb") as source:
++        for chunk in iter(lambda: source.read(1024 * 1024), b""):
++            digest.update(chunk)
++    return digest.hexdigest()
++
++
++def cache_fingerprint(
++    model_path: Path,
++    reference_path: Path,
++    reference_text: str,
++    versions: dict[str, str],
++    generation_settings: dict[str, object],
++    *,
++    attention: str = "eager",
++) -> str:
++    files = sorted(path for path in model_path.rglob("*") if path.is_file())
++    if not files:
++        raise ValueError("model directory has no files")
++    manifest = {
++        "cache_version": CACHE_VERSION,
++        "completion_protocol": COMPLETION_PROTOCOL,
++        "segment_version": SEGMENT_VERSION,
++        "model": [(str(path.relative_to(model_path)), file_sha256(path)) for path in files],
++        "reference_sha256": file_sha256(reference_path),
++        "reference_text_sha256": hashlib.sha256(reference_text.encode()).hexdigest(),
++        "versions": versions,
++        "generation_settings": generation_settings,
++        "language": "Chinese",
++        "non_streaming_mode": True,
++        "x_vector_only_mode": False,
++        "dtype": "bfloat16",
++        "attn_implementation": attention,
++        "audio_format": "WAV/PCM_16",
++    }
++    return hashlib.sha256(
++        json.dumps(manifest, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
++    ).hexdigest()
++
++
++def read_cache(
++    path: Path, text_digest: str, fingerprint: str
++) -> tuple[bytes, dict[str, object]] | None:
++    try:
++        if path.stat().st_size > MAX_CACHE_BYTES:
++            return None
++        entry = json.loads(path.read_bytes())
++        if (
++            not isinstance(entry, dict)
++            or entry.get("cache_version") != CACHE_VERSION
++            or entry.get("fingerprint") != fingerprint
++            or entry.get("text_sha256") != text_digest
++        ):
++            return None
++        completion = verified_completion(entry.get("completion"))
++        if completion is None or not isinstance(entry.get("audio"), str):
++            return None
++        audio = base64.b64decode(entry["audio"], validate=True)
++        if (
++            len(audio) <= 44
++            or audio[:4] != b"RIFF"
++            or audio[8:12] != b"WAVE"
++            or hashlib.sha256(audio).hexdigest() != entry.get("audio_sha256")
++        ):
++            return None
++        return audio, completion
++    except (OSError, ValueError, TypeError):
++        return None
++
++
++def write_cache(
++    path: Path, text_digest: str, fingerprint: str, audio: bytes, completion: dict[str, object]
++) -> None:
++    if verified_completion(completion) is None:
++        raise QwenOutputIncomplete("cannot cache unverified completion")
++    entry = {
++        "cache_version": CACHE_VERSION,
++        "fingerprint": fingerprint,
++        "text_sha256": text_digest,
++        "audio_sha256": hashlib.sha256(audio).hexdigest(),
++        "audio": base64.b64encode(audio).decode(),
++        "completion": completion,
++    }
++    encoded = json.dumps(entry, sort_keys=True, separators=(",", ":")).encode()
++    if len(encoded) > MAX_CACHE_BYTES:
++        raise ValueError("audio cache entry exceeds limit")
++    temporary: Path | None = None
++    try:
++        with tempfile.NamedTemporaryFile(
++            dir=path.parent, prefix=".pending-", delete=False
++        ) as output:
++            temporary = Path(output.name)
++            output.write(encoded)
++            output.flush()
++            os.fsync(output.fileno())
++        os.replace(temporary, path)
++    finally:
++        if temporary is not None:
++            temporary.unlink(missing_ok=True)
+ 
+ 
+ def main() -> int:
+     if len(sys.argv) != 5:
+         raise SystemExit("usage: qwen_tts_worker.py MODEL REF_WAV REF_TEXT CACHE_DIR")
++    import soundfile as sf  # type: ignore[import-untyped]
++    import torch  # type: ignore[import-not-found]
++    from qwen_tts import Qwen3TTSModel  # type: ignore[import-not-found]
++
+     model_path, reference_wav, reference_text, cache_text = sys.argv[1:]
+-    cache = Path(cache_text)
+-    cache.mkdir(parents=True, exist_ok=True)
+     device = "cuda:0" if torch.cuda.is_available() else "cpu"
++    attention = "sdpa" if device == "cuda:0" else "eager"
+     model = Qwen3TTSModel.from_pretrained(
+         model_path,
+         device_map=device,
+         dtype=torch.bfloat16,
+-        attn_implementation="eager",
++        attn_implementation=attention,
+     )
+     voice = model.create_voice_clone_prompt(
+         ref_audio=reference_wav,
+         ref_text=reference_text,
+         x_vector_only_mode=False,
+     )
+-    print(json.dumps({"ready": True, "device": device}), flush=True)
++    fingerprint = cache_fingerprint(
++        Path(model_path),
++        Path(reference_wav),
++        reference_text,
++        {name: version(name) for name in ("qwen-tts", "transformers", "torch", "soundfile")},
++        model._merge_generate_kwargs(max_new_tokens=MAX_NEW_TOKENS),
++        attention=attention,
++    )
++    cache = Path(cache_text) / CACHE_VERSION / fingerprint
++    cache.mkdir(parents=True, exist_ok=True)
++    print(
++        json.dumps({"ready": True, "device": device, "completion_protocol": COMPLETION_PROTOCOL}),
++        flush=True,
++    )
+     for line in sys.stdin:
+         identity = {}
+         try:
+@@ -43,26 +286,28 @@ def main() -> int:
+             if not text:
+                 raise ValueError("text is empty")
+             digest = hashlib.sha256(text.encode()).hexdigest()
+-            cached = cache / f"{digest}.wav"
+-            if cached.is_file():
+-                audio = cached.read_bytes()
++            cached = cache / f"{digest}.json"
++            cached_result = read_cache(cached, digest, fingerprint)
++            if cached_result is not None:
++                audio, completion = cached_result
+                 hit = True
+             else:
+-                wavs, sample_rate = model.generate_voice_clone(
+-                    text=text,
+-                    language="Chinese",
+-                    voice_clone_prompt=voice,
+-                    non_streaming_mode=True,
+-                    max_new_tokens=512,
+-                )
++                wavs, sample_rate, completion = observe_voice_clone(model, text, voice)
++                if not wavs or len(wavs[0]) == 0:
++                    raise QwenOutputIncomplete("voice decoder returned no samples")
+                 output = io.BytesIO()
+                 sf.write(output, wavs[0], sample_rate, format="WAV", subtype="PCM_16")
+                 audio = output.getvalue()
+-                cached.write_bytes(audio)
++                write_cache(cached, digest, fingerprint, audio, completion)
+                 hit = False
+             print(
+                 json.dumps(
+-                    {**identity, "audio": base64.b64encode(audio).decode(), "cache_hit": hit}
++                    {
++                        **identity,
++                        "audio": base64.b64encode(audio).decode(),
++                        "cache_hit": hit,
++                        "completion": completion,
++                    }
+                 ),
+                 flush=True,
+             )
+diff --git a/src/siro/services/audio/tts.py b/src/siro/services/audio/tts.py
+index 99e8773..25923dc 100644
+--- a/src/siro/services/audio/tts.py
++++ b/src/siro/services/audio/tts.py
+@@ -66,6 +66,43 @@ def speech_segments(text: str, *, max_chars: int = 180) -> list[str]:
+     return output
+ 
+ 
++def plan_speech(text: str) -> dict[str, object]:
++    """Prepare a bounded, complete reading script; no inference or audio ownership."""
++    try:
++        parsed = json.loads(text)
++    except json.JSONDecodeError:
++        parsed = None
++    if isinstance(parsed, (dict, list)):
++        raise ValueError("這段內容是資料格式,沒有可朗讀的對話。")
++    spoken = re.sub(r"\s+", " ", prepare_spoken_text(text)).strip()
++    if not spoken:
++        raise ValueError("沒有可朗讀的內容。")
++    if len(spoken) > 8000:
++        raise OverflowError("全文超過一次朗讀的8,000字上限;文字已保留,請選較短段落。")
++    segments: list[str] = []
++    cursor = 0
++    # Reserve one character for the normalized separator at a segment boundary.
++    for piece in speech_segments(spoken, max_chars=79):
++        start = spoken.index(piece, cursor)
++        separator = spoken[cursor:start]
++        if segments and len(segments[-1]) + len(separator) + len(piece) <= 80:
++            segments[-1] += separator + piece
++        else:
++            segments.append(separator + piece)
++        cursor = start + len(piece)
++    if len(segments) > 128:
++        raise OverflowError("全文超過一次朗讀的128段上限;文字已保留,請選較短段落。")
++    return {
++        "segments": segments,
++        "spoken_text": spoken,
++        "version": "sentence-v1-80",
++        "max_chars": 80,
++        "max_segments": 128,
++        "max_total_chars": 8000,
++        "deadline_seconds": 1200,
++    }
++
++
+ class TextToSpeech(Protocol):
+     def synthesize(self, text: str) -> AsyncIterator[bytes]: ...
+ 
+@@ -194,6 +231,7 @@ class QwenReferenceTTS:
+         self._epoch = 0
+         self._poisoned = False
+         self._active: asyncio.Task[object] | None = None
++        self._completion_protocol = 0
+ 
+     async def render(
+         self, text: str, *, rate: float = 1.0, pitch: float = 0.0, energy: float = 0.5
+@@ -209,10 +247,42 @@ class QwenReferenceTTS:
+             process.stdin.write((json.dumps({"text": spoken}) + "\n").encode())
+             await process.stdin.drain()
+             response = await self._read_json(process, self._render_timeout)
+-            audio = response.get("audio")
+-            if not isinstance(audio, str):
+-                raise RuntimeError(f"Qwen TTS failed: {response.get('error', 'invalid response')}")
+-            return base64.b64decode(audio, validate=True)
++            return self._decode_audio(response)
++
++    def _accept_ready(self, response: dict[str, object]) -> None:
++        protocol = response.get("completion_protocol")
++        if response.get("ready") is not True or (
++            "completion_protocol" in response and (type(protocol) is not int or protocol != 2)
++        ):
++            raise RuntimeError("Qwen TTS worker failed to initialize")
++        self._completion_protocol = 2 if protocol == 2 else 0
++
++    def _decode_audio(self, response: dict[str, object]) -> bytes:
++        if "error" in response:
++            raise RuntimeError("Qwen render failed")
++        if self._completion_protocol == 2:
++            completion = response.get("completion")
++            if not isinstance(completion, dict):
++                raise RuntimeError("Qwen audio completion is unverified")
++            count, limit = completion.get("generated_tokens"), completion.get("max_new_tokens")
++            if (
++                completion.get("status") != "complete"
++                or completion.get("eos_observed") is not True
++                or completion.get("cap_reached") is not False
++                or type(count) is not int
++                or type(limit) is not int
++                or not 0 < count < limit
++                or type(completion.get("observer_calls")) is not int
++                or completion.get("observer_calls") != 1
++            ):
++                raise RuntimeError("Qwen audio completion is unverified")
++        audio = response.get("audio")
++        if not isinstance(audio, str) or not audio:
++            raise RuntimeError("Qwen render failed")
++        decoded = base64.b64decode(audio, validate=True)
++        if not decoded:
++            raise RuntimeError("Qwen render failed")
++        return decoded
+ 
+     async def _ensure_worker(self) -> asyncio.subprocess.Process:
+         if self._process is not None and self._process.returncode is None:
+@@ -228,10 +298,12 @@ class QwenReferenceTTS:
+         if self._lifecycle:
+             self._process = process  # own even a failed startup
+         response = await self._read_json(process, self._startup_timeout)
+-        if response.get("ready") is not True:
++        try:
++            self._accept_ready(response)
++        except RuntimeError:
+             process.kill()
+             await process.wait()
+-            raise RuntimeError("Qwen TTS worker failed to initialize")
++            raise
+         self._process = process
+         return process
+ 
+@@ -265,6 +337,7 @@ class QwenReferenceTTS:
+         process = self._process
+         if process is None:
+             self._poisoned = False
++            self._completion_protocol = 0
+             return
+         if process.returncode is None:
+             with contextlib.suppress(ProcessLookupError):
+@@ -275,6 +348,7 @@ class QwenReferenceTTS:
+             raise RuntimeError("Qwen worker cleanup failed") from error
+         self._process = None
+         self._poisoned = False
++        self._completion_protocol = 0
+ 
+     async def _cleanup(self) -> None:
+         cleanup = asyncio.create_task(self._retire())
+@@ -325,8 +399,7 @@ class QwenReferenceTTS:
+                             self._process = spawn.result()
+                             raise
+                         response = await self._read_json(self._process, self._startup_timeout)
+-                        if response.get("ready") is not True:
+-                            raise RuntimeError("Qwen worker failed to initialize")
++                        self._accept_ready(response)
+                     process = self._process
+                     assert process is not None and process.stdin is not None
+                     request_id = str(uuid4())
+@@ -348,10 +421,7 @@ class QwenReferenceTTS:
+                             or response.get("epoch") != self._epoch
+                         ):
+                             raise RuntimeError("Qwen response identity mismatch")
+-                        audio = response.get("audio")
+-                        if not isinstance(audio, str):
+-                            raise RuntimeError("Qwen render failed")
+-                        return base64.b64decode(audio, validate=True)
++                        return self._decode_audio(response)
+ 
+                     return await asyncio.wait_for(exchange(), self._render_timeout)
+                 except BaseException:
+diff --git a/src/siro/services/presentation/gateway.py b/src/siro/services/presentation/gateway.py
+index fb11639..8b4ec63 100644
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -39,7 +39,7 @@ from siro.services.audio.protocol import (
+     PlaybackOwnership,
+ )
+ from siro.services.audio.stt import SpeechToText
+-from siro.services.audio.tts import EdgeNeuralTTS, KokoroLocalTTS, QwenReferenceTTS
++from siro.services.audio.tts import EdgeNeuralTTS, KokoroLocalTTS, QwenReferenceTTS, plan_speech
+ from siro.services.tools.execution import ExecutionContext
+ from siro.services.tools.orchestrator import (
+     DEFAULT_MODEL_TOOLS,
+@@ -340,6 +340,11 @@ class SpeechInput(BaseModel):
+     energy: float = Field(default=0.5, ge=0.0, le=1.0)
+ 
+ 
++class SpeechPlanInput(BaseModel):
++    model_config = ConfigDict(extra="forbid")
++    text: str = Field(min_length=1, max_length=16_000)
++
++
+ class ToolApprovalInput(BaseModel):
+     model_config = ConfigDict(extra="forbid")
+     approved: bool
+@@ -576,6 +581,21 @@ def create_app(
+             "final": transcript.final,
+         }
+ 
++    @app.post("/v1/audio/speech/plan")
++    async def prepare_speech_plan(
++        body: SpeechPlanInput,
++        request: Request,
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_origin(request.headers.get("origin"))
++        require_token(authorization)
++        try:
++            return plan_speech(body.text)
++        except OverflowError as error:
++            raise HTTPException(status_code=413, detail=str(error)) from error
++        except ValueError as error:
++            raise HTTPException(status_code=422, detail=str(error)) from error
++
+     async def render_owned_speech(body: SpeechInput, request: Request) -> bytes:
+         assert text_to_speech is not None
+         render = asyncio.create_task(
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+index ca4ee7d..72e854d 100644
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -52,7 +52,7 @@
+         <div class="conversation-heading"><h2>和 SIRO 聊聊</h2><span id="model-status">確認對話連線中</span></div>
+         <div id="messages" aria-live="polite"><div class="empty-state"><strong>從一句「你好」開始。</strong><p>聊聊今天，或一起處理電腦上的事情。<br>想讓我留下的事，可以說「記住：…」。</p></div></div>
+         <form id="chat"><textarea id="text" required maxlength="32768" placeholder="想和 SIRO 說什麼？" aria-label="對話內容"></textarea><button type="submit">送出 ↗</button></form>
+-        <div class="conversation-actions"><button id="voice" type="button">開始說話</button><button id="cancel" type="button">停止回覆</button><label><input id="voice-output" type="checkbox"> 播放語音</label></div>
++        <div class="conversation-actions"><button id="voice" type="button">開始說話</button><button id="cancel" type="button">停止回覆</button><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
+         <div class="conversation-actions"><span id="voice-status">麥克風待命</span><span id="tts-status">TTS 待命</span></div>
+       </section>
+     </main>
+@@ -95,6 +95,7 @@
+       let submissionGeneration = 0, pendingSubmission;
+       let recorder, recordedChunks = [], ttsAudio;
+       let ttsController, ttsGeneration = 0, speechCancelled = false;
++      let lastSpeech;
+       const headers = () => ({"Content-Type": "application/json"});
+       const log = data => { document.querySelector("#events").textContent += JSON.stringify(data) + "\n"; };
+       function createSessionAccess({fetcher = fetch, now = () => performance.now(), origin = location.origin} = {}) {
+@@ -219,8 +220,8 @@
+             document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;
+           }
+           if (data.type === "assistant_terminal") {
+-            const spokenText = data.state === "completed" && assistantBubble
+-              ? formatAssistantMessage(assistantBubble) : assistantBubble?.textContent || "";
++            const canonicalText = assistantBubble?.textContent || "";
++            if (data.state === "completed" && assistantBubble) formatAssistantMessage(assistantBubble);
+             if (data.state !== "completed") {
+               if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
+               const reasons = {
+@@ -235,7 +236,11 @@
+               assistantBubble.appendChild(notice);
+             }
+             if (data.state !== "completed") stopTts();
+-            if (data.state === "completed" && spokenText && !speechCancelled) playTts(spokenText, data.prosody || {});
++            if (data.state === "completed" && canonicalText) {
++              lastSpeech = {text: canonicalText, prosody: data.prosody || {}};
++              document.querySelector("#replay-speech").disabled = false;
++              if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);
++            }
+             assistantBubble = undefined; currentTurn = undefined;
+           }
+           if (data.type === "tool_proposal") renderToolProposal(data);
+@@ -489,14 +494,16 @@
+         return message.textContent;
+       }
+       function stopTts() {
++        const active = Boolean(ttsController || ttsAudio);
+         ttsGeneration++;
+         ttsController?.abort(); ttsController = undefined;
+         if (ttsAudio) {
+-          ttsAudio.onplay = null; ttsAudio.onended = null;
+-          ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src); ttsAudio = undefined;
++          ttsAudio.onplay = null; ttsAudio.onended = null; ttsAudio.onerror = null;
++          ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src);
++          ttsAudio.removeAttribute?.("src"); ttsAudio.load?.(); ttsAudio = undefined;
+         }
+         const status = document.querySelector("#tts-status");
+-        status.textContent = "TTS 待命"; status.className = "warn";
++        status.textContent = active ? "朗讀已停止" : "TTS 待命"; status.className = "warn";
+       }
+       async function playTts(text, prosody) {
+         stopTts();
+@@ -504,21 +511,99 @@
+         const generation = ttsGeneration;
+         const controller = new AbortController(); ttsController = controller;
+         const current = () => generation === ttsGeneration && !controller.signal.aborted;
+-        const status = document.querySelector("#tts-status"); status.textContent = "語音生成中…";
++        const status = document.querySelector("#tts-status"); status.textContent = "準備全文朗讀…";
++        const started = performance.now();
++        let played = 0, total = 0, deadlineReached = false;
++        let timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, 1200000);
++        const aborted = () => new DOMException("朗讀已停止", "AbortError");
++        const assertCurrent = () => { if (!current()) throw aborted(); };
++        const waitFor = promise => new Promise((resolve, reject) => {
++          const cancel = () => reject(aborted());
++          controller.signal.addEventListener("abort", cancel, {once: true});
++          Promise.resolve(promise).then(resolve, reject).finally(() => controller.signal.removeEventListener("abort", cancel));
++          if (!current()) cancel();
++        });
++        const request = async (url, body) => {
++          assertCurrent();
++          const response = await waitFor(authorizedFetch(url, {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify(body)}));
++          assertCurrent();
++          if (!response.ok) throw new Error((await waitFor(response.json())).detail || `HTTP ${response.status}`);
++          return response;
++        };
++        const loadSegment = async segment => {
++          try {
++            const response = await request("/v1/audio/speech", {text: segment, ...prosody});
++            const blob = await waitFor(response.blob()); assertCurrent();
++            return {blob};
++          } catch (error) { return {error}; } // A prefetched rejection always has an owner.
++        };
++        const playSegment = async blob => {
++          assertCurrent();
++          const url = URL.createObjectURL(blob);
++          let audio;
++          try { audio = new Audio(url); } catch (error) { URL.revokeObjectURL(url); throw error; }
++          ttsAudio = audio;
++          let cancel;
++          try {
++            await new Promise((resolve, reject) => {
++              cancel = () => reject(aborted());
++              controller.signal.addEventListener("abort", cancel, {once: true});
++              audio.onplay = () => {
++                if (current()) { status.textContent = `SIRO 正在說話（已播 ${played}/${total} 段）`; status.className = "ok"; }
++              };
++              audio.onended = () => { if (current()) resolve(); else reject(aborted()); };
++              audio.onerror = () => reject(new Error("音訊播放失敗"));
++              try {
++                Promise.resolve(audio.play()).then(() => { if (!current()) audio.pause(); }, reject);
++              } catch (error) { reject(error); }
++            });
++            assertCurrent();
++          } finally {
++            controller.signal.removeEventListener("abort", cancel);
++            audio.onplay = null; audio.onended = null; audio.onerror = null; audio.pause();
++            if (ttsAudio === audio) {
++              URL.revokeObjectURL(audio.src); audio.removeAttribute?.("src"); audio.load?.(); ttsAudio = undefined;
++            }
++          }
++        };
+         try {
+-          const response = await authorizedFetch("/v1/audio/speech", {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify({text, ...prosody})});
+-          if (!current()) return;
+-          if (!response.ok) throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+-          const blob = await response.blob();
+-          if (!current()) return;
+-          const audio = new Audio(URL.createObjectURL(blob)); ttsAudio = audio;
+-          audio.onplay = () => { if (current()) { status.textContent = "SIRO 正在說話"; status.className = "ok"; } };
+-          audio.onended = () => { if (current()) { status.textContent = "TTS 待命"; status.className = "warn"; } };
+-          await audio.play();
+-          if (!current()) audio.pause();
++          const response = await request("/v1/audio/speech/plan", {text});
++          const plan = await waitFor(response.json()); assertCurrent();
++          if (!Array.isArray(plan.segments) || !plan.segments.length || plan.segments.length > 128 ||
++              plan.max_chars !== 80 || plan.max_segments !== 128 || plan.max_total_chars !== 8000 ||
++              typeof plan.version !== "string" || !plan.version || typeof plan.spoken_text !== "string" ||
++              !plan.spoken_text.trim() || Array.from(plan.spoken_text).length > 8000 ||
++              plan.segments.some(segment => typeof segment !== "string" || !segment.trim() || Array.from(segment).length > 80) ||
++              plan.segments.reduce((sum, segment) => sum + Array.from(segment).length, 0) > 8000 ||
++              plan.segments.join("") !== plan.spoken_text ||
++              !Number.isFinite(plan.deadline_seconds) || plan.deadline_seconds <= 0 || plan.deadline_seconds > 1200)
++            throw new Error("朗讀計畫超出上限或內容無效，沒有截短播放");
++          total = plan.segments.length;
++          clearTimeout(timer);
++          const remaining = plan.deadline_seconds * 1000 - (performance.now() - started);
++          if (remaining <= 0) { deadlineReached = true; controller.abort(); throw aborted(); }
++          timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, remaining);
++          let next = loadSegment(plan.segments[0]);
++          for (let index = 0; index < total; index++) {
++            status.textContent = `語音準備中（已播 ${played}/${total} 段）`; status.className = "warn";
++            const result = await next; assertCurrent();
++            if (result.error) throw result.error;
++            const playback = playSegment(result.blob);
++            next = index + 1 < total ? loadSegment(plan.segments[index + 1]) : undefined;
++            await playback; assertCurrent();
++            played++;
++          }
++          status.textContent = `全文朗讀完成（${played}/${total} 段）`; status.className = "ok";
+         } catch (error) {
+-          if (current() && error.name !== "AbortError") { status.textContent = `TTS 失敗：${error.message}`; status.className = "warn"; }
+-        } finally { if (ttsController === controller) ttsController = undefined; }
++          if (generation === ttsGeneration && (deadlineReached || !controller.signal.aborted)) {
++            status.textContent = deadlineReached ? `已達朗讀時限（已播 ${played}/${total} 段），全文未完成。`
++              : `朗讀失敗（已播 ${played}/${total} 段）：${error.message}。全文未完成。`;
++            status.className = "warn";
++          }
++        } finally {
++          clearTimeout(timer); controller.abort();
++          if (ttsController === controller) ttsController = undefined;
++        }
+       }
+       function wavFromBuffer(buffer) {
+         const samples = buffer.getChannelData(0), data = new ArrayBuffer(44 + samples.length * 2);
+@@ -563,6 +648,13 @@
+         } catch (error) { status.textContent = `無法使用麥克風：${error.message}`; status.className = "warn"; }
+       };
+       document.querySelector("#cancel").onclick = async () => { submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
++      document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };
++      document.querySelector("#replay-speech").onclick = async () => {
++        if (!lastSpeech || pageClosing) return;
++        document.querySelector("#voice-output").checked = true;
++        speechCancelled = false;
++        await playTts(lastSpeech.text, lastSpeech.prosody);
++      };
+       window.addEventListener("message", event => {
+         if (event.origin !== location.origin || event.source !== document.querySelector("#companion").contentWindow || event.data?.type !== "siro.renderer.ready") return;
+         const labels = {neutral:"平靜地陪著你", happy:"開心", sad:"有點難過", angry:"認真表達不滿", surprised:"好奇、留意著"};
+diff --git a/tests/integration/test_frontend_companion.py b/tests/integration/test_frontend_companion.py
+index f96cdad..cb7be46 100644
+--- a/tests/integration/test_frontend_companion.py
++++ b/tests/integration/test_frontend_companion.py
+@@ -201,7 +201,7 @@ assert.equal(message.children.find(child => child.tagName === 'code').textConten
+ assert.equal(message.textContent,
+   '狀態\n請看 cwd。\n  hello **keep**\n<script>globalThis.compromised = true</script>\n' +
+   '<img src=x onerror=alert(1)>');
+-assert.deepEqual(spoken, [message.textContent]);
++assert.deepEqual(spoken, [source]);
+ const tags = [];
+ const visit = node => { tags.push(node.tagName); node.children.forEach(visit); };
+ message.children.forEach(visit);
+diff --git a/tests/integration/test_frontend_speech_cancel.py b/tests/integration/test_frontend_speech_cancel.py
+index f69f064..159f7d6 100644
+--- a/tests/integration/test_frontend_speech_cancel.py
++++ b/tests/integration/test_frontend_speech_cancel.py
+@@ -7,32 +7,34 @@ import pytest
+ 
+ 
+ @pytest.mark.parametrize(
+-    "scenario", ["pending", "blob", "supersede", "playing", "turn", "terminal"]
++    "scenario",
++    ["pending", "blob", "supersede", "playing", "turn", "terminal", "replay", "disable"],
+ )
+ def test_actual_frontend_speech_cancel(scenario: str) -> None:
+     html = Path("src/siro/services/presentation/static/index.html").read_text()
+     functions = html[
+         html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+     ]
+-    cancel = next(
+-        line.strip()
+-        for line in html.splitlines()
+-        if 'document.querySelector("#cancel").onclick =' in line
+-    )
++    cancel = html[
++        html.index('document.querySelector("#cancel").onclick =') : html.index(
++            'window.addEventListener("message",'
++        )
++    ]
+     handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+-    setup = """
++    setup = r"""
+ const assert = require('node:assert/strict');
+ const mode = process.argv[1];
+-const button = {}, status = {}, calls = [], audios = [], revoked = [];
++const button = {}, status = {}, replay = {}, voice = {checked:true};
++const calls = [], audios = [], revoked = [];
+ let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+-let assistantBubble;
+-const socket = {}, log = () => {};
+-socket.readyState = 1;
++let assistantBubble, lastSpeech;
++const pageClosing = false, socket = {readyState:1}, log = () => {};
+ const owner = socket, epoch = 0, controlEpoch = 0, retired = false, markAuthenticated = () => {};
+ let submissionGeneration = 0, pendingSubmission;
+ const acceptRunEvent = () => true;
+ const headers = () => ({});
+-const document = {querySelector: s => s === '#cancel' ? button : status};
++const document = {querySelector: selector => selector === '#cancel' ? button :
++ selector === '#voice-output' ? voice : selector === '#replay-speech' ? replay : status};
+ const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+ const pending = () => {
+  let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+@@ -42,65 +44,104 @@ class Audio {
+  constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+  play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+  pause() {this.pauses++;}
++ end() {this.onended?.();}
+ }
+-const fetch = (url, options) => {
++const plan = () => ({ok:true,json:async()=>({segments:['完整的合成語音。'],
++ spoken_text:'完整的合成語音。',version:'synthetic-plan-v1',
++ max_chars:80,max_segments:128,max_total_chars:8000,deadline_seconds:1200})});
++const authorizedFetch = (url, options) => {
+  const call={url,options,...pending()};calls.push(call);
+- if(url!='/v1/audio/speech')return Promise.resolve({ok:true});
+- return call.promise;
++ if(url==='/v1/audio/speech/plan' && !['pending','turn'].includes(mode))
++  return Promise.resolve(plan());
++ if(url==='/v1/audio/speech'||url==='/v1/audio/speech/plan')return call.promise;
++ return Promise.resolve({ok:true});
+ };
+-const authorizedFetch = (url, options) => fetch(url, options);
+ const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+-const tick = async()=>{await Promise.resolve();await Promise.resolve();await Promise.resolve();};
++const tick = async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
++const speeches = () => calls.filter(call=>call.url==='/v1/audio/speech');
+ """
+-    checks = """
++    checks = r"""
+ (async()=>{
+  if(mode==='pending'||mode==='turn') {
+   if(mode==='turn')currentTurn='turn-A';
+-  const work=playTts('synthetic',{});
+-  const call=calls[0];
+-  call.options.signal.addEventListener('abort',()=>
+-    call.reject(Object.assign(new Error('abort'),{name:'AbortError'})));
++  const work=playTts('synthetic',{}), call=calls[0];
++  assert.equal(call.url,'/v1/audio/speech/plan');
+   await button.onclick();await work;
+-  assert(call.options.signal.aborted);
+-  assert.equal(audios.length,0);
+-  assert.equal(status.textContent,'TTS 待命');
++  assert(call.options.signal.aborted);assert.equal(audios.length,0);
++  assert.equal(status.textContent,'朗讀已停止');
++  call.resolve(plan());await tick();assert.equal(speeches().length,0);
+   if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+  } else if(mode==='terminal') {
+   currentTurn='cancelled-turn';await button.onclick();
+   assistantBubble={textContent:'late answer'};
+   socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+-  assert.equal(calls.filter(c=>c.url==='/v1/audio/speech').length,0);
++  await tick();assert.equal(calls.filter(c=>c.url==='/v1/audio/speech/plan').length,0);
+   socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+   assistantBubble={textContent:'new answer'};
+   socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+-  const speech=calls.find(c=>c.url==='/v1/audio/speech');assert(speech);
++  await tick();const speech=speeches()[0];assert(speech);
+   speech.resolve(response('new'));await tick();
++  assert.equal(lastSpeech.text,'new answer');assert.equal(replay.disabled,false);
++  assert.equal(audios.length,1);audios[0].end();await tick();
++  assert.match(status.textContent,/全文朗讀完成/);
+  } else if(mode==='blob') {
+-  const blob=pending();const work=playTts('old',{});
+-  calls[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+-  await button.onclick();blob.resolve('late-blob');await work;
+-  assert.equal(audios.length,0);assert.equal(status.textContent,'TTS 待命');
++  const blob=pending(),work=playTts('old',{});await tick();
++  speeches()[0].resolve({ok:true,blob:()=>blob.promise});await tick();
++  await button.onclick();await work;
++  blob.resolve('late-blob');await tick();assert.equal(audios.length,0);
++  assert.equal(status.textContent,'朗讀已停止');
+  } else if(mode==='supersede') {
+-  const old=playTts('old',{});const newer=playTts('new',{});
+-  assert(calls[0].options.signal.aborted);
+-  calls[1].resolve(response('new'));await newer;
+-  calls[0].reject(new Error('old failed late'));await old;
+-  assert.equal(audios.length,1);assert.equal(status.textContent,'SIRO 正在說話');
+-  await button.onclick();assert(audios[0].pauses>=1);assert.equal(revoked.length,1);
++  const old=playTts('old',{});await tick();const oldCall=speeches()[0];
++  const newer=playTts('new',{});await tick();
++  assert(oldCall.options.signal.aborted);
++  speeches()[1].resolve(response('new'));await tick();await old;
++  oldCall.reject(new Error('old failed late'));await tick();
++  assert.equal(audios.length,1);assert.match(status.textContent,/正在說話/);
++  assert(ttsController,'old cleanup must not detach newer owner');
++  audios[0].end();await newer;
++  assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);
+  } else if(mode==='playing') {
+   const delayed=pending();
+   Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+-  const work=playTts('playing',{});calls[0].resolve(response('audio'));await tick();
+-  assert.equal(audios.length,1);await button.onclick();
+-  assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);
+-  delayed.resolve();await work;
+-  assert(audios[0].pauses>=2);assert.equal(status.textContent,'TTS 待命');
++  const work=playTts('playing',{});await tick();
++  speeches()[0].resolve(response('audio'));await tick();
++  assert.equal(audios.length,1);await button.onclick();await work;
++  assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);
++  delayed.resolve();await tick();
++  assert(audios[0].pauses>=2);assert.equal(status.textContent,'朗讀已停止');
++ } else if(mode==='replay') {
++  voice.checked=false;speechCancelled=true;
++  const canonical='前言。\n```sh\nprintf synthetic\n```\n尾句。';
++  lastSpeech={text:canonical,prosody:{rate:1.1}};
++  const work=replay.onclick();await tick();
++  assert(voice.checked,'manual replay visibly enables speech');assert(!speechCancelled);
++  assert.deepEqual(JSON.parse(calls[0].options.body),{text:canonical});
++  assert.equal(speeches()[0].options.method,'POST');
++  assert.equal(JSON.parse(speeches()[0].options.body).rate,1.1);
++  speeches()[0].resolve(response('replay'));await tick();
++  assert(!/全文朗讀完成/.test(status.textContent));audios[0].end();await work;
++  assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);
++ } else if(mode==='disable') {
++  const work=playTts('playing',{});await tick();
++  speeches()[0].resolve(response('audio'));await tick();
++  voice.checked=false;voice.onchange({target:voice});await work;
++  assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);
++  assert.equal(status.textContent,'朗讀已停止');
+  }
++ console.log('CANCEL_OK');
+ })().catch(error=>{console.error(error);process.exitCode=1;});
+ """
+     result = subprocess.run(
+-        ["node", "-e", setup + functions + cancel + handler + checks, scenario],
++        [
++            "node",
++            "--unhandled-rejections=strict",
++            "-e",
++            setup + functions + cancel + handler + checks,
++            scenario,
++        ],
+         capture_output=True,
+         text=True,
++        timeout=10,
+     )
+     assert result.returncode == 0, result.stderr
++    assert "CANCEL_OK" in result.stdout, "cancel assertions must reach completion"
+diff --git a/tests/integration/test_frontend_speech_queue.py b/tests/integration/test_frontend_speech_queue.py
+new file mode 100644
+index 0000000..d1bf9d2
+--- /dev/null
++++ b/tests/integration/test_frontend_speech_queue.py
+@@ -0,0 +1,375 @@
++from __future__ import annotations
++
++import subprocess
++from pathlib import Path
++
++import pytest
++
++_SETUP = r"""
++const assert = require('node:assert/strict');
++const scenario = process.argv[1];
++const status = {textContent:'', className:''}, calls = [], audios = [], revoked = [];
++const connection = {};
++const urls = new Map(), unhandled = [], timers = new Map();
++let ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
++let currentTurn, assistantBubble;
++const socket = {readyState:1}, owner = socket, epoch = 0, controlEpoch = 0, retired = false;
++const log = () => {}, acceptRunEvent = () => true, markAuthenticated = () => {};
++let clock = 0, timerSequence = 0, objectSequence = 0, voiceEnabled = true;
++const performance = {now: () => clock};
++Date.now = () => clock;
++const setTimeout = (callback, delay) => {
++ const id = ++timerSequence; timers.set(id, {callback, at:clock+delay}); return id;
++};
++const clearTimeout = id => timers.delete(id);
++const document = {querySelector: selector =>
++ selector === '#voice-output' ? {checked:voiceEnabled} :
++ selector === '#connection' ? connection : status};
++const headers = () => ({'Authorization':'Bearer synthetic-session'});
++const pending = () => {
++ let resolve, reject;
++ const promise = new Promise((a,b) => {resolve=a; reject=b;});
++ return {promise, resolve, reject};
++};
++const URL = {
++ createObjectURL: blob => {
++  const url='blob:synthetic-'+(++objectSequence);urls.set(url,blob);return url;
++ },
++ revokeObjectURL: url => {revoked.push(url);urls.delete(url);}
++};
++class Audio {
++ constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
++ play() {this.played++;this.onplay?.();return this.playWait?.promise ?? Promise.resolve();}
++ pause() {this.pauses++;}
++ removeAttribute() {}
++ load() {}
++ end() {this.onended?.();}
++ fail() {this.onerror?.(new Error('synthetic playback failure'));}
++}
++const authorizedFetch = (url, options) => {
++ const call = {url, options, body:JSON.parse(options.body), ...pending()};
++ calls.push(call); return call.promise;
++};
++const response = blob => ({ok:true,status:200,blob:() => Promise.resolve(blob)});
++const planResponse = (segments=['甲。','乙。','丙。'], extra={}) => ({
++ ok:true,status:200,json:async()=>({segments,spoken_text:segments.join(''),
++  version:'synthetic-plan-v1',max_chars:80,max_segments:128,max_total_chars:8000,
++  deadline_seconds:1200,...extra})
++});
++const tick = async () => {for(let i=0;i<20;i++)await Promise.resolve();};
++const rendered = () => calls.filter(call => call.url === '/v1/audio/speech');
++const completed = () => /完成/.test(status.textContent);
++const succeeded = () => /全文朗讀完成/.test(status.textContent);
++const failed = () => /失敗|未完成|上限|時限/.test(status.textContent) && !succeeded();
++const run = text => {
++ let settled=false;
++ const promise=playTts(text,{rate:1.05,pitch:1.1}).finally(()=>{settled=true;});
++ return {promise,settled:()=>settled};
++};
++const begin = async (segments=['甲。','乙。','丙。']) => {
++ const work=run('synthetic canonical answer');
++ assert.equal(calls[0]?.url,'/v1/audio/speech/plan',
++  'canonical text must be planned before synthesis');
++ calls[0].resolve(planResponse(segments));await tick();
++ return work;
++};
++const deliver = async (index, blob='audio-'+index) => {
++ const call=rendered()[index];assert(call,'expected segment request '+index);
++ call.resolve(response(blob));await tick();return call;
++};
++const advance = async milliseconds => {
++ clock+=milliseconds;
++ for(const [id,timer] of [...timers])if(timer.at<=clock){timers.delete(id);timer.callback();}
++ await tick();
++};
++const stopped = () => {
++ assert(!succeeded(),'cancelled narration must not report success');
++ assert.match(status.textContent,/停止|待命/);
++ assert.equal(ttsAudio,undefined);assert.equal(urls.size,0);
++};
++const failureClean = () => {
++ assert(failed(),'unsuccessful narration must report failure or limit: '+status.textContent);
++ assert.equal(ttsAudio,undefined);assert.equal(urls.size,0);
++};
++process.on('unhandledRejection',error=>unhandled.push(error));
++"""
++
++_CHECKS = r"""
++(async()=>{
++ if(scenario==='canonical_plan') {
++  const canonical='開頭。\n```sh\nsecret_synthetic_command\n```\n最後一句。';
++  const work=run(canonical);
++  assert.equal(calls[0]?.url,'/v1/audio/speech/plan',
++   'first request must obtain a bounded speech plan');
++  assert.deepEqual(calls[0].body,{text:canonical},'planning must retain fenced-code semantics');
++  assert.equal(calls[0].options.method,'POST');
++  stopTts();calls[0].resolve(planResponse());await work.promise;
++  assert.equal(rendered().length,0);
++ } else if(scenario==='ordered_prefetch') {
++  const work=await begin();
++  assert.equal(rendered().length,1,'only first segment is requested before playback');
++  await deliver(0);
++  assert.equal(audios.length,1);assert.equal(audios[0].played,1);
++  assert.match(status.textContent,/0\/3/,'progress reports actual ended segments');
++  assert.equal(rendered().length,2,'one next segment may prefetch while first plays');
++  await deliver(1);
++  assert.equal(audios.length,1,'prefetched segment must not play over current audio');
++  assert.equal(rendered().length,2,'third segment cannot prefetch before first ended');
++  assert(!completed());assert(!work.settled(),'play() resolution is not playback completion');
++  audios[0].end();await tick();
++  assert.equal(audios.length,2);assert.equal(audios[1].played,1);
++  assert.match(status.textContent,/1\/3/);
++  assert.equal(rendered().length,3);assert(!completed());
++  await deliver(2);assert.equal(audios.length,2);
++  audios[1].end();await tick();
++  assert.equal(audios.length,3);assert.equal(audios[2].played,1);
++  assert.match(status.textContent,/2\/3/);
++  assert(!completed());assert(!work.settled());
++  audios[2].end();await work.promise;
++  assert(completed(),'only the last actual ended event completes narration');
++  assert.match(status.textContent,/3\/3/);
++  assert.deepEqual(rendered().map(call=>call.body.text),['甲。','乙。','丙。']);
++  for(const call of rendered()){
++   assert.equal(call.body.rate,1.05);assert.equal(call.body.pitch,1.1);
++   assert.strictEqual(call.options.signal,calls[0].options.signal,
++    'one generation owns plan and segments');
++  }
++  assert.equal(revoked.length,3);assert.equal(new Set(revoked).size,3);
++  assert.equal(urls.size,0);assert.equal(ttsAudio,undefined);
++  assert.equal(timers.size,0,'completed narration releases its deadline');
++ } else if(scenario==='cancel_plan'||scenario==='cancel_plan_json') {
++  const work=run('old synthetic answer');const call=calls[0];
++  assert.equal(call.url,'/v1/audio/speech/plan');
++  const json=pending();
++  if(scenario==='cancel_plan_json'){
++   call.resolve({ok:true,status:200,json:()=>json.promise});await tick();
++  }
++  stopTts();assert(call.options.signal.aborted);stopped();
++  await work.promise;
++  if(scenario==='cancel_plan')call.reject(new Error('late cancelled plan failure'));
++  else json.reject(new Error('late cancelled plan JSON failure'));
++  await tick();assert.equal(rendered().length,0);stopped();
++  assert.equal(timers.size,0);
++ } else if(scenario==='cancel_render'||scenario==='cancel_blob') {
++  const work=await begin();const call=rendered()[0], blob=pending();
++  if(scenario==='cancel_blob'){
++   call.resolve({ok:true,status:200,blob:()=>blob.promise});await tick();
++  }
++  stopTts();assert(call.options.signal.aborted);stopped();
++  await work.promise;
++  if(scenario==='cancel_render')call.resolve(response('late-audio'));
++  else blob.reject(new Error('late cancelled blob failure'));
++  await tick();assert.equal(audios.length,0);assert.equal(rendered().length,1);stopped();
++ } else if(['cancel_playing','cancel_prefetch','cancel_play_promise'].includes(scenario)) {
++  const play=pending();
++  if(scenario==='cancel_play_promise')Audio.prototype.play=function(){
++   this.played++;this.onplay?.();return play.promise;
++  };
++  const work=await begin();await deliver(0);
++  assert.equal(audios.length,1);const audio=audios[0], lateEnd=audio.onended;
++  const next=rendered()[1], blob=pending();assert(next,'one next segment was prefetched');
++  if(scenario==='cancel_prefetch'){
++   next.resolve({ok:true,status:200,blob:()=>blob.promise});await tick();
++  }
++  stopTts();assert(next.options.signal.aborted);assert(audio.pauses>=1);stopped();
++  await work.promise;
++  lateEnd?.();
++  if(scenario==='cancel_prefetch')blob.reject(new Error('late cancelled prefetch blob'));
++  else next.reject(new Error('late prefetch failure after cancellation'));
++  play.resolve();await tick();
++  assert.equal(audios.length,1);assert.equal(rendered().length,2);stopped();
++  assert.equal(timers.size,0);
++ } else if(scenario==='supersede') {
++  const old=await begin();await deliver(0);
++  const oldAudio=audios[0], oldEnd=oldAudio.onended, oldPrefetch=rendered()[1];
++  const newer=run('new synthetic answer');const newPlan=calls.at(-1);
++  assert.equal(newPlan.url,'/v1/audio/speech/plan');
++  assert(calls[0].options.signal.aborted);assert(oldAudio.pauses>=1);
++  await old.promise;
++  oldEnd?.();oldPrefetch.reject(new Error('old prefetch failed late'));
++  newPlan.resolve(planResponse(['新的一句。']));await tick();await deliver(2,'new-audio');
++  assert.equal(audios.length,2);assert.equal(audios[1].played,1);
++  assert.match(status.textContent,/正在說話/,'old finally cannot reset newer playback');
++  assert(!succeeded());audios[1].end();await newer.promise;
++  assert(succeeded());assert.equal(rendered().length,3);
++  assert.deepEqual(rendered().map(call=>call.body.text),['甲。','乙。','新的一句。']);
++  assert.equal(urls.size,0);assert.equal(timers.size,0);
++ } else if(scenario==='supersede_plan') {
++  const old=run('old synthetic answer'), newer=run('new synthetic answer');
++  assert(calls[0].options.signal.aborted);
++  await old.promise;
++  calls[1].resolve(planResponse(['新的一句。']));await tick();await deliver(0,'new-audio');
++  calls[0].resolve(planResponse(['過時的一句。']));await tick();
++  assert.equal(rendered().length,1);assert.equal(audios.length,1);
++  assert.match(status.textContent,/正在說話/);audios[0].end();await newer.promise;
++  assert(succeeded());assert.equal(urls.size,0);
++ } else if(scenario==='new_turn') {
++  const work=await begin();await deliver(0);
++  socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
++  assert.equal(currentTurn,'new-turn');assert.equal(speechCancelled,false);
++  assert(calls[0].options.signal.aborted);stopped();
++  await work.promise;rendered()[1].reject(new Error('old turn prefetch failed late'));await tick();
++  assert.equal(audios.length,1);assert.equal(rendered().length,2);stopped();
++ } else if(scenario==='failure_plan'||scenario==='failure_plan_rejection') {
++  const work=run('synthetic answer');
++  if(scenario==='failure_plan')
++   calls[0].resolve({ok:false,status:413,json:async()=>({detail:'synthetic plan limit'})});
++  else calls[0].reject(new Error('synthetic plan network failure'));
++  await work.promise;failureClean();assert.equal(rendered().length,0);
++  assert.equal(timers.size,0);
++ } else if(scenario==='failure_render') {
++  const work=await begin();
++  rendered()[0].resolve({ok:false,status:503,json:async()=>({detail:'synthetic worker failure'})});
++  await work.promise;failureClean();assert.equal(audios.length,0);
++  assert.equal(rendered().length,1,'failed synthesis must not silently retry or skip');
++ } else if(scenario==='failure_blob') {
++  const work=await begin();
++  rendered()[0].resolve({ok:true,status:200,blob:async()=>{
++   throw new Error('synthetic body read failure');
++  }});
++  await work.promise;failureClean();assert.equal(audios.length,0);
++  assert.equal(rendered().length,1);
++ } else if(scenario==='failure_prefetch') {
++  const work=await begin();await deliver(0);
++  rendered()[1].reject(new Error('synthetic prefetch failure'));await tick();
++  assert(!succeeded());audios[0].end();await work.promise;
++  failureClean();assert.equal(audios.length,1);assert.equal(rendered().length,2);
++ } else if(scenario==='failure_playback'||scenario==='failure_play_promise') {
++  const play=pending();
++  if(scenario==='failure_play_promise')Audio.prototype.play=function(){
++   this.played++;this.onplay?.();return play.promise;
++  };
++  const work=await begin();await deliver(0);
++  if(scenario==='failure_playback')audios[0].fail();
++  else play.reject(new Error('synthetic play promise rejected'));
++  await work.promise;
++  rendered()[1]?.reject(new Error('late prefetch failure after player failure'));
++  await tick();failureClean();assert.equal(audios.length,1);
++  assert(rendered().length<=2);assert.equal(timers.size,0);
++ } else if(['deadline_render','deadline_blob','deadline_playing'].includes(scenario)) {
++  const work=await begin();
++  const blob=pending();
++  assert([...timers.values()].some(timer=>timer.at<=1200000),'queue must have a total deadline');
++  if(scenario==='deadline_playing'){
++   await deliver(0);await deliver(1);
++  }
++  if(scenario==='deadline_blob'){
++   rendered()[0].resolve({ok:true,status:200,blob:()=>blob.promise});await tick();
++  }
++  await advance(1200001);
++  assert(calls[0].options.signal.aborted,'deadline cancels this generation');
++  await work.promise;
++  if(scenario==='deadline_render')rendered()[0].resolve(response('late-audio'));
++  if(scenario==='deadline_blob')blob.reject(new Error('late timed-out blob failure'));
++  await tick();failureClean();assert.match(status.textContent,/時限|期限|逾時/);
++  assert(!succeeded());assert.equal(timers.size,0);
++  assert.equal(audios.length,scenario==='deadline_playing'?1:0);
++  if(audios.length)assert(audios[0].pauses>=1);
++ } else if(scenario==='deadline_plan') {
++  const work=run('synthetic answer');await advance(1200001);
++  assert(calls[0].options.signal.aborted,'planning is included in the total deadline');
++  await work.promise;
++  calls[0].reject(Object.assign(new Error('late timed-out plan'),{name:'AbortError'}));
++  await tick();failureClean();
++  assert.equal(rendered().length,0);assert.equal(timers.size,0);
++ } else if(scenario==='shorter_deadline') {
++  const work=run('synthetic answer');
++  calls[0].resolve(planResponse(['一句。'],{deadline_seconds:2}));await tick();
++  await advance(2001);assert(calls[0].options.signal.aborted);
++  await work.promise;rendered()[0].resolve(response('late-audio'));await tick();failureClean();
++ } else if(scenario==='expired_plan_deadline') {
++  const work=run('synthetic answer');await advance(3000);
++  calls[0].resolve(planResponse(['一句。'],{deadline_seconds:2}));await tick();
++  assert.equal(rendered().length,0,'expired plan must not start a synthesis request');
++  await work.promise;failureClean();assert(calls[0].options.signal.aborted);
++ } else if(scenario.startsWith('inconsistent_plan_')) {
++  const work=run('synthetic answer');
++  const variants={missing_tail:['首句。'],reordered:['尾句。','首句。'],
++   duplicated:['首句。','首句。']};
++  const segments=variants[scenario.slice('inconsistent_plan_'.length)];assert(segments);
++  calls[0].resolve(planResponse(segments,{spoken_text:'首句。尾句。'}));await tick();
++  assert.equal(rendered().length,0,
++   'inconsistent plan must not synthesize an incomplete or changed script');
++  await work.promise;failureClean();assert.equal(audios.length,0);
++ } else if(scenario==='plan_boundary_separator') {
++  const work=await begin(['首句。',' 尾句。']);await deliver(0);await deliver(1);
++  audios[0].end();await tick();audios[1].end();await work.promise;
++  assert(succeeded(),'exact full coverage retains normalized boundary separators');
++  assert.deepEqual(rendered().map(call=>call.body.text),['首句。',' 尾句。']);
++ } else if(scenario.startsWith('invalid_plan_')) {
++  const work=run('synthetic answer');
++  const variants={empty:[],blank:[''],count:Array(129).fill('句。'),
++   segment:['字'.repeat(81)],total:Array(101).fill('字'.repeat(80))};
++  const segments=variants[scenario.slice('invalid_plan_'.length)];assert(segments);
++  calls[0].resolve(planResponse(segments));await work.promise;
++  failureClean();assert.equal(rendered().length,0);assert.equal(audios.length,0);
++ } else if(scenario==='voice_disabled') {
++  voiceEnabled=false;const work=run('synthetic answer');await work.promise;
++  assert.equal(calls.length,0);assert.equal(audios.length,0);assert(!succeeded());
++ } else throw new Error('unknown test scenario '+scenario);
++ await tick();assert.deepEqual(unhandled,[],'queue must consume stale prefetch rejections');
++ console.log('QUEUE_OK');
++})().catch(error=>{console.error(error);process.exitCode=1;});
++"""
++
++
++@pytest.mark.parametrize(
++    "scenario",
++    [
++        "canonical_plan",
++        "ordered_prefetch",
++        "cancel_plan",
++        "cancel_plan_json",
++        "cancel_render",
++        "cancel_blob",
++        "cancel_playing",
++        "cancel_prefetch",
++        "cancel_play_promise",
++        "supersede",
++        "supersede_plan",
++        "new_turn",
++        "failure_plan",
++        "failure_plan_rejection",
++        "failure_render",
++        "failure_blob",
++        "failure_prefetch",
++        "failure_playback",
++        "failure_play_promise",
++        "deadline_plan",
++        "deadline_render",
++        "deadline_blob",
++        "deadline_playing",
++        "shorter_deadline",
++        "expired_plan_deadline",
++        "inconsistent_plan_missing_tail",
++        "inconsistent_plan_reordered",
++        "inconsistent_plan_duplicated",
++        "plan_boundary_separator",
++        "invalid_plan_empty",
++        "invalid_plan_blank",
++        "invalid_plan_count",
++        "invalid_plan_segment",
++        "invalid_plan_total",
++        "voice_disabled",
++    ],
++)
++def test_actual_frontend_speech_queue(scenario: str) -> None:
++    html = Path("src/siro/services/presentation/static/index.html").read_text()
++    functions = html[
++        html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
++    ]
++    handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
++    result = subprocess.run(
++        [
++            "node",
++            "--unhandled-rejections=strict",
++            "-e",
++            _SETUP + functions + handler + _CHECKS,
++            scenario,
++        ],
++        capture_output=True,
++        text=True,
++        timeout=10,
++    )
++    assert result.returncode == 0, result.stderr
++    assert "QUEUE_OK" in result.stdout, "queue scenario exited before its assertions completed"
+diff --git a/tests/integration/test_qwen_lifecycle.py b/tests/integration/test_qwen_lifecycle.py
+index f6d998b..1d1b028 100644
+--- a/tests/integration/test_qwen_lifecycle.py
++++ b/tests/integration/test_qwen_lifecycle.py
+@@ -17,6 +17,9 @@ Path(sys.argv[4]).mkdir(exist_ok=True)
+ with (Path(sys.argv[4])/'pids').open('a') as f:f.write(str(os.getpid())+'\\n')
+ if mode=='startup':time.sleep(100)
+ if mode=='invalid':print(json.dumps({'ready':False}),flush=True)
++elif mode.startswith('metadata'):
++ print(json.dumps({'ready':True,'completion_protocol':2}),flush=True)
++elif mode=='unknown-protocol':print(json.dumps({'ready':True,'completion_protocol':3}),flush=True)
+ else:print(json.dumps({'ready':True}),flush=True)
+ for line in sys.stdin:
+  r=json.loads(line)
+@@ -29,6 +32,16 @@ for line in sys.stdin:
+  if r['text']=='epoch':ident['epoch']=-1
+  if r['text']=='error':out={'error':'synthetic'}
+  else:out={'audio':base64.b64encode(r['text'].encode()).decode()}
++ if mode.startswith('metadata') and mode!='metadata-missing':
++  completion={'status':'complete','eos_observed':True,'cap_reached':False,
++              'generated_tokens':20,'max_new_tokens':512,'observer_calls':1}
++  if mode=='metadata-no-eos':completion['eos_observed']=False
++  if mode=='metadata-cap':completion['cap_reached']=True
++  if mode=='metadata-count':completion['generated_tokens']=512
++  if mode=='metadata-status':completion['status']='unknown'
++  if mode=='metadata-observers':completion['observer_calls']=2
++  if mode=='metadata-bool-count':completion['generated_tokens']=True
++  out['completion']=completion
+  print(json.dumps({**ident,**out}),flush=True)
+ """
+ 
+@@ -61,6 +74,46 @@ def adapter(
+     )
+ 
+ 
++@pytest.mark.asyncio
++@pytest.mark.parametrize("lifecycle", [True, False])
++@pytest.mark.parametrize(
++    "mode",
++    [
++        "metadata-missing",
++        "metadata-no-eos",
++        "metadata-cap",
++        "metadata-count",
++        "metadata-status",
++        "metadata-observers",
++        "metadata-bool-count",
++        "unknown-protocol",
++    ],
++)
++async def test_advertised_completion_protocol_rejects_unverified_audio(
++    tmp_path: Path, lifecycle: bool, mode: str
++) -> None:
++    tts = adapter(tmp_path, mode=mode, lifecycle=lifecycle)
++    try:
++        with pytest.raises(RuntimeError):
++            await tts.render("synthetic")
++        if lifecycle:
++            assert tts._process is None
++    finally:
++        await tts.close()
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("lifecycle", [True, False])
++async def test_complete_protocol_audio_preserves_existing_bytes_caller(
++    tmp_path: Path, lifecycle: bool
++) -> None:
++    tts = adapter(tmp_path, mode="metadata-ok", lifecycle=lifecycle)
++    try:
++        assert await tts.render("synthetic") == b"synthetic"
++    finally:
++        await tts.close()
++
++
+ @pytest.mark.asyncio
+ @pytest.mark.parametrize(
+     "text,error",
+diff --git a/tests/integration/test_speech_completion_edges.py b/tests/integration/test_speech_completion_edges.py
+new file mode 100644
+index 0000000..f8ca0ac
+--- /dev/null
++++ b/tests/integration/test_speech_completion_edges.py
+@@ -0,0 +1,226 @@
++from __future__ import annotations
++
++import base64
++import hashlib
++import io
++import json
++import runpy
++import sys
++import wave
++from pathlib import Path
++from types import SimpleNamespace
++from typing import Any
++
++import httpx
++import pytest
++
++from siro.services.audio.tts import QwenReferenceTTS, plan_speech
++from siro.services.presentation.gateway import SessionTokens, create_app
++
++ORIGIN = "http://127.0.0.1:8000"
++COMPLETE = {
++    "status": "complete",
++    "eos_observed": True,
++    "cap_reached": False,
++    "generated_tokens": 3,
++    "max_new_tokens": 512,
++    "observer_calls": 1,
++}
++
++
++def fake_worker_adapter(
++    tmp_path: Path, ready: dict[str, object], response: dict[str, object], *, lifecycle: bool
++) -> QwenReferenceTTS:
++    worker = tmp_path / "worker.py"
++    worker.write_text(
++        "import json,sys\n"
++        f"print({json.dumps(ready)!r},flush=True)\n"
++        "for line in sys.stdin:\n"
++        " r=json.loads(line)\n"
++        " ident={k:r[k] for k in ('request_id','epoch') if k in r}\n"
++        f" result=json.loads({json.dumps(response)!r})\n"
++        " print(json.dumps({**ident,**result}),flush=True)\n"
++    )
++    return QwenReferenceTTS(
++        Path(sys.executable),
++        worker,
++        tmp_path,
++        worker,
++        "synthetic",
++        tmp_path / "cache",
++        lifecycle=lifecycle,
++    )
++
++
++@pytest.mark.parametrize(
++    "text",
++    [
++        "alpha beta gamma delta " * 12,
++        "First sentence. Second sentence! " * 12,
++        "repeated " * 60,
++        "甲\u2003乙\t丙\u00a0丁 " * 40,
++    ],
++)
++def test_plan_preserves_canonical_text_across_segment_separators(text: str) -> None:
++    plan = plan_speech(text)
++    segments = plan["segments"]
++    assert isinstance(segments, list)
++    assert len(segments) > 1
++    assert "".join(segments) == plan["spoken_text"]
++    assert all(0 < len(segment) <= 80 and segment.strip() for segment in segments)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("lifecycle", [False, True])
++async def test_explicit_null_completion_protocol_cannot_be_legacy_downgrade(
++    tmp_path: Path, lifecycle: bool
++) -> None:
++    tts = fake_worker_adapter(
++        tmp_path,
++        {"ready": True, "completion_protocol": None},
++        {"audio": base64.b64encode(b"unverified").decode()},
++        lifecycle=lifecycle,
++    )
++    try:
++        with pytest.raises(RuntimeError, match="failed to initialize"):
++            await tts.render("synthetic")
++    finally:
++        await tts.close()
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("lifecycle", [False, True])
++@pytest.mark.parametrize("malformed", ["empty_audio", "error_with_audio"])
++async def test_protocol_completion_cannot_make_empty_or_failed_audio_successful(
++    tmp_path: Path, lifecycle: bool, malformed: str
++) -> None:
++    response: dict[str, object] = {
++        "completion": COMPLETE,
++        "audio": base64.b64encode(b"synthetic audio").decode(),
++    }
++    if malformed == "empty_audio":
++        response["audio"] = ""
++    else:
++        response["error"] = "QwenOutputIncomplete"
++    tts = fake_worker_adapter(
++        tmp_path, {"ready": True, "completion_protocol": 2}, response, lifecycle=lifecycle
++    )
++    try:
++        with pytest.raises(RuntimeError):
++            await tts.render("synthetic")
++        if lifecycle:
++            assert tts._process is None
++    finally:
++        await tts.close()
++
++
++@pytest.mark.asyncio
++async def test_deep_data_format_returns_validation_failure_without_audio_work() -> None:
++    class Speech:
++        calls = 0
++
++        async def render(self, text: str, *, rate: float, pitch: float, energy: float) -> bytes:
++            self.calls += 1
++            raise AssertionError("invalid plans cannot generate audio")
++
++    speech = Speech()
++    tokens = SessionTokens()
++    token, _ = tokens.issue()
++    transport = httpx.ASGITransport(
++        app=create_app(tokens=tokens, text_to_speech=speech), raise_app_exceptions=False
++    )
++    async with httpx.AsyncClient(transport=transport, base_url=ORIGIN) as client:
++        result = await client.post(
++            "/v1/audio/speech/plan",
++            headers={"origin": ORIGIN, "authorization": f"Bearer {token}"},
++            json={"text": "[" * 1500 + "0" + "]" * 1500},
++        )
++    assert result.status_code == 422
++    assert speech.calls == 0
++
++
++def test_worker_eos_proof_cannot_commit_zero_sample_audio(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
++) -> None:
++    worker_path = Path(__file__).parents[2] / "scripts/qwen_tts_worker.py"
++    worker = runpy.run_path(str(worker_path))
++    model_path = tmp_path / "model"
++    model_path.mkdir()
++    (model_path / "config.json").write_text('{"synthetic":true}')
++    reference = tmp_path / "synthetic-reference.wav"
++    reference.write_bytes(b"synthetic fixture, not private audio")
++    cache = tmp_path / "cache"
++    model = SimpleNamespace(
++        create_voice_clone_prompt=lambda **kwargs: {"synthetic": True},
++        _merge_generate_kwargs=lambda **kwargs: kwargs,
++    )
++
++    def write(output: io.BytesIO, samples: bytes, sample_rate: int, **kwargs: Any) -> None:
++        assert samples == b""
++        with wave.open(output, "wb") as wav:
++            wav.setnchannels(1)
++            wav.setsampwidth(2)
++            wav.setframerate(sample_rate)
++            wav.writeframes(samples)
++
++    monkeypatch.setitem(sys.modules, "soundfile", SimpleNamespace(write=write))
++    monkeypatch.setitem(
++        sys.modules,
++        "torch",
++        SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False), bfloat16="synthetic"),
++    )
++    monkeypatch.setitem(
++        sys.modules,
++        "qwen_tts",
++        SimpleNamespace(
++            Qwen3TTSModel=SimpleNamespace(from_pretrained=lambda *args, **kwargs: model)
++        ),
++    )
++    monkeypatch.setattr(
++        sys, "argv", [str(worker_path), str(model_path), str(reference), "synthetic", str(cache)]
++    )
++    monkeypatch.setattr(
++        sys, "stdin", io.StringIO('{"text":"synthetic","request_id":"empty","epoch":3}\n')
++    )
++    monkeypatch.setitem(worker["main"].__globals__, "version", lambda name: "synthetic")
++    monkeypatch.setitem(
++        worker["main"].__globals__, "observe_voice_clone", lambda *args: ([b""], 24000, COMPLETE)
++    )
++    assert worker["main"]() == 0
++    ready, result = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
++    assert ready["completion_protocol"] == 2
++    assert result["error"] == "QwenOutputIncomplete"
++    assert "audio" not in result
++    assert not list(cache.rglob("*.json"))
++
++
++@pytest.mark.parametrize("samples", [b"", b"\x01\x00"])
++def test_cache_cannot_reuse_zero_sample_pcm_wav(tmp_path: Path, samples: bytes) -> None:
++    worker_path = Path(__file__).parents[2] / "scripts/qwen_tts_worker.py"
++    worker = runpy.run_path(str(worker_path))
++    output = io.BytesIO()
++    with wave.open(output, "wb") as wav:
++        wav.setnchannels(1)
++        wav.setsampwidth(2)
++        wav.setframerate(24000)
++        wav.writeframes(samples)
++    audio = output.getvalue()
++    cached = tmp_path / "synthetic-cache.json"
++    cached.write_text(
++        json.dumps(
++            {
++                "cache_version": worker["CACHE_VERSION"],
++                "fingerprint": "synthetic-fingerprint",
++                "text_sha256": "synthetic-text-digest",
++                "audio_sha256": hashlib.sha256(audio).hexdigest(),
++                "audio": base64.b64encode(audio).decode(),
++                "completion": COMPLETE,
++            }
++        )
++    )
++    result = worker["read_cache"](cached, "synthetic-text-digest", "synthetic-fingerprint")
++    if not samples:
++        assert len(audio) == 44
++        assert result is None
++    else:
++        assert result == (audio, COMPLETE)
+diff --git a/tests/integration/test_speech_plan.py b/tests/integration/test_speech_plan.py
+new file mode 100644
+index 0000000..c2e17d4
+--- /dev/null
++++ b/tests/integration/test_speech_plan.py
+@@ -0,0 +1,105 @@
++from __future__ import annotations
++
++import httpx
++import pytest
++
++from siro.services.audio.tts import prepare_spoken_text
++from siro.services.presentation.gateway import SessionTokens, create_app
++
++ORIGIN = "http://127.0.0.1:8000"
++
++
++@pytest.mark.asyncio
++async def test_plan_covers_long_canonical_text_without_generating_audio() -> None:
++    class Speech:
++        async def render(self, text: str, *, rate: float, pitch: float, energy: float) -> bytes:
++            raise AssertionError("Planning must not generate audio")
++
++    tokens = SessionTokens()
++    token, _ = tokens.issue()
++    app = create_app(tokens=tokens, text_to_speech=Speech())
++    transport = httpx.ASGITransport(app=app)
++    text = "合成長文完整朗讀驗收,保留每一個段落。" * 250 + "最後一句也必須保留。"
++    assert len(text) > 4000
++    async with httpx.AsyncClient(transport=transport, base_url=ORIGIN) as client:
++        response = await client.post(
++            "/v1/audio/speech/plan",
++            headers={"origin": ORIGIN, "authorization": f"Bearer {token}"},
++            json={"text": text},
++        )
++    assert response.status_code == 200
++    plan = response.json()
++    assert plan["spoken_text"] == prepare_spoken_text(text)
++    assert "".join(plan["segments"]) == plan["spoken_text"]
++    assert plan["segments"][-1].endswith("最後一句也必須保留。")
++    assert all(0 < len(segment) <= 80 for segment in plan["segments"])
++    assert len(plan["segments"]) <= 128
++    assert plan["version"] == "sentence-v1-80"
++    assert plan["max_chars"] == 80 and plan["max_total_chars"] == 8000
++    assert plan["deadline_seconds"] == 1200
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    ("text", "status"),
++    [
++        (" ", 422),
++        ("{" + '"machine":true' + "}", 422),
++        ("甲" * 8001, 413),
++        ("甲" * 16001, 422),
++    ],
++)
++async def test_speech_plan_rejects_excess_or_empty_without_silent_truncation(
++    text: str, status: int
++) -> None:
++    tokens = SessionTokens()
++    token, _ = tokens.issue()
++    transport = httpx.ASGITransport(app=create_app(tokens=tokens))
++    async with httpx.AsyncClient(transport=transport, base_url=ORIGIN) as client:
++        response = await client.post(
++            "/v1/audio/speech/plan",
++            headers={"origin": ORIGIN, "authorization": f"Bearer {token}"},
++            json={"text": text},
++        )
++    assert response.status_code == status
++    assert "segments" not in response.json()
++
++
++@pytest.mark.asyncio
++async def test_speech_plan_uses_fenced_source_before_dom_formatting() -> None:
++    tokens = SessionTokens()
++    token, _ = tokens.issue()
++    transport = httpx.ASGITransport(app=create_app(tokens=tokens))
++    async with httpx.AsyncClient(transport=transport, base_url=ORIGIN) as client:
++        response = await client.post(
++            "/v1/audio/speech/plan",
++            headers={"origin": ORIGIN, "authorization": f"Bearer {token}"},
++            json={"text": "**先說明**\n```python\nraise PRIVATE_FREE_CANARY\n```\n最後一句。"},
++        )
++    assert response.status_code == 200
++    text = response.json()["spoken_text"]
++    assert "程式碼內容先不念" in text
++    assert "PRIVATE_FREE_CANARY" not in text and "最後一句" in text
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    ("origin", "bearer", "status"),
++    [(ORIGIN, "", 401), (ORIGIN, "Bearer invalid", 401), ("null", "valid", 403)],
++)
++async def test_speech_plan_retains_origin_and_bearer_checks(
++    origin: str, bearer: str, status: int
++) -> None:
++    tokens = SessionTokens()
++    token, _ = tokens.issue()
++    transport = httpx.ASGITransport(app=create_app(tokens=tokens))
++    async with httpx.AsyncClient(transport=transport, base_url=ORIGIN) as client:
++        response = await client.post(
++            "/v1/audio/speech/plan",
++            headers={
++                "origin": origin,
++                "authorization": f"Bearer {token}" if bearer == "valid" else bearer,
++            },
++            json={"text": "合成驗收。"},
++        )
++    assert response.status_code == status
+diff --git a/tests/test_qwen_worker_completion.py b/tests/test_qwen_worker_completion.py
+new file mode 100644
+index 0000000..d5ec228
+--- /dev/null
++++ b/tests/test_qwen_worker_completion.py
+@@ -0,0 +1,440 @@
++from __future__ import annotations
++
++import hashlib
++import json
++import runpy
++import subprocess
++import sys
++from pathlib import Path
++from types import SimpleNamespace
++from typing import Any
++
++import pytest
++
++WORKER = Path(__file__).parents[1] / "scripts/qwen_tts_worker.py"
++FAKE_QWEN = """
++from pathlib import Path
++from types import SimpleNamespace
++
++class Sequence:
++    def __init__(self, rows): self.rows = rows; self.shape = (len(rows), len(rows[0]))
++    def tolist(self): return self.rows
++
++class Talker:
++    def generate(self, **kwargs):
++        text = self.text
++        if text == 'original-error': raise LookupError('synthetic SDK failure')
++        if text == 'limit': rows = [[7] * 512]
++        elif text == 'boundary': rows = [[7] * 511 + [42]]
++        elif text == 'no-eos': rows = [[7, 8]]
++        elif text == 'empty': rows = [[]]
++        elif text == 'batch': rows = [[7, 42], [8, 42]]
++        elif text == 'early-eos': rows = [[42, 7, 42]]
++        elif text == 'bool-token': rows = [[True, 42]]
++        else: rows = [[7, 8, 42]]
++        if text == 'no-sequences': result = SimpleNamespace()
++        else: result = SimpleNamespace(sequences=Sequence(rows))
++        if text == 'bool-shape': result.sequences.shape = (True, len(rows[0]))
++        if text == 'observer-error':
++            def unreadable(): raise RuntimeError('synthetic observation failure')
++            result.sequences.tolist = unreadable
++        self.last_result = result
++        return result
++
++class Qwen3TTSModel:
++    @classmethod
++    def from_pretrained(cls, *args, **kwargs):
++        import json
++        Path(__file__).with_suffix('.profile').write_text(json.dumps(kwargs))
++        return cls()
++    def __init__(self): self.model = SimpleNamespace(talker=Talker())
++    def create_voice_clone_prompt(self, **kwargs): return {'synthetic_voice': True}
++    def _merge_generate_kwargs(self, **kwargs):
++        return dict(do_sample=True, top_k=50, top_p=1.0, temperature=0.9,
++                    repetition_penalty=1.05, subtalker_dosample=True,
++                    subtalker_top_k=50, subtalker_top_p=1.0,
++                    subtalker_temperature=0.9, **kwargs)
++    def generate_voice_clone(self, **kwargs):
++        assert kwargs['language'] == 'Chinese'
++        assert kwargs['non_streaming_mode'] is True and kwargs['max_new_tokens'] == 512
++        assert kwargs['voice_clone_prompt'] == {'synthetic_voice': True}
++        with Path(__file__).with_suffix('.calls').open('a') as log: log.write('generate\\n')
++        talker = self.model.talker; talker.text = kwargs['text']
++        if talker.text != 'missing':
++            result = talker.generate(inputs_embeds=object(), eos_token_id=42,
++                                     **self._merge_generate_kwargs(max_new_tokens=512))
++            assert result is talker.last_result, 'observer changed the SDK result'
++            if talker.text == 'duplicate': talker.generate(
++                inputs_embeds=object(), eos_token_id=42, max_new_tokens=512)
++        return [kwargs['text'].encode()], 24000
++"""
++FAKE_SOUNDFILE = """
++import wave
++def write(output, samples, sample_rate, **kwargs):
++    assert kwargs == {'format':'WAV', 'subtype':'PCM_16'}
++    with wave.open(output, 'wb') as wav:
++        wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(sample_rate)
++        wav.writeframes((samples + b'0') * 2)
++"""
++
++
++@pytest.fixture
++def worker_fixture(tmp_path: Path) -> dict[str, Path]:
++    packages = tmp_path / "synthetic-packages"
++    packages.mkdir()
++    (packages / "qwen_tts.py").write_text(FAKE_QWEN)
++    (packages / "soundfile.py").write_text(FAKE_SOUNDFILE)
++    (packages / "torch.py").write_text(
++        "from types import SimpleNamespace\ncuda=SimpleNamespace(is_available=lambda:False)\n"
++        "bfloat16='synthetic-dtype'\n"
++    )
++    for name, version in (
++        ("qwen_tts", "0.1.1"),
++        ("transformers", "4.57.3"),
++        ("torch", "2.12.0"),
++        ("soundfile", "0.13.1"),
++    ):
++        info = packages / f"{name}-{version}.dist-info"
++        info.mkdir()
++        (info / "METADATA").write_text(f"Name: {name.replace('_', '-')}\nVersion: {version}\n")
++    model = tmp_path / "model"
++    model.mkdir()
++    (model / "config.json").write_text('{"synthetic":true}')
++    (model / "model.safetensors").write_bytes(b"synthetic weights")
++    reference = tmp_path / "reference.wav"
++    reference.write_bytes(b"synthetic reference fixture, not private audio")
++    return {
++        "packages": packages,
++        "model": model,
++        "reference": reference,
++        "cache": tmp_path / "cache",
++    }
++
++
++def run_worker(
++    fixture: dict[str, Path], texts: list[str], *, reference_text: str = "synthetic reference"
++) -> list[dict[str, Any]]:
++    requests = [
++        {"text": text, "request_id": f"synthetic-{index}", "epoch": 7}
++        for index, text in enumerate(texts)
++    ]
++    result = subprocess.run(
++        [
++            sys.executable,
++            str(WORKER),
++            str(fixture["model"]),
++            str(fixture["reference"]),
++            reference_text,
++            str(fixture["cache"]),
++        ],
++        input="".join(json.dumps(request) + "\n" for request in requests),
++        capture_output=True,
++        text=True,
++        env={"PYTHONPATH": str(fixture["packages"])},
++        timeout=10,
++    )
++    assert result.returncode == 0, result.stderr
++    return [json.loads(line) for line in result.stdout.splitlines()]
++
++
++def generation_count(fixture: dict[str, Path]) -> int:
++    calls = fixture["packages"] / "qwen_tts.calls"
++    return len(calls.read_text().splitlines()) if calls.exists() else 0
++
++
++def test_worker_requires_real_eos_and_preserves_identity(worker_fixture: dict[str, Path]) -> None:
++    ready, result = run_worker(worker_fixture, ["complete"])
++    assert ready["completion_protocol"] == 2
++    assert result["request_id"] == "synthetic-0" and result["epoch"] == 7
++    assert result["completion"] == {
++        "status": "complete",
++        "eos_observed": True,
++        "cap_reached": False,
++        "generated_tokens": 3,
++        "max_new_tokens": 512,
++        "observer_calls": 1,
++    }
++    assert result["audio"] and result["cache_hit"] is False
++
++
++@pytest.mark.parametrize(
++    "text",
++    [
++        "limit",
++        "boundary",
++        "no-eos",
++        "empty",
++        "batch",
++        "no-sequences",
++        "missing",
++        "duplicate",
++        "early-eos",
++        "bool-token",
++        "bool-shape",
++        "observer-error",
++    ],
++)
++def test_incomplete_or_unknown_output_never_returns_audio_or_success_cache(
++    worker_fixture: dict[str, Path], text: str
++) -> None:
++    _, result = run_worker(worker_fixture, [text])
++    assert result["error"] == "QwenOutputIncomplete"
++    assert "audio" not in result
++    assert not list(worker_fixture["cache"].rglob("*.json"))
++
++
++def test_original_sdk_error_remains_original(worker_fixture: dict[str, Path]) -> None:
++    _, result = run_worker(worker_fixture, ["original-error"])
++    assert result["error"] == "LookupError"
++    assert "audio" not in result
++    assert not list(worker_fixture["cache"].rglob("*.json"))
++
++
++def test_observer_state_does_not_survive_failed_request(worker_fixture: dict[str, Path]) -> None:
++    _, first, failed, last = run_worker(worker_fixture, ["complete", "missing", "complete again"])
++    assert first["completion"]["observer_calls"] == 1
++    assert failed["error"] == "QwenOutputIncomplete" and "audio" not in failed
++    assert last["completion"]["observer_calls"] == 1
++    assert last["request_id"] == "synthetic-2"
++
++
++def test_cache_hits_have_verified_metadata_and_fresh_request_identity(
++    worker_fixture: dict[str, Path],
++) -> None:
++    _, first, second = run_worker(worker_fixture, ["same text", "same text"])
++    assert first["cache_hit"] is False and second["cache_hit"] is True
++    assert first["audio"] == second["audio"] and first["completion"] == second["completion"]
++    assert second["request_id"] == "synthetic-1"
++    assert generation_count(worker_fixture) == 1
++    _, after_restart = run_worker(worker_fixture, ["same text"])
++    assert after_restart["cache_hit"] is True
++    assert generation_count(worker_fixture) == 1
++
++
++def test_legacy_cache_is_preserved_but_never_trusted(worker_fixture: dict[str, Path]) -> None:
++    cache = worker_fixture["cache"]
++    cache.mkdir()
++    legacy = cache / (hashlib.sha256(b"same text").hexdigest() + ".wav")
++    legacy.write_bytes(b"RIFFsynthetic unverified legacy cache")
++    _, result = run_worker(worker_fixture, ["same text"])
++    assert result["cache_hit"] is False
++    assert legacy.read_bytes() == b"RIFFsynthetic unverified legacy cache"
++    assert generation_count(worker_fixture) == 1
++
++
++@pytest.mark.parametrize("changed", ["weights", "config", "reference", "reference-text", "library"])
++def test_cache_isolates_model_voice_library_and_reference_changes(
++    worker_fixture: dict[str, Path], changed: str
++) -> None:
++    run_worker(worker_fixture, ["same text"])
++    reference_text = "synthetic reference"
++    if changed == "weights":
++        (worker_fixture["model"] / "model.safetensors").write_bytes(b"different weights")
++    elif changed == "config":
++        (worker_fixture["model"] / "config.json").write_text('{"synthetic":"different"}')
++    elif changed == "reference":
++        worker_fixture["reference"].write_bytes(b"different synthetic reference")
++    elif changed == "reference-text":
++        reference_text = "different synthetic reference text"
++    else:
++        metadata = worker_fixture["packages"] / "transformers-4.57.3.dist-info/METADATA"
++        metadata.write_text("Name: transformers\nVersion: synthetic-upgrade\n")
++    _, result = run_worker(worker_fixture, ["same text"], reference_text=reference_text)
++    assert result["cache_hit"] is False
++    assert generation_count(worker_fixture) == 2
++
++
++@pytest.mark.parametrize("corruption", ["audio_sha", "completion", "truncated", "text_sha"])
++def test_corrupt_or_uncommitted_cache_cannot_be_success_hit(
++    worker_fixture: dict[str, Path], corruption: str
++) -> None:
++    run_worker(worker_fixture, ["same text"])
++    entry = next(worker_fixture["cache"].rglob("*.json"))
++    data = json.loads(entry.read_text())
++    if corruption == "audio_sha":
++        data["audio_sha256"] = "0" * 64
++    elif corruption == "completion":
++        data["completion"]["eos_observed"] = False
++    elif corruption == "text_sha":
++        data["text_sha256"] = "0" * 64
++    else:
++        entry.write_text('{"audio":')
++    if corruption != "truncated":
++        entry.write_text(json.dumps(data))
++    _, result = run_worker(worker_fixture, ["same text"])
++    assert result["cache_hit"] is False
++    assert generation_count(worker_fixture) == 2
++
++
++def test_fingerprint_binds_effective_generation_and_segment_versions(tmp_path: Path) -> None:
++    worker = runpy.run_path(str(WORKER))
++    model = tmp_path / "model"
++    model.mkdir()
++    (model / "weights.bin").write_bytes(b"synthetic")
++    reference = tmp_path / "reference.wav"
++    reference.write_bytes(b"synthetic")
++    fingerprint = worker["cache_fingerprint"]
++    settings: dict[str, object] = {"max_new_tokens": 512, "temperature": 0.9}
++    first = fingerprint(model, reference, "synthetic", {"qwen-tts": "0.1.1"}, settings)
++    changed = fingerprint(
++        model, reference, "synthetic", {"qwen-tts": "0.1.1"}, {**settings, "temperature": 0.8}
++    )
++    assert first != changed
++    fingerprint.__globals__["SEGMENT_VERSION"] = "sentence-v2-synthetic"
++    assert first != fingerprint(model, reference, "synthetic", {"qwen-tts": "0.1.1"}, settings)
++
++
++def test_observer_restores_instance_method_and_preserves_result_and_exception() -> None:
++    worker = runpy.run_path(str(WORKER))
++    fake: dict[str, Any] = {}
++    exec(FAKE_QWEN, fake)
++    model = fake["Qwen3TTSModel"]()
++    # This unit case avoids the fake SDK's subprocess-only invocation log.
++    talker = model.model.talker
++    original = talker.generate
++
++    def generate_voice_clone(**kwargs: Any) -> tuple[list[bytes], int]:
++        talker.text = kwargs["text"]
++        result = talker.generate(inputs_embeds=object(), eos_token_id=42, max_new_tokens=512)
++        assert result is talker.last_result
++        return [b"synthetic"], 24000
++
++    model.generate_voice_clone = generate_voice_clone
++    worker["observe_voice_clone"](model, "complete", {"synthetic_voice": True})
++    assert "generate" not in vars(talker)
++    assert talker.generate.__func__ is original.__func__
++    with pytest.raises(LookupError, match="synthetic SDK failure"):
++        worker["observe_voice_clone"](model, "original-error", {"synthetic_voice": True})
++    assert "generate" not in vars(talker)
++    assert talker.generate.__func__ is original.__func__
++
++
++@pytest.mark.parametrize(
++    "changed",
++    ["input_ids", "missing_embeds", "eos_list", "bool_eos", "wrong_cap", "bool_cap"],
++)
++def test_unknown_talker_call_shape_is_fail_closed(changed: str) -> None:
++    worker = runpy.run_path(str(WORKER))
++    original_calls = 0
++
++    def original(**kwargs: Any) -> object:
++        nonlocal original_calls
++        original_calls += 1
++        raise AssertionError("unsupported calls must not reach generation")
++
++    talker = SimpleNamespace(generate=original)
++
++    def generate_voice_clone(**kwargs: Any) -> object:
++        call: dict[str, object] = {
++            "inputs_embeds": object(),
++            "eos_token_id": 42,
++            "max_new_tokens": 512,
++        }
++        if changed == "input_ids":
++            call["input_ids"] = [7]
++        elif changed == "missing_embeds":
++            del call["inputs_embeds"]
++        elif changed == "eos_list":
++            call["eos_token_id"] = [42]
++        elif changed == "bool_eos":
++            call["eos_token_id"] = True
++        elif changed == "wrong_cap":
++            call["max_new_tokens"] = 1024
++        else:
++            call["max_new_tokens"] = True
++        return talker.generate(**call)
++
++    model = SimpleNamespace(
++        model=SimpleNamespace(talker=talker), generate_voice_clone=generate_voice_clone
++    )
++    with pytest.raises(worker["QwenOutputIncomplete"]):
++        worker["observe_voice_clone"](model, "synthetic", {})
++    assert original_calls == 0
++    assert talker.generate is original
++
++
++def test_instance_override_and_decode_exception_are_preserved() -> None:
++    worker = runpy.run_path(str(WORKER))
++    fake: dict[str, Any] = {}
++    exec(FAKE_QWEN, fake)
++    sequence = fake["Sequence"]([[7, 42]])
++
++    def original(**kwargs: Any) -> object:
++        return SimpleNamespace(sequences=sequence)
++
++    talker = SimpleNamespace(generate=original)
++
++    def generate_voice_clone(**kwargs: Any) -> object:
++        talker.generate(inputs_embeds=object(), eos_token_id=42, max_new_tokens=512)
++        raise ArithmeticError("synthetic decoder failed after EOS")
++
++    model = SimpleNamespace(
++        model=SimpleNamespace(talker=talker), generate_voice_clone=generate_voice_clone
++    )
++    with pytest.raises(ArithmeticError, match="synthetic decoder failed after EOS"):
++        worker["observe_voice_clone"](model, "synthetic", {})
++    assert talker.generate is original
++
++
++def test_interrupted_atomic_commit_leaves_no_success_or_owned_temporary_file(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    worker = runpy.run_path(str(WORKER))
++    complete = {
++        "status": "complete",
++        "eos_observed": True,
++        "cap_reached": False,
++        "generated_tokens": 3,
++        "max_new_tokens": 512,
++        "observer_calls": 1,
++    }
++
++    def interrupted(*args: object) -> None:
++        raise OSError("synthetic interrupted atomic commit")
++
++    monkeypatch.setattr(worker["os"], "replace", interrupted)
++    cached = tmp_path / "entry.json"
++    with pytest.raises(OSError, match="synthetic interrupted atomic commit"):
++        worker["write_cache"](
++            cached, "synthetic-text-hash", "synthetic-fingerprint", b"audio", complete
++        )
++    assert not cached.exists()
++    assert list(tmp_path.iterdir()) == []
++
++
++def test_only_committed_cache_entry_can_be_hit(worker_fixture: dict[str, Path]) -> None:
++    run_worker(worker_fixture, ["same text"])
++    committed = next(worker_fixture["cache"].rglob("*.json"))
++    committed.rename(committed.with_name(".pending-synthetic"))
++    _, result = run_worker(worker_fixture, ["same text"])
++    assert result["cache_hit"] is False
++    assert generation_count(worker_fixture) == 2
++
++
++def test_cuda_attention_profile_isolates_cpu_cache(worker_fixture: dict[str, Path]) -> None:
++    _, cpu = run_worker(worker_fixture, ["same text"])
++    profile = worker_fixture["packages"] / "qwen_tts.profile"
++    assert json.loads(profile.read_text())["attn_implementation"] == "eager"
++    torch = worker_fixture["packages"] / "torch.py"
++    torch.write_text(torch.read_text().replace("lambda:False", "lambda:True"))
++    _, cuda = run_worker(worker_fixture, ["same text"])
++    selected = json.loads(profile.read_text())
++    assert selected["device_map"] == "cuda:0"
++    assert selected["attn_implementation"] == "sdpa"
++    assert cpu["cache_hit"] is False and cuda["cache_hit"] is False
++    assert generation_count(worker_fixture) == 2
++    _, repeat = run_worker(worker_fixture, ["same text"])
++    assert repeat["cache_hit"] is True
++    assert generation_count(worker_fixture) == 2
++
++
++def test_fingerprint_binds_effective_attention(tmp_path: Path) -> None:
++    worker = runpy.run_path(str(WORKER))
++    model = tmp_path / "model"
++    model.mkdir()
++    (model / "weights.bin").write_bytes(b"synthetic")
++    reference = tmp_path / "reference.wav"
++    reference.write_bytes(b"synthetic")
++    fingerprint = worker["cache_fingerprint"]
++    args = (model, reference, "synthetic", {"qwen-tts": "0.1.1"}, {"max_new_tokens": 512})
++    assert fingerprint(*args, attention="eager") != fingerprint(*args, attention="sdpa")

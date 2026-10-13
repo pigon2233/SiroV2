@@ -1,0 +1,47 @@
+{
+  "status": "PASS",
+  "scope": "disposable exact six-file source patch; no live source apply or data rollback",
+  "existing_files": [
+    "src/siro/services/presentation/gateway.py",
+    "src/siro/services/presentation/static/index.html"
+  ],
+  "new_files": [
+    "src/siro/services/tools/skill_candidates.py",
+    "tests/integration/test_skill_candidates.py",
+    "tests/integration/test_skill_candidate_product.py",
+    "tests/integration/test_frontend_skill_candidate.py"
+  ],
+  "commands": [
+    [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "--reverse",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "--check",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "repair.patch"
+    ]
+  ],
+  "patch_sha256": "4fbf65169f537a14dd46f59cd5cd9d98b193c17951389d334ec3e26bc7491ce0",
+  "baseline_restored": true,
+  "candidate_reapplied": true,
+  "temporary_directory_removed": true,
+  "live_source_unchanged": true,
+  "runtime_restarted": false,
+  "database_rollback": false
+}

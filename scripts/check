@@ -15,6 +15,9 @@ fi
 
 "$uv_command" sync --locked --all-groups
 
+# Native tests require public pinned assets even in a clean checkout.
+"$uv_command" run python scripts/setup_context_tokenizer.py
+
 if [[ -f Cargo.toml ]]; then
   cargo_command="$(command -v cargo || true)"
   if [[ -z "$cargo_command" && -x "${HOME}/.cargo/bin/cargo" ]]; then
@@ -38,7 +41,7 @@ fi
 
 secret_report="$(
   "$uv_command" run detect-secrets scan --all-files \
-    --exclude-files '(^|/)(\.venv|\.mypy_cache|\.pytest_cache|\.ruff_cache|target|uv\.lock|docs/evidence)/|(^|/)\.env\.local$'
+    --exclude-files '(^|/)(\.venv|\.mypy_cache|\.pytest_cache|\.ruff_cache|models|node_modules|target|uv\.lock|docs/evidence)/|(^|/)\.env\.local$'
 )"
 "$uv_command" run python -c '
 import json

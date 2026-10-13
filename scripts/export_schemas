@@ -8,19 +8,29 @@ import sys
 from pathlib import Path
 
 from siro.contracts.events import EVENT_ADAPTER
+from siro.core.devices import DeviceDescriptor
 
 
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
-    destination = root / "schemas" / "events" / "event.v1.schema.json"
-    rendered = json.dumps(EVENT_ADAPTER.json_schema(), indent=2, sort_keys=True) + "\n"
-    if "--check" in sys.argv:
-        if not destination.exists() or destination.read_text(encoding="utf-8") != rendered:
-            print(f"stale generated schema: {destination}", file=sys.stderr)
-            raise SystemExit(1)
-        return
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(rendered, encoding="utf-8")
+    outputs = {
+        root / "schemas" / "events" / "event.v1.schema.json": EVENT_ADAPTER.json_schema(),
+        root / "schemas" / "devices" / "descriptor.v1.schema.json": (
+            DeviceDescriptor.model_json_schema()
+        ),
+    }
+    stale = False
+    for destination, schema in outputs.items():
+        rendered = json.dumps(schema, indent=2, sort_keys=True) + "\n"
+        if "--check" in sys.argv:
+            if not destination.exists() or destination.read_text(encoding="utf-8") != rendered:
+                print(f"stale generated schema: {destination}", file=sys.stderr)
+                stale = True
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(rendered, encoding="utf-8")
+    if stale:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

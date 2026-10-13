@@ -3,7 +3,7 @@
 | Mode | Input/output | Echo control | Current status |
 |---|---|---|---|
 | Headset | microphone + headphones | Physical isolation | Device visible; automated fault tests pass; 20 human interruptions pending |
-| Speaker | microphone + speakers | Requires PipeWire/WebRTC AEC supplied by the selected client | Device visible; AEC quality has not been measured, so full duplex is not claimed |
+| Speaker | microphone + speakers | Browser AEC, noise suppression and auto gain control enabled | 20 valid human interruptions passed after echo filtering and per-trial calibration |
 | Half duplex | microphone or playback, alternating | Playback is muted while listening | Supported fallback |
 | Text | no audio device required | N/A | Always available; used when STT/TTS fails |
 

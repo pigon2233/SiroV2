@@ -2,16 +2,38 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from siro.adapters.computer import (
+    AsyncScopedFileDriver,
     ComputerActionError,
     ProcessDriver,
     ScopedFileDriver,
     ScopeViolation,
 )
+from siro.core.outcomes import ActionOutcome
+
+
+class CapturingOutcomes:
+    def __init__(self) -> None:
+        self.values: list[tuple[str, ActionOutcome, object | None]] = []
+
+    async def report_action(
+        self,
+        action_id: str,
+        outcome: ActionOutcome,
+        *,
+        occurred_at: datetime,
+        importance: float,
+        controllability: float,
+        expected: object | None = None,
+        observed: object | None = None,
+    ) -> None:
+        del occurred_at, importance, controllability, expected
+        self.values.append((action_id, outcome, observed))
 
 
 def test_a16_scoped_files_symlinks_atomic_write_move_and_replay(tmp_path: Path) -> None:
@@ -39,8 +61,32 @@ def test_a16_scoped_files_symlinks_atomic_write_move_and_replay(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
+async def test_async_file_readback_reports_once_and_rejects_action_reuse(
+    tmp_path: Path,
+) -> None:
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    outcomes = CapturingOutcomes()
+    driver = AsyncScopedFileDriver(ScopedFileDriver((allowed,)), outcome_reporter=outcomes)
+    source = allowed / "source.txt"
+    assert await driver.write_text("write-async", source, "verified") == 8
+    assert await driver.write_text("write-async", source, "verified") == 8
+    destination = allowed / "destination.txt"
+    assert (await driver.move("move-async", source, destination)).endswith("destination.txt")
+    assert (await driver.move("move-async", source, destination)).endswith("destination.txt")
+    with pytest.raises(ComputerActionError, match="reused"):
+        await driver.write_text("write-async", source, "different")
+    assert destination.read_text(encoding="utf-8") == "verified"
+    assert [value[:2] for value in outcomes.values] == [
+        ("write-async", "confirmed"),
+        ("move-async", "confirmed"),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_a16_argv_execution_scope_timeout_output_and_cancel(tmp_path: Path) -> None:
-    driver = ProcessDriver((tmp_path,), output_limit=100)
+    outcomes = CapturingOutcomes()
+    driver = ProcessDriver((tmp_path,), output_limit=100, outcome_reporter=outcomes)
     result = await driver.run(
         "run-safe", (sys.executable, "-c", "print('safe')"), tmp_path, timeout=1
     )
@@ -70,7 +116,8 @@ async def test_a16_argv_execution_scope_timeout_output_and_cancel(tmp_path: Path
         == pid
     )
     assert driver.list_managed() == (pid,)
-    await driver.stop(pid)
+    await driver.stop(pid, action_id="stop-1")
+    await driver.stop(pid, action_id="stop-1")
     assert driver.list_managed() == ()
     with pytest.raises(ScopeViolation):
         await driver.stop(pid)
@@ -87,3 +134,8 @@ async def test_a16_argv_execution_scope_timeout_output_and_cancel(tmp_path: Path
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
+    assert ("run-safe", "confirmed", 0) in outcomes.values
+    assert any(value[:2] == ("stop-1", "confirmed") for value in outcomes.values)
+    assert any(value[:2] == ("flood", "error") for value in outcomes.values)
+    assert ("timeout", "error", "timeout") in outcomes.values
+    assert sum(value[0] == "run-safe" for value in outcomes.values) == 1

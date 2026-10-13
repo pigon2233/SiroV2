@@ -46,6 +46,11 @@ async def test_minimal_body_maps_speech_emotion_and_cancel() -> None:
         "body.cancel",
     ]
     assert transport.messages[0]["text"] == "你好"
+    assert transport.messages[0]["prosody"] == {
+        "rate": 1.0,
+        "pitch": 0.0,
+        "energy": 0.5,
+    }
     assert transport.messages[1]["intensity"] == 0.75
     assert transport.messages[2]["reason"] == "user"
 
@@ -61,6 +66,15 @@ async def test_minimal_body_fails_closed_while_offline() -> None:
     assert transport.messages == []
 
 
+async def test_speech_prosody_is_bounded() -> None:
+    with pytest.raises(ValueError, match="rate"):
+        SpeechIntent("s", "text", "g", rate=3.0)
+    with pytest.raises(ValueError, match="pitch"):
+        SpeechIntent("s", "text", "g", pitch=2.0)
+    with pytest.raises(ValueError, match="energy"):
+        SpeechIntent("s", "text", "g", energy=-0.1)
+
+
 async def test_renderer_transport_reconnect_drops_old_session_queue() -> None:
     transport = WebSocketBodyTransport()
     first, second = RecordingSocket(), RecordingSocket()
@@ -73,6 +87,37 @@ async def test_renderer_transport_reconnect_drops_old_session_queue() -> None:
     assert first.closed
     await transport.send({"type": "body.emotion", "name": "neutral"})
     await asyncio.sleep(0)
-    assert second.messages == [{"type": "body.emotion", "name": "neutral"}]
+    assert second.messages == [
+        {"type": "body.emotion", "name": "happy"},
+        {"type": "body.emotion", "name": "neutral"},
+    ]
     await transport.detach()
     assert not transport.connected
+
+
+async def test_emotion_survives_offline_and_old_socket_cannot_detach_replacement() -> None:
+    transport = WebSocketBodyTransport()
+    adapter = MinimalWebBodyAdapter(transport)
+    assert not await adapter.set_emotion(EmotionIntent("sad", 0.6))
+    first, second = RecordingSocket(), RecordingSocket()
+    await transport.attach(first)
+    await asyncio.sleep(0)
+    assert first.messages[-1]["name"] == "sad"  # type: ignore[index]
+    await adapter.speak(SpeechIntent("speech", "do not replay", "generation"))
+    await adapter.cancel("generation")
+    assert await adapter.set_emotion(EmotionIntent("happy", 0.8))
+    await asyncio.sleep(0)
+    await transport.attach(second)
+    await transport.detach(socket=first)
+    await asyncio.sleep(0)
+    assert transport.connected
+    assert second.messages == [{"v": 1, "type": "body.emotion", "name": "happy", "intensity": 0.8}]
+    assert await adapter.set_emotion(EmotionIntent("neutral"))
+    await asyncio.sleep(0)
+    assert second.messages[-1] == {
+        "v": 1,
+        "type": "body.emotion",
+        "name": "neutral",
+        "intensity": 1.0,
+    }
+    await transport.detach(socket=second)

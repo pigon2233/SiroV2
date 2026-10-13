@@ -13,7 +13,7 @@
 | 儲存 | 根分割區 915 GiB，約 814 GiB available | 足以放 source、測試資料和後續選定的小型模型；模型不進 Git |
 | GPU | NVIDIA RTX 3050 Laptop GPU，3.7 GiB VRAM；AMD Cezanne iGPU | Ollama 0.34.3 真實載入 `qwen3:4b` 時成功使用 CUDA，31/37 層 offload |
 | NVIDIA runtime | T00 時 `nvidia-smi` 失敗；T07 時 Ollama CUDA 13.2 backend 實際推論成功 | 驅動可供 Ollama 使用；一般 CUDA tooling 仍應在 T33 重新盤點 |
-| 音訊 | PipeWire 1.6.2；內建類比 input/output 與 Bluetooth headset 可見 | 可在 T14–T16 進行真機測試；AEC 尚未驗證 |
+| 音訊 | PipeWire 1.6.2；內建類比 input/output 與 Bluetooth headset 可見 | speaker AEC／20 次真人打斷通過；實體 headset 未測 |
 | 相機 | PipeWire 未列 video source | T24/T26 前需確認相機硬體或使用合成畫面 |
 | Python | CPython 3.14.4、pip 25.1.1、venv 可用 | 專案支援範圍先設 `>=3.12,<3.15`，本機以 3.14 驗證 |
 | Node | 24.21.0、Corepack 0.36.0 | 後續 UI 可用；T01 不建立前端 |
@@ -31,7 +31,7 @@
 
 `minimal`：本地 Core、CLI、SQLite、mock model、合成資料。它不需要 GPU、雲端 key、Live2D、Rust、broker 或硬體設備，適用 T01–T08 的早期工作。
 
-`companion`：待 T09–T16 完成後加入 broker、UI/Live2D 與音訊。由於目前 RAM 只有 14 GiB，預設不和大型本地 LLM 同時常駐。
+`companion`：後續整合 broker、UI/Live2D 與音訊。由於目前 RAM 只有 14 GiB，預設不和大型本地 LLM 同時常駐。
 
 `local-ai`：Ollama 0.34.3、`qwen3:4b` Q4_K_M 與 loopback chat API 已通過 T07 L2 smoke test。服務以 user systemd unit 運行，模型不進 Git；長時間負載與資源預算仍在 T33 驗證。
 
@@ -45,7 +45,7 @@
 | NVIDIA driver 與 VRAM | driver 不可用，VRAM 未量測 | T33 |
 | 雲端模型帳號、資料範圍、預算 | 未提供；預設全部停用 | T07/T38 |
 | Live2D 模型與聲音授權 | 未提供 | T12/T15 |
-| AEC 與實際 mic/speaker 品質 | 裝置可見，尚未量測 | T16 |
+| AEC 與實際 mic/speaker 品質 | speaker 修正版 20 次成功、0 誤觸發；headset 未測 | T16 headset 待驗 |
 | 相機 | 未偵測 | T24/T26 |
 | ESP32/Home Assistant | 未提供 | T27–T29 |
 | 第二台主機 | 未提供 | T39 |

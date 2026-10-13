@@ -1,0 +1,322 @@
+..........FF.FFFF........................                                [100%]
+=================================== FAILURES ===================================
+_ test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation[True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-71/test_same_owner_capability_but0')
+fresh_matches_old = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("fresh_matches_old", [True, False])
+    async def test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation(
+        tmp_path: Path, fresh_matches_old: bool
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, old = await prior_call(fixture)
+        assert old is not None
+        wrong = await fresh_proposal(fixture, arguments={"argv": ["different-bound-payload"]})
+        await fixture.store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE run_journal_calls SET proposal_id=? WHERE run_id=?",
+                (wrong.proposal_id, run_id),
+            )
+        )
+        fresh = await fresh_proposal(
+            fixture, arguments=None if fresh_matches_old else {"argv": ["third-operation"]}
+        )
+        assert fresh.arguments_hash != wrong.arguments_hash
+        if fresh_matches_old:
+            assert fresh.arguments_hash == old.arguments_hash
+>       await assert_automatic_hold(fixture, fresh)
+
+tests/integration/test_unknown_effect_approval.py:241: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x7cd978bbe120>, runs=<siro.services.agent.runs.SQLiteAge...0x7cd978bbe3f0>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x7cd978bbeb70>, effects=[])
+proposal = ToolProposal(proposal_id='74f098d4-d792-43c1-a9e1-3b415887bd97', session_id='owner-session', call_id='1ad867d5-1eb1-49...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+>       with pytest.raises(PermissionError) as raised:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PermissionError
+
+tests/integration/test_unknown_effect_approval.py:177: Failed
+_ test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation[False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-71/test_same_owner_capability_but1')
+fresh_matches_old = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("fresh_matches_old", [True, False])
+    async def test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation(
+        tmp_path: Path, fresh_matches_old: bool
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, old = await prior_call(fixture)
+        assert old is not None
+        wrong = await fresh_proposal(fixture, arguments={"argv": ["different-bound-payload"]})
+        await fixture.store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE run_journal_calls SET proposal_id=? WHERE run_id=?",
+                (wrong.proposal_id, run_id),
+            )
+        )
+        fresh = await fresh_proposal(
+            fixture, arguments=None if fresh_matches_old else {"argv": ["third-operation"]}
+        )
+        assert fresh.arguments_hash != wrong.arguments_hash
+        if fresh_matches_old:
+            assert fresh.arguments_hash == old.arguments_hash
+>       await assert_automatic_hold(fixture, fresh)
+
+tests/integration/test_unknown_effect_approval.py:241: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x7cd978c285f0>, runs=<siro.services.agent.runs.SQLiteAge...0x7cd978c287d0>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x7cd978c29040>, effects=[])
+proposal = ToolProposal(proposal_id='4e2dde06-e34f-415d-8a6a-38952129ef29', session_id='owner-session', call_id='eadef275-e011-49...5a8b52766635f8abc57e837a4e72', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+>       with pytest.raises(PermissionError) as raised:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PermissionError
+
+tests/integration/test_unknown_effect_approval.py:177: Failed
+______ test_oversized_or_invalid_bound_arguments_fail_closed[False-call] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-71/test_oversized_or_invalid_boun0')
+column_owner = 'call', malformed = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("column_owner", ["call", "proposal"])
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_oversized_or_invalid_bound_arguments_fail_closed(
+        tmp_path: Path, column_owner: str, malformed: bool
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, old = await prior_call(fixture)
+        assert old is not None
+        raw = "synthetic-invalid-json" if malformed else '{"payload":"' + "界" * 22_000 + '"}'
+        if not malformed:
+            assert len(raw) < 65_536 < len(raw.encode())
+    
+        def corrupt_temporary_arguments(connection: object) -> None:
+            import sqlite3
+    
+            assert isinstance(connection, sqlite3.Connection)
+            # Only a diagnostic temporary DB can contain invalid checkpoint JSON.
+            connection.execute("PRAGMA ignore_check_constraints=ON")
+            try:
+                if column_owner == "call":
+                    connection.execute(
+                        "UPDATE run_journal_calls SET arguments_json=? WHERE run_id=?", (raw, run_id)
+                    )
+                else:
+                    connection.execute(
+                        "UPDATE tool_proposals SET arguments_json=? WHERE proposal_id=?",
+                        (raw, old.proposal_id),
+                    )
+            finally:
+                connection.execute("PRAGMA ignore_check_constraints=OFF")
+    
+        await fixture.store.run_transaction(corrupt_temporary_arguments)
+        # An unverifiable old payload must not be treated as a valid different hash.
+        fresh = await fresh_proposal(fixture, arguments={"argv": ["unrelated-new-operation"]})
+>       await assert_automatic_hold(fixture, fresh)
+
+tests/integration/test_unknown_effect_approval.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x7cd978c24f30>, runs=<siro.services.agent.runs.SQLiteAge...0x7cd978c24e50>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x7cd978c25b70>, effects=[])
+proposal = ToolProposal(proposal_id='c1deff97-a65d-4892-86a7-7d00dd82b901', session_id='owner-session', call_id='10d8835e-92af-47...54dde4638077e4c0e23258e9dcd9', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+>       with pytest.raises(PermissionError) as raised:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PermissionError
+
+tests/integration/test_unknown_effect_approval.py:177: Failed
+____ test_oversized_or_invalid_bound_arguments_fail_closed[False-proposal] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-71/test_oversized_or_invalid_boun1')
+column_owner = 'proposal', malformed = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("column_owner", ["call", "proposal"])
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_oversized_or_invalid_bound_arguments_fail_closed(
+        tmp_path: Path, column_owner: str, malformed: bool
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, old = await prior_call(fixture)
+        assert old is not None
+        raw = "synthetic-invalid-json" if malformed else '{"payload":"' + "界" * 22_000 + '"}'
+        if not malformed:
+            assert len(raw) < 65_536 < len(raw.encode())
+    
+        def corrupt_temporary_arguments(connection: object) -> None:
+            import sqlite3
+    
+            assert isinstance(connection, sqlite3.Connection)
+            # Only a diagnostic temporary DB can contain invalid checkpoint JSON.
+            connection.execute("PRAGMA ignore_check_constraints=ON")
+            try:
+                if column_owner == "call":
+                    connection.execute(
+                        "UPDATE run_journal_calls SET arguments_json=? WHERE run_id=?", (raw, run_id)
+                    )
+                else:
+                    connection.execute(
+                        "UPDATE tool_proposals SET arguments_json=? WHERE proposal_id=?",
+                        (raw, old.proposal_id),
+                    )
+            finally:
+                connection.execute("PRAGMA ignore_check_constraints=OFF")
+    
+        await fixture.store.run_transaction(corrupt_temporary_arguments)
+        # An unverifiable old payload must not be treated as a valid different hash.
+        fresh = await fresh_proposal(fixture, arguments={"argv": ["unrelated-new-operation"]})
+>       await assert_automatic_hold(fixture, fresh)
+
+tests/integration/test_unknown_effect_approval.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x7cd97894e270>, runs=<siro.services.agent.runs.SQLiteAge...0x7cd97894e820>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x7cd97894e5b0>, effects=[])
+proposal = ToolProposal(proposal_id='d0d1dfcb-78e5-41ff-a339-c840982546cd', session_id='owner-session', call_id='13cf5b3d-9e6a-44...54dde4638077e4c0e23258e9dcd9', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+>       with pytest.raises(PermissionError) as raised:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PermissionError
+
+tests/integration/test_unknown_effect_approval.py:177: Failed
+_______ test_oversized_or_invalid_bound_arguments_fail_closed[True-call] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-71/test_oversized_or_invalid_boun2')
+column_owner = 'call', malformed = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("column_owner", ["call", "proposal"])
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_oversized_or_invalid_bound_arguments_fail_closed(
+        tmp_path: Path, column_owner: str, malformed: bool
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, old = await prior_call(fixture)
+        assert old is not None
+        raw = "synthetic-invalid-json" if malformed else '{"payload":"' + "界" * 22_000 + '"}'
+        if not malformed:
+            assert len(raw) < 65_536 < len(raw.encode())
+    
+        def corrupt_temporary_arguments(connection: object) -> None:
+            import sqlite3
+    
+            assert isinstance(connection, sqlite3.Connection)
+            # Only a diagnostic temporary DB can contain invalid checkpoint JSON.
+            connection.execute("PRAGMA ignore_check_constraints=ON")
+            try:
+                if column_owner == "call":
+                    connection.execute(
+                        "UPDATE run_journal_calls SET arguments_json=? WHERE run_id=?", (raw, run_id)
+                    )
+                else:
+                    connection.execute(
+                        "UPDATE tool_proposals SET arguments_json=? WHERE proposal_id=?",
+                        (raw, old.proposal_id),
+                    )
+            finally:
+                connection.execute("PRAGMA ignore_check_constraints=OFF")
+    
+        await fixture.store.run_transaction(corrupt_temporary_arguments)
+        # An unverifiable old payload must not be treated as a valid different hash.
+        fresh = await fresh_proposal(fixture, arguments={"argv": ["unrelated-new-operation"]})
+>       await assert_automatic_hold(fixture, fresh)
+
+tests/integration/test_unknown_effect_approval.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x7cd978bdb590>, runs=<siro.services.agent.runs.SQLiteAge...0x7cd978bdb950>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x7cd978bdbad0>, effects=[])
+proposal = ToolProposal(proposal_id='4ba61ddc-f004-405f-adb6-8122aa3a7637', session_id='owner-session', call_id='f3597600-4dbb-46...54dde4638077e4c0e23258e9dcd9', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+>       with pytest.raises(PermissionError) as raised:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PermissionError
+
+tests/integration/test_unknown_effect_approval.py:177: Failed
+_____ test_oversized_or_invalid_bound_arguments_fail_closed[True-proposal] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-71/test_oversized_or_invalid_boun3')
+column_owner = 'proposal', malformed = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("column_owner", ["call", "proposal"])
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_oversized_or_invalid_bound_arguments_fail_closed(
+        tmp_path: Path, column_owner: str, malformed: bool
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, old = await prior_call(fixture)
+        assert old is not None
+        raw = "synthetic-invalid-json" if malformed else '{"payload":"' + "界" * 22_000 + '"}'
+        if not malformed:
+            assert len(raw) < 65_536 < len(raw.encode())
+    
+        def corrupt_temporary_arguments(connection: object) -> None:
+            import sqlite3
+    
+            assert isinstance(connection, sqlite3.Connection)
+            # Only a diagnostic temporary DB can contain invalid checkpoint JSON.
+            connection.execute("PRAGMA ignore_check_constraints=ON")
+            try:
+                if column_owner == "call":
+                    connection.execute(
+                        "UPDATE run_journal_calls SET arguments_json=? WHERE run_id=?", (raw, run_id)
+                    )
+                else:
+                    connection.execute(
+                        "UPDATE tool_proposals SET arguments_json=? WHERE proposal_id=?",
+                        (raw, old.proposal_id),
+                    )
+            finally:
+                connection.execute("PRAGMA ignore_check_constraints=OFF")
+    
+        await fixture.store.run_transaction(corrupt_temporary_arguments)
+        # An unverifiable old payload must not be treated as a valid different hash.
+        fresh = await fresh_proposal(fixture, arguments={"argv": ["unrelated-new-operation"]})
+>       await assert_automatic_hold(fixture, fresh)
+
+tests/integration/test_unknown_effect_approval.py:311: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x7cd978bdb890>, runs=<siro.services.agent.runs.SQLiteAge...0x7cd978a10590>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x7cd978a107d0>, effects=[])
+proposal = ToolProposal(proposal_id='dc72f87c-1310-4772-876d-5c393cbe7762', session_id='owner-session', call_id='2ef56bf0-d60b-46...54dde4638077e4c0e23258e9dcd9', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+>       with pytest.raises(PermissionError) as raised:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE PermissionError
+
+tests/integration/test_unknown_effect_approval.py:177: Failed
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_unknown_effect_approval.py::test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation[True]
+FAILED tests/integration/test_unknown_effect_approval.py::test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation[False]
+FAILED tests/integration/test_unknown_effect_approval.py::test_oversized_or_invalid_bound_arguments_fail_closed[False-call]
+FAILED tests/integration/test_unknown_effect_approval.py::test_oversized_or_invalid_bound_arguments_fail_closed[False-proposal]
+FAILED tests/integration/test_unknown_effect_approval.py::test_oversized_or_invalid_bound_arguments_fail_closed[True-call]
+FAILED tests/integration/test_unknown_effect_approval.py::test_oversized_or_invalid_bound_arguments_fail_closed[True-proposal]
+6 failed, 35 passed, 2 warnings in 1.98s

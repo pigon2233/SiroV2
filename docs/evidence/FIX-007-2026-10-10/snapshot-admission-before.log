@@ -1,0 +1,33 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_snapshot_admission_is_bounded_and_waiter_cancel_creates_no_copy _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-51/test_snapshot_admission_is_bou0')
+
+    @pytest.mark.asyncio
+    async def test_snapshot_admission_is_bounded_and_waiter_cancel_creates_no_copy(tmp_path: Path) -> None:
+        skill, registry, _, _, _ = await approved(tmp_path)
+        eight_started = asyncio.Event()
+        roots: list[Path] = []
+    
+        class WaitingSupervisor(WorkerSupervisor):
+            async def execute(self, snapshot: InstalledSkill, arguments: object) -> dict[str, object]:
+                roots.append(snapshot.root)
+                if len(roots) >= 8:
+                    eight_started.set()
+                await asyncio.Event().wait()
+                return {}
+    
+        dispatcher = SkillDispatcher(registry, WaitingSupervisor())
+        tasks = [asyncio.create_task(dispatcher.execute(skill, {})) for _ in range(9)]
+        try:
+            await asyncio.wait_for(eight_started.wait(), 3)
+            await asyncio.sleep(0.05)
+>           assert len(roots) == 8
+E           AssertionError: assert 9 == 8
+E            +  where 9 = len([PosixPath('/tmp/siro-skill-verified-wva4lyxc'), PosixPath('/tmp/siro-skill-verified-rqqwewb1'), PosixPath('/tmp/siro-...rified-ib3rpfah'), PosixPath('/tmp/siro-skill-verified-y868mk5n'), PosixPath('/tmp/siro-skill-verified-l10t4ytl'), ...])
+
+tests/integration/test_skill_package_identity.py:435: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_package_identity.py::test_snapshot_admission_is_bounded_and_waiter_cancel_creates_no_copy
+1 failed, 41 deselected in 0.26s

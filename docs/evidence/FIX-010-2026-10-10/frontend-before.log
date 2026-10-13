@@ -1,0 +1,71 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_full_mode_unknown_effect_requires_visible_manual_confirmation ______
+
+    def test_full_mode_unknown_effect_requires_visible_manual_confirmation() -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[html.index("      function renderToolProposal(") : html.index("      function renderToolResult(")]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map(), root = {appendChild:card=>cards.set(card.id,card)};
+    let authorizationMode = 'full', requests = 0;
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text=String(value); this.children=[]; }
+      get textContent() { return this._text + this.children.map(c=>c.textContent).join(''); }
+      set innerHTML(value) { throw new Error('untrusted HTML'); }
+      append(...items) { this.children.push(...items); }
+      appendChild(child) { this.children.push(child); }
+      querySelector(selector) { return this.children.find(c=>c.className===selector.slice(1)); }
+    }
+    const document = {
+      createElement: tag=>new Element(tag), getElementById:id=>cards.get(id),
+      querySelector:selector=>selector==='#tool-proposals'?root:
+        selector==='#computer-panel'?{}:cards.get(selector.slice(1))
+    };
+    const connectControl=async()=>{}, headers=()=>({});
+    const authorizedFetch=async(url,options)=>{
+      requests++; assert.equal(JSON.parse(options.body).approved,true);
+      assert(url.endsWith('/approve')); return {ok:true};
+    };
+    const proposal = (id,extra={})=>({proposal_id:id,capability:'computer.execute',
+      scope:'synthetic',target:'synthetic',risk:'computer',...extra});
+    """
+        checks = r"""
+    (async()=>{
+      renderToolProposal(proposal('held',{automatic_approval_blocked:'prior_outcome_unknown'}));
+      const held=cards.get('tool-held');
+      assert(held.textContent.includes('結果'));
+      assert(held.textContent.includes('未確認'));
+      assert(held.textContent.includes('重複'));
+      assert(!held.textContent.includes('已自動授權'));
+      const button=held.children.find(c=>c.tag==='button'); assert(button);
+      assert.equal(requests,0); await button.onclick();
+      assert.equal(requests,1); assert.equal(button.disabled,true);
+      renderToolProposal(proposal('held',{automatic_approval_blocked:'prior_outcome_unknown'}));
+      assert.equal(cards.size,1);
+      renderToolProposal(proposal('normal'));
+      assert(!cards.get('tool-normal').children.some(c=>c.tag==='button'));
+      assert(cards.get('tool-normal').textContent.includes('已自動授權'));
+      authorizationMode='safe'; renderToolProposal(proposal('safe'));
+      assert(cards.get('tool-safe').children.some(c=>c.tag==='button'));
+      renderToolProposal(proposal('injected',{
+        automatic_approval_blocked:'<img src=x onerror="globalThis.injected=1">PRIVATE-CANARY'
+      }));
+      assert(!cards.get('tool-injected').textContent.includes('PRIVATE-CANARY'));
+      assert.equal(globalThis.injected,undefined);
+    })().catch(error=>{process.stderr.write(String(error));process.exitCode=1;});
+    """
+        result = subprocess.run(["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10)
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(held.textContent.includes('結果'))
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map(), root...rtionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(held.textContent.includes('結果'))\n").returncode
+
+tests/integration/test_frontend_unknown_effect.py:60: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_frontend_unknown_effect.py::test_full_mode_unknown_effect_requires_visible_manual_confirmation
+1 failed in 0.06s

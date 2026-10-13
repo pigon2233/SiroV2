@@ -1,0 +1,97 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______________ test_actual_frontend_speech_queue[canonical_plan] _______________
+
+scenario = 'canonical_plan'
+
+    @pytest.mark.parametrize("scenario", ["canonical_plan", "ordered_prefetch"])
+    def test_actual_frontend_speech_queue(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        result = subprocess.run(
+            ["node", "--unhandled-rejections=strict", "-e", _SETUP + functions + _CHECKS, scenario],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: first request must obtain a bounded speech plan
+E         + actual - expected
+E         
+E         + '/v1/audio/speech'
+E         - '/v1/audio/speech/plan'
+E                            ^
+E         
+E             at [eval]:129:10
+E             at [eval]:162:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: false,
+E           code: 'ERR_ASSERTION',
+E           actual: '/v1/audio/speech',
+E           expected: '/v1/audio/speech/plan',
+E           operator: 'strictEqual',
+E           diff: 'simple'
+E         }
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '--unhandled-rejections=strict', '-e', '\nconst assert = require(\'node:assert/strict\'... actual: '/v1/audio/speech',\n  expected: '/v1/audio/speech/plan',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n").returncode
+
+tests/integration/test_frontend_speech_queue.py:130: AssertionError
+_____________ test_actual_frontend_speech_queue[ordered_prefetch] ______________
+
+scenario = 'ordered_prefetch'
+
+    @pytest.mark.parametrize("scenario", ["canonical_plan", "ordered_prefetch"])
+    def test_actual_frontend_speech_queue(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        result = subprocess.run(
+            ["node", "--unhandled-rejections=strict", "-e", _SETUP + functions + _CHECKS, scenario],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: canonical text must be planned before synthesis
+E         + actual - expected
+E         
+E         + '/v1/audio/speech'
+E         - '/v1/audio/speech/plan'
+E                            ^
+E         
+E             at begin ([eval]:52:9)
+E             at [eval]:135:20
+E             at [eval]:162:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: false,
+E           code: 'ERR_ASSERTION',
+E           actual: '/v1/audio/speech',
+E           expected: '/v1/audio/speech/plan',
+E           operator: 'strictEqual',
+E           diff: 'simple'
+E         }
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '--unhandled-rejections=strict', '-e', '\nconst assert = require(\'node:assert/strict\'... actual: '/v1/audio/speech',\n  expected: '/v1/audio/speech/plan',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n").returncode
+
+tests/integration/test_frontend_speech_queue.py:130: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_frontend_speech_queue.py::test_actual_frontend_speech_queue[canonical_plan]
+FAILED tests/integration/test_frontend_speech_queue.py::test_actual_frontend_speech_queue[ordered_prefetch]
+2 failed in 0.09s

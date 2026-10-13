@@ -1,0 +1,655 @@
+FFFFFFFFFFFFFFF                                                          [100%]
+=================================== FAILURES ===================================
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-length-False] _
+
+streaming = False, reason = 'length', with_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-length-True] _
+
+streaming = True, reason = 'length', with_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-content_filter-False] _
+
+streaming = False, reason = 'content_filter', with_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-content_filter-True] _
+
+streaming = True, reason = 'content_filter', with_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-unknown-False] _
+
+streaming = False, reason = 'unknown', with_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-unknown-True] _
+
+streaming = True, reason = 'unknown', with_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-length-False] _
+
+streaming = False, reason = 'length', with_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-length-True] _
+
+streaming = True, reason = 'length', with_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-content_filter-False] _
+
+streaming = False, reason = 'content_filter', with_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-content_filter-True] _
+
+streaming = True, reason = 'content_filter', with_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-unknown-False] _
+
+streaming = False, reason = 'unknown', with_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-unknown-True] _
+
+streaming = True, reason = 'unknown', with_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("streaming", [False, True])
+    @pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
+        streaming: bool, reason: str, with_tools: bool
+    ) -> None:
+        message: dict[str, object] = {"content": "synthetic partial"}
+        if with_tools:
+            message["tool_calls"] = [
+                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
+            ]
+        if streaming:
+            transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
+                (
+                    "data: " + json.dumps({"choices": [{"delta": message}]}),
+                    # A terminal choice need not contain delta; a later stop cannot erase failure.
+                    "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
+                    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+                    "data: [DONE]",
+                )
+            )
+        else:
+            transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:360: Failed
+_ test_openai_bare_eof_is_incomplete_and_never_retries_buffered_intents[False] _
+
+with_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_bare_eof_is_incomplete_and_never_retries_buffered_intents(
+        with_tools: bool,
+    ) -> None:
+        delta: dict[str, object] = {"content": "partial"}
+        if with_tools:
+            delta = {"tool_calls": [{"index": 0, "id": "intent", "function": {
+                "name": "weather", "arguments": "{}"
+            }}]}
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test",
+            transport=FakeStreamingTransport(("data: " + json.dumps({"choices": [{"delta": delta}]}),)),
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:386: Failed
+_ test_openai_bare_eof_is_incomplete_and_never_retries_buffered_intents[True] __
+
+with_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("with_tools", [False, True])
+    async def test_openai_bare_eof_is_incomplete_and_never_retries_buffered_intents(
+        with_tools: bool,
+    ) -> None:
+        delta: dict[str, object] = {"content": "partial"}
+        if with_tools:
+            delta = {"tool_calls": [{"index": 0, "id": "intent", "function": {
+                "name": "weather", "arguments": "{}"
+            }}]}
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test",
+            transport=FakeStreamingTransport(("data: " + json.dumps({"choices": [{"delta": delta}]}),)),
+        )
+        fallback = RecordingModel()
+        chunks = []
+>       with pytest.raises(ValueError, match="provider output"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/contract/test_model_adapters.py:386: Failed
+_ test_partial_reply_keeps_text_and_displays_incomplete_notice_without_speaking _
+
+    def test_partial_reply_keeps_text_and_displays_incomplete_notice_without_speaking() -> None:
+>       run_frontend(
+            """
+    const spoken = [];
+    playTts = text => { spoken.push(text); };
+    emit({type: 'turn_started', turn_id: 'partial-turn'});
+    emit({type: 'assistant_started', stream_id: 'partial-stream'});
+    emit({type: 'assistant_delta', stream_id: 'partial-stream', text: '這段回答尚未'});
+    emit({type: 'assistant_terminal', stream_id: 'partial-stream', state: 'failed',
+          error: 'ProviderOutputTruncated'});
+    const messages = document.querySelector('#messages').children;
+    assert.equal(messages.length, 1);
+    assert(messages[0].textContent.startsWith('這段回答尚未'));
+    assert(messages[0].textContent.includes('未完成'));
+    assert.equal(spoken.length, 0);
+    assert.equal(currentTurn, undefined);
+    """
+        )
+
+tests/integration/test_frontend_companion.py:127: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nconst spoken = [];\nplayTts = text => { spoken.push(text); };\nemit({type: 'turn_started', turn_id: 'partial-turn'}...rt(messages[0].textContent.includes('未完成'));\nassert.equal(spoken.length, 0);\nassert.equal(currentTurn, undefined);\n"
+
+    def run_frontend(checks: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        # Keep the actual page functions and bindings, but supply events without a server.
+        script = script[: script.rindex("      boot().catch(")]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        element_ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [];
+    class Element {
+      constructor(tag) {
+        this.tagName = tag; this.children = []; this._text = ''; this.ownerDocument = document;
+      }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Untrusted message must not enter innerHTML'); }
+      replaceChildren(...children) { this.children = []; this._text = ''; this.append(...children); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector),
+      querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id),
+      createElement: tag => new Element(tag),
+      createTextNode: text => {
+        const node = new Element('#text'); node.textContent = text; return node;
+      },
+    };
+    const window = {addEventListener() {}};
+    const location = {origin: 'http://localhost', host: 'localhost', protocol: 'http:'};
+    const pending = () => {
+      let resolve; const promise = new Promise(done => { resolve = done; });
+      return {promise, resolve};
+    };
+    const turnResponse = pending(), calls = [];
+    const fetch = (url, options) => {
+      calls.push({url, options});
+      return url === '/v1/conversations/browser/turns'
+        ? turnResponse.promise : Promise.resolve({ok: true, json: async () => ({})});
+    };
+    """
+        initialize = f"""
+    for (const id of {element_ids}) {{
+      const node = new Element('div'); node.id = id; roots.push(node);
+    }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + "\nsocket = {};\n"
+                + handler
+                + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
+                + "(async () => {\n"
+                + checks
+                + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(messages[0].textContent.includes('未完成'))
+E         
+E             at [eval]:449:1
+E             at [eval]:453:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [];\nclass Elem...ssage: true,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n").returncode
+
+tests/integration/test_frontend_companion.py:89: AssertionError
+=========================== short test summary info ============================
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-length-False]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-length-True]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-content_filter-False]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-content_filter-True]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-unknown-False]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[False-unknown-True]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-length-False]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-length-True]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-content_filter-False]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-content_filter-True]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-unknown-False]
+FAILED tests/contract/test_model_adapters.py::test_openai_incomplete_output_preserves_text_without_tools_or_retry[True-unknown-True]
+FAILED tests/contract/test_model_adapters.py::test_openai_bare_eof_is_incomplete_and_never_retries_buffered_intents[False]
+FAILED tests/contract/test_model_adapters.py::test_openai_bare_eof_is_incomplete_and_never_retries_buffered_intents[True]
+FAILED tests/integration/test_frontend_companion.py::test_partial_reply_keeps_text_and_displays_incomplete_notice_without_speaking
+15 failed, 25 deselected in 0.34s

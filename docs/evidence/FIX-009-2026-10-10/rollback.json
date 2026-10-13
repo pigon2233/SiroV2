@@ -1,0 +1,55 @@
+{
+  "status": "PASS",
+  "scope": "exact3file repair; temporary copy only",
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--reverse",
+        "--check",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--reverse",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--check",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "before_sha256": {
+    "src/siro/core/releases.py": "b5d13662e0dedce9e14e6be4ed21132ada58c3ce0a621f892b1ffcff5f4ee1da",
+    "tests/integration/test_release_manager.py": "c33176876a79248d8d94cc01985266aed6985f89af18f2b1b6e1d625134f43ec",
+    "tests/integration/test_release_manifest_signing.py": null
+  },
+  "after_sha256": {
+    "src/siro/core/releases.py": "5b3c6baf7e105cd95d363faf95f9e75262d1e2ebd4d134724690fa4860ea2a6a",
+    "tests/integration/test_release_manager.py": "69dcffdd22e698d122f9a48b6b715a14d7ad32cb63891fa07545650b2da08bd5",
+    "tests/integration/test_release_manifest_signing.py": "bca35020cbb54654d854ca98018b927f4a11cf6acd5bb46b7f432141ceecd9a7"
+  },
+  "temporary_removed": true,
+  "live_source_or_db_rollback": false,
+  "promotion_must_remain_disabled_on_revert": true
+}

@@ -25,7 +25,15 @@ def main() -> int:
         Callable[[dict[str, object]], object],
         getattr(importlib.import_module(module_name), function_name),
     )
-    request = json.loads(sys.stdin.buffer.read())
+    request_path = os.environ.get("SIRO_SKILL_REQUEST")
+    if request_path is None:
+        payload = sys.stdin.buffer.read(65537)
+    else:
+        with open(request_path, "rb") as handle:
+            payload = handle.read(65537)
+    if len(payload) > 65536:
+        raise ValueError("worker input exceeded its byte limit")
+    request = json.loads(payload)
     if not isinstance(request, dict):
         raise ValueError("worker input must be an object")
     response = function({str(key): value for key, value in request.items()})

@@ -1,0 +1,132 @@
+{
+  "tasks": [
+    {
+      "id": "RT-001",
+      "title": "基線與 migration invariant",
+      "status": "DONE（2026-10-01）；證據 `docs/evidence/RT-001/README.md`",
+      "dependencies": []
+    },
+    {
+      "id": "RT-002",
+      "title": "原生工具訊息接入",
+      "status": "DONE（2026-10-01）",
+      "dependencies": [
+        "RT-001"
+      ]
+    },
+    {
+      "id": "RT-003",
+      "title": "工具 batch 與終止狀態",
+      "status": "DONE（2026-10-01）",
+      "dependencies": [
+        "RT-002"
+      ]
+    },
+    {
+      "id": "RT-004",
+      "title": "有界程序執行 facade",
+      "status": "DONE（2026-10-01）",
+      "dependencies": [
+        "RT-001"
+      ]
+    },
+    {
+      "id": "RT-005",
+      "title": "run cancellation 傳到程序",
+      "status": "DONE（2026-10-01；獨立驗證缺口修補後fixtures通過）",
+      "dependencies": [
+        "RT-003",
+        "RT-004"
+      ]
+    },
+    {
+      "id": "RT-006",
+      "title": "Qwen worker 生命周期",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-001"
+      ]
+    },
+    {
+      "id": "RT-007",
+      "title": "工具 catalog 與有效配置",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-003",
+        "RT-004"
+      ]
+    },
+    {
+      "id": "RT-008",
+      "title": "durable journal 與恢復",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-003",
+        "RT-005",
+        "RT-007"
+      ]
+    },
+    {
+      "id": "RT-009",
+      "title": "provider bounded retry/fallback",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-007",
+        "RT-008"
+      ]
+    },
+    {
+      "id": "RT-010",
+      "title": "session context 恢復",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-008"
+      ]
+    },
+    {
+      "id": "RT-011",
+      "title": "context budget 與可撤銷摘要",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-002",
+        "RT-010"
+      ]
+    },
+    {
+      "id": "RT-012",
+      "title": "持續 browser session",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-005",
+        "RT-007"
+      ]
+    },
+    {
+      "id": "RT-013",
+      "title": "Rust read-only execution backend 對接",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-005",
+        "RT-007"
+      ]
+    },
+    {
+      "id": "RT-014",
+      "title": "有來源的 memory ingress",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-010"
+      ]
+    },
+    {
+      "id": "RT-015",
+      "title": "既有排程的有界接入",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-008",
+        "RT-014"
+      ]
+    }
+  ],
+  "selected": "RT-006"
+}

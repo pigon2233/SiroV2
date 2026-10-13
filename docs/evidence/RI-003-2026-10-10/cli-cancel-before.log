@@ -1,0 +1,110 @@
+.........................................F.............................. [ 68%]
+.................................                                        [100%]
+=================================== FAILURES ===================================
+__________ test_actual_cli_sigint_reaps_owned_namespace_and_workspace __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-87/test_actual_cli_sigint_reaps_o0')
+
+    @real_profile
+    def test_actual_cli_sigint_reaps_owned_namespace_and_workspace(tmp_path: Path) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text(proposal(new="import time\ntime.sleep(30)\nVALUE=2\n").model_dump_json())
+        temporary = tmp_path / "workspaces"
+        temporary.mkdir()
+        repository = Path(__file__).resolve().parents[2]
+        process = subprocess.Popen(
+            [sys.executable, "-m", "siro.cli", "verify-patch", str(path), "--project-root", str(root)],
+            env={"PATH": os.defpath, "PYTHONPATH": str(repository / "src"), "TMPDIR": str(temporary)},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        owned: set[int] = set()
+        try:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and process.poll() is None:
+                children = Path(f"/proc/{process.pid}/task/{process.pid}/children").read_text().split()
+                ready = False
+                for value in children:
+                    child = int(value)
+                    try:
+                        command = Path(f"/proc/{child}/cmdline").read_bytes()
+                    except FileNotFoundError:
+                        continue
+                    if b"bwrap" in command and b"--probe" not in command:
+                        owned.add(child)
+                        owned.update(
+                            int(p)
+                            for p in Path(f"/proc/{child}/task/{child}/children").read_text().split()
+                        )
+                        ready = True
+                if ready:
+                    break
+                time.sleep(0.01)
+            assert owned, "CLI never reached the owned candidate namespace"
+            process.send_signal(signal.SIGINT)
+            stdout, stderr = process.communicate(timeout=8)
+>           assert process.returncode == 130, stdout + stderr
+E           AssertionError: Traceback (most recent call last):
+E               File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/execution.py", line 56, in _cleanup_group
+E                 await asyncio.gather(*readers, process.wait())
+E             asyncio.exceptions.CancelledError
+E             
+E             The above exception was the direct cause of the following exception:
+E             
+E             Traceback (most recent call last):
+E               File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/execution.py", line 51, in _cleanup_group
+E                 async with asyncio.timeout(4.5):
+E                            ~~~~~~~~~~~~~~~^^^^^
+E               File "/usr/lib/python3.14/asyncio/timeouts.py", line 114, in __aexit__
+E                 raise TimeoutError from exc_val
+E             TimeoutError
+E             
+E             The above exception was the direct cause of the following exception:
+E             
+E             Traceback (most recent call last):
+E               File "<frozen runpy>", line 198, in _run_module_as_main
+E               File "<frozen runpy>", line 88, in _run_code
+E               File "/home/jasonliao/文件/Siro/SiroV2/src/siro/cli.py", line 352, in <module>
+E                 raise SystemExit(main())
+E                                  ~~~~^^
+E               File "/home/jasonliao/文件/Siro/SiroV2/src/siro/cli.py", line 348, in main
+E                 return int(arguments.handler(arguments))
+E                            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+E               File "/home/jasonliao/文件/Siro/SiroV2/src/siro/cli.py", line 137, in _verify_patch
+E                 report = asyncio.run(
+E                     verify_isolated_patch(Path(arguments.project_root), proposal, profile=arguments.profile)
+E                 )
+E               File "/usr/lib/python3.14/asyncio/runners.py", line 204, in run
+E                 return runner.run(main)
+E                        ~~~~~~~~~~^^^^^^
+E               File "/usr/lib/python3.14/asyncio/runners.py", line 127, in run
+E                 return self._loop.run_until_complete(task)
+E                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E               File "/usr/lib/python3.14/asyncio/base_events.py", line 719, in run_until_complete
+E                 return future.result()
+E                        ~~~~~~~~~~~~~^^
+E               File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/patch_verification.py", line 367, in verify_isolated_patch
+E                 result = await execute_bounded_argv(
+E                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                     argv, cwd=workspace, environment={}, timeout=10, context=owned_context
+E                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 )
+E                 ^
+E               File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/execution.py", line 173, in execute_bounded_argv
+E                 await _protected_cleanup(process, readers)
+E               File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/execution.py", line 71, in _protected_cleanup
+E                 await asyncio.shield(cleanup)
+E               File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/execution.py", line 61, in _cleanup_group
+E                 raise ExecutionCleanupError("owned process group cleanup failed") from error
+E             siro.services.tools.execution.ExecutionCleanupError: owned process group cleanup failed
+E             
+E           assert 1 == 130
+E            +  where 1 = <Popen: returncode: 1 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>.returncode
+
+tests/integration/test_verify_patch_cli.py:102: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_verify_patch_cli.py::test_actual_cli_sigint_reaps_owned_namespace_and_workspace
+1 failed, 104 passed in 14.93s

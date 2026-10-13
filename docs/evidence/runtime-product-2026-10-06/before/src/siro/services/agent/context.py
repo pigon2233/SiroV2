@@ -1,0 +1,74 @@
+"""Hard logical request size limit; never trim goals or pending tool pairs."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import AsyncIterator
+from dataclasses import asdict
+from typing import Protocol
+
+from siro.ports.models import CancellationToken, LanguageModel, ModelChunk, ModelRequest
+
+
+class ContextBudgetExceeded(ValueError):
+    """Request is too large for the configured logical UTF-8 byte budget."""
+
+
+class ContextBudgetUnavailable(ValueError):
+    """Selected provider cannot be safely token-counted with available local assets."""
+
+
+class TokenBudget(Protocol):
+    def validate(self, request: ModelRequest) -> int: ...
+
+
+class UnavailableTokenBudget:
+    def validate(self, request: ModelRequest) -> int:
+        raise ContextBudgetUnavailable("selected provider token policy is unavailable")
+
+
+def request_size_bytes(request: ModelRequest) -> int:
+    """Measure complete logical request JSON, without estimating provider tokens."""
+    return sum(
+        len(part.encode("utf-8"))
+        for part in json.JSONEncoder(ensure_ascii=False, separators=(",", ":")).iterencode(
+            asdict(request)
+        )
+    )
+
+
+class ContextBudgetModel:
+    def __init__(
+        self,
+        model: LanguageModel,
+        *,
+        max_bytes: int | None,
+        token_budget: TokenBudget | None = None,
+    ) -> None:
+        if max_bytes is not None and max_bytes < 1:
+            raise ValueError("context max_bytes must be positive")
+        if max_bytes is None and token_budget is None:
+            raise ValueError("at least one context budget is required")
+        self.name = model.name
+        self._model = model
+        self._max_bytes = max_bytes
+        self._token_budget = token_budget
+
+    async def stream(
+        self, request: ModelRequest, cancellation: CancellationToken
+    ) -> AsyncIterator[ModelChunk]:
+        if cancellation.cancelled:
+            return
+        if self._max_bytes is not None:
+            size = request_size_bytes(request)
+            if size > self._max_bytes:
+                raise ContextBudgetExceeded(
+                    f"logical request bytes {size} exceed {self._max_bytes}"
+                )
+        if self._token_budget is not None:
+            await asyncio.to_thread(self._token_budget.validate, request)
+        if cancellation.cancelled:
+            return
+        async for chunk in self._model.stream(request, cancellation):
+            yield chunk

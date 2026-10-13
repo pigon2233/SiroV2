@@ -1,0 +1,29 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_general_alternative_does_not_depend_on_catalog_order[False] _______
+
+reverse = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("reverse", [False, True])
+    async def test_general_alternative_does_not_depend_on_catalog_order(reverse: bool) -> None:
+        rows = [
+            ToolDescriptor(
+                name=name, definition=None, executor=forbidden_executor,
+                available=lambda: True, backend="synthetic", effect="read_only",
+            )
+            for name in ("text.checklist.parse", "computer.execute")
+        ]
+        if reverse:
+            rows.reverse()
+        service = backend().SkillCandidatePreparer(ToolCatalog(tuple(rows)))
+        result = await service.prepare("text.checklist.parse")
+        assert result["status"] == "existing_available"
+>       assert result["general_alternative"]["name"] == "computer.execute"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'general_alternative'
+
+tests/integration/test_skill_candidates.py:106: KeyError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_candidates.py::test_general_alternative_does_not_depend_on_catalog_order[False]
+1 failed, 1 passed, 21 deselected in 0.17s

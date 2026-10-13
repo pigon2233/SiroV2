@@ -1,0 +1,1772 @@
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/evidence/FIX-001/verify_http_rollback.py:2:1
+   |
+ 1 |   """Separate HTTP behavior verification and isolated source rollback reader rehearsal."""
+ 2 | / import json
+ 3 | | import os
+ 4 | | from pathlib import Path
+ 5 | | import shutil
+ 6 | | import subprocess
+ 7 | | import sys
+ 8 | | import tempfile
+ 9 | |
+10 | | from fastapi.testclient import TestClient
+11 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+12 | | from siro.persistence.sqlite import SQLiteStore
+13 | | from siro.ports.models import ModelChunk, Privacy, ToolCall
+14 | | from siro.services.presentation.gateway import GatewayHub, create_app
+15 | | from siro.services.presentation.integrated import IntegratedCompanion
+16 | | from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
+   | |___________________________________________________________________________________________^
+help: Organize imports
+   |
+3  | import os
+   - from pathlib import Path
+4  | import shutil
+5  | import subprocess
+6  | import sys
+7  | import tempfile
+8  + from pathlib import Path
+9  |
+10 | from fastapi.testclient import TestClient
+11 +
+12 | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+   |
+
+E501 Line too long (107 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:29:101
+   |
+27 |         self.rounds += 1
+28 |         yield ModelChunk("text", "partial")
+29 |         yield ModelChunk("tool_request", tool_call=ToolCall(f"http-{self.rounds}", "computer.execute", {}))
+   |                                                                                                     ^^^^^^^
+30 |         if self.continuation and self.rounds == 1:
+31 |             yield ModelChunk("finished")
+   |
+
+B023 Function definition does not bind loop variable `marker`
+  --> docs/evidence/FIX-001/verify_http_rollback.py:46:22
+   |
+45 |             async def effect(arguments):
+46 |                 with marker.open("a") as f:
+   |                      ^^^^^^
+47 |                     f.write("confirmed\n")
+48 |                 return {"confirmed": True}
+   |
+
+E501 Line too long (110 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:50:101
+   |
+48 | …         return {"confirmed": True}
+49 | …
+50 | …     orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {"computer.execute": effect})
+   |                                                                                               ^^^^^^^^^^
+51 | …     controller = IntegratedCompanion(data, model, GatewayHub(), MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOC…
+52 | …     app = create_app(on_startup=controller.startup, on_turn=controller.respond, on_recovery=controller.recovery_readback)
+   |
+
+E501 Line too long (234 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:51:101
+   |
+50 | …cute": effect})
+51 | …ebSocketBodyTransport()), privacy=Privacy.LOCAL_ONLY, runtime_profile=profile, tool_orchestrator=orchestrator, auto_authorize=lambda: True)
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+52 | …very=controller.recovery_readback)
+53 | …
+   |
+
+E501 Line too long (129 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:52:101
+   |
+50 | …     orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {"computer.execute": effect})
+51 | …     controller = IntegratedCompanion(data, model, GatewayHub(), MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOC…
+52 | …     app = create_app(on_startup=controller.startup, on_turn=controller.respond, on_recovery=controller.recovery_readback)
+   |                                                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+53 | …     with TestClient(app) as client:
+54 | …         token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()["token"]
+   |
+
+E501 Line too long (120 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:56:101
+   |
+54 |                 token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()["token"]
+55 |                 headers = {"authorization": f"Bearer {token}"}
+56 |                 response = client.post("/v1/conversations/http/turns", headers=headers, json={"text": "synthetic goal"})
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^
+57 |                 assert response.status_code == 200, response.text
+58 |                 readback = client.get("/v1/agent-runs/http", headers=headers)
+   |
+
+E501 Line too long (113 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:63:101
+   |
+61 |                 assert result["state"] == "failed" and result["error"] == "ConnectionError"
+62 |                 assert model.rounds == 1 + int(continuation)
+63 |                 assert (marker.read_text() if marker.exists() else "") == ("confirmed\n" if continuation else "")
+   |                                                                                                     ^^^^^^^^^^^^^
+64 |             print(f"HTTP {profile} continuation={continuation}: PASS")
+65 |             if profile == "candidate" and continuation:
+   |
+
+E501 Line too long (128 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:70:101
+   |
+68 |     previous = root / "previous"
+69 |     shutil.copytree("src/siro", previous / "siro")
+70 |     for relative, snapshot in [("services/presentation/integrated.py", "integrated.py"), ("core/companion.py", "companion.py")]:
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+71 |         shutil.copyfile(Path("docs/evidence/FIX-001/before") / snapshot, previous / "siro" / relative)
+72 |     expected = root / "expected.json"
+   |
+
+E501 Line too long (102 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:71:101
+   |
+69 |     shutil.copytree("src/siro", previous / "siro")
+70 |     for relative, snapshot in [("services/presentation/integrated.py", "integrated.py"), ("core/companion.py", "companion.py")]:
+71 |         shutil.copyfile(Path("docs/evidence/FIX-001/before") / snapshot, previous / "siro" / relative)
+   |                                                                                                     ^^
+72 |     expected = root / "expected.json"
+73 |     expected.write_text(json.dumps(rollback_result))
+   |
+
+E501 Line too long (188 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:95:101
+   |
+93 | …
+94 | …
+95 | …, str(expected)], env={**os.environ, "PYTHONPATH": str(previous)}, capture_output=True, text=True, timeout=20)
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+96 | …
+97 | …ged effect: PASS")
+   |
+
+E501 Line too long (101 > 100)
+  --> docs/evidence/FIX-001/verify_http_rollback.py:98:101
+   |
+96 |     assert outcome.returncode == 0, outcome.stderr
+97 |     print("Temporary prior-source legacy readback / text-only restart / unchanged effect: PASS")
+98 |     print("Deployed rollback and re-enabling failed-intent tool dispatch: NOT VERIFIED / prohibited")
+   |                                                                                                     ^
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/evidence/RT-003-FIX-01/identity_crash.py:2:1
+   |
+ 1 |   """Crash before/after atomic candidate proposal insert/binding; isolated synthetic data."""
+ 2 | / import asyncio
+ 3 | | import os
+ 4 | | from pathlib import Path
+ 5 | | import sys
+ 6 | |
+ 7 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+ 8 | | from siro.persistence.sqlite import SQLiteStore
+ 9 | | from siro.ports.models import ModelChunk, Privacy, ToolCall
+10 | | from siro.services.presentation.gateway import GatewayHub
+11 | | from siro.services.presentation.integrated import IntegratedCompanion
+12 | | from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
+   | |___________________________________________________________________________________________^
+13 |
+14 |   class Model:
+   |
+help: Organize imports
+   |
+3  | import os
+4  + import sys
+5  | from pathlib import Path
+   - import sys
+6  |
+--------------------------------------------------------------------------------
+13 |
+14 +
+15 | class Model:
+   |
+
+E501 Line too long (232 > 100)
+  --> docs/evidence/RT-003-FIX-01/identity_crash.py:35:101
+   |
+33 | …
+34 | …
+35 | …etBodyTransport()), privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator, runtime_profile='candidate', auto_authorize=lambda: True)
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+36 | …
+37 | …
+   |
+
+E501 Line too long (103 > 100)
+ --> docs/evidence/RT-003-FIX-01/verify_identity_rollback.py:1:101
+  |
+1 | """Independent production-path identity/no-replay verification and compatibility rollback rehearsal."""
+  |                                                                                                     ^^^
+2 | import asyncio
+3 | import json
+  |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/evidence/RT-003-FIX-01/verify_identity_rollback.py:2:1
+   |
+ 1 |   """Independent production-path identity/no-replay verification and compatibility rollback rehearsal."""
+ 2 | / import asyncio
+ 3 | | import json
+ 4 | | import os
+ 5 | | from pathlib import Path
+ 6 | | import shutil
+ 7 | | import subprocess
+ 8 | | import sys
+ 9 | | import tempfile
+10 | |
+11 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+12 | | from siro.persistence.sqlite import SQLiteStore
+13 | | from siro.ports.models import ModelChunk, Privacy, ToolCall
+14 | | from siro.services.presentation.gateway import GatewayHub
+15 | | from siro.services.presentation.integrated import IntegratedCompanion
+16 | | from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
+   | |___________________________________________________________________________________________^
+17 |
+18 |   class Model:
+   |
+help: Organize imports
+   |
+4  | import os
+   - from pathlib import Path
+5  | import shutil
+6  | import subprocess
+7  | import sys
+8  | import tempfile
+9  + from pathlib import Path
+10 |
+--------------------------------------------------------------------------------
+17 |
+18 +
+19 | class Model:
+   |
+
+RUF059 Unpacked variable `orchestrator` is never used
+  --> docs/evidence/RT-003-FIX-01/verify_identity_rollback.py:44:35
+   |
+42 |     for index in range(3):
+43 |         if index==2:
+44 |             controller,repository,orchestrator=build()
+   |                                   ^^^^^^^^^^^^
+45 |         await controller.respond('same',f'goal-{index}')
+46 |         result=await controller.recovery_readback('same')
+   |
+help: Prefix it with an underscore or any other dummy variable pattern
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-003-FIX-01/verify_identity_rollback.py:62:34
+   |
+60 |     root=Path(directory)
+61 |     pending,proposal_id=asyncio.run(verify(root/'data'))
+62 |     expected=root/'expected.json'; expected.write_text(json.dumps(pending))
+   |                                  ^
+63 |     previous=root/'previous'
+64 |     shutil.copytree('src/siro',previous/'siro')
+   |
+
+E501 Line too long (135 > 100)
+   --> docs/evidence/RT-003-FIX-01/verify_identity_rollback.py:100:101
+    |
+ 98 | …pt,str(root/'data'),str(expected),proposal_id],env={**os.environ,'PYTHONPATH':str(previous)},capture_output=True,text=True,timeout=2…
+ 99 | …
+100 | …er/guard: original IDs/readback, fenced approval, text restart, zero replay: PASS')
+    |                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+101 | …der/guard: NOT a safe rollback; deployed rollback NOT VERIFIED')
+    |
+
+E501 Line too long (116 > 100)
+   --> docs/evidence/RT-003-FIX-01/verify_identity_rollback.py:101:101
+    |
+ 99 |     assert outcome.returncode==0,outcome.stderr
+100 |     print('Temporary caller rollback + retained reader/guard: original IDs/readback, fenced approval, text restart, zero replay: PASS…
+101 |     print('Full old binary without compatibility reader/guard: NOT a safe rollback; deployed rollback NOT VERIFIED')
+    |                                                                                                     ^^^^^^^^^^^^^^^^
+
+E401 [*] Multiple imports on one line
+ --> docs/evidence/RT-004/measure.py:1:1
+  |
+1 | import asyncio,sys,os,json,tempfile,time,platform
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 | from pathlib import Path
+3 | from siro.services.tools.execution import execute_bounded_argv
+  |
+help: Split imports
+  |
+  - import asyncio,sys,os,json,tempfile,time,platform
+1 + import asyncio
+2 + import sys
+3 + import os
+4 + import json
+5 + import tempfile
+6 + import time
+7 + import platform
+8 | from pathlib import Path
+  |
+
+I001 [*] Import block is un-sorted or un-formatted
+ --> docs/evidence/RT-004/measure.py:1:1
+  |
+1 | / import asyncio,sys,os,json,tempfile,time,platform
+2 | | from pathlib import Path
+3 | | from siro.services.tools.execution import execute_bounded_argv
+  | |______________________________________________________________^
+4 |
+5 |   def rss():
+  |
+help: Organize imports
+   |
+   - import asyncio,sys,os,json,tempfile,time,platform
+1  + import asyncio
+2  + import json
+3  + import os
+4  + import platform
+5  + import sys
+6  + import tempfile
+7  + import time
+8  | from pathlib import Path
+9  +
+10 | from siro.services.tools.execution import execute_bounded_argv
+11 |
+12 +
+13 | def rss():
+   |
+
+E501 Line too long (122 > 100)
+ --> docs/evidence/RT-004/measure.py:6:101
+  |
+5 | def rss():
+6 |  return next(int(x.split()[1])*1024 for x in Path('/proc/self/status').read_text().splitlines() if x.startswith('VmRSS:'))
+  |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^
+7 | async def main():
+8 |  base=rss(); samples=[base]; stopped=asyncio.Event()
+  |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-004/measure.py:8:12
+   |
+ 6 |  return next(int(x.split()[1])*1024 for x in Path('/proc/self/status').read_text().splitlines() if x.startswith('VmRSS:'))
+ 7 | async def main():
+ 8 |  base=rss(); samples=[base]; stopped=asyncio.Event()
+   |            ^
+ 9 |  async def monitor():
+10 |   while not stopped.is_set():
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-004/measure.py:8:28
+   |
+ 6 |  return next(int(x.split()[1])*1024 for x in Path('/proc/self/status').read_text().splitlines() if x.startswith('VmRSS:'))
+ 7 | async def main():
+ 8 |  base=rss(); samples=[base]; stopped=asyncio.Event()
+   |                            ^
+ 9 |  async def monitor():
+10 |   while not stopped.is_set():
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-004/measure.py:11:25
+   |
+ 9 |  async def monitor():
+10 |   while not stopped.is_set():
+11 |    samples.append(rss()); await asyncio.sleep(.001)
+   |                         ^
+12 |  task=asyncio.create_task(monitor()); started=time.monotonic()
+13 |  with tempfile.TemporaryDirectory() as d:
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-004/measure.py:12:37
+   |
+10 |   while not stopped.is_set():
+11 |    samples.append(rss()); await asyncio.sleep(.001)
+12 |  task=asyncio.create_task(monitor()); started=time.monotonic()
+   |                                     ^
+13 |  with tempfile.TemporaryDirectory() as d:
+14 |   result=await execute_bounded_argv((sys.executable,'-c',"import os; b=b'x'*65536; [(os.write(1,b),os.write(2,b)) for _ in range(800)]…
+   |
+
+E501 Line too long (190 > 100)
+  --> docs/evidence/RT-004/measure.py:14:101
+   |
+12 | …
+13 | …
+14 | …36; [(os.write(1,b),os.write(2,b)) for _ in range(800)]"),cwd=Path(d),environment=os.environ.copy(),timeout=20)
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+15 | …
+16 | …:len(result['stdout'].encode())+len(result['stderr'].encode()),'truncated':result['truncated'],'returncode':result['returncode'],'rss…
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-004/measure.py:15:15
+   |
+13 |  with tempfile.TemporaryDirectory() as d:
+14 |   result=await execute_bounded_argv((sys.executable,'-c',"import os; b=b'x'*65536; [(os.write(1,b),os.write(2,b)) for _ in range(800)]…
+15 |  stopped.set(); await task
+   |               ^
+16 |  report={'profile':'candidate','generated_bytes':100*1024*1024,'retained_bytes':len(result['stdout'].encode())+len(result['stderr'].en…
+17 |  assert report['retained_bytes']<=65536 and report['rss_delta_bytes']<32*1024*1024
+   |
+
+E501 Line too long (504 > 100)
+  --> docs/evidence/RT-004/measure.py:16:101
+   |
+14 | …,b),os.write(2,b)) for _ in range(800)]"),cwd=Path(d),environment=os.environ.copy(),timeout=20)
+15 | …
+16 | …out'].encode())+len(result['stderr'].encode()),'tr…utor Python parent only; child RSS excluded'}
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^…^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+17 | …
+18 | …nt(json.dumps(report))
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-004/measure.py:18:92
+   |
+16 |  report={'profile':'candidate','generated_bytes':100*1024*1024,'retained_bytes':len(result['stdout'].encode())+len(result['stderr'].en…
+17 |  assert report['retained_bytes']<=65536 and report['rss_delta_bytes']<32*1024*1024
+18 |  Path('docs/evidence/RT-004/measurement.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
+   |                                                                                            ^
+19 | asyncio.run(main())
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+ --> docs/evidence/RT-004/verification/profile_probe.py:2:1
+  |
+1 |   """Verification-only reproduction; production/test sources remain unchanged."""
+2 | / from pathlib import Path
+3 | | import tempfile
+4 | | import subprocess
+5 | | import os
+6 | | import sys
+  | |__________^
+7 |
+8 |   root = Path(__file__).resolve().parents[4]
+  |
+help: Organize imports
+  |
+1 | """Verification-only reproduction; production/test sources remain unchanged."""
+  - from pathlib import Path
+  - import tempfile
+2 + import os
+3 | import subprocess
+  - import os
+4 | import sys
+5 + import tempfile
+6 + from pathlib import Path
+7 |
+  |
+
+E501 Line too long (141 > 100)
+  --> docs/evidence/RT-004/verification/profile_probe.py:12:101
+   |
+10 | …
+11 | …]', 1)
+12 | …equests.append(request)\n            os.environ["SIRO_RUNTIME_PROFILE"] = "legacy"', 1)
+   |                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+13 | …
+14 | …
+   |
+
+E501 Line too long (168 > 100)
+  --> docs/evidence/RT-004/verification/profile_probe.py:21:101
+   |
+19 | …
+20 | …1)
+21 | …equests) == 2\n    assert bounded_calls == [], "environment mutation bypasses bounded executor"', 1)
+   |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+22 | …as td:
+23 | …
+   |
+
+E501 Line too long (121 > 100)
+  --> docs/evidence/RT-004/verification/profile_probe.py:24:101
+   |
+22 | with tempfile.TemporaryDirectory(prefix="siro-rt004-verification-") as td:
+23 |     target = Path(td) / "test_profile_probe.py"
+24 |     target.write_text('from __future__ import annotations\nimport os,sys\nfrom pathlib import Path\nimport pytest\n' + s)
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^
+25 |     env = os.environ.copy()
+26 |     env["PYTHONPATH"] = str(root / "src")
+   |
+
+E501 Line too long (126 > 100)
+  --> docs/evidence/RT-004/verification/profile_probe.py:29:101
+   |
+27 |     result = subprocess.run([sys.executable, "-m", "pytest", "-q", str(target)], cwd=root, env=env)
+28 |     if result.returncode == 0:
+29 |         print("CONFIRMED: candidate controller completed with zero bounded executor calls after in-process profile mutation.")
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+30 |     raise SystemExit(result.returncode)
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:2:1
+   |
+ 1 |   """Separate real-file cancellation verification and isolated prior-source rollback rehearsal."""
+ 2 | / import asyncio
+ 3 | | import json
+ 4 | | import os
+ 5 | | from pathlib import Path
+ 6 | | import shutil
+ 7 | | import subprocess
+ 8 | | import sys
+ 9 | | import tempfile
+10 | |
+11 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+12 | | from siro.persistence.sqlite import SQLiteStore
+13 | | from siro.ports.models import ModelChunk, Privacy, ToolCall
+14 | | from siro.services.presentation.gateway import GatewayHub
+15 | | from siro.services.presentation.integrated import IntegratedCompanion
+16 | | from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
+   | |___________________________________________________________________________________________^
+17 |
+18 |   class Model:
+   |
+help: Organize imports
+   |
+4  | import os
+   - from pathlib import Path
+5  | import shutil
+6  | import subprocess
+7  | import sys
+8  | import tempfile
+9  + from pathlib import Path
+10 |
+--------------------------------------------------------------------------------
+17 |
+18 +
+19 | class Model:
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:25:38
+   |
+24 | async def verify(data):
+25 |     store=SQLiteStore(data/'siro.db'); await store.initialize()
+   |                                      ^
+26 |     entered,release=asyncio.Event(),asyncio.Event()
+27 |     async def handler(arguments):
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:44:18
+   |
+42 |     elapsed=asyncio.get_running_loop().time()-start
+43 |     assert elapsed<5 and (data/'cleanup.txt').read_text()=='cleaned'
+44 |     release.set();await task
+   |                  ^
+45 |     assert not (data/'effect.txt').exists()
+46 |     result=await controller.recovery_readback('cancel')
+   |
+
+E501 Line too long (103 > 100)
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:49:101
+   |
+47 |     assert result['state']=='cancelled'
+48 |     assert not any(orchestrator._active.values())
+49 |     print(f'Real file cleanup precedes terminal; no effect/new dispatch, elapsed={elapsed:.3f}s: PASS')
+   |                                                                                                     ^^^
+50 |     return result
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:53:25
+   |
+52 | with tempfile.TemporaryDirectory(prefix='siro-cancel-rollback-') as directory:
+53 |     root=Path(directory); result=asyncio.run(verify(root/'data'))
+   |                         ^
+54 |     expected=root/'expected.json';expected.write_text(json.dumps(result))
+55 |     previous=root/'previous';shutil.copytree('src/siro',previous/'siro')
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:54:34
+   |
+52 | with tempfile.TemporaryDirectory(prefix='siro-cancel-rollback-') as directory:
+53 |     root=Path(directory); result=asyncio.run(verify(root/'data'))
+54 |     expected=root/'expected.json';expected.write_text(json.dumps(result))
+   |                                  ^
+55 |     previous=root/'previous';shutil.copytree('src/siro',previous/'siro')
+56 |     for path in ['services/tools/orchestrator.py','services/presentation/gateway.py','adapters/browser.py']:
+   |
+
+E702 Multiple statements on one line (semicolon)
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:55:29
+   |
+53 |     root=Path(directory); result=asyncio.run(verify(root/'data'))
+54 |     expected=root/'expected.json';expected.write_text(json.dumps(result))
+55 |     previous=root/'previous';shutil.copytree('src/siro',previous/'siro')
+   |                             ^
+56 |     for path in ['services/tools/orchestrator.py','services/presentation/gateway.py','adapters/browser.py']:
+57 |         shutil.copyfile(Path('docs/evidence/RT-005-FIX-01/before/src/siro')/path,previous/'siro'/path)
+   |
+
+E501 Line too long (108 > 100)
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:56:101
+   |
+54 |     expected=root/'expected.json';expected.write_text(json.dumps(result))
+55 |     previous=root/'previous';shutil.copytree('src/siro',previous/'siro')
+56 |     for path in ['services/tools/orchestrator.py','services/presentation/gateway.py','adapters/browser.py']:
+   |                                                                                                     ^^^^^^^^
+57 |         shutil.copyfile(Path('docs/evidence/RT-005-FIX-01/before/src/siro')/path,previous/'siro'/path)
+58 |     script='''
+   |
+
+E501 Line too long (114 > 100)
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:82:101
+   |
+80 |     outcome=subprocess.run([sys.executable,'-c',script,str(root/'data'),str(expected)],env={**os.environ,'PYTHONPATH':str(previous)},c…
+81 |     assert outcome.returncode==0,outcome.stderr
+82 |     print('Temporary exact pre-FIX source, legacy text-only restart, retained journal/unknown, zero replay: PASS')
+   |                                                                                                     ^^^^^^^^^^^^^^
+83 |     print('Candidate arguments-only dispatch after reverting is unsafe; deployed rollback NOT VERIFIED')
+   |
+
+E501 Line too long (104 > 100)
+  --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:83:101
+   |
+81 |     assert outcome.returncode==0,outcome.stderr
+82 |     print('Temporary exact pre-FIX source, legacy text-only restart, retained journal/unknown, zero replay: PASS')
+83 |     print('Candidate arguments-only dispatch after reverting is unsafe; deployed rollback NOT VERIFIED')
+   |                                                                                                     ^^^^
+
+SIM105 Use `contextlib.suppress(ExecutionCancelled)` instead of `try`-`except`-`pass`
+  --> docs/evidence/RT-005/measure_cancellation.py:56:13
+   |
+54 |               started = asyncio.get_running_loop().time()
+55 |               ctx.cancellation.cancel()
+56 | /             try:
+57 | |                 await task
+58 | |             except ExecutionCancelled:
+59 | |                 pass
+   | |____________________^
+60 |               elapsed = asyncio.get_running_loop().time() - started
+61 |               row = {
+   |
+help: Replace `try`-`except`-`pass` with `with contextlib.suppress(ExecutionCancelled): ...`
+
+RUF001 String contains ambiguous `，` (FULLWIDTH COMMA). Did you mean `,` (COMMA)?
+  --> docs/evidence/RT-006/measure_gpu.py:23:26
+   |
+21 |         tts = QwenReferenceTTS(root / '.siro-data/qwen-tts-venv/bin/python',
+22 |             root / 'scripts/qwen_tts_worker.py',root / '.siro-data/models/qwen3-tts-0.6b-base',
+23 |             reference,'爸爸，你回來啦？我等你好久了。今天有沒有發生什麼有趣的事？',
+   |                            ^^
+24 |             Path(temporary),lifecycle=True,startup_timeout=180,render_timeout=180)
+25 |         try:
+   |
+
+RUF001 String contains ambiguous `？` (FULLWIDTH QUESTION MARK). Did you mean `?` (QUESTION MARK)?
+  --> docs/evidence/RT-006/measure_gpu.py:23:31
+   |
+21 |         tts = QwenReferenceTTS(root / '.siro-data/qwen-tts-venv/bin/python',
+22 |             root / 'scripts/qwen_tts_worker.py',root / '.siro-data/models/qwen3-tts-0.6b-base',
+23 |             reference,'爸爸，你回來啦？我等你好久了。今天有沒有發生什麼有趣的事？',
+   |                                      ^^
+24 |             Path(temporary),lifecycle=True,startup_timeout=180,render_timeout=180)
+25 |         try:
+   |
+
+RUF001 String contains ambiguous `？` (FULLWIDTH QUESTION MARK). Did you mean `?` (QUESTION MARK)?
+  --> docs/evidence/RT-006/measure_gpu.py:23:52
+   |
+21 |         tts = QwenReferenceTTS(root / '.siro-data/qwen-tts-venv/bin/python',
+22 |             root / 'scripts/qwen_tts_worker.py',root / '.siro-data/models/qwen3-tts-0.6b-base',
+23 |             reference,'爸爸，你回來啦？我等你好久了。今天有沒有發生什麼有趣的事？',
+   |                                                                                ^^
+24 |             Path(temporary),lifecycle=True,startup_timeout=180,render_timeout=180)
+25 |         try:
+   |
+
+RUF001 String contains ambiguous `，` (FULLWIDTH COMMA). Did you mean `,` (COMMA)?
+  --> docs/evidence/RT-006/measure_gpu.py:28:43
+   |
+26 |             for _ in range(2):
+27 |                 start=time.monotonic()
+28 |                 audio=await tts.render('爸爸，我在這裡。')
+   |                                             ^^
+29 |                 info=sf.info(io.BytesIO(audio))
+30 |                 metrics['renders'].append({'seconds':time.monotonic()-start,
+   |
+
+RUF001 String contains ambiguous `，` (FULLWIDTH COMMA). Did you mean `,` (COMMA)?
+  --> docs/evidence/RT-006/measure_gpu.py:35:65
+   |
+33 |                     'frames':info.frames,'pid':tts._process.pid})
+34 |             old=tts._process
+35 |             task=asyncio.create_task(tts.render('這是一段用來檢查取消的合成語句，今天的天空很美麗。'))
+   |                                                                                ^^
+36 |             await asyncio.sleep(.5)
+37 |             start=time.monotonic()
+   |
+
+SIM105 Use `contextlib.suppress(asyncio.CancelledError)` instead of `try`-`except`-`pass`
+  --> docs/evidence/RT-006/measure_gpu.py:39:13
+   |
+37 |               start=time.monotonic()
+38 |               task.cancel()
+39 | /             try:await task
+40 | |             except asyncio.CancelledError:pass
+   | |______________________________________________^
+41 |               assert old.returncode is not None and tts._process is None
+42 |               metrics['cancel_seconds']=time.monotonic()-start
+   |
+help: Replace `try`-`except`-`pass` with `with contextlib.suppress(asyncio.CancelledError): ...`
+
+E701 Multiple statements on one line (colon)
+  --> docs/evidence/RT-006/measure_gpu.py:39:16
+   |
+37 |             start=time.monotonic()
+38 |             task.cancel()
+39 |             try:await task
+   |                ^
+40 |             except asyncio.CancelledError:pass
+41 |             assert old.returncode is not None and tts._process is None
+   |
+
+E701 Multiple statements on one line (colon)
+  --> docs/evidence/RT-006/measure_gpu.py:40:42
+   |
+38 |             task.cancel()
+39 |             try:await task
+40 |             except asyncio.CancelledError:pass
+   |                                          ^
+41 |             assert old.returncode is not None and tts._process is None
+42 |             metrics['cancel_seconds']=time.monotonic()-start
+   |
+
+RUF001 String contains ambiguous `，` (FULLWIDTH COMMA). Did you mean `,` (COMMA)?
+  --> docs/evidence/RT-006/measure_gpu.py:44:39
+   |
+42 |             metrics['cancel_seconds']=time.monotonic()-start
+43 |             metrics['old_reaped']=not Path('/proc',str(old.pid)).exists()
+44 |             audio=await tts.render('爸爸，我在這裡。')
+   |                                         ^^
+45 |             metrics['restart_pid']=tts._process.pid
+46 |             assert metrics['restart_pid']!=old.pid
+   |
+
+E701 Multiple statements on one line (colon)
+  --> docs/evidence/RT-006/measure_gpu.py:49:16
+   |
+47 |             assert hashlib.sha256(audio).hexdigest()==metrics['renders'][0]['sha256']
+48 |             last=tts._process
+49 |         finally:await tts.close()
+   |                ^
+50 |         metrics['final_reaped']=not Path('/proc',str(last.pid)).exists()
+51 |     metrics['reference_after']=hashlib.sha256(reference.read_bytes()).hexdigest()
+   |
+
+E501 Line too long (112 > 100)
+  --> docs/evidence/RT-007/main_smoke.py:38:101
+   |
+36 |                 token=json.load(response)['token']
+37 |             headers={'Authorization':f'Bearer {token}'}
+38 |             with urllib.request.urlopen(urllib.request.Request(base+'/v1/runtime',headers=headers)) as response:
+   |                                                                                                     ^^^^^^^^^^^^
+39 |                 before=json.load(response)
+40 |             assert before['runtime_profile']=='candidate' and before['catalog_enabled']
+   |
+
+E501 Line too long (112 > 100)
+  --> docs/evidence/RT-007/main_smoke.py:47:101
+   |
+45 |             with urllib.request.urlopen(request) as response:
+46 |                 assert json.load(response)['enabled'] is False
+47 |             with urllib.request.urlopen(urllib.request.Request(base+'/v1/runtime',headers=headers)) as response:
+   |                                                                                                     ^^^^^^^^^^^^
+48 |                 after=json.load(response)
+49 |             assert not any(t['available'] for t in after['tools'])
+   |
+
+E701 Multiple statements on one line (colon)
+  --> docs/evidence/RT-007/main_smoke.py:55:36
+   |
+53 |                 'tools_off_all_unavailable':True}))
+54 |         finally:
+55 |             if child.poll() is None:child.terminate()
+   |                                    ^
+56 |             child.wait(timeout=10)
+57 |             print(json.dumps({'shutdown_exit':child.returncode}))
+   |
+
+E501 Line too long (108 > 100)
+  --> docs/evidence/RT-008/main_smoke.py:18:101
+   |
+16 |     port = listener.getsockname()[1]
+17 | with tempfile.TemporaryDirectory(prefix='rt008-main-') as directory:
+18 |     environment = {k: v for k, v in os.environ.items() if not k.startswith('SIRO_') and k != 'GROQ_API_KEY'}
+   |                                                                                                     ^^^^^^^^
+19 |     fixture = subprocess.run([sys.executable, 'tests/fixtures/run_journal_crash.py', directory,
+20 |                               'before_observation'], env=environment, capture_output=True, timeout=20)
+   |
+
+E501 Line too long (102 > 100)
+  --> docs/evidence/RT-008/main_smoke.py:20:101
+   |
+18 |     environment = {k: v for k, v in os.environ.items() if not k.startswith('SIRO_') and k != 'GROQ_API_KEY'}
+19 |     fixture = subprocess.run([sys.executable, 'tests/fixtures/run_journal_crash.py', directory,
+20 |                               'before_observation'], env=environment, capture_output=True, timeout=20)
+   |                                                                                                     ^^
+21 |     assert fixture.returncode == 42
+22 |     marker = Path(directory) / 'effect.txt'
+   |
+
+E501 Line too long (103 > 100)
+  --> docs/evidence/RT-008/main_smoke.py:52:101
+   |
+50 |             assert readback['state'] == 'failed' and readback['error'] == 'outcome_unknown'
+51 |             assert readback['model_rounds'] == 1 and readback['tool_calls'] == 1
+52 |             assert [m['role'] for m in readback['messages']] == ['system', 'user', 'assistant', 'tool']
+   |                                                                                                     ^^^
+53 |             assert marker.read_text() == before
+54 |             with urllib.request.urlopen(base + '/') as response:
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/evidence/RT-011/ar06-ar07/deferred_probe.py:2:1
+   |
+ 1 |   """Synthetic gate evidence; no provider, private data, or tool effects."""
+ 2 | / import asyncio
+ 3 | | import json
+ 4 | | from datetime import UTC, datetime
+ 5 | | from pathlib import Path
+ 6 | | from siro.core.consolidation import ConsolidationScheduler
+ 7 | | from siro.ports.models import ModelMessage, ModelRequest, Privacy
+ 8 | | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+ 9 | | from siro.services.agent.native_context import GPTOSSBudget
+   | |___________________________________________________________^
+10 |
+11 |   async def main():
+   |
+help: Organize imports
+   |
+5  | from pathlib import Path
+6  +
+7  + from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+8  | from siro.core.consolidation import ConsolidationScheduler
+9  | from siro.ports.models import ModelMessage, ModelRequest, Privacy
+   - from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+10 | from siro.services.agent.native_context import GPTOSSBudget
+11 |
+12 +
+13 | async def main():
+   |
+
+E501 Line too long (121 > 100)
+  --> docs/evidence/RT-011/ar06-ar07/deferred_probe.py:17:101
+   |
+15 |     scheduler = ConsolidationScheduler(Fake())
+16 |     for index in range(100):
+17 |         await scheduler.schedule(str(index), 'synthetic', (), now=datetime.now(UTC), idle=True, resources_available=True)
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^
+18 |     await asyncio.sleep(0)
+19 |     retained = len(scheduler._runs)
+   |
+
+E501 Line too long (126 > 100)
+  --> docs/evidence/RT-011/ar06-ar07/deferred_probe.py:22:101
+   |
+20 |     active = sum(not item.task.done() for item in scheduler._runs.values())
+21 |     await scheduler.close()
+22 |     adapter = OpenAICompatibleAdapter(base_url='https://api.groq.com/openai', api_key='synthetic', model='openai/gpt-oss-20b')
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+23 |     budget = GPTOSSBudget(Path('.siro-data/tokenizers/gpt-oss-20b'), adapter.request_payload)
+24 |     messages = [ModelMessage('system', 'Synthetic goal and authorization preserved.')]
+   |
+
+B007 Loop control variable `index` not used within loop body
+  --> docs/evidence/RT-011/ar06-ar07/deferred_probe.py:25:9
+   |
+23 |     budget = GPTOSSBudget(Path('.siro-data/tokenizers/gpt-oss-20b'), adapter.request_payload)
+24 |     messages = [ModelMessage('system', 'Synthetic goal and authorization preserved.')]
+25 |     for index in range(6):
+   |         ^^^^^
+26 |         messages.extend([ModelMessage('user', '合成日常對話。' * 100), ModelMessage('assistant', '合成回答。' * 100)])
+27 |     request = ModelRequest('synthetic', 'goal', Privacy.CLOUD_ALLOWED, messages=tuple(messages), max_output_tokens=512)
+   |
+help: Rename unused `index` to `_index`
+
+E501 Line too long (118 > 100)
+  --> docs/evidence/RT-011/ar06-ar07/deferred_probe.py:26:93
+   |
+24 |     messages = [ModelMessage('system', 'Synthetic goal and authorization preserved.')]
+25 |     for index in range(6):
+26 |         messages.extend([ModelMessage('user', '合成日常對話。' * 100), ModelMessage('assistant', '合成回答。' * 100)])
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^
+27 |     request = ModelRequest('synthetic', 'goal', Privacy.CLOUD_ALLOWED, messages=tuple(messages), max_output_tokens=512)
+28 |     count = budget.validate(request)
+   |
+
+E501 Line too long (119 > 100)
+  --> docs/evidence/RT-011/ar06-ar07/deferred_probe.py:27:101
+   |
+25 |     for index in range(6):
+26 |         messages.extend([ModelMessage('user', '合成日常對話。' * 100), ModelMessage('assistant', '合成回答。' * 100)])
+27 |     request = ModelRequest('synthetic', 'goal', Privacy.CLOUD_ALLOWED, messages=tuple(messages), max_output_tokens=512)
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^
+28 |     count = budget.validate(request)
+29 |     print(json.dumps({'scheduler_completed_retained': retained, 'scheduler_active': active, 'after_close': len(scheduler._runs), 'six_…
+   |
+
+E501 Line too long (207 > 100)
+  --> docs/evidence/RT-011/ar06-ar07/deferred_probe.py:29:101
+   |
+27 | …essages), max_output_tokens=512)
+28 | …
+29 | …ive, 'after_close': len(scheduler._runs), 'six_pairs_reference_tokens': count, 'summary_need_proven': False}, indent=2))
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+30 | …
+31 | …
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/evidence/RT-011/token-completion/real_provider_probe.py:3:1
+   |
+ 1 |   """Synthetic-only Groq probe; outputs token counts/status, never credentials/content."""
+ 2 |
+ 3 | / from __future__ import annotations
+ 4 | |
+ 5 | | import asyncio
+ 6 | | import json
+ 7 | | from pathlib import Path
+ 8 | |
+ 9 | | import httpx
+10 | |
+11 | | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+12 | | from siro.ports.models import CancellationToken, ModelMessage, ModelRequest, Privacy, ToolCall, ToolDefinition
+13 | | from siro.services.agent.context import ContextBudgetModel
+14 | | from siro.services.agent.native_context import GPTOSSBudget
+   | |___________________________________________________________^
+help: Organize imports
+   |
+11 | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+   - from siro.ports.models import CancellationToken, ModelMessage, ModelRequest, Privacy, ToolCall, ToolDefinition
+12 + from siro.ports.models import (
+13 +     CancellationToken,
+14 +     ModelMessage,
+15 +     ModelRequest,
+16 +     Privacy,
+17 +     ToolCall,
+18 +     ToolDefinition,
+19 + )
+20 | from siro.services.agent.context import ContextBudgetModel
+   |
+
+E501 Line too long (110 > 100)
+  --> docs/evidence/RT-011/token-completion/real_provider_probe.py:12:101
+   |
+11 | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+12 | from siro.ports.models import CancellationToken, ModelMessage, ModelRequest, Privacy, ToolCall, ToolDefinition
+   |                                                                                                     ^^^^^^^^^^
+13 | from siro.services.agent.context import ContextBudgetModel
+14 | from siro.services.agent.native_context import GPTOSSBudget
+   |
+
+E501 Line too long (147 > 100)
+  --> docs/evidence/RT-011/token-completion/real_provider_probe.py:50:101
+   |
+48 | …
+49 | …
+50 | …reply OK, do not use tools.", "synthetic", Privacy.CLOUD_ALLOWED, max_output_tokens=128)),
+   |                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+51 | …tic", Privacy.CLOUD_ALLOWED, max_output_tokens=128,
+52 | …thetic fixture only; no execution.", {"type":"object", "properties":{"flag":{"type":"boolean"}}}),),
+   |
+
+E501 Line too long (108 > 100)
+  --> docs/evidence/RT-011/token-completion/real_provider_probe.py:51:101
+   |
+49 |     for name, request in [
+50 |         ("plain", ModelRequest("Synthetic token fixture: reply OK, do not use tools.", "synthetic", Privacy.CLOUD_ALLOWED, max_output_…
+51 |         ("paired_tool", ModelRequest("synthetic", "synthetic", Privacy.CLOUD_ALLOWED, max_output_tokens=128,
+   |                                                                                                     ^^^^^^^^
+52 |             tools=(ToolDefinition("fixture_inspect", "Synthetic fixture only; no execution.", {"type":"object", "properties":{"flag":{…
+53 |             messages=(ModelMessage("system", "Synthetic tokenizer verification; do not call tools."),
+   |
+
+E501 Line too long (157 > 100)
+  --> docs/evidence/RT-011/token-completion/real_provider_probe.py:52:101
+   |
+50 | … OK, do not use tools.", "synthetic", Privacy.CLOUD_ALLOWED, max_output_tokens=128)),
+51 | … Privacy.CLOUD_ALLOWED, max_output_tokens=128,
+52 | …c fixture only; no execution.", {"type":"object", "properties":{"flag":{"type":"boolean"}}}),),
+   |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+53 | …zer verification; do not call tools."),
+54 | …,
+   |
+
+E501 Line too long (101 > 100)
+  --> docs/evidence/RT-011/token-completion/real_provider_probe.py:53:101
+   |
+51 | …     ("paired_tool", ModelRequest("synthetic", "synthetic", Privacy.CLOUD_ALLOWED, max_output_tokens=128,
+52 | …         tools=(ToolDefinition("fixture_inspect", "Synthetic fixture only; no execution.", {"type":"object", "properties":{"flag":{"t…
+53 | …         messages=(ModelMessage("system", "Synthetic tokenizer verification; do not call tools."),
+   |                                                                                                   ^
+54 | …                   ModelMessage("user", "Please reply OK."),
+55 | …                   ModelMessage("assistant", "", (ToolCall("fixture", "fixture_inspect", {"flag":True}),)),
+   |
+
+E501 Line too long (110 > 100)
+  --> docs/evidence/RT-011/token-completion/real_provider_probe.py:55:101
+   |
+53 |             messages=(ModelMessage("system", "Synthetic tokenizer verification; do not call tools."),
+54 |                       ModelMessage("user", "Please reply OK."),
+55 |                       ModelMessage("assistant", "", (ToolCall("fixture", "fixture_inspect", {"flag":True}),)),
+   |                                                                                                     ^^^^^^^^^^
+56 |                       ModelMessage("tool", '{"synthetic":true}', tool_call_id="fixture"))))
+57 |     ]:
+   |
+
+E501 Line too long (121 > 100)
+  --> docs/evidence/RT-011/token-completion/real_provider_probe.py:62:101
+   |
+60 |         usage = usages[-1]
+61 |         covered = usage["prompt_tokens"] <= reference + 256
+62 |         row = {"case":name,"reference_input_tokens":reference,**usage,"safety_tokens":256,"server_count_covered":covered}
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^
+63 |         rows.append(row)
+64 |         print(json.dumps(row))
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/runtime-evolution/verification/RT005_2026-10-01/test_independent.py:1:1
+   |
+ 1 | / import asyncio
+ 2 | | from pathlib import Path
+ 3 | | import pytest
+ 4 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+ 5 | | from siro.persistence.sqlite import SQLiteStore
+ 6 | | from siro.ports.models import ModelChunk, Privacy, ToolCall
+ 7 | | from siro.services.presentation.gateway import GatewayHub
+ 8 | | from siro.services.presentation.integrated import IntegratedCompanion
+ 9 | | from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
+   | |___________________________________________________________________________________________^
+10 |
+11 |   class Socket:
+   |
+help: Organize imports
+   |
+2  | from pathlib import Path
+3  +
+4  | import pytest
+5  +
+6  | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+--------------------------------------------------------------------------------
+12 |
+13 +
+14 | class Socket:
+   |
+
+E501 Line too long (106 > 100)
+  --> docs/runtime-evolution/verification/RT005_2026-10-01/test_independent.py:28:101
+   |
+26 |     async def stream(self, request, cancellation):
+27 |         for i in range(10):
+28 |             yield ModelChunk('tool_request', tool_call=ToolCall(str(i), 'computer.execute', {'index': i}))
+   |                                                                                                     ^^^^^^
+29 |         yield ModelChunk('finished')
+   |
+
+E501 Line too long (151 > 100)
+  --> docs/runtime-evolution/verification/RT005_2026-10-01/test_independent.py:44:101
+   |
+42 | …
+43 | …
+44 | …itory(store), {'computer.execute': old}, contextual_executors={'computer.execute': execute})
+   |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+45 | …
+46 | …
+   |
+
+E501 Line too long (227 > 100)
+  --> docs/runtime-evolution/verification/RT005_2026-10-01/test_independent.py:49:101
+   |
+47 | …
+48 | …
+49 | …yTransport()), privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator, runtime_profile='candidate', auto_authorize=lambda: True)
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+50 | …
+51 | …
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+ --> docs/runtime-evolution/verification/RT006_2026-10-01/verify_frontend_cancel.py:2:1
+  |
+1 |   """Execute actual frontend functions with a pending synthetic fetch; no network/audio."""
+2 | / from pathlib import Path
+3 | | import subprocess
+  | |_________________^
+4 |
+5 |   html = Path('src/siro/services/presentation/static/index.html').read_text()
+  |
+help: Organize imports
+  |
+1 | """Execute actual frontend functions with a pending synthetic fetch; no network/audio."""
+2 + import subprocess
+3 | from pathlib import Path
+  - import subprocess
+4 |
+  |
+
+E501 Line too long (114 > 100)
+ --> docs/runtime-evolution/verification/RT006_2026-10-01/verify_frontend_cancel.py:7:101
+  |
+5 | html = Path('src/siro/services/presentation/static/index.html').read_text()
+6 | play = html[html.index('async function playTts('):html.index('function wavFromBuffer(')]
+7 | cancel = next(line.strip() for line in html.splitlines() if 'document.querySelector("#cancel").onclick =' in line)
+  |                                                                                                     ^^^^^^^^^^^^^^
+8 | script = '''
+9 | const assert = require('node:assert/strict');
+  |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:1:1
+   |
+ 1 | / from __future__ import annotations
+ 2 | | import asyncio
+ 3 | | from pathlib import Path
+ 4 | | import pytest
+ 5 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+ 6 | | from siro.persistence.sqlite import SQLiteStore
+ 7 | | from siro.ports.models import ModelChunk, Privacy, ToolCall
+ 8 | | from siro.services.presentation.gateway import GatewayHub
+ 9 | | from siro.services.presentation.integrated import IntegratedCompanion
+10 | | from siro.services.tools import orchestrator as mod
+   | |___________________________________________________^
+11 |
+12 |   class Hub(GatewayHub):
+   |
+help: Organize imports
+   |
+1  | from __future__ import annotations
+2  +
+3  | import asyncio
+4  | from pathlib import Path
+5  +
+6  | import pytest
+7  +
+8  | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+--------------------------------------------------------------------------------
+14 |
+15 +
+16 | class Hub(GatewayHub):
+   |
+
+F401 [*] `asyncio` imported but unused
+ --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:2:8
+  |
+1 | from __future__ import annotations
+2 | import asyncio
+  |        ^^^^^^^
+3 | from pathlib import Path
+4 | import pytest
+  |
+help: Remove unused import: `asyncio`
+  |
+1 | from __future__ import annotations
+  - import asyncio
+2 | from pathlib import Path
+  |
+
+E501 Line too long (102 > 100)
+  --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:34:101
+   |
+32 |                     enabled = False
+33 |                 args = {'argv': []} if cause == 'schema' else {'argv': ['synthetic']}
+34 |                 yield ModelChunk('tool_request', tool_call=ToolCall('call', 'computer.execute', args))
+   |                                                                                                     ^^
+35 |             else:
+36 |                 yield ModelChunk('text', 'tool failure acknowledged')
+   |
+
+E501 Line too long (166 > 100)
+  --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:49:101
+   |
+47 | …catalog path.
+48 | …
+49 | …puter.execute', mod.DEFAULT_MODEL_TOOLS[1], execute, lambda: enabled, 'python.argv', 'computer'),))
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+50 | …(store), {'computer.execute': execute}, **extra)
+51 | …
+   |
+
+E501 Line too long (115 > 100)
+  --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:50:101
+   |
+48 |     if hasattr(mod, 'ToolCatalog'):
+49 |         extra['catalog'] = mod.ToolCatalog((mod.ToolDescriptor('computer.execute', mod.DEFAULT_MODEL_TOOLS[1], execute, lambda: enable…
+50 |     subject = mod.ToolOrchestrator(mod.SQLiteToolProposalRepository(store), {'computer.execute': execute}, **extra)
+   |                                                                                                     ^^^^^^^^^^^^^^^
+51 |     hub = Hub()
+52 |     controller = IntegratedCompanion(tmp_path, Model(), hub, MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOCAL_ON…
+   |
+
+E501 Line too long (222 > 100)
+  --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:52:101
+   |
+50 | …: execute}, **extra)
+51 | …
+52 | …yTransport()), privacy=Privacy.LOCAL_ONLY, tool_orchestrator=subject, runtime_profile='candidate', auto_authorize=lambda: True)
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+53 | …
+54 | …
+   |
+
+E501 Line too long (106 > 100)
+  --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:58:101
+   |
+56 |     except Exception as exc:
+57 |         error = type(exc).__name__
+58 |     row = await store.run_transaction(lambda c:c.execute('SELECT state,error FROM agent_runs').fetchone())
+   |                                                                                                     ^^^^^^
+59 |     terminal = [e for e in hub.events if e['type'] == 'assistant_terminal']
+60 |     print('ERROR_PATH', {'cause':cause, 'raised':error, 'run_state':row[0], 'terminal_count':len(terminal), 'handler_calls':len(execut…
+   |
+
+E501 Line too long (169 > 100)
+  --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:60:101
+   |
+58 | …te,error FROM agent_runs').fetchone())
+59 | …minal']
+60 | …row[0], 'terminal_count':len(terminal), 'handler_calls':len(executed), 'model_rounds':len(requests)})
+   |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+61 | …
+62 | …without terminal UI'
+   |
+
+E501 Line too long (108 > 100)
+  --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:63:101
+   |
+61 |     await hub.shutdown()
+62 |     assert len(terminal) == 1, 'Rejected model request left the run without terminal UI'
+63 |     assert row[0] in {'failed','completed','cancelled'}, 'Rejected model request left persistent run active'
+   |                                                                                                     ^^^^^^^^
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/runtime-evolution/verification/RT008_2026-10-03/test_independent.py:1:1
+   |
+ 1 | / from pathlib import Path
+ 2 | | from collections.abc import AsyncIterator
+ 3 | | import pytest
+ 4 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+ 5 | | from siro.persistence.sqlite import SQLiteStore
+ 6 | | from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, Privacy, ToolCall
+ 7 | | from siro.services.presentation.gateway import GatewayHub
+ 8 | | from siro.services.presentation.integrated import IntegratedCompanion
+ 9 | | from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
+   | |___________________________________________________________________________________________^
+10 |
+11 |   class ReusedCallModel:
+   |
+help: Organize imports
+   |
+1  + from collections.abc import AsyncIterator
+2  | from pathlib import Path
+   - from collections.abc import AsyncIterator
+3  +
+4  | import pytest
+5  +
+6  | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+--------------------------------------------------------------------------------
+12 |
+13 +
+14 | class ReusedCallModel:
+   |
+
+E501 Line too long (112 > 100)
+  --> docs/runtime-evolution/verification/RT008_2026-10-03/test_independent.py:15:101
+   |
+13 |     def __init__(self):
+14 |         self.count = 0
+15 |     async def stream(self, request: ModelRequest, cancellation: CancellationToken) -> AsyncIterator[ModelChunk]:
+   |                                                                                                     ^^^^^^^^^^^^
+16 |         self.count += 1
+17 |         if self.count % 2:
+   |
+
+E501 Line too long (101 > 100)
+  --> docs/runtime-evolution/verification/RT008_2026-10-03/test_independent.py:18:101
+   |
+16 |         self.count += 1
+17 |         if self.count % 2:
+18 |             yield ModelChunk("tool_request", tool_call=ToolCall("same-call", "computer.execute", {}))
+   |                                                                                                     ^
+19 |         else:
+20 |             yield ModelChunk("text", "done")
+   |
+
+E501 Line too long (110 > 100)
+  --> docs/runtime-evolution/verification/RT008_2026-10-03/test_independent.py:34:101
+   |
+32 |         MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOCAL_ONLY,
+33 |         runtime_profile="candidate", auto_authorize=lambda: True,
+34 |         tool_orchestrator=ToolOrchestrator(SQLiteToolProposalRepository(store), {"computer.execute": effect}))
+   |                                                                                                     ^^^^^^^^^^
+35 |     await controller.respond("same-session", "first goal")
+36 |     first = await controller._agent_runs.latest("same-session")
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+ --> docs/runtime-evolution/verification/RT009_2026-10-05/test_independent.py:2:1
+  |
+1 |   """Independent verification; intentionally outside default test discovery."""
+2 | / import importlib.util
+3 | | import sqlite3
+4 | | from pathlib import Path
+  | |________________________^
+help: Organize imports
+  |
+6 |
+  -
+7 | def test_main_preserves_selected_backend_in_durable_journal(tmp_path, monkeypatch):
+  |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/runtime-evolution/verification/RT010_2026-10-05/process_fixture.py:2:1
+   |
+ 1 |   """One fresh OS process per synthetic turn; real controller/Core/SQLite."""
+ 2 | / import asyncio
+ 3 | | import json
+ 4 | | import sys
+ 5 | | from pathlib import Path
+ 6 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+ 7 | | from siro.ports.models import ModelChunk, Privacy
+ 8 | | from siro.services.presentation.gateway import GatewayHub
+ 9 | | from siro.services.presentation.integrated import IntegratedCompanion
+   | |_____________________________________________________________________^
+10 |
+11 |   directory, session, goal, answer = sys.argv[1:]
+   |
+help: Organize imports
+  |
+5 | from pathlib import Path
+6 +
+7 | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+  |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/runtime-evolution/verification/RT010_2026-10-05/test_independent.py:1:1
+   |
+ 1 | / from pathlib import Path
+ 2 | | import pytest
+ 3 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+ 4 | | from siro.persistence.sqlite import SQLiteStore
+ 5 | | from siro.ports.models import ModelChunk, Privacy
+ 6 | | from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
+ 7 | | from siro.services.presentation.gateway import GatewayHub
+ 8 | | from siro.services.presentation.integrated import IntegratedCompanion
+   | |_____________________________________________________________________^
+ 9 |
+10 |   @pytest.mark.asyncio
+   |
+help: Organize imports
+   |
+1  | from pathlib import Path
+2  +
+3  | import pytest
+4  +
+5  | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+--------------------------------------------------------------------------------
+11 |
+12 +
+13 | @pytest.mark.asyncio
+   |
+
+E501 Line too long (101 > 100)
+  --> docs/runtime-evolution/verification/RT010_2026-10-05/test_independent.py:18:101
+   |
+16 |     await repository.append(run.run_id, "final", {}, state=AgentRunState.COMPLETED)
+17 |     await store.run_transaction(lambda c: c.execute(
+18 |         "UPDATE run_journal SET status='terminal',messages_json='{}' WHERE run_id=?", (run.run_id,)))
+   |                                                                                                     ^
+19 |     calls = []
+20 |     class Model:
+   |
+
+E501 Line too long (109 > 100)
+  --> docs/runtime-evolution/verification/RT010_2026-10-05/test_independent.py:31:101
+   |
+29 |     with pytest.raises(ValueError, match="invalid canonical session dialogue"):
+30 |         await controller.respond("A", "new goal")
+31 |     count = await store.run_transaction(lambda c: c.execute("SELECT COUNT(*) FROM agent_runs").fetchone()[0])
+   |                                                                                                     ^^^^^^^^^
+32 |     assert count == 1 and not calls
+33 |     assert not controller._active_sessions
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/runtime-evolution/verification/RT011_2026-10-05/test_independent.py:2:1
+   |
+ 1 |   """Independent composition check: native rejection precedes every retry backend."""
+ 2 | / from copy import deepcopy
+ 3 | | from pathlib import Path
+ 4 | | import pytest
+ 5 | | from siro.adapters.models.failover import FailoverModel
+ 6 | | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+ 7 | | from siro.ports.models import CancellationToken, ModelChunk, ModelMessage, ModelRequest, Privacy, ToolCall
+ 8 | | from siro.services.agent.context import ContextBudgetExceeded, ContextBudgetModel
+ 9 | | from siro.services.agent.native_context import GPTOSSBudget
+   | |___________________________________________________________^
+10 |
+11 |   @pytest.mark.asyncio
+   |
+help: Organize imports
+   |
+3  | from pathlib import Path
+4  +
+5  | import pytest
+6  +
+7  | from siro.adapters.models.failover import FailoverModel
+8  | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+   - from siro.ports.models import CancellationToken, ModelChunk, ModelMessage, ModelRequest, Privacy, ToolCall
+9  + from siro.ports.models import (
+10 +     CancellationToken,
+11 +     ModelChunk,
+12 +     ModelMessage,
+13 +     ModelRequest,
+14 +     Privacy,
+15 +     ToolCall,
+16 + )
+17 | from siro.services.agent.context import ContextBudgetExceeded, ContextBudgetModel
+18 | from siro.services.agent.native_context import GPTOSSBudget
+19 |
+20 +
+21 | @pytest.mark.asyncio
+   |
+
+E501 Line too long (106 > 100)
+ --> docs/runtime-evolution/verification/RT011_2026-10-05/test_independent.py:7:101
+  |
+5 | from siro.adapters.models.failover import FailoverModel
+6 | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+7 | from siro.ports.models import CancellationToken, ModelChunk, ModelMessage, ModelRequest, Privacy, ToolCall
+  |                                                                                                     ^^^^^^
+8 | from siro.services.agent.context import ContextBudgetExceeded, ContextBudgetModel
+9 | from siro.services.agent.native_context import GPTOSSBudget
+  |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/runtime-evolution/verification/RT012_2026-10-05/test_independent.py:2:1
+   |
+ 1 |   """Actual main/HTTP cancellation of idle browser retains other session ownership."""
+ 2 | / import importlib.util
+ 3 | | import os
+ 4 | | from pathlib import Path
+ 5 | | import uvicorn
+ 6 | | from fastapi.testclient import TestClient
+ 7 | | from siro.ports.models import ModelChunk, ToolCall
+ 8 | | from siro.services.presentation import gateway
+   | |______________________________________________^
+ 9 |
+10 |   def test_http_cancel_completed_turn_closes_only_its_idle_browser(tmp_path, monkeypatch):
+   |
+help: Organize imports
+   |
+4  | from pathlib import Path
+5  +
+6  | import uvicorn
+7  | from fastapi.testclient import TestClient
+8  +
+9  | from siro.ports.models import ModelChunk, ToolCall
+10 | from siro.services.presentation import gateway
+11 |
+12 +
+13 | def test_http_cancel_completed_turn_closes_only_its_idle_browser(tmp_path, monkeypatch):
+   |
+
+E501 Line too long (119 > 100)
+  --> docs/runtime-evolution/verification/RT012_2026-10-05/test_independent.py:12:101
+   |
+10 | def test_http_cancel_completed_turn_closes_only_its_idle_browser(tmp_path, monkeypatch):
+11 |     root = Path(__file__).resolve().parents[4]
+12 |     spec = importlib.util.spec_from_file_location("rt012_fixture", root / "tests/integration/test_browser_sessions.py")
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^
+13 |     module = importlib.util.module_from_spec(spec)
+14 |     spec.loader.exec_module(module)
+   |
+
+E501 Line too long (120 > 100)
+  --> docs/runtime-evolution/verification/RT012_2026-10-05/test_independent.py:35:101
+   |
+33 |             async def stream(self, request, cancellation):
+34 |                 if request.messages[-1].role == "user":
+35 |                     yield ModelChunk("tool_request", tool_call=ToolCall("nav", "browser.navigate+read", {"url":origin}))
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^
+36 |                 else:
+37 |                     yield ModelChunk("text", "complete")
+   |
+
+E501 Line too long (130 > 100)
+  --> docs/runtime-evolution/verification/RT012_2026-10-05/test_independent.py:46:101
+   |
+44 |             turns = {}
+45 |             for session in ("A", "B"):
+46 |                 response = client.post(f"/v1/conversations/{session}/turns", headers=headers, json={"text":f"navigate {session}"})
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+47 |                 assert response.status_code == 200
+48 |                 turns[session] = response.json()["turn_id"]
+   |
+
+E501 Line too long (110 > 100)
+  --> docs/runtime-evolution/verification/RT012_2026-10-05/test_independent.py:49:101
+   |
+47 |                 assert response.status_code == 200
+48 |                 turns[session] = response.json()["turn_id"]
+49 |                 assert client.get(f"/v1/agent-runs/{session}", headers=headers).json()["state"] == "completed"
+   |                                                                                                     ^^^^^^^^^^
+50 |             drivers = {k:e.driver for k,e in pool._sessions.items()}
+51 |             assert set(drivers) == {"A", "B"}
+   |
+
+E501 Line too long (115 > 100)
+  --> docs/runtime-evolution/verification/RT012_2026-10-05/test_independent.py:52:101
+   |
+50 |             drivers = {k:e.driver for k,e in pool._sessions.items()}
+51 |             assert set(drivers) == {"A", "B"}
+52 |             response = client.post(f"/v1/turns/{turns['A']}/cancel", headers=headers, json={"reason":"owner stop"})
+   |                                                                                                     ^^^^^^^^^^^^^^^
+53 |             assert response.status_code == 200
+54 |             assert set(pool._sessions) == {"B"}
+   |
+
+I001 [*] Import block is un-sorted or un-formatted
+ --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:1:1
+  |
+1 | / from pathlib import Path
+2 | | import importlib.util
+  | |_____________________^
+3 |
+4 |   spec = importlib.util.spec_from_file_location('rt014_fixture', Path(__file__).resolve().parents[4] / 'tests/integration/test_memory_i…
+  |
+help: Organize imports
+  |
+1 + import importlib.util
+2 | from pathlib import Path
+  - import importlib.util
+3 |
+  |
+
+E501 Line too long (144 > 100)
+ --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:4:101
+  |
+2 | …
+3 | …
+4 | …xture', Path(__file__).resolve().parents[4] / 'tests/integration/test_memory_ingress.py')
+  |                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+5 | …
+6 | …
+  |
+
+RUF001 String contains ambiguous `：` (FULLWIDTH COLON). Did you mean `:` (COLON)?
+  --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:12:91
+   |
+10 |     with client:
+11 |         headers = fixture.auth(client)
+12 |         assert client.post('/v1/conversations/A/turns', headers=headers, json={'text':'請記住： synthetic violet original'}).status_co…
+   |                                                                                              ^^
+13 |         item = client.get('/v1/memories', headers=headers, params={'identity_id':'siro'}).json()['items'][0]
+14 |         memory_id = item['memory_id']
+   |
+
+E501 Line too long (143 > 100)
+  --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:12:97
+   |
+10 | …
+11 | …
+12 | … headers=headers, json={'text':'請記住： synthetic violet original'}).status_code == 200
+   |                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+13 | …rs, params={'identity_id':'siro'}).json()['items'][0]
+14 | …
+   |
+
+E501 Line too long (108 > 100)
+  --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:13:101
+   |
+11 | …     headers = fixture.auth(client)
+12 | …     assert client.post('/v1/conversations/A/turns', headers=headers, json={'text':'請記住： synthetic violet original'}).status_code…
+13 | …     item = client.get('/v1/memories', headers=headers, params={'identity_id':'siro'}).json()['items'][0]
+   |                                                                                                   ^^^^^^^^
+14 | …     memory_id = item['memory_id']
+15 | …     original_source = item['source_event_ids'][0]
+   |
+
+E501 Line too long (143 > 100)
+  --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:16:101
+   |
+14 | …
+15 | …
+16 | …orrect', headers=headers, json={'text':'synthetic violet corrected'}).status_code == 200
+   |                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+17 | …d}/revisions', headers=headers).json()['items']
+18 | …event_ids']
+   |
+
+E501 Line too long (102 > 100)
+  --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:17:101
+   |
+15 | …     original_source = item['source_event_ids'][0]
+16 | …     assert client.post(f'/v1/memories/{memory_id}/correct', headers=headers, json={'text':'synthetic violet corrected'}).status_code…
+17 | …     revisions = client.get(f'/v1/memories/{memory_id}/revisions', headers=headers).json()['items']
+   |                                                                                                   ^^
+18 | …     assert original_source in revisions[0]['source_event_ids']
+19 | …     assert original_source in revisions[1]['source_event_ids']
+   |
+
+E501 Line too long (119 > 100)
+  --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:25:101
+   |
+23 |     with client:
+24 |         headers = fixture.auth(client)
+25 |         assert client.post('/v1/conversations/FRESH/turns', headers=headers, json={'text':'violet'}).status_code == 200
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^
+26 |         assert model.requests
+27 |         request = model.requests[-1]
+   |
+
+E501 Line too long (102 > 100)
+  --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:31:101
+   |
+29 |         assert 'synthetic violet original' not in serialized
+30 |         assert 'synthetic violet corrected' not in serialized
+31 |         revisions = client.get(f'/v1/memories/{memory_id}/revisions', headers=headers).json()['items']
+   |                                                                                                     ^^
+32 |         assert len(revisions) == 3
+33 |         assert revisions[2]['source_event_ids'] == revisions[1]['source_event_ids']
+   |
+
+E501 Line too long (104 > 100)
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-03/probe.py:35:101
+   |
+33 |     store = SQLiteStore(path / "siro.db")
+34 |     await store.initialize()
+35 |     orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {"computer.execute": executor})
+   |                                                                                                     ^^^^
+36 |     controller = IntegratedCompanion(
+37 |         path, Model(fail), GatewayHub(), MinimalWebBodyAdapter(WebSocketBodyTransport()),
+   |
+
+E501 Line too long (110 > 100)
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-03/probe.py:80:101
+   |
+78 |         run = await failed.recovery_readback("failure")
+79 |         assert len(effects) == 1 and run["state"] == "completed"
+80 |         results["provider_failure_after_tool_intent"] = {"effects": len(effects), "final_state": run["state"]}
+   |                                                                                                     ^^^^^^^^^^
+81 |
+82 |         entered, release = asyncio.Event(), asyncio.Event()
+   |
+
+E501 Line too long (114 > 100)
+   --> docs/runtime-evolution/verification/architecture_review_2026-10-03/probe.py:100:101
+    |
+ 98 |         await asyncio.wait_for(task, 10)
+ 99 |         assert effects == ["after-cancel"]
+100 |         results["arguments_only_executor_cancel"] = {"terminal_before_handler_finished": True, "effects": effects}
+    |                                                                                                     ^^^^^^^^^^^^^^
+101 |     print(json.dumps(results, indent=2))
+    |
+
+I001 [*] Import block is un-sorted or un-formatted
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-05/probe.py:2:1
+   |
+ 1 |   """Synthetic cross-task check; no provider network or private database access."""
+ 2 | / import asyncio
+ 3 | | import json
+ 4 | | import tempfile
+ 5 | | from pathlib import Path
+ 6 | | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+ 7 | | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+ 8 | | from siro.persistence.sqlite import SQLiteStore
+ 9 | | from siro.ports.models import ModelChunk, ToolCall, Privacy
+10 | | from siro.services.agent.context import ContextBudgetModel
+11 | | from siro.services.agent.native_context import GPTOSSBudget
+12 | | from siro.services.presentation.gateway import GatewayHub
+13 | | from siro.services.presentation.integrated import IntegratedCompanion
+14 | | from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
+   | |___________________________________________________________________________________________^
+15 |
+16 |   class Model:
+   |
+help: Organize imports
+   |
+5  | from pathlib import Path
+6  +
+7  | from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+8  | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+9  | from siro.persistence.sqlite import SQLiteStore
+   - from siro.ports.models import ModelChunk, ToolCall, Privacy
+10 + from siro.ports.models import ModelChunk, Privacy, ToolCall
+11 | from siro.services.agent.context import ContextBudgetModel
+--------------------------------------------------------------------------------
+16 |
+17 +
+18 | class Model:
+   |
+
+E501 Line too long (105 > 100)
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-05/probe.py:24:101
+   |
+22 |         if self.calls == 1:
+23 |             for n in range(2):
+24 |                 yield ModelChunk('tool_request', tool_call=ToolCall(f'call-{n}', 'computer.execute', {}))
+   |                                                                                                     ^^^^^
+25 |         else:
+26 |             yield ModelChunk('text', 'done')
+   |
+
+E501 Line too long (133 > 100)
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-05/probe.py:31:101
+   |
+29 | …
+30 | …
+31 | …tps://api.groq.com/openai', api_key='synthetic-unused', model='openai/gpt-oss-20b')
+   |                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+32 | …65536, token_budget=GPTOSSBudget(Path('.siro-data/tokenizers/gpt-oss-20b'), adapter.request_payload) if native else None)
+33 | …
+   |
+
+E501 Line too long (171 > 100)
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-05/probe.py:32:101
+   |
+30 | …
+31 | …openai', api_key='synthetic-unused', model='openai/gpt-oss-20b')
+32 | …=GPTOSSBudget(Path('.siro-data/tokenizers/gpt-oss-20b'), adapter.request_payload) if native else None)
+   |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+33 | …
+34 | …
+   |
+
+E501 Line too long (103 > 100)
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-05/probe.py:39:101
+   |
+37 |     store = SQLiteStore(root / 'siro.db')
+38 |     await store.initialize()
+39 |     orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {'computer.execute': handler})
+   |                                                                                                     ^^^
+40 |     controller = IntegratedCompanion(root, wrapped, GatewayHub(), MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.CLO…
+41 |     await controller.respond('audit', 'synthetic two-tool goal')
+   |
+
+E501 Line too long (235 > 100)
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-05/probe.py:40:101
+   |
+38 | …
+39 | …andler})
+40 | …etBodyTransport()), privacy=Privacy.CLOUD_ALLOWED, runtime_profile='candidate', tool_orchestrator=orchestrator, auto_authorize=lambda: True)
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+41 | …
+42 | …
+   |
+
+E501 Line too long (131 > 100)
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-05/probe.py:43:101
+   |
+41 |     await controller.respond('audit', 'synthetic two-tool goal')
+42 |     run = await controller.recovery_readback('audit')
+43 |     return {'native': native, 'provider_calls': model.calls, 'effects': len(effects), 'state': run['state'], 'error': run['error']}
+   |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+44 |
+45 | async def main():
+   |
+
+Found 129 errors.
+[*] 21 fixable with the `--fix` option (3 hidden fixes can be enabled with the `--unsafe-fixes` option).

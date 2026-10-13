@@ -1,0 +1,144 @@
+..........F..F.................F                                         [100%]
+=================================== FAILURES ===================================
+_ test_newer_ineligible_row_masks_old_failure[DELETE FROM run_journal WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-59/test_newer_ineligible_row_mask2')
+mutation = 'DELETE FROM run_journal WHERE run_id=?'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET version=2 WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,)))
+>       await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+
+tests/integration/test_runtime_status_context.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/persistence/sqlite.py:152: in run_transaction
+    return await asyncio.to_thread(self._run_transaction_sync, work)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:158: in _run_transaction_sync
+    result = work(connection)
+             ^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+c = <sqlite3.Connection object at 0x7e8a823f2e30>
+
+>   await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   sqlite3.IntegrityError: FOREIGN KEY constraint failed
+
+tests/integration/test_runtime_status_context.py:107: IntegrityError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE run_journal SET version=2 WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-59/test_newer_ineligible_row_mask5')
+mutation = 'UPDATE run_journal SET version=2 WHERE run_id=?'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET version=2 WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,)))
+>       await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+
+tests/integration/test_runtime_status_context.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/persistence/sqlite.py:152: in run_transaction
+    return await asyncio.to_thread(self._run_transaction_sync, work)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:158: in _run_transaction_sync
+    result = work(connection)
+             ^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+c = <sqlite3.Connection object at 0x7e8a81add990>
+
+>   await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   sqlite3.IntegrityError: CHECK constraint failed: version = 1
+
+tests/integration/test_runtime_status_context.py:107: IntegrityError
+___________________ test_direct_command_does_not_read_status ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-59/test_direct_command_does_not_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e8a81a4b9a0>
+
+    @pytest.mark.asyncio
+    async def test_direct_command_does_not_read_status(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        model = CaptureModel()
+>       companion = IntegratedCompanion(
+            tmp_path, model, GatewayHub(), MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            runtime_profile="candidate",
+        )
+E       TypeError: IntegratedCompanion.__init__() missing 1 required keyword-only argument: 'privacy'
+
+tests/integration/test_runtime_status_context.py:228: TypeError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[DELETE FROM run_journal WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE run_journal SET version=2 WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_direct_command_does_not_read_status
+3 failed, 29 passed, 2 warnings in 1.59s

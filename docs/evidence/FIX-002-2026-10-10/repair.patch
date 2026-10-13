@@ -1,0 +1,1459 @@
+--- a/src/siro/adapters/browser.py
++++ b/src/siro/adapters/browser.py
+@@ -7,6 +7,7 @@
+ import shutil
+ from dataclasses import dataclass
+ from datetime import UTC, datetime
++from enum import StrEnum
+ from typing import Any, Literal
+ from urllib.parse import urljoin, urlsplit
+ 
+@@ -26,12 +27,26 @@
+ BrowserRole = Literal["button", "checkbox", "combobox", "heading", "link", "textbox"]
+ 
+ 
++class BrowserScopeReason(StrEnum):
++    INVALID_URL = "invalid_url"
++    MAIN_ORIGIN_DENIED = "main_origin_denied"
++    REDIRECT_DENIED = "redirect_denied"
++    SUBRESOURCE_DENIED = "subresource_denied"
++
++
++class BrowserScopeViolation(ScopeViolation):
++    def __init__(self, reason: BrowserScopeReason) -> None:
++        self.reason = reason
++        super().__init__(f"browser request blocked: {reason.value}")
++
++
+ @dataclass(frozen=True, slots=True)
+ class BrowserObservation:
+     url: str
+     title: str
+     text: str
+     screen_version: str
++    blocked_resources: bool = False
+ 
+ 
+ @dataclass(frozen=True, slots=True)
+@@ -56,11 +71,14 @@
+         self._playwright: Playwright | None = None
+         self._browser: Browser | None = None
+         self._page: Page | None = None
+-        self._blocked_url: str | None = None
++        self._blocked_main: BrowserScopeReason | None = None
++        self._blocked_resources = False
++        self._closing = False
+         self._outcomes = outcome_reporter
+         self._ledger: dict[str, tuple[tuple[object, ...], BrowserObservation]] = {}
+ 
+     async def __aenter__(self) -> ScopedBrowserDriver:
++        self._closing = False
+         executable = shutil.which("google-chrome") or shutil.which("chromium")
+         if executable is None:
+             raise ComputerActionError("SUPPORTED browser executable is unavailable")
+@@ -89,6 +107,7 @@
+             raise
+ 
+     async def __aexit__(self, *_error: object) -> None:
++        self._closing = True
+         try:
+             if self._browser is not None:
+                 await self._browser.close()
+@@ -102,38 +121,39 @@
+     async def navigate(self, url: str) -> BrowserObservation:
+         self._require_url(url)
+         page = self._require_page()
+-        self._blocked_url = None
++        self._blocked_main = None
++        self._blocked_resources = False
+         try:
+             await page.goto(url, wait_until="domcontentloaded")
+-        except Error as error:
+-            if self._blocked_url is not None:
+-                blocked, self._blocked_url = self._blocked_url, None
+-                await self._replace_page()
+-                raise ScopeViolation(
+-                    f"browser request is outside the authorized scope: {blocked}"
+-                ) from error
++        except Error:
++            await self._raise_blocked_main()
+             raise
+-        if self._blocked_url is not None:
+-            blocked, self._blocked_url = self._blocked_url, None
+-            await self._replace_page()
+-            raise ScopeViolation(f"browser request is outside the authorized scope: {blocked}")
++        return await self.observe()
++
++    async def observe(self) -> BrowserObservation:
++        await self._raise_blocked_main()
++        page = self._require_page()
+         self._require_url(page.url)
+-        return await self.observe()
+-
+-    async def observe(self) -> BrowserObservation:
+-        page = self._require_page()
+-        state: dict[str, Any] = await page.evaluate(
+-            """() => ({
++        try:
++            state: dict[str, Any] = await page.evaluate(
++                """() => ({
+               html: document.documentElement.outerHTML,
+               text: document.body?.innerText ?? '',
+               values: Array.from(document.querySelectorAll('input,textarea,select'))
+                 .map(element => [element.id, element.value])
+             })"""
+-        )
+-        title = await page.title()
++            )
++            title = await page.title()
++        except Error:
++            await self._raise_blocked_main()
++            raise
++        await self._raise_blocked_main()
++        self._require_url(page.url)
+         material = repr((page.url, title, state["html"], state["values"])).encode()
+         version = hashlib.sha256(material).hexdigest()
+-        return BrowserObservation(page.url, title, str(state["text"]), version)
++        return BrowserObservation(
++            page.url, title, str(state["text"]), version, self._blocked_resources
++        )
+ 
+     async def select(self, role: BrowserRole, name: str) -> BrowserTarget:
+         observation = await self.observe()
+@@ -244,33 +264,74 @@
+         return self._page
+ 
+     def _require_url(self, url: str) -> None:
++        try:
++            parsed = urlsplit(url)
++            valid = (
++                parsed.scheme in {"http", "https"}
++                and bool(parsed.hostname)
++                and parsed.username is None
++                and parsed.password is None
++                and (parsed.port is None or 0 < parsed.port <= 65535)
++            )
++        except ValueError:
++            valid = False
++        if not valid:
++            raise BrowserScopeViolation(BrowserScopeReason.INVALID_URL)
+         if self._url_allowed(url):
+             return
+-        parsed = urlsplit(url)
+-        origin = f"{parsed.scheme}://{parsed.netloc}"
+-        raise ScopeViolation(f"browser origin is outside the authorized scope: {origin}")
++        raise BrowserScopeViolation(BrowserScopeReason.MAIN_ORIGIN_DENIED)
+ 
+     def _url_allowed(self, url: str) -> bool:
+-        parsed = urlsplit(url)
++        try:
++            parsed = urlsplit(url)
++        except ValueError:
++            return False
+         if parsed.scheme in {"about", "blob", "data"}:
+             return True
+         origin = f"{parsed.scheme}://{parsed.netloc}"
+         return parsed.scheme in {"http", "https"} and origin in self._allowed_origins
+ 
+     async def _route_request(self, route: Route) -> None:
+-        if self._url_allowed(route.request.url):
+-            response = await route.fetch(max_redirects=0)
+-            location = response.headers.get("location")
+-            if 300 <= response.status < 400 and location:
+-                target = urljoin(route.request.url, location)
+-                if not self._url_allowed(target):
+-                    self._blocked_url = target
+-                    await route.abort("blockedbyclient")
+-                    return
+-            await route.fulfill(response=response)
+-            return
+-        self._blocked_url = route.request.url
+-        await route.abort("blockedbyclient")
++        try:
++            if self._closing:
++                await route.abort("blockedbyclient")
++                return
++            if self._url_allowed(route.request.url):
++                response = await route.fetch(max_redirects=0)
++                location = response.headers.get("location")
++                if 300 <= response.status < 400 and location:
++                    target = urljoin(route.request.url, location)
++                    if not self._url_allowed(target):
++                        self._mark_blocked(route, BrowserScopeReason.REDIRECT_DENIED)
++                        await route.abort("blockedbyclient")
++                        return
++                await route.fulfill(response=response)
++                return
++            self._mark_blocked(route, BrowserScopeReason.MAIN_ORIGIN_DENIED)
++            await route.abort("blockedbyclient")
++        except Error:
++            if not self._closing:
++                raise
++
++    def _mark_blocked(self, route: Route, reason: BrowserScopeReason) -> None:
++        main_navigation = False
++        if route.request.is_navigation_request():
++            try:
++                main_navigation = route.request.frame == self._require_page().main_frame
++            except Error:
++                # An unavailable frame must never turn rejected navigation into partial success.
++                main_navigation = True
++        if main_navigation:
++            if self._blocked_main is None:
++                self._blocked_main = reason
++        else:
++            self._blocked_resources = True
++
++    async def _raise_blocked_main(self) -> None:
++        if self._blocked_main is not None:
++            reason, self._blocked_main = self._blocked_main, None
++            await self._replace_page()
++            raise BrowserScopeViolation(reason)
+ 
+     async def _replace_page(self) -> None:
+         if self._browser is None:
+--- a/src/siro/services/tools/orchestrator.py
++++ b/src/siro/services/tools/orchestrator.py
+@@ -14,6 +14,7 @@
+ from urllib.parse import urlsplit
+ from uuid import uuid4
+ 
++from siro.adapters.browser import BrowserScopeReason, BrowserScopeViolation
+ from siro.core.authorization import argument_hash
+ from siro.persistence.sqlite import SQLiteStore
+ from siro.ports.models import ToolCall, ToolDefinition
+@@ -316,6 +317,18 @@
+     observation: object | None = None
+     error: str | None = None
+ 
++    def model_observation(self) -> object:
++        if self.state is ProposalState.DENIED:
++            return {"error": "denied"}
++        if self.error is None:
++            return self.observation
++        failure = {"error": self.error}
++        if self.error == "ScopeViolation" and isinstance(self.observation, dict):
++            reason = self.observation.get("reason")
++            if isinstance(reason, str) and reason in {item.value for item in BrowserScopeReason}:
++                failure["reason"] = reason
++        return failure
++
+ 
+ class SQLiteToolProposalRepository:
+     def __init__(self, store: SQLiteStore) -> None:
+@@ -708,19 +721,28 @@
+                 )
+             raise
+         except Exception as error:
++            error_name = (
++                "ScopeViolation"
++                if isinstance(error, BrowserScopeViolation)
++                else type(error).__name__
++            )
++            failure = {"error": error_name}
++            if isinstance(error, BrowserScopeViolation) and isinstance(
++                error.reason, BrowserScopeReason
++            ):
++                failure["reason"] = error.reason.value
+             if (
+                 context is not None
+                 and self.journal_hook is not None
+                 and not context.cancellation.cancelled
+             ):
+-                await self.journal_hook(
+-                    context.run_id, proposal.call_id, "observation", {"error": type(error).__name__}
+-                )
++                await self.journal_hook(context.run_id, proposal.call_id, "observation", failure)
+             return await self._repository.transition(
+                 proposal_id,
+                 ProposalState.RUNNING,
+                 ProposalState.FAILED,
+-                error=type(error).__name__,
++                error=error_name,
++                observation=failure if isinstance(error, BrowserScopeViolation) else None,
+             )
+         if (
+             context is not None
+--- a/src/siro/services/tools/browser_session.py
++++ b/src/siro/services/tools/browser_session.py
+@@ -235,9 +235,12 @@
+ 
+     @staticmethod
+     def _observation(entry: _Session, value: BrowserObservation) -> dict[str, str]:
+-        return {
++        result = {
+             "url": value.url,
+             "title": value.title,
+             "text": value.text[:4000],
+             "screen_version": entry.epoch + ":" + value.screen_version,
+         }
++        if value.blocked_resources:
++            result.update(load_status="partial", reason="subresource_denied")
++        return result
+--- a/src/siro/services/presentation/integrated.py
++++ b/src/siro/services/presentation/integrated.py
+@@ -622,13 +622,7 @@
+             results = self._batch_results[run_id]
+             if proposal.call_id in results:
+                 return
+-            observation = (
+-                {"error": "denied"}
+-                if proposal.state is ProposalState.DENIED
+-                else {"error": proposal.error}
+-                if proposal.error is not None
+-                else proposal.observation
+-            )
++            observation = proposal.model_observation()
+             await self._agent_runs.record_observation(run_id, proposal.call_id, observation)
+             results[proposal.call_id] = proposal
+             if len(results) != len(expected):
+@@ -642,13 +636,7 @@
+                 "native tool history is unavailable; restart recovery is not enabled"
+             )
+         for item in batch_results:
+-            observation = (
+-                {"error": "denied"}
+-                if item.state is ProposalState.DENIED
+-                else item.observation
+-                if item.error is None
+-                else {"error": item.error}
+-            )
++            observation = item.model_observation()
+             if history is not None:
+                 history.append(
+                     ModelMessage(
+@@ -704,7 +692,7 @@
+             )
+             return
+         self._agent_steps[session_id] = step
+-        observation = proposal.observation if proposal.error is None else {"error": proposal.error}
++        observation = proposal.model_observation()
+         prompt = (
+             "A previously requested tool finished. Treat the following as trusted runtime "
+             "observation, decide the next tool needed to complete the owner's original goal, "
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -1280,12 +1280,15 @@
+         origin = f"{parsed.scheme}://{parsed.netloc}"
+         async with ScopedBrowserDriver((origin,)) as browser:
+             observation = await browser.navigate(url)
+-        return {
++        result = {
+             "url": observation.url,
+             "title": observation.title,
+             "text": observation.text[:4000],
+             "screen_version": observation.screen_version,
+         }
++        if observation.blocked_resources:
++            result.update(load_status="partial", reason="subresource_denied")
++        return result
+ 
+     async def application_tool(application: str) -> dict[str, str]:
+         async def spawn_owned(*argv: str, **options: Any) -> asyncio.subprocess.Process:
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -451,7 +451,11 @@
+         node.textContent = status;
+       }
+       function renderToolResult(data) {
+-        if (data.error) { updateToolProposal(data.proposal_id, `失敗：${data.error}`); return; }
++        const reasons = {invalid_url: "網址格式不正確，請使用完整的 HTTP 或 HTTPS 網址。", main_origin_denied: "主頁不在這次授權的網站範圍。", redirect_denied: "網站轉往未授權的來源，已停止讀取。", subresource_denied: "部分跨站資源已阻擋，以下內容可能不完整。"};
++        if (data.error) {
++          const reason = data.error === "ScopeViolation" && Object.hasOwn(reasons, data.result?.reason) ? reasons[data.result.reason] : "";
++          updateToolProposal(data.proposal_id, `失敗：${data.error}${reason ? "\n" + reason : ""}`); return;
++        }
+         const result = data.result;
+         if (data.capability === "process.start") {
+           const detail = result.pid ? `PID ${result.pid}` : "桌面啟動器已確認";
+@@ -459,8 +463,10 @@
+           updateToolProposal(data.proposal_id, `完成：${message}`);
+           appendMessage("assistant", message); return;
+         }
+-        if (data.capability === "browser.navigate+read") {
+-          updateToolProposal(data.proposal_id, `完成：${result.title}\n${result.url}\n\n${result.text}`);
++        if (["browser.navigate+read", "browser.read", "browser.fill", "browser.click"].includes(data.capability)) {
++          const partial = result.load_status === "partial";
++          const warning = result.reason === "subresource_denied" ? reasons.subresource_denied : "頁面僅部分載入，內容可能不完整。";
++          updateToolProposal(data.proposal_id, `${partial ? "已讀取主頁（部分載入）：" : "完成："}${result.title}\n${result.url}${partial ? "\n" + warning : ""}\n\n${result.text}`);
+           return;
+         }
+         if (data.capability === "computer.execute") {
+--- /dev/null
++++ b/tests/integration/test_browser_scope_readability.py
+@@ -0,0 +1,238 @@
++from __future__ import annotations
++
++import asyncio
++import os
++import threading
++from collections.abc import Iterator
++from contextlib import contextmanager
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from pathlib import Path
++from typing import Any, cast
++
++import pytest
++from playwright.async_api import Error, Page
++
++from siro.adapters.browser import BrowserScopeReason, BrowserScopeViolation, ScopedBrowserDriver
++from siro.ports.models import CancellationToken
++from siro.services.tools.browser_session import BrowserSessions
++from siro.services.tools.execution import ExecutionContext
++
++
++@contextmanager
++def pages() -> Iterator[tuple[str, str, list[str]]]:
++    hits: list[str] = []
++
++    class Foreign(BaseHTTPRequestHandler):
++        def do_GET(self) -> None:
++            hits.append(self.path)
++            self.send_response(200)
++            self.end_headers()
++            self.wfile.write(b"FOREIGN CONTENT MUST NEVER BE FETCHED")
++
++        def log_message(self, format: str, *args: object) -> None:
++            pass
++
++    foreign = ThreadingHTTPServer(("127.0.0.1", 0), Foreign)
++    other = f"http://127.0.0.1:{foreign.server_port}"
++
++    class Main(BaseHTTPRequestHandler):
++        def do_GET(self) -> None:
++            if self.path.startswith("/redirect"):
++                self.send_response(302)
++                self.send_header("Location", other + "/secret-query-canary")
++                self.end_headers()
++                return
++            additions = {
++                "/resources": f'<img src="{other}/image"><script src="{other}/script"></script>'
++                f'<iframe src="{other}/frame"></iframe><link rel="stylesheet" href="{other}/css">',
++                "/resource-redirect": '<script src="/redirect"></script>',
++                "/link": f'<a href="{other}/secret-query-canary">Outside</a>',
++                "/script": f'<script>location.href="{other}/secret-query-canary";</script>',
++            }
++            body = "<html><head><title>Authorized source</title></head><body>Readable main text"
++            body += additions.get(self.path, "") + "</body></html>"
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html; charset=utf-8")
++            self.end_headers()
++            self.wfile.write(body.encode())
++
++        def log_message(self, format: str, *args: object) -> None:
++            pass
++
++    main = ThreadingHTTPServer(("127.0.0.1", 0), Main)
++    servers = [foreign, main]
++    threads = [threading.Thread(target=s.serve_forever, daemon=True) for s in servers]
++    for thread in threads:
++        thread.start()
++    try:
++        yield f"http://127.0.0.1:{main.server_port}", other, hits
++    finally:
++        for server in servers:
++            server.shutdown()
++            server.server_close()
++        for thread in threads:
++            thread.join(timeout=2)
++
++
++@pytest.mark.asyncio
++async def test_partial_main_page_blocks_foreign_resources_and_resets_on_navigation() -> None:
++    with pages() as (origin, _other, hits):
++        async with ScopedBrowserDriver((origin,)) as browser:
++            for path in ("/resources", "/resource-redirect"):
++                value = await browser.navigate(origin + path)
++                assert value.title == "Authorized source"
++                assert "Readable main text" in value.text
++                assert "FOREIGN CONTENT" not in value.text
++                assert value.blocked_resources
++                assert (await browser.observe()).blocked_resources
++            assert not (await browser.navigate(origin)).blocked_resources
++            assert hits == []
++
++
++@pytest.mark.asyncio
++async def test_main_scope_and_redirect_fail_with_safe_reason_then_recover() -> None:
++    with pages() as (origin, other, hits):
++        async with ScopedBrowserDriver((origin,)) as browser:
++            for url, reason in (
++                (other + "/secret-query-canary", BrowserScopeReason.MAIN_ORIGIN_DENIED),
++                (origin + "/redirect", BrowserScopeReason.REDIRECT_DENIED),
++            ):
++                with pytest.raises(BrowserScopeViolation) as caught:
++                    await browser.navigate(url)
++                assert caught.value.reason is reason
++                assert "secret-query-canary" not in str(caught.value)
++                assert origin not in str(caught.value)
++                assert other not in str(caught.value)
++                assert not (await browser.navigate(origin)).blocked_resources
++            assert hits == []
++
++
++@pytest.mark.asyncio
++async def test_main_navigation_from_link_cannot_report_success_from_old_page() -> None:
++    with pages() as (origin, _other, hits):
++        async with ScopedBrowserDriver((origin,)) as browser:
++            await browser.navigate(origin + "/link")
++            target = await browser.select("link", "Outside")
++            with pytest.raises(BrowserScopeViolation) as caught:
++                await browser.click(target)
++            assert caught.value.reason is BrowserScopeReason.MAIN_ORIGIN_DENIED
++            assert hits == []
++            assert "Readable main text" in (await browser.navigate(origin)).text
++
++
++@pytest.mark.asyncio
++async def test_script_main_navigation_cannot_be_partial_success() -> None:
++    with pages() as (origin, _other, hits):
++        async with ScopedBrowserDriver((origin,)) as browser:
++            with pytest.raises(BrowserScopeViolation) as caught:
++                await browser.navigate(origin + "/script")
++            assert caught.value.reason is BrowserScopeReason.MAIN_ORIGIN_DENIED
++            assert hits == []
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "url",
++    [
++        "[https://example.com/](https://example.com/)",
++        "file:///tmp/canary",
++        "data:text/html,canary",
++        "http://credential-canary@example.com/",
++        "https://example.com:invalid/",
++        "http://[broken",
++    ],
++)
++async def test_invalid_navigation_is_safe_and_rejected_without_running_browser(url: str) -> None:
++    driver = ScopedBrowserDriver(("https://example.com",))
++    with pytest.raises(BrowserScopeViolation) as caught:
++        await driver.navigate(url)
++    assert caught.value.reason is BrowserScopeReason.INVALID_URL
++    assert "canary" not in str(caught.value)
++
++
++@pytest.mark.asyncio
++async def test_session_partial_marker_and_explicit_new_origin_remain_compatible() -> None:
++    with pages() as (origin, other, hits):
++        sessions = BrowserSessions(ScopedBrowserDriver)
++        context = ExecutionContext("run", "owner", "epoch", CancellationToken(), authorized=True)
++        try:
++            result = await sessions.execute(
++                "navigate+read", {"url": origin + "/resources"}, context
++            )
++            assert result["load_status"] == "partial"
++            assert result["reason"] == "subresource_denied"
++            assert hits == []
++            result = await sessions.execute("navigate+read", {"url": other}, context)
++            assert "FOREIGN CONTENT" in result["text"]
++            assert "load_status" not in result
++            assert len(hits) == 1
++            assert sessions._sessions["owner"].origin == other
++            await sessions.execute("close", {}, context)
++            assert not sessions._sessions
++        finally:
++            await asyncio.wait_for(sessions.close(), timeout=5)
++
++
++@pytest.mark.asyncio
++async def test_destroyed_context_keeps_pending_scope_reason(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    driver = ScopedBrowserDriver(("https://example.com",))
++
++    class DestroyedPage:
++        url = "https://example.com/"
++
++        async def evaluate(self, script: str) -> None:
++            driver._blocked_main = BrowserScopeReason.REDIRECT_DENIED
++            raise Error("synthetic private-url-canary context destroyed")
++
++    replaced: list[bool] = []
++
++    async def replace_page() -> None:
++        replaced.append(True)
++
++    driver._page = cast(Page, DestroyedPage())
++    monkeypatch.setattr(driver, "_replace_page", replace_page)
++    with pytest.raises(BrowserScopeViolation) as caught:
++        await driver.observe()
++    assert caught.value.reason is BrowserScopeReason.REDIRECT_DENIED
++    assert "private-url-canary" not in str(caught.value)
++    assert replaced == [True]
++
++
++@pytest.mark.parametrize("profile,enabled", [("legacy", "1"), ("candidate", "0")])
++def test_real_main_stateless_wrapper_preserves_partial_marker(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, enabled: str
++) -> None:
++    import uvicorn
++
++    from siro.services.presentation import gateway
++
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
++    monkeypatch.setenv("SIRO_BROWSER_SESSION_ENABLED", enabled)
++    monkeypatch.setenv("SIRO_WORKSPACE_ENABLED", "0")
++    captured: dict[str, Any] = {}
++    original = gateway.create_app
++
++    def capture(**kwargs: Any) -> Any:
++        captured.update(kwargs)
++        return original(**kwargs)
++
++    monkeypatch.setattr(gateway, "create_app", capture)
++    monkeypatch.setattr(uvicorn, "run", lambda *args, **kwargs: None)
++    gateway.main()
++
++    async def verify() -> None:
++        with pages() as (origin, _other, hits):
++            result = await captured["on_browser_tool"](origin + "/resources")
++            assert result["load_status"] == "partial"
++            assert result["reason"] == "subresource_denied"
++            assert "Readable main text" in result["text"]
++            assert hits == []
++        await captured["on_shutdown"]()
++
++    asyncio.run(verify())
+--- /dev/null
++++ b/tests/integration/test_browser_failure_contract.py
+@@ -0,0 +1,344 @@
++"""Synthetic browser failure wiring; no real provider, website, or private data."""
++
++from __future__ import annotations
++
++import asyncio
++import json
++from collections.abc import AsyncIterator
++from pathlib import Path
++from typing import cast
++
++import pytest
++
++import siro.adapters.browser as browser
++from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
++from siro.core.authorization import argument_hash
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, Privacy, ToolCall
++from siro.services.presentation.gateway import GatewayHub
++from siro.services.presentation.integrated import IntegratedCompanion
++from siro.services.tools.execution import ExecutionContext
++from siro.services.tools.orchestrator import (
++    DEFAULT_MODEL_TOOLS,
++    ProposalState,
++    SQLiteToolProposalRepository,
++    ToolCatalog,
++    ToolDescriptor,
++    ToolOrchestrator,
++    ToolProposal,
++)
++
++PUBLIC_URL = "https://synthetic.invalid/public"
++CANARY = "synthetic-private-error-canary:not-a-real-secret"
++
++
++def _proposal(
++    state: ProposalState, *, error: str | None = None, observation: object = None
++) -> ToolProposal:
++    arguments: dict[str, object] = {"url": PUBLIC_URL}
++    return ToolProposal(
++        "synthetic-proposal",
++        "synthetic-session",
++        "synthetic-call",
++        "browser.navigate+read",
++        arguments,
++        argument_hash(arguments),
++        "observe/read-only",
++        state,
++        observation,
++        error,
++    )
++
++
++@pytest.mark.parametrize("reason", ["redirect_denied", None, CANARY])
++def test_failed_model_observation_exposes_only_fixed_error_and_allowed_reason(
++    reason: str | None,
++) -> None:
++    proposal = _proposal(
++        ProposalState.FAILED,
++        error="ScopeViolation",
++        observation={
++            "error": "forged-success",
++            "reason": reason,
++            "url": "https://synthetic.invalid/?query=" + CANARY,
++            "message": CANARY,
++            "arbitrary": {"credentials": CANARY},
++        },
++    )
++    expected = {"error": "ScopeViolation"}
++    if reason == "redirect_denied":
++        expected["reason"] = reason
++    result = proposal.model_observation()
++    assert result == expected
++    assert CANARY not in json.dumps(result)
++
++
++def test_denial_does_not_reuse_failed_observation_or_claim_a_browser_failure() -> None:
++    proposal = _proposal(
++        ProposalState.DENIED,
++        observation={"reason": "redirect_denied", "message": CANARY},
++    )
++    assert proposal.model_observation() == {"error": "denied"}
++
++
++def test_completed_readback_retains_existing_success_and_partial_contract() -> None:
++    observation = {
++        "url": PUBLIC_URL,
++        "title": "Synthetic source",
++        "text": "Synthetic visible content",
++        "screen_version": "fixture-version",
++        "load_status": "partial",
++        "reason": "subresource_denied",
++    }
++    assert _proposal(ProposalState.COMPLETED, observation=observation).model_observation() == (
++        observation
++    )
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "url",
++    [
++        f"[{PUBLIC_URL}]({PUBLIC_URL})",
++        "file:///synthetic.txt",
++        "javascript:synthetic()",
++        "https:///missing-host",
++        "https://",
++        "",
++    ],
++)
++async def test_malformed_url_is_rejected_before_proposal_and_zero_dispatch(
++    tmp_path: Path, url: str
++) -> None:
++    executed: list[object] = []
++
++    async def execute(arguments: dict[str, object]) -> object:
++        executed.append(arguments)
++        raise AssertionError("invalid URL reached browser execution")
++
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "browser.navigate+read",
++                DEFAULT_MODEL_TOOLS[0],
++                execute,
++                lambda: True,
++                "synthetic-browser",
++                "read",
++            ),
++        )
++    )
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {}, catalog=catalog)
++    with pytest.raises(ValueError, match="invalid tool arguments"):
++        await orchestrator.propose(
++            "synthetic-session",
++            ToolCall("invalid-url", "browser.navigate+read", {"url": url}),
++            risk="observe/read-only",
++        )
++    proposals = await store.run_transaction(
++        lambda connection: connection.execute("SELECT COUNT(*) FROM tool_proposals").fetchone()[0]
++    )
++    assert proposals == 0
++    assert executed == []
++    assert catalog.require("browser.navigate+read", {"url": PUBLIC_URL}).name == (
++        "browser.navigate+read"
++    )
++
++
++class RecordingHub(GatewayHub):
++    def __init__(self) -> None:
++        super().__init__()
++        self.events: list[dict[str, object]] = []
++
++    async def broadcast(self, payload: dict[str, object], *, urgent: bool = False) -> None:
++        self.events.append(payload)
++
++
++class FailureModel:
++    name = "synthetic-browser-failure-wiring"
++
++    def __init__(self) -> None:
++        self.requests: list[ModelRequest] = []
++
++    async def stream(
++        self, request: ModelRequest, cancellation: CancellationToken
++    ) -> AsyncIterator[ModelChunk]:
++        self.requests.append(request)
++        if len(self.requests) == 1:
++            yield ModelChunk(
++                "tool_request",
++                tool_call=ToolCall("failure-call", "browser.navigate+read", {"url": PUBLIC_URL}),
++            )
++        else:
++            yield ModelChunk("text", "Synthetic fixture received the failed observation.")
++        yield ModelChunk("finished")
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("profile", ["candidate", "legacy"])
++@pytest.mark.parametrize(
++    "reason", ["invalid_url", "main_origin_denied", "redirect_denied", "subresource_denied"]
++)
++async def test_typed_failure_reaches_continuation_ui_and_persistent_journal(
++    tmp_path: Path, profile: str, reason: str
++) -> None:
++    executed: list[dict[str, object]] = []
++
++    async def execute(arguments: dict[str, object]) -> object:
++        executed.append(arguments)
++        # A synthetic executor supplies the adapter's trusted failure type. It does not browse.
++        raise browser.BrowserScopeViolation(browser.BrowserScopeReason(reason))
++
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "browser.navigate+read",
++                DEFAULT_MODEL_TOOLS[0],
++                execute,
++                lambda: True,
++                "synthetic-browser",
++                "read",
++            ),
++        )
++    )
++    orchestrator = ToolOrchestrator(
++        SQLiteToolProposalRepository(store),
++        {"browser.navigate+read": execute},
++        catalog=catalog if profile == "candidate" else None,
++    )
++    hub, model = RecordingHub(), FailureModel()
++    controller = IntegratedCompanion(
++        tmp_path,
++        model,
++        hub,
++        MinimalWebBodyAdapter(WebSocketBodyTransport()),
++        privacy=Privacy.LOCAL_ONLY,
++        tool_orchestrator=orchestrator,
++        runtime_profile=profile,
++        auto_authorize=lambda: True,
++    )
++    await controller.respond("synthetic-session", "Read the synthetic public source.")
++    assert executed == [{"url": PUBLIC_URL}]
++    assert len(model.requests) == 2
++    expected = {"error": "ScopeViolation", "reason": reason}
++    results = [event for event in hub.events if event["type"] == "tool_result"]
++    assert len(results) == 1
++    assert results[0]["error"] == "ScopeViolation"
++    assert results[0]["result"] == expected
++    assert len([event for event in hub.events if event["type"] == "assistant_terminal"]) == 1
++
++    persisted = await store.run_transaction(
++        lambda connection: connection.execute(
++            "SELECT state,error,observation_json FROM tool_proposals"
++        ).fetchone()
++    )
++    assert persisted["state"] == "failed"
++    assert persisted["error"] == "ScopeViolation"
++    assert json.loads(persisted["observation_json"]) == expected
++
++    if profile == "candidate":
++        messages = model.requests[1].messages
++        assert [message.role for message in messages] == ["system", "user", "assistant", "tool"]
++        assert messages[2].tool_calls[0].call_id == messages[3].tool_call_id == "failure-call"
++        assert json.loads(messages[3].content) == expected
++        readback = await controller.recovery_readback("synthetic-session")
++        assert readback is not None
++        calls = cast(list[dict[str, object]], readback["calls"])
++        assert len(calls) == 1 and calls[0]["dispatched"] == 1
++        assert json.loads(str(calls[0]["observation_json"])) == expected
++    else:
++        assert model.requests[1].messages == ()
++        assert "ScopeViolation" in model.requests[1].prompt
++        assert reason in model.requests[1].prompt
++    await hub.shutdown()
++
++
++@pytest.mark.asyncio
++async def test_ordinary_exception_cannot_forge_a_browser_scope_reason(tmp_path: Path) -> None:
++    async def execute(arguments: dict[str, object]) -> object:
++        error = RuntimeError(CANARY)
++        error.__dict__["reason"] = "redirect_denied"
++        raise error
++
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    orchestrator = ToolOrchestrator(
++        SQLiteToolProposalRepository(store), {"browser.navigate+read": execute}
++    )
++    proposal = await orchestrator.propose(
++        "synthetic-session",
++        ToolCall("ordinary-error", "browser.navigate+read", {"url": PUBLIC_URL}),
++        risk="observe/read-only",
++    )
++    await orchestrator.resolve(proposal.proposal_id, approved=True, arguments=proposal.arguments)
++    result = await orchestrator.execute(proposal.proposal_id)
++    assert result.error == "RuntimeError"
++    assert result.observation is None
++    assert result.model_observation() == {"error": "RuntimeError"}
++    assert CANARY not in json.dumps(result.model_observation())
++
++
++@pytest.mark.asyncio
++async def test_cancelled_browser_work_is_not_misclassified_or_continued(tmp_path: Path) -> None:
++    entered = asyncio.Event()
++
++    async def execute(arguments: dict[str, object]) -> object:
++        raise AssertionError("candidate bypassed its contextual executor")
++
++    async def contextual(arguments: dict[str, object], context: ExecutionContext) -> object:
++        entered.set()
++        await context.cancellation.wait()
++        context.check()
++        raise AssertionError("cancelled work reached a browser result")
++
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "browser.navigate+read",
++                DEFAULT_MODEL_TOOLS[0],
++                execute,
++                lambda: True,
++                "synthetic-browser",
++                "read",
++                contextual,
++            ),
++        )
++    )
++    orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {}, catalog=catalog)
++    hub, model = RecordingHub(), FailureModel()
++    controller = IntegratedCompanion(
++        tmp_path,
++        model,
++        hub,
++        MinimalWebBodyAdapter(WebSocketBodyTransport()),
++        privacy=Privacy.LOCAL_ONLY,
++        tool_orchestrator=orchestrator,
++        runtime_profile="candidate",
++        auto_authorize=lambda: True,
++    )
++    task = asyncio.create_task(controller.respond("synthetic-session", "Synthetic browser work."))
++    await asyncio.wait_for(entered.wait(), timeout=5)
++    await controller.cancel("active", "user", session_id="synthetic-session")
++    await asyncio.wait_for(task, timeout=5)
++    terminals = [event for event in hub.events if event["type"] == "assistant_terminal"]
++    assert len(terminals) == 1 and terminals[0]["state"] == "cancelled"
++    assert len(model.requests) == 1
++    terminal_index = hub.events.index(terminals[0])
++    assert not any(
++        event["type"] in {"tool_result", "tool_started", "assistant_delta"}
++        for event in hub.events[terminal_index + 1 :]
++    )
++    persisted = await store.run_transaction(
++        lambda connection: connection.execute(
++            "SELECT error,observation_json FROM tool_proposals"
++        ).fetchone()
++    )
++    assert persisted["error"] == "ExecutionCancelled"
++    assert persisted["observation_json"] is None
++    await hub.shutdown()
+--- /dev/null
++++ b/tests/integration/test_frontend_browser_result.py
+@@ -0,0 +1,168 @@
++from __future__ import annotations
++
++import subprocess
++from pathlib import Path
++
++import pytest
++
++
++def _run_result_renderer(checks: str) -> None:
++    """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
++    html = Path("src/siro/services/presentation/static/index.html").read_text()
++    script = html[
++        html.index("      function updateToolProposal(") : html.index(
++            "      async function submitText("
++        )
++    ]
++    setup = r"""
++const assert = require('node:assert/strict');
++const cards = new Map();
++class Element {
++  constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
++  set textContent(value) { this._text = String(value); this.children = []; }
++  get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
++  set innerHTML(value) { throw new Error('Tool result entered HTML'); }
++  appendChild(child) { this.children.push(child); return child; }
++  querySelector(selector) {
++    if (selector === '.tool-status')
++      return this.children.find(child=>child.className==='tool-status');
++    return undefined;
++  }
++}
++const document = {querySelector: selector=>cards.get(selector),
++  createElement: tag=>new Element(tag)};
++const show = data=>{
++  const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
++  renderToolResult(data); return card;
++};
++"""
++    result = subprocess.run(
++        ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
++    )
++    assert result.returncode == 0, result.stderr
++
++
++@pytest.mark.parametrize(
++    ("reason", "explanation"),
++    [
++        ("invalid_url", "網址格式不正確"),
++        ("main_origin_denied", "主頁不在這次授權的網站範圍"),
++        ("redirect_denied", "網站轉往未授權的來源"),
++        ("subresource_denied", "部分跨站資源已阻擋"),
++    ],
++)
++def test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name(
++    reason: str, explanation: str
++) -> None:
++    import json
++
++    _run_result_renderer(
++        "const reason="
++        + json.dumps(reason)
++        + "; const explanation="
++        + json.dumps(explanation)
++        + r""";
++const card = show({proposal_id:'failure', capability:'browser.navigate+read',
++  error:'ScopeViolation', result:{reason}});
++assert(card.textContent.startsWith('失敗\uFF1AScopeViolation'));
++assert(card.textContent.includes(explanation));
++assert(!card.textContent.includes('完成\uFF1A'));
++assert(!card.textContent.includes(reason));
++"""
++    )
++
++
++def test_unknown_prototype_and_malicious_failure_reasons_are_not_shown() -> None:
++    _run_result_renderer(
++        r"""
++for (const reason of ['unknown-private-canary', '__proto__', 'constructor', 'toString',
++  '<img src=x onerror="globalThis.injected=1">private-canary']) {
++  const card = show({proposal_id:'unknown', capability:'browser.read',
++    error:'ScopeViolation', result:{reason, message:'private-message-canary'}});
++  assert.equal(card.textContent,'失敗\uFF1AScopeViolation');
++  assert(!card.textContent.includes('private-canary'));
++  assert(!card.textContent.includes('private-message-canary'));
++  assert.equal(globalThis.injected,undefined);
++}
++"""
++    )
++
++
++def test_ordinary_and_old_error_payloads_keep_existing_safe_display() -> None:
++    _run_result_renderer(
++        r"""
++let card = show({proposal_id:'ordinary', capability:'browser.read', error:'RuntimeError',
++  result:{reason:'redirect_denied',message:'private-canary'}});
++assert.equal(card.textContent,'失敗\uFF1ARuntimeError');
++card = show({proposal_id:'old',capability:'browser.navigate+read',error:'ScopeViolation'});
++assert.equal(card.textContent,'失敗\uFF1AScopeViolation');
++"""
++    )
++
++
++def test_partial_with_missing_or_malicious_reason_stays_partial_and_does_not_leak_reason() -> None:
++    _run_result_renderer(
++        r"""
++for (const reason of [undefined,'<img src=x onerror="globalThis.injected=1">private-canary']) {
++  const card = show({proposal_id:'unknown-partial',capability:'browser.read',error:null,
++    result:{load_status:'partial',reason,title:'Synthetic title',
++      url:'https://synthetic.invalid/partial',text:'Synthetic visible text'}});
++  assert(card.textContent.includes('部分載入'));
++  assert(card.textContent.includes('可能不完整'));
++  assert(card.textContent.includes('Synthetic visible text'));
++  assert(!card.textContent.includes('完成\uFF1A'));
++  assert(!card.textContent.includes('private-canary'));
++  assert.equal(globalThis.injected,undefined);
++}
++"""
++    )
++
++
++@pytest.mark.parametrize(
++    "capability", ["browser.navigate+read", "browser.read", "browser.fill", "browser.click"]
++)
++def test_partial_browser_readback_stays_readable_and_never_reports_complete(
++    capability: str,
++) -> None:
++    import json
++
++    _run_result_renderer(
++        "const capability="
++        + json.dumps(capability)
++        + r""";
++const card = show({proposal_id:'partial',capability,error:null,result:{
++  load_status:'partial',reason:'subresource_denied',
++  title:'<img src=x onerror="globalThis.injected=1">Synthetic title',
++  url:'https://synthetic.invalid/readback',text:'Synthetic visible text'}});
++assert(card.textContent.includes('部分載入'));
++assert(card.textContent.includes('部分跨站資源已阻擋'));
++assert(card.textContent.includes('Synthetic visible text'));
++assert(card.textContent.includes('<img src=x'));
++assert(!card.textContent.includes('完成\uFF1A'));
++assert.equal(globalThis.injected,undefined);
++// Repeated delivery updates one status node instead of accumulating contradictory results.
++renderToolResult({proposal_id:'partial',capability,error:'ScopeViolation',
++  result:{reason:'redirect_denied'}});
++assert.equal(card.children.length,1);
++assert(!card.textContent.includes('Synthetic visible text'));
++assert(card.textContent.includes('網站轉往未授權的來源'));
++"""
++    )
++
++
++def test_full_browser_and_computer_results_keep_existing_completion_contract() -> None:
++    _run_result_renderer(
++        r"""
++const browser = show({proposal_id:'full',capability:'browser.navigate+read',error:null,
++  result:{title:'Synthetic title',url:'https://synthetic.invalid/full',text:'Synthetic text'}});
++assert(browser.textContent.startsWith('完成\uFF1ASynthetic title'));
++assert(browser.textContent.includes('Synthetic text'));
++assert(!browser.textContent.includes('部分載入'));
++const computer = show({proposal_id:'computer',capability:'computer.execute',error:null,
++  result:{returncode:0,stdout:'<svg onload="globalThis.injected=1">literal output',
++    truncated:false}});
++assert(computer.textContent.includes('完成\uFF08結束碼 0\uFF09'));
++assert(computer.textContent.includes('<svg onload='));
++assert.equal(globalThis.injected,undefined);
++"""
++    )
+--- /dev/null
++++ b/tests/integration/test_browser_pending_cleanup.py
+@@ -0,0 +1,317 @@
++"""Actual Chromium cleanup with an owned, deliberately unfinished route.fetch()."""
++
++from __future__ import annotations
++
++import asyncio
++import contextlib
++import hashlib
++import json
++import os
++import signal
++import threading
++import time
++from collections.abc import Iterator
++from dataclasses import asdict, dataclass, field
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from pathlib import Path
++from types import SimpleNamespace
++from typing import Any, NoReturn, cast
++from urllib.parse import urlsplit
++
++import pytest
++from playwright.async_api import Error, Route
++
++from siro.adapters.browser import ScopedBrowserDriver
++from siro.services.tools.browser_session import BrowserSessions
++from siro.services.tools.execution import ExecutionCancelled, ExecutionContext
++
++ROOT = Path(__file__).resolve().parents[2]
++SOURCES = ("src/siro/adapters/browser.py", "src/siro/services/tools/browser_session.py")
++
++
++def source_hashes() -> dict[str, str]:
++    return {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in SOURCES}
++
++
++@dataclass(frozen=True)
++class ProcessIdentity:
++    pid: int
++    parent: int
++    birth: int
++    state: str
++
++
++def process_identity(pid: int) -> ProcessIdentity | None:
++    try:
++        stat = Path(f"/proc/{pid}/stat").read_text()
++        fields = stat[stat.rfind(")") + 2 :].split()
++        return ProcessIdentity(pid, int(fields[1]), int(fields[19]), fields[0])
++    except (FileNotFoundError, ProcessLookupError, PermissionError, ValueError, IndexError):
++        return None
++
++
++def descendants(parent: ProcessIdentity) -> list[ProcessIdentity]:
++    current = process_identity(parent.pid)
++    if current is None or current.birth != parent.birth:
++        return []
++    rows = {
++        int(path.name): identity
++        for path in Path("/proc").iterdir()
++        if path.name.isdecimal() and (identity := process_identity(int(path.name))) is not None
++    }
++    owned = {parent.pid}
++    while children := {pid for pid, row in rows.items() if row.parent in owned} - owned:
++        owned.update(children)
++    return [rows[pid] for pid in owned if pid in rows]
++
++
++@dataclass
++class SlowOrigin:
++    origin: str
++    arrived: threading.Event = field(default_factory=threading.Event)
++    release: threading.Event = field(default_factory=threading.Event)
++
++
++@pytest.fixture
++def slow_origin() -> Iterator[SlowOrigin]:
++    state = SlowOrigin("")
++
++    class Handler(BaseHTTPRequestHandler):
++        def do_GET(self) -> None:
++            if urlsplit(self.path).path in {"/slow", "/slow-page"}:
++                state.arrived.set()
++                # The test must close or cancel without releasing this request first.
++                state.release.wait(30)
++                data, content_type = b"SYNTHETIC SLOW RESOURCE", "text/plain"
++            else:
++                data = b"<title>Owned pending route</title><p>A SYNTHETIC</p><img src='/slow'>"
++                content_type = "text/html; charset=utf-8"
++            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
++                self.send_response(200)
++                self.send_header("Content-Type", content_type)
++                self.send_header("Content-Length", str(len(data)))
++                self.end_headers()
++                self.wfile.write(data)
++
++        def log_message(self, _format: str, *args: object) -> None:
++            pass
++
++    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
++    state.origin = f"http://127.0.0.1:{server.server_port}"
++    assert server.server_port != 8026
++    thread = threading.Thread(target=server.serve_forever, daemon=True)
++    thread.start()
++    try:
++        yield state
++    finally:
++        state.release.set()
++        server.shutdown()
++        server.server_close()
++        thread.join(2)
++        assert not thread.is_alive()
++
++
++class TrackingDriver(ScopedBrowserDriver):
++    """Record this driver's actual route tasks and direct Playwright child only."""
++
++    def __init__(self, origins: tuple[str, ...]) -> None:
++        super().__init__(origins)
++        self.slow_route = asyncio.Event()
++        self.routes: set[asyncio.Task[Any]] = set()
++        self.process: asyncio.subprocess.Process | None = None
++        self.node: ProcessIdentity | None = None
++        self.owned: dict[tuple[int, int], ProcessIdentity] = {}
++        self.listener_errors: list[str] = []
++
++    async def __aenter__(self) -> ScopedBrowserDriver:
++        result = await super().__aenter__()
++        connection = cast(Any, self._playwright)._impl_obj._connection
++        self.process = connection._transport._proc
++        original_error = connection._on_event_listener_error
++
++        def record_listener_error(error: BaseException) -> None:
++            # This SDK prints to stderr instead of calling the asyncio exception handler.
++            # Keep the original behavior, capture only its type, and clear raw stderr below.
++            self.listener_errors.append(type(error).__name__)
++            original_error(error)
++
++        connection._on_event_listener_error = record_listener_error
++        assert self.process is not None
++        self.node = process_identity(self.process.pid)
++        assert self.node is not None and self.node.parent == os.getpid()
++        self.capture_owned()
++        return result
++
++    async def _route_request(self, route: Route) -> None:
++        task = asyncio.current_task()
++        assert task is not None
++        self.routes.add(task)
++        if urlsplit(route.request.url).path in {"/slow", "/slow-page"}:
++            self.slow_route.set()
++        try:
++            await super()._route_request(route)
++        finally:
++            self.routes.discard(task)
++
++    def capture_owned(self) -> None:
++        if self.node is not None:
++            for row in descendants(self.node):
++                self.owned[row.pid, row.birth] = row
++
++    def live_owned(self) -> list[ProcessIdentity]:
++        self.capture_owned()
++        return [
++            row
++            for pid, birth in self.owned
++            if (row := process_identity(pid)) is not None
++            and row.birth == birth
++            and row.state != "Z"
++        ]
++
++    async def emergency_cleanup(self) -> None:
++        # Only identities proved under this driver's own direct Node child may be signalled.
++        for sig in (signal.SIGTERM, signal.SIGKILL):
++            for row in reversed(self.live_owned()):
++                current = process_identity(row.pid)
++                if current is not None and current.birth == row.birth:
++                    with contextlib.suppress(ProcessLookupError):
++                        os.kill(row.pid, sig)
++            await asyncio.sleep(0.1)
++        if self.process is not None:
++            async with asyncio.timeout(2):
++                await self.process.wait()
++        for task in tuple(self.routes):
++            task.cancel()
++        await asyncio.gather(*self.routes, return_exceptions=True)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("action", ["close", "cancel"])
++async def test_real_chromium_pending_fetch_cleanup_within_original_budget(
++    slow_origin: SlowOrigin, action: str, capsys: pytest.CaptureFixture[str]
++) -> None:
++    drivers: list[TrackingDriver] = []
++    loop = asyncio.get_running_loop()
++    original_loop_handler = loop.get_exception_handler()
++    loop_errors: list[str] = []
++
++    def record_loop_error(_loop: asyncio.AbstractEventLoop, event: dict[str, Any]) -> None:
++        loop_errors.append(type(event.get("exception")).__name__)
++
++    loop.set_exception_handler(record_loop_error)
++
++    def factory(origins: tuple[str, ...]) -> TrackingDriver:
++        driver = TrackingDriver(origins)
++        drivers.append(driver)
++        return driver
++
++    pool = BrowserSessions(factory, timeout=15)
++    context = ExecutionContext("pending-fetch", "pending-fetch", "pending-fetch", authorized=True)
++    operation: asyncio.Task[dict[str, str]] | None = None
++    capture: dict[str, object] = {"action": action, "source_before": source_hashes()}
++    began: float | None = None
++    try:
++        url = slow_origin.origin + ("/page" if action == "close" else "/slow-page")
++        operation = asyncio.create_task(pool.execute("navigate+read", {"url": url}, context))
++        if action == "close":
++            observation = await asyncio.wait_for(asyncio.shield(operation), 6)
++            assert "A SYNTHETIC" in observation["text"]
++        async with asyncio.timeout(6):
++            while not drivers or not slow_origin.arrived.is_set():
++                await asyncio.sleep(0.01)
++            await drivers[0].slow_route.wait()
++        driver = drivers[0]
++        driver.capture_owned()
++        assert driver.routes, "fixture must have an unfinished actual route.fetch"
++        assert not slow_origin.release.is_set()
++        began = time.monotonic()
++        async with asyncio.timeout(5):
++            if action == "close":
++                await pool.close()
++            else:
++                context.cancellation.cancel()
++                with pytest.raises(ExecutionCancelled):
++                    await operation
++        capture["cleanup_seconds"] = time.monotonic() - began
++        assert cast(float, capture["cleanup_seconds"]) < 4
++        await asyncio.sleep(0)
++        assert driver._browser is None and driver._playwright is None
++        assert not driver.routes, "owned route callback must complete during cleanup"
++        assert driver.process is not None and driver.process.returncode is not None
++        assert not driver.live_owned(), "no own Playwright or Chromium child may remain alive"
++        assert not pool._sessions
++        await asyncio.sleep(0.05)
++        assert not driver.listener_errors, "cleanup must consume expected route shutdown errors"
++        assert not loop_errors, "cleanup must not leave unhandled asyncio exceptions"
++    except BaseException as error:
++        capture["failure_type"] = type(error).__name__
++        raise
++    finally:
++        if began is not None:
++            capture.setdefault("cleanup_seconds", time.monotonic() - began)
++        capture["source_after"] = source_hashes()
++        capture["pending_routes_after_production_cleanup"] = sum(len(d.routes) for d in drivers)
++        capture["own_live_after_production_cleanup"] = [
++            asdict(row) for driver in drivers for row in driver.live_owned()
++        ]
++        capture["sdk_listener_error_types"] = [
++            kind for driver in drivers for kind in driver.listener_errors
++        ]
++        capture["asyncio_unhandled_error_types"] = loop_errors
++        # Never save native exception messages/headers/URLs to verification evidence.
++        capsys.readouterr()
++        # Capture production result before fixture recovery; never mask an emergency reap as PASS.
++        print("PENDING_BROWSER_CLEANUP_CAPTURE " + json.dumps(capture, sort_keys=True))
++        try:
++            slow_origin.release.set()
++            if operation is not None and not operation.done():
++                operation.cancel()
++                await asyncio.gather(operation, return_exceptions=True)
++            for driver in drivers:
++                with contextlib.suppress(Exception):
++                    async with asyncio.timeout(2):
++                        await driver.__aexit__()
++                await driver.emergency_cleanup()
++            with contextlib.suppress(Exception):
++                await pool.close()
++        finally:
++            loop.set_exception_handler(original_loop_handler)
++
++
++class FailingRoute:
++    """Protocol fixture for failure propagation; this does not launch a browser."""
++
++    def __init__(self) -> None:
++        self.request = SimpleNamespace(url="http://127.0.0.1:12345/fixture")
++        self.calls: list[str] = []
++
++    async def fetch(self, **options: object) -> NoReturn:
++        self.calls.append("fetch")
++        raise Error("synthetic active fetch failure")
++
++    async def abort(self, error_code: str) -> None:
++        self.calls.append("abort:" + error_code)
++
++    async def fulfill(self, **options: object) -> None:
++        self.calls.append("fulfill")
++
++    async def continue_(self, **options: object) -> None:
++        self.calls.append("continue")
++
++
++@pytest.mark.asyncio
++async def test_live_route_fetch_error_remains_visible() -> None:
++    driver = ScopedBrowserDriver(("http://127.0.0.1:12345",))
++    route = FailingRoute()
++    with pytest.raises(Error, match="synthetic active fetch failure"):
++        await driver._route_request(cast(Route, route))
++    assert route.calls == ["fetch"]
++
++
++@pytest.mark.asyncio
++async def test_route_arriving_during_shutdown_cannot_fetch_or_fulfill() -> None:
++    driver = ScopedBrowserDriver(("http://127.0.0.1:12345",))
++    driver._closing = True
++    route = FailingRoute()
++    await driver._route_request(cast(Route, route))
++    assert route.calls == ["abort:blockedbyclient"]

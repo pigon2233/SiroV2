@@ -1,0 +1,297 @@
+--- a/src/siro/core/companion.py
++++ b/src/siro/core/companion.py
+@@ -4,7 +4,7 @@
+ 
+ from collections.abc import Awaitable, Callable, Sequence
+ 
+-from siro.core.conversation import ConversationEngine, DeltaHandler, TurnResult
++from siro.core.conversation import ConversationEngine, DeltaHandler, TurnResult, TurnState
+ from siro.core.identity import IdentityRepository
+ from siro.core.memory import MemoryService, WorkingMemory, assemble_prompt
+ from siro.ports.models import ModelMessage, Privacy, ToolDefinition
+@@ -68,7 +68,9 @@
+             messages=tuple(message_history) if message_history is not None else (),
+         )
+         if message_history is not None:
+-            message_history.append(ModelMessage("assistant", result.text, result.tool_calls))
++            # Partial intent from a failed/cancelled generation is not an accepted batch.
++            calls = result.tool_calls if result.state is TurnState.COMPLETED else ()
++            message_history.append(ModelMessage("assistant", result.text, calls))
+         if result.text:
+             self._working.append(session_id, "assistant", result.text)
+         return result
+--- a/src/siro/services/presentation/integrated.py
++++ b/src/siro/services/presentation/integrated.py
+@@ -5,6 +5,7 @@
+ import asyncio
+ import json
+ from collections.abc import Awaitable, Callable
++from dataclasses import asdict
+ from datetime import UTC, datetime
+ from pathlib import Path
+ from uuid import uuid4
+@@ -382,7 +383,7 @@
+             )
+             if agent_run.run_id in self._terminated:
+                 return
+-            if result.tool_calls:
++            if result.state is TurnState.COMPLETED and result.tool_calls:
+                 await self._propose_tool_calls(session_id, result.tool_calls)
+                 return
+             if self._runtime_profile == "candidate":
+@@ -392,6 +393,7 @@
+                     result.state,
+                     result.error,
+                     result.text,
++                    rejected_tool_calls=result.tool_calls,
+                     prosody={
+                         "rate": expression.speech_rate,
+                         "pitch": expression.pitch,
+@@ -413,11 +415,21 @@
+             await self._agent_runs.append(
+                 agent_run.run_id,
+                 "final",
+-                {"text": result.text, "state": result.state.value},
++                {
++                    "text": result.text,
++                    "state": result.state.value,
++                    **(
++                        {"rejected_tool_calls": [asdict(call) for call in result.tool_calls]}
++                        if result.tool_calls
++                        else {}
++                    ),
++                },
+                 state=(
+-                    AgentRunState.COMPLETED
+-                    if result.state is TurnState.COMPLETED
+-                    else AgentRunState.FAILED
++                    {
++                        TurnState.COMPLETED: AgentRunState.COMPLETED,
++                        TurnState.CANCELLED: AgentRunState.CANCELLED,
++                        TurnState.FAILED: AgentRunState.FAILED,
++                    }[result.state]
+                 ),
+                 error=result.error,
+             )
+@@ -598,12 +610,17 @@
+         )
+         if run_id in self._terminated:
+             return
+-        if result.tool_calls:
++        if result.state is TurnState.COMPLETED and result.tool_calls:
+             await self._propose_tool_calls(session_id, result.tool_calls)
+             return
+         if self._runtime_profile == "candidate":
+             await self._finish_candidate(
+-                run_id, session_id, result.state, result.error, result.text
++                run_id,
++                session_id,
++                result.state,
++                result.error,
++                result.text,
++                rejected_tool_calls=result.tool_calls,
+             )
+             if result.state is TurnState.COMPLETED and result.text:
+                 await self._body.speak(
+@@ -615,11 +632,21 @@
+         await self._agent_runs.append(
+             run_id,
+             "final",
+-            {"text": result.text, "state": result.state.value},
++            {
++                "text": result.text,
++                "state": result.state.value,
++                **(
++                    {"rejected_tool_calls": [asdict(call) for call in result.tool_calls]}
++                    if result.tool_calls
++                    else {}
++                ),
++            },
+             state=(
+-                AgentRunState.COMPLETED
+-                if result.state is TurnState.COMPLETED
+-                else AgentRunState.FAILED
++                {
++                    TurnState.COMPLETED: AgentRunState.COMPLETED,
++                    TurnState.CANCELLED: AgentRunState.CANCELLED,
++                    TurnState.FAILED: AgentRunState.FAILED,
++                }[result.state]
+             ),
+             error=result.error,
+         )
+@@ -765,6 +792,7 @@
+         text: str = "",
+         *,
+         prosody: dict[str, float] | None = None,
++        rejected_tool_calls: tuple[ToolCall, ...] = (),
+     ) -> None:
+         if run_id in self._terminated:
+             return
+@@ -796,7 +824,15 @@
+         await self._agent_runs.append(
+             run_id,
+             "final",
+-            {"text": text, "state": state.value},
++            {
++                "text": text,
++                "state": state.value,
++                **(
++                    {"rejected_tool_calls": [asdict(call) for call in rejected_tool_calls]}
++                    if rejected_tool_calls
++                    else {}
++                ),
++            },
+             state={
+                 TurnState.COMPLETED: AgentRunState.COMPLETED,
+                 TurnState.CANCELLED: AgentRunState.CANCELLED,
+--- a/tests/integration/test_agent_batches.py
++++ b/tests/integration/test_agent_batches.py
+@@ -305,3 +305,148 @@
+     with pytest.raises(pytest.fail.Exception, match=r"iteration 23.*task stack"):
+         await wait_for_executor_entry(task, asyncio.Event(), 23, timeout=0.01)
+     assert task.cancelled()
++
++
++class InterruptedIntentModel:
++    name = "interrupted-intent"
++
++    def __init__(self, failure: str, continuation: bool, partial_text: bool) -> None:
++        self.failure = failure
++        self.continuation = continuation
++        self.partial_text = partial_text
++        self.requests: list[ModelRequest] = []
++
++    async def stream(
++        self, request: ModelRequest, cancellation: CancellationToken
++    ) -> AsyncIterator[ModelChunk]:
++        self.requests.append(request)
++        round_number = len(self.requests)
++        if round_number > (2 if self.continuation else 1):
++            yield ModelChunk("text", "incorrect recovery")
++            return
++        if self.partial_text:
++            yield ModelChunk("text", "partial response")
++        yield ModelChunk(
++            "tool_request",
++            tool_call=ToolCall(f"intent-{round_number}", "computer.execute", {}),
++        )
++        if self.continuation and round_number == 1:
++            yield ModelChunk("finished")
++            return
++        if self.failure == "connection":
++            raise ConnectionError("synthetic provider disconnect")
++        if self.failure == "deadline":
++            await asyncio.sleep(60)
++        if self.failure == "timeout":
++            raise TimeoutError("synthetic provider timeout")
++        cancellation.cancel()
++        yield ModelChunk("finished")
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("profile", ["legacy", "candidate"])
++@pytest.mark.parametrize("continuation", [False, True])
++@pytest.mark.parametrize("failure", ["connection", "timeout", "deadline", "cancel"])
++@pytest.mark.parametrize("partial_text", [False, True])
++async def test_failed_generation_never_accepts_partial_tool_intent(
++    tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
++) -> None:
++    import json
++    from typing import cast
++
++    from siro.core.conversation import TurnState
++    from siro.ports.models import LanguageModel
++
++    effects: list[object] = []
++
++    async def execute(arguments: dict[str, object]) -> object:
++        effects.append(arguments)
++        return {"confirmed": True}
++
++    model = InterruptedIntentModel(failure, continuation, partial_text)
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    orchestrator = ToolOrchestrator(
++        SQLiteToolProposalRepository(store), {"computer.execute": execute}
++    )
++    hub = RecordingHub()
++    controller = IntegratedCompanion(
++        tmp_path,
++        model,
++        hub,
++        MinimalWebBodyAdapter(WebSocketBodyTransport()),
++        privacy=Privacy.LOCAL_ONLY,
++        tool_orchestrator=orchestrator,
++        runtime_profile=profile,
++        auto_authorize=lambda: True,
++    )
++    if failure == "deadline":
++        await controller._ensure_core()
++        assert controller._conversation is not None
++        controller._conversation._timeout = 0.05
++    await controller.respond("interrupted", "synthetic goal")
++    expected_state = "cancelled" if failure == "cancel" else "failed"
++    expected_error = {
++        "connection": "ConnectionError",
++        "timeout": "timeout",
++        "deadline": "timeout",
++        "cancel": None,
++    }[failure]
++    assert len(effects) == int(continuation)
++    assert len(model.requests) == 1 + int(continuation)
++    terminals = [e for e in hub.events if e["type"] == "assistant_terminal"]
++    assert len(terminals) == 1
++    assert terminals[0]["state"] == expected_state
++    assert terminals[0]["error"] == expected_error
++    readback = await controller.recovery_readback("interrupted")
++    assert readback is not None and readback["state"] == expected_state
++    assert readback["error"] == expected_error
++    rows = await store.run_transaction(
++        lambda c: c.execute("SELECT * FROM tool_proposals").fetchall()
++    )
++    assert len(rows) == int(continuation)
++    final = await store.run_transaction(
++        lambda c: c.execute("SELECT payload_json FROM agent_steps WHERE kind='final'").fetchone()
++    )
++    final_payload = json.loads(final[0])
++    assert final_payload["text"] == ("partial response" if partial_text else "")
++    assert final_payload["rejected_tool_calls"][0]["call_id"] == f"intent-{len(model.requests)}"
++    turns = await store.run_transaction(
++        lambda c: c.execute("SELECT state FROM turns ORDER BY rowid").fetchall()
++    )
++    assert turns[-1][0] == expected_state
++    if profile == "candidate":
++        assert readback["recovery_status"] == "terminal"
++        assert readback["tool_calls"] == int(continuation)
++        messages = cast(list[dict[str, object]], readback["messages"])
++        assert messages[-1]["content"] == final_payload["text"]
++        assert messages[-1]["tool_calls"] == []
++        calls = cast(list[dict[str, object]], readback["calls"])
++        assert len(calls) == int(continuation)
++        if continuation:
++            tool_messages = [m for m in messages if m["role"] == "tool"]
++            assert len(tool_messages) == 1
++            assert tool_messages[0]["tool_call_id"] == "intent-1"
++            assert json.loads(str(tool_messages[0]["content"])) == {"confirmed": True}
++
++        # Real reopen/reconciliation path; any provider/executor replay fails the test.
++        class NoReplay:
++            name = "no-replay"
++
++            async def stream(
++                self, request: ModelRequest, cancellation: CancellationToken
++            ) -> AsyncIterator[ModelChunk]:
++                raise AssertionError("restart must not call provider")
++                yield ModelChunk("finished")
++
++        restarted = IntegratedCompanion(
++            tmp_path,
++            cast(LanguageModel, NoReplay()),
++            RecordingHub(),
++            MinimalWebBodyAdapter(WebSocketBodyTransport()),
++            runtime_profile="candidate",
++            privacy=Privacy.LOCAL_ONLY,
++        )
++        await restarted.startup()
++        assert await restarted.recovery_readback("interrupted") == readback
++    assert TurnState(expected_state) in {TurnState.FAILED, TurnState.CANCELLED}

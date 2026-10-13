@@ -1,0 +1,349 @@
+FFFFFFFFF                                                                [100%]
+=================================== FAILURES ===================================
+_ test_backup_refuses_busy_foreign_write_target_before_any_database_work[False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei0/synthetic-home')
+capsys = <_pytest.capture.CaptureFixture object at 0x781630785be0>
+bundle = False
+
+    @pytest.mark.parametrize("bundle", [False, True])
+    def test_backup_refuses_busy_foreign_write_target_before_any_database_work(
+        tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], bundle: bool
+    ) -> None:
+        data, other = tmp_path / "source", tmp_path / "other"
+        data.mkdir()
+        other.mkdir()
+        source, destination = data / "siro.db", other / "siro.db"
+        seed(source, "source-snapshot")
+        seed(destination, "foreign-managed-latest")
+        source_before, target_before = dump(source), dump(destination)
+        source_bytes, target_bytes = source.read_bytes(), destination.read_bytes()
+        target_inode = destination.stat().st_ino
+        arguments = ["backup", "--data", str(data)]
+        if bundle:
+            config = tmp_path / "config.json"
+            config.write_text(SiroSettings().model_dump_json())
+            arguments.extend(["--config", str(config)])
+        arguments.append(str(destination))
+    
+        with kernel_owner(destination, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['backup', '--data', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei0/source', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei0/other/siro.db'])
+
+tests/integration/test_data_owner_callers.py:479: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "backed_up", "destination": "/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei0/other/siro.db"}
+_ test_backup_refuses_busy_foreign_write_target_before_any_database_work[True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei1/synthetic-home')
+capsys = <_pytest.capture.CaptureFixture object at 0x7816307e7390>
+bundle = True
+
+    @pytest.mark.parametrize("bundle", [False, True])
+    def test_backup_refuses_busy_foreign_write_target_before_any_database_work(
+        tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], bundle: bool
+    ) -> None:
+        data, other = tmp_path / "source", tmp_path / "other"
+        data.mkdir()
+        other.mkdir()
+        source, destination = data / "siro.db", other / "siro.db"
+        seed(source, "source-snapshot")
+        seed(destination, "foreign-managed-latest")
+        source_before, target_before = dump(source), dump(destination)
+        source_bytes, target_bytes = source.read_bytes(), destination.read_bytes()
+        target_inode = destination.stat().st_ino
+        arguments = ["backup", "--data", str(data)]
+        if bundle:
+            config = tmp_path / "config.json"
+            config.write_text(SiroSettings().model_dump_json())
+            arguments.extend(["--config", str(config)])
+        arguments.append(str(destination))
+    
+        with kernel_owner(destination, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['backup', '--data', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei1/source', '--config', '/tmp/p..._refuses_busy_forei1/config.json', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei1/other/siro.db'])
+
+tests/integration/test_data_owner_callers.py:479: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "backed_up", "destination": "/tmp/pytest-of-jasonliao/pytest-114/test_backup_refuses_busy_forei1/other/siro.db"}
+_______ test_backup_cannot_replace_its_own_source_database[False-False] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its0/synthetic-home')
+capsys = <_pytest.capture.CaptureFixture object at 0x781630284410>
+alias = False, bundle = False
+
+    @pytest.mark.parametrize("alias", [False, True])
+    @pytest.mark.parametrize("bundle", [False, True])
+    def test_backup_cannot_replace_its_own_source_database(
+        tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], alias: bool, bundle: bool
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database = data / "siro.db"
+        seed(database, "latest-completed")
+        before, inode = database.read_bytes(), database.stat().st_ino
+        destination = database
+        if alias:
+            destination = tmp_path / "alias.db"
+            destination.symlink_to(database)
+    
+        arguments = ["backup", "--data", str(data)]
+        if bundle:
+            config = tmp_path / "config.json"
+            config.write_text(SiroSettings().model_dump_json())
+            arguments.extend(["--config", str(config)])
+        arguments.append(str(destination))
+>       assert main(arguments) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = main(['backup', '--data', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its0/data', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its0/data/siro.db'])
+
+tests/integration/test_data_owner_callers.py:508: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "backed_up", "destination": "/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its0/data/siro.db"}
+________ test_backup_cannot_replace_its_own_source_database[False-True] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its1/synthetic-home')
+capsys = <_pytest.capture.CaptureFixture object at 0x781630238180>, alias = True
+bundle = False
+
+    @pytest.mark.parametrize("alias", [False, True])
+    @pytest.mark.parametrize("bundle", [False, True])
+    def test_backup_cannot_replace_its_own_source_database(
+        tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], alias: bool, bundle: bool
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database = data / "siro.db"
+        seed(database, "latest-completed")
+        before, inode = database.read_bytes(), database.stat().st_ino
+        destination = database
+        if alias:
+            destination = tmp_path / "alias.db"
+            destination.symlink_to(database)
+    
+        arguments = ["backup", "--data", str(data)]
+        if bundle:
+            config = tmp_path / "config.json"
+            config.write_text(SiroSettings().model_dump_json())
+            arguments.extend(["--config", str(config)])
+        arguments.append(str(destination))
+>       assert main(arguments) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = main(['backup', '--data', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its1/data', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its1/alias.db'])
+
+tests/integration/test_data_owner_callers.py:508: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "backed_up", "destination": "/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its1/alias.db"}
+________ test_backup_cannot_replace_its_own_source_database[True-False] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its2')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its2/synthetic-home')
+capsys = <_pytest.capture.CaptureFixture object at 0x7816302396e0>
+alias = False, bundle = True
+
+    @pytest.mark.parametrize("alias", [False, True])
+    @pytest.mark.parametrize("bundle", [False, True])
+    def test_backup_cannot_replace_its_own_source_database(
+        tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], alias: bool, bundle: bool
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database = data / "siro.db"
+        seed(database, "latest-completed")
+        before, inode = database.read_bytes(), database.stat().st_ino
+        destination = database
+        if alias:
+            destination = tmp_path / "alias.db"
+            destination.symlink_to(database)
+    
+        arguments = ["backup", "--data", str(data)]
+        if bundle:
+            config = tmp_path / "config.json"
+            config.write_text(SiroSettings().model_dump_json())
+            arguments.extend(["--config", str(config)])
+        arguments.append(str(destination))
+>       assert main(arguments) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = main(['backup', '--data', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its2/data', '--config', '/tmp/pyt...p_cannot_replace_its2/config.json', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its2/data/siro.db'])
+
+tests/integration/test_data_owner_callers.py:508: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "backed_up", "destination": "/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its2/data/siro.db"}
+________ test_backup_cannot_replace_its_own_source_database[True-True] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its3')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its3/synthetic-home')
+capsys = <_pytest.capture.CaptureFixture object at 0x7816302d83b0>, alias = True
+bundle = True
+
+    @pytest.mark.parametrize("alias", [False, True])
+    @pytest.mark.parametrize("bundle", [False, True])
+    def test_backup_cannot_replace_its_own_source_database(
+        tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], alias: bool, bundle: bool
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database = data / "siro.db"
+        seed(database, "latest-completed")
+        before, inode = database.read_bytes(), database.stat().st_ino
+        destination = database
+        if alias:
+            destination = tmp_path / "alias.db"
+            destination.symlink_to(database)
+    
+        arguments = ["backup", "--data", str(data)]
+        if bundle:
+            config = tmp_path / "config.json"
+            config.write_text(SiroSettings().model_dump_json())
+            arguments.extend(["--config", str(config)])
+        arguments.append(str(destination))
+>       assert main(arguments) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = main(['backup', '--data', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its3/data', '--config', '/tmp/pyt...ackup_cannot_replace_its3/config.json', '/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its3/alias.db'])
+
+tests/integration/test_data_owner_callers.py:508: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "backed_up", "destination": "/tmp/pytest-of-jasonliao/pytest-114/test_backup_cannot_replace_its3/alias.db"}
+_________ test_restore_refuses_busy_foreign_configuration_write_target _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_restore_refuses_busy_fore0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_restore_refuses_busy_fore0/synthetic-home')
+capsys = <_pytest.capture.CaptureFixture object at 0x78163069b680>
+
+    def test_restore_refuses_busy_foreign_configuration_write_target(
+        tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data, other = tmp_path / "data", tmp_path / "other"
+        data.mkdir()
+        other.mkdir()
+        database, foreign, backup = data / "siro.db", other / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(foreign, "foreign-managed-latest")
+        seed(backup, "old-snapshot")
+        source = tmp_path / "backup.zip"
+        make_bundle(source, backup)
+        before, foreign_before, source_before = dump(database), dump(foreign), source.read_bytes()
+        with kernel_owner(foreign, account):
+>           assert main(["restore", "--data", str(data), "--config", str(foreign), str(source)]) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['restore', '--data', '/tmp/pytest-of-jasonliao/pytest-114/test_restore_refuses_busy_fore0/data', '--config', '/tmp/py...re_refuses_busy_fore0/other/siro.db', '/tmp/pytest-of-jasonliao/pytest-114/test_restore_refuses_busy_fore0/backup.zip'])
+
+tests/integration/test_data_owner_callers.py:549: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-114/test_restore_refuses_busy_fore0/data"}
+_ test_restore_configuration_cannot_replace_its_database_or_source_backup[database] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_restore_configuration_can0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_restore_configuration_can0/synthetic-home')
+capsys = <_pytest.capture.CaptureFixture object at 0x78163069bac0>
+config_target = 'database'
+
+    @pytest.mark.parametrize("config_target", ["database", "archive"])
+    def test_restore_configuration_cannot_replace_its_database_or_source_backup(
+        tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], config_target: str
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, backup = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(backup, "old-snapshot")
+        source = tmp_path / "backup.zip"
+        make_bundle(source, backup)
+        before, source_before = dump(database), source.read_bytes()
+        target = database if config_target == "database" else source
+>       assert main(["restore", "--data", str(data), "--config", str(target), str(source)]) == 1
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_callers.py:568: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/cli.py:394: in main
+    return int(arguments.handler(arguments))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/cli.py:250: in _restore
+    return asyncio.run(
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+src/siro/cli.py:236: in _restore_data
+    status = await store.integrity_check()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:338: in integrity_check
+    return await asyncio.to_thread(check)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:334: in check
+    with self._connect() as connection:
+         ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.persistence.sqlite.SQLiteStore object at 0x7816302e0c00>
+path = None
+
+    def _connect(self, path: Path | None = None) -> sqlite3.Connection:
+        connection = sqlite3.connect(path or self.path, timeout=5)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 5000")
+        if path is None or path == self.path:
+>           connection.execute("PRAGMA journal_mode = WAL")
+E           sqlite3.DatabaseError: file is not a database
+
+src/siro/persistence/sqlite.py:148: DatabaseError
+_ test_restore_configuration_cannot_replace_its_database_or_source_backup[archive] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_restore_configuration_can1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_restore_configuration_can1/synthetic-home')
+capsys = <_pytest.capture.CaptureFixture object at 0x7816307eda50>
+config_target = 'archive'
+
+    @pytest.mark.parametrize("config_target", ["database", "archive"])
+    def test_restore_configuration_cannot_replace_its_database_or_source_backup(
+        tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], config_target: str
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, backup = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(backup, "old-snapshot")
+        source = tmp_path / "backup.zip"
+        make_bundle(source, backup)
+        before, source_before = dump(database), source.read_bytes()
+        target = database if config_target == "database" else source
+>       assert main(["restore", "--data", str(data), "--config", str(target), str(source)]) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = main(['restore', '--data', '/tmp/pytest-of-jasonliao/pytest-114/test_restore_configuration_can1/data', '--config', '/tmp/py...store_configuration_can1/backup.zip', '/tmp/pytest-of-jasonliao/pytest-114/test_restore_configuration_can1/backup.zip'])
+
+tests/integration/test_data_owner_callers.py:568: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-114/test_restore_configuration_can1/data"}
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_callers.py::test_backup_refuses_busy_foreign_write_target_before_any_database_work[False]
+FAILED tests/integration/test_data_owner_callers.py::test_backup_refuses_busy_foreign_write_target_before_any_database_work[True]
+FAILED tests/integration/test_data_owner_callers.py::test_backup_cannot_replace_its_own_source_database[False-False]
+FAILED tests/integration/test_data_owner_callers.py::test_backup_cannot_replace_its_own_source_database[False-True]
+FAILED tests/integration/test_data_owner_callers.py::test_backup_cannot_replace_its_own_source_database[True-False]
+FAILED tests/integration/test_data_owner_callers.py::test_backup_cannot_replace_its_own_source_database[True-True]
+FAILED tests/integration/test_data_owner_callers.py::test_restore_refuses_busy_foreign_configuration_write_target
+FAILED tests/integration/test_data_owner_callers.py::test_restore_configuration_cannot_replace_its_database_or_source_backup[database]
+FAILED tests/integration/test_data_owner_callers.py::test_restore_configuration_cannot_replace_its_database_or_source_backup[archive]
+9 failed, 15 deselected in 0.58s

@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "scope": "isolated exact source patch, no runtime restart or database rollback",
+  "production_files": [
+    "src/siro/services/tools/orchestrator.py",
+    "src/siro/services/presentation/integrated.py",
+    "src/siro/services/presentation/static/index.html"
+  ],
+  "new_test_files": [
+    "tests/integration/test_unknown_effect_approval.py",
+    "tests/integration/test_frontend_unknown_effect.py"
+  ],
+  "commands": [
+    [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "--reverse",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "--check",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "repair.patch"
+    ]
+  ],
+  "patch_sha256": "9ab27d164b802a9df227105309a42cadbc3f3d53c89a0e6ef5257ce48f923b1a",
+  "baseline_restored": true,
+  "candidate_reapplied": true,
+  "temporary_directory_removed": true
+}

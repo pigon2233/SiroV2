@@ -1,0 +1,37 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_cancel_during_cleanup_cannot_resurrect_success ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-48/test_cancel_during_cleanup_can0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x790a61f3bbb0>
+
+    @pytest.mark.asyncio
+    async def test_cancel_during_cleanup_cannot_resurrect_success(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skill, _, _, _, dispatcher = await approved(tmp_path)
+        original = worker_module.tempfile.TemporaryDirectory.cleanup
+        started, release = threading.Event(), threading.Event()
+        roots: list[Path] = []
+    
+        def slow_cleanup(directory: Any) -> None:
+            roots.append(Path(directory.name))
+            started.set()
+            assert release.wait(2)
+            original(directory)
+    
+        monkeypatch.setattr(worker_module.tempfile.TemporaryDirectory, "cleanup", slow_cleanup)
+        task = asyncio.create_task(dispatcher.execute(skill, {}))
+        assert await asyncio.to_thread(started.wait, 2)
+        task.cancel()
+        await asyncio.sleep(0)
+        task.cancel()
+        release.set()
+>       with pytest.raises(asyncio.CancelledError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE CancelledError
+
+tests/integration/test_skill_package_identity.py:410: Failed
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_package_identity.py::test_cancel_during_cleanup_cannot_resurrect_success
+1 failed, 40 deselected in 0.15s

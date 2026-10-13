@@ -1,0 +1,96 @@
+.......FF                                                                [100%]
+=================================== FAILURES ===================================
+_ test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-61/test_newer_ineligible_row_mask7')
+mutation = "UPDATE agent_runs SET updated_at='' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+E       AssertionError: assert {'source_run_id': '10077a92-8298-44c0-87ad-46706ba3a507', 'state': 'failed', 'error_class': 'HTTPStatusError', 'tool_dispatch_recorded': False, ...} is None
+
+tests/integration/test_runtime_status_context.py:127: AssertionError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='0000' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-61/test_newer_ineligible_row_mask8')
+mutation = "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+E       AssertionError: assert {'source_run_id': '62fa0045-f6a2-4110-906a-44113e38f8fe', 'state': 'failed', 'error_class': 'HTTPStatusError', 'tool_dispatch_recorded': False, ...} is None
+
+tests/integration/test_runtime_status_context.py:127: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='' WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='0000' WHERE run_id=?]
+2 failed, 7 passed, 24 deselected, 2 warnings in 0.97s

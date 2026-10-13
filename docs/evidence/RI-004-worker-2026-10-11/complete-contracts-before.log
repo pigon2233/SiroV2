@@ -1,0 +1,21 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________________ test_explicit_strict_profile_is_constructible _________________
+
+    def test_explicit_strict_profile_is_constructible():
+>       WorkerSupervisor(profile='python-stdlib-single')
+E       TypeError: WorkerSupervisor.__init__() got an unexpected keyword argument 'profile'
+
+tests/test_profile_before.py:6: TypeError
+_______________ test_unknown_profile_is_rejected_as_value_error ________________
+
+    def test_unknown_profile_is_rejected_as_value_error():
+        with pytest.raises(ValueError):
+>           WorkerSupervisor(profile='unknown')
+E           TypeError: WorkerSupervisor.__init__() got an unexpected keyword argument 'profile'
+
+tests/test_profile_before.py:11: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_profile_before.py::test_explicit_strict_profile_is_constructible
+FAILED tests/test_profile_before.py::test_unknown_profile_is_rejected_as_value_error
+2 failed in 0.13s

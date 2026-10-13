@@ -1,0 +1,189 @@
+...................                                                      [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/integration/test_native_context_budget.py::test_actual_main_native_guard_and_rollback[64-1-False-openai/gpt-oss-20b-0-ContextBudgetExceeded]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+tests/integration/test_native_context_budget.py::test_actual_main_native_guard_and_rollback[64-1-False-openai/gpt-oss-20b-0-ContextBudgetExceeded]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+19 passed, 3 warnings in 32.55s
+ + ("print('測試' * 10000)" if oversized else "print('confirmed')")
+                    )
+                    return {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": "",
+                                    "tool_calls": [
+                                        {
+                                            "id": name,
+                                            "type": "function",
+                                            "function": {
+                                                "name": "computer.execute",
+                                                "arguments": json.dumps(
+                                                    {"argv": [sys.executable, "-c", code]}
+                                                ),
+                                            },
+                                        }
+                                        for name in ("first", "second")
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                return {"choices": [{"message": {"content": "synthetic done"}}]}
+    
+        transport = BatchTransport()
+    
+        class Adapter(OpenAICompatibleAdapter):
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                kwargs["transport"] = transport
+                super().__init__(*args, **kwargs)
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "openai/gpt-oss-20b")
+        monkeypatch.setenv("SIRO_OPENAI_BASE_URL", "https://api.groq.com/openai")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic")
+        monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "0")
+        monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", "8192")
+        monkeypatch.setattr("siro.adapters.models.openai_compatible.OpenAICompatibleAdapter", Adapter)
+        apps: list[FastAPI] = []
+        monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: apps.append(app))
+        gateway.main()
+>       with TestClient(apps[0]) as client:
+        ^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1035: in main
+    model = OpenAICompatibleAdapter(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_native_context_budget.test_actual_main_native_two_tool_continuation_effects_once.<locals>.Adapter object at 0x7407cb1dc590>
+args = ()
+kwargs = {'base_url': 'https://api.groq.com/openai', 'api_key': 'synthetic', 'model': 'openai/gpt-oss-20b', 'transport': <test_...dget.test_actual_main_native_two_tool_continuation_effects_once.<locals>.BatchTransport object at 0x7407cb1dc440>, ...}
+
+>   ???
+E   TypeError: OpenAICompatibleAdapter.__init__() got an unexpected keyword argument 'stream'
+
+tests/integration/test_native_context_budget.py:334: TypeError
+_______ test_actual_main_native_two_tool_continuation_effects_once[True] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-88/test_actual_main_native_two_to1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7407cb1ebd40>
+oversized = True
+
+    @pytest.mark.parametrize("oversized", [False, True])
+    def test_actual_main_native_two_tool_continuation_effects_once(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, oversized: bool
+    ) -> None:
+        import json
+        import sys
+        from typing import Any
+    
+        from siro.services.presentation import gateway
+    
+        marker = tmp_path / "effects.txt"
+    
+        class BatchTransport(Transport):
+            async def post(
+                self, url: str, payload: dict[str, object], headers: dict[str, str], timeout: float
+            ) -> dict[str, object]:
+                self.payloads.append(payload)
+                if len(self.payloads) == 1:
+                    code = (
+                        f"from pathlib import Path; p=Path({str(marker)!r}); "
+                        "p.write_text((p.read_text() if p.exists() else '')+'effect\\n'); "
+                        + ("print('測試' * 10000)" if oversized else "print('confirmed')")
+                    )
+                    return {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": "",
+                                    "tool_calls": [
+                                        {
+                                            "id": name,
+                                            "type": "function",
+                                            "function": {
+                                                "name": "computer.execute",
+                                                "arguments": json.dumps(
+                                                    {"argv": [sys.executable, "-c", code]}
+                                                ),
+                                            },
+                                        }
+                                        for name in ("first", "second")
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                return {"choices": [{"message": {"content": "synthetic done"}}]}
+    
+        transport = BatchTransport()
+    
+        class Adapter(OpenAICompatibleAdapter):
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                kwargs["transport"] = transport
+                super().__init__(*args, **kwargs)
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "openai/gpt-oss-20b")
+        monkeypatch.setenv("SIRO_OPENAI_BASE_URL", "https://api.groq.com/openai")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic")
+        monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "0")
+        monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", "8192")
+        monkeypatch.setattr("siro.adapters.models.openai_compatible.OpenAICompatibleAdapter", Adapter)
+        apps: list[FastAPI] = []
+        monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: apps.append(app))
+        gateway.main()
+>       with TestClient(apps[0]) as client:
+        ^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1035: in main
+    model = OpenAICompatibleAdapter(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_native_context_budget.test_actual_main_native_two_tool_continuation_effects_once.<locals>.Adapter object at 0x7407cb1dd400>
+args = ()
+kwargs = {'base_url': 'https://api.groq.com/openai', 'api_key': 'synthetic', 'model': 'openai/gpt-oss-20b', 'transport': <test_...dget.test_actual_main_native_two_tool_continuation_effects_once.<locals>.BatchTransport object at 0x7407cb1dcc20>, ...}
+
+>   ???
+E   TypeError: OpenAICompatibleAdapter.__init__() got an unexpected keyword argument 'stream'
+
+tests/integration/test_native_context_budget.py:334: TypeError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/integration/test_native_context_budget.py::test_actual_main_native_guard_and_rollback[64-1-False-openai/gpt-oss-20b-0-ContextBudgetExceeded]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+tests/integration/test_native_context_budget.py::test_actual_main_native_guard_and_rollback[64-1-False-openai/gpt-oss-20b-0-ContextBudgetExceeded]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_native_context_budget.py::test_actual_main_native_two_tool_continuation_effects_once[False]
+FAILED tests/integration/test_native_context_budget.py::test_actual_main_native_two_tool_continuation_effects_once[True]
+2 failed, 17 passed, 3 warnings in 27.48s

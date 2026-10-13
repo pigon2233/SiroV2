@@ -1,0 +1,927 @@
+before_ui_sha256=9c11445575c873ca4581daf10f83fa81ecad3e52bac451006c77f2498d4929cb
+exit_code=1
+FFFF..FFFFF.                                                             [100%]
+=================================== FAILURES ===================================
+_ test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name[invalid_url-\u7db2\u5740\u683c\u5f0f\u4e0d\u6b63\u78ba] _
+
+reason = 'invalid_url', explanation = '網址格式不正確'
+
+    @pytest.mark.parametrize(
+        ("reason", "explanation"),
+        [
+            ("invalid_url", "網址格式不正確"),
+            ("main_origin_denied", "主頁不在這次授權的網站範圍"),
+            ("redirect_denied", "網站轉往未授權的來源"),
+            ("subresource_denied", "部分跨站資源已阻擋"),
+        ],
+    )
+    def test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name(
+        reason: str, explanation: str
+    ) -> None:
+        import json
+    
+>       _run_result_renderer(
+            "const reason="
+            + json.dumps(reason)
+            + "; const explanation="
+            + json.dumps(explanation)
+            + r""";
+    const card = show({proposal_id:'failure', capability:'browser.navigate+read',
+      error:'ScopeViolation', result:{reason}});
+    assert(card.textContent.startsWith('失敗\uFF1AScopeViolation'));
+    assert(card.textContent.includes(explanation));
+    assert(!card.textContent.includes('完成\uFF1A'));
+    assert(!card.textContent.includes(reason));
+    """
+        )
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const reason="invalid_url"; const explanation="\\u7db2\\u5740\\u683c\\u5f0f\\u4e0d\\u6b63\\u78ba";\nconst card = show...udes(explanation));\nassert(!card.textContent.includes(\'完成\\uFF1A\'));\nassert(!card.textContent.includes(reason));\n'
+
+    def _run_result_renderer(checks: str) -> None:
+        """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function updateToolProposal(") : html.index(
+                "      async function submitText("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map();
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Tool result entered HTML'); }
+      appendChild(child) { this.children.push(child); return child; }
+      querySelector(selector) {
+        if (selector === '.tool-status')
+          return this.children.find(child=>child.className==='tool-status');
+        return undefined;
+      }
+    }
+    const document = {querySelector: selector=>cards.get(selector),
+      createElement: tag=>new Element(tag)};
+    const show = data=>{
+      const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
+      renderToolResult(data); return card;
+    };
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: node:internal/assert/utils:77
+E             throw err;
+E             ^
+E         
+E         AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(card.textContent.includes(explanation))
+E         
+E             at [eval]:52:1
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E         Node.js v24.21.0
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map();\ncla...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n").returncode
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:42: AssertionError
+_ test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name[main_origin_denied-\u4e3b\u9801\u4e0d\u5728\u9019\u6b21\u6388\u6b0a\u7684\u7db2\u7ad9\u7bc4\u570d] _
+
+reason = 'main_origin_denied', explanation = '主頁不在這次授權的網站範圍'
+
+    @pytest.mark.parametrize(
+        ("reason", "explanation"),
+        [
+            ("invalid_url", "網址格式不正確"),
+            ("main_origin_denied", "主頁不在這次授權的網站範圍"),
+            ("redirect_denied", "網站轉往未授權的來源"),
+            ("subresource_denied", "部分跨站資源已阻擋"),
+        ],
+    )
+    def test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name(
+        reason: str, explanation: str
+    ) -> None:
+        import json
+    
+>       _run_result_renderer(
+            "const reason="
+            + json.dumps(reason)
+            + "; const explanation="
+            + json.dumps(explanation)
+            + r""";
+    const card = show({proposal_id:'failure', capability:'browser.navigate+read',
+      error:'ScopeViolation', result:{reason}});
+    assert(card.textContent.startsWith('失敗\uFF1AScopeViolation'));
+    assert(card.textContent.includes(explanation));
+    assert(!card.textContent.includes('完成\uFF1A'));
+    assert(!card.textContent.includes(reason));
+    """
+        )
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const reason="main_origin_denied"; const explanation="\\u4e3b\\u9801\\u4e0d\\u5728\\u9019\\u6b21\\u6388\\u6b0a\\u7684...udes(explanation));\nassert(!card.textContent.includes(\'完成\\uFF1A\'));\nassert(!card.textContent.includes(reason));\n'
+
+    def _run_result_renderer(checks: str) -> None:
+        """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function updateToolProposal(") : html.index(
+                "      async function submitText("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map();
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Tool result entered HTML'); }
+      appendChild(child) { this.children.push(child); return child; }
+      querySelector(selector) {
+        if (selector === '.tool-status')
+          return this.children.find(child=>child.className==='tool-status');
+        return undefined;
+      }
+    }
+    const document = {querySelector: selector=>cards.get(selector),
+      createElement: tag=>new Element(tag)};
+    const show = data=>{
+      const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
+      renderToolResult(data); return card;
+    };
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: node:internal/assert/utils:77
+E             throw err;
+E             ^
+E         
+E         AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(card.textContent.includes(explanation))
+E         
+E             at [eval]:52:1
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E         Node.js v24.21.0
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map();\ncla...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n").returncode
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:42: AssertionError
+_ test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name[redirect_denied-\u7db2\u7ad9\u8f49\u5f80\u672a\u6388\u6b0a\u7684\u4f86\u6e90] _
+
+reason = 'redirect_denied', explanation = '網站轉往未授權的來源'
+
+    @pytest.mark.parametrize(
+        ("reason", "explanation"),
+        [
+            ("invalid_url", "網址格式不正確"),
+            ("main_origin_denied", "主頁不在這次授權的網站範圍"),
+            ("redirect_denied", "網站轉往未授權的來源"),
+            ("subresource_denied", "部分跨站資源已阻擋"),
+        ],
+    )
+    def test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name(
+        reason: str, explanation: str
+    ) -> None:
+        import json
+    
+>       _run_result_renderer(
+            "const reason="
+            + json.dumps(reason)
+            + "; const explanation="
+            + json.dumps(explanation)
+            + r""";
+    const card = show({proposal_id:'failure', capability:'browser.navigate+read',
+      error:'ScopeViolation', result:{reason}});
+    assert(card.textContent.startsWith('失敗\uFF1AScopeViolation'));
+    assert(card.textContent.includes(explanation));
+    assert(!card.textContent.includes('完成\uFF1A'));
+    assert(!card.textContent.includes(reason));
+    """
+        )
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const reason="redirect_denied"; const explanation="\\u7db2\\u7ad9\\u8f49\\u5f80\\u672a\\u6388\\u6b0a\\u7684\\u4f86\\u...udes(explanation));\nassert(!card.textContent.includes(\'完成\\uFF1A\'));\nassert(!card.textContent.includes(reason));\n'
+
+    def _run_result_renderer(checks: str) -> None:
+        """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function updateToolProposal(") : html.index(
+                "      async function submitText("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map();
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Tool result entered HTML'); }
+      appendChild(child) { this.children.push(child); return child; }
+      querySelector(selector) {
+        if (selector === '.tool-status')
+          return this.children.find(child=>child.className==='tool-status');
+        return undefined;
+      }
+    }
+    const document = {querySelector: selector=>cards.get(selector),
+      createElement: tag=>new Element(tag)};
+    const show = data=>{
+      const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
+      renderToolResult(data); return card;
+    };
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: node:internal/assert/utils:77
+E             throw err;
+E             ^
+E         
+E         AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(card.textContent.includes(explanation))
+E         
+E             at [eval]:52:1
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E         Node.js v24.21.0
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map();\ncla...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n").returncode
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:42: AssertionError
+_ test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name[subresource_denied-\u90e8\u5206\u8de8\u7ad9\u8cc7\u6e90\u5df2\u963b\u64cb] _
+
+reason = 'subresource_denied', explanation = '部分跨站資源已阻擋'
+
+    @pytest.mark.parametrize(
+        ("reason", "explanation"),
+        [
+            ("invalid_url", "網址格式不正確"),
+            ("main_origin_denied", "主頁不在這次授權的網站範圍"),
+            ("redirect_denied", "網站轉往未授權的來源"),
+            ("subresource_denied", "部分跨站資源已阻擋"),
+        ],
+    )
+    def test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name(
+        reason: str, explanation: str
+    ) -> None:
+        import json
+    
+>       _run_result_renderer(
+            "const reason="
+            + json.dumps(reason)
+            + "; const explanation="
+            + json.dumps(explanation)
+            + r""";
+    const card = show({proposal_id:'failure', capability:'browser.navigate+read',
+      error:'ScopeViolation', result:{reason}});
+    assert(card.textContent.startsWith('失敗\uFF1AScopeViolation'));
+    assert(card.textContent.includes(explanation));
+    assert(!card.textContent.includes('完成\uFF1A'));
+    assert(!card.textContent.includes(reason));
+    """
+        )
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const reason="subresource_denied"; const explanation="\\u90e8\\u5206\\u8de8\\u7ad9\\u8cc7\\u6e90\\u5df2\\u963b\\u64cb...udes(explanation));\nassert(!card.textContent.includes(\'完成\\uFF1A\'));\nassert(!card.textContent.includes(reason));\n'
+
+    def _run_result_renderer(checks: str) -> None:
+        """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function updateToolProposal(") : html.index(
+                "      async function submitText("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map();
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Tool result entered HTML'); }
+      appendChild(child) { this.children.push(child); return child; }
+      querySelector(selector) {
+        if (selector === '.tool-status')
+          return this.children.find(child=>child.className==='tool-status');
+        return undefined;
+      }
+    }
+    const document = {querySelector: selector=>cards.get(selector),
+      createElement: tag=>new Element(tag)};
+    const show = data=>{
+      const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
+      renderToolResult(data); return card;
+    };
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: node:internal/assert/utils:77
+E             throw err;
+E             ^
+E         
+E         AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(card.textContent.includes(explanation))
+E         
+E             at [eval]:52:1
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E         Node.js v24.21.0
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map();\ncla...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n").returncode
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:42: AssertionError
+_ test_partial_with_missing_or_malicious_reason_stays_partial_and_does_not_leak_reason _
+
+    def test_partial_with_missing_or_malicious_reason_stays_partial_and_does_not_leak_reason() -> None:
+>       _run_result_renderer(
+            r"""
+    for (const reason of [undefined,'<img src=x onerror="globalThis.injected=1">private-canary']) {
+      const card = show({proposal_id:'unknown-partial',capability:'browser.read',error:null,
+        result:{load_status:'partial',reason,title:'Synthetic title',
+          url:'https://synthetic.invalid/partial',text:'Synthetic visible text'}});
+      assert(card.textContent.includes('部分載入'));
+      assert(card.textContent.includes('可能不完整'));
+      assert(card.textContent.includes('Synthetic visible text'));
+      assert(!card.textContent.includes('完成\uFF1A'));
+      assert(!card.textContent.includes('private-canary'));
+      assert.equal(globalThis.injected,undefined);
+    }
+    """
+        )
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:104: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = '\nfor (const reason of [undefined,\'<img src=x onerror="globalThis.injected=1">private-canary\']) {\n  const card = s...A\'));\n  assert(!card.textContent.includes(\'private-canary\'));\n  assert.equal(globalThis.injected,undefined);\n}\n'
+
+    def _run_result_renderer(checks: str) -> None:
+        """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function updateToolProposal(") : html.index(
+                "      async function submitText("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map();
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Tool result entered HTML'); }
+      appendChild(child) { this.children.push(child); return child; }
+      querySelector(selector) {
+        if (selector === '.tool-status')
+          return this.children.find(child=>child.className==='tool-status');
+        return undefined;
+      }
+    }
+    const document = {querySelector: selector=>cards.get(selector),
+      createElement: tag=>new Element(tag)};
+    const show = data=>{
+      const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
+      renderToolResult(data); return card;
+    };
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: node:internal/assert/utils:77
+E             throw err;
+E             ^
+E         
+E         AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(card.textContent.includes('部分載入'))
+E         
+E             at [eval]:53:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E         Node.js v24.21.0
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map();\ncla...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n").returncode
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:42: AssertionError
+_ test_partial_browser_readback_stays_readable_and_never_reports_complete[browser.navigate+read] _
+
+capability = 'browser.navigate+read'
+
+    @pytest.mark.parametrize(
+        "capability", ["browser.navigate+read", "browser.read", "browser.fill", "browser.click"]
+    )
+    def test_partial_browser_readback_stays_readable_and_never_reports_complete(
+        capability: str,
+    ) -> None:
+        import json
+    
+>       _run_result_renderer(
+            "const capability="
+            + json.dumps(capability)
+            + r""";
+    const card = show({proposal_id:'partial',capability,error:null,result:{
+      load_status:'partial',reason:'subresource_denied',
+      title:'<img src=x onerror="globalThis.injected=1">Synthetic title',
+      url:'https://synthetic.invalid/readback',text:'Synthetic visible text'}});
+    assert(card.textContent.includes('部分載入'));
+    assert(card.textContent.includes('部分跨站資源已阻擋'));
+    assert(card.textContent.includes('Synthetic visible text'));
+    assert(card.textContent.includes('<img src=x'));
+    assert(!card.textContent.includes('完成\uFF1A'));
+    assert.equal(globalThis.injected,undefined);
+    // Repeated delivery updates one status node instead of accumulating contradictory results.
+    renderToolResult({proposal_id:'partial',capability,error:'ScopeViolation',
+      result:{reason:'redirect_denied'}});
+    assert.equal(card.children.length,1);
+    assert(!card.textContent.includes('Synthetic visible text'));
+    assert(card.textContent.includes('網站轉往未授權的來源'));
+    """
+        )
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const capability="browser.navigate+read";\nconst card = show({proposal_id:\'partial\',capability,error:null,result:{\...nassert(!card.textContent.includes(\'Synthetic visible text\'));\nassert(card.textContent.includes(\'網站轉往未授權的來源\'));\n'
+
+    def _run_result_renderer(checks: str) -> None:
+        """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function updateToolProposal(") : html.index(
+                "      async function submitText("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map();
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Tool result entered HTML'); }
+      appendChild(child) { this.children.push(child); return child; }
+      querySelector(selector) {
+        if (selector === '.tool-status')
+          return this.children.find(child=>child.className==='tool-status');
+        return undefined;
+      }
+    }
+    const document = {querySelector: selector=>cards.get(selector),
+      createElement: tag=>new Element(tag)};
+    const show = data=>{
+      const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
+      renderToolResult(data); return card;
+    };
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: node:internal/assert/utils:77
+E             throw err;
+E             ^
+E         
+E         AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(card.textContent.includes('部分載入'))
+E         
+E             at [eval]:53:1
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E         Node.js v24.21.0
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map();\ncla...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n").returncode
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:42: AssertionError
+_ test_partial_browser_readback_stays_readable_and_never_reports_complete[browser.read] _
+
+capability = 'browser.read'
+
+    @pytest.mark.parametrize(
+        "capability", ["browser.navigate+read", "browser.read", "browser.fill", "browser.click"]
+    )
+    def test_partial_browser_readback_stays_readable_and_never_reports_complete(
+        capability: str,
+    ) -> None:
+        import json
+    
+>       _run_result_renderer(
+            "const capability="
+            + json.dumps(capability)
+            + r""";
+    const card = show({proposal_id:'partial',capability,error:null,result:{
+      load_status:'partial',reason:'subresource_denied',
+      title:'<img src=x onerror="globalThis.injected=1">Synthetic title',
+      url:'https://synthetic.invalid/readback',text:'Synthetic visible text'}});
+    assert(card.textContent.includes('部分載入'));
+    assert(card.textContent.includes('部分跨站資源已阻擋'));
+    assert(card.textContent.includes('Synthetic visible text'));
+    assert(card.textContent.includes('<img src=x'));
+    assert(!card.textContent.includes('完成\uFF1A'));
+    assert.equal(globalThis.injected,undefined);
+    // Repeated delivery updates one status node instead of accumulating contradictory results.
+    renderToolResult({proposal_id:'partial',capability,error:'ScopeViolation',
+      result:{reason:'redirect_denied'}});
+    assert.equal(card.children.length,1);
+    assert(!card.textContent.includes('Synthetic visible text'));
+    assert(card.textContent.includes('網站轉往未授權的來源'));
+    """
+        )
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const capability="browser.read";\nconst card = show({proposal_id:\'partial\',capability,error:null,result:{\n  load_s...nassert(!card.textContent.includes(\'Synthetic visible text\'));\nassert(card.textContent.includes(\'網站轉往未授權的來源\'));\n'
+
+    def _run_result_renderer(checks: str) -> None:
+        """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function updateToolProposal(") : html.index(
+                "      async function submitText("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map();
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Tool result entered HTML'); }
+      appendChild(child) { this.children.push(child); return child; }
+      querySelector(selector) {
+        if (selector === '.tool-status')
+          return this.children.find(child=>child.className==='tool-status');
+        return undefined;
+      }
+    }
+    const document = {querySelector: selector=>cards.get(selector),
+      createElement: tag=>new Element(tag)};
+    const show = data=>{
+      const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
+      renderToolResult(data); return card;
+    };
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: node:internal/assert/utils:77
+E             throw err;
+E             ^
+E         
+E         AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(card.textContent.includes('部分載入'))
+E         
+E             at [eval]:53:1
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E         Node.js v24.21.0
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map();\ncla...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n").returncode
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:42: AssertionError
+_ test_partial_browser_readback_stays_readable_and_never_reports_complete[browser.fill] _
+
+capability = 'browser.fill'
+
+    @pytest.mark.parametrize(
+        "capability", ["browser.navigate+read", "browser.read", "browser.fill", "browser.click"]
+    )
+    def test_partial_browser_readback_stays_readable_and_never_reports_complete(
+        capability: str,
+    ) -> None:
+        import json
+    
+>       _run_result_renderer(
+            "const capability="
+            + json.dumps(capability)
+            + r""";
+    const card = show({proposal_id:'partial',capability,error:null,result:{
+      load_status:'partial',reason:'subresource_denied',
+      title:'<img src=x onerror="globalThis.injected=1">Synthetic title',
+      url:'https://synthetic.invalid/readback',text:'Synthetic visible text'}});
+    assert(card.textContent.includes('部分載入'));
+    assert(card.textContent.includes('部分跨站資源已阻擋'));
+    assert(card.textContent.includes('Synthetic visible text'));
+    assert(card.textContent.includes('<img src=x'));
+    assert(!card.textContent.includes('完成\uFF1A'));
+    assert.equal(globalThis.injected,undefined);
+    // Repeated delivery updates one status node instead of accumulating contradictory results.
+    renderToolResult({proposal_id:'partial',capability,error:'ScopeViolation',
+      result:{reason:'redirect_denied'}});
+    assert.equal(card.children.length,1);
+    assert(!card.textContent.includes('Synthetic visible text'));
+    assert(card.textContent.includes('網站轉往未授權的來源'));
+    """
+        )
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const capability="browser.fill";\nconst card = show({proposal_id:\'partial\',capability,error:null,result:{\n  load_s...nassert(!card.textContent.includes(\'Synthetic visible text\'));\nassert(card.textContent.includes(\'網站轉往未授權的來源\'));\n'
+
+    def _run_result_renderer(checks: str) -> None:
+        """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function updateToolProposal(") : html.index(
+                "      async function submitText("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map();
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Tool result entered HTML'); }
+      appendChild(child) { this.children.push(child); return child; }
+      querySelector(selector) {
+        if (selector === '.tool-status')
+          return this.children.find(child=>child.className==='tool-status');
+        return undefined;
+      }
+    }
+    const document = {querySelector: selector=>cards.get(selector),
+      createElement: tag=>new Element(tag)};
+    const show = data=>{
+      const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
+      renderToolResult(data); return card;
+    };
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: node:internal/assert/utils:77
+E             throw err;
+E             ^
+E         
+E         AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(card.textContent.includes('部分載入'))
+E         
+E             at [eval]:53:1
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E         Node.js v24.21.0
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map();\ncla...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n").returncode
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:42: AssertionError
+_ test_partial_browser_readback_stays_readable_and_never_reports_complete[browser.click] _
+
+capability = 'browser.click'
+
+    @pytest.mark.parametrize(
+        "capability", ["browser.navigate+read", "browser.read", "browser.fill", "browser.click"]
+    )
+    def test_partial_browser_readback_stays_readable_and_never_reports_complete(
+        capability: str,
+    ) -> None:
+        import json
+    
+>       _run_result_renderer(
+            "const capability="
+            + json.dumps(capability)
+            + r""";
+    const card = show({proposal_id:'partial',capability,error:null,result:{
+      load_status:'partial',reason:'subresource_denied',
+      title:'<img src=x onerror="globalThis.injected=1">Synthetic title',
+      url:'https://synthetic.invalid/readback',text:'Synthetic visible text'}});
+    assert(card.textContent.includes('部分載入'));
+    assert(card.textContent.includes('部分跨站資源已阻擋'));
+    assert(card.textContent.includes('Synthetic visible text'));
+    assert(card.textContent.includes('<img src=x'));
+    assert(!card.textContent.includes('完成\uFF1A'));
+    assert.equal(globalThis.injected,undefined);
+    // Repeated delivery updates one status node instead of accumulating contradictory results.
+    renderToolResult({proposal_id:'partial',capability,error:'ScopeViolation',
+      result:{reason:'redirect_denied'}});
+    assert.equal(card.children.length,1);
+    assert(!card.textContent.includes('Synthetic visible text'));
+    assert(card.textContent.includes('網站轉往未授權的來源'));
+    """
+        )
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const capability="browser.click";\nconst card = show({proposal_id:\'partial\',capability,error:null,result:{\n  load_...nassert(!card.textContent.includes(\'Synthetic visible text\'));\nassert(card.textContent.includes(\'網站轉往未授權的來源\'));\n'
+
+    def _run_result_renderer(checks: str) -> None:
+        """Exercise the real renderer with a synthetic DOM; no provider or browser operation."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function updateToolProposal(") : html.index(
+                "      async function submitText("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map();
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child=>child.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Tool result entered HTML'); }
+      appendChild(child) { this.children.push(child); return child; }
+      querySelector(selector) {
+        if (selector === '.tool-status')
+          return this.children.find(child=>child.className==='tool-status');
+        return undefined;
+      }
+    }
+    const document = {querySelector: selector=>cards.get(selector),
+      createElement: tag=>new Element(tag)};
+    const show = data=>{
+      const card = new Element('div'); cards.set('#tool-'+data.proposal_id,card);
+      renderToolResult(data); return card;
+    };
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: node:internal/assert/utils:77
+E             throw err;
+E             ^
+E         
+E         AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(card.textContent.includes('部分載入'))
+E         
+E             at [eval]:53:1
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: false,
+E           expected: true,
+E           operator: '==',
+E           diff: 'simple'
+E         }
+E         
+E         Node.js v24.21.0
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map();\ncla...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.21.0\n").returncode
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py:42: AssertionError
+=========================== short test summary info ============================
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py::test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name[invalid_url-\u7db2\u5740\u683c\u5f0f\u4e0d\u6b63\u78ba]
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py::test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name[main_origin_denied-\u4e3b\u9801\u4e0d\u5728\u9019\u6b21\u6388\u6b0a\u7684\u7db2\u7ad9\u7bc4\u570d]
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py::test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name[redirect_denied-\u7db2\u7ad9\u8f49\u5f80\u672a\u6388\u6b0a\u7684\u4f86\u6e90]
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py::test_scope_failure_shows_fixed_chinese_reason_with_compatible_error_name[subresource_denied-\u90e8\u5206\u8de8\u7ad9\u8cc7\u6e90\u5df2\u963b\u64cb]
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py::test_partial_with_missing_or_malicious_reason_stays_partial_and_does_not_leak_reason
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py::test_partial_browser_readback_stays_readable_and_never_reports_complete[browser.navigate+read]
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py::test_partial_browser_readback_stays_readable_and_never_reports_complete[browser.read]
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py::test_partial_browser_readback_stays_readable_and_never_reports_complete[browser.fill]
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/tests/integration/test_frontend_browser_result.py::test_partial_browser_readback_stays_readable_and_never_reports_complete[browser.click]
+9 failed, 3 passed in 0.35s

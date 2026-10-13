@@ -1,0 +1,130 @@
+FFFF.                                                                    [100%]
+=================================== FAILURES ===================================
+_ test_protocol_completion_cannot_make_empty_or_failed_audio_successful[empty_audio-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-148/test_protocol_completion_canno0')
+lifecycle = False, malformed = 'empty_audio'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("lifecycle", [False, True])
+    @pytest.mark.parametrize("malformed", ["empty_audio", "error_with_audio"])
+    async def test_protocol_completion_cannot_make_empty_or_failed_audio_successful(
+        tmp_path: Path, lifecycle: bool, malformed: str
+    ) -> None:
+        response: dict[str, object] = {
+            "completion": COMPLETE,
+            "audio": base64.b64encode(b"synthetic audio").decode(),
+        }
+        if malformed == "empty_audio":
+            response["audio"] = ""
+        else:
+            response["error"] = "QwenOutputIncomplete"
+        tts = fake_worker_adapter(
+            tmp_path, {"ready": True, "completion_protocol": 2}, response, lifecycle=lifecycle
+        )
+        try:
+>           with pytest.raises(RuntimeError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/integration/test_speech_completion_edges.py:103: Failed
+_ test_protocol_completion_cannot_make_empty_or_failed_audio_successful[empty_audio-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-148/test_protocol_completion_canno1')
+lifecycle = True, malformed = 'empty_audio'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("lifecycle", [False, True])
+    @pytest.mark.parametrize("malformed", ["empty_audio", "error_with_audio"])
+    async def test_protocol_completion_cannot_make_empty_or_failed_audio_successful(
+        tmp_path: Path, lifecycle: bool, malformed: str
+    ) -> None:
+        response: dict[str, object] = {
+            "completion": COMPLETE,
+            "audio": base64.b64encode(b"synthetic audio").decode(),
+        }
+        if malformed == "empty_audio":
+            response["audio"] = ""
+        else:
+            response["error"] = "QwenOutputIncomplete"
+        tts = fake_worker_adapter(
+            tmp_path, {"ready": True, "completion_protocol": 2}, response, lifecycle=lifecycle
+        )
+        try:
+>           with pytest.raises(RuntimeError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/integration/test_speech_completion_edges.py:103: Failed
+_ test_protocol_completion_cannot_make_empty_or_failed_audio_successful[error_with_audio-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-148/test_protocol_completion_canno2')
+lifecycle = False, malformed = 'error_with_audio'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("lifecycle", [False, True])
+    @pytest.mark.parametrize("malformed", ["empty_audio", "error_with_audio"])
+    async def test_protocol_completion_cannot_make_empty_or_failed_audio_successful(
+        tmp_path: Path, lifecycle: bool, malformed: str
+    ) -> None:
+        response: dict[str, object] = {
+            "completion": COMPLETE,
+            "audio": base64.b64encode(b"synthetic audio").decode(),
+        }
+        if malformed == "empty_audio":
+            response["audio"] = ""
+        else:
+            response["error"] = "QwenOutputIncomplete"
+        tts = fake_worker_adapter(
+            tmp_path, {"ready": True, "completion_protocol": 2}, response, lifecycle=lifecycle
+        )
+        try:
+>           with pytest.raises(RuntimeError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/integration/test_speech_completion_edges.py:103: Failed
+_ test_protocol_completion_cannot_make_empty_or_failed_audio_successful[error_with_audio-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-148/test_protocol_completion_canno3')
+lifecycle = True, malformed = 'error_with_audio'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("lifecycle", [False, True])
+    @pytest.mark.parametrize("malformed", ["empty_audio", "error_with_audio"])
+    async def test_protocol_completion_cannot_make_empty_or_failed_audio_successful(
+        tmp_path: Path, lifecycle: bool, malformed: str
+    ) -> None:
+        response: dict[str, object] = {
+            "completion": COMPLETE,
+            "audio": base64.b64encode(b"synthetic audio").decode(),
+        }
+        if malformed == "empty_audio":
+            response["audio"] = ""
+        else:
+            response["error"] = "QwenOutputIncomplete"
+        tts = fake_worker_adapter(
+            tmp_path, {"ready": True, "completion_protocol": 2}, response, lifecycle=lifecycle
+        )
+        try:
+>           with pytest.raises(RuntimeError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/integration/test_speech_completion_edges.py:103: Failed
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_speech_completion_edges.py::test_protocol_completion_cannot_make_empty_or_failed_audio_successful[empty_audio-False]
+FAILED tests/integration/test_speech_completion_edges.py::test_protocol_completion_cannot_make_empty_or_failed_audio_successful[empty_audio-True]
+FAILED tests/integration/test_speech_completion_edges.py::test_protocol_completion_cannot_make_empty_or_failed_audio_successful[error_with_audio-False]
+FAILED tests/integration/test_speech_completion_edges.py::test_protocol_completion_cannot_make_empty_or_failed_audio_successful[error_with_audio-True]
+4 failed, 1 passed, 6 deselected, 2 warnings in 1.54s

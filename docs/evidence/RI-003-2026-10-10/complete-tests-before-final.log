@@ -1,0 +1,1983 @@
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF                         [100%]
+=================================== FAILURES ===================================
+________________ test_shared_pure_preflight[src/value.py-ready] ________________
+
+path = 'src/value.py', status = 'ready'
+
+    @pytest.mark.parametrize(
+        "path,status",
+        [
+            ("src/value.py", "ready"),
+            ("src/siro/config.py", "rejected_policy_change"),
+            ("src/siro/core/authorization.py", "rejected_policy_change"),
+        ],
+    )
+    def test_shared_pure_preflight(path: str, status: str) -> None:
+        core = importlib.import_module("siro.core.evolution")
+>       result = core.preflight_patch(proposal(path=path))
+                 ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'preflight_patch'
+
+tests/integration/test_isolated_patch_verification.py:87: AttributeError
+____ test_shared_pure_preflight[src/siro/config.py-rejected_policy_change] _____
+
+path = 'src/siro/config.py', status = 'rejected_policy_change'
+
+    @pytest.mark.parametrize(
+        "path,status",
+        [
+            ("src/value.py", "ready"),
+            ("src/siro/config.py", "rejected_policy_change"),
+            ("src/siro/core/authorization.py", "rejected_policy_change"),
+        ],
+    )
+    def test_shared_pure_preflight(path: str, status: str) -> None:
+        core = importlib.import_module("siro.core.evolution")
+>       result = core.preflight_patch(proposal(path=path))
+                 ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'preflight_patch'
+
+tests/integration/test_isolated_patch_verification.py:87: AttributeError
+_ test_shared_pure_preflight[src/siro/core/authorization.py-rejected_policy_change] _
+
+path = 'src/siro/core/authorization.py', status = 'rejected_policy_change'
+
+    @pytest.mark.parametrize(
+        "path,status",
+        [
+            ("src/value.py", "ready"),
+            ("src/siro/config.py", "rejected_policy_change"),
+            ("src/siro/core/authorization.py", "rejected_policy_change"),
+        ],
+    )
+    def test_shared_pure_preflight(path: str, status: str) -> None:
+        core = importlib.import_module("siro.core.evolution")
+>       result = core.preflight_patch(proposal(path=path))
+                 ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'preflight_patch'
+
+tests/integration/test_isolated_patch_verification.py:87: AttributeError
+________ test_actual_unittest_profile_and_unchanged_original[2-passed] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_actual_unittest_profile_a0')
+value = 2, status = 'passed'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("value,status", [(2, "passed"), (3, "failed_checks")])
+    @real_profile
+    async def test_actual_unittest_profile_and_unchanged_original(
+        tmp_path: Path, value: int, status: str
+    ) -> None:
+        root = project(tmp_path)
+>       report = await backend().verify_isolated_patch(root, proposal(new=f"VALUE = {value}\n"))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:99: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_____ test_actual_unittest_profile_and_unchanged_original[3-failed_checks] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_actual_unittest_profile_a1')
+value = 3, status = 'failed_checks'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("value,status", [(2, "passed"), (3, "failed_checks")])
+    @real_profile
+    async def test_actual_unittest_profile_and_unchanged_original(
+        tmp_path: Path, value: int, status: str
+    ) -> None:
+        root = project(tmp_path)
+>       report = await backend().verify_isolated_patch(root, proposal(new=f"VALUE = {value}\n"))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:99: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_____ test_real_import_cannot_read_write_fork_exec_network_or_raise_limits _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_real_import_cannot_read_w0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3bef1672f0>
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_real_import_cannot_read_write_fork_exec_network_or_raise_limits(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+        secret = tmp_path / "host-secret"
+        secret.write_text("SYNTHETIC-PRIVATE-CANARY")
+        (root / ".env.local").write_text("SYNTHETIC-PRIVATE-CANARY")
+        (root / ".siro-data").mkdir()
+        (root / ".siro-data/private.db").write_text("SYNTHETIC-PRIVATE-CANARY")
+        monkeypatch.setenv("RI003_SYNTHETIC_SECRET", "SYNTHETIC-PRIVATE-CANARY")
+        forbidden = [
+            str(secret),
+            str(root / "src/value.py"),
+            "/candidate/.env.local",
+            "/candidate/.siro-data/private.db",
+        ]
+        attack = f"""import os, socket, resource
+    assert 'RI003_SYNTHETIC_SECRET' not in os.environ
+    for path in {forbidden!r}:
+        try: open(path).read()
+        except OSError: pass
+        else: raise AssertionError('private read escaped')
+    for path in [{str(tmp_path / "host-write")!r}, '/candidate/src/value.py']:
+        try: open(path,'w').write('escape')
+        except OSError: pass
+        else: raise AssertionError('write escaped')
+    for action in [os.fork, os.setsid, lambda: os.setpgid(0,0),
+                   lambda: os.execv('/usr/bin/python3.14',['python']),
+                   lambda: socket.socket(), lambda: resource.setrlimit(resource.RLIMIT_AS,(-1,-1))]:
+        try: action()
+        except (OSError, ValueError): pass
+        else: raise AssertionError('restricted syscall escaped')
+    try:
+        fd=os.open('/dev/tty',os.O_RDONLY|os.O_NONBLOCK)
+    except OSError: pass
+    else:
+        os.close(fd)
+        raise AssertionError('host terminal available')
+    VALUE = 2
+    """
+>       report = await backend().verify_isolated_patch(root, proposal(new=attack))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______ test_source_aliases_are_rejected_without_following[file_symlink] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_source_aliases_are_reject0')
+mode = 'file_symlink'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mode", ["file_symlink", "directory_symlink", "hardlink", "root_symlink"])
+    @real_profile
+    async def test_source_aliases_are_rejected_without_following(tmp_path: Path, mode: str) -> None:
+        root = project(tmp_path)
+        outside = tmp_path / "outside.py"
+        outside.write_text("SYNTHETIC-PRIVATE-CANARY")
+        if mode == "file_symlink":
+            (root / "src/alias.py").symlink_to(outside)
+        elif mode == "directory_symlink":
+            (root / "src/alias").symlink_to(tmp_path)
+        elif mode == "hardlink":
+            os.link(outside, root / "src/alias.py")
+        else:
+            alias = tmp_path / "alias"
+            alias.symlink_to(root, target_is_directory=True)
+            root = alias
+>       result = await backend().verify_isolated_patch(root, proposal())
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:173: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+____ test_source_aliases_are_rejected_without_following[directory_symlink] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_source_aliases_are_reject1')
+mode = 'directory_symlink'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mode", ["file_symlink", "directory_symlink", "hardlink", "root_symlink"])
+    @real_profile
+    async def test_source_aliases_are_rejected_without_following(tmp_path: Path, mode: str) -> None:
+        root = project(tmp_path)
+        outside = tmp_path / "outside.py"
+        outside.write_text("SYNTHETIC-PRIVATE-CANARY")
+        if mode == "file_symlink":
+            (root / "src/alias.py").symlink_to(outside)
+        elif mode == "directory_symlink":
+            (root / "src/alias").symlink_to(tmp_path)
+        elif mode == "hardlink":
+            os.link(outside, root / "src/alias.py")
+        else:
+            alias = tmp_path / "alias"
+            alias.symlink_to(root, target_is_directory=True)
+            root = alias
+>       result = await backend().verify_isolated_patch(root, proposal())
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:173: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_________ test_source_aliases_are_rejected_without_following[hardlink] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_source_aliases_are_reject2')
+mode = 'hardlink'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mode", ["file_symlink", "directory_symlink", "hardlink", "root_symlink"])
+    @real_profile
+    async def test_source_aliases_are_rejected_without_following(tmp_path: Path, mode: str) -> None:
+        root = project(tmp_path)
+        outside = tmp_path / "outside.py"
+        outside.write_text("SYNTHETIC-PRIVATE-CANARY")
+        if mode == "file_symlink":
+            (root / "src/alias.py").symlink_to(outside)
+        elif mode == "directory_symlink":
+            (root / "src/alias").symlink_to(tmp_path)
+        elif mode == "hardlink":
+            os.link(outside, root / "src/alias.py")
+        else:
+            alias = tmp_path / "alias"
+            alias.symlink_to(root, target_is_directory=True)
+            root = alias
+>       result = await backend().verify_isolated_patch(root, proposal())
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:173: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______ test_source_aliases_are_rejected_without_following[root_symlink] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_source_aliases_are_reject3')
+mode = 'root_symlink'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mode", ["file_symlink", "directory_symlink", "hardlink", "root_symlink"])
+    @real_profile
+    async def test_source_aliases_are_rejected_without_following(tmp_path: Path, mode: str) -> None:
+        root = project(tmp_path)
+        outside = tmp_path / "outside.py"
+        outside.write_text("SYNTHETIC-PRIVATE-CANARY")
+        if mode == "file_symlink":
+            (root / "src/alias.py").symlink_to(outside)
+        elif mode == "directory_symlink":
+            (root / "src/alias").symlink_to(tmp_path)
+        elif mode == "hardlink":
+            os.link(outside, root / "src/alias.py")
+        else:
+            alias = tmp_path / "alias"
+            alias.symlink_to(root, target_is_directory=True)
+            root = alias
+>       result = await backend().verify_isolated_patch(root, proposal())
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:173: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+____________________ test_real_source_capture_bounds[files] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_real_source_capture_bound0')
+limit = 'files'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("limit", ["files", "file_bytes", "total_bytes"])
+    @real_profile
+    async def test_real_source_capture_bounds(tmp_path: Path, limit: str) -> None:
+        root = project(tmp_path)
+        if limit == "files":
+            for i in range(513):
+                (root / f"src/file{i}.py").write_text("# synthetic\n")
+        elif limit == "file_bytes":
+            (root / "src/large.py").write_bytes(b"#" * (4 * 1024 * 1024 + 1))
+        else:
+            for i in range(4):
+                (root / f"src/large{i}.py").write_bytes(b"#" * (4 * 1024 * 1024))
+>       result = await backend().verify_isolated_patch(root, proposal())
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_________________ test_real_source_capture_bounds[file_bytes] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_real_source_capture_bound1')
+limit = 'file_bytes'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("limit", ["files", "file_bytes", "total_bytes"])
+    @real_profile
+    async def test_real_source_capture_bounds(tmp_path: Path, limit: str) -> None:
+        root = project(tmp_path)
+        if limit == "files":
+            for i in range(513):
+                (root / f"src/file{i}.py").write_text("# synthetic\n")
+        elif limit == "file_bytes":
+            (root / "src/large.py").write_bytes(b"#" * (4 * 1024 * 1024 + 1))
+        else:
+            for i in range(4):
+                (root / f"src/large{i}.py").write_bytes(b"#" * (4 * 1024 * 1024))
+>       result = await backend().verify_isolated_patch(root, proposal())
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_________________ test_real_source_capture_bounds[total_bytes] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_real_source_capture_bound2')
+limit = 'total_bytes'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("limit", ["files", "file_bytes", "total_bytes"])
+    @real_profile
+    async def test_real_source_capture_bounds(tmp_path: Path, limit: str) -> None:
+        root = project(tmp_path)
+        if limit == "files":
+            for i in range(513):
+                (root / f"src/file{i}.py").write_text("# synthetic\n")
+        elif limit == "file_bytes":
+            (root / "src/large.py").write_bytes(b"#" * (4 * 1024 * 1024 + 1))
+        else:
+            for i in range(4):
+                (root / f"src/large{i}.py").write_bytes(b"#" * (4 * 1024 * 1024))
+>       result = await backend().verify_isolated_patch(root, proposal())
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:191: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+________________ test_rejected_ingress_has_no_executor[profile] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_rejected_ingress_has_no_e0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3bef1c5640>
+kind = 'profile'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind", ["profile", "path", "policy", "invalid", "missing_bwrap", "platform"]
+    )
+    async def test_rejected_ingress_has_no_executor(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_________________ test_rejected_ingress_has_no_executor[path] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_rejected_ingress_has_no_e1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3bef2d6d50>
+kind = 'path'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind", ["profile", "path", "policy", "invalid", "missing_bwrap", "platform"]
+    )
+    async def test_rejected_ingress_has_no_executor(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+________________ test_rejected_ingress_has_no_executor[policy] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_rejected_ingress_has_no_e2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3bef1e7490>
+kind = 'policy'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind", ["profile", "path", "policy", "invalid", "missing_bwrap", "platform"]
+    )
+    async def test_rejected_ingress_has_no_executor(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+________________ test_rejected_ingress_has_no_executor[invalid] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_rejected_ingress_has_no_e3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3bef1ee7b0>
+kind = 'invalid'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind", ["profile", "path", "policy", "invalid", "missing_bwrap", "platform"]
+    )
+    async def test_rejected_ingress_has_no_executor(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_____________ test_rejected_ingress_has_no_executor[missing_bwrap] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_rejected_ingress_has_no_e4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beea767d0>
+kind = 'missing_bwrap'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind", ["profile", "path", "policy", "invalid", "missing_bwrap", "platform"]
+    )
+    async def test_rejected_ingress_has_no_executor(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______________ test_rejected_ingress_has_no_executor[platform] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_rejected_ingress_has_no_e5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb559b0>
+kind = 'platform'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind", ["profile", "path", "policy", "invalid", "missing_bwrap", "platform"]
+    )
+    async def test_rejected_ingress_has_no_executor(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______ test_real_resource_and_output_limits[bytearray(512*1024*1024)\n] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_real_resource_and_output_0')
+attack = 'bytearray(512*1024*1024)\n'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "attack",
+        [
+            "bytearray(512*1024*1024)\n",
+            "while True: pass\n",
+            "open('/tmp/large','wb').write(b'x'*(2*1024*1024))\n",
+            "for i in range(20): open('/tmp/f'+str(i),'wb').write(b'x'*(1024*1024))\n",
+            "import os\nfor i in range(100):\n os.write(1,b'x'*16384)\n os.write(2,b'y'*16384)\n",
+        ],
+    )
+    @real_profile
+    async def test_real_resource_and_output_limits(tmp_path: Path, attack: str) -> None:
+        root = project(tmp_path)
+>       report = await backend().verify_isolated_patch(root, proposal(new=attack + "VALUE = 2\n"))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:249: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+___________ test_real_resource_and_output_limits[while True: pass\n] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_real_resource_and_output_1')
+attack = 'while True: pass\n'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "attack",
+        [
+            "bytearray(512*1024*1024)\n",
+            "while True: pass\n",
+            "open('/tmp/large','wb').write(b'x'*(2*1024*1024))\n",
+            "for i in range(20): open('/tmp/f'+str(i),'wb').write(b'x'*(1024*1024))\n",
+            "import os\nfor i in range(100):\n os.write(1,b'x'*16384)\n os.write(2,b'y'*16384)\n",
+        ],
+    )
+    @real_profile
+    async def test_real_resource_and_output_limits(tmp_path: Path, attack: str) -> None:
+        root = project(tmp_path)
+>       report = await backend().verify_isolated_patch(root, proposal(new=attack + "VALUE = 2\n"))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:249: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_ test_real_resource_and_output_limits[open('/tmp/large','wb').write(b'x'*(2*1024*1024))\n] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_real_resource_and_output_2')
+attack = "open('/tmp/large','wb').write(b'x'*(2*1024*1024))\n"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "attack",
+        [
+            "bytearray(512*1024*1024)\n",
+            "while True: pass\n",
+            "open('/tmp/large','wb').write(b'x'*(2*1024*1024))\n",
+            "for i in range(20): open('/tmp/f'+str(i),'wb').write(b'x'*(1024*1024))\n",
+            "import os\nfor i in range(100):\n os.write(1,b'x'*16384)\n os.write(2,b'y'*16384)\n",
+        ],
+    )
+    @real_profile
+    async def test_real_resource_and_output_limits(tmp_path: Path, attack: str) -> None:
+        root = project(tmp_path)
+>       report = await backend().verify_isolated_patch(root, proposal(new=attack + "VALUE = 2\n"))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:249: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_ test_real_resource_and_output_limits[for i in range(20): open('/tmp/f'+str(i),'wb').write(b'x'*(1024*1024))\n] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_real_resource_and_output_3')
+attack = "for i in range(20): open('/tmp/f'+str(i),'wb').write(b'x'*(1024*1024))\n"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "attack",
+        [
+            "bytearray(512*1024*1024)\n",
+            "while True: pass\n",
+            "open('/tmp/large','wb').write(b'x'*(2*1024*1024))\n",
+            "for i in range(20): open('/tmp/f'+str(i),'wb').write(b'x'*(1024*1024))\n",
+            "import os\nfor i in range(100):\n os.write(1,b'x'*16384)\n os.write(2,b'y'*16384)\n",
+        ],
+    )
+    @real_profile
+    async def test_real_resource_and_output_limits(tmp_path: Path, attack: str) -> None:
+        root = project(tmp_path)
+>       report = await backend().verify_isolated_patch(root, proposal(new=attack + "VALUE = 2\n"))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:249: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_ test_real_resource_and_output_limits[import os\nfor i in range(100):\n os.write(1,b'x'*16384)\n os.write(2,b'y'*16384)\n] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_real_resource_and_output_4')
+attack = "import os\nfor i in range(100):\n os.write(1,b'x'*16384)\n os.write(2,b'y'*16384)\n"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "attack",
+        [
+            "bytearray(512*1024*1024)\n",
+            "while True: pass\n",
+            "open('/tmp/large','wb').write(b'x'*(2*1024*1024))\n",
+            "for i in range(20): open('/tmp/f'+str(i),'wb').write(b'x'*(1024*1024))\n",
+            "import os\nfor i in range(100):\n os.write(1,b'x'*16384)\n os.write(2,b'y'*16384)\n",
+        ],
+    )
+    @real_profile
+    async def test_real_resource_and_output_limits(tmp_path: Path, attack: str) -> None:
+        root = project(tmp_path)
+>       report = await backend().verify_isolated_patch(root, proposal(new=attack + "VALUE = 2\n"))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:249: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+__________________________ test_no_tests_cannot_pass ___________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_no_tests_cannot_pass0')
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_no_tests_cannot_pass(tmp_path: Path) -> None:
+        root = project(tmp_path)
+        (root / "tests/test_value.py").unlink()
+>       result = await backend().verify_isolated_patch(root, proposal())
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:261: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+____________________ test_kernel_object_creation_is_denied _____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_kernel_object_creation_is0')
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_kernel_object_creation_is_denied(tmp_path: Path) -> None:
+        root = project(tmp_path)
+        attack = """import ctypes, errno, os
+    libc=ctypes.CDLL('/usr/lib/x86_64-linux-gnu/libc.so.6',use_errno=True)
+    fd=libc.memfd_create(b'synthetic',0)
+    if fd>=0:
+        os.close(fd)
+        raise AssertionError('memfd creation allowed')
+    assert ctypes.get_errno()==errno.EPERM
+    segment=libc.shmget(0,4096,0o1600)
+    if segment>=0:
+        libc.shmctl(segment,0,None)
+        raise AssertionError('shm creation allowed')
+    assert ctypes.get_errno()==errno.EPERM
+    assert libc.syscall(250,999999,0,0,0,0)==-1 # invalid keyctl, no key accessed
+    assert ctypes.get_errno()==errno.EPERM
+    assert libc.syscall(435,0,0)==-1 # clone3, including direct syscall path
+    assert ctypes.get_errno()==errno.EPERM
+    VALUE=2
+    """
+>       result = await backend().verify_isolated_patch(root, proposal(new=attack))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:287: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+____________________ test_ipc_kernel_allocations_are_denied ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_ipc_kernel_allocations_ar0')
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_ipc_kernel_allocations_are_denied(tmp_path: Path) -> None:
+        root = project(tmp_path)
+        attack = """import ctypes, errno, os
+    libc=ctypes.CDLL('/usr/lib/x86_64-linux-gnu/libc.so.6',use_errno=True)
+    violations=[]
+    semaphore=libc.semget(0,1,0o1600)
+    if semaphore>=0:
+        assert libc.semctl(semaphore,0,0)==0 # immediately remove private synthetic object
+        violations.append('semget allowed')
+    else:
+        assert ctypes.get_errno()==errno.EPERM
+    queue=libc.msgget(0,0o1600)
+    if queue>=0:
+        assert libc.msgctl(queue,0,None)==0 # IPC_RMID, no message data allocated
+        violations.append('msgget allowed')
+    else:
+        assert ctypes.get_errno()==errno.EPERM
+    name=b'/siro-synthetic-private'
+    descriptor=libc.mq_open(name,os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600,None)
+    if descriptor>=0:
+        assert libc.mq_close(descriptor)==0
+        assert libc.mq_unlink(name)==0
+        violations.append('mq_open allowed')
+    else:
+        assert ctypes.get_errno()==errno.EPERM
+    assert not violations, violations
+    VALUE=2
+    """
+>       result = await backend().verify_isolated_patch(root, proposal(new=attack))
+                       ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:321: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_____________ test_patch_cannot_expand_projected_source_byte_limit _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_patch_cannot_expand_proje0')
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_patch_cannot_expand_projected_source_byte_limit(tmp_path: Path) -> None:
+        root = project(tmp_path)
+        old = "#\n" * (2 * 1024 * 1024)
+        (root / "src/large.py").write_text(old)
+>       result = await backend().verify_isolated_patch(
+                       ^^^^^^^^^
+            root, proposal(old=old, new=old + "# added\n" * 100, path="src/large.py")
+        )
+
+tests/integration/test_isolated_patch_verification.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_________ test_repeated_cancel_reaps_all_owned_processes_and_snapshot __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_repeated_cancel_reaps_all0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb2eeb0>
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_repeated_cancel_reaps_all_owned_processes_and_snapshot(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:344: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+____________________ test_pre_fenced_context_never_executes ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_pre_fenced_context_never_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb2c4b0>
+
+    @pytest.mark.asyncio
+    async def test_pre_fenced_context_never_executes(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:384: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______ test_missing_seccomp_inside_real_namespace_never_runs_candidate ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_missing_seccomp_inside_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb2e580>
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_missing_seccomp_inside_real_namespace_never_runs_candidate(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:402: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+___________ test_external_deadline_propagates_and_removes_workspace ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_external_deadline_propaga0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb2f770>
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_external_deadline_propagates_and_removes_workspace(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:422: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_____ test_cancel_during_source_preparation_joins_before_removing_snapshot _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_cancel_during_source_prep0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb2f2a0>
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_cancel_during_source_preparation_joins_before_removing_snapshot(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:448: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______ test_preparation_cleanup_failure_cannot_claim_removed_workspace ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_preparation_cleanup_failu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb57690>
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_preparation_cleanup_failure_cannot_claim_removed_workspace(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+        (root / "src/alias.py").symlink_to(root / "src/value.py")
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:489: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+___________ test_source_projection_never_opens_ignored_private_files ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_source_projection_never_o0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb57b60>
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_source_projection_never_opens_ignored_private_files(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+        for path in (root / ".env.local", root / "src/.hidden.py", root / "tests/private.json"):
+            path.write_text("SYNTHETIC-PRIVATE-CANARY")
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:521: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+________ test_cancel_during_success_cleanup_cannot_return_passed[task] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_cancel_during_success_cle0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb04a60>
+kind = 'task'
+
+    @pytest.mark.asyncio
+    @real_profile
+    @pytest.mark.parametrize("kind", ["task", "context"])
+    async def test_cancel_during_success_cleanup_cannot_return_passed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:545: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______ test_cancel_during_success_cleanup_cannot_return_passed[context] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_cancel_during_success_cle1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beeb06cf0>
+kind = 'context'
+
+    @pytest.mark.asyncio
+    @real_profile
+    @pytest.mark.parametrize("kind", ["task", "context"])
+    async def test_cancel_during_success_cleanup_cannot_return_passed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:545: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_______ test_context_cancellation_does_not_hide_process_cleanup_failure ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_context_cancellation_does0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beebb8f30>
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_context_cancellation_does_not_hide_process_cleanup_failure(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+>       module = backend()
+                 ^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:581: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_isolated_patch_verification.py:74: in backend
+    return importlib.import_module("siro.services.tools.patch_verification")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.patch_verification'
+import_ = <function _gcd_import at 0x7b3bf1adfe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.patch_verification'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+______________________ test_actual_owner_cli[2-0-passed] _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_actual_owner_cli_2_0_pass0')
+value = 2, code = 0, status = 'passed'
+
+    @pytest.mark.parametrize("value,code,status", [(2, 0, "passed"), (3, 1, "failed_checks")])
+    @real_profile
+    def test_actual_owner_cli(tmp_path: Path, value: int, code: int, status: str) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text(proposal(new=f"VALUE = {value}\n").model_dump_json())
+        result = run_cli(root, path)
+>       assert result.returncode == code, result.stderr + result.stdout
+E       AssertionError: usage: siro [-h] [--version]
+E                     {doctor,config-schema,validate-config,demo,release,backup,restore,install,prune-logs} ...
+E         siro: error: argument command: invalid choice: 'verify-patch' (choose from doctor, config-schema, validate-config, demo, release, backup, restore, install, prune-logs)
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python', '-m', 'siro.cli', 'verify-patch', '/tmp/pyte...fy-patch' (choose from doctor, config-schema, validate-config, demo, release, backup, restore, install, prune-logs)\n").returncode
+
+tests/integration/test_verify_patch_cli.py:38: AssertionError
+___________________ test_actual_owner_cli[3-1-failed_checks] ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_actual_owner_cli_3_1_fail0')
+value = 3, code = 1, status = 'failed_checks'
+
+    @pytest.mark.parametrize("value,code,status", [(2, 0, "passed"), (3, 1, "failed_checks")])
+    @real_profile
+    def test_actual_owner_cli(tmp_path: Path, value: int, code: int, status: str) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text(proposal(new=f"VALUE = {value}\n").model_dump_json())
+        result = run_cli(root, path)
+>       assert result.returncode == code, result.stderr + result.stdout
+E       AssertionError: usage: siro [-h] [--version]
+E                     {doctor,config-schema,validate-config,demo,release,backup,restore,install,prune-logs} ...
+E         siro: error: argument command: invalid choice: 'verify-patch' (choose from doctor, config-schema, validate-config, demo, release, backup, restore, install, prune-logs)
+E         
+E       assert 2 == 1
+E        +  where 2 = CompletedProcess(args=['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python', '-m', 'siro.cli', 'verify-patch', '/tmp/pyte...fy-patch' (choose from doctor, config-schema, validate-config, demo, release, backup, restore, install, prune-logs)\n").returncode
+
+tests/integration/test_verify_patch_cli.py:38: AssertionError
+______ test_cli_rejects_input_without_printing_raw_payload[invalid_json] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_cli_rejects_input_without0')
+kind = 'invalid_json'
+
+    @pytest.mark.parametrize("kind", ["invalid_json", "oversized", "symlink", "hardlink", "missing"])
+    def test_cli_rejects_input_without_printing_raw_payload(tmp_path: Path, kind: str) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text("SYNTHETIC-PRIVATE-CANARY")
+        if kind == "oversized":
+            path.write_bytes(b"SYNTHETIC-PRIVATE-CANARY" + b"x" * (4 * 1024 * 1024))
+        elif kind in {"symlink", "hardlink"}:
+            original = tmp_path / "original"
+            path.rename(original)
+            if kind == "symlink":
+                path.symlink_to(original)
+            else:
+                os.link(original, path)
+        elif kind == "missing":
+            path.unlink()
+        result = run_cli(root, path)
+        assert result.returncode == 2, result.stderr + result.stdout
+        assert "SYNTHETIC-PRIVATE-CANARY" not in result.stdout + result.stderr
+>       assert json.loads(result.stdout)["status"] == "rejected_input"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_verify_patch_cli.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7b3bf09cfcb0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+/usr/lib/python3.14/json/decoder.py:363: JSONDecodeError
+________ test_cli_rejects_input_without_printing_raw_payload[oversized] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_cli_rejects_input_without1')
+kind = 'oversized'
+
+    @pytest.mark.parametrize("kind", ["invalid_json", "oversized", "symlink", "hardlink", "missing"])
+    def test_cli_rejects_input_without_printing_raw_payload(tmp_path: Path, kind: str) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text("SYNTHETIC-PRIVATE-CANARY")
+        if kind == "oversized":
+            path.write_bytes(b"SYNTHETIC-PRIVATE-CANARY" + b"x" * (4 * 1024 * 1024))
+        elif kind in {"symlink", "hardlink"}:
+            original = tmp_path / "original"
+            path.rename(original)
+            if kind == "symlink":
+                path.symlink_to(original)
+            else:
+                os.link(original, path)
+        elif kind == "missing":
+            path.unlink()
+        result = run_cli(root, path)
+        assert result.returncode == 2, result.stderr + result.stdout
+        assert "SYNTHETIC-PRIVATE-CANARY" not in result.stdout + result.stderr
+>       assert json.loads(result.stdout)["status"] == "rejected_input"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_verify_patch_cli.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7b3bf09cfcb0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+/usr/lib/python3.14/json/decoder.py:363: JSONDecodeError
+_________ test_cli_rejects_input_without_printing_raw_payload[symlink] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_cli_rejects_input_without2')
+kind = 'symlink'
+
+    @pytest.mark.parametrize("kind", ["invalid_json", "oversized", "symlink", "hardlink", "missing"])
+    def test_cli_rejects_input_without_printing_raw_payload(tmp_path: Path, kind: str) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text("SYNTHETIC-PRIVATE-CANARY")
+        if kind == "oversized":
+            path.write_bytes(b"SYNTHETIC-PRIVATE-CANARY" + b"x" * (4 * 1024 * 1024))
+        elif kind in {"symlink", "hardlink"}:
+            original = tmp_path / "original"
+            path.rename(original)
+            if kind == "symlink":
+                path.symlink_to(original)
+            else:
+                os.link(original, path)
+        elif kind == "missing":
+            path.unlink()
+        result = run_cli(root, path)
+        assert result.returncode == 2, result.stderr + result.stdout
+        assert "SYNTHETIC-PRIVATE-CANARY" not in result.stdout + result.stderr
+>       assert json.loads(result.stdout)["status"] == "rejected_input"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_verify_patch_cli.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7b3bf09cfcb0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+/usr/lib/python3.14/json/decoder.py:363: JSONDecodeError
+________ test_cli_rejects_input_without_printing_raw_payload[hardlink] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_cli_rejects_input_without3')
+kind = 'hardlink'
+
+    @pytest.mark.parametrize("kind", ["invalid_json", "oversized", "symlink", "hardlink", "missing"])
+    def test_cli_rejects_input_without_printing_raw_payload(tmp_path: Path, kind: str) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text("SYNTHETIC-PRIVATE-CANARY")
+        if kind == "oversized":
+            path.write_bytes(b"SYNTHETIC-PRIVATE-CANARY" + b"x" * (4 * 1024 * 1024))
+        elif kind in {"symlink", "hardlink"}:
+            original = tmp_path / "original"
+            path.rename(original)
+            if kind == "symlink":
+                path.symlink_to(original)
+            else:
+                os.link(original, path)
+        elif kind == "missing":
+            path.unlink()
+        result = run_cli(root, path)
+        assert result.returncode == 2, result.stderr + result.stdout
+        assert "SYNTHETIC-PRIVATE-CANARY" not in result.stdout + result.stderr
+>       assert json.loads(result.stdout)["status"] == "rejected_input"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_verify_patch_cli.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7b3bf09cfcb0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+/usr/lib/python3.14/json/decoder.py:363: JSONDecodeError
+_________ test_cli_rejects_input_without_printing_raw_payload[missing] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_cli_rejects_input_without4')
+kind = 'missing'
+
+    @pytest.mark.parametrize("kind", ["invalid_json", "oversized", "symlink", "hardlink", "missing"])
+    def test_cli_rejects_input_without_printing_raw_payload(tmp_path: Path, kind: str) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text("SYNTHETIC-PRIVATE-CANARY")
+        if kind == "oversized":
+            path.write_bytes(b"SYNTHETIC-PRIVATE-CANARY" + b"x" * (4 * 1024 * 1024))
+        elif kind in {"symlink", "hardlink"}:
+            original = tmp_path / "original"
+            path.rename(original)
+            if kind == "symlink":
+                path.symlink_to(original)
+            else:
+                os.link(original, path)
+        elif kind == "missing":
+            path.unlink()
+        result = run_cli(root, path)
+        assert result.returncode == 2, result.stderr + result.stdout
+        assert "SYNTHETIC-PRIVATE-CANARY" not in result.stdout + result.stderr
+>       assert json.loads(result.stdout)["status"] == "rejected_input"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_verify_patch_cli.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x7b3bf09cfcb0>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+/usr/lib/python3.14/json/decoder.py:363: JSONDecodeError
+___________ test_cli_signal_after_completed_task_cannot_print_passed ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_cli_signal_after_complete0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b3beea7e510>
+capsys = <_pytest.capture.CaptureFixture object at 0x7b3bef11bcb0>
+
+    def test_cli_signal_after_completed_task_cannot_print_passed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from siro import cli
+>       from siro.services.tools import patch_verification
+E       ImportError: cannot import name 'patch_verification' from 'siro.services.tools' (/tmp/siro-ri003-before-orgqs6m3/src/siro/services/tools/__init__.py)
+
+tests/integration/test_verify_patch_cli.py:70: ImportError
+________ test_actual_cli_sigint_reaps_owned_namespace_and_workspace[1] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_actual_cli_sigint_reaps_o0')
+interruptions = 1
+
+    @real_profile
+    @pytest.mark.parametrize("interruptions", [1, 2])
+    def test_actual_cli_sigint_reaps_owned_namespace_and_workspace(
+        tmp_path: Path, interruptions: int
+    ) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text(proposal(new="import time\ntime.sleep(30)\nVALUE=2\n").model_dump_json())
+        temporary = tmp_path / "workspaces"
+        temporary.mkdir()
+        repository = Path(__file__).resolve().parents[2]
+        process = subprocess.Popen(
+            [sys.executable, "-m", "siro.cli", "verify-patch", str(path), "--project-root", str(root)],
+            env={"PATH": os.defpath, "PYTHONPATH": str(repository / "src"), "TMPDIR": str(temporary)},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        owned: set[int] = set()
+        handles: dict[int, int] = {}
+        try:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and process.poll() is None:
+                children = Path(f"/proc/{process.pid}/task/{process.pid}/children").read_text().split()
+                ready = False
+                for value in children:
+                    child = int(value)
+                    try:
+                        command = Path(f"/proc/{child}/cmdline").read_bytes()
+                    except FileNotFoundError:
+                        continue
+                    if b"bwrap" in command and b"--probe" not in command:
+                        owned.add(child)
+                        pending = [child]
+                        while pending:
+                            parent = pending.pop()
+                            for p in Path(f"/proc/{parent}/task/{parent}/children").read_text().split():
+                                pid = int(p)
+                                if pid not in owned:
+                                    owned.add(pid)
+                                    pending.append(pid)
+                        handles.update({pid: os.pidfd_open(pid) for pid in owned})
+                        ready = True
+                if ready:
+                    break
+                time.sleep(0.01)
+>           assert owned, "CLI never reached the owned candidate namespace"
+E           AssertionError: CLI never reached the owned candidate namespace
+E           assert set()
+
+tests/integration/test_verify_patch_cli.py:146: AssertionError
+________ test_actual_cli_sigint_reaps_owned_namespace_and_workspace[2] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_actual_cli_sigint_reaps_o1')
+interruptions = 2
+
+    @real_profile
+    @pytest.mark.parametrize("interruptions", [1, 2])
+    def test_actual_cli_sigint_reaps_owned_namespace_and_workspace(
+        tmp_path: Path, interruptions: int
+    ) -> None:
+        root = project(tmp_path)
+        path = tmp_path / "proposal.json"
+        path.write_text(proposal(new="import time\ntime.sleep(30)\nVALUE=2\n").model_dump_json())
+        temporary = tmp_path / "workspaces"
+        temporary.mkdir()
+        repository = Path(__file__).resolve().parents[2]
+        process = subprocess.Popen(
+            [sys.executable, "-m", "siro.cli", "verify-patch", str(path), "--project-root", str(root)],
+            env={"PATH": os.defpath, "PYTHONPATH": str(repository / "src"), "TMPDIR": str(temporary)},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        owned: set[int] = set()
+        handles: dict[int, int] = {}
+        try:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and process.poll() is None:
+                children = Path(f"/proc/{process.pid}/task/{process.pid}/children").read_text().split()
+                ready = False
+                for value in children:
+                    child = int(value)
+                    try:
+                        command = Path(f"/proc/{child}/cmdline").read_bytes()
+                    except FileNotFoundError:
+                        continue
+                    if b"bwrap" in command and b"--probe" not in command:
+                        owned.add(child)
+                        pending = [child]
+                        while pending:
+                            parent = pending.pop()
+                            for p in Path(f"/proc/{parent}/task/{parent}/children").read_text().split():
+                                pid = int(p)
+                                if pid not in owned:
+                                    owned.add(pid)
+                                    pending.append(pid)
+                        handles.update({pid: os.pidfd_open(pid) for pid in owned})
+                        ready = True
+                if ready:
+                    break
+                time.sleep(0.01)
+>           assert owned, "CLI never reached the owned candidate namespace"
+E           AssertionError: CLI never reached the owned candidate namespace
+E           assert set()
+
+tests/integration/test_verify_patch_cli.py:146: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_isolated_patch_verification.py::test_shared_pure_preflight[src/value.py-ready]
+FAILED tests/integration/test_isolated_patch_verification.py::test_shared_pure_preflight[src/siro/config.py-rejected_policy_change]
+FAILED tests/integration/test_isolated_patch_verification.py::test_shared_pure_preflight[src/siro/core/authorization.py-rejected_policy_change]
+FAILED tests/integration/test_isolated_patch_verification.py::test_actual_unittest_profile_and_unchanged_original[2-passed]
+FAILED tests/integration/test_isolated_patch_verification.py::test_actual_unittest_profile_and_unchanged_original[3-failed_checks]
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_import_cannot_read_write_fork_exec_network_or_raise_limits
+FAILED tests/integration/test_isolated_patch_verification.py::test_source_aliases_are_rejected_without_following[file_symlink]
+FAILED tests/integration/test_isolated_patch_verification.py::test_source_aliases_are_rejected_without_following[directory_symlink]
+FAILED tests/integration/test_isolated_patch_verification.py::test_source_aliases_are_rejected_without_following[hardlink]
+FAILED tests/integration/test_isolated_patch_verification.py::test_source_aliases_are_rejected_without_following[root_symlink]
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_source_capture_bounds[files]
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_source_capture_bounds[file_bytes]
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_source_capture_bounds[total_bytes]
+FAILED tests/integration/test_isolated_patch_verification.py::test_rejected_ingress_has_no_executor[profile]
+FAILED tests/integration/test_isolated_patch_verification.py::test_rejected_ingress_has_no_executor[path]
+FAILED tests/integration/test_isolated_patch_verification.py::test_rejected_ingress_has_no_executor[policy]
+FAILED tests/integration/test_isolated_patch_verification.py::test_rejected_ingress_has_no_executor[invalid]
+FAILED tests/integration/test_isolated_patch_verification.py::test_rejected_ingress_has_no_executor[missing_bwrap]
+FAILED tests/integration/test_isolated_patch_verification.py::test_rejected_ingress_has_no_executor[platform]
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_resource_and_output_limits[bytearray(512*1024*1024)\n]
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_resource_and_output_limits[while True: pass\n]
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_resource_and_output_limits[open('/tmp/large','wb').write(b'x'*(2*1024*1024))\n]
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_resource_and_output_limits[for i in range(20): open('/tmp/f'+str(i),'wb').write(b'x'*(1024*1024))\n]
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_resource_and_output_limits[import os\nfor i in range(100):\n os.write(1,b'x'*16384)\n os.write(2,b'y'*16384)\n]
+FAILED tests/integration/test_isolated_patch_verification.py::test_no_tests_cannot_pass
+FAILED tests/integration/test_isolated_patch_verification.py::test_kernel_object_creation_is_denied
+FAILED tests/integration/test_isolated_patch_verification.py::test_ipc_kernel_allocations_are_denied
+FAILED tests/integration/test_isolated_patch_verification.py::test_patch_cannot_expand_projected_source_byte_limit
+FAILED tests/integration/test_isolated_patch_verification.py::test_repeated_cancel_reaps_all_owned_processes_and_snapshot
+FAILED tests/integration/test_isolated_patch_verification.py::test_pre_fenced_context_never_executes
+FAILED tests/integration/test_isolated_patch_verification.py::test_missing_seccomp_inside_real_namespace_never_runs_candidate
+FAILED tests/integration/test_isolated_patch_verification.py::test_external_deadline_propagates_and_removes_workspace
+FAILED tests/integration/test_isolated_patch_verification.py::test_cancel_during_source_preparation_joins_before_removing_snapshot
+FAILED tests/integration/test_isolated_patch_verification.py::test_preparation_cleanup_failure_cannot_claim_removed_workspace
+FAILED tests/integration/test_isolated_patch_verification.py::test_source_projection_never_opens_ignored_private_files
+FAILED tests/integration/test_isolated_patch_verification.py::test_cancel_during_success_cleanup_cannot_return_passed[task]
+FAILED tests/integration/test_isolated_patch_verification.py::test_cancel_during_success_cleanup_cannot_return_passed[context]
+FAILED tests/integration/test_isolated_patch_verification.py::test_context_cancellation_does_not_hide_process_cleanup_failure
+FAILED tests/integration/test_verify_patch_cli.py::test_actual_owner_cli[2-0-passed]
+FAILED tests/integration/test_verify_patch_cli.py::test_actual_owner_cli[3-1-failed_checks]
+FAILED tests/integration/test_verify_patch_cli.py::test_cli_rejects_input_without_printing_raw_payload[invalid_json]
+FAILED tests/integration/test_verify_patch_cli.py::test_cli_rejects_input_without_printing_raw_payload[oversized]
+FAILED tests/integration/test_verify_patch_cli.py::test_cli_rejects_input_without_printing_raw_payload[symlink]
+FAILED tests/integration/test_verify_patch_cli.py::test_cli_rejects_input_without_printing_raw_payload[hardlink]
+FAILED tests/integration/test_verify_patch_cli.py::test_cli_rejects_input_without_printing_raw_payload[missing]
+FAILED tests/integration/test_verify_patch_cli.py::test_cli_signal_after_completed_task_cannot_print_passed
+FAILED tests/integration/test_verify_patch_cli.py::test_actual_cli_sigint_reaps_owned_namespace_and_workspace[1]
+FAILED tests/integration/test_verify_patch_cli.py::test_actual_cli_sigint_reaps_owned_namespace_and_workspace[2]
+48 failed in 2.09s

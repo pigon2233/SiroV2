@@ -1,0 +1,70 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____ test_repeated_restore_cancel_keeps_writer_owner_until_thread_finishes _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-73/test_repeated_restore_cancel_k0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73adbda43230>
+
+    @pytest.mark.asyncio
+    async def test_repeated_restore_cancel_keeps_writer_owner_until_thread_finishes(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store, source = await _databases(tmp_path)
+        pause = _MigrationPause(store, monkeypatch)
+        restore = asyncio.create_task(store.restore_from(source))
+        writes: list[str] = []
+    
+        def write(connection: sqlite3.Connection) -> None:
+            writes.append("queued")
+            connection.execute("UPDATE restore_fixture SET value='queued'")
+    
+        queued: asyncio.Task[None] | None = None
+        try:
+            await _wait(pause.entered)
+            assert pause.thread_ids[0] != threading.get_ident(), "restore work must remain off-loop"
+            queued = asyncio.create_task(store.run_transaction(write))
+            await asyncio.sleep(0.01)
+            assert not queued.done()
+            restore.cancel()
+            await asyncio.sleep(0.01)
+            restore.cancel()
+            await asyncio.sleep(0.01)
+>           assert not restore.done(), "caller cancellation must join the real restore owner"
+E           AssertionError: caller cancellation must join the real restore owner
+E           assert not True
+E            +  where True = <built-in method done of _asyncio.Task object at 0x73adbdb65c70>()
+E            +    where <built-in method done of _asyncio.Task object at 0x73adbdb65c70> = <Task cancelled name='Task-2' coro=<SQLiteStore.restore_from() done, defined at /home/jasonliao/文件/Siro/SiroV2/docs/evidence/FIX-013-2026-10-12/before/src/siro/persistence/sqlite.py:359>>.done
+
+tests/integration/test_sqlite_restore_lifecycle.py:99: AssertionError
+______ test_cancel_during_candidate_migration_preserves_latest_live_data _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-73/test_cancel_during_candidate_m0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73adbd90e570>
+
+    @pytest.mark.asyncio
+    async def test_cancel_during_candidate_migration_preserves_latest_live_data(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store, source = await _databases(tmp_path)
+        original_source = source.read_bytes()
+        pause = _MigrationPause(store, monkeypatch)
+        restore = asyncio.create_task(store.restore_from(source))
+        try:
+            await _wait(pause.entered)
+            restore.cancel()
+            pause.release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(restore, 2)
+            await _wait(pause.finished)
+>           assert _state(store.path) == "latest", "cancelled candidate must never be promoted"
+E           AssertionError: cancelled candidate must never be promoted
+E           assert 'backup' == 'latest'
+E             
+E             - latest
+E             + backup
+
+tests/integration/test_sqlite_restore_lifecycle.py:132: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_sqlite_restore_lifecycle.py::test_repeated_restore_cancel_keeps_writer_owner_until_thread_finishes
+FAILED tests/integration/test_sqlite_restore_lifecycle.py::test_cancel_during_candidate_migration_preserves_latest_live_data
+2 failed in 0.14s

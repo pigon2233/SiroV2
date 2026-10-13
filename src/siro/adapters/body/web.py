@@ -32,6 +32,7 @@ class WebSocketBodyTransport:
         self._socket: JsonBodySocket | None = None
         self._queue: asyncio.Queue[dict[str, object]] | None = None
         self._writer: asyncio.Task[None] | None = None
+        self._emotion: dict[str, object] | None = None
 
     @property
     def connected(self) -> bool:
@@ -42,8 +43,14 @@ class WebSocketBodyTransport:
         self._socket = socket
         self._queue = asyncio.Queue(self._capacity)
         self._writer = asyncio.create_task(self._write_loop(socket), name="body-renderer-writer")
+        if self._emotion is not None:
+            self._queue.put_nowait(dict(self._emotion))
 
-    async def detach(self, *, reason: str = "renderer disconnected") -> None:
+    async def detach(
+        self, *, reason: str = "renderer disconnected", socket: JsonBodySocket | None = None
+    ) -> None:
+        if socket is not None and socket is not self._socket:
+            return
         socket, writer = self._socket, self._writer
         self._socket = None
         self._queue = None
@@ -55,7 +62,12 @@ class WebSocketBodyTransport:
             with contextlib.suppress(Exception):
                 await socket.close(reason=reason)
 
+    def remember_emotion(self, message: dict[str, object]) -> None:
+        if message.get("type") == "body.emotion":
+            self._emotion = dict(message)
+
     async def send(self, message: dict[str, object]) -> None:
+        self.remember_emotion(message)
         queue = self._queue
         if not self.connected or queue is None:
             raise ConnectionError("body renderer is offline")
@@ -95,18 +107,24 @@ class MinimalWebBodyAdapter:
                 "intent_id": intent.intent_id,
                 "generation_id": intent.generation_id,
                 "text": intent.text,
+                "prosody": {
+                    "rate": intent.rate,
+                    "pitch": intent.pitch,
+                    "energy": intent.energy,
+                },
             }
         )
 
     async def set_emotion(self, intent: EmotionIntent) -> bool:
-        return await self._send(
-            {
-                "v": 1,
-                "type": "body.emotion",
-                "name": intent.name,
-                "intensity": intent.intensity,
-            }
-        )
+        message: dict[str, object] = {
+            "v": 1,
+            "type": "body.emotion",
+            "name": intent.name,
+            "intensity": intent.intensity,
+        }
+        if isinstance(self._transport, WebSocketBodyTransport):
+            self._transport.remember_emotion(message)
+        return await self._send(message)
 
     async def cancel(self, generation_id: str, reason: str = "cancelled") -> bool:
         if not generation_id:

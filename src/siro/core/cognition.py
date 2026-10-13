@@ -8,6 +8,8 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import uuid4
 
+from siro.core.affect import CopingStrategy, DriveState, MoodState
+
 
 class Clock(Protocol):
     def now(self) -> datetime: ...
@@ -190,6 +192,78 @@ def select_action(
     allowed.append(do_nothing)
     selected = max(allowed, key=lambda item: (item.score, item.candidate_id))
     return Selection(selected, tuple(rejected))
+
+
+def affect_attention_signals(drives: DriveState, mood: MoodState) -> tuple[AttentionSignal, ...]:
+    """Expose internal needs to attention without overriding explicit control."""
+    signals = []
+    for name in ("safety", "connection", "competence", "curiosity", "autonomy", "rest"):
+        pressure = getattr(drives, name)
+        if pressure >= 0.45:
+            signals.append(
+                AttentionSignal(
+                    signal_id=f"affect-drive:{name}",
+                    urgency=pressure if name in {"safety", "rest"} else pressure * 0.5,
+                    user_relevance=0.0,
+                    novelty=0.0,
+                    goal_relevance=0.25,
+                    drive_relevance=pressure,
+                )
+            )
+    if mood.arousal >= 0.7:
+        signals.append(
+            AttentionSignal(
+                "affect-mood:high-arousal",
+                urgency=mood.arousal,
+                user_relevance=0.0,
+                novelty=0.0,
+                goal_relevance=0.2,
+                drive_relevance=0.2,
+            )
+        )
+    return tuple(signals)
+
+
+_COPING_CAPABILITIES: dict[CopingStrategy, frozenset[str]] = {
+    CopingStrategy.SEEK_INFORMATION: frozenset({"inspect", "query", "read", "clarify"}),
+    CopingStrategy.PROBLEM_SOLVE: frozenset({"fix", "retry", "execute", "act"}),
+    CopingStrategy.REPAIR: frozenset({"apologize", "correct", "rollback", "repair"}),
+    CopingStrategy.SEEK_SUPPORT: frozenset({"ask", "support", "notify"}),
+    CopingStrategy.ACCEPT: frozenset({"wait", "pause", "none"}),
+    CopingStrategy.PAUSE: frozenset({"wait", "pause", "none"}),
+    CopingStrategy.SAVOR: frozenset({"record", "celebrate", "share"}),
+    CopingStrategy.NONE: frozenset(),
+}
+
+
+def apply_affect_to_candidates(
+    candidates: tuple[ActionCandidate, ...], strategy: CopingStrategy
+) -> tuple[ActionCandidate, ...]:
+    """Add a bounded coping bias while preserving every hard gate."""
+    preferred = _COPING_CAPABILITIES[strategy]
+    adjusted = []
+    for candidate in candidates:
+        terms = {term for term in candidate.capability.casefold().replace(".", "_").split("_")}
+        match = bool(terms & preferred)
+        delta = 0.12 if match else 0.0
+        adjusted.append(
+            ActionCandidate(
+                candidate.candidate_id,
+                candidate.capability,
+                candidate.arguments,
+                candidate.expected_result,
+                candidate.cost,
+                candidate.deadline,
+                max(0.0, min(1.0, candidate.score + delta)),
+                (*candidate.reasons, f"affect:{strategy.value}" if match else "affect:no_bias"),
+                candidate.permission_allowed,
+                candidate.quiet_allowed,
+                candidate.busy_allowed,
+                candidate.cooldown_allowed,
+                candidate.resources_allowed,
+            )
+        )
+    return tuple(adjusted)
 
 
 @dataclass(frozen=True, slots=True)

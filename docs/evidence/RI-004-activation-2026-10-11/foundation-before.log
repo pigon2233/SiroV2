@@ -1,0 +1,885 @@
+FFFFFFFFFFFFFFF.FFFFFFFFFFFFFFFFFFFF                                     [100%]
+=================================== FAILURES ===================================
+____ test_absent_install_records_exact_identity_and_requested_state[False] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_absent_install_records_ex0')
+enabled = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    async def test_absent_install_records_exact_identity_and_requested_state(
+        tmp_path: Path, enabled: bool
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, store = await registry_at(tmp_path)
+>       assert await registry.install_if_absent(skill, enabled=enabled) is True
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:89: AttributeError
+_____ test_absent_install_records_exact_identity_and_requested_state[True] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_absent_install_records_ex1')
+enabled = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    async def test_absent_install_records_exact_identity_and_requested_state(
+        tmp_path: Path, enabled: bool
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, store = await registry_at(tmp_path)
+>       assert await registry.install_if_absent(skill, enabled=enabled) is True
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:89: AttributeError
+_____ test_install_conflict_preserves_entire_existing_row[identical-False] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_install_conflict_preserve0')
+enabled = False, conflict = 'identical'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("conflict", ["identical", "other-root", "other-bytes"])
+    async def test_install_conflict_preserves_entire_existing_row(
+        tmp_path: Path, enabled: bool, conflict: str
+    ) -> None:
+        original = package(tmp_path / "original")
+        replacement = (
+            original
+            if conflict == "identical"
+            else package(tmp_path / "replacement", suffix="changed" if conflict == "other-bytes" else "original")
+        )
+        registry, store = await registry_at(tmp_path)
+        await registry.install(original, enabled=enabled)
+        before = await rows(store)
+>       assert await registry.install_if_absent(replacement, enabled=not enabled) is False
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:119: AttributeError
+_____ test_install_conflict_preserves_entire_existing_row[identical-True] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_install_conflict_preserve1')
+enabled = True, conflict = 'identical'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("conflict", ["identical", "other-root", "other-bytes"])
+    async def test_install_conflict_preserves_entire_existing_row(
+        tmp_path: Path, enabled: bool, conflict: str
+    ) -> None:
+        original = package(tmp_path / "original")
+        replacement = (
+            original
+            if conflict == "identical"
+            else package(tmp_path / "replacement", suffix="changed" if conflict == "other-bytes" else "original")
+        )
+        registry, store = await registry_at(tmp_path)
+        await registry.install(original, enabled=enabled)
+        before = await rows(store)
+>       assert await registry.install_if_absent(replacement, enabled=not enabled) is False
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:119: AttributeError
+____ test_install_conflict_preserves_entire_existing_row[other-root-False] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_install_conflict_preserve2')
+enabled = False, conflict = 'other-root'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("conflict", ["identical", "other-root", "other-bytes"])
+    async def test_install_conflict_preserves_entire_existing_row(
+        tmp_path: Path, enabled: bool, conflict: str
+    ) -> None:
+        original = package(tmp_path / "original")
+        replacement = (
+            original
+            if conflict == "identical"
+            else package(tmp_path / "replacement", suffix="changed" if conflict == "other-bytes" else "original")
+        )
+        registry, store = await registry_at(tmp_path)
+        await registry.install(original, enabled=enabled)
+        before = await rows(store)
+>       assert await registry.install_if_absent(replacement, enabled=not enabled) is False
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:119: AttributeError
+_____ test_install_conflict_preserves_entire_existing_row[other-root-True] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_install_conflict_preserve3')
+enabled = True, conflict = 'other-root'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("conflict", ["identical", "other-root", "other-bytes"])
+    async def test_install_conflict_preserves_entire_existing_row(
+        tmp_path: Path, enabled: bool, conflict: str
+    ) -> None:
+        original = package(tmp_path / "original")
+        replacement = (
+            original
+            if conflict == "identical"
+            else package(tmp_path / "replacement", suffix="changed" if conflict == "other-bytes" else "original")
+        )
+        registry, store = await registry_at(tmp_path)
+        await registry.install(original, enabled=enabled)
+        before = await rows(store)
+>       assert await registry.install_if_absent(replacement, enabled=not enabled) is False
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:119: AttributeError
+____ test_install_conflict_preserves_entire_existing_row[other-bytes-False] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_install_conflict_preserve4')
+enabled = False, conflict = 'other-bytes'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("conflict", ["identical", "other-root", "other-bytes"])
+    async def test_install_conflict_preserves_entire_existing_row(
+        tmp_path: Path, enabled: bool, conflict: str
+    ) -> None:
+        original = package(tmp_path / "original")
+        replacement = (
+            original
+            if conflict == "identical"
+            else package(tmp_path / "replacement", suffix="changed" if conflict == "other-bytes" else "original")
+        )
+        registry, store = await registry_at(tmp_path)
+        await registry.install(original, enabled=enabled)
+        before = await rows(store)
+>       assert await registry.install_if_absent(replacement, enabled=not enabled) is False
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:119: AttributeError
+____ test_install_conflict_preserves_entire_existing_row[other-bytes-True] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_install_conflict_preserve5')
+enabled = True, conflict = 'other-bytes'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("conflict", ["identical", "other-root", "other-bytes"])
+    async def test_install_conflict_preserves_entire_existing_row(
+        tmp_path: Path, enabled: bool, conflict: str
+    ) -> None:
+        original = package(tmp_path / "original")
+        replacement = (
+            original
+            if conflict == "identical"
+            else package(tmp_path / "replacement", suffix="changed" if conflict == "other-bytes" else "original")
+        )
+        registry, store = await registry_at(tmp_path)
+        await registry.install(original, enabled=enabled)
+        before = await rows(store)
+>       assert await registry.install_if_absent(replacement, enabled=not enabled) is False
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:119: AttributeError
+____________ test_concurrent_absent_installs_have_one_exact_winner _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_concurrent_absent_install0')
+
+    @pytest.mark.asyncio
+    async def test_concurrent_absent_installs_have_one_exact_winner(tmp_path: Path) -> None:
+        first = package(tmp_path / "first")
+        second = package(tmp_path / "second", suffix="different")
+        registry, store = await registry_at(tmp_path)
+        results = await asyncio.gather(
+>           registry.install_if_absent(first), registry.install_if_absent(second, enabled=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:129: AttributeError
+___ test_absent_install_rejects_unverified_or_type_ambiguous_metadata[hash] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_absent_install_rejects_un0')
+forgery = 'hash'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("forgery", ["hash", "input", "output", "manifest", "changed-source"])
+    async def test_absent_install_rejects_unverified_or_type_ambiguous_metadata(
+        tmp_path: Path, forgery: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        if forgery == "hash":
+            skill = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif forgery == "input":
+            skill = replace(skill, input_schema={**skill.input_schema, "additionalProperties": 0})
+        elif forgery == "output":
+            skill = replace(skill, output_schema={**skill.output_schema, "additionalProperties": 0})
+        elif forgery == "manifest":
+            skill = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": True}))
+        else:
+            (skill.root / "plugin.py").write_text("def run(arguments): return {}\n")
+        registry, store = await registry_at(tmp_path)
+        with pytest.raises(SkillApprovalRequired, match="package verification and approval"):
+>           await registry.install_if_absent(skill)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:162: AttributeError
+___ test_absent_install_rejects_unverified_or_type_ambiguous_metadata[input] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_absent_install_rejects_un1')
+forgery = 'input'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("forgery", ["hash", "input", "output", "manifest", "changed-source"])
+    async def test_absent_install_rejects_unverified_or_type_ambiguous_metadata(
+        tmp_path: Path, forgery: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        if forgery == "hash":
+            skill = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif forgery == "input":
+            skill = replace(skill, input_schema={**skill.input_schema, "additionalProperties": 0})
+        elif forgery == "output":
+            skill = replace(skill, output_schema={**skill.output_schema, "additionalProperties": 0})
+        elif forgery == "manifest":
+            skill = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": True}))
+        else:
+            (skill.root / "plugin.py").write_text("def run(arguments): return {}\n")
+        registry, store = await registry_at(tmp_path)
+        with pytest.raises(SkillApprovalRequired, match="package verification and approval"):
+>           await registry.install_if_absent(skill)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:162: AttributeError
+__ test_absent_install_rejects_unverified_or_type_ambiguous_metadata[output] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_absent_install_rejects_un2')
+forgery = 'output'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("forgery", ["hash", "input", "output", "manifest", "changed-source"])
+    async def test_absent_install_rejects_unverified_or_type_ambiguous_metadata(
+        tmp_path: Path, forgery: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        if forgery == "hash":
+            skill = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif forgery == "input":
+            skill = replace(skill, input_schema={**skill.input_schema, "additionalProperties": 0})
+        elif forgery == "output":
+            skill = replace(skill, output_schema={**skill.output_schema, "additionalProperties": 0})
+        elif forgery == "manifest":
+            skill = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": True}))
+        else:
+            (skill.root / "plugin.py").write_text("def run(arguments): return {}\n")
+        registry, store = await registry_at(tmp_path)
+        with pytest.raises(SkillApprovalRequired, match="package verification and approval"):
+>           await registry.install_if_absent(skill)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:162: AttributeError
+_ test_absent_install_rejects_unverified_or_type_ambiguous_metadata[manifest] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_absent_install_rejects_un3')
+forgery = 'manifest'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("forgery", ["hash", "input", "output", "manifest", "changed-source"])
+    async def test_absent_install_rejects_unverified_or_type_ambiguous_metadata(
+        tmp_path: Path, forgery: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        if forgery == "hash":
+            skill = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif forgery == "input":
+            skill = replace(skill, input_schema={**skill.input_schema, "additionalProperties": 0})
+        elif forgery == "output":
+            skill = replace(skill, output_schema={**skill.output_schema, "additionalProperties": 0})
+        elif forgery == "manifest":
+            skill = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": True}))
+        else:
+            (skill.root / "plugin.py").write_text("def run(arguments): return {}\n")
+        registry, store = await registry_at(tmp_path)
+        with pytest.raises(SkillApprovalRequired, match="package verification and approval"):
+>           await registry.install_if_absent(skill)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:162: AttributeError
+_ test_absent_install_rejects_unverified_or_type_ambiguous_metadata[changed-source] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_absent_install_rejects_un4')
+forgery = 'changed-source'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("forgery", ["hash", "input", "output", "manifest", "changed-source"])
+    async def test_absent_install_rejects_unverified_or_type_ambiguous_metadata(
+        tmp_path: Path, forgery: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        if forgery == "hash":
+            skill = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif forgery == "input":
+            skill = replace(skill, input_schema={**skill.input_schema, "additionalProperties": 0})
+        elif forgery == "output":
+            skill = replace(skill, output_schema={**skill.output_schema, "additionalProperties": 0})
+        elif forgery == "manifest":
+            skill = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": True}))
+        else:
+            (skill.root / "plugin.py").write_text("def run(arguments): return {}\n")
+        registry, store = await registry_at(tmp_path)
+        with pytest.raises(SkillApprovalRequired, match="package verification and approval"):
+>           await registry.install_if_absent(skill)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:162: AttributeError
+_____________ test_absent_install_verification_runs_off_event_loop _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_absent_install_verificati0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75110c9ec890>
+
+    @pytest.mark.asyncio
+    async def test_absent_install_verification_runs_off_event_loop(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        entered = threading.Event()
+        release = threading.Event()
+        verifier_threads: list[int] = []
+        original_load = registry_module.load_skill
+    
+        def blocked_load(root: Path) -> InstalledSkill:
+            verifier_threads.append(threading.get_ident())
+            entered.set()
+            if not release.wait(2):
+                raise AssertionError("synthetic verifier release missing")
+            return original_load(root)
+    
+        monkeypatch.setattr(registry_module, "load_skill", blocked_load)
+>       task = asyncio.create_task(registry.install_if_absent(skill))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'install_if_absent'
+
+tests/integration/test_skill_activation_foundation.py:185: AttributeError
+___________ test_expected_identity_can_enable_then_disable_exact_row ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_identity_can_ena0')
+
+    @pytest.mark.asyncio
+    async def test_expected_identity_can_enable_then_disable_exact_row(tmp_path: Path) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        await registry.install(skill)
+        for enabled in (True, False):
+>           assert await registry.set_enabled(
+                skill.manifest.id, skill.manifest.version, enabled=enabled, identity=skill
+            )
+E           TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:224: TypeError
+_ test_expected_identity_mismatch_cannot_enable_or_disable_current_row[id-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_identity_mismatc0')
+enabled = False, mismatch = 'id'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root"])
+    async def test_expected_identity_mismatch_cannot_enable_or_disable_current_row(
+        tmp_path: Path, enabled: bool, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        identity = skill
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        else:
+            identity = replace(skill, root=tmp_path / "other-root")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(skill, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            skill.manifest.id, skill.manifest.version, enabled=enabled, identity=identity
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:254: TypeError
+_ test_expected_identity_mismatch_cannot_enable_or_disable_current_row[id-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_identity_mismatc1')
+enabled = True, mismatch = 'id'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root"])
+    async def test_expected_identity_mismatch_cannot_enable_or_disable_current_row(
+        tmp_path: Path, enabled: bool, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        identity = skill
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        else:
+            identity = replace(skill, root=tmp_path / "other-root")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(skill, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            skill.manifest.id, skill.manifest.version, enabled=enabled, identity=identity
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:254: TypeError
+_ test_expected_identity_mismatch_cannot_enable_or_disable_current_row[version-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_identity_mismatc2')
+enabled = False, mismatch = 'version'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root"])
+    async def test_expected_identity_mismatch_cannot_enable_or_disable_current_row(
+        tmp_path: Path, enabled: bool, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        identity = skill
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        else:
+            identity = replace(skill, root=tmp_path / "other-root")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(skill, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            skill.manifest.id, skill.manifest.version, enabled=enabled, identity=identity
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:254: TypeError
+_ test_expected_identity_mismatch_cannot_enable_or_disable_current_row[version-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_identity_mismatc3')
+enabled = True, mismatch = 'version'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root"])
+    async def test_expected_identity_mismatch_cannot_enable_or_disable_current_row(
+        tmp_path: Path, enabled: bool, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        identity = skill
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        else:
+            identity = replace(skill, root=tmp_path / "other-root")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(skill, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            skill.manifest.id, skill.manifest.version, enabled=enabled, identity=identity
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:254: TypeError
+_ test_expected_identity_mismatch_cannot_enable_or_disable_current_row[hash-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_identity_mismatc4')
+enabled = False, mismatch = 'hash'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root"])
+    async def test_expected_identity_mismatch_cannot_enable_or_disable_current_row(
+        tmp_path: Path, enabled: bool, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        identity = skill
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        else:
+            identity = replace(skill, root=tmp_path / "other-root")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(skill, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            skill.manifest.id, skill.manifest.version, enabled=enabled, identity=identity
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:254: TypeError
+_ test_expected_identity_mismatch_cannot_enable_or_disable_current_row[hash-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_identity_mismatc5')
+enabled = True, mismatch = 'hash'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root"])
+    async def test_expected_identity_mismatch_cannot_enable_or_disable_current_row(
+        tmp_path: Path, enabled: bool, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        identity = skill
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        else:
+            identity = replace(skill, root=tmp_path / "other-root")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(skill, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            skill.manifest.id, skill.manifest.version, enabled=enabled, identity=identity
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:254: TypeError
+_ test_expected_identity_mismatch_cannot_enable_or_disable_current_row[root-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_identity_mismatc6')
+enabled = False, mismatch = 'root'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root"])
+    async def test_expected_identity_mismatch_cannot_enable_or_disable_current_row(
+        tmp_path: Path, enabled: bool, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        identity = skill
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        else:
+            identity = replace(skill, root=tmp_path / "other-root")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(skill, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            skill.manifest.id, skill.manifest.version, enabled=enabled, identity=identity
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:254: TypeError
+_ test_expected_identity_mismatch_cannot_enable_or_disable_current_row[root-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_identity_mismatc7')
+enabled = True, mismatch = 'root'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root"])
+    async def test_expected_identity_mismatch_cannot_enable_or_disable_current_row(
+        tmp_path: Path, enabled: bool, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        identity = skill
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        else:
+            identity = replace(skill, root=tmp_path / "other-root")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(skill, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            skill.manifest.id, skill.manifest.version, enabled=enabled, identity=identity
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:254: TypeError
+_______ test_old_approval_cannot_change_same_version_replacement[False] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_old_approval_cannot_chang0')
+enabled = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    async def test_old_approval_cannot_change_same_version_replacement(
+        tmp_path: Path, enabled: bool
+    ) -> None:
+        old = package(tmp_path / "old")
+        current = package(tmp_path / "current", suffix="replacement")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(old, enabled=enabled)
+        await registry.install(current, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            old.manifest.id, old.manifest.version, enabled=enabled, identity=old
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:271: TypeError
+________ test_old_approval_cannot_change_same_version_replacement[True] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_old_approval_cannot_chang1')
+enabled = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    async def test_old_approval_cannot_change_same_version_replacement(
+        tmp_path: Path, enabled: bool
+    ) -> None:
+        old = package(tmp_path / "old")
+        current = package(tmp_path / "current", suffix="replacement")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(old, enabled=enabled)
+        await registry.install(current, enabled=not enabled)
+        before = await rows(store)
+>       assert not await registry.set_enabled(
+            old.manifest.id, old.manifest.version, enabled=enabled, identity=old
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:271: TypeError
+_______ test_matching_disable_remains_possible_after_package_corruption ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_matching_disable_remains_0')
+
+    @pytest.mark.asyncio
+    async def test_matching_disable_remains_possible_after_package_corruption(tmp_path: Path) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        await registry.install(skill, enabled=True)
+        (skill.root / "plugin.py").unlink()
+>       assert await registry.set_enabled(
+            skill.manifest.id, skill.manifest.version, enabled=False, identity=skill
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:283: TypeError
+_______ test_expected_enable_cas_rejects_replacement_during_verification _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_expected_enable_cas_rejec0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75110c923380>
+
+    @pytest.mark.asyncio
+    async def test_expected_enable_cas_rejects_replacement_during_verification(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        old = package(tmp_path / "old")
+        current = package(tmp_path / "current", suffix="replacement")
+        registry, store = await registry_at(tmp_path)
+        await registry.install(old)
+        original_load = registry_module.load_skill
+    
+        def replace_while_verifying(root: Path) -> InstalledSkill:
+            verified = original_load(root)
+            with sqlite3.connect(store.path) as connection:
+                connection.execute(
+                    "UPDATE skills SET manifest_hash=?, path_ref=?, state='disabled' "
+                    "WHERE skill_id=? AND version=?",
+                    (current.manifest_hash, str(current.root), old.manifest.id, old.manifest.version),
+                )
+            return verified
+    
+        monkeypatch.setattr(registry_module, "load_skill", replace_while_verifying)
+>       assert not await registry.set_enabled(
+            old.manifest.id, old.manifest.version, enabled=True, identity=old
+        )
+E       TypeError: SQLiteSkillRegistry.set_enabled() got an unexpected keyword argument 'identity'
+
+tests/integration/test_skill_activation_foundation.py:313: TypeError
+_______ test_registration_reaches_existing_orchestrator_without_fallback _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-32/test_registration_reaches_exis0')
+
+    @pytest.mark.asyncio
+    async def test_registration_reaches_existing_orchestrator_without_fallback(tmp_path: Path) -> None:
+        catalog = ToolCatalog(())
+        old_snapshot = catalog.capture()
+        store = SQLiteStore(tmp_path / "catalog.sqlite3")
+        await store.initialize()
+    
+        async def forbidden(arguments: dict[str, object]) -> object:
+            raise AssertionError("legacy executor bypassed registered descriptor")
+    
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"text.checklist.parse": forbidden}, catalog=catalog
+        )
+        assert orchestrator.model_tools() == ()
+>       catalog.register(descriptor())
+        ^^^^^^^^^^^^^^^^
+E       AttributeError: 'ToolCatalog' object has no attribute 'register'
+
+tests/integration/test_skill_activation_foundation.py:360: AttributeError
+_ test_registration_refuses_duplicates_without_replacing_executor_or_readiness[identical] _
+
+duplicate = 'identical'
+
+    @pytest.mark.parametrize("duplicate", ["identical", "different"])
+    def test_registration_refuses_duplicates_without_replacing_executor_or_readiness(
+        duplicate: str,
+    ) -> None:
+        original = descriptor()
+        catalog = ToolCatalog((original,))
+        with pytest.raises(ValueError, match="duplicate tool descriptor"):
+>           catalog.register(original if duplicate == "identical" else descriptor(enabled=False))
+            ^^^^^^^^^^^^^^^^
+E           AttributeError: 'ToolCatalog' object has no attribute 'register'
+
+tests/integration/test_skill_activation_foundation.py:380: AttributeError
+_ test_registration_refuses_duplicates_without_replacing_executor_or_readiness[different] _
+
+duplicate = 'different'
+
+    @pytest.mark.parametrize("duplicate", ["identical", "different"])
+    def test_registration_refuses_duplicates_without_replacing_executor_or_readiness(
+        duplicate: str,
+    ) -> None:
+        original = descriptor()
+        catalog = ToolCatalog((original,))
+        with pytest.raises(ValueError, match="duplicate tool descriptor"):
+>           catalog.register(original if duplicate == "identical" else descriptor(enabled=False))
+            ^^^^^^^^^^^^^^^^
+E           AttributeError: 'ToolCatalog' object has no attribute 'register'
+
+tests/integration/test_skill_activation_foundation.py:380: AttributeError
+___ test_registration_refuses_schema_name_mismatch_without_partial_addition ____
+
+    def test_registration_refuses_schema_name_mismatch_without_partial_addition() -> None:
+        catalog = ToolCatalog((descriptor("original.tool"),))
+        invalid = replace(descriptor(), definition=descriptor("other.name").definition)
+        with pytest.raises(ValueError, match="tool descriptor name differs from schema"):
+>           catalog.register(invalid)
+            ^^^^^^^^^^^^^^^^
+E           AttributeError: 'ToolCatalog' object has no attribute 'register'
+
+tests/integration/test_skill_activation_foundation.py:389: AttributeError
+________ test_registration_copies_mutable_schema_and_snapshot_payloads _________
+
+    def test_registration_copies_mutable_schema_and_snapshot_payloads() -> None:
+        candidate = descriptor()
+        assert candidate.definition is not None
+        catalog = ToolCatalog(())
+>       catalog.register(candidate)
+        ^^^^^^^^^^^^^^^^
+E       AttributeError: 'ToolCatalog' object has no attribute 'register'
+
+tests/integration/test_skill_activation_foundation.py:397: AttributeError
+________ test_registration_is_copy_on_write_during_synchronous_capture _________
+
+    def test_registration_is_copy_on_write_during_synchronous_capture() -> None:
+        added = False
+        catalog = ToolCatalog(())
+    
+        def available() -> bool:
+            nonlocal added
+            if not added:
+                added = True
+                catalog.register(descriptor("second.tool"))
+            return True
+    
+>       catalog.register(replace(descriptor("first.tool"), available=available))
+        ^^^^^^^^^^^^^^^^
+E       AttributeError: 'ToolCatalog' object has no attribute 'register'
+
+tests/integration/test_skill_activation_foundation.py:416: AttributeError
+___ test_disabled_registration_remains_known_and_cannot_trigger_regeneration ___
+
+    @pytest.mark.asyncio
+    async def test_disabled_registration_remains_known_and_cannot_trigger_regeneration() -> None:
+        catalog = ToolCatalog(())
+>       catalog.register(descriptor(enabled=False))
+        ^^^^^^^^^^^^^^^^
+E       AttributeError: 'ToolCatalog' object has no attribute 'register'
+
+tests/integration/test_skill_activation_foundation.py:425: AttributeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation_foundation.py::test_absent_install_records_exact_identity_and_requested_state[False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_absent_install_records_exact_identity_and_requested_state[True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_install_conflict_preserves_entire_existing_row[identical-False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_install_conflict_preserves_entire_existing_row[identical-True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_install_conflict_preserves_entire_existing_row[other-root-False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_install_conflict_preserves_entire_existing_row[other-root-True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_install_conflict_preserves_entire_existing_row[other-bytes-False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_install_conflict_preserves_entire_existing_row[other-bytes-True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_concurrent_absent_installs_have_one_exact_winner
+FAILED tests/integration/test_skill_activation_foundation.py::test_absent_install_rejects_unverified_or_type_ambiguous_metadata[hash]
+FAILED tests/integration/test_skill_activation_foundation.py::test_absent_install_rejects_unverified_or_type_ambiguous_metadata[input]
+FAILED tests/integration/test_skill_activation_foundation.py::test_absent_install_rejects_unverified_or_type_ambiguous_metadata[output]
+FAILED tests/integration/test_skill_activation_foundation.py::test_absent_install_rejects_unverified_or_type_ambiguous_metadata[manifest]
+FAILED tests/integration/test_skill_activation_foundation.py::test_absent_install_rejects_unverified_or_type_ambiguous_metadata[changed-source]
+FAILED tests/integration/test_skill_activation_foundation.py::test_absent_install_verification_runs_off_event_loop
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_identity_can_enable_then_disable_exact_row
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_identity_mismatch_cannot_enable_or_disable_current_row[id-False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_identity_mismatch_cannot_enable_or_disable_current_row[id-True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_identity_mismatch_cannot_enable_or_disable_current_row[version-False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_identity_mismatch_cannot_enable_or_disable_current_row[version-True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_identity_mismatch_cannot_enable_or_disable_current_row[hash-False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_identity_mismatch_cannot_enable_or_disable_current_row[hash-True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_identity_mismatch_cannot_enable_or_disable_current_row[root-False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_identity_mismatch_cannot_enable_or_disable_current_row[root-True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_old_approval_cannot_change_same_version_replacement[False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_old_approval_cannot_change_same_version_replacement[True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_matching_disable_remains_possible_after_package_corruption
+FAILED tests/integration/test_skill_activation_foundation.py::test_expected_enable_cas_rejects_replacement_during_verification
+FAILED tests/integration/test_skill_activation_foundation.py::test_registration_reaches_existing_orchestrator_without_fallback
+FAILED tests/integration/test_skill_activation_foundation.py::test_registration_refuses_duplicates_without_replacing_executor_or_readiness[identical]
+FAILED tests/integration/test_skill_activation_foundation.py::test_registration_refuses_duplicates_without_replacing_executor_or_readiness[different]
+FAILED tests/integration/test_skill_activation_foundation.py::test_registration_refuses_schema_name_mismatch_without_partial_addition
+FAILED tests/integration/test_skill_activation_foundation.py::test_registration_copies_mutable_schema_and_snapshot_payloads
+FAILED tests/integration/test_skill_activation_foundation.py::test_registration_is_copy_on_write_during_synchronous_capture
+FAILED tests/integration/test_skill_activation_foundation.py::test_disabled_registration_remains_known_and_cannot_trigger_regeneration
+35 failed, 1 passed in 0.73s

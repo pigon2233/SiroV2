@@ -1,0 +1,12 @@
+E501 Line too long (102 > 100)
+   --> tests/integration/test_native_context_budget.py:152:101
+    |
+150 |     # Disabling byte guard must not bypass token enforcement.
+151 |     monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "0")
+152 |     monkeypatch.setenv("SIRO_CONTEXT_TOKENIZER_DIR", str(tmp_path / "missing" if missing else ASSETS))
+    |                                                                                                     ^^
+153 |     transport = Transport()
+154 |     monkeypatch.setattr(module, "HttpxStreamingTransport", lambda: transport)
+    |
+
+Found 3 errors (2 fixed, 1 remaining).

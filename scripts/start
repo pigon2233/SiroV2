@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -lt 1 ]; then
+  echo "usage: scripts/start PID_FILE [GATEWAY_ARGS...]" >&2
+  exit 2
+fi
+
+pid_file="$1"
+shift
+if [ -e "$pid_file" ]; then
+  old_pid="$(cat "$pid_file" 2>/dev/null || true)"
+  if [[ "$old_pid" =~ ^[0-9]+$ ]] && kill -0 "$old_pid" 2>/dev/null; then
+    echo "service is already running as PID $old_pid" >&2
+    exit 1
+  fi
+  rm -f "$pid_file"
+fi
+
+mkdir -p "$(dirname "$pid_file")"
+uv run siro-gateway "$@" &
+child_pid=$!
+printf '%s\n' "$child_pid" > "$pid_file"
+cleanup() { rm -f "$pid_file"; }
+forward_term() { kill -TERM "$child_pid" 2>/dev/null || true; }
+trap cleanup EXIT
+trap forward_term INT TERM
+wait "$child_pid"

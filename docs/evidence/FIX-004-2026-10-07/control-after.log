@@ -1,0 +1,1410 @@
+...........................................FFFFFFFFFFFF                  [100%]
+=================================== FAILURES ===================================
+___ test_late_turn_http_response_cannot_resurrect_completed_turn[completed] ____
+
+terminal_state = 'completed'
+
+    @pytest.mark.parametrize("terminal_state", ["completed", "failed"])
+    def test_late_turn_http_response_cannot_resurrect_completed_turn(terminal_state: str) -> None:
+>       run_frontend(
+            f"""
+    const submission = submitText('synthetic greeting');
+    emit({{type: 'turn_started', turn_id: 'ended-turn'}});
+    assert.equal(currentTurn, 'ended-turn');
+    emit({{type: 'assistant_started', stream_id: 'stream-1'}});
+    emit({{type: 'assistant_terminal', stream_id: 'stream-1', state: '{terminal_state}'}});
+    assert.equal(currentTurn, undefined);
+    turnResponse.resolve({{ok: true, json: async () => ({{turn_id: 'ended-turn'}})}});
+    await submission;
+    await document.querySelector('#cancel').onclick();
+    assert.equal(currentTurn, undefined);
+    assert.equal(calls.filter(call => call.url.includes('/cancel')).length, 0);
+    """
+        )
+
+tests/integration/test_frontend_companion.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nconst submission = submitText('synthetic greeting');\nemit({type: 'turn_started', turn_id: 'ended-turn'});\nassert....\nassert.equal(currentTurn, undefined);\nassert.equal(calls.filter(call => call.url.includes('/cancel')).length, 0);\n"
+
+    def run_frontend(checks: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        # Keep the actual page functions and bindings, but supply events without a server.
+        script = script[: script.rindex("      boot().catch(")]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        element_ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [];
+    class Element {
+      constructor(tag) {
+        this.tagName = tag; this.children = []; this._text = ''; this.ownerDocument = document;
+      }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Untrusted message must not enter innerHTML'); }
+      replaceChildren(...children) { this.children = []; this._text = ''; this.append(...children); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector),
+      querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id),
+      createElement: tag => new Element(tag),
+      createTextNode: text => {
+        const node = new Element('#text'); node.textContent = text; return node;
+      },
+    };
+    const window = {addEventListener() {}};
+    const location = {origin: 'http://localhost', host: 'localhost', protocol: 'http:'};
+    const pending = () => {
+      let resolve; const promise = new Promise(done => { resolve = done; });
+      return {promise, resolve};
+    };
+    const turnResponse = pending(), calls = [];
+    const fetch = (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') return Promise.resolve({ok:true, json:async()=>({token:'synthetic', expires_in_seconds:300})});
+      return url === '/v1/conversations/browser/turns'
+        ? turnResponse.promise : Promise.resolve({ok: true, json: async () => ({})});
+    };
+    """
+        initialize = f"""
+    for (const id of {element_ids}) {{
+      const node = new Element('div'); node.id = id; roots.push(node);
+    }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + "\nsocket = {readyState:1}; controlAuthenticated = true;\n"
+                + "const owner = socket, epoch = controlEpoch, markAuthenticated = () => {};\n"
+                + handler
+                + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
+                + "(async () => {\n"
+                + "await sessionAccess.getToken(); calls.length = 0;\n"
+                + checks
+                + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: retired is not defined
+E             at socket.onmessage ([eval]:538:11)
+E             at emit ([eval]:580:29)
+E             at [eval]:585:1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [];\nclass Elem...: retired is not defined\n    at socket.onmessage ([eval]:538:11)\n    at emit ([eval]:580:29)\n    at [eval]:585:1\n').returncode
+
+tests/integration/test_frontend_companion.py:92: AssertionError
+_____ test_late_turn_http_response_cannot_resurrect_completed_turn[failed] _____
+
+terminal_state = 'failed'
+
+    @pytest.mark.parametrize("terminal_state", ["completed", "failed"])
+    def test_late_turn_http_response_cannot_resurrect_completed_turn(terminal_state: str) -> None:
+>       run_frontend(
+            f"""
+    const submission = submitText('synthetic greeting');
+    emit({{type: 'turn_started', turn_id: 'ended-turn'}});
+    assert.equal(currentTurn, 'ended-turn');
+    emit({{type: 'assistant_started', stream_id: 'stream-1'}});
+    emit({{type: 'assistant_terminal', stream_id: 'stream-1', state: '{terminal_state}'}});
+    assert.equal(currentTurn, undefined);
+    turnResponse.resolve({{ok: true, json: async () => ({{turn_id: 'ended-turn'}})}});
+    await submission;
+    await document.querySelector('#cancel').onclick();
+    assert.equal(currentTurn, undefined);
+    assert.equal(calls.filter(call => call.url.includes('/cancel')).length, 0);
+    """
+        )
+
+tests/integration/test_frontend_companion.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nconst submission = submitText('synthetic greeting');\nemit({type: 'turn_started', turn_id: 'ended-turn'});\nassert....\nassert.equal(currentTurn, undefined);\nassert.equal(calls.filter(call => call.url.includes('/cancel')).length, 0);\n"
+
+    def run_frontend(checks: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        # Keep the actual page functions and bindings, but supply events without a server.
+        script = script[: script.rindex("      boot().catch(")]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        element_ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [];
+    class Element {
+      constructor(tag) {
+        this.tagName = tag; this.children = []; this._text = ''; this.ownerDocument = document;
+      }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Untrusted message must not enter innerHTML'); }
+      replaceChildren(...children) { this.children = []; this._text = ''; this.append(...children); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector),
+      querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id),
+      createElement: tag => new Element(tag),
+      createTextNode: text => {
+        const node = new Element('#text'); node.textContent = text; return node;
+      },
+    };
+    const window = {addEventListener() {}};
+    const location = {origin: 'http://localhost', host: 'localhost', protocol: 'http:'};
+    const pending = () => {
+      let resolve; const promise = new Promise(done => { resolve = done; });
+      return {promise, resolve};
+    };
+    const turnResponse = pending(), calls = [];
+    const fetch = (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') return Promise.resolve({ok:true, json:async()=>({token:'synthetic', expires_in_seconds:300})});
+      return url === '/v1/conversations/browser/turns'
+        ? turnResponse.promise : Promise.resolve({ok: true, json: async () => ({})});
+    };
+    """
+        initialize = f"""
+    for (const id of {element_ids}) {{
+      const node = new Element('div'); node.id = id; roots.push(node);
+    }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + "\nsocket = {readyState:1}; controlAuthenticated = true;\n"
+                + "const owner = socket, epoch = controlEpoch, markAuthenticated = () => {};\n"
+                + handler
+                + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
+                + "(async () => {\n"
+                + "await sessionAccess.getToken(); calls.length = 0;\n"
+                + checks
+                + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: retired is not defined
+E             at socket.onmessage ([eval]:538:11)
+E             at emit ([eval]:580:29)
+E             at [eval]:585:1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [];\nclass Elem...: retired is not defined\n    at socket.onmessage ([eval]:538:11)\n    at emit ([eval]:580:29)\n    at [eval]:585:1\n').returncode
+
+tests/integration/test_frontend_companion.py:92: AssertionError
+_________ test_model_terminal_failure_is_visible_in_assistant_message __________
+
+    def test_model_terminal_failure_is_visible_in_assistant_message() -> None:
+>       run_frontend(
+            """
+    emit({type: 'turn_started', turn_id: 'failed-turn'});
+    emit({type: 'assistant_started', stream_id: 'failed-stream'});
+    emit({type: 'assistant_terminal', stream_id: 'failed-stream', state: 'failed',
+          error: 'provider_unavailable'});
+    const messages = document.querySelector('#messages').children;
+    assert.equal(messages.length, 1);
+    assert(messages[0].textContent.includes('provider_unavailable'));
+    assert.equal(currentTurn, undefined);
+    """
+        )
+
+tests/integration/test_frontend_companion.py:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nemit({type: 'turn_started', turn_id: 'failed-turn'});\nemit({type: 'assistant_started', stream_id: 'failed-stream'}...ength, 1);\nassert(messages[0].textContent.includes('provider_unavailable'));\nassert.equal(currentTurn, undefined);\n"
+
+    def run_frontend(checks: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        # Keep the actual page functions and bindings, but supply events without a server.
+        script = script[: script.rindex("      boot().catch(")]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        element_ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [];
+    class Element {
+      constructor(tag) {
+        this.tagName = tag; this.children = []; this._text = ''; this.ownerDocument = document;
+      }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Untrusted message must not enter innerHTML'); }
+      replaceChildren(...children) { this.children = []; this._text = ''; this.append(...children); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector),
+      querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id),
+      createElement: tag => new Element(tag),
+      createTextNode: text => {
+        const node = new Element('#text'); node.textContent = text; return node;
+      },
+    };
+    const window = {addEventListener() {}};
+    const location = {origin: 'http://localhost', host: 'localhost', protocol: 'http:'};
+    const pending = () => {
+      let resolve; const promise = new Promise(done => { resolve = done; });
+      return {promise, resolve};
+    };
+    const turnResponse = pending(), calls = [];
+    const fetch = (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') return Promise.resolve({ok:true, json:async()=>({token:'synthetic', expires_in_seconds:300})});
+      return url === '/v1/conversations/browser/turns'
+        ? turnResponse.promise : Promise.resolve({ok: true, json: async () => ({})});
+    };
+    """
+        initialize = f"""
+    for (const id of {element_ids}) {{
+      const node = new Element('div'); node.id = id; roots.push(node);
+    }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + "\nsocket = {readyState:1}; controlAuthenticated = true;\n"
+                + "const owner = socket, epoch = controlEpoch, markAuthenticated = () => {};\n"
+                + handler
+                + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
+                + "(async () => {\n"
+                + "await sessionAccess.getToken(); calls.length = 0;\n"
+                + checks
+                + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: retired is not defined
+E             at socket.onmessage ([eval]:538:11)
+E             at emit ([eval]:580:29)
+E             at [eval]:584:1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [];\nclass Elem...: retired is not defined\n    at socket.onmessage ([eval]:538:11)\n    at emit ([eval]:580:29)\n    at [eval]:584:1\n').returncode
+
+tests/integration/test_frontend_companion.py:92: AssertionError
+_ test_partial_reply_keeps_text_and_displays_incomplete_notice_without_speaking _
+
+    def test_partial_reply_keeps_text_and_displays_incomplete_notice_without_speaking() -> None:
+>       run_frontend(
+            """
+    const spoken = [];
+    playTts = text => { spoken.push(text); };
+    emit({type: 'turn_started', turn_id: 'partial-turn'});
+    emit({type: 'assistant_started', stream_id: 'partial-stream'});
+    emit({type: 'assistant_delta', stream_id: 'partial-stream', text: '這段回答尚未'});
+    emit({type: 'assistant_terminal', stream_id: 'partial-stream', state: 'failed',
+          error: 'ProviderOutputTruncated'});
+    const messages = document.querySelector('#messages').children;
+    assert.equal(messages.length, 1);
+    assert(messages[0].textContent.startsWith('這段回答尚未'));
+    assert(messages[0].textContent.includes('未完成'));
+    assert.equal(spoken.length, 0);
+    assert.equal(currentTurn, undefined);
+    """
+        )
+
+tests/integration/test_frontend_companion.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nconst spoken = [];\nplayTts = text => { spoken.push(text); };\nemit({type: 'turn_started', turn_id: 'partial-turn'}...rt(messages[0].textContent.includes('未完成'));\nassert.equal(spoken.length, 0);\nassert.equal(currentTurn, undefined);\n"
+
+    def run_frontend(checks: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        # Keep the actual page functions and bindings, but supply events without a server.
+        script = script[: script.rindex("      boot().catch(")]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        element_ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [];
+    class Element {
+      constructor(tag) {
+        this.tagName = tag; this.children = []; this._text = ''; this.ownerDocument = document;
+      }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Untrusted message must not enter innerHTML'); }
+      replaceChildren(...children) { this.children = []; this._text = ''; this.append(...children); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector),
+      querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id),
+      createElement: tag => new Element(tag),
+      createTextNode: text => {
+        const node = new Element('#text'); node.textContent = text; return node;
+      },
+    };
+    const window = {addEventListener() {}};
+    const location = {origin: 'http://localhost', host: 'localhost', protocol: 'http:'};
+    const pending = () => {
+      let resolve; const promise = new Promise(done => { resolve = done; });
+      return {promise, resolve};
+    };
+    const turnResponse = pending(), calls = [];
+    const fetch = (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') return Promise.resolve({ok:true, json:async()=>({token:'synthetic', expires_in_seconds:300})});
+      return url === '/v1/conversations/browser/turns'
+        ? turnResponse.promise : Promise.resolve({ok: true, json: async () => ({})});
+    };
+    """
+        initialize = f"""
+    for (const id of {element_ids}) {{
+      const node = new Element('div'); node.id = id; roots.push(node);
+    }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + "\nsocket = {readyState:1}; controlAuthenticated = true;\n"
+                + "const owner = socket, epoch = controlEpoch, markAuthenticated = () => {};\n"
+                + handler
+                + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
+                + "(async () => {\n"
+                + "await sessionAccess.getToken(); calls.length = 0;\n"
+                + checks
+                + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: retired is not defined
+E             at socket.onmessage ([eval]:538:11)
+E             at emit ([eval]:580:29)
+E             at [eval]:586:1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [];\nclass Elem...: retired is not defined\n    at socket.onmessage ([eval]:538:11)\n    at emit ([eval]:580:29)\n    at [eval]:586:1\n').returncode
+
+tests/integration/test_frontend_companion.py:92: AssertionError
+___________ test_safe_mode_proposals_remain_independently_approvable ___________
+
+    def test_safe_mode_proposals_remain_independently_approvable() -> None:
+>       run_frontend(
+            """
+    renderSnapshot({authorization_mode: 'safe', kill_switches: {}});
+    const first = {type: 'tool_proposal', proposal_id: 'first', capability: 'computer.execute',
+                   scope: 'read', target: 'synthetic first path', risk: 'low'};
+    const second = {...first, proposal_id: 'second', target: 'synthetic second path'};
+    emit(first); emit(second); emit(first);
+    assert.equal(document.querySelector('#computer-panel').open, true);
+    const cards = document.querySelector('#tool-proposals').children;
+    assert.equal(cards.length, 2);
+    assert.deepEqual(cards.map(card => card.id), ['tool-first', 'tool-second']);
+    const firstButton = cards[0].children.find(child => child.tagName === 'button');
+    const secondButton = cards[1].children.find(child => child.tagName === 'button');
+    assert(firstButton); assert(secondButton);
+    await firstButton.onclick();
+    assert.equal(firstButton.disabled, true);
+    assert.notEqual(secondButton.disabled, true);
+    await secondButton.onclick();
+    assert.deepEqual(calls.map(call => call.url), [
+      '/v1/tool-proposals/first/approve', '/v1/tool-proposals/second/approve'
+    ]);
+    for (const call of calls) {
+      assert.equal(call.options.method, 'POST');
+      assert.deepEqual(JSON.parse(call.options.body), {approved: true});
+    }
+    """
+        )
+
+tests/integration/test_frontend_companion.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nrenderSnapshot({authorization_mode: 'safe', kill_switches: {}});\nconst first = {type: 'tool_proposal', proposal_id... assert.equal(call.options.method, 'POST');\n  assert.deepEqual(JSON.parse(call.options.body), {approved: true});\n}\n"
+
+    def run_frontend(checks: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        # Keep the actual page functions and bindings, but supply events without a server.
+        script = script[: script.rindex("      boot().catch(")]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        element_ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [];
+    class Element {
+      constructor(tag) {
+        this.tagName = tag; this.children = []; this._text = ''; this.ownerDocument = document;
+      }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Untrusted message must not enter innerHTML'); }
+      replaceChildren(...children) { this.children = []; this._text = ''; this.append(...children); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector),
+      querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id),
+      createElement: tag => new Element(tag),
+      createTextNode: text => {
+        const node = new Element('#text'); node.textContent = text; return node;
+      },
+    };
+    const window = {addEventListener() {}};
+    const location = {origin: 'http://localhost', host: 'localhost', protocol: 'http:'};
+    const pending = () => {
+      let resolve; const promise = new Promise(done => { resolve = done; });
+      return {promise, resolve};
+    };
+    const turnResponse = pending(), calls = [];
+    const fetch = (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') return Promise.resolve({ok:true, json:async()=>({token:'synthetic', expires_in_seconds:300})});
+      return url === '/v1/conversations/browser/turns'
+        ? turnResponse.promise : Promise.resolve({ok: true, json: async () => ({})});
+    };
+    """
+        initialize = f"""
+    for (const id of {element_ids}) {{
+      const node = new Element('div'); node.id = id; roots.push(node);
+    }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + "\nsocket = {readyState:1}; controlAuthenticated = true;\n"
+                + "const owner = socket, epoch = controlEpoch, markAuthenticated = () => {};\n"
+                + handler
+                + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
+                + "(async () => {\n"
+                + "await sessionAccess.getToken(); calls.length = 0;\n"
+                + checks
+                + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: retired is not defined
+E             at socket.onmessage ([eval]:538:11)
+E             at emit ([eval]:580:29)
+E             at [eval]:588:1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [];\nclass Elem...: retired is not defined\n    at socket.onmessage ([eval]:538:11)\n    at emit ([eval]:580:29)\n    at [eval]:588:1\n').returncode
+
+tests/integration/test_frontend_companion.py:92: AssertionError
+_______ test_completed_assistant_formats_text_without_interpreting_html ________
+
+    def test_completed_assistant_formats_text_without_interpreting_html() -> None:
+>       run_frontend(
+            r"""
+    const source = '**狀態**\n請看 `cwd`。\n```text\n  hello **keep**\n' +
+      '<script>globalThis.compromised = true</script>\n```\n<img src=x onerror=alert(1)>';
+    const spoken = [];
+    playTts = text => { spoken.push(text); };
+    emit({type: 'turn_started', turn_id: 'format-turn'});
+    emit({type: 'assistant_started', stream_id: 'format-stream'});
+    emit({type: 'assistant_delta', stream_id: 'format-stream', text: source});
+    const message = document.querySelector('#messages').children[0];
+    assert.equal(message.textContent, source);
+    emit({type: 'assistant_terminal', stream_id: 'format-stream', state: 'completed'});
+    const block = message.children.find(child => child.tagName === 'pre');
+    assert(block);
+    assert.equal(block.children[0].tagName, 'code');
+    assert.equal(block.textContent,
+      '  hello **keep**\n<script>globalThis.compromised = true</script>\n');
+    assert.equal(message.children.find(child => child.tagName === 'strong').textContent, '狀態');
+    assert.equal(message.children.find(child => child.tagName === 'code').textContent, 'cwd');
+    assert.equal(message.textContent,
+      '狀態\n請看 cwd。\n  hello **keep**\n<script>globalThis.compromised = true</script>\n' +
+      '<img src=x onerror=alert(1)>');
+    assert.deepEqual(spoken, [message.textContent]);
+    const tags = [];
+    const visit = node => { tags.push(node.tagName); node.children.forEach(visit); };
+    message.children.forEach(visit);
+    assert(tags.every(tag => ['#text', 'strong', 'code', 'pre'].includes(tag)));
+    assert.equal(globalThis.compromised, undefined);
+    """
+        )
+
+tests/integration/test_frontend_companion.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nconst source = '**狀態**\\n請看 `cwd`。\\n```text\\n  hello **keep**\\n' +\n  '<script>globalThis.compromised = true</sc...s.every(tag => ['#text', 'strong', 'code', 'pre'].includes(tag)));\nassert.equal(globalThis.compromised, undefined);\n"
+
+    def run_frontend(checks: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        # Keep the actual page functions and bindings, but supply events without a server.
+        script = script[: script.rindex("      boot().catch(")]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        element_ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [];
+    class Element {
+      constructor(tag) {
+        this.tagName = tag; this.children = []; this._text = ''; this.ownerDocument = document;
+      }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(c => c.textContent).join(''); }
+      set innerHTML(value) { throw new Error('Untrusted message must not enter innerHTML'); }
+      replaceChildren(...children) { this.children = []; this._text = ''; this.append(...children); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector),
+      querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id),
+      createElement: tag => new Element(tag),
+      createTextNode: text => {
+        const node = new Element('#text'); node.textContent = text; return node;
+      },
+    };
+    const window = {addEventListener() {}};
+    const location = {origin: 'http://localhost', host: 'localhost', protocol: 'http:'};
+    const pending = () => {
+      let resolve; const promise = new Promise(done => { resolve = done; });
+      return {promise, resolve};
+    };
+    const turnResponse = pending(), calls = [];
+    const fetch = (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') return Promise.resolve({ok:true, json:async()=>({token:'synthetic', expires_in_seconds:300})});
+      return url === '/v1/conversations/browser/turns'
+        ? turnResponse.promise : Promise.resolve({ok: true, json: async () => ({})});
+    };
+    """
+        initialize = f"""
+    for (const id of {element_ids}) {{
+      const node = new Element('div'); node.id = id; roots.push(node);
+    }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + "\nsocket = {readyState:1}; controlAuthenticated = true;\n"
+                + "const owner = socket, epoch = controlEpoch, markAuthenticated = () => {};\n"
+                + handler
+                + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
+                + "(async () => {\n"
+                + "await sessionAccess.getToken(); calls.length = 0;\n"
+                + checks
+                + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: retired is not defined
+E             at socket.onmessage ([eval]:538:11)
+E             at emit ([eval]:580:29)
+E             at [eval]:588:1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [];\nclass Elem...: retired is not defined\n    at socket.onmessage ([eval]:538:11)\n    at emit ([eval]:580:29)\n    at [eval]:588:1\n').returncode
+
+tests/integration/test_frontend_companion.py:92: AssertionError
+_________________ test_actual_frontend_speech_cancel[pending] __________________
+
+scenario = 'pending'
+
+    @pytest.mark.parametrize(
+        "scenario", ["pending", "blob", "supersede", "playing", "turn", "terminal"]
+    )
+    def test_actual_frontend_speech_cancel(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        cancel = next(
+            line.strip()
+            for line in html.splitlines()
+            if 'document.querySelector("#cancel").onclick =' in line
+        )
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        setup = """
+    const assert = require('node:assert/strict');
+    const mode = process.argv[1];
+    const button = {}, status = {}, calls = [], audios = [], revoked = [];
+    let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+    let assistantBubble;
+    const socket = {}, log = () => {};
+    const owner = socket, epoch = 0, controlEpoch = 0, markAuthenticated = () => {};
+    const acceptRunEvent = () => true;
+    const headers = () => ({});
+    const document = {querySelector: s => s === '#cancel' ? button : status};
+    const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+    const pending = () => {
+     let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+     return {promise,resolve,reject};
+    };
+    class Audio {
+     constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+     play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+     pause() {this.pauses++;}
+    }
+    const fetch = (url, options) => {
+     const call={url,options,...pending()};calls.push(call);
+     if(url!='/v1/audio/speech')return Promise.resolve({ok:true});
+     return call.promise;
+    };
+    const authorizedFetch = (url, options) => fetch(url, options);
+    const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+    const tick = async()=>{await Promise.resolve();await Promise.resolve();await Promise.resolve();};
+    """
+        checks = """
+    (async()=>{
+     if(mode==='pending'||mode==='turn') {
+      if(mode==='turn')currentTurn='turn-A';
+      const work=playTts('synthetic',{});
+      const call=calls[0];
+      call.options.signal.addEventListener('abort',()=>
+        call.reject(Object.assign(new Error('abort'),{name:'AbortError'})));
+      await button.onclick();await work;
+      assert(call.options.signal.aborted);
+      assert.equal(audios.length,0);
+      assert.equal(status.textContent,'TTS 待命');
+      if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+     } else if(mode==='terminal') {
+      currentTurn='cancelled-turn';await button.onclick();
+      assistantBubble={textContent:'late answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      assert.equal(calls.filter(c=>c.url==='/v1/audio/speech').length,0);
+      socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+      assistantBubble={textContent:'new answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      const speech=calls.find(c=>c.url==='/v1/audio/speech');assert(speech);
+      speech.resolve(response('new'));await tick();
+     } else if(mode==='blob') {
+      const blob=pending();const work=playTts('old',{});
+      calls[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+      await button.onclick();blob.resolve('late-blob');await work;
+      assert.equal(audios.length,0);assert.equal(status.textContent,'TTS 待命');
+     } else if(mode==='supersede') {
+      const old=playTts('old',{});const newer=playTts('new',{});
+      assert(calls[0].options.signal.aborted);
+      calls[1].resolve(response('new'));await newer;
+      calls[0].reject(new Error('old failed late'));await old;
+      assert.equal(audios.length,1);assert.equal(status.textContent,'SIRO 正在說話');
+      await button.onclick();assert(audios[0].pauses>=1);assert.equal(revoked.length,1);
+     } else if(mode==='playing') {
+      const delayed=pending();
+      Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+      const work=playTts('playing',{});calls[0].resolve(response('audio'));await tick();
+      assert.equal(audios.length,1);await button.onclick();
+      assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);
+      delayed.resolve();await work;
+      assert(audios[0].pauses>=2);assert.equal(status.textContent,'TTS 待命');
+     }
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + functions + cancel + handler + checks, scenario],
+            capture_output=True,
+            text=True,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: submissionGeneration is not defined
+E             at document.querySelector.onclick ([eval]:88:65)
+E             at [eval]:138:16
+E             at [eval]:174:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst mode = process.argv[1];...:283:30)\n    at evalTypeScript (node:internal/process/execution:295:3)\n    at node:internal/main/eval_string:71:3\n').returncode
+
+tests/integration/test_frontend_speech_cancel.py:104: AssertionError
+___________________ test_actual_frontend_speech_cancel[blob] ___________________
+
+scenario = 'blob'
+
+    @pytest.mark.parametrize(
+        "scenario", ["pending", "blob", "supersede", "playing", "turn", "terminal"]
+    )
+    def test_actual_frontend_speech_cancel(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        cancel = next(
+            line.strip()
+            for line in html.splitlines()
+            if 'document.querySelector("#cancel").onclick =' in line
+        )
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        setup = """
+    const assert = require('node:assert/strict');
+    const mode = process.argv[1];
+    const button = {}, status = {}, calls = [], audios = [], revoked = [];
+    let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+    let assistantBubble;
+    const socket = {}, log = () => {};
+    const owner = socket, epoch = 0, controlEpoch = 0, markAuthenticated = () => {};
+    const acceptRunEvent = () => true;
+    const headers = () => ({});
+    const document = {querySelector: s => s === '#cancel' ? button : status};
+    const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+    const pending = () => {
+     let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+     return {promise,resolve,reject};
+    };
+    class Audio {
+     constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+     play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+     pause() {this.pauses++;}
+    }
+    const fetch = (url, options) => {
+     const call={url,options,...pending()};calls.push(call);
+     if(url!='/v1/audio/speech')return Promise.resolve({ok:true});
+     return call.promise;
+    };
+    const authorizedFetch = (url, options) => fetch(url, options);
+    const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+    const tick = async()=>{await Promise.resolve();await Promise.resolve();await Promise.resolve();};
+    """
+        checks = """
+    (async()=>{
+     if(mode==='pending'||mode==='turn') {
+      if(mode==='turn')currentTurn='turn-A';
+      const work=playTts('synthetic',{});
+      const call=calls[0];
+      call.options.signal.addEventListener('abort',()=>
+        call.reject(Object.assign(new Error('abort'),{name:'AbortError'})));
+      await button.onclick();await work;
+      assert(call.options.signal.aborted);
+      assert.equal(audios.length,0);
+      assert.equal(status.textContent,'TTS 待命');
+      if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+     } else if(mode==='terminal') {
+      currentTurn='cancelled-turn';await button.onclick();
+      assistantBubble={textContent:'late answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      assert.equal(calls.filter(c=>c.url==='/v1/audio/speech').length,0);
+      socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+      assistantBubble={textContent:'new answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      const speech=calls.find(c=>c.url==='/v1/audio/speech');assert(speech);
+      speech.resolve(response('new'));await tick();
+     } else if(mode==='blob') {
+      const blob=pending();const work=playTts('old',{});
+      calls[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+      await button.onclick();blob.resolve('late-blob');await work;
+      assert.equal(audios.length,0);assert.equal(status.textContent,'TTS 待命');
+     } else if(mode==='supersede') {
+      const old=playTts('old',{});const newer=playTts('new',{});
+      assert(calls[0].options.signal.aborted);
+      calls[1].resolve(response('new'));await newer;
+      calls[0].reject(new Error('old failed late'));await old;
+      assert.equal(audios.length,1);assert.equal(status.textContent,'SIRO 正在說話');
+      await button.onclick();assert(audios[0].pauses>=1);assert.equal(revoked.length,1);
+     } else if(mode==='playing') {
+      const delayed=pending();
+      Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+      const work=playTts('playing',{});calls[0].resolve(response('audio'));await tick();
+      assert.equal(audios.length,1);await button.onclick();
+      assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);
+      delayed.resolve();await work;
+      assert(audios[0].pauses>=2);assert.equal(status.textContent,'TTS 待命');
+     }
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + functions + cancel + handler + checks, scenario],
+            capture_output=True,
+            text=True,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: submissionGeneration is not defined
+E             at document.querySelector.onclick ([eval]:88:65)
+E             at [eval]:156:16
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst mode = process.argv[1];...or: submissionGeneration is not defined\n    at document.querySelector.onclick ([eval]:88:65)\n    at [eval]:156:16\n').returncode
+
+tests/integration/test_frontend_speech_cancel.py:104: AssertionError
+________________ test_actual_frontend_speech_cancel[supersede] _________________
+
+scenario = 'supersede'
+
+    @pytest.mark.parametrize(
+        "scenario", ["pending", "blob", "supersede", "playing", "turn", "terminal"]
+    )
+    def test_actual_frontend_speech_cancel(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        cancel = next(
+            line.strip()
+            for line in html.splitlines()
+            if 'document.querySelector("#cancel").onclick =' in line
+        )
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        setup = """
+    const assert = require('node:assert/strict');
+    const mode = process.argv[1];
+    const button = {}, status = {}, calls = [], audios = [], revoked = [];
+    let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+    let assistantBubble;
+    const socket = {}, log = () => {};
+    const owner = socket, epoch = 0, controlEpoch = 0, markAuthenticated = () => {};
+    const acceptRunEvent = () => true;
+    const headers = () => ({});
+    const document = {querySelector: s => s === '#cancel' ? button : status};
+    const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+    const pending = () => {
+     let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+     return {promise,resolve,reject};
+    };
+    class Audio {
+     constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+     play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+     pause() {this.pauses++;}
+    }
+    const fetch = (url, options) => {
+     const call={url,options,...pending()};calls.push(call);
+     if(url!='/v1/audio/speech')return Promise.resolve({ok:true});
+     return call.promise;
+    };
+    const authorizedFetch = (url, options) => fetch(url, options);
+    const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+    const tick = async()=>{await Promise.resolve();await Promise.resolve();await Promise.resolve();};
+    """
+        checks = """
+    (async()=>{
+     if(mode==='pending'||mode==='turn') {
+      if(mode==='turn')currentTurn='turn-A';
+      const work=playTts('synthetic',{});
+      const call=calls[0];
+      call.options.signal.addEventListener('abort',()=>
+        call.reject(Object.assign(new Error('abort'),{name:'AbortError'})));
+      await button.onclick();await work;
+      assert(call.options.signal.aborted);
+      assert.equal(audios.length,0);
+      assert.equal(status.textContent,'TTS 待命');
+      if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+     } else if(mode==='terminal') {
+      currentTurn='cancelled-turn';await button.onclick();
+      assistantBubble={textContent:'late answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      assert.equal(calls.filter(c=>c.url==='/v1/audio/speech').length,0);
+      socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+      assistantBubble={textContent:'new answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      const speech=calls.find(c=>c.url==='/v1/audio/speech');assert(speech);
+      speech.resolve(response('new'));await tick();
+     } else if(mode==='blob') {
+      const blob=pending();const work=playTts('old',{});
+      calls[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+      await button.onclick();blob.resolve('late-blob');await work;
+      assert.equal(audios.length,0);assert.equal(status.textContent,'TTS 待命');
+     } else if(mode==='supersede') {
+      const old=playTts('old',{});const newer=playTts('new',{});
+      assert(calls[0].options.signal.aborted);
+      calls[1].resolve(response('new'));await newer;
+      calls[0].reject(new Error('old failed late'));await old;
+      assert.equal(audios.length,1);assert.equal(status.textContent,'SIRO 正在說話');
+      await button.onclick();assert(audios[0].pauses>=1);assert.equal(revoked.length,1);
+     } else if(mode==='playing') {
+      const delayed=pending();
+      Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+      const work=playTts('playing',{});calls[0].resolve(response('audio'));await tick();
+      assert.equal(audios.length,1);await button.onclick();
+      assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);
+      delayed.resolve();await work;
+      assert(audios[0].pauses>=2);assert.equal(status.textContent,'TTS 待命');
+     }
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + functions + cancel + handler + checks, scenario],
+            capture_output=True,
+            text=True,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: submissionGeneration is not defined
+E             at document.querySelector.onclick ([eval]:88:65)
+E             at [eval]:164:16
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst mode = process.argv[1];...or: submissionGeneration is not defined\n    at document.querySelector.onclick ([eval]:88:65)\n    at [eval]:164:16\n').returncode
+
+tests/integration/test_frontend_speech_cancel.py:104: AssertionError
+_________________ test_actual_frontend_speech_cancel[playing] __________________
+
+scenario = 'playing'
+
+    @pytest.mark.parametrize(
+        "scenario", ["pending", "blob", "supersede", "playing", "turn", "terminal"]
+    )
+    def test_actual_frontend_speech_cancel(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        cancel = next(
+            line.strip()
+            for line in html.splitlines()
+            if 'document.querySelector("#cancel").onclick =' in line
+        )
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        setup = """
+    const assert = require('node:assert/strict');
+    const mode = process.argv[1];
+    const button = {}, status = {}, calls = [], audios = [], revoked = [];
+    let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+    let assistantBubble;
+    const socket = {}, log = () => {};
+    const owner = socket, epoch = 0, controlEpoch = 0, markAuthenticated = () => {};
+    const acceptRunEvent = () => true;
+    const headers = () => ({});
+    const document = {querySelector: s => s === '#cancel' ? button : status};
+    const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+    const pending = () => {
+     let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+     return {promise,resolve,reject};
+    };
+    class Audio {
+     constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+     play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+     pause() {this.pauses++;}
+    }
+    const fetch = (url, options) => {
+     const call={url,options,...pending()};calls.push(call);
+     if(url!='/v1/audio/speech')return Promise.resolve({ok:true});
+     return call.promise;
+    };
+    const authorizedFetch = (url, options) => fetch(url, options);
+    const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+    const tick = async()=>{await Promise.resolve();await Promise.resolve();await Promise.resolve();};
+    """
+        checks = """
+    (async()=>{
+     if(mode==='pending'||mode==='turn') {
+      if(mode==='turn')currentTurn='turn-A';
+      const work=playTts('synthetic',{});
+      const call=calls[0];
+      call.options.signal.addEventListener('abort',()=>
+        call.reject(Object.assign(new Error('abort'),{name:'AbortError'})));
+      await button.onclick();await work;
+      assert(call.options.signal.aborted);
+      assert.equal(audios.length,0);
+      assert.equal(status.textContent,'TTS 待命');
+      if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+     } else if(mode==='terminal') {
+      currentTurn='cancelled-turn';await button.onclick();
+      assistantBubble={textContent:'late answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      assert.equal(calls.filter(c=>c.url==='/v1/audio/speech').length,0);
+      socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+      assistantBubble={textContent:'new answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      const speech=calls.find(c=>c.url==='/v1/audio/speech');assert(speech);
+      speech.resolve(response('new'));await tick();
+     } else if(mode==='blob') {
+      const blob=pending();const work=playTts('old',{});
+      calls[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+      await button.onclick();blob.resolve('late-blob');await work;
+      assert.equal(audios.length,0);assert.equal(status.textContent,'TTS 待命');
+     } else if(mode==='supersede') {
+      const old=playTts('old',{});const newer=playTts('new',{});
+      assert(calls[0].options.signal.aborted);
+      calls[1].resolve(response('new'));await newer;
+      calls[0].reject(new Error('old failed late'));await old;
+      assert.equal(audios.length,1);assert.equal(status.textContent,'SIRO 正在說話');
+      await button.onclick();assert(audios[0].pauses>=1);assert.equal(revoked.length,1);
+     } else if(mode==='playing') {
+      const delayed=pending();
+      Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+      const work=playTts('playing',{});calls[0].resolve(response('audio'));await tick();
+      assert.equal(audios.length,1);await button.onclick();
+      assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);
+      delayed.resolve();await work;
+      assert(audios[0].pauses>=2);assert.equal(status.textContent,'TTS 待命');
+     }
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + functions + cancel + handler + checks, scenario],
+            capture_output=True,
+            text=True,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: submissionGeneration is not defined
+E             at document.querySelector.onclick ([eval]:88:65)
+E             at [eval]:169:46
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst mode = process.argv[1];...or: submissionGeneration is not defined\n    at document.querySelector.onclick ([eval]:88:65)\n    at [eval]:169:46\n').returncode
+
+tests/integration/test_frontend_speech_cancel.py:104: AssertionError
+___________________ test_actual_frontend_speech_cancel[turn] ___________________
+
+scenario = 'turn'
+
+    @pytest.mark.parametrize(
+        "scenario", ["pending", "blob", "supersede", "playing", "turn", "terminal"]
+    )
+    def test_actual_frontend_speech_cancel(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        cancel = next(
+            line.strip()
+            for line in html.splitlines()
+            if 'document.querySelector("#cancel").onclick =' in line
+        )
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        setup = """
+    const assert = require('node:assert/strict');
+    const mode = process.argv[1];
+    const button = {}, status = {}, calls = [], audios = [], revoked = [];
+    let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+    let assistantBubble;
+    const socket = {}, log = () => {};
+    const owner = socket, epoch = 0, controlEpoch = 0, markAuthenticated = () => {};
+    const acceptRunEvent = () => true;
+    const headers = () => ({});
+    const document = {querySelector: s => s === '#cancel' ? button : status};
+    const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+    const pending = () => {
+     let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+     return {promise,resolve,reject};
+    };
+    class Audio {
+     constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+     play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+     pause() {this.pauses++;}
+    }
+    const fetch = (url, options) => {
+     const call={url,options,...pending()};calls.push(call);
+     if(url!='/v1/audio/speech')return Promise.resolve({ok:true});
+     return call.promise;
+    };
+    const authorizedFetch = (url, options) => fetch(url, options);
+    const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+    const tick = async()=>{await Promise.resolve();await Promise.resolve();await Promise.resolve();};
+    """
+        checks = """
+    (async()=>{
+     if(mode==='pending'||mode==='turn') {
+      if(mode==='turn')currentTurn='turn-A';
+      const work=playTts('synthetic',{});
+      const call=calls[0];
+      call.options.signal.addEventListener('abort',()=>
+        call.reject(Object.assign(new Error('abort'),{name:'AbortError'})));
+      await button.onclick();await work;
+      assert(call.options.signal.aborted);
+      assert.equal(audios.length,0);
+      assert.equal(status.textContent,'TTS 待命');
+      if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+     } else if(mode==='terminal') {
+      currentTurn='cancelled-turn';await button.onclick();
+      assistantBubble={textContent:'late answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      assert.equal(calls.filter(c=>c.url==='/v1/audio/speech').length,0);
+      socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+      assistantBubble={textContent:'new answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      const speech=calls.find(c=>c.url==='/v1/audio/speech');assert(speech);
+      speech.resolve(response('new'));await tick();
+     } else if(mode==='blob') {
+      const blob=pending();const work=playTts('old',{});
+      calls[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+      await button.onclick();blob.resolve('late-blob');await work;
+      assert.equal(audios.length,0);assert.equal(status.textContent,'TTS 待命');
+     } else if(mode==='supersede') {
+      const old=playTts('old',{});const newer=playTts('new',{});
+      assert(calls[0].options.signal.aborted);
+      calls[1].resolve(response('new'));await newer;
+      calls[0].reject(new Error('old failed late'));await old;
+      assert.equal(audios.length,1);assert.equal(status.textContent,'SIRO 正在說話');
+      await button.onclick();assert(audios[0].pauses>=1);assert.equal(revoked.length,1);
+     } else if(mode==='playing') {
+      const delayed=pending();
+      Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+      const work=playTts('playing',{});calls[0].resolve(response('audio'));await tick();
+      assert.equal(audios.length,1);await button.onclick();
+      assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);
+      delayed.resolve();await work;
+      assert(audios[0].pauses>=2);assert.equal(status.textContent,'TTS 待命');
+     }
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + functions + cancel + handler + checks, scenario],
+            capture_output=True,
+            text=True,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: submissionGeneration is not defined
+E             at document.querySelector.onclick ([eval]:88:65)
+E             at [eval]:138:16
+E             at [eval]:174:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst mode = process.argv[1];...:283:30)\n    at evalTypeScript (node:internal/process/execution:295:3)\n    at node:internal/main/eval_string:71:3\n').returncode
+
+tests/integration/test_frontend_speech_cancel.py:104: AssertionError
+_________________ test_actual_frontend_speech_cancel[terminal] _________________
+
+scenario = 'terminal'
+
+    @pytest.mark.parametrize(
+        "scenario", ["pending", "blob", "supersede", "playing", "turn", "terminal"]
+    )
+    def test_actual_frontend_speech_cancel(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        cancel = next(
+            line.strip()
+            for line in html.splitlines()
+            if 'document.querySelector("#cancel").onclick =' in line
+        )
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        setup = """
+    const assert = require('node:assert/strict');
+    const mode = process.argv[1];
+    const button = {}, status = {}, calls = [], audios = [], revoked = [];
+    let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+    let assistantBubble;
+    const socket = {}, log = () => {};
+    const owner = socket, epoch = 0, controlEpoch = 0, markAuthenticated = () => {};
+    const acceptRunEvent = () => true;
+    const headers = () => ({});
+    const document = {querySelector: s => s === '#cancel' ? button : status};
+    const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+    const pending = () => {
+     let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+     return {promise,resolve,reject};
+    };
+    class Audio {
+     constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+     play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+     pause() {this.pauses++;}
+    }
+    const fetch = (url, options) => {
+     const call={url,options,...pending()};calls.push(call);
+     if(url!='/v1/audio/speech')return Promise.resolve({ok:true});
+     return call.promise;
+    };
+    const authorizedFetch = (url, options) => fetch(url, options);
+    const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+    const tick = async()=>{await Promise.resolve();await Promise.resolve();await Promise.resolve();};
+    """
+        checks = """
+    (async()=>{
+     if(mode==='pending'||mode==='turn') {
+      if(mode==='turn')currentTurn='turn-A';
+      const work=playTts('synthetic',{});
+      const call=calls[0];
+      call.options.signal.addEventListener('abort',()=>
+        call.reject(Object.assign(new Error('abort'),{name:'AbortError'})));
+      await button.onclick();await work;
+      assert(call.options.signal.aborted);
+      assert.equal(audios.length,0);
+      assert.equal(status.textContent,'TTS 待命');
+      if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+     } else if(mode==='terminal') {
+      currentTurn='cancelled-turn';await button.onclick();
+      assistantBubble={textContent:'late answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      assert.equal(calls.filter(c=>c.url==='/v1/audio/speech').length,0);
+      socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+      assistantBubble={textContent:'new answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      const speech=calls.find(c=>c.url==='/v1/audio/speech');assert(speech);
+      speech.resolve(response('new'));await tick();
+     } else if(mode==='blob') {
+      const blob=pending();const work=playTts('old',{});
+      calls[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+      await button.onclick();blob.resolve('late-blob');await work;
+      assert.equal(audios.length,0);assert.equal(status.textContent,'TTS 待命');
+     } else if(mode==='supersede') {
+      const old=playTts('old',{});const newer=playTts('new',{});
+      assert(calls[0].options.signal.aborted);
+      calls[1].resolve(response('new'));await newer;
+      calls[0].reject(new Error('old failed late'));await old;
+      assert.equal(audios.length,1);assert.equal(status.textContent,'SIRO 正在說話');
+      await button.onclick();assert(audios[0].pauses>=1);assert.equal(revoked.length,1);
+     } else if(mode==='playing') {
+      const delayed=pending();
+      Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+      const work=playTts('playing',{});calls[0].resolve(response('audio'));await tick();
+      assert.equal(audios.length,1);await button.onclick();
+      assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);
+      delayed.resolve();await work;
+      assert(audios[0].pauses>=2);assert.equal(status.textContent,'TTS 待命');
+     }
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + functions + cancel + handler + checks, scenario],
+            capture_output=True,
+            text=True,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: ReferenceError: submissionGeneration is not defined
+E             at document.querySelector.onclick ([eval]:88:65)
+E             at [eval]:144:45
+E             at [eval]:174:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E             at node:internal/main/eval_string:71:3
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst mode = process.argv[1];...:283:30)\n    at evalTypeScript (node:internal/process/execution:295:3)\n    at node:internal/main/eval_string:71:3\n').returncode
+
+tests/integration/test_frontend_speech_cancel.py:104: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_frontend_companion.py::test_late_turn_http_response_cannot_resurrect_completed_turn[completed]
+FAILED tests/integration/test_frontend_companion.py::test_late_turn_http_response_cannot_resurrect_completed_turn[failed]
+FAILED tests/integration/test_frontend_companion.py::test_model_terminal_failure_is_visible_in_assistant_message
+FAILED tests/integration/test_frontend_companion.py::test_partial_reply_keeps_text_and_displays_incomplete_notice_without_speaking
+FAILED tests/integration/test_frontend_companion.py::test_safe_mode_proposals_remain_independently_approvable
+FAILED tests/integration/test_frontend_companion.py::test_completed_assistant_formats_text_without_interpreting_html
+FAILED tests/integration/test_frontend_speech_cancel.py::test_actual_frontend_speech_cancel[pending]
+FAILED tests/integration/test_frontend_speech_cancel.py::test_actual_frontend_speech_cancel[blob]
+FAILED tests/integration/test_frontend_speech_cancel.py::test_actual_frontend_speech_cancel[supersede]
+FAILED tests/integration/test_frontend_speech_cancel.py::test_actual_frontend_speech_cancel[playing]
+FAILED tests/integration/test_frontend_speech_cancel.py::test_actual_frontend_speech_cancel[turn]
+FAILED tests/integration/test_frontend_speech_cancel.py::test_actual_frontend_speech_cancel[terminal]
+12 failed, 43 passed in 2.93s

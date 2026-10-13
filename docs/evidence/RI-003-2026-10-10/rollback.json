@@ -1,0 +1,44 @@
+{
+  "status": "PASS",
+  "scope": "isolated exact source patch, no runtime restart or database rollback",
+  "production_files": [
+    "src/siro/core/evolution.py",
+    "src/siro/cli.py"
+  ],
+  "new_files": [
+    "src/siro/services/tools/patch_verification.py",
+    "src/siro/services/tools/patch_verification_runner.py",
+    "tests/integration/test_isolated_patch_verification.py",
+    "tests/integration/test_verify_patch_cli.py"
+  ],
+  "commands": [
+    [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "--reverse",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "--check",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "repair.patch"
+    ]
+  ],
+  "patch_sha256": "0793b640f4e54a05a65b168adebd9e28366aa109e4dafb7c59d5ef65323fa8a6",
+  "baseline_restored": true,
+  "candidate_reapplied": true,
+  "temporary_directory_removed": true
+}

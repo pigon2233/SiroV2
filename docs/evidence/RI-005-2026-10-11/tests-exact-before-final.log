@@ -1,0 +1,2098 @@
+captured_precard_sha256: 5b3c6baf7e105cd95d363faf95f9e75262d1e2ebd4d134724690fa4860ea2a6a
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.FFFFFFFFFF.                    [100%]
+=================================== FAILURES ===================================
+_ test_code_rollback_keeps_late_conversation_memory_and_completed_ledger[False] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedeaed7f0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_code_rollback_keeps_late_0/synthetic.sqlite3'))
+wal_writer = False
+
+    @pytest.mark.parametrize("wal_writer", [False, True])
+    def test_code_rollback_keeps_late_conversation_memory_and_completed_ledger(
+        releases: tuple[ReleaseManager, Path], wal_writer: bool
+    ) -> None:
+        manager, database = releases
+        writer = sqlite3.connect(database)
+        try:
+            if wal_writer:
+                assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+                writer.execute("PRAGMA wal_autocheckpoint=0")
+            writer.execute("INSERT INTO conversation VALUES ('last WAL write')")
+            writer.commit()
+            expected = rows(database)
+            result = manager.rollback()
+            assert result.status == "rolled_back" and result.active_version == "1.0.0"
+>           assert rows(database) == expected
+E           AssertionError: assert {'conversatio...': ['before']} == {'conversatio...t-completed']}
+E             
+E             Differing items:
+E             {'ledger': ['before']} != {'ledger': ['before', 'latest-completed']}
+E             {'memory': ['before']} != {'memory': ['before', 'latest-completed']}
+E             {'conversation': ['before']} != {'conversation': ['before', 'latest-completed', 'last WAL write']}
+E             Use -v to get more diff
+
+tests/integration/test_release_data_retention.py:110: AssertionError
+_ test_code_rollback_keeps_late_conversation_memory_and_completed_ledger[True] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedeaf2490>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_code_rollback_keeps_late_1/synthetic.sqlite3'))
+wal_writer = True
+
+    @pytest.mark.parametrize("wal_writer", [False, True])
+    def test_code_rollback_keeps_late_conversation_memory_and_completed_ledger(
+        releases: tuple[ReleaseManager, Path], wal_writer: bool
+    ) -> None:
+        manager, database = releases
+        writer = sqlite3.connect(database)
+        try:
+            if wal_writer:
+                assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+                writer.execute("PRAGMA wal_autocheckpoint=0")
+            writer.execute("INSERT INTO conversation VALUES ('last WAL write')")
+            writer.commit()
+            expected = rows(database)
+            result = manager.rollback()
+            assert result.status == "rolled_back" and result.active_version == "1.0.0"
+>           assert rows(database) == expected
+E           AssertionError: assert {'conversatio...': ['before']} == {'conversatio...t-completed']}
+E             
+E             Omitting 1 identical items, use -vv to show
+E             Differing items:
+E             {'ledger': ['before']} != {'ledger': ['before', 'latest-completed']}
+E             {'memory': ['before']} != {'memory': ['before', 'latest-completed']}
+E             Use -v to get more diff
+
+tests/integration/test_release_data_retention.py:110: AssertionError
+__ test_code_rollback_never_needs_or_dereferences_an_old_data_backup[missing] __
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedeaf2e90>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_code_rollback_never_needs0/synthetic.sqlite3'))
+backup_state = 'missing'
+
+    @pytest.mark.parametrize("backup_state", ["missing", "corrupt", "untrusted-path"])
+    def test_code_rollback_never_needs_or_dereferences_an_old_data_backup(
+        releases: tuple[ReleaseManager, Path], backup_state: str
+    ) -> None:
+        manager, database = releases
+        history = manager._root / "last-known-good.json"
+        value = json.loads(history.read_text())
+        backup = Path(value["database_backup"])
+        if backup_state == "missing":
+            backup.unlink()
+        elif backup_state == "corrupt":
+            backup.write_bytes(b"not a database")
+        else:
+            value["database_backup"] = str(manager._root / "never-exists.sqlite3")
+            history.write_text(json.dumps(value))
+        expected = rows(database)
+>       assert manager.rollback().status == "rolled_back"
+E       AssertionError: assert 'database_backup_missing' == 'rolled_back'
+E         
+E         - rolled_back
+E         + database_backup_missing
+
+tests/integration/test_release_data_retention.py:135: AssertionError
+__ test_code_rollback_never_needs_or_dereferences_an_old_data_backup[corrupt] __
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedeb395b0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_code_rollback_never_needs1/synthetic.sqlite3'))
+backup_state = 'corrupt'
+
+    @pytest.mark.parametrize("backup_state", ["missing", "corrupt", "untrusted-path"])
+    def test_code_rollback_never_needs_or_dereferences_an_old_data_backup(
+        releases: tuple[ReleaseManager, Path], backup_state: str
+    ) -> None:
+        manager, database = releases
+        history = manager._root / "last-known-good.json"
+        value = json.loads(history.read_text())
+        backup = Path(value["database_backup"])
+        if backup_state == "missing":
+            backup.unlink()
+        elif backup_state == "corrupt":
+            backup.write_bytes(b"not a database")
+        else:
+            value["database_backup"] = str(manager._root / "never-exists.sqlite3")
+            history.write_text(json.dumps(value))
+        expected = rows(database)
+>       assert manager.rollback().status == "rolled_back"
+               ^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_data_retention.py:135: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+docs/evidence/RI-005-2026-10-11/before/src/siro/core/releases.py:122: in rollback
+    self._restore_database(Path(backup))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.core.releases.ReleaseManager object at 0x73cedeb395b0>
+source = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_code_rollback_never_needs1/manager/backups/before-2.0.0.sqlite3')
+
+    def _restore_database(self, source: Path) -> None:
+        if self._database is None:
+            return
+        self._database.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self._database.with_suffix(".rollback.tmp")
+        temporary.unlink(missing_ok=True)
+        try:
+            with sqlite3.connect(source) as backup, sqlite3.connect(temporary) as target:
+>               result = backup.execute("PRAGMA integrity_check").fetchone()
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               sqlite3.DatabaseError: file is not a database
+
+docs/evidence/RI-005-2026-10-11/before/src/siro/core/releases.py:175: DatabaseError
+_ test_code_rollback_never_needs_or_dereferences_an_old_data_backup[untrusted-path] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedeb3a190>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_code_rollback_never_needs2/synthetic.sqlite3'))
+backup_state = 'untrusted-path'
+
+    @pytest.mark.parametrize("backup_state", ["missing", "corrupt", "untrusted-path"])
+    def test_code_rollback_never_needs_or_dereferences_an_old_data_backup(
+        releases: tuple[ReleaseManager, Path], backup_state: str
+    ) -> None:
+        manager, database = releases
+        history = manager._root / "last-known-good.json"
+        value = json.loads(history.read_text())
+        backup = Path(value["database_backup"])
+        if backup_state == "missing":
+            backup.unlink()
+        elif backup_state == "corrupt":
+            backup.write_bytes(b"not a database")
+        else:
+            value["database_backup"] = str(manager._root / "never-exists.sqlite3")
+            history.write_text(json.dumps(value))
+        expected = rows(database)
+>       assert manager.rollback().status == "rolled_back"
+E       AssertionError: assert 'database_backup_missing' == 'rolled_back'
+E         
+E         - rolled_back
+E         + database_backup_missing
+
+tests/integration/test_release_data_retention.py:135: AssertionError
+_ test_actual_schema_snapshot_not_constructor_guess_decides_compatibility[versions0] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedeb36b10>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_actual_schema_snapshot_no0/synthetic.sqlite3'))
+versions = [1, 2, 3, 4, 5, 6, ...]
+
+    @pytest.mark.parametrize("versions", [list(range(1, 10)), list(range(1, 8))])
+    def test_actual_schema_snapshot_not_constructor_guess_decides_compatibility(
+        releases: tuple[ReleaseManager, Path], versions: list[int]
+    ) -> None:
+        manager, database = releases
+        if len(versions) == 7:
+            target = receipt(manager)
+            values = json.loads(target.read_text())
+            values["min_schema"] = 8
+            unsigned = {k: v for k, v in values.items() if k != "signature"}
+            wire = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()
+            values["signature"] = hmac.new(KEY, wire, hashlib.sha256).hexdigest()
+            target.write_text(json.dumps(values))
+        set_schema(database, versions)
+>       assert_rejected(manager, database, "incompatible_schema")
+
+tests/integration/test_release_data_retention.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cedeb36b10>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_actual_schema_snapshot_no0/synthetic.sqlite3')
+status = 'incompatible_schema'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'incompatible_schema'
+E         
+E         - incompatible_schema
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_actual_schema_snapshot_not_constructor_guess_decides_compatibility[versions1] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede936580>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_actual_schema_snapshot_no1/synthetic.sqlite3'))
+versions = [1, 2, 3, 4, 5, 6, ...]
+
+    @pytest.mark.parametrize("versions", [list(range(1, 10)), list(range(1, 8))])
+    def test_actual_schema_snapshot_not_constructor_guess_decides_compatibility(
+        releases: tuple[ReleaseManager, Path], versions: list[int]
+    ) -> None:
+        manager, database = releases
+        if len(versions) == 7:
+            target = receipt(manager)
+>           values = json.loads(target.read_text())
+                                ^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_data_retention.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/pathlib/__init__.py:788: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_actual_schema_snapshot_no1/manager/manifests/1.0.0.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-jasonliao/pytest-68/test_actual_schema_snapshot_no1/manager/manifests/1.0.0.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+_ test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[missing] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede936be0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai0/synthetic.sqlite3'))
+metadata = 'missing'
+
+    @pytest.mark.parametrize(
+        "metadata",
+        ["missing", "empty", "gap", "text", "duplicate", "zero", "float", "overflow", "corrupt"],
+    )
+    def test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects(
+        releases: tuple[ReleaseManager, Path], metadata: str
+    ) -> None:
+        manager, database = releases
+        variants: dict[str, list[Any]] = {
+            "empty": [],
+            "gap": [1, 3],
+            "text": [1, "bad"],
+            "duplicate": [1, 1],
+            "zero": [0, 1],
+            "float": [1, 2.5],
+            "overflow": list(range(1, 4098)),
+        }
+        if metadata == "missing":
+            with sqlite3.connect(database) as connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif metadata == "corrupt":
+            database.write_bytes(b"corrupt synthetic fixture")
+        else:
+            set_schema(database, variants[metadata])
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede936be0>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai0/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[empty] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede99f350>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai1/synthetic.sqlite3'))
+metadata = 'empty'
+
+    @pytest.mark.parametrize(
+        "metadata",
+        ["missing", "empty", "gap", "text", "duplicate", "zero", "float", "overflow", "corrupt"],
+    )
+    def test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects(
+        releases: tuple[ReleaseManager, Path], metadata: str
+    ) -> None:
+        manager, database = releases
+        variants: dict[str, list[Any]] = {
+            "empty": [],
+            "gap": [1, 3],
+            "text": [1, "bad"],
+            "duplicate": [1, 1],
+            "zero": [0, 1],
+            "float": [1, 2.5],
+            "overflow": list(range(1, 4098)),
+        }
+        if metadata == "missing":
+            with sqlite3.connect(database) as connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif metadata == "corrupt":
+            database.write_bytes(b"corrupt synthetic fixture")
+        else:
+            set_schema(database, variants[metadata])
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede99f350>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai1/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[gap] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede99fd50>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai2/synthetic.sqlite3'))
+metadata = 'gap'
+
+    @pytest.mark.parametrize(
+        "metadata",
+        ["missing", "empty", "gap", "text", "duplicate", "zero", "float", "overflow", "corrupt"],
+    )
+    def test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects(
+        releases: tuple[ReleaseManager, Path], metadata: str
+    ) -> None:
+        manager, database = releases
+        variants: dict[str, list[Any]] = {
+            "empty": [],
+            "gap": [1, 3],
+            "text": [1, "bad"],
+            "duplicate": [1, 1],
+            "zero": [0, 1],
+            "float": [1, 2.5],
+            "overflow": list(range(1, 4098)),
+        }
+        if metadata == "missing":
+            with sqlite3.connect(database) as connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif metadata == "corrupt":
+            database.write_bytes(b"corrupt synthetic fixture")
+        else:
+            set_schema(database, variants[metadata])
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede99fd50>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai2/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[text] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede9dba70>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai3/synthetic.sqlite3'))
+metadata = 'text'
+
+    @pytest.mark.parametrize(
+        "metadata",
+        ["missing", "empty", "gap", "text", "duplicate", "zero", "float", "overflow", "corrupt"],
+    )
+    def test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects(
+        releases: tuple[ReleaseManager, Path], metadata: str
+    ) -> None:
+        manager, database = releases
+        variants: dict[str, list[Any]] = {
+            "empty": [],
+            "gap": [1, 3],
+            "text": [1, "bad"],
+            "duplicate": [1, 1],
+            "zero": [0, 1],
+            "float": [1, 2.5],
+            "overflow": list(range(1, 4098)),
+        }
+        if metadata == "missing":
+            with sqlite3.connect(database) as connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif metadata == "corrupt":
+            database.write_bytes(b"corrupt synthetic fixture")
+        else:
+            set_schema(database, variants[metadata])
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede9dba70>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai3/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[duplicate] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedea10d70>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai4/synthetic.sqlite3'))
+metadata = 'duplicate'
+
+    @pytest.mark.parametrize(
+        "metadata",
+        ["missing", "empty", "gap", "text", "duplicate", "zero", "float", "overflow", "corrupt"],
+    )
+    def test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects(
+        releases: tuple[ReleaseManager, Path], metadata: str
+    ) -> None:
+        manager, database = releases
+        variants: dict[str, list[Any]] = {
+            "empty": [],
+            "gap": [1, 3],
+            "text": [1, "bad"],
+            "duplicate": [1, 1],
+            "zero": [0, 1],
+            "float": [1, 2.5],
+            "overflow": list(range(1, 4098)),
+        }
+        if metadata == "missing":
+            with sqlite3.connect(database) as connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif metadata == "corrupt":
+            database.write_bytes(b"corrupt synthetic fixture")
+        else:
+            set_schema(database, variants[metadata])
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cedea10d70>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai4/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[zero] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede939fd0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai5/synthetic.sqlite3'))
+metadata = 'zero'
+
+    @pytest.mark.parametrize(
+        "metadata",
+        ["missing", "empty", "gap", "text", "duplicate", "zero", "float", "overflow", "corrupt"],
+    )
+    def test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects(
+        releases: tuple[ReleaseManager, Path], metadata: str
+    ) -> None:
+        manager, database = releases
+        variants: dict[str, list[Any]] = {
+            "empty": [],
+            "gap": [1, 3],
+            "text": [1, "bad"],
+            "duplicate": [1, 1],
+            "zero": [0, 1],
+            "float": [1, 2.5],
+            "overflow": list(range(1, 4098)),
+        }
+        if metadata == "missing":
+            with sqlite3.connect(database) as connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif metadata == "corrupt":
+            database.write_bytes(b"corrupt synthetic fixture")
+        else:
+            set_schema(database, variants[metadata])
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede939fd0>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai5/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[float] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede9398d0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai6/synthetic.sqlite3'))
+metadata = 'float'
+
+    @pytest.mark.parametrize(
+        "metadata",
+        ["missing", "empty", "gap", "text", "duplicate", "zero", "float", "overflow", "corrupt"],
+    )
+    def test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects(
+        releases: tuple[ReleaseManager, Path], metadata: str
+    ) -> None:
+        manager, database = releases
+        variants: dict[str, list[Any]] = {
+            "empty": [],
+            "gap": [1, 3],
+            "text": [1, "bad"],
+            "duplicate": [1, 1],
+            "zero": [0, 1],
+            "float": [1, 2.5],
+            "overflow": list(range(1, 4098)),
+        }
+        if metadata == "missing":
+            with sqlite3.connect(database) as connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif metadata == "corrupt":
+            database.write_bytes(b"corrupt synthetic fixture")
+        else:
+            set_schema(database, variants[metadata])
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede9398d0>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai6/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[overflow] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede766f70>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai7/synthetic.sqlite3'))
+metadata = 'overflow'
+
+    @pytest.mark.parametrize(
+        "metadata",
+        ["missing", "empty", "gap", "text", "duplicate", "zero", "float", "overflow", "corrupt"],
+    )
+    def test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects(
+        releases: tuple[ReleaseManager, Path], metadata: str
+    ) -> None:
+        manager, database = releases
+        variants: dict[str, list[Any]] = {
+            "empty": [],
+            "gap": [1, 3],
+            "text": [1, "bad"],
+            "duplicate": [1, 1],
+            "zero": [0, 1],
+            "float": [1, 2.5],
+            "overflow": list(range(1, 4098)),
+        }
+        if metadata == "missing":
+            with sqlite3.connect(database) as connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif metadata == "corrupt":
+            database.write_bytes(b"corrupt synthetic fixture")
+        else:
+            set_schema(database, variants[metadata])
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede766f70>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai7/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[corrupt] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedeb5d550>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai8/synthetic.sqlite3'))
+metadata = 'corrupt'
+
+    @pytest.mark.parametrize(
+        "metadata",
+        ["missing", "empty", "gap", "text", "duplicate", "zero", "float", "overflow", "corrupt"],
+    )
+    def test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects(
+        releases: tuple[ReleaseManager, Path], metadata: str
+    ) -> None:
+        manager, database = releases
+        variants: dict[str, list[Any]] = {
+            "empty": [],
+            "gap": [1, 3],
+            "text": [1, "bad"],
+            "duplicate": [1, 1],
+            "zero": [0, 1],
+            "float": [1, 2.5],
+            "overflow": list(range(1, 4098)),
+        }
+        if metadata == "missing":
+            with sqlite3.connect(database) as connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif metadata == "corrupt":
+            database.write_bytes(b"corrupt synthetic fixture")
+        else:
+            set_schema(database, variants[metadata])
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:180: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cedeb5d550>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_unknown_actual_schema_fai8/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+____________ test_missing_database_is_not_created_by_code_rollback _____________
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedeb5d790>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_missing_database_is_not_c0/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_missing_database_is_not_c0')
+
+    def test_missing_database_is_not_created_by_code_rollback(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path
+    ) -> None:
+        manager, _ = releases
+        missing = tmp_path / "missing.sqlite3"
+        manager._database = missing
+>       assert manager.rollback().status == "schema_unknown"
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:189: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[missing] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede856db0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap0/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap0')
+kind = 'missing'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap0/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[malformed] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede857b70>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap1/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap1')
+kind = 'malformed'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap1/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[legacy] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede780870>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap2/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap2')
+kind = 'legacy'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap2/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[bad-signature] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede780d70>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap3/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap3')
+kind = 'bad-signature'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap3/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[schema-tamper] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede893770>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap4/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap4')
+kind = 'schema-tamper'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap4/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[wrong-version] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede6ec5d0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap5/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap5')
+kind = 'wrong-version'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap5/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[extra] __
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede6ef0d0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap6/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap6')
+kind = 'extra'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap6/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[symlink] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84cf30>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap7/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap7')
+kind = 'symlink'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap7/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[hardlink] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84d630>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap8/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap8')
+kind = 'hardlink'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap8/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+_ test_stored_complete_target_approval_is_required_not_a_history_claim[oversized] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84dcc0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap9/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap9')
+kind = 'oversized'
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            "missing",
+            "malformed",
+            "legacy",
+            "bad-signature",
+            "schema-tamper",
+            "wrong-version",
+            "extra",
+            "symlink",
+            "hardlink",
+            "oversized",
+        ],
+    )
+    def test_stored_complete_target_approval_is_required_not_a_history_claim(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = receipt(manager)
+>       assert target.is_file(), "stage did not capture a complete signed rollback manifest"
+E       AssertionError: stage did not capture a complete signed rollback manifest
+E       assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_stored_complete_target_ap9/manager/manifests/1.0.0.json').is_file
+
+tests/integration/test_release_data_retention.py:214: AssertionError
+__ test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[bytes] ___
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84e200>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_bytes_and_source_a0/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_bytes_and_source_a0')
+kind = 'bytes'
+
+    @pytest.mark.parametrize("kind", ["bytes", "symlink", "hardlink"])
+    def test_target_bytes_and_source_aliases_cannot_bypass_stored_approval(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = manager._root / "releases/1.0.0/app.txt"
+        if kind == "bytes":
+            target.write_text("changed after approval")
+        else:
+            other = tmp_path / "same-content.txt"
+            other.write_bytes(target.read_bytes())
+            target.unlink()
+            target.symlink_to(other) if kind == "symlink" else target.hardlink_to(other)
+>       assert_rejected(manager, database, "invalid_rollback_target")
+
+tests/integration/test_release_data_retention.py:258: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede84e200>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_bytes_and_source_a0/synthetic.sqlite3')
+status = 'invalid_rollback_target'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'invalid_rollback_target'
+E         
+E         - invalid_rollback_target
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[symlink] __
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84e3c0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_bytes_and_source_a1/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_bytes_and_source_a1')
+kind = 'symlink'
+
+    @pytest.mark.parametrize("kind", ["bytes", "symlink", "hardlink"])
+    def test_target_bytes_and_source_aliases_cannot_bypass_stored_approval(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = manager._root / "releases/1.0.0/app.txt"
+        if kind == "bytes":
+            target.write_text("changed after approval")
+        else:
+            other = tmp_path / "same-content.txt"
+            other.write_bytes(target.read_bytes())
+            target.unlink()
+            target.symlink_to(other) if kind == "symlink" else target.hardlink_to(other)
+>       assert_rejected(manager, database, "invalid_rollback_target")
+
+tests/integration/test_release_data_retention.py:258: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede84e3c0>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_bytes_and_source_a1/synthetic.sqlite3')
+status = 'invalid_rollback_target'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'invalid_rollback_target'
+E         
+E         - invalid_rollback_target
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[hardlink] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84e660>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_bytes_and_source_a2/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_bytes_and_source_a2')
+kind = 'hardlink'
+
+    @pytest.mark.parametrize("kind", ["bytes", "symlink", "hardlink"])
+    def test_target_bytes_and_source_aliases_cannot_bypass_stored_approval(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        target = manager._root / "releases/1.0.0/app.txt"
+        if kind == "bytes":
+            target.write_text("changed after approval")
+        else:
+            other = tmp_path / "same-content.txt"
+            other.write_bytes(target.read_bytes())
+            target.unlink()
+            target.symlink_to(other) if kind == "symlink" else target.hardlink_to(other)
+>       assert_rejected(manager, database, "invalid_rollback_target")
+
+tests/integration/test_release_data_retention.py:258: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede84e660>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_bytes_and_source_a2/synthetic.sqlite3')
+status = 'invalid_rollback_target'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'invalid_rollback_target'
+E         
+E         - invalid_rollback_target
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_________ test_malformed_history_has_no_path_or_data_authority[value0] _________
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84f380>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_malformed_history_has_no_0/synthetic.sqlite3'))
+value = []
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            [],
+            None,
+            {"version": "../outside"},
+            {"version": True},
+            {"version": "1.0.0", "unexpected": "authority"},
+        ],
+    )
+    def test_malformed_history_has_no_path_or_data_authority(
+        releases: tuple[ReleaseManager, Path], value: Any
+    ) -> None:
+        manager, database = releases
+        (manager._root / "last-known-good.json").write_text(json.dumps(value))
+>       assert_rejected(manager, database, "invalid_rollback_target")
+
+tests/integration/test_release_data_retention.py:276: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_release_data_retention.py:88: in assert_rejected
+    result = manager.rollback()
+             ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.core.releases.ReleaseManager object at 0x73cede84f380>
+
+    def rollback(self) -> ReleaseResult:
+        history = self._root / "last-known-good.json"
+        if not history.exists():
+            return ReleaseResult("no_last_known_good", self.active_version())
+        value = json.loads(history.read_text(encoding="utf-8"))
+>       version = value.get("version")
+                  ^^^^^^^^^
+E       AttributeError: 'list' object has no attribute 'get'
+
+docs/evidence/RI-005-2026-10-11/before/src/siro/core/releases.py:115: AttributeError
+__________ test_malformed_history_has_no_path_or_data_authority[None] __________
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84f930>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_malformed_history_has_no_1/synthetic.sqlite3'))
+value = None
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            [],
+            None,
+            {"version": "../outside"},
+            {"version": True},
+            {"version": "1.0.0", "unexpected": "authority"},
+        ],
+    )
+    def test_malformed_history_has_no_path_or_data_authority(
+        releases: tuple[ReleaseManager, Path], value: Any
+    ) -> None:
+        manager, database = releases
+        (manager._root / "last-known-good.json").write_text(json.dumps(value))
+>       assert_rejected(manager, database, "invalid_rollback_target")
+
+tests/integration/test_release_data_retention.py:276: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_release_data_retention.py:88: in assert_rejected
+    result = manager.rollback()
+             ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.core.releases.ReleaseManager object at 0x73cede84f930>
+
+    def rollback(self) -> ReleaseResult:
+        history = self._root / "last-known-good.json"
+        if not history.exists():
+            return ReleaseResult("no_last_known_good", self.active_version())
+        value = json.loads(history.read_text(encoding="utf-8"))
+>       version = value.get("version")
+                  ^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'get'
+
+docs/evidence/RI-005-2026-10-11/before/src/siro/core/releases.py:115: AttributeError
+_________ test_malformed_history_has_no_path_or_data_authority[value2] _________
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84c8a0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_malformed_history_has_no_2/synthetic.sqlite3'))
+value = {'version': '../outside'}
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            [],
+            None,
+            {"version": "../outside"},
+            {"version": True},
+            {"version": "1.0.0", "unexpected": "authority"},
+        ],
+    )
+    def test_malformed_history_has_no_path_or_data_authority(
+        releases: tuple[ReleaseManager, Path], value: Any
+    ) -> None:
+        manager, database = releases
+        (manager._root / "last-known-good.json").write_text(json.dumps(value))
+>       assert_rejected(manager, database, "invalid_rollback_target")
+
+tests/integration/test_release_data_retention.py:276: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede84c8a0>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_malformed_history_has_no_2/synthetic.sqlite3')
+status = 'invalid_rollback_target'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'no_last_known_good' == 'invalid_rollback_target'
+E         
+E         - invalid_rollback_target
+E         + no_last_known_good
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_________ test_malformed_history_has_no_path_or_data_authority[value3] _________
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede84f9a0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_malformed_history_has_no_3/synthetic.sqlite3'))
+value = {'version': True}
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            [],
+            None,
+            {"version": "../outside"},
+            {"version": True},
+            {"version": "1.0.0", "unexpected": "authority"},
+        ],
+    )
+    def test_malformed_history_has_no_path_or_data_authority(
+        releases: tuple[ReleaseManager, Path], value: Any
+    ) -> None:
+        manager, database = releases
+        (manager._root / "last-known-good.json").write_text(json.dumps(value))
+>       assert_rejected(manager, database, "invalid_rollback_target")
+
+tests/integration/test_release_data_retention.py:276: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede84f9a0>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_malformed_history_has_no_3/synthetic.sqlite3')
+status = 'invalid_rollback_target'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'no_last_known_good' == 'invalid_rollback_target'
+E         
+E         - invalid_rollback_target
+E         + no_last_known_good
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_________ test_malformed_history_has_no_path_or_data_authority[value4] _________
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede785f60>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_malformed_history_has_no_4/synthetic.sqlite3'))
+value = {'version': '1.0.0', 'unexpected': 'authority'}
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            [],
+            None,
+            {"version": "../outside"},
+            {"version": True},
+            {"version": "1.0.0", "unexpected": "authority"},
+        ],
+    )
+    def test_malformed_history_has_no_path_or_data_authority(
+        releases: tuple[ReleaseManager, Path], value: Any
+    ) -> None:
+        manager, database = releases
+        (manager._root / "last-known-good.json").write_text(json.dumps(value))
+>       assert_rejected(manager, database, "invalid_rollback_target")
+
+tests/integration/test_release_data_retention.py:276: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede785f60>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_malformed_history_has_no_4/synthetic.sqlite3')
+status = 'invalid_rollback_target'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'database_backup_missing' == 'invalid_rollback_target'
+E         
+E         - invalid_rollback_target
+E         + database_backup_missing
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_interrupted_code_pointer_write_retains_current_pointer_and_latest_data __
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede787850>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_interrupted_code_pointer_0/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73cedeb3a3f0>
+
+    def test_interrupted_code_pointer_write_retains_current_pointer_and_latest_data(
+        releases: tuple[ReleaseManager, Path], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manager, database = releases
+        expected = rows(database)
+    
+        def interrupted(*args: Any, **kwargs: Any) -> None:
+            raise OSError("controlled pointer-write failure")
+    
+        monkeypatch.setattr(manager, "_atomic_json", interrupted)
+        with pytest.raises(OSError, match="pointer-write"):
+            manager.rollback()
+        assert manager.active_version() == "2.0.0"
+>       assert rows(database) == expected
+E       AssertionError: assert {'conversatio...': ['before']} == {'conversatio...t-completed']}
+E         
+E         Differing items:
+E         {'ledger': ['before']} != {'ledger': ['before', 'latest-completed']}
+E         {'memory': ['before']} != {'memory': ['before', 'latest-completed']}
+E         {'conversation': ['before']} != {'conversation': ['before', 'latest-completed']}
+E         Use -v to get more diff
+
+tests/integration/test_release_data_retention.py:292: AssertionError
+______ test_rollback_runs_no_healthcheck_backup_restore_or_effect_replay _______
+
+obj = <module 'siro.core' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/__init__.py'>
+name = 'releases', ann = 'siro.core.releases'
+
+    def annotated_getattr(obj: object, name: str, ann: str) -> object:
+        try:
+>           obj = getattr(obj, name)
+                  ^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'siro.core' has no attribute 'releases'
+
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:95: AttributeError
+
+The above exception was the direct cause of the following exception:
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede943230>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_rollback_runs_no_healthch0/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73cedeb3a190>
+
+    def test_rollback_runs_no_healthcheck_backup_restore_or_effect_replay(
+        releases: tuple[ReleaseManager, Path], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manager, database = releases
+        expected = rows(database)
+    
+        def forbidden(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("code rollback reached a forbidden effect")
+    
+        monkeypatch.setattr(manager, "_backup_database", forbidden)
+        monkeypatch.setattr(manager, "_restore_database", forbidden, raising=False)
+>       monkeypatch.setattr("siro.core.releases.subprocess.run", forbidden)
+
+tests/integration/test_release_data_retention.py:306: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:107: in derive_importpath
+    target = resolve(module)
+             ^^^^^^^^^^^^^^^
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:89: in resolve
+    found = annotated_getattr(found, part, used)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+obj = <module 'siro.core' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/__init__.py'>
+name = 'releases', ann = 'siro.core.releases'
+
+    def annotated_getattr(obj: object, name: str, ann: str) -> object:
+        try:
+            obj = getattr(obj, name)
+        except AttributeError as e:
+>           raise AttributeError(
+                f"{type(obj).__name__!r} object at {ann} has no attribute {name!r}"
+            ) from e
+E           AttributeError: 'module' object at siro.core.releases has no attribute 'releases'
+
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:97: AttributeError
+_ test_published_version_cannot_be_overwritten_and_has_zero_release_effects[release] _
+
+obj = <module 'siro.core' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/__init__.py'>
+name = 'releases', ann = 'siro.core.releases'
+
+    def annotated_getattr(obj: object, name: str, ann: str) -> object:
+        try:
+>           obj = getattr(obj, name)
+                  ^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'siro.core' has no attribute 'releases'
+
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:95: AttributeError
+
+The above exception was the direct cause of the following exception:
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedea764a0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_published_version_cannot_0/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_published_version_cannot_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73cedeb34830>
+collision = 'release'
+
+    @pytest.mark.parametrize("collision", ["release", "manifest"])
+    def test_published_version_cannot_be_overwritten_and_has_zero_release_effects(
+        releases: tuple[ReleaseManager, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        collision: str,
+    ) -> None:
+        manager, database = releases
+        version = "1.0.0" if collision == "release" else "3.0.0"
+        if collision == "manifest":
+            target = receipt(manager, version)
+            target.parent.mkdir(exist_ok=True)
+            target.write_text("unresolved existing receipt")
+        bundle = bundle_at(tmp_path, "replacement")
+        before = {
+            str(p.relative_to(manager._root)): p.read_bytes()
+            for p in manager._root.rglob("*")
+            if p.is_file()
+        }
+        expected = rows(database)
+    
+        def forbidden(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("existing version reached a release effect")
+    
+        monkeypatch.setattr(manager, "_backup_database", forbidden)
+>       monkeypatch.setattr("siro.core.releases.subprocess.run", forbidden)
+
+tests/integration/test_release_data_retention.py:336: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:107: in derive_importpath
+    target = resolve(module)
+             ^^^^^^^^^^^^^^^
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:89: in resolve
+    found = annotated_getattr(found, part, used)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+obj = <module 'siro.core' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/__init__.py'>
+name = 'releases', ann = 'siro.core.releases'
+
+    def annotated_getattr(obj: object, name: str, ann: str) -> object:
+        try:
+            obj = getattr(obj, name)
+        except AttributeError as e:
+>           raise AttributeError(
+                f"{type(obj).__name__!r} object at {ann} has no attribute {name!r}"
+            ) from e
+E           AttributeError: 'module' object at siro.core.releases has no attribute 'releases'
+
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:97: AttributeError
+_ test_published_version_cannot_be_overwritten_and_has_zero_release_effects[manifest] _
+
+obj = <module 'siro.core' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/__init__.py'>
+name = 'releases', ann = 'siro.core.releases'
+
+    def annotated_getattr(obj: object, name: str, ann: str) -> object:
+        try:
+>           obj = getattr(obj, name)
+                  ^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'siro.core' has no attribute 'releases'
+
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:95: AttributeError
+
+The above exception was the direct cause of the following exception:
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedea769e0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_published_version_cannot_1/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_published_version_cannot_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73cede937570>
+collision = 'manifest'
+
+    @pytest.mark.parametrize("collision", ["release", "manifest"])
+    def test_published_version_cannot_be_overwritten_and_has_zero_release_effects(
+        releases: tuple[ReleaseManager, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        collision: str,
+    ) -> None:
+        manager, database = releases
+        version = "1.0.0" if collision == "release" else "3.0.0"
+        if collision == "manifest":
+            target = receipt(manager, version)
+            target.parent.mkdir(exist_ok=True)
+            target.write_text("unresolved existing receipt")
+        bundle = bundle_at(tmp_path, "replacement")
+        before = {
+            str(p.relative_to(manager._root)): p.read_bytes()
+            for p in manager._root.rglob("*")
+            if p.is_file()
+        }
+        expected = rows(database)
+    
+        def forbidden(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("existing version reached a release effect")
+    
+        monkeypatch.setattr(manager, "_backup_database", forbidden)
+>       monkeypatch.setattr("siro.core.releases.subprocess.run", forbidden)
+
+tests/integration/test_release_data_retention.py:336: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:107: in derive_importpath
+    target = resolve(module)
+             ^^^^^^^^^^^^^^^
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:89: in resolve
+    found = annotated_getattr(found, part, used)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+obj = <module 'siro.core' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/__init__.py'>
+name = 'releases', ann = 'siro.core.releases'
+
+    def annotated_getattr(obj: object, name: str, ann: str) -> object:
+        try:
+            obj = getattr(obj, name)
+        except AttributeError as e:
+>           raise AttributeError(
+                f"{type(obj).__name__!r} object at {ann} has no attribute {name!r}"
+            ) from e
+E           AttributeError: 'module' object at siro.core.releases has no attribute 'releases'
+
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:97: AttributeError
+______ test_manifest_save_failure_never_publishes_an_unverifiable_release ______
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedea8d0f0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_manifest_save_failure_nev0/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_manifest_save_failure_nev0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73cede937130>
+
+    def test_manifest_save_failure_never_publishes_an_unverifiable_release(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manager, database = releases
+        bundle = bundle_at(tmp_path, "third")
+        original = manager._atomic_json
+        expected = rows(database)
+        history = (manager._root / "last-known-good.json").read_bytes()
+    
+        def fail_receipt(path: Path, value: Any) -> None:
+            if path.parent.name == "manifests":
+                raise OSError("controlled receipt-save failure")
+            original(path, value)
+    
+        monkeypatch.setattr(manager, "_atomic_json", fail_receipt)
+>       with pytest.raises(OSError, match="receipt-save"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OSError
+
+tests/integration/test_release_data_retention.py:364: Failed
+_ test_actual_cli_code_rollback_preserves_new_rows_in_real_migrated_temp_database _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_actual_cli_code_rollback_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73cede99cf50>
+capsys = <_pytest.capture.CaptureFixture object at 0x73cedeaedbe0>
+
+    def test_actual_cli_code_rollback_preserves_new_rows_in_real_migrated_temp_database(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        database = tmp_path / "actual.sqlite3"
+        store = SQLiteStore(database)
+        asyncio.run(store.initialize())
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE acceptance(value TEXT)")
+            connection.execute("INSERT INTO acceptance VALUES ('original')")
+        manager_root = tmp_path / "cli-manager"
+        monkeypatch.setenv("SIRO_TEST_D48_RELEASE_KEY", KEY.decode())
+        prefix = [
+            "release",
+            "--release-root",
+            str(manager_root),
+            "--database",
+            str(database),
+            "--key-env",
+            "SIRO_TEST_D48_RELEASE_KEY",
+        ]
+        for name, version in (("cli-first", "1.0.0"), ("cli-second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+            manifest_path = tmp_path / f"{name}.json"
+            manifest_path.write_text(
+                signed(bundle, version, maximum=len(load_migrations())).model_dump_json()
+            )
+            assert (
+                main(
+                    [
+                        *prefix,
+                        "stage",
+                        "--bundle",
+                        str(bundle),
+                        "--manifest",
+                        str(manifest_path),
+                        "--healthcheck",
+                        json.dumps(HEALTH),
+                    ]
+                )
+                == 0
+            )
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("INSERT INTO acceptance VALUES ('new conversation remains')")
+        with closing(sqlite3.connect(database)) as connection:
+            assert connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] == 0
+        assert main([*prefix, "rollback"]) == 0
+        assert json.loads(capsys.readouterr().out.splitlines()[-1]) == {
+            "status": "rolled_back",
+            "active_version": "1.0.0",
+        }
+        with closing(sqlite3.connect(database)) as connection:
+>           assert connection.execute("SELECT value FROM acceptance ORDER BY rowid").fetchall() == [
+                ("original",),
+                ("new conversation remains",),
+            ]
+E           AssertionError: assert [('original',)] == [('original',...on remains',)]
+E             
+E             Right contains one more item: ('new conversation remains',)
+E             Use -v to get more diff
+
+tests/integration/test_release_data_retention.py:422: AssertionError
+______ test_staging_healthcheck_cannot_mutate_the_signed_rollback_source _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_staging_healthcheck_canno0')
+
+    def test_staging_healthcheck_cannot_mutate_the_signed_rollback_source(tmp_path: Path) -> None:
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8)
+        bundle = bundle_at(tmp_path, "candidate")
+        check = (sys.executable, "-c", "open('app.txt', 'w').write('changed by healthcheck')")
+        result = manager.stage_and_activate(bundle, signed(bundle, "1.0.0"), check)
+>       assert result.status == "invalid_manifest"
+E       AssertionError: assert 'activated' == 'invalid_manifest'
+E         
+E         - invalid_manifest
+E         + activated
+
+tests/integration/test_release_data_retention.py:446: AssertionError
+_ test_target_record_and_parent_aliases_do_not_gain_rollback_authority[directory-symlink] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedea8e120>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_0/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_0')
+kind = 'directory-symlink'
+
+    @pytest.mark.parametrize("kind", ["directory-symlink", "manifest-parent-symlink", "duplicate-json"])
+    def test_target_record_and_parent_aliases_do_not_gain_rollback_authority(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        if kind == "directory-symlink":
+            target = manager._root / "releases/1.0.0"
+            target.rename(tmp_path / "relocated-release")
+            target.symlink_to(tmp_path / "relocated-release", target_is_directory=True)
+        elif kind == "manifest-parent-symlink":
+            parent = manager._root / "manifests"
+            parent.rename(tmp_path / "relocated-receipts")
+            parent.symlink_to(tmp_path / "relocated-receipts", target_is_directory=True)
+        else:
+            target = receipt(manager)
+            raw = target.read_text()
+            target.write_text('{"version":"wrong",' + raw[1:])
+>       assert_rejected(manager, database, "invalid_rollback_target")
+
+tests/integration/test_release_data_retention.py:468: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cedea8e120>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_0/synthetic.sqlite3')
+status = 'invalid_rollback_target'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'invalid_rollback_target'
+E         
+E         - invalid_rollback_target
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_ test_target_record_and_parent_aliases_do_not_gain_rollback_authority[manifest-parent-symlink] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedea8dcc0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_1/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_1')
+kind = 'manifest-parent-symlink'
+
+    @pytest.mark.parametrize("kind", ["directory-symlink", "manifest-parent-symlink", "duplicate-json"])
+    def test_target_record_and_parent_aliases_do_not_gain_rollback_authority(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        if kind == "directory-symlink":
+            target = manager._root / "releases/1.0.0"
+            target.rename(tmp_path / "relocated-release")
+            target.symlink_to(tmp_path / "relocated-release", target_is_directory=True)
+        elif kind == "manifest-parent-symlink":
+            parent = manager._root / "manifests"
+>           parent.rename(tmp_path / "relocated-receipts")
+
+tests/integration/test_release_data_retention.py:462: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_1/manager/manifests')
+target = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_1/relocated-receipts')
+
+    def rename(self, target):
+        """
+        Rename this path to the target path.
+    
+        The target path may be absolute or relative. Relative paths are
+        interpreted relative to the current working directory, *not* the
+        directory of the Path object.
+    
+        Returns the new Path instance pointing to the target path.
+        """
+>       os.rename(self, target)
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_1/manager/manifests' -> '/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_1/relocated-receipts'
+
+/usr/lib/python3.14/pathlib/__init__.py:1077: FileNotFoundError
+_ test_target_record_and_parent_aliases_do_not_gain_rollback_authority[duplicate-json] _
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedea8e900>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_2/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_2')
+kind = 'duplicate-json'
+
+    @pytest.mark.parametrize("kind", ["directory-symlink", "manifest-parent-symlink", "duplicate-json"])
+    def test_target_record_and_parent_aliases_do_not_gain_rollback_authority(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path, kind: str
+    ) -> None:
+        manager, database = releases
+        if kind == "directory-symlink":
+            target = manager._root / "releases/1.0.0"
+            target.rename(tmp_path / "relocated-release")
+            target.symlink_to(tmp_path / "relocated-release", target_is_directory=True)
+        elif kind == "manifest-parent-symlink":
+            parent = manager._root / "manifests"
+            parent.rename(tmp_path / "relocated-receipts")
+            parent.symlink_to(tmp_path / "relocated-receipts", target_is_directory=True)
+        else:
+            target = receipt(manager)
+>           raw = target.read_text()
+                  ^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_data_retention.py:466: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/pathlib/__init__.py:788: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_2/manager/manifests/1.0.0.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-jasonliao/pytest-68/test_target_record_and_parent_2/manager/manifests/1.0.0.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+_______ test_actual_schema_connection_is_readonly_and_explicitly_closed ________
+
+obj = <module 'siro.core' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/__init__.py'>
+name = 'releases', ann = 'siro.core.releases'
+
+    def annotated_getattr(obj: object, name: str, ann: str) -> object:
+        try:
+>           obj = getattr(obj, name)
+                  ^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'siro.core' has no attribute 'releases'
+
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:95: AttributeError
+
+The above exception was the direct cause of the following exception:
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cedea8f150>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_actual_schema_connection_0/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73cede758750>
+
+    def test_actual_schema_connection_is_readonly_and_explicitly_closed(
+        releases: tuple[ReleaseManager, Path], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manager, database = releases
+        original = sqlite3.connect
+        connections: list[sqlite3.Connection] = []
+    
+        def connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+            assert args[0] == database.resolve().as_uri() + "?mode=ro"
+            assert kwargs["uri"] is True
+            connection: sqlite3.Connection = original(*args, **kwargs)
+            connections.append(connection)
+            return connection
+    
+>       monkeypatch.setattr("siro.core.releases.sqlite3.connect", connect)
+
+tests/integration/test_release_data_retention.py:485: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:107: in derive_importpath
+    target = resolve(module)
+             ^^^^^^^^^^^^^^^
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:89: in resolve
+    found = annotated_getattr(found, part, used)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+obj = <module 'siro.core' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/__init__.py'>
+name = 'releases', ann = 'siro.core.releases'
+
+    def annotated_getattr(obj: object, name: str, ann: str) -> object:
+        try:
+            obj = getattr(obj, name)
+        except AttributeError as e:
+>           raise AttributeError(
+                f"{type(obj).__name__!r} object at {ann} has no attribute {name!r}"
+            ) from e
+E           AttributeError: 'module' object at siro.core.releases has no attribute 'releases'
+
+.venv/lib/python3.14/site-packages/_pytest/monkeypatch.py:97: AttributeError
+____ test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[0] ____
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede6980c0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_invalid_trusted_caller_sc0/synthetic.sqlite3'))
+schema = 0
+
+    @pytest.mark.parametrize("schema", [0, -1, True])
+    def test_invalid_trusted_caller_schema_does_not_authorize_code_rollback(
+        releases: tuple[ReleaseManager, Path], schema: int
+    ) -> None:
+        manager, database = releases
+        manager._schema = schema
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:498: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede6980c0>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_invalid_trusted_caller_sc0/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+___ test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[-1] ____
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede69aac0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_invalid_trusted_caller_sc1/synthetic.sqlite3'))
+schema = -1
+
+    @pytest.mark.parametrize("schema", [0, -1, True])
+    def test_invalid_trusted_caller_schema_does_not_authorize_code_rollback(
+        releases: tuple[ReleaseManager, Path], schema: int
+    ) -> None:
+        manager, database = releases
+        manager._schema = schema
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:498: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede69aac0>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_invalid_trusted_caller_sc1/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+__ test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[True] ___
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede69b0e0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_invalid_trusted_caller_sc2/synthetic.sqlite3'))
+schema = True
+
+    @pytest.mark.parametrize("schema", [0, -1, True])
+    def test_invalid_trusted_caller_schema_does_not_authorize_code_rollback(
+        releases: tuple[ReleaseManager, Path], schema: int
+    ) -> None:
+        manager, database = releases
+        manager._schema = schema
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:498: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede69b0e0>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_invalid_trusted_caller_sc2/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_________ test_database_symlink_is_not_followed_by_the_schema_snapshot _________
+
+releases = (<siro.core.releases.ReleaseManager object at 0x73cede69b700>, PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_database_symlink_is_not_f0/synthetic.sqlite3'))
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_database_symlink_is_not_f0')
+
+    def test_database_symlink_is_not_followed_by_the_schema_snapshot(
+        releases: tuple[ReleaseManager, Path], tmp_path: Path
+    ) -> None:
+        manager, database = releases
+        alias = tmp_path / "aliased.sqlite3"
+        alias.symlink_to(database)
+        manager._database = alias
+>       assert_rejected(manager, database, "schema_unknown")
+
+tests/integration/test_release_data_retention.py:508: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+manager = <siro.core.releases.ReleaseManager object at 0x73cede69b700>
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_database_symlink_is_not_f0/synthetic.sqlite3')
+status = 'schema_unknown'
+
+    def assert_rejected(manager: ReleaseManager, database: Path, status: str) -> None:
+        pointer = (manager._root / "active.json").read_bytes()
+        before = database.read_bytes()
+        result = manager.rollback()
+>       assert result.status == status
+E       AssertionError: assert 'rolled_back' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + rolled_back
+
+tests/integration/test_release_data_retention.py:89: AssertionError
+_________ test_t32_staging_healthcheck_atomic_activation_and_rollback __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-68/test_t32_staging_healthcheck_a0')
+
+    def test_t32_staging_healthcheck_atomic_activation_and_rollback(tmp_path: Path) -> None:
+        database = tmp_path / "data.sqlite3"
+        with sqlite3.connect(database) as connection:
+            connection.execute("CREATE TABLE state(value TEXT)")
+            connection.execute("INSERT INTO state VALUES ('before-release')")
+            connection.execute("CREATE TABLE schema_migrations(version INTEGER)")
+            connection.executemany(
+                "INSERT INTO schema_migrations VALUES (?)", [(n,) for n in range(1, 9)]
+            )
+        manager = ReleaseManager(
+            tmp_path / "manager", b"release-test-key", current_schema=8, database=database
+        )
+        good = tmp_path / "good"
+        good.mkdir()
+        (good / "app.txt").write_text("v1", encoding="utf-8")
+        result = manager.stage_and_activate(
+            good, manifest(manager, good, "1.0.0"), (sys.executable, "-c", "pass")
+        )
+        assert result.status == "activated" and manager.active_version() == "1.0.0"
+        with sqlite3.connect(tmp_path / "manager/backups/before-1.0.0.sqlite3") as connection:
+            assert connection.execute("SELECT value FROM state").fetchone()[0] == "before-release"
+    
+        broken = tmp_path / "broken"
+        broken.mkdir()
+        (broken / "app.txt").write_text("v2", encoding="utf-8")
+        failed = manager.stage_and_activate(
+            broken, manifest(manager, broken, "2.0.0"), (sys.executable, "-c", "raise SystemExit(1)")
+        )
+        assert failed.status == "healthcheck_failed" and manager.active_version() == "1.0.0"
+        incompatible = manager.stage_and_activate(
+            broken, manifest(manager, broken, "2.0.0", minimum=9), (sys.executable, "-c", "pass")
+        )
+        assert incompatible.status == "incompatible_schema" and manager.active_version() == "1.0.0"
+    
+        newer = manager.stage_and_activate(
+            broken, manifest(manager, broken, "2.0.0"), (sys.executable, "-c", "pass")
+        )
+        assert newer.active_version == "2.0.0"
+        with sqlite3.connect(database) as connection:
+            connection.execute("UPDATE state SET value = 'after-release'")
+        assert manager.rollback().active_version == "1.0.0"
+        with sqlite3.connect(database) as connection:
+>           assert connection.execute("SELECT value FROM state").fetchone()[0] == "after-release"
+E           AssertionError: assert 'before-release' == 'after-release'
+E             
+E             - after-release
+E             + before-release
+
+tests/integration/test_release_manager.py:74: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_release_data_retention.py::test_code_rollback_keeps_late_conversation_memory_and_completed_ledger[False]
+FAILED tests/integration/test_release_data_retention.py::test_code_rollback_keeps_late_conversation_memory_and_completed_ledger[True]
+FAILED tests/integration/test_release_data_retention.py::test_code_rollback_never_needs_or_dereferences_an_old_data_backup[missing]
+FAILED tests/integration/test_release_data_retention.py::test_code_rollback_never_needs_or_dereferences_an_old_data_backup[corrupt]
+FAILED tests/integration/test_release_data_retention.py::test_code_rollback_never_needs_or_dereferences_an_old_data_backup[untrusted-path]
+FAILED tests/integration/test_release_data_retention.py::test_actual_schema_snapshot_not_constructor_guess_decides_compatibility[versions0]
+FAILED tests/integration/test_release_data_retention.py::test_actual_schema_snapshot_not_constructor_guess_decides_compatibility[versions1]
+FAILED tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[missing]
+FAILED tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[empty]
+FAILED tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[gap]
+FAILED tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[text]
+FAILED tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[duplicate]
+FAILED tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[zero]
+FAILED tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[float]
+FAILED tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[overflow]
+FAILED tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[corrupt]
+FAILED tests/integration/test_release_data_retention.py::test_missing_database_is_not_created_by_code_rollback
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[missing]
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[malformed]
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[legacy]
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[bad-signature]
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[schema-tamper]
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[wrong-version]
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[extra]
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[symlink]
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[hardlink]
+FAILED tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[oversized]
+FAILED tests/integration/test_release_data_retention.py::test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[bytes]
+FAILED tests/integration/test_release_data_retention.py::test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[symlink]
+FAILED tests/integration/test_release_data_retention.py::test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[hardlink]
+FAILED tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[value0]
+FAILED tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[None]
+FAILED tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[value2]
+FAILED tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[value3]
+FAILED tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[value4]
+FAILED tests/integration/test_release_data_retention.py::test_interrupted_code_pointer_write_retains_current_pointer_and_latest_data
+FAILED tests/integration/test_release_data_retention.py::test_rollback_runs_no_healthcheck_backup_restore_or_effect_replay
+FAILED tests/integration/test_release_data_retention.py::test_published_version_cannot_be_overwritten_and_has_zero_release_effects[release]
+FAILED tests/integration/test_release_data_retention.py::test_published_version_cannot_be_overwritten_and_has_zero_release_effects[manifest]
+FAILED tests/integration/test_release_data_retention.py::test_manifest_save_failure_never_publishes_an_unverifiable_release
+FAILED tests/integration/test_release_data_retention.py::test_actual_cli_code_rollback_preserves_new_rows_in_real_migrated_temp_database
+FAILED tests/integration/test_release_data_retention.py::test_staging_healthcheck_cannot_mutate_the_signed_rollback_source
+FAILED tests/integration/test_release_data_retention.py::test_target_record_and_parent_aliases_do_not_gain_rollback_authority[directory-symlink]
+FAILED tests/integration/test_release_data_retention.py::test_target_record_and_parent_aliases_do_not_gain_rollback_authority[manifest-parent-symlink]
+FAILED tests/integration/test_release_data_retention.py::test_target_record_and_parent_aliases_do_not_gain_rollback_authority[duplicate-json]
+FAILED tests/integration/test_release_data_retention.py::test_actual_schema_connection_is_readonly_and_explicitly_closed
+FAILED tests/integration/test_release_data_retention.py::test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[0]
+FAILED tests/integration/test_release_data_retention.py::test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[-1]
+FAILED tests/integration/test_release_data_retention.py::test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[True]
+FAILED tests/integration/test_release_data_retention.py::test_database_symlink_is_not_followed_by_the_schema_snapshot
+FAILED tests/integration/test_release_manager.py::test_t32_staging_healthcheck_atomic_activation_and_rollback
+51 failed, 2 passed in 2.70s

@@ -1,0 +1,53 @@
+{
+  "status": "PASS",
+  "scope": "exact3file temporary reverse/reapply SHA; no live/DB rollback",
+  "commands": [
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--reverse",
+        "--check",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--reverse",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "--check",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "git",
+        "apply",
+        "repair.patch"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "before_sha256": {
+    "src/siro/services/agent/runs.py": "b1fd14ef1e08de246fd90f296b73874f16e745a1efb3f188b51361832ee7c6bf",
+    "src/siro/services/presentation/integrated.py": "bef79667f4906695eafe8da54d9308a9a8cf1fca6af50067cfcfdb1dea227e49",
+    "tests/integration/test_runtime_status_context.py": null
+  },
+  "after_sha256": {
+    "src/siro/services/agent/runs.py": "785a9d8bd4c89e9f92a948d4ff9b53e0cf18c82b8ea4ceaddc70380f166a7d47",
+    "src/siro/services/presentation/integrated.py": "96a611da61a07247a8cd6f24f588f8fc6bf02217898331f41e5b5c561f276b99",
+    "tests/integration/test_runtime_status_context.py": "3c4eb1dda12592a856742491da724e04be85f7d6f51167021cb936081e45d56c"
+  },
+  "temporary_removed": true
+}

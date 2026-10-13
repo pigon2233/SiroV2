@@ -32,17 +32,39 @@
     let socket;
     let activeGeneration;
 
+    function stopSpeaking() {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      main.dataset.speaking = 'false';
+    }
+
+    function speak(message) {
+      if (!('speechSynthesis' in window)) return;
+      const prosody = message.prosody || {};
+      const utterance = new SpeechSynthesisUtterance(String(message.text || ''));
+      utterance.lang = 'zh-TW';
+      utterance.rate = Math.max(.5, Math.min(2, Number(prosody.rate) || 1));
+      utterance.pitch = Math.max(0, Math.min(2, 1 + (Number(prosody.pitch) || 0)));
+      utterance.volume = Math.max(0, Math.min(1, Number(prosody.energy) || .5));
+      utterance.addEventListener('end', () => {
+        if (message.generation_id === activeGeneration) stopSpeaking();
+      });
+      window.speechSynthesis.speak(utterance);
+    }
+
     function render(message) {
       if (message.v !== 1) return;
       if (message.type === 'body.speech') {
         activeGeneration = message.generation_id;
         caption.textContent = message.text;
         main.dataset.speaking = 'true';
+        stopSpeaking();
+        main.dataset.speaking = 'true';
+        speak(message);
       } else if (message.type === 'body.emotion') {
         avatar.textContent = faces[message.name] || faces.neutral;
       } else if (message.type === 'body.cancel' && message.generation_id === activeGeneration) {
         caption.textContent = '';
-        main.dataset.speaking = 'false';
+        stopSpeaking();
         activeGeneration = undefined;
       }
     }
@@ -63,7 +85,7 @@
         socket.addEventListener('close', event => {
           state.textContent = 'renderer offline · reconnecting · placeholder, not Live2D';
           state.className = 'offline';
-          main.dataset.speaking = 'false';
+          stopSpeaking();
           if (event.reason !== 'renderer replaced') setTimeout(connect, 1000);
         });
       } catch (_) {

@@ -1,0 +1,142 @@
+.....F...........F................                                       [100%]
+=================================== FAILURES ===================================
+_____ test_real_import_cannot_read_write_fork_exec_network_or_raise_limits _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-80/test_real_import_cannot_read_w0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b03169bd5b0>
+
+    @pytest.mark.asyncio
+    async def test_real_import_cannot_read_write_fork_exec_network_or_raise_limits(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+        secret = tmp_path / "host-secret"
+        secret.write_text("SYNTHETIC-PRIVATE-CANARY")
+        (root / ".env.local").write_text("SYNTHETIC-PRIVATE-CANARY")
+        (root / ".siro-data").mkdir()
+        (root / ".siro-data/private.db").write_text("SYNTHETIC-PRIVATE-CANARY")
+        monkeypatch.setenv("RI003_SYNTHETIC_SECRET", "SYNTHETIC-PRIVATE-CANARY")
+        forbidden = [
+            str(secret),
+            str(root / "src/value.py"),
+            "/candidate/.env.local",
+            "/candidate/.siro-data/private.db",
+        ]
+        attack = f"""import os, socket, resource
+    assert 'RI003_SYNTHETIC_SECRET' not in os.environ
+    for path in {forbidden!r}:
+        try: open(path).read()
+        except OSError: pass
+        else: raise AssertionError('private read escaped')
+    for path in [{str(tmp_path / "host-write")!r}, '/candidate/src/value.py']:
+        try: open(path,'w').write('escape')
+        except OSError: pass
+        else: raise AssertionError('write escaped')
+    for action in [os.fork, lambda: os.execv('/usr/bin/python3.14',['python']),
+                   lambda: socket.socket(), lambda: resource.setrlimit(resource.RLIMIT_AS,(-1,-1))]:
+        try: action()
+        except OSError: pass
+        else: raise AssertionError('restricted syscall escaped')
+    VALUE = 2
+    """
+        report = await backend().verify_isolated_patch(root, proposal(new=attack))
+>       assert report.status == "passed", report.outputs
+E       AssertionError: ('', 'E
+E         ======================================================================
+E         ERROR: test_value (unittest.loader._F...
+E         ----------------------------------------------------------------------
+E         Ran 1 test in 0.000s
+E         
+E         FAILED (errors=1)
+E         ')
+E       assert 'failed_checks' == 'passed'
+E         
+E         - passed
+E         + failed_checks
+
+tests/integration/test_isolated_patch_verification.py:120: AssertionError
+_____________ test_rejected_ingress_has_no_executor[missing_bwrap] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-80/test_rejected_ingress_has_no_e4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b03168ab3d0>
+kind = 'missing_bwrap'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kind", ["profile", "path", "policy", "invalid", "missing_bwrap", "platform"]
+    )
+    async def test_rejected_ingress_has_no_executor(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+        module = backend()
+    
+        async def forbidden(*args: object, **kwargs: object) -> object:
+            raise AssertionError("rejected ingress executed a process")
+    
+        monkeypatch.setattr(module, "execute_bounded_argv", forbidden)
+        candidate = proposal()
+        kwargs = {}
+        expected = {
+            "profile": "rejected_profile",
+            "path": "rejected_source",
+            "policy": "rejected_policy_change",
+            "invalid": "rejected_invalid_diff",
+            "missing_bwrap": "unsupported_sandbox",
+            "platform": "unsupported_platform",
+        }[kind]
+        if kind == "profile":
+            kwargs["profile"] = "model-selected-command"
+        elif kind == "path":
+            candidate = proposal(path="private.py")
+        elif kind == "policy":
+            candidate = proposal(path="src/siro/core/authorization.py")
+        elif kind == "invalid":
+            candidate = candidate.model_copy(update={"unified_diff": "unknown format\n"})
+        elif kind == "missing_bwrap":
+            monkeypatch.setattr(module.shutil, "which", lambda _: None)
+        else:
+            monkeypatch.setattr(module.platform, "system", lambda: "UnsupportedOS")
+>       result = await module.verify_isolated_patch(root, candidate, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_isolated_patch_verification.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+project_root = PosixPath('/tmp/pytest-of-jasonliao/pytest-80/test_rejected_ingress_has_no_e4/project')
+proposal = PatchProposal(proposal_id=UUID('662f0b13-748a-42c9-b140-495053c88f89'), unified_diff='--- a/src/value.py\n+++ b/src/va...n-VALUE = 1\n+VALUE = 2\n', created_at=datetime.datetime(2026, 10, 10, 6, 19, 25, 22273, tzinfo=datetime.timezone.utc))
+profile = 'python-unittest-single', context = None
+
+    async def verify_isolated_patch(
+        project_root: Path,
+        proposal: PatchProposal,
+        *,
+        profile: str = PROFILE,
+        context: ExecutionContext | None = None,
+    ) -> VerificationReport:
+        if context is not None:
+            context.check()
+        initial = preflight_patch(proposal)
+        if initial.status != "ready":
+            return initial
+    
+        def report(status: str, outputs: tuple[str, ...] = ()) -> VerificationReport:
+            return VerificationReport(
+                proposal.proposal_id, status, initial.changed_paths, outputs, True
+            )
+    
+        if profile != PROFILE:
+            return report("rejected_profile")
+        if not all(_supported_path(path) for path in initial.changed_paths):
+            return report("rejected_source")
+        if platform.system() != "Linux" or platform.machine() != "x86_64":
+            return report("unsupported_platform")
+>       bwrap = shutil.which("bwrap", path=os.defpath)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: test_rejected_ingress_has_no_executor.<locals>.<lambda>() got an unexpected keyword argument 'path'
+
+src/siro/services/tools/patch_verification.py:280: TypeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_import_cannot_read_write_fork_exec_network_or_raise_limits
+FAILED tests/integration/test_isolated_patch_verification.py::test_rejected_ingress_has_no_executor[missing_bwrap]
+2 failed, 32 passed in 7.90s

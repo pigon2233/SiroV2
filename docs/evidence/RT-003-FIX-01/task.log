@@ -1,0 +1,98 @@
+...........................................................F....         [100%]
+=================================== FAILURES ===================================
+___________ test_http_reused_provider_id_manual_approval_and_denial ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-26/test_http_reused_provider_id_m0')
+
+    def test_http_reused_provider_id_manual_approval_and_denial(tmp_path: Path) -> None:
+        from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
+    
+        class Model:
+            name = "reused-http"
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                if request.messages[-1].role == "tool":
+                    assert request.messages[-1].tool_call_id == "call-0"
+                    yield ModelChunk("text", "done")
+                else:
+                    yield ModelChunk(
+                        "tool_request", tool_call=ToolCall("call-0", "computer.execute", {})
+                    )
+                yield ModelChunk("finished")
+    
+        effects: list[object] = []
+    
+        async def effect(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": effect}
+        )
+        controller = IntegratedCompanion(
+            tmp_path,
+            Model(),
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            runtime_profile="candidate",
+            tool_orchestrator=orchestrator,
+            auto_authorize=lambda: False,
+        )
+        with TestClient(
+            create_app(
+                on_startup=controller.startup,
+                on_turn=controller.respond,
+                on_recovery=controller.recovery_readback,
+                on_tool_result=controller.continue_after_tool,
+                tool_orchestrator=orchestrator,
+            )
+        ) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            for approved in (True, False):
+                assert (
+                    client.post(
+                        "/v1/conversations/reuse/turns",
+                        headers=headers,
+                        json={"text": "synthetic goal"},
+                    ).status_code
+                    == 200
+                )
+                with sqlite3.connect(store.path) as c:
+                    proposal_id = c.execute(
+                        "SELECT proposal_id FROM tool_proposals WHERE state='pending'"
+                    ).fetchone()[0]
+                response = client.post(
+                    f"/v1/tool-proposals/{proposal_id}/approve",
+                    headers=headers,
+                    json={"approved": approved},
+                )
+                assert response.status_code == 200, response.text
+>               assert response.json()["call_id"] == "call-0"
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'call_id'
+
+tests/integration/test_run_journal.py:439: KeyError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_run_journal.py::test_http_reused_provider_id_manual_approval_and_denial
+1 failed, 63 passed, 3 warnings in 19.29s

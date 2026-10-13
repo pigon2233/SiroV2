@@ -1,0 +1,166 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_type_sensitive_identity_rejects_boolean_numeric_metadata_forgery[input] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-21/test_type_sensitive_identity_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7214d6b87ce0>
+field = 'input'
+
+    @pytest.mark.asyncio
+    @REAL
+    @pytest.mark.parametrize("field", ["input", "output", "manifest"])
+    async def test_type_sensitive_identity_rejects_boolean_numeric_metadata_forgery(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+    ) -> None:
+        skill = package(tmp_path, "def run(arguments): return arguments\n")
+        arguments: dict[str, object] = {"text": "synthetic"}
+        if field == "input":
+            forged = replace(skill, input_schema={**skill.input_schema, "additionalProperties": 0})
+            arguments["extra"] = "must not pass forged schema"
+        elif field == "output":
+            forged = replace(skill, output_schema={**skill.output_schema, "additionalProperties": 0})
+        else:
+            forged = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": True}))
+        assert skill == forged, "control demonstrates why Python equality cannot bind typed identity"
+    
+        async def forbidden(*args: object, **kwargs: object) -> object:
+            raise AssertionError("forged typed identity must never dispatch")
+    
+        monkeypatch.setattr(skill_worker, "execute_bounded_argv", forbidden)
+        with pytest.raises(SkillExecutionError, match="skill package verification failed"):
+>           await WorkerSupervisor(profile=STRICT).execute(forged, arguments)
+
+tests/integration/test_strict_skill_worker.py:507: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/adapters/skill_worker.py:211: in execute
+    return await self._execute_one(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:215: in _execute_one
+    return await self._execute_strict(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:336: in _execute_strict
+    probe = await execute((*argv, "--probe"))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:326: in execute
+    return await execute_bounded_argv(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (('/bin/bwrap', '--unshare-all', '--unshare-user', '--disable-userns', '--assert-userns-disabled', '--die-with-parent', ...),)
+kwargs = {'cwd': PosixPath('/tmp/siro-skill-request-_jx912jc'), 'environment': {}, 'timeout': 0.9999966339996718, 'output_limit': 131072, ...}
+
+    async def forbidden(*args: object, **kwargs: object) -> object:
+>       raise AssertionError("forged typed identity must never dispatch")
+E       AssertionError: forged typed identity must never dispatch
+
+tests/integration/test_strict_skill_worker.py:503: AssertionError
+_ test_type_sensitive_identity_rejects_boolean_numeric_metadata_forgery[output] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-21/test_type_sensitive_identity_r1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7214d6ae8710>
+field = 'output'
+
+    @pytest.mark.asyncio
+    @REAL
+    @pytest.mark.parametrize("field", ["input", "output", "manifest"])
+    async def test_type_sensitive_identity_rejects_boolean_numeric_metadata_forgery(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+    ) -> None:
+        skill = package(tmp_path, "def run(arguments): return arguments\n")
+        arguments: dict[str, object] = {"text": "synthetic"}
+        if field == "input":
+            forged = replace(skill, input_schema={**skill.input_schema, "additionalProperties": 0})
+            arguments["extra"] = "must not pass forged schema"
+        elif field == "output":
+            forged = replace(skill, output_schema={**skill.output_schema, "additionalProperties": 0})
+        else:
+            forged = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": True}))
+        assert skill == forged, "control demonstrates why Python equality cannot bind typed identity"
+    
+        async def forbidden(*args: object, **kwargs: object) -> object:
+            raise AssertionError("forged typed identity must never dispatch")
+    
+        monkeypatch.setattr(skill_worker, "execute_bounded_argv", forbidden)
+        with pytest.raises(SkillExecutionError, match="skill package verification failed"):
+>           await WorkerSupervisor(profile=STRICT).execute(forged, arguments)
+
+tests/integration/test_strict_skill_worker.py:507: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/adapters/skill_worker.py:211: in execute
+    return await self._execute_one(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:215: in _execute_one
+    return await self._execute_strict(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:336: in _execute_strict
+    probe = await execute((*argv, "--probe"))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:326: in execute
+    return await execute_bounded_argv(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (('/bin/bwrap', '--unshare-all', '--unshare-user', '--disable-userns', '--assert-userns-disabled', '--die-with-parent', ...),)
+kwargs = {'cwd': PosixPath('/tmp/siro-skill-request-wy6nd938'), 'environment': {}, 'timeout': 0.9999956819997351, 'output_limit': 131072, ...}
+
+    async def forbidden(*args: object, **kwargs: object) -> object:
+>       raise AssertionError("forged typed identity must never dispatch")
+E       AssertionError: forged typed identity must never dispatch
+
+tests/integration/test_strict_skill_worker.py:503: AssertionError
+_ test_type_sensitive_identity_rejects_boolean_numeric_metadata_forgery[manifest] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-21/test_type_sensitive_identity_r2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7214d6a27680>
+field = 'manifest'
+
+    @pytest.mark.asyncio
+    @REAL
+    @pytest.mark.parametrize("field", ["input", "output", "manifest"])
+    async def test_type_sensitive_identity_rejects_boolean_numeric_metadata_forgery(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+    ) -> None:
+        skill = package(tmp_path, "def run(arguments): return arguments\n")
+        arguments: dict[str, object] = {"text": "synthetic"}
+        if field == "input":
+            forged = replace(skill, input_schema={**skill.input_schema, "additionalProperties": 0})
+            arguments["extra"] = "must not pass forged schema"
+        elif field == "output":
+            forged = replace(skill, output_schema={**skill.output_schema, "additionalProperties": 0})
+        else:
+            forged = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": True}))
+        assert skill == forged, "control demonstrates why Python equality cannot bind typed identity"
+    
+        async def forbidden(*args: object, **kwargs: object) -> object:
+            raise AssertionError("forged typed identity must never dispatch")
+    
+        monkeypatch.setattr(skill_worker, "execute_bounded_argv", forbidden)
+        with pytest.raises(SkillExecutionError, match="skill package verification failed"):
+>           await WorkerSupervisor(profile=STRICT).execute(forged, arguments)
+
+tests/integration/test_strict_skill_worker.py:507: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/adapters/skill_worker.py:211: in execute
+    return await self._execute_one(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:215: in _execute_one
+    return await self._execute_strict(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:336: in _execute_strict
+    probe = await execute((*argv, "--probe"))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/skill_worker.py:326: in execute
+    return await execute_bounded_argv(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (('/bin/bwrap', '--unshare-all', '--unshare-user', '--disable-userns', '--assert-userns-disabled', '--die-with-parent', ...),)
+kwargs = {'cwd': PosixPath('/tmp/siro-skill-request-9f5tn45l'), 'environment': {}, 'timeout': 0.9999976049998622, 'output_limit': 131072, ...}
+
+    async def forbidden(*args: object, **kwargs: object) -> object:
+>       raise AssertionError("forged typed identity must never dispatch")
+E       AssertionError: forged typed identity must never dispatch
+
+tests/integration/test_strict_skill_worker.py:503: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_strict_skill_worker.py::test_type_sensitive_identity_rejects_boolean_numeric_metadata_forgery[input]
+FAILED tests/integration/test_strict_skill_worker.py::test_type_sensitive_identity_rejects_boolean_numeric_metadata_forgery[output]
+FAILED tests/integration/test_strict_skill_worker.py::test_type_sensitive_identity_rejects_boolean_numeric_metadata_forgery[manifest]
+3 failed, 37 deselected in 0.26s

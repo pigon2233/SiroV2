@@ -1,0 +1,226 @@
+FFFFFFF                                                                  [100%]
+=================================== FAILURES ===================================
+_ test_installed_identity_is_independent_of_enabled_state_and_source_io[False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-37/test_installed_identity_is_ind0')
+enabled = False
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ba57a18b360>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    async def test_installed_identity_is_independent_of_enabled_state_and_source_io(
+        tmp_path: Path, enabled: bool, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        await registry.install(skill, enabled=enabled)
+    
+        def forbidden(root: Path) -> InstalledSkill:
+            raise AssertionError("registry identity query performed source verification")
+    
+        monkeypatch.setattr(registry_module, "load_skill", forbidden)
+        (skill.root / "plugin.py").unlink()
+>       assert await registry.is_installed(skill.manifest.id, skill.manifest.version, identity=skill)
+                     ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'is_installed'. Did you mean: 'is_enabled'?
+
+tests/integration/test_skill_activation_foundation.py:250: AttributeError
+_ test_installed_identity_is_independent_of_enabled_state_and_source_io[True] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-37/test_installed_identity_is_ind1')
+enabled = True
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ba57a0e5370>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [False, True])
+    async def test_installed_identity_is_independent_of_enabled_state_and_source_io(
+        tmp_path: Path, enabled: bool, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        await registry.install(skill, enabled=enabled)
+    
+        def forbidden(root: Path) -> InstalledSkill:
+            raise AssertionError("registry identity query performed source verification")
+    
+        monkeypatch.setattr(registry_module, "load_skill", forbidden)
+        (skill.root / "plugin.py").unlink()
+>       assert await registry.is_installed(skill.manifest.id, skill.manifest.version, identity=skill)
+                     ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'is_installed'. Did you mean: 'is_enabled'?
+
+tests/integration/test_skill_activation_foundation.py:250: AttributeError
+________ test_installed_identity_rejects_mismatched_or_missing_row[id] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-37/test_installed_identity_reject0')
+mismatch = 'id'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root", "missing"])
+    async def test_installed_identity_rejects_mismatched_or_missing_row(
+        tmp_path: Path, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        await registry.install(skill)
+        identity = skill
+        query_id = skill.manifest.id
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif mismatch == "root":
+            identity = replace(skill, root=tmp_path / "other-root")
+        else:
+            query_id = "fixture.missing"
+>       assert not await registry.is_installed(query_id, skill.manifest.version, identity=identity)
+                         ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'is_installed'. Did you mean: 'is_enabled'?
+
+tests/integration/test_skill_activation_foundation.py:276: AttributeError
+______ test_installed_identity_rejects_mismatched_or_missing_row[version] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-37/test_installed_identity_reject1')
+mismatch = 'version'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root", "missing"])
+    async def test_installed_identity_rejects_mismatched_or_missing_row(
+        tmp_path: Path, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        await registry.install(skill)
+        identity = skill
+        query_id = skill.manifest.id
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif mismatch == "root":
+            identity = replace(skill, root=tmp_path / "other-root")
+        else:
+            query_id = "fixture.missing"
+>       assert not await registry.is_installed(query_id, skill.manifest.version, identity=identity)
+                         ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'is_installed'. Did you mean: 'is_enabled'?
+
+tests/integration/test_skill_activation_foundation.py:276: AttributeError
+_______ test_installed_identity_rejects_mismatched_or_missing_row[hash] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-37/test_installed_identity_reject2')
+mismatch = 'hash'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root", "missing"])
+    async def test_installed_identity_rejects_mismatched_or_missing_row(
+        tmp_path: Path, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        await registry.install(skill)
+        identity = skill
+        query_id = skill.manifest.id
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif mismatch == "root":
+            identity = replace(skill, root=tmp_path / "other-root")
+        else:
+            query_id = "fixture.missing"
+>       assert not await registry.is_installed(query_id, skill.manifest.version, identity=identity)
+                         ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'is_installed'. Did you mean: 'is_enabled'?
+
+tests/integration/test_skill_activation_foundation.py:276: AttributeError
+_______ test_installed_identity_rejects_mismatched_or_missing_row[root] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-37/test_installed_identity_reject3')
+mismatch = 'root'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root", "missing"])
+    async def test_installed_identity_rejects_mismatched_or_missing_row(
+        tmp_path: Path, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        await registry.install(skill)
+        identity = skill
+        query_id = skill.manifest.id
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif mismatch == "root":
+            identity = replace(skill, root=tmp_path / "other-root")
+        else:
+            query_id = "fixture.missing"
+>       assert not await registry.is_installed(query_id, skill.manifest.version, identity=identity)
+                         ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'is_installed'. Did you mean: 'is_enabled'?
+
+tests/integration/test_skill_activation_foundation.py:276: AttributeError
+______ test_installed_identity_rejects_mismatched_or_missing_row[missing] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-37/test_installed_identity_reject4')
+mismatch = 'missing'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root", "missing"])
+    async def test_installed_identity_rejects_mismatched_or_missing_row(
+        tmp_path: Path, mismatch: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        registry, _ = await registry_at(tmp_path)
+        await registry.install(skill)
+        identity = skill
+        query_id = skill.manifest.id
+        if mismatch in {"id", "version"}:
+            identity = replace(
+                skill,
+                manifest=skill.manifest.model_copy(
+                    update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
+                ),
+            )
+        elif mismatch == "hash":
+            identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
+        elif mismatch == "root":
+            identity = replace(skill, root=tmp_path / "other-root")
+        else:
+            query_id = "fixture.missing"
+>       assert not await registry.is_installed(query_id, skill.manifest.version, identity=identity)
+                         ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteSkillRegistry' object has no attribute 'is_installed'. Did you mean: 'is_enabled'?
+
+tests/integration/test_skill_activation_foundation.py:276: AttributeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation_foundation.py::test_installed_identity_is_independent_of_enabled_state_and_source_io[False]
+FAILED tests/integration/test_skill_activation_foundation.py::test_installed_identity_is_independent_of_enabled_state_and_source_io[True]
+FAILED tests/integration/test_skill_activation_foundation.py::test_installed_identity_rejects_mismatched_or_missing_row[id]
+FAILED tests/integration/test_skill_activation_foundation.py::test_installed_identity_rejects_mismatched_or_missing_row[version]
+FAILED tests/integration/test_skill_activation_foundation.py::test_installed_identity_rejects_mismatched_or_missing_row[hash]
+FAILED tests/integration/test_skill_activation_foundation.py::test_installed_identity_rejects_mismatched_or_missing_row[root]
+FAILED tests/integration/test_skill_activation_foundation.py::test_installed_identity_rejects_mismatched_or_missing_row[missing]
+7 failed, 36 deselected in 0.30s

@@ -1,0 +1,120 @@
+.............F.......................................................    [100%]
+=================================== FAILURES ===================================
+_ test_actual_cli_repeated_sigint_joins_old_sqlite_work_before_next_owner[zip-backup] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-123/test_actual_cli_repeated_sigin1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-123/test_actual_cli_repeated_sigin1/synthetic-home')
+command = 'zip-backup'
+
+    @pytest.mark.parametrize("command", ["backup", "zip-backup", "demo"])
+    def test_actual_cli_repeated_sigint_joins_old_sqlite_work_before_next_owner(
+        tmp_path: Path, account: Path, command: str
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database = data / "siro.db"
+        seed(database, "latest-completed")
+        entered, shutdown, finishing, release, finished = [
+            tmp_path / name for name in ("entered", "shutdown", "finishing", "release", "finished")
+        ]
+        destination = tmp_path / "backup.db"
+        program = tmp_path / "owned_cli.py"
+        program.write_text(
+            """import asyncio, json, pwd, sqlite3, sys, time
+    from contextlib import closing
+    from pathlib import Path
+    from types import SimpleNamespace
+    from siro import cli
+    from siro.adapters import data_ownership as ownership
+    from siro.persistence.sqlite import SQLiteStore
+    home, data, entered, shutdown, finishing, release, finished, destination = map(Path, sys.argv[1:9])
+    command = sys.argv[9]
+    pwd.getpwuid = lambda uid: SimpleNamespace(pw_dir=str(home))
+    original_initialize = SQLiteStore._initialize_sync
+    def initialize(store):
+        entered.touch()
+        deadline = time.monotonic() + 8
+        while not release.exists():
+            if time.monotonic() >= deadline:
+                raise AssertionError('synthetic SQLite release missing')
+            time.sleep(.005)
+        try:
+            with closing(sqlite3.connect(store.path)) as connection, connection:
+                connection.execute("UPDATE owner_fixture SET value='old-owned-IO-finished'")
+            original_initialize(store)
+        finally:
+            finished.touch()
+    SQLiteStore._initialize_sync = initialize
+    original_shutdown = asyncio.BaseEventLoop.shutdown_default_executor
+    async def stop_executor(loop, *args, **kwargs):
+        shutdown.touch()
+        return await original_shutdown(loop, *args, **kwargs)
+    asyncio.BaseEventLoop.shutdown_default_executor = stop_executor
+    original_finish = ownership._DataOwner._finish
+    def finish(owner):
+        finishing.touch()
+        return original_finish(owner)
+    ownership._DataOwner._finish = finish
+    arguments = (['backup', '--data', str(data), str(destination)] if command != 'demo'
+                 else ['demo', '--data', str(data), '--once', 'synthetic'])
+    if command == 'zip-backup':
+        from siro.schemas import SiroSettings
+        config = data.parent / 'input-settings.json'
+        config.write_text(SiroSettings().model_dump_json())
+        arguments.extend(['--config', str(config)])
+    try:
+        result = cli.main(arguments)
+    except KeyboardInterrupt:
+        print(json.dumps({'status': 'cancelled'}), flush=True)
+        raise SystemExit(130)
+    else:
+        print(json.dumps({'unexpected_success': result}), flush=True)
+    """
+        )
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                str(program),
+                *map(
+                    str, (account, data, entered, shutdown, finishing, release, finished, destination)
+                ),
+                command,
+            ],
+            env=child_environment(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+>           wait_marker(entered, process)
+
+tests/integration/test_data_owner_callers.py:371: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/tmp/pytest-of-jasonliao/pytest-123/test_actual_cli_repeated_sigin1/entered')
+process = <Popen: returncode: 1 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>
+timeout = 5
+
+    def wait_marker(path: Path, process: subprocess.Popen[str], timeout: float = 5) -> None:
+        deadline = time.monotonic() + timeout
+        while not path.exists():
+>           assert process.poll() is None, f"owned fixture exited before {path.name}"
+E           AssertionError: owned fixture exited before entered
+E           assert 1 is None
+E            +  where 1 = poll()
+E            +    where poll = <Popen: returncode: 1 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>.poll
+
+tests/integration/test_data_owner_callers.py:286: AssertionError
+=============================== warnings summary ===============================
+tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_callers.py::test_actual_cli_repeated_sigint_joins_old_sqlite_work_before_next_owner[zip-backup]
+1 failed, 68 passed, 2 warnings in 5.69s

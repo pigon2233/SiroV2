@@ -1,28 +1,13 @@
-# T12 部分實作證據
+# T12 驗收證據
 
-日期：2026-09-24
+日期：2026-09-25｜結果：PASS（L1 + local L2）
 
-狀態：BLOCKED-EXTERNAL（合法 Live2D SDK Core 與模型資產）
+Owner 從官方下載並接受 Live2D Proprietary Software、Open Software 與 sample material 適用條款。使用 `CubismSdkForWeb-5-r.5.zip`，SHA-256 `67064a7fb1812cf502f5c4a03bfe12cc638c75a621bb4acf06bb28763df06ba0`；ZIP 完整性無錯誤。專有 SDK/Core/Haru 留在 Git ignored `models/`。
 
-## 已完成
+本機 manifest `live2d.cubism-web-5-r.5-haru` 驗證 Core 與 Haru 共 56 個檔案的來源、授權接受時間和 SHA-256。`BodyAssetManifest` 拒絕 path escape、缺檔及竄改。
 
-- `/ws/body` 使用 T10 的短效 loopback session 與 Origin 檢查。
-- `WebSocketBodyTransport` 維持單一 renderer owner、單 writer、有界佇列；重連會取消舊 writer 並丟棄舊 session queue。
-- adapter 在 renderer offline 或 queue/transport failure 時立即回傳失敗，不讓 renderer 阻塞 Core。
-- `/body` 是可實際連線的 renderer shell，處理 speech/emotion/cancel；畫面明示 placeholder，不冒充 Live2D。
-- 真實 Uvicorn + in-app browser 已顯示 `renderer online · placeholder, not Live2D`，server log 記錄 HTTP session 與 WebSocket accepted。
-- A07 L1：kill renderer 後 Core 仍完成文字 turn、召回 SQLite source-backed memory；健康 renderer 重連後收到新的 generation。
-- asset manifest 強制記錄 source/license/acceptance/checksum，拒絕路徑逃逸與檔案竄改；實體資產目錄已排除 Git。
+真實 TypeScript SDK sample 通過 `tsc --noEmit` 與 Vite build。FastAPI 只在設定 `SIRO_LIVE2D_DIST` 時掛載 `/live2d`；瀏覽器實際載入 Cubism Core、WebGL shaders、Haru moc3、textures、expressions、motions、physics、pose 與 user data。SIRO bridge 將 emotion、gesture、look、speech mouth 與 generation-bound cancel 映射到真模型，並經認證 `/ws/body` 連線。
 
-## 驗證
+A07：將真 renderer 導離後，故障隔離測試確認文字 turn 完成、SQLite source-backed memory 可回憶；回到 `/live2d/` 後模型與 WebSocket 重新載入。單 owner/writer、有界 queue、舊 generation 丟棄與慢 renderer 不阻塞 Core 的 deterministic tests 同時通過。
 
-```text
-scripts/check
-61 passed, 3 skipped (real providers require explicit opt-in), 1 dependency deprecation warning
-```
-
-## 外部阻礙
-
-官方 [Cubism Web Samples license](https://github.com/Live2D/CubismWebSamples/blob/develop/LICENSE.md) 將 Framework/Samples、專有 Cubism Core、sample models 分成不同授權。官方 [SDK manual](https://docs.live2d.com/en/cubism-sdk-manual/cubism-sdk-for-web/) 也說明 Cubism Core 不在 GitHub，必須從官方 SDK distribution 取得。不能從其他 repo 複製 Core 或把 sample model 當成一般 MIT asset。
-
-要完成 L2，owner 需同意適用的 Live2D 條款並從官方來源取得 SDK，並選定一個授權允許本專案測試/展示的模型。取得前不得將 placeholder 或 mock 算作 A07 真 Live2D。
+發布限制：本證據只涵蓋本機開發與驗收。若公開或散布 SIRO，必須依當時用途與組織規模另行確認 Publication License；專有 SDK、Core、模型和私人 acceptance manifest 不提交 Git。

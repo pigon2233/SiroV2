@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+from pathlib import Path
+
+from siro.evaluation.affect_simulation import run_affect_simulation
+
+
+def main() -> None:
+    report = run_affect_simulation()
+    destination = Path("docs/evidence/I02/affect-simulation-30d.json")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(report.as_json() + "\n", encoding="utf-8")
+    print(destination)
+
+
+if __name__ == "__main__":
+    main()

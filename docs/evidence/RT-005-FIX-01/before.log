@@ -1,0 +1,194 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+___ test_arguments_only_cancel_waits_for_finally_and_prevents_effect[False] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-30/test_arguments_only_cancel_wai0')
+manual = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("manual", [False, True])
+    async def test_arguments_only_cancel_waits_for_finally_and_prevents_effect(
+        tmp_path: Path, manual: bool
+    ) -> None:
+        entered, release, cleaned = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        effects: list[object] = []
+    
+        async def handler(arguments: dict[str, object]) -> object:
+            entered.set()
+            try:
+                await release.wait()
+                effects.append(arguments)
+                return {"ok": True}
+            finally:
+                await asyncio.sleep(0.01)
+                cleaned.set()
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": handler}
+        )
+        hub = Hub()
+        controller = IntegratedCompanion(
+            tmp_path,
+            ToolModel([["synthetic"]]),
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile="candidate",
+            auto_authorize=lambda: not manual,
+        )
+        if manual:
+            await controller.respond("args", "goal")
+            row = await store.run_transaction(
+                lambda c: c.execute("SELECT proposal_id FROM tool_proposals").fetchone()
+            )
+            proposal = await orchestrator.get(row[0])
+            assert proposal is not None
+            await orchestrator.resolve(
+                proposal.proposal_id, approved=True, arguments=proposal.arguments
+            )
+            task = asyncio.create_task(orchestrator.execute(proposal.proposal_id))
+        else:
+            task = asyncio.create_task(controller.respond("args", "goal"))
+        await asyncio.wait_for(entered.wait(), 10)
+        try:
+            await controller.cancel("active", "cancel arguments", session_id="args")
+>           assert cleaned.is_set(), "handler cleanup must finish before terminal"
+E           AssertionError: handler cleanup must finish before terminal
+E           assert False
+E            +  where False = is_set()
+E            +    where is_set = <asyncio.locks.Event object at 0x726483fa0690 [unset]>.is_set
+
+tests/integration/test_execution_lifecycle.py:688: AssertionError
+____ test_arguments_only_cancel_waits_for_finally_and_prevents_effect[True] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-30/test_arguments_only_cancel_wai1')
+manual = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("manual", [False, True])
+    async def test_arguments_only_cancel_waits_for_finally_and_prevents_effect(
+        tmp_path: Path, manual: bool
+    ) -> None:
+        entered, release, cleaned = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        effects: list[object] = []
+    
+        async def handler(arguments: dict[str, object]) -> object:
+            entered.set()
+            try:
+                await release.wait()
+                effects.append(arguments)
+                return {"ok": True}
+            finally:
+                await asyncio.sleep(0.01)
+                cleaned.set()
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": handler}
+        )
+        hub = Hub()
+        controller = IntegratedCompanion(
+            tmp_path,
+            ToolModel([["synthetic"]]),
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile="candidate",
+            auto_authorize=lambda: not manual,
+        )
+        if manual:
+            await controller.respond("args", "goal")
+            row = await store.run_transaction(
+                lambda c: c.execute("SELECT proposal_id FROM tool_proposals").fetchone()
+            )
+            proposal = await orchestrator.get(row[0])
+            assert proposal is not None
+            await orchestrator.resolve(
+                proposal.proposal_id, approved=True, arguments=proposal.arguments
+            )
+            task = asyncio.create_task(orchestrator.execute(proposal.proposal_id))
+        else:
+            task = asyncio.create_task(controller.respond("args", "goal"))
+        await asyncio.wait_for(entered.wait(), 10)
+        try:
+            await controller.cancel("active", "cancel arguments", session_id="args")
+>           assert cleaned.is_set(), "handler cleanup must finish before terminal"
+E           AssertionError: handler cleanup must finish before terminal
+E           assert False
+E            +  where False = is_set()
+E            +    where is_set = <asyncio.locks.Event object at 0x726451889040 [unset]>.is_set
+
+tests/integration/test_execution_lifecycle.py:688: AssertionError
+_____________ test_browser_enter_cancel_closes_acquired_resources ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x72645221ef90>
+
+    @pytest.mark.asyncio
+    async def test_browser_enter_cancel_closes_acquired_resources(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from siro.adapters import browser as module
+    
+        entered = asyncio.Event()
+        closed: list[str] = []
+    
+        class Browser:
+            async def new_page(self) -> object:
+                entered.set()
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")
+    
+            async def close(self) -> None:
+                closed.append("browser")
+    
+        class Playwright:
+            chromium: object
+    
+            def __init__(self) -> None:
+                self.chromium = self
+    
+            async def launch(self, **kwargs: object) -> Browser:
+                return Browser()
+    
+            async def stop(self) -> None:
+                closed.append("playwright")
+    
+        class Manager:
+            async def start(self) -> Playwright:
+                return Playwright()
+    
+        monkeypatch.setattr(module.shutil, "which", lambda name: "/synthetic/chromium")
+        monkeypatch.setattr(module, "async_playwright", lambda: Manager())
+        driver = module.ScopedBrowserDriver(("http://127.0.0.1",))
+        task = asyncio.create_task(driver.__aenter__())
+        await entered.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+>       assert closed == ["browser", "playwright"]
+E       AssertionError: assert [] == ['browser', 'playwright']
+E         
+E         Right contains 2 more items, first extra item: 'browser'
+E         Use -v to get more diff
+
+tests/integration/test_execution_lifecycle.py:744: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_execution_lifecycle.py::test_arguments_only_cancel_waits_for_finally_and_prevents_effect[False]
+FAILED tests/integration/test_execution_lifecycle.py::test_arguments_only_cancel_waits_for_finally_and_prevents_effect[True]
+FAILED tests/integration/test_execution_lifecycle.py::test_browser_enter_cancel_closes_acquired_resources
+3 failed, 14 deselected, 2 warnings in 0.98s

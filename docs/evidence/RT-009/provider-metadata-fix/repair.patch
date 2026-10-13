@@ -1,0 +1,98 @@
+--- a/src/siro/adapters/models/failover.py
++++ b/src/siro/adapters/models/failover.py
+@@ -22,8 +22,6 @@
+ 
+ 
+ class FailoverModel:
+-    name = "failover"
+-
+     def __init__(
+         self,
+         models: Sequence[LanguageModel],
+@@ -39,6 +37,8 @@
+         if any(i < 0 or i >= len(models) for i in cloud_indices):
+             raise ValueError("invalid cloud model index")
+         self._models = tuple(models)
++        # Preserve selected-provider provenance for existing journal consumers.
++        self.name = self._models[0].name
+         self._backoff = backoff_seconds
+         self._cloud_indices = cloud_indices | frozenset(
+             i for i, model in enumerate(models) if isinstance(model, OpenAICompatibleAdapter)
+--- a/tests/integration/test_provider_retry.py
++++ b/tests/integration/test_provider_retry.py
+@@ -1,6 +1,8 @@
+ from __future__ import annotations
+ 
++import asyncio
+ import os
++import sqlite3
+ import sys
+ from collections.abc import AsyncIterator
+ from pathlib import Path
+@@ -12,7 +14,9 @@
+ from fastapi import FastAPI
+ from fastapi.testclient import TestClient
+ 
++from siro.persistence.sqlite import SQLiteStore
+ from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, Privacy, ToolCall
++from siro.services.agent.runs import SQLiteAgentRunRepository
+ 
+ 
+ @pytest.mark.parametrize(
+@@ -26,6 +30,7 @@
+         ("candidate", "text_then_fail", False, 1, False, "failed"),
+         ("candidate", "continuation_tool_failure", False, 2, True, "failed"),
+         ("candidate", "cloud_fail", False, 1, False, "failed"),
++        ("candidate", "cloud_fail", True, 1, False, "failed"),
+     ],
+ )
+ def test_real_main_provider_policy_and_dispatch_gate(
+@@ -136,6 +141,9 @@
+             )
+             assert "synthetic-key-canary" not in str(runtime)
+             if profile == "candidate":
++                assert readback["backend"] == (
++                    "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
++                )
+                 assert readback["model_rounds"] == (2 if expected_effect else 1)
+                 if mode == "continuation_tool_failure":
+                     assert readback["tool_calls"] == 1
+@@ -145,6 +153,19 @@
+ 
+     monkeypatch.setattr(uvicorn, "run", run)
+     main()
++    if profile == "candidate":
++        selected = "synthetic-cloud" if mode == "cloud_fail" else "synthetic-local"
++        with sqlite3.connect(tmp_path / "siro.db") as connection:
++            assert connection.execute("SELECT backend FROM run_journal").fetchall() == [(selected,)]
++
++        async def reopened_readback() -> None:
++            store = SQLiteStore(tmp_path / "siro.db")
++            await store.initialize()
++            persisted = await SQLiteAgentRunRepository(store).readback("retry")
++            assert persisted is not None and persisted["backend"] == selected
++            assert persisted["state"] == state
++
++        asyncio.run(reopened_readback())
+     assert len(requests) == expected_requests
+     assert marker.exists() is expected_effect
+     assert len(cloud_created) == int(mode == "cloud_fail")
+--- a/tests/contract/test_failover_policy.py
++++ b/tests/contract/test_failover_policy.py
+@@ -309,3 +309,16 @@
+         server.close()
+         await server.wait_closed()
+         await asyncio.gather(*tuple(handlers), return_exceptions=True)
++
++
++@pytest.mark.asyncio
++async def test_selected_provider_name_stays_stable_after_fallback() -> None:
++    primary = ScriptModel((ConnectionError(),))
++    primary.name = "selected-local"
++    fallback = ScriptModel((ModelChunk("text", "fallback"), ModelChunk("finished")))
++    fallback.name = "alternate-local"
++    model = FailoverModel((primary, fallback), backoff_seconds=0)
++    assert model.name == "selected-local"
++    assert (await consume(model, ModelRequest("goal", "g")))[0].text == "fallback"
++    assert len(primary.requests) == len(fallback.requests) == 1
++    assert model.name == "selected-local"

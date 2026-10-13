@@ -196,7 +196,16 @@ async def test_authenticated_memory_management_api(tmp_path: Path) -> None:
     _, _, memories = await service(tmp_path / "memory.sqlite3")
     stored = await remember(memories, "api visible memory", kind=MemoryKind.SELF)
     origin = "http://testserver"
-    app = create_app(allowed_origins={origin}, memory_service=memories)
+    corrections: list[tuple[UserTextEvent, Memory]] = []
+
+    async def record_correction(source: UserTextEvent, memory: Memory) -> None:
+        corrections.append((source, memory))
+
+    app = create_app(
+        allowed_origins={origin},
+        memory_service=memories,
+        on_memory_correction=record_correction,
+    )
     async with AsyncClient(transport=ASGITransport(app=app), base_url=origin) as client:
         session = await client.post("/v1/session", headers={"origin": origin})
         assert session.status_code == 200
@@ -213,6 +222,8 @@ async def test_authenticated_memory_management_api(tmp_path: Path) -> None:
         )
         assert corrected.status_code == 200
         assert corrected.json()["revision"] == 2
+        assert corrections[0][0].type == "conversation.user_text.v1"
+        assert corrections[0][1].revision == 2
 
         revisions = await client.get(f"/v1/memories/{stored.memory_id}/revisions", headers=headers)
         assert [item["text"] for item in revisions.json()["items"]] == [

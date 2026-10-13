@@ -1,0 +1,446 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 14%]
+................................................FFF....FFF.............. [ 18%]
+FF...................................................................... [ 23%]
+........................................................................ [ 28%]
+........................................................................ [ 32%]
+........................................................................ [ 37%]
+........................................................................ [ 42%]
+........................................................................ [ 47%]
+........................................................................ [ 51%]
+........................................................................ [ 56%]
+........................................................................ [ 61%]
+........................................................................ [ 65%]
+........................................................................ [ 70%]
+........................................................................ [ 75%]
+........................................................................ [ 80%]
+........................................................................ [ 84%]
+........................................................................ [ 89%]
+........................................................................ [ 94%]
+........................................................................ [ 98%]
+.................                                                        [100%]
+=================================== FAILURES ===================================
+______ test_real_wal_writer_process_blocks_competition_until_exit[normal] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-108/test_real_wal_writer_process_b0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75eff058fe70>
+stop = 'normal'
+
+    @pytest.mark.parametrize("stop", ["normal", "sigkill"])
+    def test_real_wal_writer_process_blocks_competition_until_exit(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop: str
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "data" / "siro.db"
+>       with held_by_process(domain, database) as process:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+tests/integration/test_data_owner_lifecycle.py:81: in held_by_process
+    assert line(process) == "HELD"
+           ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+process = <Popen: returncode: 0 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>
+
+    def line(process: subprocess.Popen[str]) -> str:
+        assert process.stdout is not None
+>       readable, _, _ = select.select((process.stdout,), (), (), 2)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: filedescriptor out of range in select()
+
+tests/integration/test_data_owner_lifecycle.py:47: ValueError
+_____ test_real_wal_writer_process_blocks_competition_until_exit[sigkill] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-108/test_real_wal_writer_process_b1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75efcb407000>
+stop = 'sigkill'
+
+    @pytest.mark.parametrize("stop", ["normal", "sigkill"])
+    def test_real_wal_writer_process_blocks_competition_until_exit(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop: str
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "data" / "siro.db"
+>       with held_by_process(domain, database) as process:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+tests/integration/test_data_owner_lifecycle.py:81: in held_by_process
+    assert line(process) == "HELD"
+           ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+process = <Popen: returncode: 0 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>
+
+    def line(process: subprocess.Popen[str]) -> str:
+        assert process.stdout is not None
+>       readable, _, _ = select.select((process.stdout,), (), (), 2)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: filedescriptor out of range in select()
+
+tests/integration/test_data_owner_lifecycle.py:47: ValueError
+_______ test_two_real_processes_compete_atomically_without_wait_or_retry _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-108/test_two_real_processes_compet0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75efcb406900>
+
+    def test_two_real_processes_compete_atomically_without_wait_or_retry(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "never-created" / "siro.db"
+        code = (
+            "import sys; from pathlib import Path; "
+            "import siro.adapters.data_ownership as owner; "
+            "owner._owner_directory=lambda:Path(sys.argv[1]); "
+            "print('READY',flush=True); sys.stdin.read(1)\n"
+            "try:\n"
+            " with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
+            "  print('HELD',flush=True)\n"
+            "  sys.stdin.read(1)\n"
+            "except owner.DataOwnerBusyError:\n"
+            " print('BUSY',flush=True)\n"
+            " raise SystemExit(7)\n"
+        )
+        with (
+            managed_child(code, domain, database) as first,
+            managed_child(code, domain, database) as second,
+        ):
+>           assert line(first) == line(second) == "READY"
+                   ^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:197: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+process = <Popen: returncode: 0 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>
+
+    def line(process: subprocess.Popen[str]) -> str:
+        assert process.stdout is not None
+>       readable, _, _ = select.select((process.stdout,), (), (), 2)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: filedescriptor out of range in select()
+
+tests/integration/test_data_owner_lifecycle.py:47: ValueError
+__ test_actual_exec_does_not_inherit_owner_descriptor_with_close_fds_disabled __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-108/test_actual_exec_does_not_inhe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75efcb4069e0>
+
+    def test_actual_exec_does_not_inherit_owner_descriptor_with_close_fds_disabled(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "siro.db"
+        child = (
+            "import sys,select; ready,_,_=select.select([sys.stdin],[],[],2); "
+            "sys.stdin.read(1) if ready else None"
+        )
+        code = (
+            "import sys,subprocess; from pathlib import Path; "
+            "import siro.adapters.data_ownership as owner; "
+            "owner._owner_directory=lambda:Path(sys.argv[1])\n"
+            "with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
+            f" child=subprocess.Popen([sys.executable,'-c',{child!r}],close_fds=False)\n"
+            "print('CLOSED '+str(child.pid),flush=True)\n"
+            "raise SystemExit(child.wait(timeout=3))\n"
+        )
+        with managed_child(code, domain, database) as process:
+>           message = line(process)
+                      ^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:306: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+process = <Popen: returncode: 0 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>
+
+    def line(process: subprocess.Popen[str]) -> str:
+        assert process.stdout is not None
+>       readable, _, _ = select.select((process.stdout,), (), (), 2)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: filedescriptor out of range in select()
+
+tests/integration/test_data_owner_lifecycle.py:47: ValueError
+_ test_raw_fork_child_conservatively_retains_owner_after_parent_context_closes[normal] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-108/test_raw_fork_child_conservati0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75efcb407af0>
+stop = 'normal'
+
+    @pytest.mark.parametrize("stop", ["normal", "sigkill"])
+    def test_raw_fork_child_conservatively_retains_owner_after_parent_context_closes(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop: str
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "siro.db"
+        read_fd, write_fd = os.pipe()
+        code = (
+            "import os,sys,select; from pathlib import Path; "
+            "import siro.adapters.data_ownership as owner; "
+            "owner._owner_directory=lambda:Path(sys.argv[1])\n"
+            "with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
+            " child=os.fork()\n"
+            " if child==0:\n"
+            "  os.close(0); os.close(1); os.close(2)\n"
+            f"  ready,_,_=select.select([{read_fd}],[],[],2)\n"
+            f"  os.read({read_fd},1) if ready else None\n"
+            "  os._exit(0)\n"
+            "print('CLOSED '+str(child),flush=True)\n"
+            "_,status=os.waitpid(child,0)\n"
+            "print('REAPED',flush=True)\n"
+        )
+        try:
+            with managed_child(code, domain, database, pass_fds=(read_fd,)) as process:
+>               message = line(process)
+                          ^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:342: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+process = <Popen: returncode: 0 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>
+
+    def line(process: subprocess.Popen[str]) -> str:
+        assert process.stdout is not None
+>       readable, _, _ = select.select((process.stdout,), (), (), 2)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: filedescriptor out of range in select()
+
+tests/integration/test_data_owner_lifecycle.py:47: ValueError
+_ test_raw_fork_child_conservatively_retains_owner_after_parent_context_closes[sigkill] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-108/test_raw_fork_child_conservati1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75efcb502e40>
+stop = 'sigkill'
+
+    @pytest.mark.parametrize("stop", ["normal", "sigkill"])
+    def test_raw_fork_child_conservatively_retains_owner_after_parent_context_closes(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop: str
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "siro.db"
+        read_fd, write_fd = os.pipe()
+        code = (
+            "import os,sys,select; from pathlib import Path; "
+            "import siro.adapters.data_ownership as owner; "
+            "owner._owner_directory=lambda:Path(sys.argv[1])\n"
+            "with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
+            " child=os.fork()\n"
+            " if child==0:\n"
+            "  os.close(0); os.close(1); os.close(2)\n"
+            f"  ready,_,_=select.select([{read_fd}],[],[],2)\n"
+            f"  os.read({read_fd},1) if ready else None\n"
+            "  os._exit(0)\n"
+            "print('CLOSED '+str(child),flush=True)\n"
+            "_,status=os.waitpid(child,0)\n"
+            "print('REAPED',flush=True)\n"
+        )
+        try:
+            with managed_child(code, domain, database, pass_fds=(read_fd,)) as process:
+>               message = line(process)
+                          ^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:342: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+process = <Popen: returncode: 0 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>
+
+    def line(process: subprocess.Popen[str]) -> str:
+        assert process.stdout is not None
+>       readable, _, _ = select.select((process.stdout,), (), (), 2)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: filedescriptor out of range in select()
+
+tests/integration/test_data_owner_lifecycle.py:47: ValueError
+_ test_owned_default_pool_sqlite_work_is_joined_before_context_releases_descriptor[False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-108/test_owned_default_pool_sqlite0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75efcb501010>
+primary = False
+
+    @pytest.mark.parametrize("primary", [False, True])
+    def test_owned_default_pool_sqlite_work_is_joined_before_context_releases_descriptor(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary: bool
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "siro.db"
+        entered, release = threading.Event(), threading.Event()
+        exiting, finished = threading.Event(), threading.Event()
+        failures: list[BaseException] = []
+        busy: list[str] = []
+        code = (
+            "import sys; from pathlib import Path; "
+            "import siro.adapters.data_ownership as owner; "
+            "owner._owner_directory=lambda:Path(sys.argv[1])\n"
+            "try:\n"
+            " with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
+            "  print('UNEXPECTED',flush=True)\n"
+            "except owner.DataOwnerBusyError:\n"
+            " print('BUSY',flush=True)\n"
+        )
+    
+        def work() -> None:
+            try:
+                with closing(sqlite3.connect(database)) as connection, connection:
+                    connection.execute("CREATE TABLE pool_fixture(value TEXT)")
+                    connection.execute("INSERT INTO pool_fixture VALUES ('joined-commit')")
+                    entered.set()
+                    assert release.wait(3), "synthetic pool COMMIT release missing"
+            finally:
+                finished.set()
+    
+        def probe_and_release() -> None:
+            try:
+                assert entered.wait(2) and exiting.wait(2)
+                assert not finished.is_set()
+                with managed_child(code, domain, database) as process:
+                    busy.append(line(process))
+                    assert process.wait(timeout=2) == 0
+            except BaseException as error:
+                failures.append(error)
+            finally:
+                release.set()
+    
+        controller = threading.Thread(target=probe_and_release)
+        controller.start()
+        try:
+            if primary:
+                with (
+                    pytest.raises(KeyboardInterrupt, match="synthetic primary interrupt"),
+                    owner.exclusive_data_owner(database) as held,
+                ):
+                    loop = held.loop_factory()
+                    loop.run_in_executor(None, work)
+                    assert entered.wait(2)
+                    loop.close()  # real loop close leaves actual pool work unfinished
+                    exiting.set()
+                    raise KeyboardInterrupt("synthetic primary interrupt")
+            else:
+                with owner.exclusive_data_owner(database) as held:
+                    loop = held.loop_factory()
+                    loop.run_in_executor(None, work)
+                    assert entered.wait(2)
+                    loop.close()
+                    exiting.set()
+            controller.join(timeout=2)
+>           assert not controller.is_alive() and failures == []
+E           AssertionError: assert (not False and [ValueError('...in select()')] == []
+E            +  where False = is_alive()
+E            +    where is_alive = <Thread(Thread-211 (probe_and_release), stopped 129672763397824)>.is_alive
+E             
+E             Left contains one more item: ValueError('filedescriptor out of range in select()')
+E             Use -v to get more diff)
+
+tests/integration/test_data_owner_lifecycle.py:592: AssertionError
+_ test_owned_default_pool_sqlite_work_is_joined_before_context_releases_descriptor[True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-108/test_owned_default_pool_sqlite1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75efcb501550>
+primary = True
+
+    @pytest.mark.parametrize("primary", [False, True])
+    def test_owned_default_pool_sqlite_work_is_joined_before_context_releases_descriptor(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary: bool
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "siro.db"
+        entered, release = threading.Event(), threading.Event()
+        exiting, finished = threading.Event(), threading.Event()
+        failures: list[BaseException] = []
+        busy: list[str] = []
+        code = (
+            "import sys; from pathlib import Path; "
+            "import siro.adapters.data_ownership as owner; "
+            "owner._owner_directory=lambda:Path(sys.argv[1])\n"
+            "try:\n"
+            " with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
+            "  print('UNEXPECTED',flush=True)\n"
+            "except owner.DataOwnerBusyError:\n"
+            " print('BUSY',flush=True)\n"
+        )
+    
+        def work() -> None:
+            try:
+                with closing(sqlite3.connect(database)) as connection, connection:
+                    connection.execute("CREATE TABLE pool_fixture(value TEXT)")
+                    connection.execute("INSERT INTO pool_fixture VALUES ('joined-commit')")
+                    entered.set()
+                    assert release.wait(3), "synthetic pool COMMIT release missing"
+            finally:
+                finished.set()
+    
+        def probe_and_release() -> None:
+            try:
+                assert entered.wait(2) and exiting.wait(2)
+                assert not finished.is_set()
+                with managed_child(code, domain, database) as process:
+                    busy.append(line(process))
+                    assert process.wait(timeout=2) == 0
+            except BaseException as error:
+                failures.append(error)
+            finally:
+                release.set()
+    
+        controller = threading.Thread(target=probe_and_release)
+        controller.start()
+        try:
+            if primary:
+                with (
+                    pytest.raises(KeyboardInterrupt, match="synthetic primary interrupt"),
+                    owner.exclusive_data_owner(database) as held,
+                ):
+                    loop = held.loop_factory()
+                    loop.run_in_executor(None, work)
+                    assert entered.wait(2)
+                    loop.close()  # real loop close leaves actual pool work unfinished
+                    exiting.set()
+                    raise KeyboardInterrupt("synthetic primary interrupt")
+            else:
+                with owner.exclusive_data_owner(database) as held:
+                    loop = held.loop_factory()
+                    loop.run_in_executor(None, work)
+                    assert entered.wait(2)
+                    loop.close()
+                    exiting.set()
+            controller.join(timeout=2)
+>           assert not controller.is_alive() and failures == []
+E           AssertionError: assert (not False and [ValueError('...in select()')] == []
+E            +  where False = is_alive()
+E            +    where is_alive = <Thread(Thread-212 (probe_and_release), stopped 129672763397824)>.is_alive
+E             
+E             Left contains one more item: ValueError('filedescriptor out of range in select()')
+E             Use -v to get more diff)
+
+tests/integration/test_data_owner_lifecycle.py:592: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_lifecycle.py::test_real_wal_writer_process_blocks_competition_until_exit[normal]
+FAILED tests/integration/test_data_owner_lifecycle.py::test_real_wal_writer_process_blocks_competition_until_exit[sigkill]
+FAILED tests/integration/test_data_owner_lifecycle.py::test_two_real_processes_compete_atomically_without_wait_or_retry
+FAILED tests/integration/test_data_owner_lifecycle.py::test_actual_exec_does_not_inherit_owner_descriptor_with_close_fds_disabled
+FAILED tests/integration/test_data_owner_lifecycle.py::test_raw_fork_child_conservatively_retains_owner_after_parent_context_closes[normal]
+FAILED tests/integration/test_data_owner_lifecycle.py::test_raw_fork_child_conservatively_retains_owner_after_parent_context_closes[sigkill]
+FAILED tests/integration/test_data_owner_lifecycle.py::test_owned_default_pool_sqlite_work_is_joined_before_context_releases_descriptor[False]
+FAILED tests/integration/test_data_owner_lifecycle.py::test_owned_default_pool_sqlite_work_is_joined_before_context_releases_descriptor[True]
+8 failed, 1521 passed, 5 deselected, 3 warnings in 166.69s (0:02:46)

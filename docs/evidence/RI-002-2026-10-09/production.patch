@@ -1,0 +1,419 @@
+diff --git a/src/siro/services/tools/orchestrator.py b/src/siro/services/tools/orchestrator.py
+--- a/src/siro/services/tools/orchestrator.py
++++ b/src/siro/services/tools/orchestrator.py
+@@ -7,7 +7,7 @@
+ import sqlite3
+ from collections.abc import Awaitable, Callable
+ from copy import deepcopy
+-from dataclasses import dataclass, replace
++from dataclasses import asdict, dataclass, replace
+ from datetime import UTC, datetime
+ from enum import StrEnum
+ from typing import cast
+@@ -142,15 +142,75 @@
+     return kind is None
+ 
+ 
++class AvailabilityState(StrEnum):
++    AVAILABLE = "available"
++    UNAVAILABLE = "unavailable"
++    UNKNOWN = "unknown"
++
++
++class AvailabilityReason(StrEnum):
++    READY = "ready"
++    NOT_READY = "not_ready"
++    TOOLS_DISABLED = "tools_disabled"
++    BROWSER_EXECUTABLE_MISSING = "browser_executable_missing"
++    WORKSPACE_UNAVAILABLE = "workspace_unavailable"
++    AVAILABILITY_CHECK_FAILED = "availability_check_failed"
++
++
++@dataclass(frozen=True, slots=True)
++class ToolAvailability:
++    state: AvailabilityState
++    reason: AvailabilityReason
++
++
++@dataclass(frozen=True, slots=True)
++class ToolMetadata:
++    display_name: str | None = None
++    output_contract: str | None = None
++    required_permissions: tuple[str, ...] | None = None
++    risk_level: str | None = None
++    version: str | None = None
++    provenance: str | None = None
++    timeout_seconds: float | None = None
++    failure_behavior: str | None = None
++
++
++@dataclass(frozen=True, slots=True)
++class ToolCatalogSnapshot:
++    definitions: tuple[ToolDefinition, ...]
++    inventory: tuple[dict[str, object], ...]
++    checked_at: str
++
++    def model_context(self) -> str:
++        # Schemas already travel as tools. Hidden compatibility handlers are not model tools.
++        rows = [
++            {k: v for k, v in row.items() if k not in {"input_schema", "checked_at"}}
++            for row in self.inventory
++            if row["model_visible"]
++        ]
++        return json.dumps(
++            {
++                "authorizes_execution": False,
++                "instruction": "Registered capabilities for this request, not proof of success. "
++                "Use only current request tool definitions; null means unknown. "
++                "Unavailable tools must not be bypassed with another capability.",
++                "capabilities": rows,
++            },
++            ensure_ascii=False,
++            separators=(",", ":"),
++        )
++
++
+ @dataclass(frozen=True, slots=True)
+ class ToolDescriptor:
+     name: str
+     definition: ToolDefinition | None
+     executor: ToolExecutor
+-    available: Callable[[], bool]
++    available: Callable[[], bool | ToolAvailability]
+     backend: str
+     effect: str
+     contextual_executor: ContextToolExecutor | None = None
++    metadata: ToolMetadata | None = None
+ 
+ 
+ class ToolCatalog:
+@@ -164,14 +224,35 @@
+             if descriptor.definition is not None and descriptor.definition.name != descriptor.name:
+                 raise ValueError("tool descriptor name differs from schema")
+             self._descriptors[descriptor.name] = replace(
+-                descriptor, definition=deepcopy(descriptor.definition)
+-            )
++                descriptor,
++                definition=deepcopy(descriptor.definition),
++                metadata=deepcopy(descriptor.metadata),
++            )
++
++    @staticmethod
++    def _availability(descriptor: ToolDescriptor) -> ToolAvailability:
++        try:
++            result = descriptor.available()
++        except Exception:
++            # Readiness is descriptive. Never publish exception payloads or enable on failure.
++            return ToolAvailability(
++                AvailabilityState.UNKNOWN, AvailabilityReason.AVAILABILITY_CHECK_FAILED
++            )
++        if isinstance(result, ToolAvailability):
++            return result
++        if result is True:
++            return ToolAvailability(AvailabilityState.AVAILABLE, AvailabilityReason.READY)
++        if result is False:
++            return ToolAvailability(AvailabilityState.UNAVAILABLE, AvailabilityReason.NOT_READY)
++        return ToolAvailability(
++            AvailabilityState.UNKNOWN, AvailabilityReason.AVAILABILITY_CHECK_FAILED
++        )
+ 
+     def require(self, name: str, arguments: dict[str, object]) -> ToolDescriptor:
+         descriptor = self._descriptors.get(name)
+         if descriptor is None:
+             raise ValueError("unsupported tool capability")
+-        if not descriptor.available():
++        if self._availability(descriptor).state is not AvailabilityState.AVAILABLE:
+             raise ToolUnavailableError("tool is unavailable")
+         if descriptor.definition is not None and not _valid_arguments(
+             arguments, descriptor.definition.input_schema
+@@ -180,23 +261,37 @@
+         return descriptor
+ 
+     def definitions(self) -> tuple[ToolDefinition, ...]:
+-        return tuple(
+-            deepcopy(d.definition)
+-            for d in self._descriptors.values()
+-            if d.definition is not None and d.available()
+-        )
++        return self.capture().definitions
+ 
+     def snapshot(self) -> list[dict[str, object]]:
+-        return [
+-            {
+-                "name": d.name,
+-                "available": d.available(),
+-                "backend": d.backend,
+-                "effect": d.effect,
+-                "model_visible": d.definition is not None,
+-            }
+-            for d in self._descriptors.values()
+-        ]
++        return list(self.capture().inventory)
++
++    def capture(self) -> ToolCatalogSnapshot:
++        checked_at = datetime.now(UTC).isoformat()
++        definitions: list[ToolDefinition] = []
++        inventory: list[dict[str, object]] = []
++        for d in self._descriptors.values():
++            status = self._availability(d)
++            available = status.state is AvailabilityState.AVAILABLE
++            definition = deepcopy(d.definition)
++            if available and definition is not None:
++                definitions.append(definition)
++            inventory.append(
++                {
++                    "name": d.name,
++                    "available": available,
++                    "backend": d.backend,
++                    "effect": d.effect,
++                    "model_visible": d.definition is not None,
++                    "availability": status.state.value,
++                    "reason_code": status.reason.value,
++                    "checked_at": checked_at,
++                    "description": definition.description if definition is not None else None,
++                    "input_schema": deepcopy(definition.input_schema) if definition else None,
++                    **asdict(d.metadata or ToolMetadata()),
++                }
++            )
++        return ToolCatalogSnapshot(tuple(definitions), tuple(inventory), checked_at)
+ 
+ 
+ class ProposalState(StrEnum):
+diff --git a/src/siro/services/presentation/integrated.py b/src/siro/services/presentation/integrated.py
+--- a/src/siro/services/presentation/integrated.py
++++ b/src/siro/services/presentation/integrated.py
+@@ -5,7 +5,7 @@
+ import asyncio
+ import json
+ from collections.abc import Awaitable, Callable
+-from dataclasses import asdict
++from dataclasses import asdict, replace
+ from datetime import UTC, datetime
+ from pathlib import Path
+ from uuid import uuid4
+@@ -51,6 +51,8 @@
+ )
+ 
+ _AGENT_TOOLS = DEFAULT_MODEL_TOOLS
++_CAPABILITY_BLOCK_START = "\n\n[SIRO_TOOL_CAPABILITIES_V1]\n"
++_CAPABILITY_BLOCK_END = "\n[/SIRO_TOOL_CAPABILITIES_V1]"
+ 
+ _EMOTION_COMMANDS = {
+     "生氣": ("angry", "現在示範生氣的表情。"),
+@@ -146,13 +148,41 @@
+             return self._tool_orchestrator.model_tools()
+         return _AGENT_TOOLS
+ 
+-    def _checkpoint_callback(self, run_id: str) -> Callable[[], Awaitable[None]] | None:
++    def _model_capabilities(self) -> tuple[tuple[ToolDefinition, ...], str | None]:
++        if (
++            self._runtime_profile == "candidate"
++            and self._tool_orchestrator is not None
++            and self._tool_orchestrator.catalog is not None
++        ):
++            captured = self._tool_orchestrator.catalog.capture()
++            return captured.definitions, captured.model_context()
++        return self._model_tools(), None
++
++    def _checkpoint_callback(
++        self, run_id: str, capability_context: str | None = None
++    ) -> Callable[[], Awaitable[None]] | None:
+         if self._runtime_profile != "candidate":
+             return None
+ 
+         async def ready() -> None:
+             assert self._agent_runs is not None
+-            await self._agent_runs.checkpoint(run_id, self._message_histories[run_id])
++            history = self._message_histories[run_id]
++            if capability_context is not None:
++                if not history or history[0].role != "system":
++                    raise RuntimeError("native history has no system context")
++                content = history[0].content
++                if content.endswith(_CAPABILITY_BLOCK_END):
++                    base, marker, _ = content.rpartition(_CAPABILITY_BLOCK_START)
++                    if marker:
++                        content = base
++                history[0] = replace(
++                    history[0],
++                    content=content
++                    + _CAPABILITY_BLOCK_START
++                    + capability_context
++                    + _CAPABILITY_BLOCK_END,
++                )
++            await self._agent_runs.checkpoint(run_id, history)
+ 
+         return ready
+ 
+@@ -452,6 +482,7 @@
+                 f"attachment={relationship.attachment:.2f}, rupture={relationship.rupture:.2f} "
+                 f"[source:{source_event.event_id}]",
+             )
++            tools, capability_context = self._model_capabilities()
+             result = await self._core.respond(
+                 session_id,
+                 "siro",
+@@ -459,9 +490,9 @@
+                 privacy=self._privacy,
+                 on_delta=delta,
+                 verified_context=verified_preferences,
+-                tools=self._model_tools(),
++                tools=tools,
+                 message_history=self._message_histories.get(agent_run.run_id),
+-                on_messages_ready=self._checkpoint_callback(agent_run.run_id),
++                on_messages_ready=self._checkpoint_callback(agent_run.run_id, capability_context),
+                 recent_messages=recent_messages,
+                 memory_route_privacy=EventPrivacy(self._privacy.value)
+                 if self._runtime_profile == "candidate"
+@@ -688,15 +719,16 @@
+             if run_id not in self._terminated:
+                 await emit({"type": "assistant_delta", "session_id": session_id, "text": value})
+ 
++        tools, capability_context = self._model_capabilities()
+         result = await self._core.respond(
+             session_id,
+             "siro",
+             prompt,
+             privacy=self._privacy,
+             on_delta=continuation_delta,
+-            tools=self._model_tools(),
++            tools=tools,
+             message_history=history,
+-            on_messages_ready=self._checkpoint_callback(run_id),
++            on_messages_ready=self._checkpoint_callback(run_id, capability_context),
+         )
+         if run_id in self._terminated:
+             return
+diff --git a/src/siro/services/presentation/gateway.py b/src/siro/services/presentation/gateway.py
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -43,10 +43,14 @@
+ from siro.services.tools.execution import ExecutionContext
+ from siro.services.tools.orchestrator import (
+     DEFAULT_MODEL_TOOLS,
++    AvailabilityReason,
++    AvailabilityState,
+     ProposalState,
++    ToolAvailability,
+     ToolCatalog,
+     ToolDescriptor,
+     ToolExecutor,
++    ToolMetadata,
+     ToolOrchestrator,
+     ToolProposal,
+ )
+@@ -1513,14 +1517,60 @@
+     if browser_sessions is not None:
+         definitions.update({d.name: d for d in BROWSER_SESSION_TOOLS})
+ 
+-    def readiness(name: str) -> bool:
++    def readiness(name: str) -> ToolAvailability:
+         if not state.kill_switches["tools"]:
+-            return False
++            return ToolAvailability(
++                AvailabilityState.UNAVAILABLE, AvailabilityReason.TOOLS_DISABLED
++            )
+         if name.startswith("filesystem."):
+-            return workspace is not None and workspace.available
++            ready = workspace is not None and workspace.available
++            return ToolAvailability(
++                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
++                AvailabilityReason.READY if ready else AvailabilityReason.WORKSPACE_UNAVAILABLE,
++            )
+         if name.startswith("browser."):
+-            return bool(shutil.which("google-chrome") or shutil.which("chromium"))
+-        return True  # argv/application target checks remain in their existing handlers
++            ready = bool(shutil.which("google-chrome") or shutil.which("chromium"))
++            return ToolAvailability(
++                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
++                AvailabilityReason.READY
++                if ready
++                else AvailabilityReason.BROWSER_EXECUTABLE_MISSING,
++            )
++        # Target checks remain in existing handlers; this is not a successful action probe.
++        return ToolAvailability(AvailabilityState.AVAILABLE, AvailabilityReason.READY)
++
++    def tool_metadata(name: str) -> ToolMetadata:
++        labels = {
++            "computer.execute": "執行電腦任務",
++            "process.start": "啟動應用程式",
++            "browser.navigate+read": "開啟並閱讀網頁",
++            "browser.read": "閱讀目前網頁",
++            "browser.fill": "填寫網頁欄位",
++            "browser.click": "操作網頁按鈕",
++            "browser.close": "關閉目前網頁",
++            "filesystem.read": "讀取工作目錄文字檔",
++            "filesystem.list": "查看工作目錄檔案",
++        }
++        read_only = name in {
++            "browser.navigate+read",
++            "browser.read",
++            "filesystem.read",
++            "filesystem.list",
++        }
++        return ToolMetadata(
++            display_name=labels.get(name),
++            required_permissions=("tool_approval", "workspace_path_grant")
++            if name.startswith("filesystem.")
++            else ("tool_approval",),
++            risk_level="observe/read-only" if read_only else "computer",
++            version="siro-tool-contract-v1",
++            provenance="siro_builtin",
++            timeout_seconds=120
++            if name == "computer.execute"
++            else (30 if name.startswith("browser.") and browser_sessions is not None else None),
++            failure_behavior="Failures produce failed observations. Unknown effects are not "
++            "automatically repeated. Availability is not proof of successful execution.",
++        )
+ 
+     catalog = (
+         ToolCatalog(
+@@ -1545,6 +1595,7 @@
+                     contextual_executor=execute_computer
+                     if name == "computer.execute"
+                     else (browser_contextual.get(name) or workspace_contextual.get(name)),
++                    metadata=tool_metadata(name),
+                 )
+                 for name, handler in handlers.items()
+             )
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -57,7 +57,7 @@
+       </section>
+     </main>
+     <div class="toolbox">
+-      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><div id="tool-proposals"></div><details><summary>指定工作目錄讀取</summary>    <section>
++      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><div id="tool-proposals"></div><details><summary>指定工作目錄讀取</summary>    <section>
+       <h2>我的工作目錄</h2>
+       <p id="workspace-status">讀取狀態中…</p>
+       <p>將要分享的文字檔放入上方目錄，再請 SIRO 閱讀。每份文字檔最多 8 KiB。</p>
+@@ -300,9 +300,29 @@
+         if (!response.ok) throw new Error(data.detail || "操作未完成");
+         return data;
+       }
++      function renderCapabilities(tools = []) {
++        const root = document.querySelector("#capability-items"); root.textContent = "";
++        const reasons = {tools_disabled:"你已暫停電腦操作", browser_executable_missing:"尚未找到可用的瀏覽器", workspace_unavailable:"工作目錄讀取服務尚未就緒", not_ready:"目前尚未就緒", availability_check_failed:"目前無法確認狀態"};
++        if (!tools.length) root.textContent = "目前沒有已註冊的電腦能力。";
++        for (const tool of tools) {
++          const card = document.createElement("div"); card.className = "proposal";
++          const title = document.createElement("strong"); title.textContent = tool.display_name || tool.name;
++          const status = document.createElement("p");
++          status.textContent = tool.availability === "available" ? "目前可用；操作時仍需檢查授權與目標。" : (reasons[tool.reason_code] || "此執行模式尚未提供即時狀態。");
++          const detail = document.createElement("small");
++          detail.textContent = (tool.risk_level === "observe/read-only" ? "讀取用途" : tool.risk_level === "computer" ? "可能改變電腦或網頁狀態" : "操作風險尚未宣告") + (tool.model_visible === false ? " · 相容入口，不會提供給模型選擇" : "");
++          card.append(title, status, detail); root.appendChild(card);
++        }
++      }
++      async function refreshCapabilities() {
++        try { renderCapabilities((await productRequest("/v1/runtime")).tools); }
++        catch { document.querySelector("#capability-items").textContent = "目前無法更新能力狀態，請稍後重試。"; }
++      }
++      document.querySelector("#capabilities-refresh").onclick = refreshCapabilities;
+       async function refreshProduct() {
+         try {
+           const runtime = await productRequest("/v1/runtime");
++          renderCapabilities(runtime.tools);
+           const features = runtime.features || {}, workspace = features.workspace || {};
+           const backend = runtime.routes?.model || "offline";
+           document.querySelector("#model-status").textContent = backend === "offline" ? "尚未連接對話模型" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";

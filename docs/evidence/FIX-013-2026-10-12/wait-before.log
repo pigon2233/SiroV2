@@ -1,0 +1,61 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_migration_error_survives_cleanup_refusal_and_late_repeated_cancel[True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-85/test_migration_error_survives_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7928eadda450>
+late_cancel = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("late_cancel", [False, True])
+    async def test_migration_error_survives_cleanup_refusal_and_late_repeated_cancel(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, late_cancel: bool
+    ) -> None:
+        store, source = await _databases(tmp_path)
+        original_source = source.read_bytes()
+        sensitive_detail = "synthetic-source-content-must-not-enter-cleanup-note"
+        directories = _Directories(
+            tmp_path, monkeypatch, block=late_cancel, failure=OSError(sensitive_detail)
+        )
+    
+        def fail(_connection: sqlite3.Connection, _migrations: Sequence[Migration]) -> None:
+            raise MigrationError("synthetic applied migration mismatch")
+    
+        monkeypatch.setattr(sqlite_module, "apply_migrations", fail)
+        loop = asyncio.get_running_loop()
+        previous_handler = loop.get_exception_handler()
+        unobserved_errors: list[dict[str, Any]] = []
+        loop.set_exception_handler(lambda _loop, context: unobserved_errors.append(context))
+        task = asyncio.create_task(store.restore_from(source))
+        try:
+            if late_cancel:
+                await _wait(directories.entered)
+                task.cancel()
+                await asyncio.sleep(0.01)
+                task.cancel()
+                await asyncio.sleep(0.01)
+                assert not task.done() and store._writer_lock.locked()
+                directories.release.set()
+            with pytest.raises(MigrationError, match="synthetic applied migration mismatch") as error:
+                await asyncio.wait_for(task, 2)
+            notes = getattr(error.value, "__notes__", [])
+            assert any("cleanup" in note.lower() for note in notes)
+            assert all(sensitive_detail not in note for note in notes)
+            assert _state(store.path) == "latest"
+            assert source.read_bytes() == original_source
+            assert directories.instances and all(
+                Path(instance.name).exists() for instance in directories.instances
+            )
+            assert not store._writer_lock.locked()
+            await asyncio.sleep(0)
+>           assert unobserved_errors == [], "owned migration failure must be observed only by its caller"
+E           AssertionError: owned migration failure must be observed only by its caller
+E           assert [{'message': ... mismatch')>}] == []
+E             
+E             Left contains one more item: {'message': 'MigrationError exception in shielded future', 'exception': MigrationError('synthetic applied migration mi...efined at /usr/lib/python3.14/asyncio/threads.py:12> exception=MigrationError('synthetic applied migration mismatch')>}
+E             Use -v to get more diff
+
+tests/integration/test_sqlite_restore_lifecycle.py:338: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_sqlite_restore_lifecycle.py::test_migration_error_survives_cleanup_refusal_and_late_repeated_cancel[True]
+1 failed, 1 passed, 7 deselected in 0.28s

@@ -1,0 +1,153 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_strict_admission_rejects_forged_zero_concurrency_before_queue ______
+
+fut = <coroutine object WorkerSupervisor.execute at 0x77cc0912cf20>
+timeout = 0.2
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout <= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout <= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+>           return await fut
+                   ^^^^^^^^^
+
+/usr/lib/python3.14/asyncio/tasks.py:488: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/adapters/skill_worker.py:210: in execute
+    async with semaphore:
+               ^^^^^^^^^
+/usr/lib/python3.14/asyncio/locks.py:14: in __aenter__
+    await self.acquire()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.locks.Semaphore object at 0x77cc0961e120 [locked]>
+
+    async def acquire(self):
+        """Acquire a semaphore.
+    
+        If the internal counter is larger than zero on entry,
+        decrement it by one and return True immediately.  If it is
+        zero on entry, block, waiting until some other task has
+        called release() to make it larger than 0, and then return
+        True.
+        """
+        if not self.locked():
+            # Maintain FIFO, wait for others to start even if _value > 0.
+            self._value -= 1
+            return True
+    
+        if self._waiters is None:
+            self._waiters = collections.deque()
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+    
+        try:
+            try:
+>               await fut
+E               asyncio.exceptions.CancelledError
+
+/usr/lib/python3.14/asyncio/locks.py:407: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-22/test_strict_admission_rejects_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77cc09607bb0>
+
+    @pytest.mark.asyncio
+    async def test_strict_admission_rejects_forged_zero_concurrency_before_queue(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skill = package(tmp_path, "def run(arguments): return arguments\n")
+        forged = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": 0}))
+    
+        async def forbidden(*args: object, **kwargs: object) -> object:
+            raise AssertionError("unsupported admission must never dispatch")
+    
+        monkeypatch.setattr(skill_worker, "execute_bounded_argv", forbidden)
+        with pytest.raises(SkillExecutionError, match="unsupported strict skill profile"):
+>           await asyncio.wait_for(
+                WorkerSupervisor(profile=STRICT).execute(forged, {"text": "synthetic"}), 0.2
+            )
+
+tests/integration/test_strict_skill_worker.py:522: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/asyncio/tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Timeout [expired]>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+exc_val = CancelledError(), exc_tb = <traceback object at 0x77cc091bf640>
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() <= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+>                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+/usr/lib/python3.14/asyncio/timeouts.py:114: TimeoutError
+=========================== short test summary info ============================
+FAILED tests/integration/test_strict_skill_worker.py::test_strict_admission_rejects_forged_zero_concurrency_before_queue
+1 failed, 40 deselected in 0.42s

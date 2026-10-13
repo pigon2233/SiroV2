@@ -1,0 +1,63 @@
+{
+  "python": "3.14.4",
+  "kernel": "7.0.0-34-generic",
+  "synthetic_root": "/tmp/siro-d50-lock-wni41qzj",
+  "filesystem": "tmpfs",
+  "four_simultaneous_contenders": {
+    "outcomes": [
+      "busy",
+      "busy",
+      "acquired",
+      "busy"
+    ],
+    "exactly_one_winner": true
+  },
+  "sigkill_release": {
+    "busy_while_owner_alive": true,
+    "owner_exit": -9,
+    "acquired_after_owner_join": true,
+    "elapsed_ms": 3.257
+  },
+  "fork_child_close_only": {
+    "parent_fd_inheritable": false,
+    "contender_busy_before_child_action": true,
+    "contender_acquired_after_child_action": true,
+    "child_exit0": true
+  },
+  "fork_child_unlock_releases_parent": {
+    "parent_fd_inheritable": false,
+    "contender_busy_before_child_action": true,
+    "contender_acquired_after_child_action": true,
+    "child_exit0": true
+  },
+  "exec-cloexec": {
+    "contender_acquired_while_replacement_alive": true
+  },
+  "exec-inherit": {
+    "contender_acquired_while_replacement_alive": false
+  },
+  "directory_symlink_alias": {
+    "canonical_roots_same": true,
+    "same_lock_contender_busy": true
+  },
+  "symlink_lock_nofollow": {
+    "errno": 40,
+    "rejected": true
+  },
+  "hardlink_stat": {
+    "regular": true,
+    "link_count": 2,
+    "same_inode": true
+  },
+  "unlink_recreate_split_owner": {
+    "second_owner_acquired": true,
+    "different_inode": true
+  },
+  "db_symlink_naive_parent_key_split": {
+    "actual_db_targets_same": true,
+    "naive_other_parent_lock_acquired": true
+  },
+  "network_filesystems_tested": false,
+  "fixture_root_removed": true,
+  "owned_processes_joined": true
+}

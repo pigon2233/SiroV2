@@ -10,9 +10,19 @@ from siro.services.audio.stt import MockSpeechToText, Transcript
 from siro.services.audio.tts import (
     SpeechPlayback,
     SpeechState,
+    prepare_spoken_text,
     speech_segments,
     synthesize_or_fallback,
 )
+
+
+def test_display_text_becomes_a_pronounceable_performance_script() -> None:
+    assert (
+        prepare_spoken_text(
+            "**SIRO**：請看[說明](https://example.com)。\n- 第一件事\n- 第二件事"  # noqa: RUF001
+        )
+        == "希洛：請看說明。；第一件事；第二件事。"  # noqa: RUF001
+    )
 
 
 def frame(amplitude: int, samples: int = 320) -> bytes:

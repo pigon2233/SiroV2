@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$project_root"
+
+uv_command="$(command -v uv || true)"
+if [[ -z "$uv_command" && -x "${HOME}/.local/bin/uv" ]]; then
+  uv_command="${HOME}/.local/bin/uv"
+fi
+if [[ -z "$uv_command" ]]; then
+  echo "uv is required; install the version documented in docs/DEPENDENCIES.md" >&2
+  exit 2
+fi
+
+"$uv_command" sync --locked --all-groups
+
+if [[ -f Cargo.toml ]]; then
+  cargo_command="$(command -v cargo || true)"
+  if [[ -z "$cargo_command" && -x "${HOME}/.cargo/bin/cargo" ]]; then
+    cargo_command="${HOME}/.cargo/bin/cargo"
+  fi
+  if [[ -z "$cargo_command" ]]; then
+    echo "cargo is required for the runtime workspace" >&2
+    exit 2
+  fi
+  "$cargo_command" fmt --all -- --check
+  "$cargo_command" build --workspace --locked
+  "$cargo_command" test --workspace --locked
+  "$cargo_command" clippy --workspace --all-targets --locked -- -D warnings
+fi
+
+"$uv_command" run ruff format --check .
+"$uv_command" run ruff check .
+"$uv_command" run mypy
+"$uv_command" run pytest
+"$uv_command" run scripts/export_schemas --check
+
+secret_report="$(
+  "$uv_command" run detect-secrets scan --all-files \
+    --exclude-files '(^|/)(\.venv|\.mypy_cache|\.pytest_cache|\.ruff_cache|models|node_modules|target|uv\.lock|docs/evidence)/|(^|/)\.env\.local$'
+)"
+"$uv_command" run python -c '
+import json
+import sys
+
+results = json.load(sys.stdin)["results"]
+if results:
+    for path, findings in results.items():
+        for finding in findings:
+            print(
+                "{}:{}: {}".format(path, finding.get("line_number"), finding.get("type")),
+                file=sys.stderr,
+            )
+    raise SystemExit(1)
+' <<<"$secret_report"

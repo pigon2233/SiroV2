@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-10",
+  "status": "PARTIAL",
+  "local_repairs_verified": [
+    "typed safe reasons and existing failed observation",
+    "readable main partial with unchanged cross-origin blocking",
+    "owned teardown callback Error only during closing"
+  ],
+  "commands": [
+    {
+      "command": ".venv/bin/python -m pytest -q -m 'not real_provider'",
+      "actual_argv": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not real_provider"
+      ],
+      "result": "767 passed, 5 deselected, 3 existing warnings, 111.45s",
+      "log": "final-full-suite.log"
+    },
+    {
+      "command": "ruff format --check src tests scripts",
+      "result": "220 files already formatted"
+    },
+    {
+      "command": "ruff check src tests scripts",
+      "result": "All checks passed!"
+    },
+    {
+      "command": "mypy",
+      "result": "Success: no issues found in 210 source files"
+    },
+    {
+      "command": "python scripts/export_schemas --check",
+      "exit_code": 0
+    }
+  ],
+  "true_chromium_scope": "10 fixtures PASS at final source",
+  "true_UI_renderer": "18 cases PASS; component renderer, not full product browser",
+  "real_configured_provider": "Bing and DDG actual native round trips; useful search FAIL",
+  "public_search_promotion": "BLOCKED_BY_FIX: FIX-002",
+  "public_4_second_cleanup_cause": "UNKNOWN; two failures preserved; later successes do not negate",
+  "rollback": "10-file exact reverse/reapply SHA PASS in temp copy",
+  "preservation": "221 existing source files checked; only six allowed production files changed",
+  "private_inputs": false,
+  "production_restart_or_deployment": false,
+  "not_run": [
+    "GPU/voice/human listening",
+    "human Live2D",
+    "real HA/ESP32",
+    "24h soak",
+    "remote CI",
+    "formal release",
+    "new MCP graph query"
+  ],
+  "existing_product_read_only_health": {
+    "health": "HTTPError",
+    "root": 200
+  }
+}

@@ -1,0 +1,68 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_worker_eos_proof_cannot_commit_zero_sample_audio _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-149/test_worker_eos_proof_cannot_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7436223e7820>
+capsys = <_pytest.capture.CaptureFixture object at 0x7436222b9550>
+
+    def test_worker_eos_proof_cannot_commit_zero_sample_audio(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        worker_path = Path(__file__).parents[2] / "scripts/qwen_tts_worker.py"
+        worker = runpy.run_path(str(worker_path))
+        model_path = tmp_path / "model"
+        model_path.mkdir()
+        (model_path / "config.json").write_text('{"synthetic":true}')
+        reference = tmp_path / "synthetic-reference.wav"
+        reference.write_bytes(b"synthetic fixture, not private audio")
+        cache = tmp_path / "cache"
+        model = SimpleNamespace(
+            create_voice_clone_prompt=lambda **kwargs: {"synthetic": True},
+            _merge_generate_kwargs=lambda **kwargs: kwargs,
+        )
+    
+        def write(output: io.BytesIO, samples: bytes, sample_rate: int, **kwargs: Any) -> None:
+            assert samples == b""
+            with wave.open(output, "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(sample_rate)
+                wav.writeframes(samples)
+    
+        monkeypatch.setitem(sys.modules, "soundfile", SimpleNamespace(write=write))
+        monkeypatch.setitem(
+            sys.modules, "torch",
+            SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False), bfloat16="synthetic"),
+        )
+        monkeypatch.setitem(
+            sys.modules, "qwen_tts",
+            SimpleNamespace(Qwen3TTSModel=SimpleNamespace(from_pretrained=lambda *args, **kwargs: model)),
+        )
+        monkeypatch.setattr(sys, "argv", [str(worker_path), str(model_path), str(reference), "synthetic", str(cache)])
+        monkeypatch.setattr(sys, "stdin", io.StringIO('{"text":"synthetic","request_id":"empty","epoch":3}\n'))
+        monkeypatch.setitem(worker["main"].__globals__, "version", lambda name: "synthetic")
+        monkeypatch.setitem(
+            worker["main"].__globals__, "observe_voice_clone", lambda *args: ([b""], 24000, COMPLETE)
+        )
+        assert worker["main"]() == 0
+        ready, result = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert ready["completion_protocol"] == 2
+>       assert result["error"] == "QwenOutputIncomplete"
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'error'
+
+tests/integration/test_speech_completion_edges.py:183: KeyError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_speech_completion_edges.py::test_worker_eos_proof_cannot_commit_zero_sample_audio
+1 failed, 11 deselected, 2 warnings in 1.30s

@@ -1,0 +1,1165 @@
+FFFFFFFFFFFFFFFFFFFFFFFF                                                 [100%]
+=================================== FAILURES ===================================
+_ test_failed_generation_never_accepts_partial_tool_intent[False-connection-False-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a0')
+profile = 'legacy', continuation = False, failure = 'connection'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-connection-False-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a1')
+profile = 'candidate', continuation = False, failure = 'connection'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-connection-True-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a2')
+profile = 'legacy', continuation = True, failure = 'connection'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-connection-True-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a3')
+profile = 'candidate', continuation = True, failure = 'connection'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-timeout-False-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a4')
+profile = 'legacy', continuation = False, failure = 'timeout'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-timeout-False-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a5')
+profile = 'candidate', continuation = False, failure = 'timeout'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-timeout-True-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a6')
+profile = 'legacy', continuation = True, failure = 'timeout'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-timeout-True-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a7')
+profile = 'candidate', continuation = True, failure = 'timeout'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-cancel-False-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a8')
+profile = 'legacy', continuation = False, failure = 'cancel'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-cancel-False-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a9')
+profile = 'candidate', continuation = False, failure = 'cancel'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-cancel-True-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a10')
+profile = 'legacy', continuation = True, failure = 'cancel'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-cancel-True-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a11')
+profile = 'candidate', continuation = True, failure = 'cancel'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-connection-False-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a12')
+profile = 'legacy', continuation = False, failure = 'connection'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-connection-False-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a13')
+profile = 'candidate', continuation = False, failure = 'connection'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-connection-True-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a14')
+profile = 'legacy', continuation = True, failure = 'connection'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-connection-True-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a15')
+profile = 'candidate', continuation = True, failure = 'connection'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-timeout-False-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a16')
+profile = 'legacy', continuation = False, failure = 'timeout'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-timeout-False-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a17')
+profile = 'candidate', continuation = False, failure = 'timeout'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-timeout-True-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a18')
+profile = 'legacy', continuation = True, failure = 'timeout'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-timeout-True-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a19')
+profile = 'candidate', continuation = True, failure = 'timeout'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-cancel-False-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a20')
+profile = 'legacy', continuation = False, failure = 'cancel'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-cancel-False-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a21')
+profile = 'candidate', continuation = False, failure = 'cancel'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 1 == 0
+E        +  where 1 = len([{}])
+E        +  and   0 = int(False)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-cancel-True-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a22')
+profile = 'legacy', continuation = True, failure = 'cancel', partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-cancel-True-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-16/test_failed_generation_never_a23')
+profile = 'candidate', continuation = True, failure = 'cancel'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path, model, hub, MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+            runtime_profile=profile, auto_authorize=lambda: True,
+        )
+        await controller.respond("interrupted", "synthetic goal")
+        expected_state = "cancelled" if failure == "cancel" else "failed"
+        expected_error = {"connection": "ConnectionError", "timeout": "timeout", "cancel": None}[failure]
+>       assert len(effects) == int(continuation)
+E       assert 2 == 1
+E        +  where 2 = len([{}, {}])
+E        +  and   1 = int(True)
+
+tests/integration/test_agent_batches.py:379: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-connection-False-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-connection-False-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-connection-True-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-connection-True-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-timeout-False-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-timeout-False-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-timeout-True-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-timeout-True-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-cancel-False-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-cancel-False-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-cancel-True-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-cancel-True-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-connection-False-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-connection-False-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-connection-True-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-connection-True-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-timeout-False-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-timeout-False-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-timeout-True-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-timeout-True-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-cancel-False-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-cancel-False-candidate]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-cancel-True-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-cancel-True-candidate]
+24 failed, 10 deselected, 2 warnings in 2.16s

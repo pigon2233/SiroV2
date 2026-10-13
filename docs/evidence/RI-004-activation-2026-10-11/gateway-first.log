@@ -1,0 +1,165 @@
+........................................F............................... [ 82%]
+.............F.                                                          [100%]
+=================================== FAILURES ===================================
+_ test_tools_off_suspends_even_if_candidate_cancel_fails_and_revoke_remains_available _
+
+    def test_tools_off_suspends_even_if_candidate_cancel_fails_and_revoke_remains_available() -> None:
+        owner = ActivationService()
+        owner.view.update(installed=True, enabled=True, package_hash=HASH)
+        candidate = PreparedService()
+        candidate.cancel_error = ExecutionCleanupError("private-cleanup-canary")
+        with TestClient(application(owner, skill_candidates=cast(Any, candidate))) as client:
+            headers = authenticated(client)
+            result = client.put("/v1/kills/tools", headers=headers, json={"enabled": False})
+>           assert result.status_code == 503
+E           assert 404 == 503
+E            +  where 404 = <Response [404 Not Found]>.status_code
+
+tests/integration/test_skill_activation_product.py:222: AssertionError
+_ test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects[candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-44/test_main_composes_one_live_ca0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x789593ee1a70>
+profile = 'candidate'
+
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    def test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str
+    ) -> None:
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
+        monkeypatch.setenv("SIRO_CONTEXT_SUMMARY_ENABLED", "0")
+        monkeypatch.setenv("SIRO_RUNTIME_BINARY", str(tmp_path / "missing-runtime"))
+        monkeypatch.setattr("shutil.which", lambda name: None)
+        effects: list[str] = []
+    
+        async def forbid(*args: object, **kwargs: object) -> None:
+            effects.append("external execution")
+            raise AssertionError("candidate control invoked an external effect")
+    
+        monkeypatch.setattr("asyncio.create_subprocess_exec", forbid)
+        from siro.adapters.models.mock import OfflineDemoModel
+        from siro.persistence.skills import SQLiteSkillRegistry
+    
+        monkeypatch.setattr(OfflineDemoModel, "stream", forbid)
+        monkeypatch.setattr(SQLiteSkillRegistry, "install", forbid)
+        monkeypatch.setattr(SQLiteSkillRegistry, "set_enabled", forbid)
+        services: list[PreparedService] = []
+    
+        def preparer(catalog: object) -> PreparedService:
+            service = PreparedService(catalog)
+            services.append(service)
+            return service
+    
+        module = importlib.import_module("siro.services.tools.skill_candidates")
+        monkeypatch.setattr(module, "SkillCandidatePreparer", preparer)
+        monkeypatch.setattr(gateway, "SkillCandidatePreparer", preparer, raising=False)
+        original_create_app = gateway.create_app
+    
+        def composed_app(**kwargs: Any) -> FastAPI:
+            owner = kwargs["skill_candidates"]
+            if profile == "candidate":
+                assert owner.catalog is kwargs["tool_orchestrator"].catalog
+            else:
+                assert owner is None
+            return original_create_app(**kwargs)
+    
+        monkeypatch.setattr(gateway, "create_app", composed_app)
+    
+        def run(app: FastAPI, **kwargs: object) -> None:
+            origin = "http://127.0.0.1:8000"
+            with TestClient(app) as client:
+                headers = authenticated(client, origin)
+                runtime = client.get("/v1/runtime", headers=headers).json()
+                assert runtime["routes"]["model"] == "offline"
+                assert runtime["skill_candidates"]["available"] is (profile == "candidate")
+                result = client.post(
+                    "/v1/skills/candidates", headers=headers, json={"capability": CAPABILITY}
+                )
+                if profile == "candidate":
+                    assert len(services) == 1
+                    service = services[0]
+                    assert service.catalog is not None
+                    catalog = cast(ToolCatalog, service.catalog)
+                    assert json.loads(
+                        json.dumps(
+                            [
+                                {key: value for key, value in row.items() if key != "checked_at"}
+                                for row in catalog.snapshot()
+                            ]
+                        )
+                    ) == [
+                        {key: value for key, value in row.items() if key != "checked_at"}
+                        for row in runtime["tools"]
+                    ]
+                    assert result.status_code == 200 and result.json() == REVIEW
+                    assert service.calls == [CAPABILITY]
+                    assert all(row["name"] != CAPABILITY for row in runtime["tools"])
+                else:
+                    assert services == [] and result.status_code == 503
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       gateway.main()
+
+tests/integration/test_skill_candidate_product.py:451: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1955: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x789592b063c0>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: FastAPI, **kwargs: object) -> None:
+        origin = "http://127.0.0.1:8000"
+        with TestClient(app) as client:
+            headers = authenticated(client, origin)
+            runtime = client.get("/v1/runtime", headers=headers).json()
+            assert runtime["routes"]["model"] == "offline"
+            assert runtime["skill_candidates"]["available"] is (profile == "candidate")
+            result = client.post(
+                "/v1/skills/candidates", headers=headers, json={"capability": CAPABILITY}
+            )
+            if profile == "candidate":
+                assert len(services) == 1
+                service = services[0]
+                assert service.catalog is not None
+                catalog = cast(ToolCatalog, service.catalog)
+                assert json.loads(
+                    json.dumps(
+                        [
+                            {key: value for key, value in row.items() if key != "checked_at"}
+                            for row in catalog.snapshot()
+                        ]
+                    )
+                ) == [
+                    {key: value for key, value in row.items() if key != "checked_at"}
+                    for row in runtime["tools"]
+                ]
+>               assert result.status_code == 200 and result.json() == REVIEW
+E               assert (409 == 200)
+E                +  where 409 = <Response [409 Conflict]>.status_code
+
+tests/integration/test_skill_candidate_product.py:444: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation_product.py::test_tools_off_suspends_even_if_candidate_cancel_fails_and_revoke_remains_available
+FAILED tests/integration/test_skill_candidate_product.py::test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects[candidate]
+2 failed, 85 passed, 3 warnings in 3.02s

@@ -1,0 +1,1841 @@
+diff --git a/src/siro/services/presentation/gateway.py b/src/siro/services/presentation/gateway.py
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -40,7 +40,11 @@
+ )
+ from siro.services.audio.stt import SpeechToText
+ from siro.services.audio.tts import EdgeNeuralTTS, KokoroLocalTTS, QwenReferenceTTS, plan_speech
+-from siro.services.tools.execution import ExecutionContext
++from siro.services.tools.execution import (
++    ExecutionCancelled,
++    ExecutionCleanupError,
++    ExecutionContext,
++)
+ from siro.services.tools.orchestrator import (
+     DEFAULT_MODEL_TOOLS,
+     AvailabilityReason,
+@@ -53,6 +57,11 @@
+     ToolMetadata,
+     ToolOrchestrator,
+     ToolProposal,
++)
++from siro.services.tools.skill_candidates import (
++    SkillCandidateBusy,
++    SkillCandidateClosed,
++    SkillCandidatePreparer,
+ )
+ from siro.services.tools.workspace import WorkspaceRuntime
+ 
+@@ -354,6 +363,11 @@
+     approved: bool
+ 
+ 
++class SkillCandidateInput(BaseModel):
++    model_config = ConfigDict(extra="forbid")
++    capability: str = Field(strict=True, min_length=1, max_length=128)
++
++
+ _URL = re.compile(r"https?://[^\s<>]+")
+ _APPLICATION_ALIASES = {
+     "firefox": ("firefox", "火狐"),
+@@ -467,6 +481,7 @@
+     memory_organizer: MemoryOrganizer | None = None,
+     workspace_service: WorkspaceRuntime | None = None,
+     on_memory_invalidated: Callable[[], Awaitable[None]] | None = None,
++    skill_candidates: SkillCandidatePreparer | None = None,
+ ) -> FastAPI:
+     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
+     gateway_state = state or GatewayState()
+@@ -474,6 +489,22 @@
+     session_tokens = tokens or SessionTokens()
+     renderer_transport = body_transport or WebSocketBodyTransport()
+     audio_owners = playback_ownership or PlaybackOwnership()
++    candidate_owner = skill_candidates if runtime_profile == "candidate" else None
++
++    def candidate_metadata() -> dict[str, object]:
++        return {
++            "available": candidate_owner is not None and gateway_state.kill_switches["tools"],
++            "busy": candidate_owner is not None and candidate_owner.busy,
++            "profile": "markdown-checklist-v1",
++            "authorizes_execution": False,
++        }
++
++    def current_snapshot() -> dict[str, object]:
++        return {
++            **gateway_state.snapshot(),
++            "runtime_profile": runtime_profile,
++            "skill_candidates": candidate_metadata(),
++        }
+ 
+     @asynccontextmanager
+     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+@@ -488,14 +519,18 @@
+                 with contextlib.suppress(Exception):
+                     await on_cancel(turn["turn_id"], "service shutdown")
+             try:
+-                if on_shutdown is not None:
+-                    await on_shutdown()
++                if candidate_owner is not None:
++                    await candidate_owner.close()
+             finally:
+                 try:
+-                    if isinstance(text_to_speech, QwenReferenceTTS):
+-                        await text_to_speech.close()
++                    if on_shutdown is not None:
++                        await on_shutdown()
+                 finally:
+-                    await gateway_hub.shutdown()
++                    try:
++                        if isinstance(text_to_speech, QwenReferenceTTS):
++                            await text_to_speech.close()
++                    finally:
++                        await gateway_hub.shutdown()
+ 
+     app = FastAPI(title="SIRO Presentation Gateway", lifespan=lifespan)
+     app.state.gateway_hub = gateway_hub
+@@ -670,7 +705,62 @@
+                 if k in gateway_state.routes
+             },
+             "tools": tool_orchestrator.tool_status() if tool_orchestrator is not None else [],
++            "skill_candidates": candidate_metadata(),
+         }
++
++    @app.post("/v1/skills/candidates")
++    async def prepare_skill_candidate(
++        request: Request,
++        body: SkillCandidateInput,
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_origin(request.headers.get("origin"))
++        require_token(authorization)
++        if candidate_owner is None:
++            raise HTTPException(status_code=503, detail="skill candidates are unavailable")
++        if not gateway_state.kill_switches["tools"]:
++            raise HTTPException(status_code=403, detail="tools are disabled")
++        try:
++            return await candidate_owner.prepare(body.capability)
++        except SkillCandidateBusy as error:
++            raise HTTPException(
++                status_code=409, detail="skill candidate preparation is busy"
++            ) from error
++        except SkillCandidateClosed as error:
++            raise HTTPException(
++                status_code=503, detail="skill candidates are unavailable"
++            ) from error
++        except (asyncio.CancelledError, ExecutionCancelled) as error:
++            raise HTTPException(
++                status_code=409, detail="skill candidate preparation was cancelled"
++            ) from error
++        except ExecutionCleanupError as error:
++            raise HTTPException(status_code=503, detail="skill candidate cleanup failed") from error
++
++    async def cancel_skill_candidate() -> bool:
++        if candidate_owner is None:
++            raise HTTPException(status_code=503, detail="skill candidates are unavailable")
++        try:
++            return await candidate_owner.cancel()
++        except SkillCandidateClosed as error:
++            raise HTTPException(
++                status_code=503, detail="skill candidates are unavailable"
++            ) from error
++        except (asyncio.CancelledError, ExecutionCancelled) as error:
++            raise HTTPException(
++                status_code=409, detail="skill candidate preparation was cancelled"
++            ) from error
++        except ExecutionCleanupError as error:
++            raise HTTPException(status_code=503, detail="skill candidate cleanup failed") from error
++
++    @app.post("/v1/skills/candidates/cancel")
++    async def cancel_skill_candidate_request(
++        request: Request,
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, bool]:
++        require_origin(request.headers.get("origin"))
++        require_token(authorization)
++        return {"cancelled": await cancel_skill_candidate()}
+ 
+     @app.post("/v1/workspace/{action}")
+     async def workspace_readback(
+@@ -725,7 +815,7 @@
+     @app.get("/v1/snapshot")
+     async def snapshot(authorization: str | None = Header(default=None)) -> dict[str, object]:
+         require_token(authorization)
+-        return gateway_state.snapshot()
++        return current_snapshot()
+ 
+     @app.post("/v1/conversations/{session_id}/turns")
+     async def create_turn(
+@@ -859,6 +949,8 @@
+         if name not in gateway_state.kill_switches:
+             raise HTTPException(status_code=404, detail="unknown kill switch")
+         gateway_state.kill_switches[name] = body.enabled
++        if name == "tools" and not body.enabled and candidate_owner is not None:
++            await cancel_skill_candidate()
+         if (
+             name == "cloud"
+             and not body.enabled
+@@ -984,7 +1076,7 @@
+             if not isinstance(token, str) or not session_tokens.valid(token):
+                 await websocket.close(code=1008, reason="invalid session token")
+                 return
+-            channel = await gateway_hub.connect(websocket, gateway_state.snapshot())
++            channel = await gateway_hub.connect(websocket, current_snapshot())
+             try:
+                 while True:
+                     message = await websocket.receive_json()
+@@ -1606,6 +1698,11 @@
+         if runtime_profile == "candidate"
+         else None
+     )
++    skill_candidates = (
++        SkillCandidatePreparer(catalog)
++        if runtime_profile == "candidate" and catalog is not None
++        else None
++    )
+     tool_orchestrator = ToolOrchestrator(
+         SQLiteToolProposalRepository(shared_store),
+         handlers,
+@@ -1751,6 +1848,7 @@
+             on_browser_tool=browser_tool,
+             on_application_tool=application_tool,
+             tool_orchestrator=tool_orchestrator,
++            skill_candidates=skill_candidates,
+         ),
+         host="127.0.0.1",
+         port=port,
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -34,7 +34,7 @@
+       .conversation-actions label { margin-left:auto; } .conversation-actions input { width:auto; }
+       .toolbox { align-items:start; display:grid; grid-template-columns:1fr 1fr; gap:20px; } details { border:1px solid var(--line); border-radius:14px; background:#191d29; margin:0 0 16px; padding:18px; } summary { cursor:pointer; font-size:14px; color:#d4d0de; } details[open]>summary { margin-bottom:18px; }
+       details section { border:0; padding:14px 0; background:none; } .quick-actions { display:flex; flex-wrap:wrap; gap:7px; } .capability-note { font-size:12px; } #authorization-status { margin:0; }
+-      #events,#snapshot,#workspace-result { white-space:pre-wrap; overflow-wrap:anywhere; max-height:250px; overflow:auto; font-size:11px; color:var(--muted); }
++      #events,#snapshot,#workspace-result,#skill-candidate-review,#skill-candidate-files { white-space:pre-wrap; overflow-wrap:anywhere; max-height:250px; overflow:auto; font-size:11px; color:var(--muted); }
+       #affect-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; } .affect-card { font-size:11px; background:#111722; border-radius:8px; padding:10px; } .meter { height:4px; background:#303748; margin-top:5px; }.meter span { display:block;height:100%;background:var(--pink); }
+       .proposal { border:1px solid #e5b6c844; border-radius:10px; padding:12px; margin:8px 0; font-size:12px; } .ok { color:#a7d0b9; }.warn { color:#c9ac89; } a { color:#dcc0d0; } small { color:var(--muted);overflow-wrap:anywhere;font-size:10px; }
+       @media(max-width:850px) { body {padding:0 14px 20px;} header {height:74px;} .brand small {display:none;} .companion-layout,.toolbox {grid-template-columns:1fr;} .stage,#companion {min-height:450px;height:450px;} .conversation {height:620px;} }
+@@ -57,7 +57,14 @@
+       </section>
+     </main>
+     <div class="toolbox">
+-      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><div id="tool-proposals"></div><details><summary>指定工作目錄讀取</summary>    <section>
++      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><section id="skill-candidate-panel">
++        <h3>學習新能力</h3>
++        <p>解析貼上的 Markdown 待辦清單。先準備一份待審技能與隔離測試紀錄，再由你檢查；這一步不會安裝或啟用技能。</p>
++        <div class="quick-actions"><button id="skill-candidate-prepare" type="button" disabled>準備待審技能</button><button id="skill-candidate-cancel" type="button" disabled>取消準備</button><button id="skill-candidate-export" type="button" disabled>匯出審查資料 JSON</button></div>
++        <p id="skill-candidate-status" aria-live="polite">確認準備功能狀態中…</p>
++        <details><summary>來源與驗證紀錄</summary><pre id="skill-candidate-review"></pre></details>
++        <details><summary>待審技能內容</summary><pre id="skill-candidate-files"></pre></details>
++      </section><div id="tool-proposals"></div><details><summary>指定工作目錄讀取</summary>    <section>
+       <h2>我的工作目錄</h2>
+       <p id="workspace-status">讀取狀態中…</p>
+       <p>將要分享的文字檔放入上方目錄，再請 SIRO 閱讀。每份文字檔最多 8 KiB。</p>
+@@ -294,6 +301,107 @@
+           meter.appendChild(fill); card.append(label, meter); root.appendChild(card);
+         });
+       }
++      let skillCandidateAvailable = false, skillCandidateServiceBusy = false;
++      let skillCandidateBusy = false, skillCandidateUnknown = false, skillCandidateCancelling = false;
++      let skillCandidateEpoch = 0, skillCandidateReview;
++      function updateSkillCandidateControls() {
++        document.querySelector("#skill-candidate-prepare").disabled = !skillCandidateAvailable || skillCandidateServiceBusy || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling;
++        document.querySelector("#skill-candidate-cancel").disabled = skillCandidateCancelling || !(skillCandidateBusy || skillCandidateUnknown || skillCandidateServiceBusy);
++        document.querySelector("#skill-candidate-export").disabled = !skillCandidateReview || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling;
++      }
++      function renderSkillCandidateAvailability(runtime = {}) {
++        const state = runtime.skill_candidates;
++        skillCandidateAvailable = state?.available === true && state.authorizes_execution === false && runtime.runtime_profile !== "legacy" && runtime.kill_switches?.tools !== false;
++        skillCandidateServiceBusy = state?.busy === true;
++        if (!skillCandidateBusy && !skillCandidateUnknown && !skillCandidateCancelling && !skillCandidateReview) {
++          document.querySelector("#skill-candidate-status").textContent = skillCandidateServiceBusy
++            ? "已有技能正在準備，請等待或取消準備。"
++            : skillCandidateAvailable ? "可準備待審技能；尚未安裝或啟用。"
++            : "目前無法準備待審技能；請確認執行模式與電腦操作開關。";
++        }
++        updateSkillCandidateControls();
++      }
++      function acceptedSkillCandidateReview(data) {
++        if (!data || !["awaiting_review", "verification_failed"].includes(data.status) || data.enabled !== false || data.installed !== false || data.authorizes_execution !== false || data.approval_required !== true || data.trust_level !== "unreviewed" || data.source !== "siro_builtin_template:markdown-checklist-v1") return undefined;
++        if (!/^siro-skill-package-v1:[0-9a-f]{64}$/.test(data.package_hash || "") || !/^[0-9a-f]{64}$/.test(data.tests_sha256 || "")) return undefined;
++        const names = ["manifest.json", "input.json", "output.json", "plugin.py"];
++        if (!data.files || typeof data.files !== "object" || Object.keys(data.files).length !== names.length || names.some(name => typeof data.files[name] !== "string" || data.files[name].length > 65536)) return undefined;
++        const verification = data.verification;
++        if (!verification || typeof verification.status !== "string" || verification.workspace_removed !== true) return undefined;
++        const failures = ["failed_checks", "unsupported_sandbox", "unsupported_platform", "rejected_profile", "rejected_source", "rejected_policy_change", "rejected_invalid_diff", "rejected_unappliable", "binding_mismatch"];
++        if (data.status === "awaiting_review" ? verification.status !== "passed" : !failures.includes(verification.status)) return undefined;
++        const serialized = JSON.stringify(data);
++        if (serialized.length > 262144) return undefined;
++        return JSON.parse(serialized);
++      }
++      function renderSkillCandidateResult(data) {
++        const status = document.querySelector("#skill-candidate-status");
++        const details = document.querySelector("#skill-candidate-review"), files = document.querySelector("#skill-candidate-files");
++        skillCandidateReview = undefined; details.textContent = ""; files.textContent = "";
++        const existing = {
++          existing_available: "已有相同能力，目前可用；沒有準備新技能。操作仍依原授權。",
++          existing_unavailable: "已有相同能力，目前尚未就緒；沒有另造技能繞過限制。",
++          existing_unknown: "已有相同能力，目前狀態未知；沒有準備新技能。",
++          unsupported_capability: "這個入口尚不支援所要求的能力；沒有準備新技能。"
++        };
++        if (existing[data?.status] && data.enabled === false && data.installed === false && data.authorizes_execution === false) {
++          status.textContent = existing[data.status]; return;
++        }
++        const review = acceptedSkillCandidateReview(data);
++        if (!review) { status.textContent = "無法確認審查資料或驗證狀態；尚未安裝或啟用。"; return; }
++        skillCandidateReview = review;
++        status.textContent = review.status === "awaiting_review"
++          ? "待你審查；尚未安裝或啟用。"
++          : "驗證未通過；尚未安裝或啟用。可匯出紀錄供檢查。";
++        const record = {...review}; delete record.files;
++        details.textContent = "測試通過不等於人工審查或啟用批准；仍需獨立安全審查與明確批准。\n" + JSON.stringify(record, null, 2);
++        files.textContent = Object.entries(review.files).map(([name, text]) => `${name}\n${text}`).join("\n\n");
++      }
++      async function prepareSkillCandidate() {
++        if (!skillCandidateAvailable || skillCandidateServiceBusy || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling) return;
++        const epoch = ++skillCandidateEpoch;
++        skillCandidateBusy = true; skillCandidateReview = undefined;
++        document.querySelector("#skill-candidate-review").textContent = "";
++        document.querySelector("#skill-candidate-files").textContent = "";
++        document.querySelector("#skill-candidate-status").textContent = "正在準備待審技能與隔離測試紀錄…";
++        updateSkillCandidateControls();
++        try {
++          const data = await productRequest("/v1/skills/candidates", {method: "POST", body: JSON.stringify({capability: "text.checklist.parse"})});
++          if (epoch !== skillCandidateEpoch) return;
++          renderSkillCandidateResult(data); skillCandidateBusy = false; skillCandidateServiceBusy = false;
++        } catch {
++          if (epoch !== skillCandidateEpoch) return;
++          skillCandidateUnknown = true;
++          document.querySelector("#skill-candidate-status").textContent = "準備結果未知；沒有自動重送。請按取消準備，確認停止後再試。";
++        } finally { updateSkillCandidateControls(); }
++      }
++      async function cancelSkillCandidate() {
++        if (skillCandidateCancelling || !(skillCandidateBusy || skillCandidateUnknown || skillCandidateServiceBusy)) return;
++        ++skillCandidateEpoch; skillCandidateCancelling = true; skillCandidateReview = undefined;
++        document.querySelector("#skill-candidate-status").textContent = "正在取消準備，等待停止確認…";
++        updateSkillCandidateControls();
++        try {
++          const acknowledgement = await productRequest("/v1/skills/candidates/cancel", {method: "POST"});
++          if (typeof acknowledgement?.cancelled !== "boolean") throw new Error("取消回應無效");
++          skillCandidateBusy = false; skillCandidateUnknown = false; skillCandidateServiceBusy = false;
++          document.querySelector("#skill-candidate-review").textContent = "";
++          document.querySelector("#skill-candidate-files").textContent = "";
++          document.querySelector("#skill-candidate-status").textContent = "已取消準備；尚未安裝或啟用。";
++        } catch {
++          skillCandidateUnknown = true;
++          document.querySelector("#skill-candidate-status").textContent = "無法確認取消；準備可能仍在進行。沒有重送準備，可再次手動取消。";
++        } finally { skillCandidateCancelling = false; updateSkillCandidateControls(); }
++      }
++      document.querySelector("#skill-candidate-prepare").onclick = prepareSkillCandidate;
++      document.querySelector("#skill-candidate-cancel").onclick = cancelSkillCandidate;
++      document.querySelector("#skill-candidate-export").onclick = () => {
++        if (!skillCandidateReview || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling) return;
++        const accepted = acceptedSkillCandidateReview(skillCandidateReview);
++        if (!accepted) return;
++        const url = URL.createObjectURL(new Blob([JSON.stringify(accepted, null, 2)], {type: "application/json"}));
++        const link = document.createElement("a"); link.href = url; link.download = "siro-markdown-checklist-review.json";
++        link.click(); URL.revokeObjectURL(url);
++      };
+       async function productRequest(url, options = {}) {
+         const response = await authorizedFetch(url, {...options, headers: headers()});
+         const data = await response.json();
+@@ -323,6 +431,7 @@
+         try {
+           const runtime = await productRequest("/v1/runtime");
+           renderCapabilities(runtime.tools);
++          renderSkillCandidateAvailability(runtime);
+           const features = runtime.features || {}, workspace = features.workspace || {};
+           const backend = runtime.routes?.model || "offline";
+           document.querySelector("#model-status").textContent = backend === "offline" ? "尚未連接對話模型" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
+@@ -390,6 +499,7 @@
+         if (path) readWorkspace("read", path);
+       };
+       function renderSnapshot(data) {
++        renderSkillCandidateAvailability(data.runtime || data);
+         if (data.active_turns) {
+           const active = data.active_turns.browser;
+           const nextTurn = active && ["responding", "awaiting_approval"].includes(active.state) ? active.turn_id : undefined;
+diff --git a/src/siro/services/tools/skill_candidates.py b/src/siro/services/tools/skill_candidates.py
+--- /dev/null
++++ b/src/siro/services/tools/skill_candidates.py
+@@ -0,0 +1,336 @@
++"""Explicit-owner, fixed-template skill preparation; never install or execute skills."""
++
++from __future__ import annotations
++
++import asyncio
++import hashlib
++import json
++import shutil
++import tempfile
++from contextlib import suppress
++from dataclasses import dataclass
++from datetime import UTC, datetime
++from pathlib import Path
++from uuid import uuid4
++
++from siro.core.evolution import PatchProposal
++from siro.core.skills import capture_skill
++from siro.services.tools.execution import ExecutionCleanupError
++from siro.services.tools.orchestrator import ToolCatalog
++from siro.services.tools.patch_verification import verify_isolated_patch
++
++CAPABILITY = "text.checklist.parse"
++PROFILE = "markdown-checklist-v1"
++_ALIASES = frozenset({CAPABILITY, "siro.text.checklist", "skill.siro.text.checklist"})
++
++_PLUGIN = '''"""Bounded pasted-text checklist parser; no filesystem or network input."""
++import re
++
++def run(arguments):
++    if not isinstance(arguments, dict) or set(arguments) != {"text"}:
++        raise ValueError("only text is accepted")
++    text = arguments["text"]
++    if not isinstance(text, str) or len(text.encode("utf-8")) > 16384:
++        raise ValueError("text exceeds its type or byte limit")
++    lines = text.splitlines()
++    if len(lines) > 256:
++        raise ValueError("too many lines")
++    pending, completed = [], []
++    fence = None
++    for line in lines:
++        stripped = line.lstrip()
++        marker = ("```" if stripped.startswith("```") else
++                  "~~~" if stripped.startswith("~~~") else None)
++        if marker:
++            if fence is None:
++                fence = marker
++            elif marker == fence:
++                fence = None
++            continue
++        if fence is not None:
++            continue
++        match = re.fullmatch(r"\\s*[-*+]\\s+\\[([ xX])\\]\\s+(.+)", line)
++        if match is None:
++            continue
++        item = match[2].strip()
++        if not item:
++            continue
++        if len(item) > 256 or len(pending) + len(completed) >= 128:
++            raise ValueError("task limit exceeded")
++        (pending if match[1] == " " else completed).append(item)
++    return {"pending": pending, "completed": completed,
++            "pending_count": len(pending), "completed_count": len(completed)}
++'''
++
++# Trusted tests stay outside the package and are projected independently of candidate bytes.
++_TESTS = """import unittest
++from plugin import run
++
++class ChecklistTests(unittest.TestCase):
++    def test_items_and_counts(self):
++        text = "- [ ] 買牛奶\\n* [x] done\\n+ [X] 測試\\nordinary\\n- [ ]  "
++        self.assertEqual(run({"text": text}),
++                         {"pending": ["買牛奶"], "completed": ["done", "測試"],
++                          "pending_count": 1, "completed_count": 2})
++    def test_fences(self):
++        text = "```python\\n- [ ] hidden\\n```\\n~~~\\n* [x] hidden\\n~~~\\n- [ ] visible"
++        self.assertEqual(run({"text": text})["pending"], ["visible"])
++    def test_empty(self):
++        self.assertEqual(run({"text": ""}), {"pending": [], "completed": [],
++                                           "pending_count": 0, "completed_count": 0})
++    def test_invalid_objects(self):
++        for value in (None, [], {}, {"text": False}, {"text": "", "path": "/etc/passwd"}):
++            with self.subTest(value=value), self.assertRaises(ValueError):
++                run(value)
++    def test_over_limits(self):
++        for text in ("a" * 16385, "界" * 5462, "\\n" * 257, "- [ ] " + "a" * 257,
++                     "\\n".join("- [ ] a" for _ in range(129))):
++            with self.subTest(length=len(text)), self.assertRaises(ValueError):
++                run({"text": text})
++    def test_exact_limits(self):
++        text = "\\n".join("- [ ] a" for _ in range(128))
++        self.assertEqual(len(run({"text": text})["pending"]), 128)
++        self.assertEqual(run({"text": "- [ ] " + "a" * 256})["pending_count"], 1)
++        self.assertEqual(run({"text": "\\n" * 256})["pending_count"], 0)
++        self.assertEqual(run({"text": "a" * 16384})["pending_count"], 0)
++"""
++
++
++class SkillCandidateBusy(RuntimeError):
++    """An explicit owner preparation is already active; no queue is created."""
++
++
++class SkillCandidateClosed(RuntimeError):
++    """The service owner has shut down."""
++
++
++def _json(value: object) -> str:
++    return json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
++
++
++def _package_files() -> dict[str, str]:
++    return {
++        "manifest.json": _json(
++            {
++                "id": "siro.text.checklist",
++                "version": "1.0.0",
++                "contract_version": 1,
++                "description": "Parse a pasted Markdown checklist into pending/completed tasks.",
++                "entrypoint": "python:plugin:run",
++                "input_schema": "input.json",
++                "output_schema": "output.json",
++                "permissions": [],
++                "risk": "observe",
++                "timeout_ms": 1000,
++                "concurrency": 1,
++                "resource_limits": {"memory_mb": 256, "output_bytes": 131072, "cpu_seconds": 5},
++                "network": "denied",
++                "idempotency": "read_only",
++                "cancellation": "process",
++                "compensation": "none",
++            }
++        ),
++        "input.json": _json(
++            {
++                "type": "object",
++                "properties": {"text": {"type": "string", "maxLength": 16384}},
++                "required": ["text"],
++                "additionalProperties": False,
++            }
++        ),
++        "output.json": _json(
++            {
++                "type": "object",
++                "properties": {
++                    "pending": {
++                        "type": "array",
++                        "maxItems": 128,
++                        "items": {"type": "string", "maxLength": 256},
++                    },
++                    "completed": {
++                        "type": "array",
++                        "maxItems": 128,
++                        "items": {"type": "string", "maxLength": 256},
++                    },
++                    "pending_count": {"type": "integer", "minimum": 0, "maximum": 128},
++                    "completed_count": {"type": "integer", "minimum": 0, "maximum": 128},
++                },
++                "required": ["pending", "completed", "pending_count", "completed_count"],
++                "additionalProperties": False,
++            }
++        ),
++        "plugin.py": _PLUGIN,
++    }
++
++
++@dataclass(frozen=True, slots=True)
++class _Workspace:
++    root: Path
++    proposal: PatchProposal
++    files: dict[str, str]
++    package_hash: str
++
++
++def _remove_workspace(root: Path) -> None:
++    try:
++        shutil.rmtree(root)
++    except OSError as error:
++        raise ExecutionCleanupError("skill candidate workspace cleanup failed") from error
++
++
++def _build_workspace() -> _Workspace:
++    root = Path(tempfile.mkdtemp(prefix="siro-skill-candidate-")).resolve()
++    try:
++        package = root / "package"
++        package.mkdir()
++        expected = _package_files()
++        for name, text in expected.items():
++            (package / name).write_text(text, encoding="utf-8")
++            (package / name).chmod(0o600)
++        skill, captured = capture_skill(package)
++        if set(captured) != set(expected) or any(
++            data != expected[name].encode("utf-8") or mode != 0
++            for name, (data, mode) in captured.items()
++        ):
++            raise ValueError("fixed template package changed during capture")
++        files = {name: data.decode("utf-8") for name, (data, _) in captured.items()}
++        projection = root / "projection"
++        (projection / "src").mkdir(parents=True)
++        (projection / "tests").mkdir()
++        (projection / "tests/test_checklist.py").write_text(_TESTS, encoding="utf-8")
++        lines = files["plugin.py"].splitlines(keepends=True)
++        diff = (
++            "diff --git a/src/plugin.py b/src/plugin.py\nnew file mode 100644\n"
++            "--- /dev/null\n+++ b/src/plugin.py\n"
++            f"@@ -0,0 +1,{len(lines)} @@\n" + "".join("+" + line for line in lines)
++        )
++        proposal = PatchProposal(
++            proposal_id=uuid4(), unified_diff=diff, created_at=datetime.now(UTC)
++        )
++        return _Workspace(root, proposal, files, skill.manifest_hash)
++    except BaseException:
++        _remove_workspace(root)
++        raise
++
++
++async def _join_owned[T](task: asyncio.Task[T]) -> T:
++    while not task.done():
++        try:
++            await asyncio.shield(task)
++        except asyncio.CancelledError:
++            continue
++    return task.result()
++
++
++async def _workspace() -> _Workspace:
++    preparation = asyncio.create_task(asyncio.to_thread(_build_workspace))
++    try:
++        return await asyncio.shield(preparation)
++    except asyncio.CancelledError:
++        workspace = await _join_owned(preparation)
++        await _join_owned(asyncio.create_task(asyncio.to_thread(_remove_workspace, workspace.root)))
++        raise
++
++
++class SkillCandidatePreparer:
++    def __init__(self, catalog: ToolCatalog) -> None:
++        self._catalog = catalog
++        self._active: asyncio.Task[dict[str, object]] | None = None
++        self._closed = False
++
++    @property
++    def busy(self) -> bool:
++        return self._active is not None and not self._active.done()
++
++    async def prepare(self, capability: str) -> dict[str, object]:
++        if self._closed:
++            raise SkillCandidateClosed("skill candidate owner closed")
++        if self.busy:
++            raise SkillCandidateBusy("skill candidate preparation busy")
++        job = asyncio.create_task(self._prepare(capability))
++        self._active = job
++        try:
++            return await asyncio.shield(job)
++        except asyncio.CancelledError:
++            job.cancel()
++            with suppress(asyncio.CancelledError):
++                await _join_owned(job)
++            raise
++        finally:
++            if self._active is job:
++                self._active = None
++
++    async def cancel(self) -> bool:
++        job = self._active
++        if job is None or job.done():
++            return False
++        job.cancel()
++        with suppress(asyncio.CancelledError):
++            await _join_owned(job)
++        return True
++
++    async def close(self) -> None:
++        self._closed = True
++        await self.cancel()
++
++    async def _prepare(self, capability: str) -> dict[str, object]:
++        snapshot = self._catalog.capture()
++        result: dict[str, object] = {
++            "capability": capability,
++            "profile": PROFILE,
++            "source": f"siro_builtin_template:{PROFILE}",
++            "trust_level": "unreviewed",
++            "enabled": False,
++            "installed": False,
++            "authorizes_execution": False,
++            "approval_required": True,
++            "catalog_checked_at": snapshot.checked_at,
++        }
++        aliases = _ALIASES if capability in _ALIASES else frozenset({capability})
++        for row in snapshot.inventory:
++            if row["name"] == "computer.execute":
++                result["general_alternative"] = dict(row)
++        for row in snapshot.inventory:
++            if row["name"] in aliases:
++                result.update(status="existing_" + str(row["availability"]), existing=dict(row))
++                return result
++        if capability not in _ALIASES:
++            result["status"] = "unsupported_capability"
++            return result
++        workspace = await _workspace()
++        try:
++            report = await verify_isolated_patch(workspace.root / "projection", workspace.proposal)
++            bound = (
++                report.proposal_id == workspace.proposal.proposal_id
++                and report.changed_paths == ("src/plugin.py",)
++                and report.workspace_removed
++                and sum(len(output.encode("utf-8")) for output in report.outputs) <= 65536
++            )
++            result.update(
++                status="awaiting_review"
++                if bound and report.status == "passed"
++                else "verification_failed",
++                package_hash=workspace.package_hash,
++                source_sha256=hashlib.sha256(workspace.files["plugin.py"].encode()).hexdigest(),
++                tests_sha256=hashlib.sha256(_TESTS.encode()).hexdigest(),
++                proposal_sha256=hashlib.sha256(
++                    workspace.proposal.unified_diff.encode()
++                ).hexdigest(),
++                proposal_id=str(workspace.proposal.proposal_id),
++                files=workspace.files,
++                verification={
++                    "proposal_id": str(report.proposal_id),
++                    "status": report.status if bound else "binding_mismatch",
++                    "changed_paths": list(report.changed_paths),
++                    "workspace_removed": report.workspace_removed,
++                    "outputs": list(report.outputs) if bound else [],
++                },
++            )
++        finally:
++            cleanup = asyncio.create_task(asyncio.to_thread(_remove_workspace, workspace.root))
++            try:
++                await asyncio.shield(cleanup)
++            except asyncio.CancelledError:
++                await _join_owned(cleanup)
++                raise
++        return result
+diff --git a/tests/integration/test_skill_candidates.py b/tests/integration/test_skill_candidates.py
+--- /dev/null
++++ b/tests/integration/test_skill_candidates.py
+@@ -0,0 +1,295 @@
++from __future__ import annotations
++
++import asyncio
++import hashlib
++import importlib
++import json
++import threading
++from pathlib import Path
++from types import ModuleType
++from typing import Any
++from uuid import uuid4
++
++import pytest
++
++from siro.core.evolution import VerificationReport
++from siro.core.skills import capture_skill
++from siro.ports.models import ToolDefinition
++from siro.services.tools.execution import ExecutionCleanupError
++from siro.services.tools.orchestrator import ToolCatalog, ToolDescriptor
++
++
++def backend() -> ModuleType:
++    return importlib.import_module("siro.services.tools.skill_candidates")
++
++
++async def forbidden_executor(arguments: dict[str, object]) -> object:
++    raise AssertionError("candidate discovery must never execute a registered tool")
++
++
++def catalog(
++    name: str | None = None, *, state: str = "available", hidden: bool = False
++) -> ToolCatalog:
++    def available() -> bool:
++        if state == "unknown":
++            raise RuntimeError("synthetic readiness error")
++        return state == "available"
++
++    rows = (
++        ()
++        if name is None
++        else (
++            ToolDescriptor(
++                name=name,
++                definition=None
++                if hidden
++                else ToolDefinition(name, "synthetic", {"type": "object"}),
++                executor=forbidden_executor,
++                available=available,
++                backend="synthetic",
++                effect="read_only",
++            ),
++        )
++    )
++    return ToolCatalog(rows)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "name", ["text.checklist.parse", "siro.text.checklist", "skill.siro.text.checklist"]
++)
++@pytest.mark.parametrize("state", ["available", "unavailable", "unknown"])
++async def test_registered_hidden_alias_is_not_a_gap(
++    monkeypatch: pytest.MonkeyPatch, name: str, state: str
++) -> None:
++    module = backend()
++    monkeypatch.setattr(
++        module, "_build_workspace", lambda: pytest.fail("existing tools cannot build")
++    )
++    service = module.SkillCandidatePreparer(catalog(name, state=state, hidden=True))
++    result = await service.prepare("text.checklist.parse")
++    assert result["status"] == "existing_" + state
++    assert result["existing"]["name"] == name
++    assert result["authorizes_execution"] is False
++    assert not service.busy
++    await service.close()
++
++
++@pytest.mark.asyncio
++async def test_unsupported_and_general_alternative_have_no_execution(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    module = backend()
++    monkeypatch.setattr(module, "_build_workspace", lambda: pytest.fail("unsupported cannot build"))
++    service = module.SkillCandidatePreparer(catalog("computer.execute"))
++    result = await service.prepare("arbitrary generated code")
++    assert result["status"] == "unsupported_capability"
++    assert result["general_alternative"]["name"] == "computer.execute"
++    assert "files" not in result
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("reverse", [False, True])
++async def test_general_alternative_does_not_depend_on_catalog_order(reverse: bool) -> None:
++    rows = [
++        ToolDescriptor(
++            name=name,
++            definition=None,
++            executor=forbidden_executor,
++            available=lambda: True,
++            backend="synthetic",
++            effect="read_only",
++        )
++        for name in ("text.checklist.parse", "computer.execute")
++    ]
++    if reverse:
++        rows.reverse()
++    service = backend().SkillCandidatePreparer(ToolCatalog(tuple(rows)))
++    result = await service.prepare("text.checklist.parse")
++    assert result["status"] == "existing_available"
++    assert result["general_alternative"]["name"] == "computer.execute"
++
++
++@pytest.mark.asyncio
++async def test_actual_fixed_candidate_verification_hashes_and_cleanup(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    module = backend()
++    monkeypatch.setattr(module.tempfile, "tempdir", str(tmp_path))
++    service = module.SkillCandidatePreparer(catalog())
++    result = await service.prepare("text.checklist.parse")
++    assert result["status"] == "awaiting_review", result
++    assert result["verification"]["status"] == "passed"
++    assert result["verification"]["workspace_removed"] is True
++    assert result["verification"]["changed_paths"] == ["src/plugin.py"]
++    assert result["trust_level"] == "unreviewed"
++    assert result["enabled"] is False and result["installed"] is False
++    assert result["approval_required"] is True and result["authorizes_execution"] is False
++    assert result["source"] == "siro_builtin_template:markdown-checklist-v1"
++    files = result["files"]
++    assert set(files) == {"manifest.json", "input.json", "output.json", "plugin.py"}
++    package = tmp_path / "reconstructed"
++    package.mkdir()
++    for name, data in files.items():
++        (package / name).write_text(data, encoding="utf-8")
++    skill, _ = capture_skill(package)
++    assert skill.manifest_hash == result["package_hash"]
++    assert skill.manifest.permissions == () and skill.manifest.network == "denied"
++    assert skill.manifest.idempotency == "read_only" and skill.manifest.concurrency == 1
++    assert result["source_sha256"] == hashlib.sha256(files["plugin.py"].encode()).hexdigest()
++    assert result["tests_sha256"] == hashlib.sha256(module._TESTS.encode()).hexdigest()
++    assert json.loads(files["input.json"])["additionalProperties"] is False
++    assert "Ran " in "".join(result["verification"]["outputs"])
++    assert not list(tmp_path.glob("siro-skill-candidate-*"))
++    assert not service.busy
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "fault",
++    [
++        "failed_checks",
++        "unsupported_sandbox",
++        "wrong_id",
++        "wrong_path",
++        "not_removed",
++        "oversized_output",
++    ],
++)
++async def test_invalid_verification_never_authorizes(
++    monkeypatch: pytest.MonkeyPatch, fault: str
++) -> None:
++    module = backend()
++
++    async def fake(root: Path, proposal: Any, **kwargs: Any) -> VerificationReport:
++        return VerificationReport(
++            uuid4() if fault == "wrong_id" else proposal.proposal_id,
++            fault if fault in {"failed_checks", "unsupported_sandbox"} else "passed",
++            ("src/other.py",) if fault == "wrong_path" else ("src/plugin.py",),
++            ("x" * 65537,) if fault == "oversized_output" else ("synthetic verifier output",),
++            fault != "not_removed",
++        )
++
++    monkeypatch.setattr(module, "verify_isolated_patch", fake)
++    service = module.SkillCandidatePreparer(catalog())
++    result = await service.prepare("text.checklist.parse")
++    assert result["status"] == "verification_failed"
++    assert result["enabled"] is False and result["authorizes_execution"] is False
++
++
++@pytest.mark.asyncio
++async def test_busy_cancel_close_and_no_queue(monkeypatch: pytest.MonkeyPatch) -> None:
++    module = backend()
++    entered = asyncio.Event()
++    cleaned = asyncio.Event()
++
++    async def wait(root: Path, proposal: Any, **kwargs: Any) -> VerificationReport:
++        entered.set()
++        try:
++            await asyncio.Event().wait()
++        finally:
++            cleaned.set()
++        raise AssertionError("unreachable")
++
++    monkeypatch.setattr(module, "verify_isolated_patch", wait)
++    service = module.SkillCandidatePreparer(catalog())
++    preparation = asyncio.create_task(service.prepare("text.checklist.parse"))
++    await asyncio.wait_for(entered.wait(), 2)
++    assert service.busy
++    with pytest.raises(module.SkillCandidateBusy):
++        await service.prepare("text.checklist.parse")
++    assert await service.cancel() is True
++    with pytest.raises(asyncio.CancelledError):
++        await preparation
++    assert cleaned.is_set() and not service.busy
++    assert await service.cancel() is False
++    await service.close()
++    with pytest.raises(module.SkillCandidateClosed):
++        await service.prepare("text.checklist.parse")
++
++
++@pytest.mark.asyncio
++async def test_repeated_cancel_joins_blocking_preparation_and_cleanup(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    module = backend()
++    original = module._build_workspace
++    entered = threading.Event()
++    released = threading.Event()
++    monkeypatch.setattr(module.tempfile, "tempdir", str(tmp_path))
++
++    def slow() -> Any:
++        entered.set()
++        assert released.wait(3)
++        return original()
++
++    monkeypatch.setattr(module, "_build_workspace", slow)
++    service = module.SkillCandidatePreparer(catalog())
++    task = asyncio.create_task(service.prepare("text.checklist.parse"))
++    assert await asyncio.to_thread(entered.wait, 2)
++    task.cancel()
++    await asyncio.sleep(0)
++    task.cancel()
++    assert service.busy
++    released.set()
++    with pytest.raises(asyncio.CancelledError):
++        await asyncio.wait_for(task, 3)
++    assert not service.busy and not list(tmp_path.glob("siro-skill-candidate-*"))
++
++
++@pytest.mark.asyncio
++async def test_cleanup_failure_is_typed_and_does_not_return_review(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    module = backend()
++    original = module._remove_workspace
++    roots: list[Path] = []
++
++    def fail(root: Path) -> None:
++        roots.append(root)
++        raise ExecutionCleanupError("synthetic cleanup failure")
++
++    async def passed(root: Path, proposal: Any, **kwargs: Any) -> VerificationReport:
++        return VerificationReport(proposal.proposal_id, "passed", ("src/plugin.py",), (), True)
++
++    monkeypatch.setattr(module, "_remove_workspace", fail)
++    monkeypatch.setattr(module, "verify_isolated_patch", passed)
++    service = module.SkillCandidatePreparer(catalog())
++    try:
++        with pytest.raises(ExecutionCleanupError):
++            await service.prepare("text.checklist.parse")
++        assert not service.busy
++    finally:
++        for root in roots:
++            original(root)
++
++
++@pytest.mark.asyncio
++async def test_late_cancel_during_cleanup_cannot_return_review(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    module = backend()
++    original = module._remove_workspace
++    entered = threading.Event()
++    release = threading.Event()
++
++    def slow(root: Path) -> None:
++        entered.set()
++        assert release.wait(3)
++        original(root)
++
++    async def passed(root: Path, proposal: Any, **kwargs: Any) -> VerificationReport:
++        return VerificationReport(proposal.proposal_id, "passed", ("src/plugin.py",), (), True)
++
++    monkeypatch.setattr(module, "_remove_workspace", slow)
++    monkeypatch.setattr(module, "verify_isolated_patch", passed)
++    service = module.SkillCandidatePreparer(catalog())
++    task = asyncio.create_task(service.prepare("text.checklist.parse"))
++    assert await asyncio.to_thread(entered.wait, 2)
++    task.cancel()
++    await asyncio.sleep(0)
++    task.cancel()
++    release.set()
++    with pytest.raises(asyncio.CancelledError):
++        await asyncio.wait_for(task, 3)
++    assert not service.busy
+diff --git a/tests/integration/test_skill_candidate_product.py b/tests/integration/test_skill_candidate_product.py
+--- /dev/null
++++ b/tests/integration/test_skill_candidate_product.py
+@@ -0,0 +1,454 @@
++from __future__ import annotations
++
++import asyncio
++import importlib
++import json
++import os
++from collections.abc import Callable
++from pathlib import Path
++from typing import Any, cast
++
++import httpx
++import pytest
++import uvicorn
++from fastapi import FastAPI
++from fastapi.testclient import TestClient
++
++from siro.services.presentation import gateway
++from siro.services.tools.execution import ExecutionCancelled, ExecutionCleanupError
++from siro.services.tools.orchestrator import ToolCatalog
++
++ORIGIN = "http://testserver"
++CAPABILITY = "text.checklist.parse"
++PROFILE = "markdown-checklist-v1"
++REVIEW = {
++    "status": "awaiting_review",
++    "enabled": False,
++    "installed": False,
++    "authorizes_execution": False,
++    "approval_required": True,
++}
++
++
++class PreparedService:
++    def __init__(self, catalog: object = None) -> None:
++        self.catalog = catalog
++        self.busy = False
++        self.calls: list[str] = []
++        self.cancel_calls = 0
++        self.close_calls = 0
++        self.error: BaseException | None = None
++        self.cancel_error: BaseException | None = None
++        self.close_error: BaseException | None = None
++
++    async def prepare(self, capability: str) -> dict[str, object]:
++        self.calls.append(capability)
++        if self.error is not None:
++            raise self.error
++        return dict(REVIEW)
++
++    async def cancel(self) -> bool:
++        self.cancel_calls += 1
++        if self.cancel_error is not None:
++            raise self.cancel_error
++        return self.busy
++
++    async def close(self) -> None:
++        self.close_calls += 1
++        if self.close_error is not None:
++            raise self.close_error
++
++
++def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
++    return gateway.create_app(
++        allowed_origins={ORIGIN},
++        runtime_profile="candidate",
++        skill_candidates=cast(Any, service),
++        **kwargs,
++    )
++
++
++def authenticated(client: TestClient, origin: str = ORIGIN) -> dict[str, str]:
++    result = client.post("/v1/session", headers={"origin": origin})
++    assert result.status_code == 200
++    return {"origin": origin, "authorization": f"Bearer {result.json()['token']}"}
++
++
++def candidate_exception(name: str) -> BaseException:
++    module = importlib.import_module("siro.services.tools.skill_candidates")
++    exception: Callable[[str], BaseException] = getattr(module, name)
++    return exception("private-path-or-key-canary")
++
++
++def test_explicit_owner_prepares_review_without_an_approval_or_enable_action() -> None:
++    service = PreparedService()
++    with TestClient(application(service)) as client:
++        headers = authenticated(client)
++        result = client.post(
++            "/v1/skills/candidates", headers=headers, json={"capability": CAPABILITY}
++        )
++        assert result.status_code == 200
++        assert result.json() == REVIEW
++        assert service.calls == [CAPABILITY]
++        assert client.post("/v1/skills/candidates/enable", headers=headers).status_code == 404
++        assert client.post("/v1/skills/candidates/approve", headers=headers).status_code == 404
++    assert service.close_calls == 1
++
++
++@pytest.mark.parametrize(
++    "profile,inject", [("candidate", False), ("legacy", False), ("legacy", True)]
++)
++def test_missing_or_legacy_service_is_unavailable(profile: str, inject: bool) -> None:
++    service = PreparedService()
++    app = gateway.create_app(
++        allowed_origins={ORIGIN},
++        runtime_profile=profile,
++        skill_candidates=cast(Any, service) if inject else None,
++    )
++    with TestClient(app) as client:
++        headers = authenticated(client)
++        for path in ("/v1/skills/candidates", "/v1/skills/candidates/cancel"):
++            result = client.post(path, headers=headers, json={"capability": CAPABILITY})
++            assert result.status_code == 503
++            assert result.json() == {"detail": "skill candidates are unavailable"}
++        view = client.get("/v1/runtime", headers=headers).json()["skill_candidates"]
++        assert view == {
++            "available": False,
++            "busy": False,
++            "profile": PROFILE,
++            "authorizes_execution": False,
++        }
++    assert service.calls == [] and service.cancel_calls == 0 and service.close_calls == 0
++
++
++@pytest.mark.parametrize(
++    "body",
++    [
++        {},
++        {"capability": ""},
++        {"capability": "x" * 129},
++        {"capability": 1},
++        {"capability": True},
++        {"capability": None},
++        {"capability": []},
++        {"capability": CAPABILITY, "code": "private-source-canary"},
++        {"capability": CAPABILITY, "enabled": True},
++        {"capability": CAPABILITY, "profile": "host"},
++        {"capability": CAPABILITY, "path": "/private"},
++    ],
++)
++def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
++    service = PreparedService()
++    with TestClient(application(service)) as client:
++        result = client.post("/v1/skills/candidates", headers=authenticated(client), json=body)
++        assert result.status_code == 422
++    assert service.calls == []
++
++
++@pytest.mark.parametrize("path", ["/v1/skills/candidates", "/v1/skills/candidates/cancel"])
++def test_candidate_controls_require_session_and_same_origin(path: str) -> None:
++    service = PreparedService()
++    with TestClient(application(service)) as client:
++        headers = authenticated(client)
++        checks = [
++            ({"origin": ORIGIN}, 401),
++            ({"origin": ORIGIN, "authorization": "Bearer invalid"}, 401),
++            ({"authorization": headers["authorization"]}, 403),
++            ({**headers, "origin": "https://evil.invalid"}, 403),
++        ]
++        for request_headers, expected in checks:
++            assert (
++                client.post(
++                    path, headers=request_headers, json={"capability": CAPABILITY}
++                ).status_code
++                == expected
++            )
++    assert service.calls == [] and service.cancel_calls == 0
++
++
++def test_runtime_metadata_is_read_only_and_tools_off_still_allows_cancel() -> None:
++    service = PreparedService()
++    state = gateway.GatewayState()
++    with TestClient(application(service, state=state)) as client:
++        headers = authenticated(client)
++        assert client.get("/v1/runtime").status_code == 401
++        for busy in (False, True):
++            service.busy = busy
++            result = client.get("/v1/runtime", headers=headers).json()["skill_candidates"]
++            assert result == {
++                "available": True,
++                "busy": busy,
++                "profile": PROFILE,
++                "authorizes_execution": False,
++            }
++        state.kill_switches["tools"] = False
++        assert not client.get("/v1/runtime", headers=headers).json()["skill_candidates"][
++            "available"
++        ]
++        assert (
++            client.post(
++                "/v1/skills/candidates", headers=headers, json={"capability": CAPABILITY}
++            ).status_code
++            == 403
++        )
++        assert client.post("/v1/skills/candidates/cancel", headers=headers).json() == {
++            "cancelled": True
++        }
++    assert service.calls == [] and service.cancel_calls == 1
++
++
++def test_authenticated_control_snapshot_reports_current_candidate_metadata() -> None:
++    service = PreparedService()
++    service.busy = True
++    with TestClient(application(service)) as client:
++        headers = authenticated(client)
++        token = headers["authorization"].removeprefix("Bearer ")
++        view = client.get("/v1/snapshot", headers=headers).json()
++        assert view["runtime_profile"] == "candidate"
++        assert view["skill_candidates"] == {
++            "available": True,
++            "busy": True,
++            "profile": PROFILE,
++            "authorizes_execution": False,
++        }
++        with client.websocket_connect("/ws/control", headers={"origin": ORIGIN}) as socket:
++            socket.send_json({"type": "authenticate", "token": token})
++            snapshot = socket.receive_json()
++            assert snapshot["type"] == "snapshot"
++            assert snapshot["runtime_profile"] == "candidate"
++            assert snapshot["skill_candidates"] == view["skill_candidates"]
++    assert service.calls == [] and service.cancel_calls == 0
++
++
++@pytest.mark.parametrize(
++    "error_name,status,detail",
++    [
++        ("SkillCandidateBusy", 409, "skill candidate preparation is busy"),
++        ("SkillCandidateClosed", 503, "skill candidates are unavailable"),
++        ("CancelledError", 409, "skill candidate preparation was cancelled"),
++        ("ExecutionCancelled", 409, "skill candidate preparation was cancelled"),
++        ("ExecutionCleanupError", 503, "skill candidate cleanup failed"),
++    ],
++)
++def test_candidate_failures_have_fixed_public_details(
++    error_name: str, status: int, detail: str
++) -> None:
++    service = PreparedService()
++    if error_name == "CancelledError":
++        service.error = asyncio.CancelledError("private-path-or-key-canary")
++    elif error_name == "ExecutionCancelled":
++        service.error = ExecutionCancelled("private-path-or-key-canary")
++    elif error_name == "ExecutionCleanupError":
++        service.error = ExecutionCleanupError("private-path-or-key-canary")
++    else:
++        service.error = candidate_exception(error_name)
++    with TestClient(application(service)) as client:
++        result = client.post(
++            "/v1/skills/candidates", headers=authenticated(client), json={"capability": CAPABILITY}
++        )
++        assert result.status_code == status
++        assert result.json() == {"detail": detail}
++        assert "private-path-or-key-canary" not in result.text
++
++
++def test_tools_switch_cancels_only_candidate_work_and_keeps_other_switches() -> None:
++    service = PreparedService()
++    with TestClient(application(service)) as client:
++        headers = authenticated(client)
++        for name, enabled in (("cloud", False), ("tools", True), ("microphone", False)):
++            assert (
++                client.put(
++                    f"/v1/kill-switches/{name}", headers=headers, json={"enabled": enabled}
++                ).status_code
++                == 200
++            )
++        assert service.cancel_calls == 0
++        assert (
++            client.put(
++                "/v1/kill-switches/tools", headers=headers, json={"enabled": False}
++            ).status_code
++            == 200
++        )
++        assert service.cancel_calls == 1
++
++
++@pytest.mark.parametrize("action", ["cancel", "kill"])
++def test_cancel_cleanup_failure_is_public_and_tools_remain_disabled(action: str) -> None:
++    service = PreparedService()
++    service.cancel_error = ExecutionCleanupError("private-path-or-key-canary")
++    with TestClient(application(service)) as client:
++        headers = authenticated(client)
++        if action == "cancel":
++            result = client.post("/v1/skills/candidates/cancel", headers=headers)
++        else:
++            result = client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": False})
++            assert (
++                client.get("/v1/runtime", headers=headers).json()["kill_switches"]["tools"] is False
++            )
++        assert result.status_code == 503
++        assert result.json() == {"detail": "skill candidate cleanup failed"}
++        assert "private-path-or-key-canary" not in result.text
++
++
++@pytest.mark.parametrize("failure", ["service", "controller"])
++def test_shutdown_closes_candidate_and_preserves_remaining_cleanup(failure: str) -> None:
++    service = PreparedService()
++    hub = gateway.GatewayHub()
++    cleaned: list[str] = []
++
++    async def controller_close() -> None:
++        cleaned.append("controller")
++        if failure == "controller":
++            raise RuntimeError("synthetic controller close")
++
++    async def hub_close() -> None:
++        cleaned.append("hub")
++
++    hub.shutdown = hub_close  # type: ignore[method-assign]
++    if failure == "service":
++        service.close_error = ExecutionCleanupError("synthetic candidate cleanup")
++    with (
++        pytest.raises(ExecutionCleanupError if failure == "service" else RuntimeError),
++        TestClient(application(service, hub=hub, on_shutdown=controller_close)),
++    ):
++        pass
++    assert service.close_calls == 1
++    assert cleaned == ["controller", "hub"]
++
++
++@pytest.mark.asyncio
++async def test_concurrent_request_busy_and_explicit_cancel_return_without_review() -> None:
++    entered = asyncio.Event()
++    service = PreparedService()
++    active: asyncio.Task[dict[str, object]] | None = None
++
++    async def prepare(capability: str) -> dict[str, object]:
++        nonlocal active
++        if service.busy:
++            raise candidate_exception("SkillCandidateBusy")
++        active = asyncio.current_task()
++        service.busy = True
++        entered.set()
++        try:
++            await asyncio.Event().wait()
++        finally:
++            service.busy = False
++        return dict(REVIEW)
++
++    async def cancel() -> bool:
++        if active is None or active.done():
++            return False
++        active.cancel()
++        return True
++
++    service.prepare = prepare  # type: ignore[method-assign]
++    service.cancel = cancel  # type: ignore[method-assign]
++    app = application(service)
++    async with (
++        app.router.lifespan_context(app),
++        httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client,
++    ):
++        token = (await client.post("/v1/session", headers={"origin": ORIGIN})).json()["token"]
++        headers = {"origin": ORIGIN, "authorization": f"Bearer {token}"}
++        request = asyncio.create_task(
++            client.post("/v1/skills/candidates", headers=headers, json={"capability": CAPABILITY})
++        )
++        await asyncio.wait_for(entered.wait(), 2)
++        assert (await client.get("/v1/runtime", headers=headers)).json()["skill_candidates"]["busy"]
++        busy = await client.post(
++            "/v1/skills/candidates", headers=headers, json={"capability": CAPABILITY}
++        )
++        assert busy.status_code == 409
++        assert (await client.post("/v1/skills/candidates/cancel", headers=headers)).json() == {
++            "cancelled": True
++        }
++        cancelled = await asyncio.wait_for(request, 2)
++        assert cancelled.status_code == 409 and "awaiting_review" not in cancelled.text
++        assert not service.busy
++
++
++@pytest.mark.parametrize("profile", ["candidate", "legacy"])
++def test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str
++) -> None:
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
++    monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
++    monkeypatch.setenv("SIRO_CONTEXT_SUMMARY_ENABLED", "0")
++    monkeypatch.setenv("SIRO_RUNTIME_BINARY", str(tmp_path / "missing-runtime"))
++    monkeypatch.setattr("shutil.which", lambda name: None)
++    effects: list[str] = []
++
++    async def forbid(*args: object, **kwargs: object) -> None:
++        effects.append("external execution")
++        raise AssertionError("candidate control invoked an external effect")
++
++    monkeypatch.setattr("asyncio.create_subprocess_exec", forbid)
++    from siro.adapters.models.mock import OfflineDemoModel
++    from siro.persistence.skills import SQLiteSkillRegistry
++
++    monkeypatch.setattr(OfflineDemoModel, "stream", forbid)
++    monkeypatch.setattr(SQLiteSkillRegistry, "install", forbid)
++    monkeypatch.setattr(SQLiteSkillRegistry, "set_enabled", forbid)
++    services: list[PreparedService] = []
++
++    def preparer(catalog: object) -> PreparedService:
++        service = PreparedService(catalog)
++        services.append(service)
++        return service
++
++    module = importlib.import_module("siro.services.tools.skill_candidates")
++    monkeypatch.setattr(module, "SkillCandidatePreparer", preparer)
++    monkeypatch.setattr(gateway, "SkillCandidatePreparer", preparer, raising=False)
++    original_create_app = gateway.create_app
++
++    def composed_app(**kwargs: Any) -> FastAPI:
++        owner = kwargs["skill_candidates"]
++        if profile == "candidate":
++            assert owner.catalog is kwargs["tool_orchestrator"].catalog
++        else:
++            assert owner is None
++        return original_create_app(**kwargs)
++
++    monkeypatch.setattr(gateway, "create_app", composed_app)
++
++    def run(app: FastAPI, **kwargs: object) -> None:
++        origin = "http://127.0.0.1:8000"
++        with TestClient(app) as client:
++            headers = authenticated(client, origin)
++            runtime = client.get("/v1/runtime", headers=headers).json()
++            assert runtime["routes"]["model"] == "offline"
++            assert runtime["skill_candidates"]["available"] is (profile == "candidate")
++            result = client.post(
++                "/v1/skills/candidates", headers=headers, json={"capability": CAPABILITY}
++            )
++            if profile == "candidate":
++                assert len(services) == 1
++                service = services[0]
++                assert service.catalog is not None
++                catalog = cast(ToolCatalog, service.catalog)
++                assert json.loads(
++                    json.dumps(
++                        [
++                            {key: value for key, value in row.items() if key != "checked_at"}
++                            for row in catalog.snapshot()
++                        ]
++                    )
++                ) == [
++                    {key: value for key, value in row.items() if key != "checked_at"}
++                    for row in runtime["tools"]
++                ]
++                assert result.status_code == 200 and result.json() == REVIEW
++                assert service.calls == [CAPABILITY]
++                assert all(row["name"] != CAPABILITY for row in runtime["tools"])
++            else:
++                assert services == [] and result.status_code == 503
++
++    monkeypatch.setattr(uvicorn, "run", run)
++    gateway.main()
++    assert effects == []
++    if services:
++        assert services[0].close_calls == 1
+diff --git a/tests/integration/test_frontend_skill_candidate.py b/tests/integration/test_frontend_skill_candidate.py
+--- /dev/null
++++ b/tests/integration/test_frontend_skill_candidate.py
+@@ -0,0 +1,383 @@
++from __future__ import annotations
++
++import json
++from pathlib import Path
++from uuid import uuid4
++
++import pytest
++from test_frontend_control import run_control
++from test_isolated_patch_verification import real_profile
++
++from siro.core.evolution import PatchProposal, VerificationReport
++from siro.services.tools import skill_candidates
++from siro.services.tools.orchestrator import ToolCatalog
++
++REVIEW_FIXTURE = r"""
++const deferredCandidate = () => {
++  let resolve, reject;
++  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
++  return {promise, resolve, reject};
++};
++const candidateRuntime = (changes = {}) => ({
++  runtime_profile:'candidate', kill_switches:{tools:true},
++  skill_candidates:{available:true,busy:false,profile:'markdown-checklist-v1',
++    authorizes_execution:false}, ...changes
++});
++const candidateReview = (changes = {}) => ({
++  status:'awaiting_review', enabled:false, installed:false, authorizes_execution:false,
++  approval_required:true, trust_level:'unreviewed',
++  source:'siro_builtin_template:markdown-checklist-v1',
++  package_hash:'siro-skill-package-v1:' + 'a'.repeat(64), tests_sha256:'b'.repeat(64),
++  files:{'manifest.json':'{"network":"denied"}', 'input.json':'{"type":"object"}',
++    'output.json':'{"type":"object"}', 'plugin.py':'# synthetic source'},
++  verification:{status:'passed',workspace_removed:true,outputs:['Ran 12 tests; OK']},
++  ...changes
++});
++const prepareButton = document.querySelector('#skill-candidate-prepare');
++const cancelButton = document.querySelector('#skill-candidate-cancel');
++const exportButton = document.querySelector('#skill-candidate-export');
++const candidateStatus = document.querySelector('#skill-candidate-status');
++const candidateDetails = document.querySelector('#skill-candidate-review');
++const candidateFiles = document.querySelector('#skill-candidate-files');
++const candidatePosts = () => targetCalls().filter(call => call.options?.method === 'POST');
++"""
++
++
++def candidate_control(checks: str) -> None:
++    run_control(REVIEW_FIXTURE + checks)
++
++
++def test_candidate_panel_is_inside_computer_help_without_activation_control() -> None:
++    html = Path("src/siro/services/presentation/static/index.html").read_text()
++    panel = html.split('id="computer-panel"', 1)[1].split('id="memories-panel"', 1)[0]
++    assert "學習新能力" in panel
++    assert "解析貼上的 Markdown 待辦清單" in panel
++    assert 'id="skill-candidate-prepare"' in panel
++    assert 'id="skill-candidate-cancel"' in panel
++    assert 'id="skill-candidate-export"' in panel
++    assert 'id="skill-candidate-approve"' not in html
++    assert 'id="skill-candidate-enable"' not in html
++
++
++@pytest.mark.parametrize(
++    "runtime",
++    [
++        "{}",
++        "candidateRuntime({runtime_profile:'legacy'})",
++        "candidateRuntime({kill_switches:{tools:false}})",
++        "candidateRuntime({skill_candidates:{available:false,busy:false,authorizes_execution:false}})",
++        "candidateRuntime({skill_candidates:{available:true,busy:true,authorizes_execution:false}})",
++        "candidateRuntime({skill_candidates:{available:true,busy:false,authorizes_execution:true}})",
++    ],
++)
++def test_unavailable_candidates_cannot_post_even_with_programmatic_click(runtime: str) -> None:
++    candidate_control(
++        f"""
++renderSkillCandidateAvailability({runtime});
++assert.equal(prepareButton.disabled, true);
++await prepareButton.onclick();
++assert.equal(candidatePosts().length, 0);
++assert.equal(exportButton.disabled, true);
++"""
++    )
++
++
++def test_owner_click_posts_fixed_request_once_and_shows_uninstalled_review() -> None:
++    candidate_control(
++        """
++renderSkillCandidateAvailability(candidateRuntime());
++const pending = deferredCandidate();
++fetchPlan = async (url, options) => pending.promise;
++const first = prepareButton.onclick(), second = prepareButton.onclick();
++await until(() => candidatePosts().length === 1);
++assert.equal(prepareButton.disabled, true); assert.equal(cancelButton.disabled, false);
++const sent = candidatePosts()[0];
++assert.equal(sent.url, '/v1/skills/candidates');
++assert.deepEqual(JSON.parse(sent.options.body), {capability:'text.checklist.parse'});
++assert(new Headers(sent.options.headers).get('Authorization').startsWith('Bearer '));
++pending.resolve(response(200, candidateReview())); await Promise.all([first,second]);
++assert.equal(candidatePosts().length, 1);
++assert(candidateStatus.textContent.includes('尚未安裝'));
++assert(candidateStatus.textContent.includes('啟用'));
++assert(candidateDetails.textContent.includes('不等於人工審查'));
++assert(candidateDetails.textContent.includes('siro_builtin_template:markdown-checklist-v1'));
++assert(candidateFiles.textContent.includes('# synthetic source'));
++assert.equal(exportButton.disabled, false);
++"""
++    )
++
++
++def test_review_html_is_plain_text_and_export_requires_owner_click() -> None:
++    candidate_control(
++        """
++Element.prototype.__defineSetter__('innerHTML', () => { throw Error('candidate entered HTML'); });
++const links = [], blobs = []; let downloaded;
++const create = document.createElement;
++document.createElement = tag => {
++  const node = create(tag);
++  if (tag === 'a') { node.click = () => { downloaded = node.download; }; links.push(node); }
++  return node;
++};
++URL.createObjectURL = blob => { blobs.push(blob); return 'blob:synthetic-review'; };
++URL.revokeObjectURL = url => { assert.equal(url, 'blob:synthetic-review'); };
++const malicious = '<img src=x onerror=evil()>';
++fetchPlan = async () => response(200, candidateReview({
++  files:{...candidateReview().files,'plugin.py':malicious},
++  verification:{status:'passed',workspace_removed:true,outputs:[malicious]}
++}));
++renderSkillCandidateAvailability(candidateRuntime()); await prepareButton.onclick();
++assert(candidateFiles.textContent.includes(malicious));
++assert(candidateDetails.textContent.includes(malicious));
++assert.equal(blobs.length, 0); assert.equal(downloaded, undefined);
++await exportButton.onclick();
++assert.equal(blobs.length, 1); assert(downloaded.endsWith('.json'));
++const payload = JSON.parse(await blobs[0].text());
++assert.equal(payload.status, 'awaiting_review');
++assert.equal(payload.verification.status, 'passed');
++assert.equal(payload.enabled, false); assert.equal(payload.installed, false);
++assert.equal(payload.authorizes_execution, false); assert.equal(payload.approval_required, true);
++assert.equal(payload.files['plugin.py'], malicious);
++"""
++    )
++
++
++@pytest.mark.parametrize(
++    "change",
++    [
++        "{enabled:true}",
++        "{installed:true}",
++        "{authorizes_execution:true}",
++        "{approval_required:false}",
++        "{trust_level:'approved'}",
++        "{source:'unknown'}",
++        "{package_hash:'forged'}",
++        "{tests_sha256:'forged'}",
++        "{verification:{status:'failed_checks',workspace_removed:true}}",
++        "{verification:{status:'passed',workspace_removed:false}}",
++        "{files:{...candidateReview().files,'extra.py':'unexpected'}}",
++    ],
++)
++def test_inconsistent_or_untrusted_review_cannot_be_exported(change: str) -> None:
++    candidate_control(
++        f"""
++renderSkillCandidateAvailability(candidateRuntime());
++fetchPlan = async () => response(200, candidateReview({change}));
++await prepareButton.onclick();
++assert.equal(exportButton.disabled, true);
++assert(candidateStatus.textContent.includes('無法確認'));
++let exports = 0; URL.createObjectURL = () => {{ exports++; return 'blob:forbidden'; }};
++await exportButton.onclick(); assert.equal(exports, 0);
++assert(!candidateStatus.textContent.includes('可啟用'));
++"""
++    )
++
++
++@pytest.mark.parametrize(
++    "status",
++    ["existing_available", "existing_unavailable", "existing_unknown", "unsupported_capability"],
++)
++def test_existing_or_unsupported_result_does_not_offer_export(status: str) -> None:
++    candidate_control(
++        f"""
++renderSkillCandidateAvailability(candidateRuntime());
++fetchPlan = async () => response(200, {{status:'{status}', enabled:false,
++  installed:false,authorizes_execution:false,approval_required:true}});
++await prepareButton.onclick();
++assert.equal(exportButton.disabled, true); assert.equal(candidateFiles.textContent, '');
++assert.equal(candidatePosts().length, 1); assert.equal(prepareButton.disabled, false);
++assert(!candidateStatus.textContent.includes('可啟用'));
++"""
++    )
++
++
++def test_failed_verification_export_preserves_failure_and_has_no_approval_claim() -> None:
++    candidate_control(
++        """
++renderSkillCandidateAvailability(candidateRuntime());
++fetchPlan = async () => response(200, candidateReview({status:'verification_failed',
++  verification:{status:'failed_checks',workspace_removed:true,outputs:['synthetic failed test']}}));
++await prepareButton.onclick();
++assert(candidateStatus.textContent.includes('驗證未通過'));
++assert(!candidateStatus.textContent.includes('可啟用'));
++assert.equal(exportButton.disabled, false);
++"""
++    )
++
++
++def test_cancel_fences_late_review_and_repeated_click_without_queue_or_replay() -> None:
++    candidate_control(
++        """
++renderSkillCandidateAvailability(candidateRuntime());
++const pending = deferredCandidate(), stopped = deferredCandidate();
++fetchPlan = async url => url.endsWith('/cancel') ? stopped.promise : pending.promise;
++const first = prepareButton.onclick(); await until(() => candidatePosts().length === 1);
++const cancelling = cancelButton.onclick(), duplicate = cancelButton.onclick();
++await until(() => candidatePosts().length === 2);
++renderSkillCandidateAvailability(candidateRuntime());
++await prepareButton.onclick(); assert.equal(candidatePosts().length, 2);
++stopped.resolve(response(200, {cancelled:true})); await Promise.all([cancelling,duplicate]);
++pending.resolve(response(200, candidateReview())); await first;
++assert(candidateStatus.textContent.includes('已取消'));
++assert.equal(candidateFiles.textContent, ''); assert.equal(exportButton.disabled, true);
++assert.equal(candidatePosts().length, 2);
++"""
++    )
++
++
++def test_network_unknown_and_failed_cancel_keep_busy_until_manual_acknowledgement() -> None:
++    candidate_control(
++        """
++renderSkillCandidateAvailability(candidateRuntime());
++fetchPlan = async () => { throw Error('synthetic-private-error'); };
++await prepareButton.onclick();
++assert(candidateStatus.textContent.includes('結果未知'));
++assert(!candidateStatus.textContent.includes('synthetic-private-error'));
++assert.equal(prepareButton.disabled, true); assert.equal(cancelButton.disabled, false);
++renderSkillCandidateAvailability(candidateRuntime()); await prepareButton.onclick();
++assert.equal(candidatePosts().length, 1);
++await cancelButton.onclick();
++assert.equal(prepareButton.disabled, true); assert.equal(cancelButton.disabled, false);
++assert(candidateStatus.textContent.includes('無法確認取消'));
++renderSkillCandidateAvailability(candidateRuntime()); await prepareButton.onclick();
++assert.equal(candidatePosts().length, 2);
++fetchPlan = async () => response(200, {cancelled:false});
++await cancelButton.onclick(); assert.equal(prepareButton.disabled, false);
++assert.equal(candidatePosts().length, 3);
++"""
++    )
++
++
++def test_control_snapshots_and_reconnect_do_not_prepare_a_candidate() -> None:
++    candidate_control(
++        """
++const first = await readyControl();
++first.message({...snapshot(), ...candidateRuntime()}); await flush();
++assert.equal(prepareButton.disabled, false);
++first.disconnect(); await flush();
++const second = await readyControl();
++second.message({...snapshot(), ...candidateRuntime()}); await flush();
++assert.equal(candidatePosts().length, 0);
++"""
++    )
++
++
++def test_verified_expired_token_retries_only_pre_accept_rejection_with_same_body() -> None:
++    candidate_control(
++        """
++renderSkillCandidateAvailability(candidateRuntime());
++let requests = 0;
++fetchPlan = async () => ++requests === 1
++  ? response(401, {detail:'session token is invalid or expired'})
++  : response(200, candidateReview());
++await prepareButton.onclick();
++assert.equal(candidatePosts().length, 2); assert.equal(nextToken, 2);
++assert.equal(candidatePosts()[0].options.body, candidatePosts()[1].options.body);
++assert.equal(exportButton.disabled, false);
++"""
++    )
++
++
++def test_unverified_auth_error_has_no_automatic_retry() -> None:
++    candidate_control(
++        """
++renderSkillCandidateAvailability(candidateRuntime());
++fetchPlan = async () => response(401, {detail:'unknown rejection'});
++await prepareButton.onclick();
++assert.equal(candidatePosts().length, 1); assert.equal(nextToken, 1);
++assert.equal(prepareButton.disabled, true);
++assert(candidateStatus.textContent.includes('結果未知'));
++"""
++    )
++
++
++def test_malformed_successful_cancel_cannot_clear_unknown_owner_state() -> None:
++    candidate_control(
++        """
++renderSkillCandidateAvailability(candidateRuntime());
++fetchPlan = async () => { throw Error('unknown outcome'); };
++await prepareButton.onclick();
++fetchPlan = async () => response(200, {cancelled:'yes'});
++await cancelButton.onclick();
++assert.equal(prepareButton.disabled, true); assert.equal(cancelButton.disabled, false);
++assert(candidateStatus.textContent.includes('無法確認取消'));
++renderSkillCandidateAvailability(candidateRuntime()); await prepareButton.onclick();
++assert.equal(candidatePosts().length, 2);
++"""
++    )
++
++
++def assert_service_payload_review(
++    payload: dict[str, object], *, status: str, verification: str, visible: str
++) -> None:
++    candidate_control(
++        "const actualPayload = "
++        + json.dumps(payload, ensure_ascii=False)
++        + f""";
++renderSkillCandidateAvailability(candidateRuntime());
++fetchPlan = async () => response(200, actualPayload);
++const blobs = []; let downloads = 0;
++const create = document.createElement;
++document.createElement = tag => {{
++  const node = create(tag); if (tag === 'a') node.click = () => downloads++; return node;
++}};
++URL.createObjectURL = blob => {{ blobs.push(blob); return 'blob:actual-service-review'; }};
++URL.revokeObjectURL = url => assert.equal(url, 'blob:actual-service-review');
++await prepareButton.onclick();
++assert(candidateStatus.textContent.includes({json.dumps(visible)}));
++assert(candidateStatus.textContent.includes('尚未安裝或啟用'));
++assert(!candidateStatus.textContent.includes('可啟用'));
++assert(candidateDetails.textContent.includes('不等於人工審查'));
++assert(candidateDetails.textContent.includes({json.dumps(verification)}));
++assert(candidateFiles.textContent.includes(actualPayload.files['plugin.py']));
++assert.equal(exportButton.disabled, false); assert.equal(downloads, 0);
++await exportButton.onclick();
++assert.equal(downloads, 1); assert.equal(blobs.length, 1);
++const exported = JSON.parse(await blobs[0].text());
++assert.deepEqual(exported, actualPayload);
++assert.equal(exported.status, {json.dumps(status)});
++assert.equal(exported.verification.status, {json.dumps(verification)});
++assert.equal(exported.enabled, false); assert.equal(exported.installed, false);
++assert.equal(exported.authorizes_execution, false); assert.equal(exported.approval_required, true);
++assert.equal(exported.trust_level, 'unreviewed');
++assert.equal(candidatePosts().length, 1);
++"""
++    )
++
++
++@pytest.mark.asyncio
++@real_profile
++async def test_actual_service_pass_payload_renders_and_exports_unreviewed_evidence() -> None:
++    service = skill_candidates.SkillCandidatePreparer(ToolCatalog(()))
++    try:
++        payload = await service.prepare("text.checklist.parse")
++        assert payload["status"] == "awaiting_review", payload
++        assert_service_payload_review(
++            payload,
++            status="awaiting_review",
++            verification="passed",
++            visible="待你審查",
++        )
++    finally:
++        await service.close()
++
++
++@pytest.mark.asyncio
++async def test_actual_service_binding_mismatch_payload_renders_failed_evidence(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    async def wrong_id(root: Path, proposal: PatchProposal) -> VerificationReport:
++        return VerificationReport(uuid4(), "passed", ("src/plugin.py",), (), True)
++
++    monkeypatch.setattr(skill_candidates, "verify_isolated_patch", wrong_id)
++    service = skill_candidates.SkillCandidatePreparer(ToolCatalog(()))
++    try:
++        payload = await service.prepare("text.checklist.parse")
++        assert payload["status"] == "verification_failed", payload
++        assert_service_payload_review(
++            payload,
++            status="verification_failed",
++            verification="binding_mismatch",
++            visible="驗證未通過",
++        )
++    finally:
++        await service.close()

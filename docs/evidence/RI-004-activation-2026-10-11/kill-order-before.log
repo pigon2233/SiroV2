@@ -1,0 +1,47 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_tools_off_blocks_skill_owner_before_waiting_for_candidate_cancel _____
+
+    @pytest.mark.asyncio
+    async def test_tools_off_blocks_skill_owner_before_waiting_for_candidate_cancel() -> None:
+        owner = ActivationService()
+        owner.view.update(installed=True, enabled=True, package_hash=HASH)
+        candidate = PreparedService()
+        started, release = asyncio.Event(), asyncio.Event()
+    
+        async def cancel() -> bool:
+            started.set()
+            await release.wait()
+            return True
+    
+        candidate.cancel = cancel  # type: ignore[method-assign]
+        app = application(owner, skill_candidates=cast(Any, candidate))
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
+            token = (await client.post("/v1/session", headers={"origin": ORIGIN})).json()["token"]
+            headers = {"origin": ORIGIN, "authorization": f"Bearer {token}"}
+            stopping = asyncio.create_task(
+                client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": False})
+            )
+            await asyncio.wait_for(started.wait(), timeout=1)
+            try:
+>               assert owner.view["enabled"] is False
+E               assert True is False
+
+tests/integration/test_skill_activation_product.py:271: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation_product.py::test_tools_off_blocks_skill_owner_before_waiting_for_candidate_cancel
+1 failed, 55 deselected, 3 warnings in 0.87s

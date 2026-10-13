@@ -163,6 +163,45 @@ class ActionRequestedEvent(EventEnvelope):
     payload: ActionRequestedPayload
 
 
+class ActionResultPayload(StrictModel):
+    action_id: UUID
+    outcome: Literal["confirmed", "mismatch", "denied", "unavailable", "error"]
+    goal_id: str | None = Field(default=None, max_length=128)
+    importance: float = Field(default=0.5, ge=0, le=1)
+    controllability: float = Field(default=0.5, ge=0, le=1)
+    expected: object | None = None
+    observed: object | None = None
+
+
+class ActionResultEvent(EventEnvelope):
+    type: Literal["action.result.v1"]
+    payload: ActionResultPayload
+
+
+class GoalTransitionPayload(StrictModel):
+    goal_id: str = Field(min_length=1, max_length=128)
+    previous_state: str = Field(min_length=1, max_length=64)
+    state: Literal["completed", "failed", "cancelled"]
+    importance: float = Field(default=0.5, ge=0, le=1)
+
+
+class GoalTransitionEvent(EventEnvelope):
+    type: Literal["goal.transition.v1"]
+    payload: GoalTransitionPayload
+
+
+class MemoryCorrectedPayload(StrictModel):
+    memory_id: UUID
+    revision: int = Field(ge=2)
+    reason: str = Field(min_length=1, max_length=512)
+    importance: float = Field(default=0.7, ge=0, le=1)
+
+
+class MemoryCorrectedEvent(EventEnvelope):
+    type: Literal["memory.corrected.v1"]
+    payload: MemoryCorrectedPayload
+
+
 class SystemHealthPayload(StrictModel):
     component: str = Field(min_length=1, max_length=128)
     state: Literal["healthy", "degraded", "unavailable"]
@@ -191,6 +230,9 @@ Event = Annotated[
     | TurnCancelledEvent
     | WorldObservedEvent
     | ActionRequestedEvent
+    | ActionResultEvent
+    | GoalTransitionEvent
+    | MemoryCorrectedEvent
     | SystemHealthEvent,
     Field(discriminator="type"),
 ]

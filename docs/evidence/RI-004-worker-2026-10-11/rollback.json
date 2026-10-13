@@ -1,0 +1,48 @@
+{
+  "status": "PASS",
+  "scope": "disposable exact seven-file source patch; no live source apply or data rollback",
+  "existing_files": [
+    "src/siro/adapters/skill_worker.py",
+    "src/siro/services/tools/patch_verification.py",
+    "src/siro/services/tools/patch_verification_runner.py"
+  ],
+  "new_files": [
+    "src/siro/adapters/isolated_python.py",
+    "src/siro/adapters/python_restrictions.py",
+    "src/siro/adapters/strict_skill_runner.py",
+    "tests/integration/test_strict_skill_worker.py"
+  ],
+  "commands": [
+    [
+      "git",
+      "apply",
+      "--reverse",
+      "--check",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "--reverse",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "--check",
+      "repair.patch"
+    ],
+    [
+      "git",
+      "apply",
+      "repair.patch"
+    ]
+  ],
+  "patch_sha256": "d6e0bcbae70eafc6c0c469934682e469947d8220af14f33932cdeb8a09679725",
+  "baseline_restored": true,
+  "candidate_reapplied": true,
+  "temporary_directory_removed": true,
+  "live_source_unchanged": true,
+  "runtime_restarted": false,
+  "database_rollback": false
+}

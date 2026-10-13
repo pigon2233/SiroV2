@@ -1,0 +1,63 @@
+........................................................................ [ 24%]
+........................................................................ [ 49%]
+.....F.................................................................. [ 74%]
+.........sssss.......................................................... [ 99%]
+..                                                                       [100%]
+=================================== FAILURES ===================================
+__________________ test_t34_start_stop_health_and_pid_cleanup __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-5/test_t34_start_stop_health_and0')
+
+    def test_t34_start_stop_health_and_pid_cleanup(tmp_path: Path) -> None:
+        root = Path(__file__).parents[2]
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            port = listener.getsockname()[1]
+        pid_file = tmp_path / "siro.pid"
+        environment = os.environ.copy()
+        environment["SIRO_GATEWAY_PORT"] = str(port)
+        environment["SIRO_LOG_DIR"] = str(tmp_path / "logs")
+        process = subprocess.Popen(
+            [str(root / "scripts/start"), str(pid_file)],
+            cwd=root,
+            env=environment,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            for _ in range(50):
+                try:
+                    with urllib.request.urlopen(
+                        f"http://127.0.0.1:{port}/health/ready", timeout=0.2
+                    ) as response:
+                        if response.status == 200:
+                            break
+                except OSError:
+                    time.sleep(0.1)
+            else:
+>               pytest.fail("gateway did not become ready")
+E               Failed: gateway did not become ready
+
+tests/integration/test_operational_cli.py:151: Failed
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/real/test_model_providers.py:41: set SIRO_RUN_REAL_PROVIDERS=1 to permit an external request
+SKIPPED [1] tests/real/test_model_providers.py:62: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+SKIPPED [1] tests/real/test_model_providers.py:80: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+SKIPPED [1] tests/real/test_speech_providers.py:18: set GROQ_API_KEY for the opt-in Groq speech test
+SKIPPED [1] tests/real/test_speech_providers.py:32: set GROQ_API_KEY for the opt-in Groq speech test
+FAILED tests/integration/test_operational_cli.py::test_t34_start_stop_health_and_pid_cleanup
+1 failed, 284 passed, 5 skipped, 3 warnings in 59.84s

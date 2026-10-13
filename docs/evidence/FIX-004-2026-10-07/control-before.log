@@ -1,0 +1,795 @@
+.....F....F.F                                                            [100%]
+=================================== FAILURES ===================================
+_ test_ready_timeout_rejects_and_late_snapshot_cannot_authenticate_closing_socket _
+
+    def test_ready_timeout_rejects_and_late_snapshot_cannot_authenticate_closing_socket() -> None:
+>       run_control(
+            """
+    const connecting = connectControl(), rejected = assert.rejects(connecting);
+    await until(() => sockets.length === 1);
+    const owner = sockets[0]; owner.open();
+    fireTimer(timer => timer.delay === 5000); await rejected;
+    assert.equal(owner.closeCalls, 1); assert.equal(controlAuthenticated, false);
+    owner.message(snapshot({browser:{turn_id:'stale-turn', state:'responding'}}));
+    assert.equal(controlAuthenticated, false, 'A socket closed by readiness timeout has lost ownership');
+    assert.equal(currentTurn, undefined);
+    assert.equal(targetCalls().length, 0);
+    """
+        )
+
+tests/integration/test_frontend_control.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nconst connecting = connectControl(), rejected = assert.rejects(connecting);\nawait until(() => sockets.length === 1...adiness timeout has lost ownership');\nassert.equal(currentTurn, undefined);\nassert.equal(targetCalls().length, 0);\n"
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) { this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this); }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) { console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1; }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: A socket closed by readiness timeout has lost ownership
+E         
+E         true !== false
+E         
+E             at [eval]:569:8 {
+E           generatedMessage: false,
+E           code: 'ERR_ASSERTION',
+E           actual: true,
+E           expected: false,
+E           operator: 'strictEqual',
+E           diff: 'simple'
+E         }
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...se,\n  code: 'ERR_ASSERTION',\n  actual: true,\n  expected: false,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n").returncode
+
+tests/integration/test_frontend_control.py:123: AssertionError
+__ test_unload_while_waiting_for_snapshot_releases_readiness_owner_and_timer ___
+
+    def test_unload_while_waiting_for_snapshot_releases_readiness_owner_and_timer() -> None:
+>       run_control(
+            """
+    let outcome;
+    const connecting = connectControl();
+    connecting.then(() => { outcome = 'resolved'; }, () => { outcome = 'rejected'; });
+    await until(() => sockets.length === 1);
+    sockets[0].open(); dispatchWindow('beforeunload'); await flush();
+    assert.equal(outcome, 'rejected', 'Unload must settle its pending readiness promise');
+    assert.equal(sockets[0].closeCalls, 1); assert.equal(timers.size, 0);
+    sockets[0].disconnect(); await flush();
+    assert.equal(timers.size, 0); assert.equal(targetCalls().length, 0);
+    await assert.rejects(connectControl());
+    """
+        )
+
+tests/integration/test_frontend_control.py:290: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nlet outcome;\nconst connecting = connectControl();\nconnecting.then(() => { outcome = 'resolved'; }, () => { outcom...sh();\nassert.equal(timers.size, 0); assert.equal(targetCalls().length, 0);\nawait assert.rejects(connectControl());\n"
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) { this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this); }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) { console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1; }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: Unload must settle its pending readiness promise
+E         + actual - expected
+E         
+E         + undefined
+E         - 'rejected'
+E         
+E             at [eval]:568:8 {
+E           generatedMessage: false,
+E           code: 'ERR_ASSERTION',
+E           actual: undefined,
+E           expected: 'rejected',
+E           operator: 'strictEqual',
+E           diff: 'simple'
+E         }
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...e: 'ERR_ASSERTION',\n  actual: undefined,\n  expected: 'rejected',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n").returncode
+
+tests/integration/test_frontend_control.py:123: AssertionError
+_______ test_cancel_during_readiness_wait_does_not_dispatch_queued_turn ________
+
+    def test_cancel_during_readiness_wait_does_not_dispatch_queued_turn() -> None:
+>       run_control(
+            """
+    const submission = submitText('synthetic queued action');
+    await until(() => sockets.length === 1);
+    sockets[0].open(); await document.querySelector('#cancel').onclick();
+    sockets[0].message(snapshot()); await submission;
+    assert.equal(targetCalls().length, 0, 'Cancelling before readiness must prevent queued HTTP dispatch');
+    """
+        )
+
+tests/integration/test_frontend_control.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nconst submission = submitText('synthetic queued action');\nawait until(() => sockets.length === 1);\nsockets[0].ope...submission;\nassert.equal(targetCalls().length, 0, 'Cancelling before readiness must prevent queued HTTP dispatch');\n"
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) { this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this); }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) { console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1; }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: Cancelling before readiness must prevent queued HTTP dispatch
+E         
+E         1 !== 0
+E         
+E             at [eval]:567:8 {
+E           generatedMessage: false,
+E           code: 'ERR_ASSERTION',
+E           actual: 1,
+E           expected: 0,
+E           operator: 'strictEqual',
+E           diff: 'simple'
+E         }
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...ge: false,\n  code: 'ERR_ASSERTION',\n  actual: 1,\n  expected: 0,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n").returncode
+
+tests/integration/test_frontend_control.py:123: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_frontend_control.py::test_ready_timeout_rejects_and_late_snapshot_cannot_authenticate_closing_socket
+FAILED tests/integration/test_frontend_control.py::test_unload_while_waiting_for_snapshot_releases_readiness_owner_and_timer
+FAILED tests/integration/test_frontend_control.py::test_cancel_during_readiness_wait_does_not_dispatch_queued_turn
+3 failed, 10 passed in 0.78s
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_cancel_during_token_renewal_does_not_dispatch_queued_turn ________
+
+    def test_cancel_during_token_renewal_does_not_dispatch_queued_turn() -> None:
+>       run_control(
+            """
+    await readyControl(); clock = 285_000;
+    let finishRenewal;
+    bootstrapPlan = () => new Promise(resolve => { finishRenewal = resolve; });
+    const submission = submitText('synthetic queued during renewal');
+    await until(() => calls.filter(call => call.url === '/v1/session').length === 2);
+    await document.querySelector('#cancel').onclick();
+    finishRenewal(response(200, {token:'synthetic-renewed', expires_in_seconds:300}));
+    await submission;
+    assert.equal(targetCalls().length, 0, 'Cancellation during token renewal must stop queued dispatch');
+    """
+        )
+
+tests/integration/test_frontend_control.py:347: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nawait readyControl(); clock = 285_000;\nlet finishRenewal;\nbootstrapPlan = () => new Promise(resolve => { finishRe...t submission;\nassert.equal(targetCalls().length, 0, 'Cancellation during token renewal must stop queued dispatch');\n"
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: Cancellation during token renewal must stop queued dispatch
+E         
+E         1 !== 0
+E         
+E             at [eval]:575:8 {
+E           generatedMessage: false,
+E           code: 'ERR_ASSERTION',
+E           actual: 1,
+E           expected: 0,
+E           operator: 'strictEqual',
+E           diff: 'simple'
+E         }
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...ge: false,\n  code: 'ERR_ASSERTION',\n  actual: 1,\n  expected: 0,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_frontend_control.py::test_cancel_during_token_renewal_does_not_dispatch_queued_turn
+1 failed, 16 deselected in 0.11s
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_cancel_overlapping_submissions_during_renewal_cannot_revive_older_dispatch _
+
+    def test_cancel_overlapping_submissions_during_renewal_cannot_revive_older_dispatch() -> None:
+>       run_control(
+            """
+    await readyControl(); clock = 285_000;
+    let finishRenewal;
+    bootstrapPlan = () => new Promise(resolve => { finishRenewal = resolve; });
+    const first = submitText('synthetic superseded request');
+    await until(() => calls.filter(call => call.url === '/v1/session').length === 2);
+    const second = submitText('synthetic newer request'); await flush();
+    await document.querySelector('#cancel').onclick();
+    finishRenewal(response(200, {token:'synthetic-renewed', expires_in_seconds:300}));
+    await Promise.all([first, second]);
+    assert.equal(targetCalls().length, 0, 'Cancellation must not revive a superseded pending request');
+    """
+        )
+
+tests/integration/test_frontend_control.py:363: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = "\nawait readyControl(); clock = 285_000;\nlet finishRenewal;\nbootstrapPlan = () => new Promise(resolve => { finishRe...irst, second]);\nassert.equal(targetCalls().length, 0, 'Cancellation must not revive a superseded pending request');\n"
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: Cancellation must not revive a superseded pending request
+E         
+E         1 !== 0
+E         
+E             at [eval]:586:8 {
+E           generatedMessage: false,
+E           code: 'ERR_ASSERTION',
+E           actual: 1,
+E           expected: 0,
+E           operator: 'strictEqual',
+E           diff: 'simple'
+E         }
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...ge: false,\n  code: 'ERR_ASSERTION',\n  actual: 1,\n  expected: 0,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_frontend_control.py::test_cancel_overlapping_submissions_during_renewal_cannot_revive_older_dispatch
+1 failed, 17 deselected in 0.11s

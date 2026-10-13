@@ -1,0 +1,35 @@
+unformatted: File would be reformatted
+   --> tests/integration/test_gateway.py:239:20
+    |
+238 |         assert calls == []
+    -         client.put(
+    -             "/v1/kill-switches/tools", headers=headers, json={"enabled": True}
+    -         )
+239 +         client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": True})
+240 |         assert socket.receive_json()["type"] == "kill_switch"
+--------------------------------------------------------------------------------
+261 |
+    -     orchestrator = ToolOrchestrator(
+    -         SQLiteToolProposalRepository(store), {"process.start": execute}
+    -     )
+262 +     orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {"process.start": execute})
+263 |
+    |
+
+unformatted: File would be reformatted
+  --> tests/test_audio_pipeline.py:20:12
+   |
+19 | def test_display_text_becomes_a_pronounceable_performance_script() -> None:
+   -     assert prepare_spoken_text(
+   -         "**SIRO**：請看[說明](https://example.com)。\n- 第一件事\n- 第二件事"  # noqa: RUF001
+   -     ) == "希洛：請看說明。；第一件事；第二件事。"  # noqa: RUF001
+20 +     assert (
+21 +         prepare_spoken_text(
+22 +             "**SIRO**：請看[說明](https://example.com)。\n- 第一件事\n- 第二件事"  # noqa: RUF001
+23 +         )
+24 +         == "希洛：請看說明。；第一件事；第二件事。"
+25 +     )  # noqa: RUF001
+26 |
+   |
+
+2 files would be reformatted, 189 files already formatted

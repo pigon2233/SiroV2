@@ -1,0 +1,476 @@
+FFFFFFFFF.FFFFFFFFFFFFFF                                                 [100%]
+=================================== FAILURES ===================================
+_____________ test_worker_requires_real_eos_and_preserves_identity _____________
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_worker_requires_real_eos_0/synthetic-packages'), 'mod...eos_0/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_worker_requires_real_eos_0/cache')}
+
+    def test_worker_requires_real_eos_and_preserves_identity(worker_fixture: dict[str, Path]) -> None:
+        ready, result = run_worker(worker_fixture, ["complete"])
+>       assert ready["completion_protocol"] == 2
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'completion_protocol'
+
+tests/test_qwen_worker_completion.py:132: KeyError
+_ test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[limit] _
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out0/synthetic-packages'), 'mod..._out0/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out0/cache')}
+text = 'limit'
+
+    @pytest.mark.parametrize(
+        "text", ["limit", "boundary", "no-eos", "empty", "batch", "no-sequences", "missing", "duplicate"]
+    )
+    def test_incomplete_or_unknown_output_never_returns_audio_or_success_cache(
+        worker_fixture: dict[str, Path], text: str
+    ) -> None:
+        _, result = run_worker(worker_fixture, [text])
+>       assert result["error"] == "QwenOutputIncomplete"
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'error'
+
+tests/test_qwen_worker_completion.py:152: KeyError
+_ test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[boundary] _
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out1/synthetic-packages'), 'mod..._out1/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out1/cache')}
+text = 'boundary'
+
+    @pytest.mark.parametrize(
+        "text", ["limit", "boundary", "no-eos", "empty", "batch", "no-sequences", "missing", "duplicate"]
+    )
+    def test_incomplete_or_unknown_output_never_returns_audio_or_success_cache(
+        worker_fixture: dict[str, Path], text: str
+    ) -> None:
+        _, result = run_worker(worker_fixture, [text])
+>       assert result["error"] == "QwenOutputIncomplete"
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'error'
+
+tests/test_qwen_worker_completion.py:152: KeyError
+_ test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[no-eos] _
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out2/synthetic-packages'), 'mod..._out2/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out2/cache')}
+text = 'no-eos'
+
+    @pytest.mark.parametrize(
+        "text", ["limit", "boundary", "no-eos", "empty", "batch", "no-sequences", "missing", "duplicate"]
+    )
+    def test_incomplete_or_unknown_output_never_returns_audio_or_success_cache(
+        worker_fixture: dict[str, Path], text: str
+    ) -> None:
+        _, result = run_worker(worker_fixture, [text])
+>       assert result["error"] == "QwenOutputIncomplete"
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'error'
+
+tests/test_qwen_worker_completion.py:152: KeyError
+_ test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[empty] _
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out3/synthetic-packages'), 'mod..._out3/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out3/cache')}
+text = 'empty'
+
+    @pytest.mark.parametrize(
+        "text", ["limit", "boundary", "no-eos", "empty", "batch", "no-sequences", "missing", "duplicate"]
+    )
+    def test_incomplete_or_unknown_output_never_returns_audio_or_success_cache(
+        worker_fixture: dict[str, Path], text: str
+    ) -> None:
+        _, result = run_worker(worker_fixture, [text])
+>       assert result["error"] == "QwenOutputIncomplete"
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'error'
+
+tests/test_qwen_worker_completion.py:152: KeyError
+_ test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[batch] _
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out4/synthetic-packages'), 'mod..._out4/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out4/cache')}
+text = 'batch'
+
+    @pytest.mark.parametrize(
+        "text", ["limit", "boundary", "no-eos", "empty", "batch", "no-sequences", "missing", "duplicate"]
+    )
+    def test_incomplete_or_unknown_output_never_returns_audio_or_success_cache(
+        worker_fixture: dict[str, Path], text: str
+    ) -> None:
+        _, result = run_worker(worker_fixture, [text])
+>       assert result["error"] == "QwenOutputIncomplete"
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'error'
+
+tests/test_qwen_worker_completion.py:152: KeyError
+_ test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[no-sequences] _
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out5/synthetic-packages'), 'mod..._out5/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out5/cache')}
+text = 'no-sequences'
+
+    @pytest.mark.parametrize(
+        "text", ["limit", "boundary", "no-eos", "empty", "batch", "no-sequences", "missing", "duplicate"]
+    )
+    def test_incomplete_or_unknown_output_never_returns_audio_or_success_cache(
+        worker_fixture: dict[str, Path], text: str
+    ) -> None:
+        _, result = run_worker(worker_fixture, [text])
+>       assert result["error"] == "QwenOutputIncomplete"
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'error'
+
+tests/test_qwen_worker_completion.py:152: KeyError
+_ test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[missing] _
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out6/synthetic-packages'), 'mod..._out6/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out6/cache')}
+text = 'missing'
+
+    @pytest.mark.parametrize(
+        "text", ["limit", "boundary", "no-eos", "empty", "batch", "no-sequences", "missing", "duplicate"]
+    )
+    def test_incomplete_or_unknown_output_never_returns_audio_or_success_cache(
+        worker_fixture: dict[str, Path], text: str
+    ) -> None:
+        _, result = run_worker(worker_fixture, [text])
+>       assert result["error"] == "QwenOutputIncomplete"
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'error'
+
+tests/test_qwen_worker_completion.py:152: KeyError
+_ test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[duplicate] _
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out7/synthetic-packages'), 'mod..._out7/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_incomplete_or_unknown_out7/cache')}
+text = 'duplicate'
+
+    @pytest.mark.parametrize(
+        "text", ["limit", "boundary", "no-eos", "empty", "batch", "no-sequences", "missing", "duplicate"]
+    )
+    def test_incomplete_or_unknown_output_never_returns_audio_or_success_cache(
+        worker_fixture: dict[str, Path], text: str
+    ) -> None:
+        _, result = run_worker(worker_fixture, [text])
+>       assert result["error"] == "QwenOutputIncomplete"
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'error'
+
+tests/test_qwen_worker_completion.py:152: KeyError
+_____________ test_observer_state_does_not_survive_failed_request ______________
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_observer_state_does_not_s0/synthetic-packages'), 'mod...ot_s0/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_observer_state_does_not_s0/cache')}
+
+    def test_observer_state_does_not_survive_failed_request(worker_fixture: dict[str, Path]) -> None:
+        _, first, failed, last = run_worker(worker_fixture, ["complete", "missing", "complete again"])
+>       assert first["completion"]["observer_calls"] == 1
+               ^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'completion'
+
+tests/test_qwen_worker_completion.py:166: KeyError
+______ test_cache_hits_have_verified_metadata_and_fresh_request_identity _______
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_hits_have_verified_0/synthetic-packages'), 'mod...ied_0/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_hits_have_verified_0/cache')}
+
+    def test_cache_hits_have_verified_metadata_and_fresh_request_identity(
+        worker_fixture: dict[str, Path],
+    ) -> None:
+        _, first, second = run_worker(worker_fixture, ["same text", "same text"])
+        assert first["cache_hit"] is False and second["cache_hit"] is True
+>       assert first["audio"] == second["audio"] and first["completion"] == second["completion"]
+                                                     ^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'completion'
+
+tests/test_qwen_worker_completion.py:177: KeyError
+_______________ test_legacy_cache_is_preserved_but_never_trusted _______________
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_legacy_cache_is_preserved0/synthetic-packages'), 'mod...rved0/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_legacy_cache_is_preserved0/cache')}
+
+    def test_legacy_cache_is_preserved_but_never_trusted(worker_fixture: dict[str, Path]) -> None:
+        cache = worker_fixture["cache"]
+        cache.mkdir()
+        legacy = cache / (hashlib.sha256(b"same text").hexdigest() + ".wav")
+        legacy.write_bytes(b"RIFFsynthetic unverified legacy cache")
+        _, result = run_worker(worker_fixture, ["same text"])
+>       assert result["cache_hit"] is False
+E       assert True is False
+
+tests/test_qwen_worker_completion.py:191: AssertionError
+____ test_cache_isolates_model_voice_library_and_reference_changes[weights] ____
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic0/synthetic-packages'), 'mod...voic0/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic0/cache')}
+changed = 'weights'
+
+    @pytest.mark.parametrize("changed", ["weights", "config", "reference", "reference-text", "library"])
+    def test_cache_isolates_model_voice_library_and_reference_changes(
+        worker_fixture: dict[str, Path], changed: str
+    ) -> None:
+        run_worker(worker_fixture, ["same text"])
+        reference_text = "synthetic reference"
+        if changed == "weights":
+            (worker_fixture["model"] / "model.safetensors").write_bytes(b"different weights")
+        elif changed == "config":
+            (worker_fixture["model"] / "config.json").write_text('{"synthetic":"different"}')
+        elif changed == "reference":
+            worker_fixture["reference"].write_bytes(b"different synthetic reference")
+        elif changed == "reference-text":
+            reference_text = "different synthetic reference text"
+        else:
+            metadata = worker_fixture["packages"] / "transformers-4.57.3.dist-info/METADATA"
+            metadata.write_text("Name: transformers\nVersion: synthetic-upgrade\n")
+        _, result = run_worker(worker_fixture, ["same text"], reference_text=reference_text)
+>       assert result["cache_hit"] is False
+E       assert True is False
+
+tests/test_qwen_worker_completion.py:214: AssertionError
+____ test_cache_isolates_model_voice_library_and_reference_changes[config] _____
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic1/synthetic-packages'), 'mod...voic1/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic1/cache')}
+changed = 'config'
+
+    @pytest.mark.parametrize("changed", ["weights", "config", "reference", "reference-text", "library"])
+    def test_cache_isolates_model_voice_library_and_reference_changes(
+        worker_fixture: dict[str, Path], changed: str
+    ) -> None:
+        run_worker(worker_fixture, ["same text"])
+        reference_text = "synthetic reference"
+        if changed == "weights":
+            (worker_fixture["model"] / "model.safetensors").write_bytes(b"different weights")
+        elif changed == "config":
+            (worker_fixture["model"] / "config.json").write_text('{"synthetic":"different"}')
+        elif changed == "reference":
+            worker_fixture["reference"].write_bytes(b"different synthetic reference")
+        elif changed == "reference-text":
+            reference_text = "different synthetic reference text"
+        else:
+            metadata = worker_fixture["packages"] / "transformers-4.57.3.dist-info/METADATA"
+            metadata.write_text("Name: transformers\nVersion: synthetic-upgrade\n")
+        _, result = run_worker(worker_fixture, ["same text"], reference_text=reference_text)
+>       assert result["cache_hit"] is False
+E       assert True is False
+
+tests/test_qwen_worker_completion.py:214: AssertionError
+___ test_cache_isolates_model_voice_library_and_reference_changes[reference] ___
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic2/synthetic-packages'), 'mod...voic2/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic2/cache')}
+changed = 'reference'
+
+    @pytest.mark.parametrize("changed", ["weights", "config", "reference", "reference-text", "library"])
+    def test_cache_isolates_model_voice_library_and_reference_changes(
+        worker_fixture: dict[str, Path], changed: str
+    ) -> None:
+        run_worker(worker_fixture, ["same text"])
+        reference_text = "synthetic reference"
+        if changed == "weights":
+            (worker_fixture["model"] / "model.safetensors").write_bytes(b"different weights")
+        elif changed == "config":
+            (worker_fixture["model"] / "config.json").write_text('{"synthetic":"different"}')
+        elif changed == "reference":
+            worker_fixture["reference"].write_bytes(b"different synthetic reference")
+        elif changed == "reference-text":
+            reference_text = "different synthetic reference text"
+        else:
+            metadata = worker_fixture["packages"] / "transformers-4.57.3.dist-info/METADATA"
+            metadata.write_text("Name: transformers\nVersion: synthetic-upgrade\n")
+        _, result = run_worker(worker_fixture, ["same text"], reference_text=reference_text)
+>       assert result["cache_hit"] is False
+E       assert True is False
+
+tests/test_qwen_worker_completion.py:214: AssertionError
+_ test_cache_isolates_model_voice_library_and_reference_changes[reference-text] _
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic3/synthetic-packages'), 'mod...voic3/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic3/cache')}
+changed = 'reference-text'
+
+    @pytest.mark.parametrize("changed", ["weights", "config", "reference", "reference-text", "library"])
+    def test_cache_isolates_model_voice_library_and_reference_changes(
+        worker_fixture: dict[str, Path], changed: str
+    ) -> None:
+        run_worker(worker_fixture, ["same text"])
+        reference_text = "synthetic reference"
+        if changed == "weights":
+            (worker_fixture["model"] / "model.safetensors").write_bytes(b"different weights")
+        elif changed == "config":
+            (worker_fixture["model"] / "config.json").write_text('{"synthetic":"different"}')
+        elif changed == "reference":
+            worker_fixture["reference"].write_bytes(b"different synthetic reference")
+        elif changed == "reference-text":
+            reference_text = "different synthetic reference text"
+        else:
+            metadata = worker_fixture["packages"] / "transformers-4.57.3.dist-info/METADATA"
+            metadata.write_text("Name: transformers\nVersion: synthetic-upgrade\n")
+        _, result = run_worker(worker_fixture, ["same text"], reference_text=reference_text)
+>       assert result["cache_hit"] is False
+E       assert True is False
+
+tests/test_qwen_worker_completion.py:214: AssertionError
+____ test_cache_isolates_model_voice_library_and_reference_changes[library] ____
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic4/synthetic-packages'), 'mod...voic4/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_cache_isolates_model_voic4/cache')}
+changed = 'library'
+
+    @pytest.mark.parametrize("changed", ["weights", "config", "reference", "reference-text", "library"])
+    def test_cache_isolates_model_voice_library_and_reference_changes(
+        worker_fixture: dict[str, Path], changed: str
+    ) -> None:
+        run_worker(worker_fixture, ["same text"])
+        reference_text = "synthetic reference"
+        if changed == "weights":
+            (worker_fixture["model"] / "model.safetensors").write_bytes(b"different weights")
+        elif changed == "config":
+            (worker_fixture["model"] / "config.json").write_text('{"synthetic":"different"}')
+        elif changed == "reference":
+            worker_fixture["reference"].write_bytes(b"different synthetic reference")
+        elif changed == "reference-text":
+            reference_text = "different synthetic reference text"
+        else:
+            metadata = worker_fixture["packages"] / "transformers-4.57.3.dist-info/METADATA"
+            metadata.write_text("Name: transformers\nVersion: synthetic-upgrade\n")
+        _, result = run_worker(worker_fixture, ["same text"], reference_text=reference_text)
+>       assert result["cache_hit"] is False
+E       assert True is False
+
+tests/test_qwen_worker_completion.py:214: AssertionError
+______ test_corrupt_or_uncommitted_cache_cannot_be_success_hit[audio_sha] ______
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_corrupt_or_uncommitted_ca0/synthetic-packages'), 'mod...d_ca0/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_corrupt_or_uncommitted_ca0/cache')}
+corruption = 'audio_sha'
+
+    @pytest.mark.parametrize("corruption", ["audio_sha", "completion", "truncated", "text_sha"])
+    def test_corrupt_or_uncommitted_cache_cannot_be_success_hit(
+        worker_fixture: dict[str, Path], corruption: str
+    ) -> None:
+        run_worker(worker_fixture, ["same text"])
+>       entry = next(worker_fixture["cache"].rglob("*.json"))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/test_qwen_worker_completion.py:223: StopIteration
+_____ test_corrupt_or_uncommitted_cache_cannot_be_success_hit[completion] ______
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_corrupt_or_uncommitted_ca1/synthetic-packages'), 'mod...d_ca1/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_corrupt_or_uncommitted_ca1/cache')}
+corruption = 'completion'
+
+    @pytest.mark.parametrize("corruption", ["audio_sha", "completion", "truncated", "text_sha"])
+    def test_corrupt_or_uncommitted_cache_cannot_be_success_hit(
+        worker_fixture: dict[str, Path], corruption: str
+    ) -> None:
+        run_worker(worker_fixture, ["same text"])
+>       entry = next(worker_fixture["cache"].rglob("*.json"))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/test_qwen_worker_completion.py:223: StopIteration
+______ test_corrupt_or_uncommitted_cache_cannot_be_success_hit[truncated] ______
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_corrupt_or_uncommitted_ca2/synthetic-packages'), 'mod...d_ca2/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_corrupt_or_uncommitted_ca2/cache')}
+corruption = 'truncated'
+
+    @pytest.mark.parametrize("corruption", ["audio_sha", "completion", "truncated", "text_sha"])
+    def test_corrupt_or_uncommitted_cache_cannot_be_success_hit(
+        worker_fixture: dict[str, Path], corruption: str
+    ) -> None:
+        run_worker(worker_fixture, ["same text"])
+>       entry = next(worker_fixture["cache"].rglob("*.json"))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/test_qwen_worker_completion.py:223: StopIteration
+______ test_corrupt_or_uncommitted_cache_cannot_be_success_hit[text_sha] _______
+
+worker_fixture = {'packages': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_corrupt_or_uncommitted_ca3/synthetic-packages'), 'mod...d_ca3/reference.wav'), 'cache': PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_corrupt_or_uncommitted_ca3/cache')}
+corruption = 'text_sha'
+
+    @pytest.mark.parametrize("corruption", ["audio_sha", "completion", "truncated", "text_sha"])
+    def test_corrupt_or_uncommitted_cache_cannot_be_success_hit(
+        worker_fixture: dict[str, Path], corruption: str
+    ) -> None:
+        run_worker(worker_fixture, ["same text"])
+>       entry = next(worker_fixture["cache"].rglob("*.json"))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/test_qwen_worker_completion.py:223: StopIteration
+_______ test_fingerprint_binds_effective_generation_and_segment_versions _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-141/test_fingerprint_binds_effecti0')
+
+    def test_fingerprint_binds_effective_generation_and_segment_versions(tmp_path: Path) -> None:
+>       worker = runpy.run_path(str(WORKER))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_qwen_worker_completion.py:241: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+<frozen runpy>:287: in run_path
+    ???
+<frozen runpy>:98: in _run_module_code
+    ???
+<frozen runpy>:88: in _run_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    #!/usr/bin/env python3
+    """Persistent JSON-lines worker for Qwen3-TTS reference-voice synthesis."""
+    
+    from __future__ import annotations
+    
+    import base64
+    import hashlib
+    import io
+    import json
+    import sys
+    from pathlib import Path
+    
+    import soundfile as sf
+>   import torch
+E   ModuleNotFoundError: No module named 'torch'
+
+scripts/qwen_tts_worker.py:14: ModuleNotFoundError
+__ test_observer_restores_instance_method_and_preserves_result_and_exception ___
+
+    def test_observer_restores_instance_method_and_preserves_result_and_exception() -> None:
+>       worker = runpy.run_path(str(WORKER))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_qwen_worker_completion.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+<frozen runpy>:287: in run_path
+    ???
+<frozen runpy>:98: in _run_module_code
+    ???
+<frozen runpy>:88: in _run_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    #!/usr/bin/env python3
+    """Persistent JSON-lines worker for Qwen3-TTS reference-voice synthesis."""
+    
+    from __future__ import annotations
+    
+    import base64
+    import hashlib
+    import io
+    import json
+    import sys
+    from pathlib import Path
+    
+    import soundfile as sf
+>   import torch
+E   ModuleNotFoundError: No module named 'torch'
+
+scripts/qwen_tts_worker.py:14: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_qwen_worker_completion.py::test_worker_requires_real_eos_and_preserves_identity
+FAILED tests/test_qwen_worker_completion.py::test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[limit]
+FAILED tests/test_qwen_worker_completion.py::test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[boundary]
+FAILED tests/test_qwen_worker_completion.py::test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[no-eos]
+FAILED tests/test_qwen_worker_completion.py::test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[empty]
+FAILED tests/test_qwen_worker_completion.py::test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[batch]
+FAILED tests/test_qwen_worker_completion.py::test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[no-sequences]
+FAILED tests/test_qwen_worker_completion.py::test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[missing]
+FAILED tests/test_qwen_worker_completion.py::test_incomplete_or_unknown_output_never_returns_audio_or_success_cache[duplicate]
+FAILED tests/test_qwen_worker_completion.py::test_observer_state_does_not_survive_failed_request
+FAILED tests/test_qwen_worker_completion.py::test_cache_hits_have_verified_metadata_and_fresh_request_identity
+FAILED tests/test_qwen_worker_completion.py::test_legacy_cache_is_preserved_but_never_trusted
+FAILED tests/test_qwen_worker_completion.py::test_cache_isolates_model_voice_library_and_reference_changes[weights]
+FAILED tests/test_qwen_worker_completion.py::test_cache_isolates_model_voice_library_and_reference_changes[config]
+FAILED tests/test_qwen_worker_completion.py::test_cache_isolates_model_voice_library_and_reference_changes[reference]
+FAILED tests/test_qwen_worker_completion.py::test_cache_isolates_model_voice_library_and_reference_changes[reference-text]
+FAILED tests/test_qwen_worker_completion.py::test_cache_isolates_model_voice_library_and_reference_changes[library]
+FAILED tests/test_qwen_worker_completion.py::test_corrupt_or_uncommitted_cache_cannot_be_success_hit[audio_sha]
+FAILED tests/test_qwen_worker_completion.py::test_corrupt_or_uncommitted_cache_cannot_be_success_hit[completion]
+FAILED tests/test_qwen_worker_completion.py::test_corrupt_or_uncommitted_cache_cannot_be_success_hit[truncated]
+FAILED tests/test_qwen_worker_completion.py::test_corrupt_or_uncommitted_cache_cannot_be_success_hit[text_sha]
+FAILED tests/test_qwen_worker_completion.py::test_fingerprint_binds_effective_generation_and_segment_versions
+FAILED tests/test_qwen_worker_completion.py::test_observer_restores_instance_method_and_preserves_result_and_exception
+23 failed, 1 passed in 2.03s

@@ -1,0 +1,82 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_cancel_during_success_cleanup_cannot_return_passed[task] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-97/test_cancel_during_success_cle0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b7203947230>
+kind = 'task'
+
+    @pytest.mark.asyncio
+    @real_profile
+    @pytest.mark.parametrize("kind", ["task", "context"])
+    async def test_cancel_during_success_cleanup_cannot_return_passed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+        module = backend()
+        original_remove = module._remove_workspace
+        started, release = threading.Event(), threading.Event()
+        removed: list[Path] = []
+        def remove(path: Path) -> None:
+            started.set()
+            assert release.wait(5)
+            original_remove(path)
+            removed.append(path)
+        monkeypatch.setattr(module, "_remove_workspace", remove)
+        context = ExecutionContext("synthetic", "owner", "epoch")
+        task = asyncio.create_task(module.verify_isolated_patch(root, proposal(), context=context))
+        try:
+            async with asyncio.timeout(4):
+                while not started.is_set(): await asyncio.sleep(0.005)
+            if kind == "task": task.cancel()
+            else: context.cancellation.cancel()
+        finally:
+            release.set()
+        expected = asyncio.CancelledError if kind == "task" else ExecutionCancelled
+>       with pytest.raises(expected): await asyncio.wait_for(task, 5)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE CancelledError
+
+tests/integration/test_isolated_patch_verification.py:531: Failed
+_______ test_cancel_during_success_cleanup_cannot_return_passed[context] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-97/test_cancel_during_success_cle1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b72039ca8d0>
+kind = 'context'
+
+    @pytest.mark.asyncio
+    @real_profile
+    @pytest.mark.parametrize("kind", ["task", "context"])
+    async def test_cancel_during_success_cleanup_cannot_return_passed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+    ) -> None:
+        root = project(tmp_path)
+        module = backend()
+        original_remove = module._remove_workspace
+        started, release = threading.Event(), threading.Event()
+        removed: list[Path] = []
+        def remove(path: Path) -> None:
+            started.set()
+            assert release.wait(5)
+            original_remove(path)
+            removed.append(path)
+        monkeypatch.setattr(module, "_remove_workspace", remove)
+        context = ExecutionContext("synthetic", "owner", "epoch")
+        task = asyncio.create_task(module.verify_isolated_patch(root, proposal(), context=context))
+        try:
+            async with asyncio.timeout(4):
+                while not started.is_set(): await asyncio.sleep(0.005)
+            if kind == "task": task.cancel()
+            else: context.cancellation.cancel()
+        finally:
+            release.set()
+        expected = asyncio.CancelledError if kind == "task" else ExecutionCancelled
+>       with pytest.raises(expected): await asyncio.wait_for(task, 5)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ExecutionCancelled
+
+tests/integration/test_isolated_patch_verification.py:531: Failed
+=========================== short test summary info ============================
+FAILED tests/integration/test_isolated_patch_verification.py::test_cancel_during_success_cleanup_cannot_return_passed[task]
+FAILED tests/integration/test_isolated_patch_verification.py::test_cancel_during_success_cleanup_cannot_return_passed[context]
+2 failed, 34 deselected in 0.34s

@@ -1,0 +1,19 @@
+..........F.                                                             [100%]
+=================================== FAILURES ===================================
+____ test_session_partial_marker_and_explicit_new_origin_remain_compatible _____
+
+    @pytest.mark.asyncio
+    async def test_session_partial_marker_and_explicit_new_origin_remain_compatible(
+        tmp_path: Path,
+    ) -> None:
+        del tmp_path
+        with pages() as (origin, other, hits):
+            sessions = BrowserSessions(ScopedBrowserDriver)
+>           context = ExecutionContext("run", CancellationToken(), session_id="owner", authorized=True)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: ExecutionContext.__init__() got multiple values for argument 'session_id'
+
+tests/integration/test_browser_scope_readability.py:157: TypeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_browser_scope_readability.py::test_session_partial_marker_and_explicit_new_origin_remain_compatible
+1 failed, 11 passed in 6.70s

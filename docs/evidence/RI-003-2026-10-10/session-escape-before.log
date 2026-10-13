@@ -1,0 +1,67 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_real_import_cannot_read_write_fork_exec_network_or_raise_limits _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-89/test_real_import_cannot_read_w0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x70047b6defd0>
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_real_import_cannot_read_write_fork_exec_network_or_raise_limits(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+        secret = tmp_path / "host-secret"
+        secret.write_text("SYNTHETIC-PRIVATE-CANARY")
+        (root / ".env.local").write_text("SYNTHETIC-PRIVATE-CANARY")
+        (root / ".siro-data").mkdir()
+        (root / ".siro-data/private.db").write_text("SYNTHETIC-PRIVATE-CANARY")
+        monkeypatch.setenv("RI003_SYNTHETIC_SECRET", "SYNTHETIC-PRIVATE-CANARY")
+        forbidden = [
+            str(secret),
+            str(root / "src/value.py"),
+            "/candidate/.env.local",
+            "/candidate/.siro-data/private.db",
+        ]
+        attack = f"""import os, socket, resource
+    assert 'RI003_SYNTHETIC_SECRET' not in os.environ
+    for path in {forbidden!r}:
+        try: open(path).read()
+        except OSError: pass
+        else: raise AssertionError('private read escaped')
+    for path in [{str(tmp_path / "host-write")!r}, '/candidate/src/value.py']:
+        try: open(path,'w').write('escape')
+        except OSError: pass
+        else: raise AssertionError('write escaped')
+    for action in [os.fork, os.setsid, lambda: os.setpgid(0,0), lambda: os.execv('/usr/bin/python3.14',['python']),
+                   lambda: socket.socket(), lambda: resource.setrlimit(resource.RLIMIT_AS,(-1,-1))]:
+        try: action()
+        except (OSError, ValueError): pass
+        else: raise AssertionError('restricted syscall escaped')
+    try:
+        fd=os.open('/dev/tty',os.O_RDONLY|os.O_NONBLOCK)
+    except OSError: pass
+    else:
+        os.close(fd)
+        raise AssertionError('host terminal available')
+    VALUE = 2
+    """
+        report = await backend().verify_isolated_patch(root, proposal(new=attack))
+>       assert report.status == "passed", report.outputs
+E       AssertionError: ('', 'E
+E         ======================================================================
+E         ERROR: test_value (unittest.loader._F...
+E         ----------------------------------------------------------------------
+E         Ran 1 test in 0.000s
+E         
+E         FAILED (errors=1)
+E         ')
+E       assert 'failed_checks' == 'passed'
+E         
+E         - passed
+E         + failed_checks
+
+tests/integration/test_isolated_patch_verification.py:148: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_isolated_patch_verification.py::test_real_import_cannot_read_write_fork_exec_network_or_raise_limits
+1 failed, 33 deselected in 0.23s

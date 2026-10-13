@@ -1,0 +1,832 @@
+diff --git a/src/siro/adapters/models/openai_compatible.py b/src/siro/adapters/models/openai_compatible.py
+index e881c54..4164dea 100644
+--- a/src/siro/adapters/models/openai_compatible.py
++++ b/src/siro/adapters/models/openai_compatible.py
+@@ -43,6 +43,32 @@ def _serialize_message(message: ModelMessage) -> dict[str, object]:
+ _TOOL_INTENT_EMITTED = "siro: provider tool intent emitted"
+ 
+ 
++class ProviderOutputIncomplete(ValueError):
++    """A provider did not confirm a complete supported output."""
++
++
++class ProviderOutputTruncated(ProviderOutputIncomplete):
++    """The provider exhausted its output limit."""
++
++
++class ProviderOutputFiltered(ProviderOutputIncomplete):
++    """The provider filtered its output instead of completing it."""
++
++
++def _completion_error(reason: object) -> ProviderOutputIncomplete | None:
++    if reason is None or reason in ("stop", "tool_calls"):
++        return None
++    if reason == "length":
++        return ProviderOutputTruncated(
++            "provider returned no usable reply: provider output reached its limit"
++        )
++    if reason == "content_filter":
++        return ProviderOutputFiltered(
++            "provider returned no usable reply: provider output was filtered"
++        )
++    return ProviderOutputIncomplete("provider output has an unsupported termination")
++
++
+ class OpenAICompatibleAdapter:
+     name = "openai-compatible"
+ 
+@@ -121,9 +147,16 @@ class OpenAICompatibleAdapter:
+         content = message.get("content")
+         if isinstance(content, str) and content:
+             yield ModelChunk("text", content)
++        if cancellation.cancelled:
++            return
+         tool_calls = message.get("tool_calls", [])
+         if not isinstance(tool_calls, list):
+             raise ValueError("provider tool_calls is not a list")
++        completion_error = _completion_error(first.get("finish_reason"))
++        if completion_error is not None:
++            raise completion_error
++        if not (isinstance(content, str) and content) and not tool_calls:
++            raise ValueError("provider returned no usable reply (no text or tool calls)")
+         for raw_call in tool_calls:
+             if not isinstance(raw_call, dict) or not isinstance(raw_call.get("function"), dict):
+                 raise ValueError("provider tool call is malformed")
+@@ -138,11 +171,13 @@ class OpenAICompatibleAdapter:
+             if not isinstance(call_id, str) or not isinstance(name, str):
+                 raise ValueError("provider tool call has no id or name")
+             yield ModelChunk("tool_request", tool_call=ToolCall(call_id, name, arguments))
+-        if not (isinstance(content, str) and content) and not tool_calls:
+-            raise ValueError("provider returned no usable reply (no text or tool calls)")
++            if cancellation.cancelled:
++                return
+         usage = response.get("usage")
+         if isinstance(usage, dict) and isinstance(usage.get("total_tokens"), int):
+             yield ModelChunk("usage", usage_tokens=usage["total_tokens"])
++            if cancellation.cancelled:
++                return
+         yield ModelChunk("finished")
+ 
+     async def _stream_response(
+@@ -150,19 +185,27 @@ class OpenAICompatibleAdapter:
+     ) -> AsyncIterator[ModelChunk]:
+         calls: dict[int, dict[str, str]] = {}
+         has_text = False
++        done_marker = False
++        successful_reason = False
++        completion_error: ProviderOutputIncomplete | None = None
++        primary_error: Exception | None = None
+         transport = cast(StreamingJsonTransport, self._transport)
++        lines = transport.stream_lines(
++            self._url,
++            payload,
++            {"Authorization": f"Bearer {self._key}"},
++            self._timeout,
++            cancellation,
++        )
+         try:
+-            async for line in transport.stream_lines(
+-                self._url,
+-                payload,
+-                {"Authorization": f"Bearer {self._key}"},
+-                self._timeout,
+-                cancellation,
+-            ):
++            async for line in lines:
++                if cancellation.cancelled:
++                    return
+                 if not line or not line.startswith("data:"):
+                     continue
+                 data = line.removeprefix("data:").strip()
+                 if data == "[DONE]":
++                    done_marker = True
+                     break
+                 event = json.loads(data)
+                 if not isinstance(event, dict):
+@@ -170,12 +213,18 @@ class OpenAICompatibleAdapter:
+                 usage = event.get("usage")
+                 if isinstance(usage, dict) and isinstance(usage.get("total_tokens"), int):
+                     yield ModelChunk("usage", usage_tokens=usage["total_tokens"])
++                    if cancellation.cancelled:
++                        return
+                 choices = event.get("choices", [])
+                 if not isinstance(choices, list):
+                     raise ValueError("provider stream choices is not a list")
+                 for choice in choices:
+                     if not isinstance(choice, dict):
+                         continue
++                    reason = choice.get("finish_reason")
++                    if reason is not None:
++                        successful_reason |= reason in ("stop", "tool_calls")
++                        completion_error = completion_error or _completion_error(reason)
+                     delta = choice.get("delta")
+                     if not isinstance(delta, dict):
+                         continue
+@@ -183,6 +232,8 @@ class OpenAICompatibleAdapter:
+                     if isinstance(content, str) and content:
+                         has_text = True
+                         yield ModelChunk("text", content)
++                        if cancellation.cancelled:
++                            return
+                     raw_calls = delta.get("tool_calls", [])
+                     if not isinstance(raw_calls, list):
+                         raise ValueError("provider stream tool_calls is not a list")
+@@ -198,10 +249,36 @@ class OpenAICompatibleAdapter:
+                                 call["name"] += function["name"]
+                             if isinstance(function.get("arguments"), str):
+                                 call["args"] += function["arguments"]
++                if completion_error is not None and (has_text or calls):
++                    raise completion_error
++            if cancellation.cancelled:
++                return
++            if completion_error is not None:
++                raise completion_error
++            if not has_text and not calls:
++                raise ValueError("provider returned no usable reply (no text or tool calls)")
++            if not (done_marker or successful_reason):
++                raise ProviderOutputIncomplete("provider output ended without completion")
+         except Exception as error:
++            if cancellation.cancelled:
++                return
++            primary_error = error
+             if calls:
+                 error.add_note(_TOOL_INTENT_EMITTED)
+             raise
++        finally:
++            close = getattr(lines, "aclose", None)
++            if close is not None:
++                try:
++                    await close()
++                except Exception as cleanup_error:
++                    if cancellation.cancelled:
++                        return
++                    if primary_error is None:
++                        if calls:
++                            cleanup_error.add_note(_TOOL_INTENT_EMITTED)
++                        raise
++                    primary_error.add_note("siro: provider stream cleanup failed")
+         if cancellation.cancelled:
+             return
+         for index, call in sorted(calls.items()):
+@@ -212,6 +289,6 @@ class OpenAICompatibleAdapter:
+                 "tool_request",
+                 tool_call=ToolCall(call["id"] or f"call-{index}", call["name"], arguments),
+             )
+-        if not has_text and not calls:
+-            raise ValueError("provider returned no usable reply (no text or tool calls)")
++            if cancellation.cancelled:
++                return
+         yield ModelChunk("finished")
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+index 942e452..add3e17 100644
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -145,9 +145,18 @@
+           if (data.type === "assistant_terminal") {
+             const spokenText = data.state === "completed" && assistantBubble
+               ? formatAssistantMessage(assistantBubble) : assistantBubble?.textContent || "";
+-            if (data.state !== "completed" && assistantBubble && !assistantBubble.textContent) {
+-              assistantBubble.textContent = data.state === "cancelled" ? "已停止這次回覆。" : "這次回覆沒有完成。已執行的操作結果會保留在電腦協助，請確認後再試。";
+-              if (data.error) assistantBubble.textContent += `（${data.error}）`;
++            if (data.state !== "completed") {
++              if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
++              const reasons = {
++                ProviderOutputTruncated: "這次回覆未完成，文字生成已達上限。已收到的內容保留，沒有自動重送操作。",
++                ProviderOutputFiltered: "這次回覆未完成，對話服務停止了這段輸出。",
++                ProviderOutputIncomplete: "這次回覆未完成，沒有收到完整結束資訊。已收到的內容保留，沒有自動重送操作。"
++              };
++              const notice = document.createElement("p"); notice.className = "warn";
++              notice.textContent = data.state === "cancelled" ? "已停止這次回覆。"
++                : reasons[data.error] || "這次回覆未完成。已執行的操作結果會保留在電腦協助，請確認後再試。";
++              if (data.error && !reasons[data.error]) notice.textContent += `（${data.error}）`;
++              assistantBubble.appendChild(notice);
+             }
+             if (data.state !== "completed") stopTts();
+             if (data.state === "completed" && spokenText && !speechCancelled) playTts(spokenText, data.prosody || {});
+diff --git a/tests/contract/test_model_adapters.py b/tests/contract/test_model_adapters.py
+index b11d9fd..16834a1 100644
+--- a/tests/contract/test_model_adapters.py
++++ b/tests/contract/test_model_adapters.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import asyncio
++import json
+ from typing import Any
+ 
+ import pytest
+@@ -284,12 +285,15 @@ async def test_openai_rejects_empty_stream_reply_without_fallback(finish_reason:
+     )
+     fallback = RecordingModel()
+     chunks = []
+-    with pytest.raises(ValueError, match="provider returned no usable reply"):
++    with pytest.raises(ValueError, match="provider returned no usable reply") as failure:
+         async for chunk in FailoverModel((adapter, fallback), backoff_seconds=0).stream(
+             ModelRequest("hello", "g1", Privacy.CLOUD_ALLOWED), CancellationToken()
+         ):
+             chunks.append(chunk)
+     assert [chunk.kind for chunk in chunks] == ["usage"]
++    assert type(failure.value).__name__ == (
++        "ProviderOutputTruncated" if finish_reason == "length" else "ValueError"
++    )
+     assert not fallback.generations
+ 
+ 
+@@ -327,6 +331,269 @@ async def test_openai_stream_cancels_without_empty_reply_error() -> None:
+     assert [chunk.kind for chunk in chunks] == ["usage"]
+ 
+ 
++@pytest.mark.asyncio
++@pytest.mark.parametrize("streaming", [False, True])
++@pytest.mark.parametrize("reason", ["length", "content_filter", "unknown"])
++@pytest.mark.parametrize("with_tools", [False, True])
++async def test_openai_incomplete_output_preserves_text_without_tools_or_retry(
++    streaming: bool, reason: str, with_tools: bool
++) -> None:
++    message: dict[str, object] = {"content": "synthetic partial"}
++    if with_tools:
++        message["tool_calls"] = [
++            {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
++        ]
++    if streaming:
++        transport: FakeTransport | FakeStreamingTransport = FakeStreamingTransport(
++            (
++                "data: " + json.dumps({"choices": [{"delta": message}]}),
++                # A terminal choice need not contain delta; a later stop cannot erase failure.
++                "data: " + json.dumps({"choices": [{"finish_reason": reason}]}),
++                'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
++                "data: [DONE]",
++            )
++        )
++    else:
++        transport = FakeTransport({"choices": [{"message": message, "finish_reason": reason}]})
++    adapter = OpenAICompatibleAdapter(
++        base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
++    )
++    fallback = RecordingModel()
++    chunks = []
++    with pytest.raises(ValueError, match="provider output"):
++        async for chunk in FailoverModel((adapter, fallback), backoff_seconds=0).stream(
++            ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED), CancellationToken()
++        ):
++            chunks.append(chunk)
++    assert [chunk.text for chunk in chunks if chunk.kind == "text"] == ["synthetic partial"]
++    assert not any(chunk.kind in {"tool_request", "finished"} for chunk in chunks)
++    assert not fallback.generations
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("with_tools", [False, True])
++async def test_openai_bare_eof_is_incomplete_and_never_retries_buffered_intents(
++    with_tools: bool,
++) -> None:
++    delta: dict[str, object] = {"content": "partial"}
++    if with_tools:
++        delta = {
++            "tool_calls": [
++                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
++            ]
++        }
++    adapter = OpenAICompatibleAdapter(
++        base_url="https://provider.invalid",
++        api_key="synthetic",
++        model="test",
++        transport=FakeStreamingTransport(("data: " + json.dumps({"choices": [{"delta": delta}]}),)),
++    )
++    fallback = RecordingModel()
++    chunks = []
++    with pytest.raises(ValueError, match="provider output"):
++        async for chunk in FailoverModel((adapter, fallback), backoff_seconds=0).stream(
++            ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED), CancellationToken()
++        ):
++            chunks.append(chunk)
++    assert not any(chunk.kind in {"tool_request", "finished"} for chunk in chunks)
++    assert not fallback.generations
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "reason,done_marker",
++    [(None, True), ("stop", False), ("stop", True), ("tool_calls", False), ("tool_calls", True)],
++)
++async def test_openai_successful_termination_compatibility(
++    reason: str | None, done_marker: bool
++) -> None:
++    delta: dict[str, object] = {"content": "complete"}
++    if reason == "tool_calls":
++        delta = {
++            "tool_calls": [
++                {"index": 0, "id": "intent", "function": {"name": "weather", "arguments": "{}"}}
++            ]
++        }
++    lines = ["data: " + json.dumps({"choices": [{"delta": delta}]})]
++    if reason:
++        lines.append("data: " + json.dumps({"choices": [{"finish_reason": reason}]}))
++        lines.append('data: {"choices":[],"usage":{"total_tokens":2}}')
++    if done_marker:
++        lines.append("data: [DONE]")
++    adapter = OpenAICompatibleAdapter(
++        base_url="https://provider.invalid",
++        api_key="synthetic",
++        model="test",
++        transport=FakeStreamingTransport(tuple(lines)),
++    )
++    chunks = await collect_chunks(adapter, ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED))
++    assert chunks[-1].kind == "finished"
++    if reason == "tool_calls":
++        assert next(c.tool_call for c in chunks if c.kind == "tool_request") == ToolCall(
++            "intent", "weather", {}
++        )
++    else:
++        assert "".join(c.text for c in chunks if c.kind == "text") == "complete"
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("streaming", [False, True])
++async def test_cancel_after_partial_text_precedes_output_limit_error(streaming: bool) -> None:
++    choice = {"delta": {"content": "partial"}, "finish_reason": "length"}
++    transport: FakeTransport | FakeStreamingTransport
++    if streaming:
++        transport = FakeStreamingTransport(("data: " + json.dumps({"choices": [choice]}),))
++    else:
++        transport = FakeTransport(
++            {"choices": [{"message": {"content": "partial"}, "finish_reason": "length"}]}
++        )
++    adapter = OpenAICompatibleAdapter(
++        base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
++    )
++    token = CancellationToken()
++    chunks = []
++    async for chunk in adapter.stream(ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED), token):
++        chunks.append(chunk)
++        token.cancel()
++    assert [c.kind for c in chunks] == ["text"]
++
++
++@pytest.mark.asyncio
++async def test_transport_cancellation_precedes_simultaneous_error() -> None:
++    class CancellingTransport(FakeStreamingTransport):
++        async def stream_lines(
++            self,
++            url: str,
++            payload: dict[str, object],
++            headers: dict[str, str],
++            timeout: float,
++            cancellation: CancellationToken,
++        ) -> Any:
++            yield 'data: {"choices":[{"delta":{"content":"partial"}}]}'
++            cancellation.cancel()
++            raise ConnectionError("synthetic cancellation race")
++
++    adapter = OpenAICompatibleAdapter(
++        base_url="https://provider.invalid",
++        api_key="synthetic",
++        model="test",
++        transport=CancellingTransport(()),
++    )
++    token = CancellationToken()
++    chunks = [
++        c
++        async for c in adapter.stream(ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED), token)
++    ]
++    assert token.cancelled
++    assert [c.kind for c in chunks] == ["text"]
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("ending", ["done", "length", "cancel"])
++async def test_adapter_closes_owned_stream_before_returning(ending: str) -> None:
++    class OwnedTransport(FakeStreamingTransport):
++        closed = False
++
++        async def stream_lines(
++            self,
++            url: str,
++            payload: dict[str, object],
++            headers: dict[str, str],
++            timeout: float,
++            cancellation: CancellationToken,
++        ) -> Any:
++            try:
++                yield 'data: {"choices":[{"delta":{"content":"partial"}}]}'
++                if ending == "length":
++                    yield 'data: {"choices":[{"finish_reason":"length"}]}'
++                yield "data: [DONE]"
++            finally:
++                self.closed = True
++
++    transport = OwnedTransport(())
++    adapter = OpenAICompatibleAdapter(
++        base_url="https://provider.invalid", api_key="synthetic", model="test", transport=transport
++    )
++    token = CancellationToken()
++    chunks = []
++    try:
++        async for chunk in adapter.stream(
++            ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED), token
++        ):
++            chunks.append(chunk)
++            if ending == "cancel":
++                token.cancel()
++    except ValueError:
++        assert ending == "length"
++    assert transport.closed
++    assert (chunks[-1].kind == "finished") == (ending == "done")
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("ending", ["done", "length", "cancel"])
++async def test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent(ending: str) -> None:
++    class ClosingTransport:
++        def stream_lines(
++            self,
++            url: str,
++            payload: dict[str, object],
++            headers: dict[str, str],
++            timeout: float,
++            cancellation: CancellationToken,
++        ) -> Any:
++            values = iter(
++                (
++                    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"intent",'
++                    '"function":{"name":"weather","arguments":"{}"}}]}}]}',
++                    'data: {"choices":[{"finish_reason":"length"}]}'
++                    if ending == "length"
++                    else "data: [DONE]",
++                )
++            )
++
++            class Lines:
++                def __aiter__(self) -> Any:
++                    return self
++
++                async def __anext__(self) -> str:
++                    value = next(values, None)
++                    if value is None:
++                        raise StopAsyncIteration
++                    if ending == "cancel" and value == "data: [DONE]":
++                        cancellation.cancel()
++                    return value
++
++                async def aclose(self) -> None:
++                    raise ConnectionError("synthetic cleanup failure")
++
++            return Lines()
++
++    adapter = OpenAICompatibleAdapter(
++        base_url="https://provider.invalid",
++        api_key="synthetic",
++        model="test",
++        transport=ClosingTransport(),
++    )
++    token = CancellationToken()
++    fallback = RecordingModel()
++    chunks = []
++    failure = None
++    try:
++        async for chunk in FailoverModel((adapter, fallback), backoff_seconds=0).stream(
++            ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED), token
++        ):
++            chunks.append(chunk)
++    except Exception as error:
++        failure = type(error).__name__
++    assert not fallback.generations
++    assert chunks == []
++    assert (
++        failure
++        == {"done": "ConnectionError", "length": "ProviderOutputTruncated", "cancel": None}[ending]
++    )
++    assert token.cancelled == (ending == "cancel")
++
++
+ @pytest.mark.asyncio
+ async def test_http_stream_cancellation_closes_stalled_request() -> None:
+     connected = asyncio.Event()
+diff --git a/tests/integration/test_frontend_companion.py b/tests/integration/test_frontend_companion.py
+index cd26cb2..7dd1ed8 100644
+--- a/tests/integration/test_frontend_companion.py
++++ b/tests/integration/test_frontend_companion.py
+@@ -123,6 +123,26 @@ assert.equal(currentTurn, undefined);
+     )
+ 
+ 
++def test_partial_reply_keeps_text_and_displays_incomplete_notice_without_speaking() -> None:
++    run_frontend(
++        """
++const spoken = [];
++playTts = text => { spoken.push(text); };
++emit({type: 'turn_started', turn_id: 'partial-turn'});
++emit({type: 'assistant_started', stream_id: 'partial-stream'});
++emit({type: 'assistant_delta', stream_id: 'partial-stream', text: '這段回答尚未'});
++emit({type: 'assistant_terminal', stream_id: 'partial-stream', state: 'failed',
++      error: 'ProviderOutputTruncated'});
++const messages = document.querySelector('#messages').children;
++assert.equal(messages.length, 1);
++assert(messages[0].textContent.startsWith('這段回答尚未'));
++assert(messages[0].textContent.includes('未完成'));
++assert.equal(spoken.length, 0);
++assert.equal(currentTurn, undefined);
++"""
++    )
++
++
+ def test_safe_mode_proposals_remain_independently_approvable() -> None:
+     run_frontend(
+         """
+diff --git a/tests/integration/test_provider_completion.py b/tests/integration/test_provider_completion.py
+new file mode 100644
+index 0000000..96d33d4
+--- /dev/null
++++ b/tests/integration/test_provider_completion.py
+@@ -0,0 +1,291 @@
++from __future__ import annotations
++
++import asyncio
++import json
++from collections.abc import AsyncIterator
++from contextlib import asynccontextmanager
++from pathlib import Path
++from typing import cast
++
++import pytest
++
++from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
++from siro.adapters.models.failover import FailoverModel
++from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import Privacy
++from siro.services.agent.runs import SQLiteAgentRunRepository
++from siro.services.presentation.gateway import GatewayHub
++from siro.services.presentation.integrated import IntegratedCompanion
++from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
++
++_PARTIAL = "synthetic unfinished reply"
++_COMPLETE = "synthetic complete reply"
++_GOAL = "synthetic provider completion goal"
++_FOLLOW_UP = "synthetic follow-up goal"
++_PRIOR_ARGUMENTS: dict[str, object] = {"argv": ["synthetic-prior-effect"]}
++_OBSERVATION = {"confirmed": "synthetic prior effect"}
++
++
++class RecordingHub(GatewayHub):
++    def __init__(self) -> None:
++        super().__init__()
++        self.events: list[dict[str, object]] = []
++
++    async def broadcast(self, payload: dict[str, object], *, urgent: bool = False) -> None:
++        self.events.append(payload)
++
++
++def _sse(*events: dict[str, object] | str) -> bytes:
++    return "".join(
++        "data: " + (event if isinstance(event, str) else json.dumps(event)) + "\n\n"
++        for event in events
++    ).encode()
++
++
++def _delta(value: dict[str, object]) -> dict[str, object]:
++    return {"choices": [{"delta": value}]}
++
++
++def _tool(index: int, call_id: str, arguments: str) -> dict[str, object]:
++    return {
++        "index": index,
++        "id": call_id,
++        "function": {"name": "computer.execute", "arguments": arguments},
++    }
++
++
++def _incomplete_response(ending: str) -> bytes:
++    events: list[dict[str, object] | str] = [
++        _delta({"content": _PARTIAL}),
++        _delta(
++            {
++                "tool_calls": [
++                    _tool(0, "new-complete", '{"argv":["must-not-execute"]}'),
++                    _tool(1, "new-partial", '{"argv":['),
++                ]
++            }
++        ),
++    ]
++    if ending == "length":
++        events.extend(({"choices": [{"finish_reason": "length"}]}, "[DONE]"))
++    return _sse(*events)
++
++
++@asynccontextmanager
++async def _provider(
++    responses: list[bytes],
++) -> AsyncIterator[tuple[str, list[dict[str, object]]]]:
++    """Valid HTTP framing makes bare EOF a semantic SSE failure, not a wire error."""
++    requests: list[dict[str, object]] = []
++    errors: list[Exception] = []
++    handlers: set[asyncio.Task[None]] = set()
++
++    async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
++        task = asyncio.current_task()
++        assert task is not None
++        handlers.add(task)
++        try:
++            async with asyncio.timeout(3):
++                headers = await reader.readuntil(b"\r\n\r\n")
++                assert headers.startswith(b"POST /v1/chat/completions HTTP/1.1\r\n")
++                length = next(
++                    int(line.split(b":", 1)[1])
++                    for line in headers.split(b"\r\n")
++                    if line.lower().startswith(b"content-length:")
++                )
++                payload = json.loads(await reader.readexactly(length))
++                assert isinstance(payload, dict) and payload["stream"] is True
++                requests.append(payload)
++                index = len(requests) - 1
++                if index >= len(responses):
++                    raise AssertionError("unexpected provider retry or restart replay")
++                body = responses[index]
++                writer.write(
++                    b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
++                    + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode()
++                    + body
++                )
++                await writer.drain()
++        except Exception as error:
++            errors.append(error)
++        finally:
++            writer.close()
++            await writer.wait_closed()
++            handlers.discard(task)
++
++    server = await asyncio.start_server(serve, "127.0.0.1", 0)
++    port = server.sockets[0].getsockname()[1]
++    try:
++        yield f"http://127.0.0.1:{port}", requests
++    finally:
++        server.close()
++        await server.wait_closed()
++        for handler in tuple(handlers):
++            handler.cancel()
++        await asyncio.gather(*tuple(handlers), return_exceptions=True)
++    assert not errors, errors
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("profile", ["legacy", "candidate"])
++@pytest.mark.parametrize("continuation", [False, True])
++@pytest.mark.parametrize("ending", ["length", "bare_eof"])
++async def test_provider_incomplete_generation_never_dispatches_or_replays(
++    tmp_path: Path, profile: str, continuation: bool, ending: str
++) -> None:
++    responses = []
++    if continuation:
++        responses.append(
++            _sse(
++                _delta({"tool_calls": [_tool(0, "prior", json.dumps(_PRIOR_ARGUMENTS))]}),
++                {"choices": [{"finish_reason": "tool_calls"}]},
++                "[DONE]",
++            )
++        )
++    responses.extend(
++        (
++            _incomplete_response(ending),
++            _sse(
++                _delta({"content": _COMPLETE}), {"choices": [{"finish_reason": "stop"}]}, "[DONE]"
++            ),
++        )
++    )
++    expected_error = "ProviderOutputTruncated" if ending == "length" else "ProviderOutputIncomplete"
++    effects: list[dict[str, object]] = []
++
++    async def execute(arguments: dict[str, object]) -> object:
++        effects.append(arguments)
++        return _OBSERVATION
++
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    repository = SQLiteAgentRunRepository(store)
++    hub = RecordingHub()
++    async with _provider(responses) as (base_url, requests):
++        # Permit a second attempt so a hidden automatic retry cannot pass by policy denial.
++        model = FailoverModel(
++            (OpenAICompatibleAdapter(base_url=base_url, api_key="synthetic", model="synthetic"),),
++            backoff_seconds=0,
++            cloud_request_budget=1,
++        )
++        controller = IntegratedCompanion(
++            tmp_path,
++            model,
++            hub,
++            MinimalWebBodyAdapter(WebSocketBodyTransport()),
++            privacy=Privacy.CLOUD_ALLOWED,
++            tool_orchestrator=ToolOrchestrator(
++                SQLiteToolProposalRepository(store), {"computer.execute": execute}
++            ),
++            runtime_profile=profile,
++            auto_authorize=lambda: True,
++        )
++        await asyncio.wait_for(controller.respond("session", _GOAL), 10)
++        assert len(requests) == 1 + int(continuation)
++        assert effects == ([_PRIOR_ARGUMENTS] if continuation else [])
++        proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
++        assert [event["call_id"] for event in proposals] == (["prior"] if continuation else [])
++        terminals = [event for event in hub.events if event["type"] == "assistant_terminal"]
++        assert len(terminals) == 1
++        assert terminals[0]["state"] == "failed"
++        assert terminals[0]["error"] == expected_error
++        assert [event["text"] for event in hub.events if event["type"] == "assistant_delta"] == [
++            _PARTIAL
++        ]
++        assert hub.events[-1] is terminals[0]
++        readback = await controller.recovery_readback("session")
++        assert readback is not None and readback["state"] == "failed"
++        assert readback["error"] == expected_error
++        proposal_rows = await store.run_transaction(
++            lambda c: c.execute(
++                "SELECT proposal_id,call_id,state,arguments_json,observation_json "
++                "FROM tool_proposals"
++            ).fetchall()
++        )
++        assert len(proposal_rows) == int(continuation)
++        if continuation:
++            proposal = proposal_rows[0]
++            assert proposal["proposal_id"] == proposals[0]["proposal_id"]
++            # Candidate stores a run-scoped private identity; the journal owns native IDs.
++            assert proposal["call_id"] == (
++                proposal["proposal_id"] if profile == "candidate" else "prior"
++            )
++            assert proposal["state"] == "completed"
++            assert json.loads(proposal["arguments_json"]) == _PRIOR_ARGUMENTS
++            assert json.loads(proposal["observation_json"]) == _OBSERVATION
++        steps = await repository.steps(str(readback["run_id"]))
++        assert [step.payload for step in steps if step.kind == "observation"] == (
++            [_OBSERVATION] if continuation else []
++        )
++        finals = [step.payload for step in steps if step.kind == "final"]
++        assert len(finals) == 1
++        assert cast(dict[str, object], finals[0])["text"] == _PARTIAL
++        turns = await store.run_transaction(
++            lambda c: c.execute("SELECT state FROM turns ORDER BY rowid").fetchall()
++        )
++        assert [row[0] for row in turns] == (
++            ["completed", "failed"] if continuation else ["failed"]
++        )
++        if profile == "candidate":
++            assert readback["recovery_status"] == "terminal"
++            assert readback["tool_calls"] == int(continuation)
++            messages = cast(list[dict[str, object]], readback["messages"])
++            assert messages[-1]["content"] == _PARTIAL
++            assert messages[-1]["tool_calls"] == []
++            calls = cast(list[dict[str, object]], readback["calls"])
++            assert [call["call_id"] for call in calls] == (["prior"] if continuation else [])
++            observations = [message for message in messages if message["role"] == "tool"]
++            assert len(observations) == int(continuation)
++            if continuation:
++                assert calls[0]["run_id"] == readback["run_id"]
++                assert calls[0]["proposal_id"] == proposals[0]["proposal_id"]
++                assert observations[0]["tool_call_id"] == "prior"
++                assert json.loads(str(observations[0]["content"])) == _OBSERVATION
++                provider_messages = cast(list[dict[str, object]], requests[-1]["messages"])
++                assert provider_messages[-1]["role"] == "tool"
++                assert json.loads(str(provider_messages[-1]["content"])) == _OBSERVATION
++
++        # Reopen the actual persistent runtime with the same live HTTP provider and executor.
++        restarted_hub = RecordingHub()
++        restarted = IntegratedCompanion(
++            tmp_path,
++            model,
++            restarted_hub,
++            MinimalWebBodyAdapter(WebSocketBodyTransport()),
++            privacy=Privacy.CLOUD_ALLOWED,
++            tool_orchestrator=ToolOrchestrator(
++                SQLiteToolProposalRepository(store), {"computer.execute": execute}
++            ),
++            runtime_profile=profile,
++            auto_authorize=lambda: True,
++        )
++        await restarted.startup()
++        assert await restarted.recovery_readback("session") == readback
++        assert len(requests) == 1 + int(continuation)
++        assert effects == ([_PRIOR_ARGUMENTS] if continuation else [])
++        assert restarted_hub.events == []
++        assert await repository.recent_session_messages("session", privacy="cloud_allowed") == ()
++
++        # A real stop after restart proves failure does not poison later turns or hydration.
++        await asyncio.wait_for(restarted.respond("session", _FOLLOW_UP), 10)
++        assert len(requests) == 2 + int(continuation)
++        assert effects == ([_PRIOR_ARGUMENTS] if continuation else [])
++        next_terminals = [
++            event for event in restarted_hub.events if event["type"] == "assistant_terminal"
++        ]
++        assert len(next_terminals) == 1
++        assert next_terminals[0]["state"] == "completed"
++        assert next_terminals[0]["error"] is None
++        hydrated = await repository.recent_session_messages("session", privacy="cloud_allowed")
++        if profile == "candidate":
++            provider_messages = cast(list[dict[str, object]], requests[-1]["messages"])
++            assert [(message["role"], message["content"]) for message in provider_messages[1:]] == [
++                ("user", _FOLLOW_UP)
++            ]
++            assert [(message.role, message.content) for message in hydrated] == [
++                ("user", _FOLLOW_UP),
++                ("assistant", _COMPLETE),
++            ]
++        else:
++            assert hydrated == ()

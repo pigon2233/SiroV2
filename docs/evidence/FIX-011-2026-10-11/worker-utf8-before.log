@@ -1,0 +1,65 @@
+.FFF                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_real_worker_strict_utf8_preserves_legitimate_replacement_character[True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-6/test_real_worker_strict_utf8_p1')
+malformed = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_real_worker_strict_utf8_preserves_legitimate_replacement_character(
+        tmp_path: Path, malformed: bool
+    ) -> None:
+        source = (
+            'import os\ndef run(arguments):\n    os.write(1,b\'{"text":"\\xff"}\')\n    os._exit(0)\n'
+            if malformed
+            else "def run(arguments): return {'text':'\ufffd'}\n"
+        )
+        skill = make_skill(tmp_path, source)
+        if malformed:
+>           with pytest.raises(SkillExecutionError, match="invalid JSON"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE SkillExecutionError
+
+tests/integration/test_skill_worker_lifecycle.py:523: Failed
+________ test_neutral_process_owner_rejects_invalid_utf8_after_reaping _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-6/test_neutral_process_owner_rej0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7957c9d09910>
+
+    @pytest.mark.asyncio
+    async def test_neutral_process_owner_rejects_invalid_utf8_after_reaping(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from siro.adapters import process_execution
+    
+        owned = OwnedProcesses(monkeypatch)
+        try:
+            with pytest.raises(UnicodeDecodeError):
+>               await process_execution.execute_bounded_argv(
+                    (sys.executable, "-c", "import os; os.write(1,b'\\xff')"),
+                    cwd=tmp_path,
+                    environment={"PATH": os.defpath},
+                    timeout=1,
+                    stdout_errors="strict",
+                )
+E               TypeError: execute_bounded_argv() got an unexpected keyword argument 'stdout_errors'
+
+tests/integration/test_skill_worker_lifecycle.py:538: TypeError
+____ test_existing_service_private_cleanup_delegate_is_importable_and_owned ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-6/test_existing_service_private_0')
+
+    @pytest.mark.asyncio
+    async def test_existing_service_private_cleanup_delegate_is_importable_and_owned(
+        tmp_path: Path,
+    ) -> None:
+>       from siro.services.tools.execution import _protected_cleanup
+E       ImportError: cannot import name '_protected_cleanup' from 'siro.services.tools.execution' (/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/execution.py)
+
+tests/integration/test_skill_worker_lifecycle.py:557: ImportError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_real_worker_strict_utf8_preserves_legitimate_replacement_character[True]
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_neutral_process_owner_rejects_invalid_utf8_after_reaping
+FAILED tests/integration/test_skill_worker_lifecycle.py::test_existing_service_private_cleanup_delegate_is_importable_and_owned
+3 failed, 1 passed, 19 deselected in 0.27s

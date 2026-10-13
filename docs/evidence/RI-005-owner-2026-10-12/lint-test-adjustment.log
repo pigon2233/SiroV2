@@ -1,0 +1,50 @@
+E501 Line too long (102 > 100)
+  --> tests/integration/test_data_owner_callers.py:39:101
+   |
+37 |         connection.execute("INSERT INTO owner_fixture VALUES (?)", (value,))
+38 |         connection.execute(
+39 |             "INSERT INTO inbox(consumer_id,event_id,processed_at) VALUES ('completed',?,'synthetic')",
+   |                                                                                                     ^^
+40 |             (value,),
+41 |         )
+   |
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+   --> tests/integration/test_data_owner_callers.py:203:5
+    |
+201 |       monkeypatch.setattr(SQLiteStore, "initialize", initialize)
+202 |       monkeypatch.setattr(uvicorn, "run", lambda *_args, **_kwargs: called.append("server"))
+203 | /     with kernel_owner(data / "siro.db", account):
+204 | |         with pytest.raises(SystemExit, match="already in use"):
+    | |_______________________________________________________________^
+205 |               gateway.main()
+206 |       assert called == [] and not data.exists()
+    |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+   --> tests/integration/test_data_owner_callers.py:224:9
+    |
+223 |       def run(*_args: Any, **_kwargs: Any) -> None:
+224 | /         with pytest.raises(BlockingIOError):
+225 | |             with kernel_owner(tmp_path / "data/siro.db", account):
+    | |__________________________________________________________________^
+226 |                   checks.append("incorrectly acquired")
+227 |           checks.append("busy while server owns")
+    |
+help: Combine `with` statements
+
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+   --> tests/integration/test_data_owner_callers.py:381:9
+    |
+379 |           assert process.returncode == 130 and json.loads(stdout) == {"status": "cancelled"}
+380 |           assert not stderr and finished.exists() and not destination.exists()
+381 | /         with kernel_owner(database, account):
+382 | |             with closing(sqlite3.connect(database)) as connection, connection:
+    | |______________________________________________________________________________^
+383 |                   connection.execute("UPDATE owner_fixture SET value='next-owner-write'")
+384 |           assert any("next-owner-write" in line for line in dump(database))
+    |
+help: Combine `with` statements
+
+Found 4 errors.

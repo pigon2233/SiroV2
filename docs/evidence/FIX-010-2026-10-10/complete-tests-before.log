@@ -1,0 +1,1104 @@
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.                                      [100%]
+=================================== FAILURES ===================================
+________ test_fenced_unknown_same_content_holds_new_uuid[failed-False] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_fenced_unknown_same_conte0')
+interrupted = False, state = <AgentRunState.FAILED: 'failed'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        _, old = await prior_call(fixture, interrupted=interrupted, state=state)
+        proposal = await fresh_proposal(fixture)
+        assert old is not None and proposal.proposal_id != old.proposal_id
+        assert proposal.arguments_hash == old.arguments_hash
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf358b620>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf358bb60>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf33501a0>, effects=[])
+proposal = ToolProposal(proposal_id='1c45ce97-9ad6-4190-8f88-df90c78ade45', session_id='owner-session', call_id='95b50630-79ce-47...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_________ test_fenced_unknown_same_content_holds_new_uuid[failed-True] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_fenced_unknown_same_conte1')
+interrupted = True, state = <AgentRunState.FAILED: 'failed'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        _, old = await prior_call(fixture, interrupted=interrupted, state=state)
+        proposal = await fresh_proposal(fixture)
+        assert old is not None and proposal.proposal_id != old.proposal_id
+        assert proposal.arguments_hash == old.arguments_hash
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf34f8e10>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf34fb110>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf34fb390>, effects=[])
+proposal = ToolProposal(proposal_id='fb5e680d-fae9-4238-9acd-36a8d5fcd5bd', session_id='owner-session', call_id='714d64d6-3a00-47...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_______ test_fenced_unknown_same_content_holds_new_uuid[cancelled-False] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_fenced_unknown_same_conte2')
+interrupted = False, state = <AgentRunState.CANCELLED: 'cancelled'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        _, old = await prior_call(fixture, interrupted=interrupted, state=state)
+        proposal = await fresh_proposal(fixture)
+        assert old is not None and proposal.proposal_id != old.proposal_id
+        assert proposal.arguments_hash == old.arguments_hash
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf34fa710>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf33fca50>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf33fce10>, effects=[])
+proposal = ToolProposal(proposal_id='6f41f712-05a7-4056-8d4f-e19d1c46c5b3', session_id='owner-session', call_id='0561d19a-f978-4b...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_______ test_fenced_unknown_same_content_holds_new_uuid[cancelled-True] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_fenced_unknown_same_conte3')
+interrupted = True, state = <AgentRunState.CANCELLED: 'cancelled'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        _, old = await prior_call(fixture, interrupted=interrupted, state=state)
+        proposal = await fresh_proposal(fixture)
+        assert old is not None and proposal.proposal_id != old.proposal_id
+        assert proposal.arguments_hash == old.arguments_hash
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf33d0fc0>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf33d15b0>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf33d1ba0>, effects=[])
+proposal = ToolProposal(proposal_id='871c9102-fcd9-48a9-9dc4-b2cffb5a62a9', session_id='owner-session', call_id='d338dcec-78a3-4e...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_______ test_fenced_unknown_same_content_holds_new_uuid[completed-False] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_fenced_unknown_same_conte4')
+interrupted = False, state = <AgentRunState.COMPLETED: 'completed'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        _, old = await prior_call(fixture, interrupted=interrupted, state=state)
+        proposal = await fresh_proposal(fixture)
+        assert old is not None and proposal.proposal_id != old.proposal_id
+        assert proposal.arguments_hash == old.arguments_hash
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf33d1480>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf33d3230>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf33d3820>, effects=[])
+proposal = ToolProposal(proposal_id='7a0b1330-0207-4c23-bd85-4fa91223fa61', session_id='owner-session', call_id='43e2a503-ac94-41...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_______ test_fenced_unknown_same_content_holds_new_uuid[completed-True] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_fenced_unknown_same_conte5')
+interrupted = True, state = <AgentRunState.COMPLETED: 'completed'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        _, old = await prior_call(fixture, interrupted=interrupted, state=state)
+        proposal = await fresh_proposal(fixture)
+        assert old is not None and proposal.proposal_id != old.proposal_id
+        assert proposal.arguments_hash == old.arguments_hash
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf3418170>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf34185f0>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf3418b90>, effects=[])
+proposal = ToolProposal(proposal_id='2863ec2f-5804-4ba2-8b98-305de2b75389', session_id='owner-session', call_id='c854d383-0c17-4f...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_____ test_unverifiable_binding_conservatively_holds_same_capability[null] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_unverifiable_binding_cons0')
+binding = 'null'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("binding", ["null", "orphan", "cross_session", "wrong_capability"])
+    async def test_unverifiable_binding_conservatively_holds_same_capability(
+        tmp_path: Path,
+        binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"],
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture, binding=binding)
+        proposal = await fresh_proposal(fixture, arguments={"argv": ["different-synthetic-operation"]})
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf33ed590>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf33edae0>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf33ee250>, effects=[])
+proposal = ToolProposal(proposal_id='3a2e4a19-10ab-4446-96b7-59a848a9293d', session_id='owner-session', call_id='52342b6e-0089-44...c4dfafbc6417b161a211825954fe', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+____ test_unverifiable_binding_conservatively_holds_same_capability[orphan] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_unverifiable_binding_cons1')
+binding = 'orphan'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("binding", ["null", "orphan", "cross_session", "wrong_capability"])
+    async def test_unverifiable_binding_conservatively_holds_same_capability(
+        tmp_path: Path,
+        binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"],
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture, binding=binding)
+        proposal = await fresh_proposal(fixture, arguments={"argv": ["different-synthetic-operation"]})
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf33ed9d0>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf33ef130>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf33ef8a0>, effects=[])
+proposal = ToolProposal(proposal_id='3169fe34-8369-486f-aade-243848a7d3f0', session_id='owner-session', call_id='c5ede809-ebed-44...c4dfafbc6417b161a211825954fe', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_ test_unverifiable_binding_conservatively_holds_same_capability[cross_session] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_unverifiable_binding_cons2')
+binding = 'cross_session'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("binding", ["null", "orphan", "cross_session", "wrong_capability"])
+    async def test_unverifiable_binding_conservatively_holds_same_capability(
+        tmp_path: Path,
+        binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"],
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture, binding=binding)
+        proposal = await fresh_proposal(fixture, arguments={"argv": ["different-synthetic-operation"]})
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf2a50550>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf2a50b50>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf2a52450>, effects=[])
+proposal = ToolProposal(proposal_id='57ba1096-de2e-4c3c-b532-250073355d08', session_id='owner-session', call_id='81a70da6-487d-44...c4dfafbc6417b161a211825954fe', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_ test_unverifiable_binding_conservatively_holds_same_capability[wrong_capability] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_unverifiable_binding_cons3')
+binding = 'wrong_capability'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("binding", ["null", "orphan", "cross_session", "wrong_capability"])
+    async def test_unverifiable_binding_conservatively_holds_same_capability(
+        tmp_path: Path,
+        binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"],
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture, binding=binding)
+        proposal = await fresh_proposal(fixture, arguments={"argv": ["different-synthetic-operation"]})
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf2a51d50>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf2a51e50>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf2b2c650>, effects=[])
+proposal = ToolProposal(proposal_id='ac42eecc-8dd4-49ff-b548-376ee5bb53a5', session_id='owner-session', call_id='7d65adab-ba4a-4b...c4dfafbc6417b161a211825954fe', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+______ test_verified_binding_does_not_block_unrelated_new_call[arguments] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_verified_binding_does_not0')
+difference = 'arguments'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("difference", ["arguments", "session", "capability"])
+    async def test_verified_binding_does_not_block_unrelated_new_call(
+        tmp_path: Path, difference: str
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture)
+        proposal = await fresh_proposal(
+            fixture,
+            arguments={"argv": ["different-operation"]} if difference == "arguments" else None,
+            session="different-session" if difference == "session" else "owner-session",
+            capability="other.effect" if difference == "capability" else "computer.execute",
+        )
+>       approved = await fixture.orchestrator.resolve(
+            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:233: TypeError
+_______ test_verified_binding_does_not_block_unrelated_new_call[session] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_verified_binding_does_not1')
+difference = 'session'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("difference", ["arguments", "session", "capability"])
+    async def test_verified_binding_does_not_block_unrelated_new_call(
+        tmp_path: Path, difference: str
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture)
+        proposal = await fresh_proposal(
+            fixture,
+            arguments={"argv": ["different-operation"]} if difference == "arguments" else None,
+            session="different-session" if difference == "session" else "owner-session",
+            capability="other.effect" if difference == "capability" else "computer.execute",
+        )
+>       approved = await fixture.orchestrator.resolve(
+            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:233: TypeError
+_____ test_verified_binding_does_not_block_unrelated_new_call[capability] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_verified_binding_does_not2')
+difference = 'capability'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("difference", ["arguments", "session", "capability"])
+    async def test_verified_binding_does_not_block_unrelated_new_call(
+        tmp_path: Path, difference: str
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture)
+        proposal = await fresh_proposal(
+            fixture,
+            arguments={"argv": ["different-operation"]} if difference == "arguments" else None,
+            session="different-session" if difference == "session" else "owner-session",
+            capability="other.effect" if difference == "capability" else "computer.execute",
+        )
+>       approved = await fixture.orchestrator.resolve(
+            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:233: TypeError
+_________ test_guard_requires_fenced_dispatched_unknown[known_success] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_guard_requires_fenced_dis0')
+case = 'known_success'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", ["known_success", "known_failure", "not_dispatched", "active"])
+    async def test_guard_requires_fenced_dispatched_unknown(tmp_path: Path, case: str) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(
+            fixture,
+            dispatched=case != "not_dispatched",
+            observation={"confirmed": True}
+            if case == "known_success"
+            else ({"error": "ValueError"} if case == "known_failure" else {"error": "outcome_unknown"}),
+            fenced=case != "active",
+        )
+        proposal = await fresh_proposal(fixture)
+>       approved = await fixture.orchestrator.resolve(
+            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:253: TypeError
+_________ test_guard_requires_fenced_dispatched_unknown[known_failure] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_guard_requires_fenced_dis1')
+case = 'known_failure'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", ["known_success", "known_failure", "not_dispatched", "active"])
+    async def test_guard_requires_fenced_dispatched_unknown(tmp_path: Path, case: str) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(
+            fixture,
+            dispatched=case != "not_dispatched",
+            observation={"confirmed": True}
+            if case == "known_success"
+            else ({"error": "ValueError"} if case == "known_failure" else {"error": "outcome_unknown"}),
+            fenced=case != "active",
+        )
+        proposal = await fresh_proposal(fixture)
+>       approved = await fixture.orchestrator.resolve(
+            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:253: TypeError
+________ test_guard_requires_fenced_dispatched_unknown[not_dispatched] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_guard_requires_fenced_dis2')
+case = 'not_dispatched'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", ["known_success", "known_failure", "not_dispatched", "active"])
+    async def test_guard_requires_fenced_dispatched_unknown(tmp_path: Path, case: str) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(
+            fixture,
+            dispatched=case != "not_dispatched",
+            observation={"confirmed": True}
+            if case == "known_success"
+            else ({"error": "ValueError"} if case == "known_failure" else {"error": "outcome_unknown"}),
+            fenced=case != "active",
+        )
+        proposal = await fresh_proposal(fixture)
+>       approved = await fixture.orchestrator.resolve(
+            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:253: TypeError
+____________ test_guard_requires_fenced_dispatched_unknown[active] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_guard_requires_fenced_dis3')
+case = 'active'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", ["known_success", "known_failure", "not_dispatched", "active"])
+    async def test_guard_requires_fenced_dispatched_unknown(tmp_path: Path, case: str) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(
+            fixture,
+            dispatched=case != "not_dispatched",
+            observation={"confirmed": True}
+            if case == "known_success"
+            else ({"error": "ValueError"} if case == "known_failure" else {"error": "outcome_unknown"}),
+            fenced=case != "active",
+        )
+        proposal = await fresh_proposal(fixture)
+>       approved = await fixture.orchestrator.resolve(
+            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:253: TypeError
+__________ test_fenced_dispatch_without_parseable_receipt_holds[None] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_fenced_dispatch_without_p0')
+receipt = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("receipt", [None, "synthetic corrupt JSON"])
+    async def test_fenced_dispatch_without_parseable_receipt_holds(
+        tmp_path: Path, receipt: str | None
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, _ = await prior_call(fixture)
+    
+        def corrupt_temporary_fixture(connection: object) -> None:
+            # Corruption recovery only: production's JSON CHECK remains unchanged.
+            # A fresh connection cannot retain this fixture-only SQLite setting.
+            import sqlite3
+    
+            assert isinstance(connection, sqlite3.Connection)
+            connection.execute("PRAGMA ignore_check_constraints=ON")
+            try:
+                connection.execute(
+                    "UPDATE run_journal_calls SET observation_json=? WHERE run_id=?",
+                    (receipt, run_id),
+                )
+            finally:
+                connection.execute("PRAGMA ignore_check_constraints=OFF")
+    
+        await fixture.store.run_transaction(corrupt_temporary_fixture)
+>       await assert_automatic_hold(fixture, await fresh_proposal(fixture))
+
+tests/integration/test_unknown_effect_approval.py:283: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf2aedb20>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf2aef8b0>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf2aefac0>, effects=[])
+proposal = ToolProposal(proposal_id='8abfa6c3-93d9-4d56-a9d3-48cb8d82633b', session_id='owner-session', call_id='ae9edcd4-734b-4f...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_ test_fenced_dispatch_without_parseable_receipt_holds[synthetic corrupt JSON] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_fenced_dispatch_without_p1')
+receipt = 'synthetic corrupt JSON'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("receipt", [None, "synthetic corrupt JSON"])
+    async def test_fenced_dispatch_without_parseable_receipt_holds(
+        tmp_path: Path, receipt: str | None
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, _ = await prior_call(fixture)
+    
+        def corrupt_temporary_fixture(connection: object) -> None:
+            # Corruption recovery only: production's JSON CHECK remains unchanged.
+            # A fresh connection cannot retain this fixture-only SQLite setting.
+            import sqlite3
+    
+            assert isinstance(connection, sqlite3.Connection)
+            connection.execute("PRAGMA ignore_check_constraints=ON")
+            try:
+                connection.execute(
+                    "UPDATE run_journal_calls SET observation_json=? WHERE run_id=?",
+                    (receipt, run_id),
+                )
+            finally:
+                connection.execute("PRAGMA ignore_check_constraints=OFF")
+    
+        await fixture.store.run_transaction(corrupt_temporary_fixture)
+>       await assert_automatic_hold(fixture, await fresh_proposal(fixture))
+
+tests/integration/test_unknown_effect_approval.py:283: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf2aef750>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf21adc80>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf21ade90>, effects=[])
+proposal = ToolProposal(proposal_id='78adc779-f5ce-4bc8-a3c4-d3a92377dda5', session_id='owner-session', call_id='64800c34-cfe5-4e...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_____ test_unknown_effect_does_not_expire_or_depend_on_model_privacy_route _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_unknown_effect_does_not_e0')
+
+    @pytest.mark.asyncio
+    async def test_unknown_effect_does_not_expire_or_depend_on_model_privacy_route(
+        tmp_path: Path,
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, _ = await prior_call(fixture, privacy="cloud_allowed")
+        await fixture.store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET created_at='2000-01-01T00:00:00+00:00', "
+                "updated_at='2000-01-01T00:00:00+00:00' WHERE run_id=?",
+                (run_id,),
+            )
+        )
+>       await assert_automatic_hold(fixture, await fresh_proposal(fixture))
+
+tests/integration/test_unknown_effect_approval.py:299: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf2aa1630>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf2aa2530>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf2aa23f0>, effects=[])
+proposal = ToolProposal(proposal_id='c2f2229b-6571-49ba-84e7-13fee77bd913', session_id='owner-session', call_id='983bf003-c067-4f...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+___________ test_repository_transition_cannot_bypass_automatic_guard ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_repository_transition_can0')
+
+    @pytest.mark.asyncio
+    async def test_repository_transition_cannot_bypass_automatic_guard(tmp_path: Path) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture)
+        proposal = await fresh_proposal(fixture)
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.proposals.transition(
+                proposal.proposal_id, ProposalState.PENDING, ProposalState.APPROVED, automatic=True
+            )
+E           TypeError: SQLiteToolProposalRepository.transition() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:308: TypeError
+________ test_manual_default_remains_hash_bound_and_executes_only_once _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_manual_default_remains_ha0')
+
+    @pytest.mark.asyncio
+    async def test_manual_default_remains_hash_bound_and_executes_only_once(tmp_path: Path) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture)
+        proposal = await fresh_proposal(fixture)
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:321: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf2acea80>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf2acf140>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf2aa2b70>, effects=[])
+proposal = ToolProposal(proposal_id='e09130d0-7271-46aa-baff-2b2148cf827b', session_id='owner-session', call_id='f1c2e122-4685-41...8d9bc52c7fcf6d04266ee270f416', risk='computer', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+___________ test_denial_ignores_automatic_hold_and_does_not_dispatch ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_denial_ignores_automatic_0')
+
+    @pytest.mark.asyncio
+    async def test_denial_ignores_automatic_hold_and_does_not_dispatch(tmp_path: Path) -> None:
+        fixture = await fixture_at(tmp_path)
+        await prior_call(fixture)
+        proposal = await fresh_proposal(fixture)
+>       denied = await fixture.orchestrator.resolve(
+            proposal.proposal_id, approved=False, arguments=proposal.arguments, automatic=True
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:343: TypeError
+______ test_untrusted_read_only_risk_does_not_exempt_effectful_call[None] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_untrusted_read_only_risk_0')
+catalog_effect = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("catalog_effect", [None, "computer", "unknown"])
+    async def test_untrusted_read_only_risk_does_not_exempt_effectful_call(
+        tmp_path: Path, catalog_effect: str | None
+    ) -> None:
+        fixture = await fixture_at(
+            tmp_path, effects=None if catalog_effect is None else {"computer.execute": catalog_effect}
+        )
+        await prior_call(fixture)
+        proposal = await fresh_proposal(fixture, risk="observe/read-only")
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:360: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf18e0d50>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf18e0e50>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf2aa3f70>, effects=[])
+proposal = ToolProposal(proposal_id='87acee58-cd71-4256-8371-70895bd4d0a2', session_id='owner-session', call_id='07295182-fdf4-43...fcf6d04266ee270f416', risk='observe/read-only', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+____ test_untrusted_read_only_risk_does_not_exempt_effectful_call[computer] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_untrusted_read_only_risk_1')
+catalog_effect = 'computer'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("catalog_effect", [None, "computer", "unknown"])
+    async def test_untrusted_read_only_risk_does_not_exempt_effectful_call(
+        tmp_path: Path, catalog_effect: str | None
+    ) -> None:
+        fixture = await fixture_at(
+            tmp_path, effects=None if catalog_effect is None else {"computer.execute": catalog_effect}
+        )
+        await prior_call(fixture)
+        proposal = await fresh_proposal(fixture, risk="observe/read-only")
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:360: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf2212b30>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf2213850>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf18ac550>, effects=[])
+proposal = ToolProposal(proposal_id='b019262d-9594-45c0-8a94-fcdebb1c54e5', session_id='owner-session', call_id='56a442b7-66ec-42...fcf6d04266ee270f416', risk='observe/read-only', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+____ test_untrusted_read_only_risk_does_not_exempt_effectful_call[unknown] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_untrusted_read_only_risk_2')
+catalog_effect = 'unknown'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("catalog_effect", [None, "computer", "unknown"])
+    async def test_untrusted_read_only_risk_does_not_exempt_effectful_call(
+        tmp_path: Path, catalog_effect: str | None
+    ) -> None:
+        fixture = await fixture_at(
+            tmp_path, effects=None if catalog_effect is None else {"computer.execute": catalog_effect}
+        )
+        await prior_call(fixture)
+        proposal = await fresh_proposal(fixture, risk="observe/read-only")
+>       await assert_automatic_hold(fixture, proposal)
+
+tests/integration/test_unknown_effect_approval.py:360: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fixture = Fixture(store=<siro.persistence.sqlite.SQLiteStore object at 0x766cf19080c0>, runs=<siro.services.agent.runs.SQLiteAge...0x766cf1908b40>, orchestrator=<siro.services.tools.orchestrator.ToolOrchestrator object at 0x766cf2aa3ed0>, effects=[])
+proposal = ToolProposal(proposal_id='3624761a-ee1d-4681-bc8b-866a48068c0e', session_id='owner-session', call_id='60fe7ec5-dca7-4c...fcf6d04266ee270f416', risk='observe/read-only', state=<ProposalState.PENDING: 'pending'>, observation=None, error=None)
+
+    async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
+        before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
+        with pytest.raises(PermissionError) as raised:
+>           await fixture.orchestrator.resolve(
+                proposal.proposal_id,
+                approved=True,
+                arguments=proposal.arguments,
+                automatic=True,
+            )
+E           TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:178: TypeError
+_______________ test_trusted_read_descriptor_can_repeat_readback _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_trusted_read_descriptor_c0')
+
+    @pytest.mark.asyncio
+    async def test_trusted_read_descriptor_can_repeat_readback(tmp_path: Path) -> None:
+        fixture = await fixture_at(tmp_path, effects={"browser.read": "read"})
+        await prior_call(fixture, capability="browser.read", arguments={})
+        proposal = await fresh_proposal(fixture, capability="browser.read", arguments={})
+>       approved = await fixture.orchestrator.resolve(
+            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:368: TypeError
+______ test_stale_pending_and_simultaneous_approvals_keep_compare_and_set ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_stale_pending_and_simulta0')
+
+    @pytest.mark.asyncio
+    async def test_stale_pending_and_simultaneous_approvals_keep_compare_and_set(
+        tmp_path: Path,
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        proposal = await fresh_proposal(fixture)
+>       results = await asyncio.gather(
+            *(
+                fixture.orchestrator.resolve(
+                    proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+                )
+                for _ in range(2)
+            ),
+            return_exceptions=True,
+        )
+
+tests/integration/test_unknown_effect_approval.py:381: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <range_iterator object at 0x766d2648f7b0>
+
+        *(
+>           fixture.orchestrator.resolve(
+                proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+            )
+            for _ in range(2)
+        ),
+        return_exceptions=True,
+    )
+E   TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:383: TypeError
+___________ test_fence_committed_before_approval_transaction_is_seen ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_fence_committed_before_ap0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x766cf1909400>
+
+    @pytest.mark.asyncio
+    async def test_fence_committed_before_approval_transaction_is_seen(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fixture = await fixture_at(tmp_path)
+        run_id, _ = await prior_call(fixture, fenced=False)
+        proposal = await fresh_proposal(fixture)
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        original = fixture.proposals.transition
+    
+        async def paused_transition(
+            proposal_id: str,
+            expected: ProposalState,
+            target: ProposalState,
+            *,
+            observation: object | None = None,
+            error: str | None = None,
+            automatic: bool = False,
+        ) -> ToolProposal:
+            entered.set()
+            await proceed.wait()
+            return await original(
+                proposal_id,
+                expected,
+                target,
+                observation=observation,
+                error=error,
+                automatic=automatic,
+            )
+    
+        monkeypatch.setattr(fixture.proposals, "transition", paused_transition)
+        task = asyncio.create_task(
+>           fixture.orchestrator.resolve(
+                proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
+            )
+        )
+E       TypeError: ToolOrchestrator.resolve() got an unexpected keyword argument 'automatic'
+
+tests/integration/test_unknown_effect_approval.py:432: TypeError
+_____ test_full_mode_fresh_identical_call_waits_for_owner_without_effects ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_full_mode_fresh_identical0')
+
+    @pytest.mark.asyncio
+    async def test_full_mode_fresh_identical_call_waits_for_owner_without_effects(
+        tmp_path: Path,
+    ) -> None:
+        fixture, controller, model, hub = await controller_at(tmp_path)
+        await controller.respond("owner-session", "Please repeat the operation")
+>       event = held_event(hub)
+                ^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:530: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hub = <test_unknown_effect_approval.RecordingHub object at 0x766cf1848440>
+
+    def held_event(hub: RecordingHub) -> dict[str, object]:
+        proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
+        held = [event for event in proposals if event["call_id"] == "fresh-held"]
+        assert len(held) == 1
+>       assert held[0]["automatic_approval_blocked"] == "prior_outcome_unknown"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'automatic_approval_blocked'
+
+tests/integration/test_unknown_effect_approval.py:515: KeyError
+________________ test_held_call_manual_approval_completes_once _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_held_call_manual_approval0')
+
+    @pytest.mark.asyncio
+    async def test_held_call_manual_approval_completes_once(tmp_path: Path) -> None:
+        fixture, controller, model, hub = await controller_at(tmp_path)
+        await controller.respond("owner-session", "Please repeat the operation")
+>       event = held_event(hub)
+                ^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:544: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hub = <test_unknown_effect_approval.RecordingHub object at 0x766cf1897750>
+
+    def held_event(hub: RecordingHub) -> dict[str, object]:
+        proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
+        held = [event for event in proposals if event["call_id"] == "fresh-held"]
+        assert len(held) == 1
+>       assert held[0]["automatic_approval_blocked"] == "prior_outcome_unknown"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'automatic_approval_blocked'
+
+tests/integration/test_unknown_effect_approval.py:515: KeyError
+_____________ test_held_call_denial_is_observed_without_execution ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_held_call_denial_is_obser0')
+
+    @pytest.mark.asyncio
+    async def test_held_call_denial_is_observed_without_execution(tmp_path: Path) -> None:
+        fixture, controller, model, hub = await controller_at(tmp_path)
+        await controller.respond("owner-session", "Please repeat the operation")
+>       event = held_event(hub)
+                ^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:563: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hub = <test_unknown_effect_approval.RecordingHub object at 0x766cf17a91d0>
+
+    def held_event(hub: RecordingHub) -> dict[str, object]:
+        proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
+        held = [event for event in proposals if event["call_id"] == "fresh-held"]
+        assert len(held) == 1
+>       assert held[0]["automatic_approval_blocked"] == "prior_outcome_unknown"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'automatic_approval_blocked'
+
+tests/integration/test_unknown_effect_approval.py:515: KeyError
+______________ test_cancel_held_call_fences_late_manual_approval _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_cancel_held_call_fences_l0')
+
+    @pytest.mark.asyncio
+    async def test_cancel_held_call_fences_late_manual_approval(tmp_path: Path) -> None:
+        fixture, controller, model, hub = await controller_at(tmp_path)
+        await controller.respond("owner-session", "Please repeat the operation")
+>       event = held_event(hub)
+                ^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:577: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hub = <test_unknown_effect_approval.RecordingHub object at 0x766cf19315b0>
+
+    def held_event(hub: RecordingHub) -> dict[str, object]:
+        proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
+        held = [event for event in proposals if event["call_id"] == "fresh-held"]
+        assert len(held) == 1
+>       assert held[0]["automatic_approval_blocked"] == "prior_outcome_unknown"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'automatic_approval_blocked'
+
+tests/integration/test_unknown_effect_approval.py:515: KeyError
+_____ test_held_batch_allows_unrelated_call_and_resumes_after_manual_once ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-69/test_held_batch_allows_unrelat0')
+
+    @pytest.mark.asyncio
+    async def test_held_batch_allows_unrelated_call_and_resumes_after_manual_once(
+        tmp_path: Path,
+    ) -> None:
+        fixture, controller, model, hub = await controller_at(tmp_path, batch=True)
+        await controller.respond("owner-session", "Repeat operation and perform the new one")
+>       event = held_event(hub)
+                ^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:593: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+hub = <test_unknown_effect_approval.RecordingHub object at 0x766cf1932d70>
+
+    def held_event(hub: RecordingHub) -> dict[str, object]:
+        proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
+        held = [event for event in proposals if event["call_id"] == "fresh-held"]
+        assert len(held) == 1
+>       assert held[0]["automatic_approval_blocked"] == "prior_outcome_unknown"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'automatic_approval_blocked'
+
+tests/integration/test_unknown_effect_approval.py:515: KeyError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[failed-False]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[failed-True]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[cancelled-False]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[cancelled-True]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[completed-False]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[completed-True]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unverifiable_binding_conservatively_holds_same_capability[null]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unverifiable_binding_conservatively_holds_same_capability[orphan]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unverifiable_binding_conservatively_holds_same_capability[cross_session]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unverifiable_binding_conservatively_holds_same_capability[wrong_capability]
+FAILED tests/integration/test_unknown_effect_approval.py::test_verified_binding_does_not_block_unrelated_new_call[arguments]
+FAILED tests/integration/test_unknown_effect_approval.py::test_verified_binding_does_not_block_unrelated_new_call[session]
+FAILED tests/integration/test_unknown_effect_approval.py::test_verified_binding_does_not_block_unrelated_new_call[capability]
+FAILED tests/integration/test_unknown_effect_approval.py::test_guard_requires_fenced_dispatched_unknown[known_success]
+FAILED tests/integration/test_unknown_effect_approval.py::test_guard_requires_fenced_dispatched_unknown[known_failure]
+FAILED tests/integration/test_unknown_effect_approval.py::test_guard_requires_fenced_dispatched_unknown[not_dispatched]
+FAILED tests/integration/test_unknown_effect_approval.py::test_guard_requires_fenced_dispatched_unknown[active]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_dispatch_without_parseable_receipt_holds[None]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_dispatch_without_parseable_receipt_holds[synthetic corrupt JSON]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unknown_effect_does_not_expire_or_depend_on_model_privacy_route
+FAILED tests/integration/test_unknown_effect_approval.py::test_repository_transition_cannot_bypass_automatic_guard
+FAILED tests/integration/test_unknown_effect_approval.py::test_manual_default_remains_hash_bound_and_executes_only_once
+FAILED tests/integration/test_unknown_effect_approval.py::test_denial_ignores_automatic_hold_and_does_not_dispatch
+FAILED tests/integration/test_unknown_effect_approval.py::test_untrusted_read_only_risk_does_not_exempt_effectful_call[None]
+FAILED tests/integration/test_unknown_effect_approval.py::test_untrusted_read_only_risk_does_not_exempt_effectful_call[computer]
+FAILED tests/integration/test_unknown_effect_approval.py::test_untrusted_read_only_risk_does_not_exempt_effectful_call[unknown]
+FAILED tests/integration/test_unknown_effect_approval.py::test_trusted_read_descriptor_can_repeat_readback
+FAILED tests/integration/test_unknown_effect_approval.py::test_stale_pending_and_simultaneous_approvals_keep_compare_and_set
+FAILED tests/integration/test_unknown_effect_approval.py::test_fence_committed_before_approval_transaction_is_seen
+FAILED tests/integration/test_unknown_effect_approval.py::test_full_mode_fresh_identical_call_waits_for_owner_without_effects
+FAILED tests/integration/test_unknown_effect_approval.py::test_held_call_manual_approval_completes_once
+FAILED tests/integration/test_unknown_effect_approval.py::test_held_call_denial_is_observed_without_execution
+FAILED tests/integration/test_unknown_effect_approval.py::test_cancel_held_call_fences_late_manual_approval
+FAILED tests/integration/test_unknown_effect_approval.py::test_held_batch_allows_unrelated_call_and_resumes_after_manual_once
+34 failed, 1 passed, 2 warnings in 2.07s

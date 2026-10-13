@@ -8,10 +8,12 @@ import os
 import sqlite3
 import tempfile
 from collections.abc import Sequence
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
+from threading import Event as ThreadEvent
 from typing import TypeVar
 
 from siro.contracts.events import Event
@@ -196,6 +198,24 @@ class SQLiteStore:
 
         return await self.run_transaction(write)
 
+    async def record_event(self, event: Event) -> bool:
+        """Persist a provenance event without scheduling external delivery."""
+        return await self.run_transaction(
+            lambda connection: bool(
+                connection.execute(
+                    "INSERT OR IGNORE INTO events"
+                    "(event_id, type, envelope_json, received_at, trace_id) VALUES (?, ?, ?, ?, ?)",
+                    (
+                        str(event.event_id),
+                        event.type,
+                        event.model_dump_json(),
+                        event.received_at.isoformat(),
+                        event.trace_id,
+                    ),
+                ).rowcount
+            )
+        )
+
     async def pending_outbox(self, *, limit: int = 100) -> list[OutboxRecord]:
         if limit < 1 or limit > 1000:
             raise ValueError("outbox limit must be between 1 and 1000")
@@ -340,16 +360,73 @@ class SQLiteStore:
 
     async def restore_from(self, source: Path) -> None:
         async with self._writer_lock:
-            await asyncio.to_thread(self._restore_sync, source)
+            cancelled = ThreadEvent()
+            job = asyncio.create_task(asyncio.to_thread(self._restore_sync, source, cancelled))
+            cancellation_requested = False
+            while not job.done():
+                try:
+                    await asyncio.wait((job,))
+                except asyncio.CancelledError:
+                    cancellation_requested = True
+                    cancelled.set()
+            # Observe the worker's primary error before propagating a late cancellation.
+            job.result()
+            if cancellation_requested:
+                raise asyncio.CancelledError
 
-    def _restore_sync(self, source: Path) -> None:
+    def _restore_sync(self, source: Path, cancelled: ThreadEvent | None = None) -> None:
+        def check_cancelled() -> None:
+            if cancelled is not None and cancelled.is_set():
+                raise asyncio.CancelledError
+
+        def progress(status: int, _remaining: int, _total: int) -> None:
+            # SQLITE_DONE is after commit; raising there cannot undo the copy.
+            if status != sqlite3.SQLITE_DONE:
+                check_cancelled()
+
+        check_cancelled()
         if not source.is_file():
             raise FileNotFoundError(source)
-        with self._connect(source) as backup:
-            result = backup.execute("PRAGMA integrity_check").fetchone()
-            if result is None or result[0] != "ok":
-                raise sqlite3.DatabaseError("source backup integrity check failed")
-            with self._connect() as target:
-                backup.backup(target)
-        with self._connect() as restored:
-            apply_migrations(restored, load_migrations())
+        workspace = tempfile.TemporaryDirectory(prefix="siro-restore-candidate-")
+        try:
+            candidate_path = Path(workspace.name) / "candidate.db"
+            uri = source.resolve().as_uri() + "?mode=ro"
+            with closing(sqlite3.connect(uri, uri=True, timeout=5)) as backup:
+                backup.execute("PRAGMA query_only=ON")
+                with closing(self._connect(candidate_path)) as candidate:
+                    backup.backup(candidate, pages=64, progress=progress)
+            check_cancelled()
+            with closing(self._connect(candidate_path)) as candidate:
+                result = candidate.execute("PRAGMA integrity_check").fetchone()
+                if result is None or result[0] != "ok":
+                    raise sqlite3.DatabaseError("source backup integrity check failed")
+                migrations = load_migrations()
+                metadata = candidate.execute(
+                    "SELECT 1 FROM sqlite_master WHERE name='schema_migrations'"
+                ).fetchone()
+                if metadata is not None:
+                    rows = candidate.execute(
+                        "SELECT version FROM schema_migrations ORDER BY version"
+                    ).fetchmany(len(migrations) + 1)
+                    if len(rows) > len(migrations) or any(
+                        type(row[0]) is not int or row[0] != version
+                        for version, row in enumerate(rows, start=1)
+                    ):
+                        raise MigrationError("backup migration versions must be a known prefix")
+                apply_migrations(candidate, migrations)
+                result = candidate.execute("PRAGMA integrity_check").fetchone()
+                if result is None or result[0] != "ok":
+                    raise sqlite3.DatabaseError("restored candidate integrity check failed")
+                check_cancelled()
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                with closing(self._connect()) as target:
+                    check_cancelled()
+                    candidate.backup(target, pages=64, progress=progress)
+        except BaseException as error:
+            try:
+                workspace.cleanup()
+            except OSError as cleanup_error:
+                error.add_note(f"restore candidate cleanup failed: {type(cleanup_error).__name__}")
+            raise
+        else:
+            workspace.cleanup()

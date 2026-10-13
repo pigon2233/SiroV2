@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from siro.core.affect import CopingStrategy, DriveState, MoodState
 from siro.core.cognition import (
     ActionCandidate,
     AttentionSignal,
@@ -11,6 +12,8 @@ from siro.core.cognition import (
     GoalState,
     Planner,
     Workspace,
+    affect_attention_signals,
+    apply_affect_to_candidates,
     select_action,
     select_attention,
 )
@@ -101,6 +104,38 @@ def test_drive_is_explicit_bounded_and_can_be_disabled() -> None:
     assert signal.signal_id == "drive:social"
     assert signal.drive_relevance == 0.8
     assert Drive("social", 0.8, "muted", enabled=False).attention_signal() is None
+
+
+def test_affect_changes_attention_and_planning_without_bypassing_gates() -> None:
+    signals = affect_attention_signals(
+        DriveState(safety=0.9, connection=0.2), MoodState(arousal=0.8)
+    )
+    assert {signal.signal_id for signal in signals} == {
+        "affect-drive:safety",
+        "affect-mood:high-arousal",
+    }
+    inspect = ActionCandidate("inspect", "tool_inspect", {}, "facts", 0, None, 0.55, ("base",))
+    act = ActionCandidate("act", "tool_execute", {}, "done", 0, None, 0.6, ("base",))
+    denied = ActionCandidate(
+        "denied",
+        "tool_inspect",
+        {},
+        "done",
+        0,
+        None,
+        0.95,
+        ("base",),
+        permission_allowed=False,
+    )
+    neutral = select_action((inspect, act, denied), candidate("nothing", 0.1))
+    biased = select_action(
+        apply_affect_to_candidates((inspect, act, denied), CopingStrategy.SEEK_INFORMATION),
+        candidate("nothing", 0.1),
+    )
+    assert neutral.candidate.candidate_id == "act"
+    assert biased.candidate.candidate_id == "inspect"
+    assert biased.candidate.score > inspect.score
+    assert ("denied", "permission") in biased.rejected
 
 
 class FixedClock:

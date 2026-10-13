@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIRO 音訊欄位測試</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10141d; color: #e9eef9; }
+      body { max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+      section { background: #192131; border: 1px solid #33415c; border-radius: 12px; padding: 1rem; margin: 1rem 0; }
+      button, select { padding: .7rem 1rem; margin: .25rem; }
+      progress { width: 100%; height: 1.5rem; }
+      .ok { color: #7de2a7; } .warn { color: #ffcb6b; } .bad { color: #ff7b86; }
+      #meter { height: 1rem; background: #0d1118; border-radius: .5rem; overflow: hidden; }
+      #level { height: 100%; width: 0; background: #7de2a7; }
+      pre { white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>真人打斷與 AEC 測試</h1>
+    <p>資料只在這個瀏覽器分頁處理；不傳送或保存錄音。每次聽到測試音後立刻說「停止」。</p>
+    <section>
+      <label>輸出模式
+        <select id="mode"><option value="headset">耳機</option><option value="speaker">喇叭</option></select>
+      </label>
+      <button id="setup">啟用麥克風</button>
+      <p id="device" class="warn">尚未啟用</p>
+      <div id="meter"><div id="level"></div></div>
+    </section>
+    <section>
+      <progress id="progress" max="20" value="0"></progress>
+      <p id="instruction">先啟用麥克風。</p>
+      <button id="trial" disabled>開始第 1 次</button>
+      <button id="falsePositive" disabled>標記誤觸發</button>
+    </section>
+    <section>
+      <h2>結果</h2><pre id="result">尚無結果</pre>
+      <button id="download" disabled>下載 JSON 報告</button>
+    </section>
+    <script>
+      const TARGET = 20;
+      let context, analyser, stream, source, raf, trialStart, detectAfter, oscillator;
+      let detected = false, threshold = .055, calibration = [], trialId = 0;
+      const trials = [];
+      const device = document.querySelector('#device');
+      const instruction = document.querySelector('#instruction');
+      const trialButton = document.querySelector('#trial');
+      const falseButton = document.querySelector('#falsePositive');
+      const level = document.querySelector('#level');
+
+      const successfulCount = () => trials.filter(
+        item => !item.false_positive && !item.missed && item.response_ms !== null
+      ).length;
+
+      function percentile(values, fraction) {
+        if (!values.length) return null;
+        const sorted = [...values].sort((a, b) => a - b);
+        return sorted[Math.ceil(fraction * sorted.length) - 1];
+      }
+
+      function report() {
+        const successful = trials.filter(
+          item => !item.false_positive && !item.missed && item.response_ms !== null
+        );
+        const latencies = successful.map(item => item.response_ms);
+        const result = {
+          schema_version: 2,
+          tested_at: new Date().toISOString(),
+          mode: document.querySelector('#mode').value,
+          requested: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
+          actual: stream?.getAudioTracks()[0]?.getSettings() ?? {},
+          sample_count: trials.length,
+          successful_interrupts: successful.length,
+          missed: trials.filter(item => item.missed).length,
+          false_positives: trials.filter(item => item.false_positive).length,
+          response_ms: {median: percentile(latencies, .5), p95: percentile(latencies, .95)},
+          trials
+        };
+        document.querySelector('#result').textContent = JSON.stringify(result, null, 2);
+        document.querySelector('#download').disabled = successful.length < TARGET;
+        return result;
+      }
+
+      function monitor() {
+        const bins = new Uint8Array(analyser.fftSize);
+        analyser.getByteTimeDomainData(bins);
+        let sum = 0;
+        for (const value of bins) { const centered = value - 128; sum += centered * centered; }
+        const rms = Math.sqrt(sum / bins.length) / 128;
+        level.style.width = `${Math.min(100, rms * 500)}%`;
+        const now = performance.now();
+        if (trialStart && !detected && now < detectAfter) calibration.push(rms);
+        if (trialStart && !detected && now >= detectAfter && rms > threshold) {
+          detected = true;
+          const onset = now;
+          oscillator.stop();
+          trials.push({
+            number: trials.length + 1,
+            response_ms: Math.round(onset - trialStart),
+            false_positive: false
+          });
+          trialStart = undefined;
+          document.querySelector('#progress').value = successfulCount();
+          instruction.textContent = `已停止，目前 ${successfulCount()} / ${TARGET} 次有效成功。`;
+          falseButton.disabled = false;
+          trialButton.disabled = successfulCount() >= TARGET;
+          trialButton.textContent = `開始第 ${trials.length + 1} 次`;
+          report();
+        }
+        raf = requestAnimationFrame(monitor);
+      }
+
+      document.querySelector('#setup').onclick = async () => {
+        try {
+          if (!navigator.mediaDevices?.getUserMedia) {
+            throw new Error('此瀏覽器未提供麥克風 API；請改用一般 Chrome 或 Firefox。');
+          }
+          stream = await navigator.mediaDevices.getUserMedia({audio: {
+            channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true
+          }});
+          context = new AudioContext();
+          analyser = context.createAnalyser(); analyser.fftSize = 1024;
+          source = context.createMediaStreamSource(stream);
+          const highpass = context.createBiquadFilter();
+          highpass.type = 'highpass'; highpass.frequency.value = 1000;
+          source.connect(highpass).connect(analyser);
+          const settings = stream.getAudioTracks()[0].getSettings();
+          device.textContent = `麥克風已啟用；AEC=${String(settings.echoCancellation)}`;
+          device.className = settings.echoCancellation ? 'ok' : 'warn';
+          instruction.textContent = '按下開始，聽到測試音後立刻說「停止」。';
+          trialButton.disabled = false;
+          document.querySelector('#setup').disabled = true;
+          monitor();
+        } catch (error) {
+          device.textContent = error instanceof Error ? error.message : String(error);
+          device.className = 'bad';
+        }
+      };
+
+      trialButton.onclick = async () => {
+        const thisTrial = ++trialId;
+        await context.resume(); detected = false; falseButton.disabled = true;
+        oscillator = context.createOscillator();
+        const gain = context.createGain(); gain.gain.value = .06;
+        oscillator.frequency.value = 440; oscillator.connect(gain).connect(context.destination);
+        trialStart = performance.now(); detectAfter = trialStart + 1000; calibration = [];
+        oscillator.start(); oscillator.stop(context.currentTime + 5);
+        instruction.textContent = '正在量測這次的喇叭回音，先不要發聲…'; trialButton.disabled = true;
+        window.setTimeout(() => {
+          if (thisTrial !== trialId || !trialStart || detected) return;
+          const sorted = [...calibration].sort((a, b) => a - b);
+          const baseline = sorted[Math.max(0, Math.ceil(sorted.length * .95) - 1)] ?? 0;
+          threshold = Math.max(.025, baseline * 1.8);
+          instruction.textContent = '現在發出短促、正常音量的「啊」。';
+        }, 1000);
+        window.setTimeout(() => {
+          if (thisTrial !== trialId || !trialStart || detected) return;
+          trialStart = undefined; oscillator.stop();
+          trials.push({
+            number: trials.length + 1, response_ms: null, false_positive: false, missed: true
+          });
+          document.querySelector('#progress').value = successfulCount();
+          instruction.textContent = '本次未偵測到語音。'; trialButton.disabled = false;
+          trialButton.textContent = `開始第 ${trials.length + 1} 次`; report();
+        }, 5000);
+      };
+
+      falseButton.onclick = () => {
+        const last = trials.at(-1); if (!last) return;
+        last.false_positive = true; falseButton.disabled = true;
+        document.querySelector('#progress').value = successfulCount();
+        instruction.textContent = '已記為誤觸發，請繼續下一次。'; report();
+        trialButton.disabled = false;
+      };
+
+      document.querySelector('#download').onclick = () => {
+        const blob = new Blob([JSON.stringify(report(), null, 2) + '\n'], {type: 'application/json'});
+        const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
+        link.download = `siro-audio-field-${Date.now()}.json`; link.click(); URL.revokeObjectURL(link.href);
+      };
+      window.onbeforeunload = () => { cancelAnimationFrame(raf); stream?.getTracks().forEach(track => track.stop()); };
+    </script>
+  </body>
+</html>

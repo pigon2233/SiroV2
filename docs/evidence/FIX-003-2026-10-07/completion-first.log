@@ -1,0 +1,191 @@
+........................................................................ [ 92%]
+.F...F                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_provider_incomplete_generation_never_dispatches_or_replays[length-True-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-129/test_provider_incomplete_gener3')
+profile = 'candidate', continuation = True, ending = 'length'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("ending", ["length", "bare_eof"])
+    async def test_provider_incomplete_generation_never_dispatches_or_replays(
+        tmp_path: Path, profile: str, continuation: bool, ending: str
+    ) -> None:
+        responses = []
+        if continuation:
+            responses.append(
+                _sse(
+                    _delta({"tool_calls": [_tool(0, "prior", json.dumps(_PRIOR_ARGUMENTS))]}),
+                    {"choices": [{"finish_reason": "tool_calls"}]},
+                    "[DONE]",
+                )
+            )
+        responses.extend(
+            (
+                _incomplete_response(ending),
+                _sse(
+                    _delta({"content": _COMPLETE}), {"choices": [{"finish_reason": "stop"}]}, "[DONE]"
+                ),
+            )
+        )
+        expected_error = "ProviderOutputTruncated" if ending == "length" else "ProviderOutputIncomplete"
+        effects: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return _OBSERVATION
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repository = SQLiteAgentRunRepository(store)
+        hub = RecordingHub()
+        async with _provider(responses) as (base_url, requests):
+            # Permit a second attempt so a hidden automatic retry cannot pass by policy denial.
+            model = FailoverModel(
+                (OpenAICompatibleAdapter(base_url=base_url, api_key="synthetic", model="synthetic"),),
+                backoff_seconds=0,
+                cloud_request_budget=1,
+            )
+            controller = IntegratedCompanion(
+                tmp_path,
+                model,
+                hub,
+                MinimalWebBodyAdapter(WebSocketBodyTransport()),
+                privacy=Privacy.CLOUD_ALLOWED,
+                tool_orchestrator=ToolOrchestrator(
+                    SQLiteToolProposalRepository(store), {"computer.execute": execute}
+                ),
+                runtime_profile=profile,
+                auto_authorize=lambda: True,
+            )
+            await asyncio.wait_for(controller.respond("session", _GOAL), 10)
+            assert len(requests) == 1 + int(continuation)
+            assert effects == ([_PRIOR_ARGUMENTS] if continuation else [])
+            proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
+            assert [event["call_id"] for event in proposals] == (["prior"] if continuation else [])
+            terminals = [event for event in hub.events if event["type"] == "assistant_terminal"]
+            assert len(terminals) == 1
+            assert terminals[0]["state"] == "failed"
+            assert terminals[0]["error"] == expected_error
+            assert [event["text"] for event in hub.events if event["type"] == "assistant_delta"] == [
+                _PARTIAL
+            ]
+            assert hub.events[-1] is terminals[0]
+            readback = await controller.recovery_readback("session")
+            assert readback is not None and readback["state"] == "failed"
+            assert readback["error"] == expected_error
+            proposal_rows = await store.run_transaction(
+                lambda c: c.execute("SELECT call_id,state FROM tool_proposals").fetchall()
+            )
+>           assert [tuple(row) for row in proposal_rows] == (
+                [("prior", "completed")] if continuation else []
+            )
+E           AssertionError: assert [('ebf0fb77-e... 'completed')] == [('prior', 'completed')]
+E             
+E             At index 0 diff: ('ebf0fb77-e99d-47ae-874f-5ec7001b7bcb', 'completed') != ('prior', 'completed')
+E             Use -v to get more diff
+
+tests/integration/test_provider_completion.py:203: AssertionError
+_ test_provider_incomplete_generation_never_dispatches_or_replays[bare_eof-True-candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-129/test_provider_incomplete_gener7')
+profile = 'candidate', continuation = True, ending = 'bare_eof'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("ending", ["length", "bare_eof"])
+    async def test_provider_incomplete_generation_never_dispatches_or_replays(
+        tmp_path: Path, profile: str, continuation: bool, ending: str
+    ) -> None:
+        responses = []
+        if continuation:
+            responses.append(
+                _sse(
+                    _delta({"tool_calls": [_tool(0, "prior", json.dumps(_PRIOR_ARGUMENTS))]}),
+                    {"choices": [{"finish_reason": "tool_calls"}]},
+                    "[DONE]",
+                )
+            )
+        responses.extend(
+            (
+                _incomplete_response(ending),
+                _sse(
+                    _delta({"content": _COMPLETE}), {"choices": [{"finish_reason": "stop"}]}, "[DONE]"
+                ),
+            )
+        )
+        expected_error = "ProviderOutputTruncated" if ending == "length" else "ProviderOutputIncomplete"
+        effects: list[dict[str, object]] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return _OBSERVATION
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repository = SQLiteAgentRunRepository(store)
+        hub = RecordingHub()
+        async with _provider(responses) as (base_url, requests):
+            # Permit a second attempt so a hidden automatic retry cannot pass by policy denial.
+            model = FailoverModel(
+                (OpenAICompatibleAdapter(base_url=base_url, api_key="synthetic", model="synthetic"),),
+                backoff_seconds=0,
+                cloud_request_budget=1,
+            )
+            controller = IntegratedCompanion(
+                tmp_path,
+                model,
+                hub,
+                MinimalWebBodyAdapter(WebSocketBodyTransport()),
+                privacy=Privacy.CLOUD_ALLOWED,
+                tool_orchestrator=ToolOrchestrator(
+                    SQLiteToolProposalRepository(store), {"computer.execute": execute}
+                ),
+                runtime_profile=profile,
+                auto_authorize=lambda: True,
+            )
+            await asyncio.wait_for(controller.respond("session", _GOAL), 10)
+            assert len(requests) == 1 + int(continuation)
+            assert effects == ([_PRIOR_ARGUMENTS] if continuation else [])
+            proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
+            assert [event["call_id"] for event in proposals] == (["prior"] if continuation else [])
+            terminals = [event for event in hub.events if event["type"] == "assistant_terminal"]
+            assert len(terminals) == 1
+            assert terminals[0]["state"] == "failed"
+            assert terminals[0]["error"] == expected_error
+            assert [event["text"] for event in hub.events if event["type"] == "assistant_delta"] == [
+                _PARTIAL
+            ]
+            assert hub.events[-1] is terminals[0]
+            readback = await controller.recovery_readback("session")
+            assert readback is not None and readback["state"] == "failed"
+            assert readback["error"] == expected_error
+            proposal_rows = await store.run_transaction(
+                lambda c: c.execute("SELECT call_id,state FROM tool_proposals").fetchall()
+            )
+>           assert [tuple(row) for row in proposal_rows] == (
+                [("prior", "completed")] if continuation else []
+            )
+E           AssertionError: assert [('623c35a0-1... 'completed')] == [('prior', 'completed')]
+E             
+E             At index 0 diff: ('623c35a0-1a61-4d79-97ad-3ca055ba78eb', 'completed') != ('prior', 'completed')
+E             Use -v to get more diff
+
+tests/integration/test_provider_completion.py:203: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_provider_completion.py::test_provider_incomplete_generation_never_dispatches_or_replays[length-True-candidate]
+FAILED tests/integration/test_provider_completion.py::test_provider_incomplete_generation_never_dispatches_or_replays[bare_eof-True-candidate]
+2 failed, 76 passed, 2 warnings in 7.17s

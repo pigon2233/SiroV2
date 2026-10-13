@@ -1,0 +1,107 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_____ test_owner_file_has_fixed_identity_modes_and_survives_normal_release _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-92/test_owner_file_has_fixed_iden0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b44c9884770>
+
+    def test_owner_file_has_fixed_identity_modes_and_survives_normal_release(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+>       owner, domain = ownership(tmp_path, monkeypatch)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_data_owner_lifecycle.py:23: in ownership
+    module = importlib.import_module("siro.adapters.data_ownership")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.adapters.data_ownership'
+import_ = <function _gcd_import at 0x7b44cb58be20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.adapters.data_ownership'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+______ test_real_wal_writer_process_blocks_competition_until_exit[normal] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-92/test_real_wal_writer_process_b0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b44c9a97e10>
+stop = 'normal'
+
+    @pytest.mark.parametrize("stop", ["normal", "sigkill"])
+    def test_real_wal_writer_process_blocks_competition_until_exit(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop: str
+    ) -> None:
+>       owner, domain = ownership(tmp_path, monkeypatch)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_data_owner_lifecycle.py:23: in ownership
+    module = importlib.import_module("siro.adapters.data_ownership")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.adapters.data_ownership'
+import_ = <function _gcd_import at 0x7b44cb58be20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.adapters.data_ownership'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_____ test_real_wal_writer_process_blocks_competition_until_exit[sigkill] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-92/test_real_wal_writer_process_b1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b44ca82eb10>
+stop = 'sigkill'
+
+    @pytest.mark.parametrize("stop", ["normal", "sigkill"])
+    def test_real_wal_writer_process_blocks_competition_until_exit(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop: str
+    ) -> None:
+>       owner, domain = ownership(tmp_path, monkeypatch)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_data_owner_lifecycle.py:23: in ownership
+    module = importlib.import_module("siro.adapters.data_ownership")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.adapters.data_ownership'
+import_ = <function _gcd_import at 0x7b44cb58be20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.adapters.data_ownership'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_lifecycle.py::test_owner_file_has_fixed_identity_modes_and_survives_normal_release
+FAILED tests/integration/test_data_owner_lifecycle.py::test_real_wal_writer_process_blocks_competition_until_exit[normal]
+FAILED tests/integration/test_data_owner_lifecycle.py::test_real_wal_writer_process_blocks_competition_until_exit[sigkill]
+3 failed in 0.20s

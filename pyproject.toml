@@ -11,17 +11,28 @@ requires-python = ">=3.12,<3.15"
 license = { text = "Proprietary" }
 authors = [{ name = "SIRO contributors" }]
 dependencies = [
+  "aiomqtt>=2.5,<3",
+  "amqtt>=0.12,<0.13",
+  "edge-tts>=7.2.8",
   "fastapi>=0.135,<1",
   "httpx>=0.28,<1",
+  "jinja2>=3.1.6,<4",
+  "kokoro-onnx>=0.6.1",
+  "misaki[zh]>=0.9.4",
   "nats-py>=2.11,<3",
+  "pillow>=12.1,<13",
+  "playwright>=1.58,<2",
   "pydantic>=2.13,<3",
+  "soundfile>=0.14.0",
+  "tokenizers>=0.23.2,<0.24",
   "uvicorn[standard]>=0.41,<1",
-  "websockets>=16,<17",
+  "websockets>=15,<17",
 ]
 
 [project.scripts]
 siro = "siro.cli:main"
 siro-gateway = "siro.services.presentation.gateway:main"
+siro-compute-worker = "siro.services.compute.worker:main"
 
 [dependency-groups]
 dev = [
@@ -43,6 +54,8 @@ markers = [
 ]
 
 [tool.ruff]
+# Historical source snapshots are evidence, not executable project source.
+extend-exclude = ["docs/evidence", "docs/runtime-evolution/verification", ".siro-data"]
 target-version = "py312"
 line-length = 100
 

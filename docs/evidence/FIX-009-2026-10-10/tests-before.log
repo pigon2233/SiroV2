@@ -1,0 +1,577 @@
+FFFFFFFFF...............FFFFFFFFFF                                       [100%]
+=================================== FAILURES ===================================
+_______________ test_legacy_schema_tampering_no_longer_activates _______________
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd6428ec0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_lega...mpering_n0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_legacy_schema_tampering_n0/synthetic.sqlite3'))
+
+    def test_legacy_schema_tampering_no_longer_activates(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+    ) -> None:
+        manager, bundle, database = release_fixture
+        digest = manager._digest(bundle)
+        original = ReleaseManifest(
+            version="2.0.0",
+            source_sha256=digest,
+            signature=hmac.new(KEY, f"2.0.0:{digest}".encode(), hashlib.sha256).hexdigest(),
+            min_schema=1,
+            max_schema=2,
+        )
+        assert not manager._compatible(original)
+        before = tree_bytes(manager._root)
+        database_before = database.read_bytes()
+        changed = original.model_copy(update={"max_schema": 8})
+        result = manager.stage_and_activate(bundle, changed, (sys.executable, "-c", "pass"))
+>       assert result.status == "invalid_manifest", result
+E       AssertionError: ReleaseResult(status='activated', active_version='2.0.0')
+E       assert 'activated' == 'invalid_manifest'
+E         
+E         - invalid_manifest
+E         + activated
+
+tests/integration/test_release_manifest_signing.py:105: AssertionError
+_______ test_canonical_payload_has_independent_fixed_bytes_and_signature _______
+
+    def test_canonical_payload_has_independent_fixed_bytes_and_signature() -> None:
+        values = {
+            "version": "2.0.0",
+            "source_sha256": "0" * 64,
+            "min_schema": 1,
+            "max_schema": 8,
+            "signing_format": FORMAT,
+            "signature": "f" * 64,
+        }
+        expected = (
+            b'{"max_schema":8,"min_schema":1,"signing_format":"siro-release-manifest-v1",'
+            b'"source_sha256":"0000000000000000000000000000000000000000000000000000000000000000",'
+            b'"version":"2.0.0"}'
+        )
+>       artifact = ReleaseManifest.model_validate(values)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:124: ValidationError
+____ test_each_signed_decision_field_tamper_has_zero_effects[version-3.0.0] ____
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd643a850>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_each...sion_fiel0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_each_signed_decision_fiel0/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd64e42b0>
+field = 'version', value = '3.0.0'
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("version", "3.0.0"), ("source_sha256", "a" * 64), ("min_schema", 2), ("max_schema", 9)],
+    )
+    def test_each_signed_decision_field_tamper_has_zero_effects(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        field: str,
+        value: Any,
+    ) -> None:
+        manager, bundle, database = release_fixture
+        values = signed_values(bundle)
+        values[field] = value
+        assert_rejected_without_effects(
+>           manager, bundle, database, ReleaseManifest.model_validate(values), monkeypatch
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:150: ValidationError
+_ test_each_signed_decision_field_tamper_has_zero_effects[source_sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa] _
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd6439d10>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_each...sion_fiel1/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_each_signed_decision_fiel1/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd6557820>
+field = 'source_sha256'
+value = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("version", "3.0.0"), ("source_sha256", "a" * 64), ("min_schema", 2), ("max_schema", 9)],
+    )
+    def test_each_signed_decision_field_tamper_has_zero_effects(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        field: str,
+        value: Any,
+    ) -> None:
+        manager, bundle, database = release_fixture
+        values = signed_values(bundle)
+        values[field] = value
+        assert_rejected_without_effects(
+>           manager, bundle, database, ReleaseManifest.model_validate(values), monkeypatch
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:150: ValidationError
+____ test_each_signed_decision_field_tamper_has_zero_effects[min_schema-2] _____
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd64e4d60>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_each...sion_fiel2/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_each_signed_decision_fiel2/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd64a4050>
+field = 'min_schema', value = 2
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("version", "3.0.0"), ("source_sha256", "a" * 64), ("min_schema", 2), ("max_schema", 9)],
+    )
+    def test_each_signed_decision_field_tamper_has_zero_effects(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        field: str,
+        value: Any,
+    ) -> None:
+        manager, bundle, database = release_fixture
+        values = signed_values(bundle)
+        values[field] = value
+        assert_rejected_without_effects(
+>           manager, bundle, database, ReleaseManifest.model_validate(values), monkeypatch
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:150: ValidationError
+____ test_each_signed_decision_field_tamper_has_zero_effects[max_schema-9] _____
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd64e5810>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_each...sion_fiel3/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_each_signed_decision_fiel3/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd6456360>
+field = 'max_schema', value = 9
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("version", "3.0.0"), ("source_sha256", "a" * 64), ("min_schema", 2), ("max_schema", 9)],
+    )
+    def test_each_signed_decision_field_tamper_has_zero_effects(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        field: str,
+        value: Any,
+    ) -> None:
+        manager, bundle, database = release_fixture
+        values = signed_values(bundle)
+        values[field] = value
+        assert_rejected_without_effects(
+>           manager, bundle, database, ReleaseManifest.model_validate(values), monkeypatch
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:150: ValidationError
+______ test_readable_legacy_manifest_is_not_a_signature_fallback[absent] _______
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd64a6330>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_read...manifest_0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_readable_legacy_manifest_0/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd6456470>
+legacy_format = 'absent'
+
+    @pytest.mark.parametrize("legacy_format", ["absent", None])
+    def test_readable_legacy_manifest_is_not_a_signature_fallback(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        legacy_format: str | None,
+    ) -> None:
+        manager, bundle, database = release_fixture
+        values = signed_values(bundle)
+        values["signature"] = hmac.new(
+            KEY, f"2.0.0:{values['source_sha256']}".encode(), hashlib.sha256
+        ).hexdigest()
+        if legacy_format == "absent":
+            del values["signing_format"]
+        else:
+            values["signing_format"] = None
+        artifact = ReleaseManifest.model_validate_json(json.dumps(values))
+        with pytest.raises(ValueError, match="legacy"):
+>           artifact.signing_payload()
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_manifest_signing.py:171: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ReleaseManifest(version='2.0.0', source_sha256='8d9a32c97ab4c0436f600ced865dad0514a1096959543341733d52651db928e0', signature='983ebb895fa94cbef6a8331ec4a120a28f8ac9647cf7407f3cbb23ba7414e428', min_schema=1, max_schema=8)
+item = 'signing_payload'
+
+    def __getattr__(self, item: str) -> Any:
+        private_attributes = object.__getattribute__(self, '__private_attributes__')
+        if item in private_attributes:
+            attribute = private_attributes[item]
+            if hasattr(attribute, '__get__'):
+                return attribute.__get__(self, type(self))  # type: ignore
+    
+            try:
+                # Note: self.__pydantic_private__ cannot be None if self.__private_attributes__ has items
+                return self.__pydantic_private__[item]  # type: ignore
+            except KeyError as exc:
+                raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}') from exc
+        else:
+            # `__pydantic_extra__` can fail to be set if the model is not yet fully initialized.
+            # See `BaseModel.__repr_args__` for more details
+            try:
+                pydantic_extra = object.__getattribute__(self, '__pydantic_extra__')
+            except AttributeError:
+                pydantic_extra = None
+    
+            if pydantic_extra and item in pydantic_extra:
+                return pydantic_extra[item]
+            else:
+                if hasattr(self.__class__, item):
+                    return super().__getattribute__(item)  # Raises AttributeError if appropriate
+                else:
+                    # this is the current error
+>                   raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E                   AttributeError: 'ReleaseManifest' object has no attribute 'signing_payload'
+
+.venv/lib/python3.14/site-packages/pydantic/main.py:1042: AttributeError
+_______ test_readable_legacy_manifest_is_not_a_signature_fallback[None] ________
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd6457130>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_read...manifest_1/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_readable_legacy_manifest_1/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd64bd650>
+legacy_format = None
+
+    @pytest.mark.parametrize("legacy_format", ["absent", None])
+    def test_readable_legacy_manifest_is_not_a_signature_fallback(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        legacy_format: str | None,
+    ) -> None:
+        manager, bundle, database = release_fixture
+        values = signed_values(bundle)
+        values["signature"] = hmac.new(
+            KEY, f"2.0.0:{values['source_sha256']}".encode(), hashlib.sha256
+        ).hexdigest()
+        if legacy_format == "absent":
+            del values["signing_format"]
+        else:
+            values["signing_format"] = None
+>       artifact = ReleaseManifest.model_validate_json(json.dumps(values))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value=None, input_type=NoneType]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:169: ValidationError
+_______________ test_current_format_cannot_use_old_hmac_message ________________
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd6457570>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_curr...annot_use0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_current_format_cannot_use0/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd64be050>
+
+    def test_current_format_cannot_use_old_hmac_message(
+        release_fixture: tuple[ReleaseManager, Path, Path], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manager, bundle, database = release_fixture
+        values = signed_values(bundle)
+        values["signature"] = hmac.new(
+            KEY, f"2.0.0:{values['source_sha256']}".encode(), hashlib.sha256
+        ).hexdigest()
+        assert_rejected_without_effects(
+>           manager, bundle, database, ReleaseManifest.model_validate(values), monkeypatch
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:184: ValidationError
+_ test_unvalidated_model_copy_cannot_bypass_entry_validation[min_schema-True] __
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd63d6dd0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_unva...l_copy_ca0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_unvalidated_model_copy_ca0/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd64f6990>
+field = 'min_schema', value = True
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("min_schema", True), ("min_schema", "1"), ("max_schema", 0), ("signing_format", "other")],
+    )
+    def test_unvalidated_model_copy_cannot_bypass_entry_validation(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        field: str,
+        value: Any,
+    ) -> None:
+        manager, bundle, database = release_fixture
+>       artifact = ReleaseManifest.model_validate(signed_values(bundle)).model_copy(update={field: value})
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:233: ValidationError
+___ test_unvalidated_model_copy_cannot_bypass_entry_validation[min_schema-1] ___
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd637a430>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_unva...l_copy_ca1/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_unvalidated_model_copy_ca1/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd64cc6e0>
+field = 'min_schema', value = '1'
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("min_schema", True), ("min_schema", "1"), ("max_schema", 0), ("signing_format", "other")],
+    )
+    def test_unvalidated_model_copy_cannot_bypass_entry_validation(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        field: str,
+        value: Any,
+    ) -> None:
+        manager, bundle, database = release_fixture
+>       artifact = ReleaseManifest.model_validate(signed_values(bundle)).model_copy(update={field: value})
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:233: ValidationError
+___ test_unvalidated_model_copy_cannot_bypass_entry_validation[max_schema-0] ___
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd637b9a0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_unva...l_copy_ca2/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_unvalidated_model_copy_ca2/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd6459630>
+field = 'max_schema', value = 0
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("min_schema", True), ("min_schema", "1"), ("max_schema", 0), ("signing_format", "other")],
+    )
+    def test_unvalidated_model_copy_cannot_bypass_entry_validation(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        field: str,
+        value: Any,
+    ) -> None:
+        manager, bundle, database = release_fixture
+>       artifact = ReleaseManifest.model_validate(signed_values(bundle)).model_copy(update={field: value})
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:233: ValidationError
+_ test_unvalidated_model_copy_cannot_bypass_entry_validation[signing_format-other] _
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd637b2a0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_unva...l_copy_ca3/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_unvalidated_model_copy_ca3/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd6459d30>
+field = 'signing_format', value = 'other'
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("min_schema", True), ("min_schema", "1"), ("max_schema", 0), ("signing_format", "other")],
+    )
+    def test_unvalidated_model_copy_cannot_bypass_entry_validation(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        field: str,
+        value: Any,
+    ) -> None:
+        manager, bundle, database = release_fixture
+>       artifact = ReleaseManifest.model_validate(signed_values(bundle)).model_copy(update={field: value})
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:233: ValidationError
+____________ test_bundle_change_is_rejected_without_release_effects ____________
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd637b930>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_bund..._rejected0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_bundle_change_is_rejected0/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd61a1640>
+
+    def test_bundle_change_is_rejected_without_release_effects(
+        release_fixture: tuple[ReleaseManager, Path, Path], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manager, bundle, database = release_fixture
+>       artifact = ReleaseManifest.model_validate(signed_values(bundle))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:241: ValidationError
+_____ test_valid_signed_incompatible_release_retains_original_status[1-7] ______
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd63ac050>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_vali...ompatible0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_valid_signed_incompatible0/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd6571cd0>
+minimum = 1, maximum = 7
+
+    @pytest.mark.parametrize(("minimum", "maximum"), [(1, 7), (9, 9)])
+    def test_valid_signed_incompatible_release_retains_original_status(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        minimum: int,
+        maximum: int,
+    ) -> None:
+        manager, bundle, database = release_fixture
+>       artifact = ReleaseManifest.model_validate(signed_values(bundle, minimum=minimum, maximum=maximum))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:254: ValidationError
+_____ test_valid_signed_incompatible_release_retains_original_status[9-9] ______
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd63ad2b0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_vali...ompatible1/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_valid_signed_incompatible1/synthetic.sqlite3'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd6572810>
+minimum = 9, maximum = 9
+
+    @pytest.mark.parametrize(("minimum", "maximum"), [(1, 7), (9, 9)])
+    def test_valid_signed_incompatible_release_retains_original_status(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+        minimum: int,
+        maximum: int,
+    ) -> None:
+        manager, bundle, database = release_fixture
+>       artifact = ReleaseManifest.model_validate(signed_values(bundle, minimum=minimum, maximum=maximum))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:254: ValidationError
+_____ test_valid_canonical_manifest_uses_original_staging_and_backup_flow ______
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x74fcd63ad710>, PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_vali...manifest_0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_valid_canonical_manifest_0/synthetic.sqlite3'))
+
+    def test_valid_canonical_manifest_uses_original_staging_and_backup_flow(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+    ) -> None:
+        manager, bundle, database = release_fixture
+        values = signed_values(bundle)
+>       artifact = ReleaseManifest.model_validate_json(json.dumps(dict(reversed(list(values.items())))))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/integration/test_release_manifest_signing.py:265: ValidationError
+_ test_actual_cli_stage_rejects_legacy_and_accepts_complete_signatures[False] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_actual_cli_stage_rejects_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd63eb070>
+current_format = False
+
+    @pytest.mark.parametrize("current_format", [False, True])
+    def test_actual_cli_stage_rejects_legacy_and_accepts_complete_signatures(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, current_format: bool
+    ) -> None:
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("CLI synthetic bundle")
+        values = signed_values(bundle, maximum=100)
+        if not current_format:
+            del values["signing_format"]
+            values["signature"] = hmac.new(
+                KEY, f"2.0.0:{values['source_sha256']}".encode(), hashlib.sha256
+            ).hexdigest()
+        artifact = tmp_path / "manifest.json"
+        artifact.write_text(json.dumps(values))
+        root = tmp_path / "release-root"
+        marker = tmp_path / "healthcheck-ran"
+        monkeypatch.setenv("SIRO_TEST_FIX009_RELEASE_KEY", KEY.decode())
+        result = main(
+            [
+                "release", "--release-root", str(root), "--key-env", "SIRO_TEST_FIX009_RELEASE_KEY",
+                "stage", "--bundle", str(bundle), "--manifest", str(artifact),
+                "--healthcheck", json.dumps([sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"]),
+            ]
+        )
+>       assert result == (0 if current_format else 1)
+E       assert 0 == 1
+
+tests/integration/test_release_manifest_signing.py:301: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "activated", "active_version": "2.0.0"}
+__ test_actual_cli_stage_rejects_legacy_and_accepts_complete_signatures[True] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_actual_cli_stage_rejects_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74fcd61d4470>
+current_format = True
+
+    @pytest.mark.parametrize("current_format", [False, True])
+    def test_actual_cli_stage_rejects_legacy_and_accepts_complete_signatures(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, current_format: bool
+    ) -> None:
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("CLI synthetic bundle")
+        values = signed_values(bundle, maximum=100)
+        if not current_format:
+            del values["signing_format"]
+            values["signature"] = hmac.new(
+                KEY, f"2.0.0:{values['source_sha256']}".encode(), hashlib.sha256
+            ).hexdigest()
+        artifact = tmp_path / "manifest.json"
+        artifact.write_text(json.dumps(values))
+        root = tmp_path / "release-root"
+        marker = tmp_path / "healthcheck-ran"
+        monkeypatch.setenv("SIRO_TEST_FIX009_RELEASE_KEY", KEY.decode())
+>       result = main(
+            [
+                "release", "--release-root", str(root), "--key-env", "SIRO_TEST_FIX009_RELEASE_KEY",
+                "stage", "--bundle", str(bundle), "--manifest", str(artifact),
+                "--healthcheck", json.dumps([sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"]),
+            ]
+        )
+
+tests/integration/test_release_manifest_signing.py:294: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/cli.py:306: in main
+    return int(arguments.handler(arguments))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arguments = Namespace(command='release', release_root='/tmp/pytest-of-jasonliao/pytest-38/test_actual_cli_stage_rejects_1/release-...l_cli_stage_rejects_1/healthcheck-ran\', \'w\').write(\'ran\')"]', handler=<function _release_stage at 0x74fcd64894e0>)
+
+    def _release_stage(arguments: argparse.Namespace) -> int:
+        from siro.core.releases import ReleaseManifest
+    
+        manager = _release_manager(arguments)
+>       manifest = ReleaseManifest.model_validate_json(
+            Path(arguments.manifest).read_text(encoding="utf-8")
+        )
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ReleaseManifest
+E       signing_format
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='siro-release-manifest-v1', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+src/siro/cli.py:133: ValidationError
+=========================== short test summary info ============================
+FAILED tests/integration/test_release_manifest_signing.py::test_legacy_schema_tampering_no_longer_activates
+FAILED tests/integration/test_release_manifest_signing.py::test_canonical_payload_has_independent_fixed_bytes_and_signature
+FAILED tests/integration/test_release_manifest_signing.py::test_each_signed_decision_field_tamper_has_zero_effects[version-3.0.0]
+FAILED tests/integration/test_release_manifest_signing.py::test_each_signed_decision_field_tamper_has_zero_effects[source_sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]
+FAILED tests/integration/test_release_manifest_signing.py::test_each_signed_decision_field_tamper_has_zero_effects[min_schema-2]
+FAILED tests/integration/test_release_manifest_signing.py::test_each_signed_decision_field_tamper_has_zero_effects[max_schema-9]
+FAILED tests/integration/test_release_manifest_signing.py::test_readable_legacy_manifest_is_not_a_signature_fallback[absent]
+FAILED tests/integration/test_release_manifest_signing.py::test_readable_legacy_manifest_is_not_a_signature_fallback[None]
+FAILED tests/integration/test_release_manifest_signing.py::test_current_format_cannot_use_old_hmac_message
+FAILED tests/integration/test_release_manifest_signing.py::test_unvalidated_model_copy_cannot_bypass_entry_validation[min_schema-True]
+FAILED tests/integration/test_release_manifest_signing.py::test_unvalidated_model_copy_cannot_bypass_entry_validation[min_schema-1]
+FAILED tests/integration/test_release_manifest_signing.py::test_unvalidated_model_copy_cannot_bypass_entry_validation[max_schema-0]
+FAILED tests/integration/test_release_manifest_signing.py::test_unvalidated_model_copy_cannot_bypass_entry_validation[signing_format-other]
+FAILED tests/integration/test_release_manifest_signing.py::test_bundle_change_is_rejected_without_release_effects
+FAILED tests/integration/test_release_manifest_signing.py::test_valid_signed_incompatible_release_retains_original_status[1-7]
+FAILED tests/integration/test_release_manifest_signing.py::test_valid_signed_incompatible_release_retains_original_status[9-9]
+FAILED tests/integration/test_release_manifest_signing.py::test_valid_canonical_manifest_uses_original_staging_and_backup_flow
+FAILED tests/integration/test_release_manifest_signing.py::test_actual_cli_stage_rejects_legacy_and_accepts_complete_signatures[False]
+FAILED tests/integration/test_release_manifest_signing.py::test_actual_cli_stage_rejects_legacy_and_accepts_complete_signatures[True]
+19 failed, 15 passed in 0.33s

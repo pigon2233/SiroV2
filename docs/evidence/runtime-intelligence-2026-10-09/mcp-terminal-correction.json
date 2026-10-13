@@ -1,0 +1,1480 @@
+[
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "SIRO-local-verifier",
+          "version": "1"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "protocolVersion": "2024-11-05",
+        "serverInfo": {
+          "name": "codebase-memory-mcp",
+          "version": "0.11.0"
+        },
+        "capabilities": {
+          "tools": {
+            "listChanged": false
+          },
+          "prompts": {
+            "listChanged": false
+          }
+        },
+        "instructions": "analysis tool profile: read-only graph work via search_graph, trace_path, get_code_snippet, query_graph, get_architecture, or search_code. Use check_index_coverage for cited paths; paginate."
+      }
+    },
+    "seconds": 14.619299
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/list",
+      "params": {}
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {
+        "tools": [
+          {
+            "name": "search_graph",
+            "description": "Find symbols via BM25 query, regex name/qn filters, or semantic_query. Rows keep qn/file/lines and in/out over CALLS/USAGE/CALL_REFERENCE/INHERITS/IMPLEMENTS.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "project": {
+                  "type": "string"
+                },
+                "query": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "name_pattern": {
+                  "type": "string"
+                },
+                "qn_pattern": {
+                  "type": "string"
+                },
+                "file_pattern": {
+                  "type": "string"
+                },
+                "relationship": {
+                  "type": "string"
+                },
+                "min_degree": {
+                  "type": "integer"
+                },
+                "max_degree": {
+                  "type": "integer"
+                },
+                "exclude_entry_points": {
+                  "type": "boolean"
+                },
+                "include_connected": {
+                  "type": "boolean"
+                },
+                "semantic_query": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Not with query."
+                },
+                "semantic_limit": {
+                  "type": "integer",
+                  "default": 50,
+                  "minimum": 0,
+                  "maximum": 500
+                },
+                "semantic_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0,
+                  "maximum": 99998
+                },
+                "limit": {
+                  "type": "integer",
+                  "default": 50,
+                  "minimum": 1,
+                  "maximum": 500
+                },
+                "offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "max_output_tokens": {
+                  "type": "integer",
+                  "default": 3200,
+                  "minimum": 128,
+                  "maximum": 1000000
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "detail": {
+                  "type": "string",
+                  "enum": [
+                    "ids",
+                    "default"
+                  ],
+                  "default": "default"
+                }
+              },
+              "required": [
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "query_graph",
+            "description": "Read-only Cypher for multi-hop, aggregation, complexity, or cross-service analysis. Default: 200 visible rows with exact/lower-bound totals and truncation; continue safely with next_cursor. graph=missed is a file tree of flagged coverage gaps; absence is not proof of completeness. Use get_graph_schema(diagnostics=full) for properties.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "Cypher query"
+                },
+                "project": {
+                  "type": "string"
+                },
+                "graph": {
+                  "type": "string",
+                  "enum": [
+                    "code",
+                    "missed"
+                  ],
+                  "default": "code",
+                  "description": "code graph (default) or missed coverage-gap file tree."
+                },
+                "max_rows": {
+                  "type": "integer",
+                  "description": "Visible rows (default 200; max 99998); 0 uses the legacy maximum. Evaluation is unchanged.",
+                  "minimum": 0,
+                  "default": 200
+                },
+                "offset": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "default": 0,
+                  "description": "Live compatibility paging; cannot be combined with cursor."
+                },
+                "cursor": {
+                  "type": "string",
+                  "description": "Snapshot continuation; keep query/project/graph. Format, budget, and max_rows may change."
+                },
+                "max_output_tokens": {
+                  "type": "integer",
+                  "minimum": 128,
+                  "maximum": 1000000,
+                  "description": "Sizing hint; hard ceiling is 4 UTF-8 bytes/token. Rows stay whole."
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree",
+                  "description": "tree may use local @N+suffix prefix refs; json uses direct strings."
+                }
+              },
+              "required": [
+                "query",
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "trace_path",
+            "description": "Trace callers/callees, data flow, or cross-service paths. Defaults exclude tests and resolver evidence. Rows keep qn/hop with explicit totals, relations, and continuations.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "function_name": {
+                  "type": "string"
+                },
+                "project": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "inbound",
+                    "outbound",
+                    "both"
+                  ],
+                  "default": "both"
+                },
+                "depth": {
+                  "type": "integer",
+                  "default": 3,
+                  "minimum": 1,
+                  "maximum": 15
+                },
+                "limit": {
+                  "type": "integer",
+                  "default": 100,
+                  "minimum": 1,
+                  "maximum": 5000,
+                  "description": "Rows/page; gte flags the 5000-node engine ceiling."
+                },
+                "max_output_tokens": {
+                  "type": "integer",
+                  "default": 3200,
+                  "minimum": 128,
+                  "maximum": 1000000,
+                  "description": "Sizing hint; hard ceiling is 4 UTF-8 bytes/token. Evidence/args yield before nearest graph rows."
+                },
+                "cursor": {
+                  "type": "string",
+                  "description": "Pass next/next_cursor with traversal args unchanged; budget may increase."
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "calls",
+                    "data_flow",
+                    "cross_service"
+                  ],
+                  "default": "calls",
+                  "description": "calls, argument-aware data_flow, or service edges."
+                },
+                "parameter_name": {
+                  "type": "string",
+                  "description": "data_flow parameter filter."
+                },
+                "edge_types": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "risk_labels": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Add hop-risk labels."
+                },
+                "include_tests": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree",
+                  "description": "tree chooses smaller complete direct/grouped output; json uses stable grouped tables."
+                },
+                "include_evidence": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Add resolver class and confidence."
+                }
+              },
+              "required": [
+                "function_name",
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_code_snippet",
+            "description": "Read a search_graph symbol. auto bounds source and outlines large containers; full restores up to 500 lines. Source/outline pages continue; coverage_note marks gaps.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "qualified_name": {
+                  "type": "string",
+                  "description": "search_graph qn, or short name."
+                },
+                "project": {
+                  "type": "string"
+                },
+                "include_neighbors": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "source_mode": {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "full",
+                    "outline"
+                  ],
+                  "default": "auto",
+                  "description": "auto outlines 200+ line containers; full returns source; outline lists members."
+                },
+                "member_limit": {
+                  "type": "integer",
+                  "default": 50,
+                  "minimum": 1,
+                  "maximum": 500
+                },
+                "member_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "start_line": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "max_lines": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 500
+                },
+                "max_output_tokens": {
+                  "type": "integer",
+                  "minimum": 128,
+                  "maximum": 1000000,
+                  "description": "auto/outline sizing hint (default 2500), hard ceiling 4 UTF-8 bytes/token. Lines stay whole; explicit full is uncapped unless set."
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                }
+              },
+              "required": [
+                "qualified_name",
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_file_outline",
+            "description": "Declaration outline of one exact repository-relative file: optional exact label filter, source order, exact total/offset/limit paging; file/folder/container nodes excluded.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "project": {
+                  "type": "string"
+                },
+                "file_path": {
+                  "type": "string",
+                  "description": "Exact repository-relative file path"
+                },
+                "labels": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 16,
+                  "description": "Optional exact node-label filter"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200,
+                  "default": 100
+                },
+                "offset": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "default": 0
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "project",
+                "file_path"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_graph_schema",
+            "description": "Get node-label and edge-type counts. diagnostics=full also lists queryable properties.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "project": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                },
+                "diagnostics": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "full"
+                  ],
+                  "default": "none"
+                },
+                "limit": {
+                  "type": "integer",
+                  "default": 50,
+                  "minimum": 1,
+                  "maximum": 500
+                },
+                "offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "compare_graphs",
+            "description": "Compare two indexed snapshots: deterministic target-only additions and base-only removals of stable node/edge identities; each set capped by limit and a 512 KiB budget with exact totals and truncation reasons.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "base_project": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "target_project": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000,
+                  "default": 200
+                },
+                "scan_limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000000,
+                  "default": 2000000
+                }
+              },
+              "required": [
+                "base_project",
+                "target_project"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_architecture",
+            "description": "Compact counts, languages, packages, entry points. Request structure, dependencies, routes, hotspots, boundaries, layers, clusters, cycles, or file_tree; path scopes a directory.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "project": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Directory prefix (for example apps/hoa)."
+                },
+                "aspects": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "overview",
+                      "structure",
+                      "dependencies",
+                      "routes",
+                      "languages",
+                      "packages",
+                      "entry_points",
+                      "hotspots",
+                      "boundaries",
+                      "layers",
+                      "file_tree",
+                      "clusters",
+                      "cycles"
+                    ]
+                  },
+                  "description": "all=everything; overview=compact except file_tree; omitted=languages/packages/entry_points; cycles is opt-in."
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                }
+              },
+              "required": [
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "search_code",
+            "description": "Graph-ranked text search: compact symbols, full bounded source, or file paths.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string"
+                },
+                "project": {
+                  "type": "string"
+                },
+                "file_pattern": {
+                  "type": "string"
+                },
+                "path_filter": {
+                  "type": "string"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "compact",
+                    "full",
+                    "files"
+                  ],
+                  "default": "compact"
+                },
+                "context": {
+                  "type": "integer"
+                },
+                "regex": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "debug": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Add scope_ms/scan_ms/enrich_ms phase timings."
+                },
+                "limit": {
+                  "type": "integer",
+                  "default": 10,
+                  "minimum": 1,
+                  "maximum": 500
+                },
+                "result_limit": {
+                  "type": "integer",
+                  "default": 10,
+                  "minimum": 1,
+                  "maximum": 500
+                },
+                "result_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "raw_limit": {
+                  "type": "integer",
+                  "default": 5,
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "raw_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "raw_content_offset": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Raw-line byte offset; omit for match-centered preview."
+                },
+                "directory_limit": {
+                  "type": "integer",
+                  "default": 20,
+                  "minimum": 0,
+                  "maximum": 64
+                },
+                "directory_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "match_limit": {
+                  "type": "integer",
+                  "default": 8,
+                  "minimum": 1,
+                  "maximum": 500
+                },
+                "source_max_lines": {
+                  "type": "integer",
+                  "default": 20,
+                  "minimum": 1,
+                  "maximum": 200
+                },
+                "max_output_tokens": {
+                  "type": "integer",
+                  "minimum": 128,
+                  "maximum": 1000000
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                }
+              },
+              "required": [
+                "pattern",
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_projects",
+            "description": "List projects with stable paging. Identity is lean; stats adds graph sizes.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                },
+                "detail": {
+                  "type": "string",
+                  "enum": [
+                    "identity",
+                    "stats"
+                  ],
+                  "default": "identity",
+                  "description": "stats adds node/edge/database-size counts."
+                },
+                "include_details": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Alias for detail=stats: include branch, node/edge counts and database size. Slower."
+                },
+                "limit": {
+                  "type": "integer",
+                  "default": 50,
+                  "minimum": 1,
+                  "maximum": 500
+                },
+                "offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "metadata_only": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Compatibility: omit counts, size, and branch."
+                }
+              }
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "index_status",
+            "description": "Project readiness, counts, root, and coverage gaps. diagnostics adds coverage rows; verbose adds Git paths. Best-effort only; verify cited paths with check_index_coverage.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "project": {
+                  "type": "string"
+                },
+                "verbose": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Add worktree/shadow Git paths for index-location debugging."
+                },
+                "diagnostics": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "summary",
+                    "full"
+                  ],
+                  "default": "none",
+                  "description": "Coverage rows: counts, five samples, or up to 500."
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                }
+              },
+              "required": [
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "check_index_coverage",
+            "description": "Best-effort exact-path/scope coverage and freshness, paged separately. full diagnostics adds raw detail. Clean is not proof of completeness.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "project": {
+                  "type": "string"
+                },
+                "paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 128
+                },
+                "path_limit": {
+                  "type": "integer",
+                  "default": 20,
+                  "minimum": 1,
+                  "maximum": 128
+                },
+                "path_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "scopes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 32
+                },
+                "scope_limit": {
+                  "type": "integer",
+                  "default": 20,
+                  "minimum": 1,
+                  "maximum": 1000
+                },
+                "scope_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "diagnostics": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "full"
+                  ],
+                  "default": "none"
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                }
+              },
+              "required": [
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "detect_changes",
+            "description": "Map a Git diff to files and impact. Page with snapshot cursors.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "project": {
+                  "type": "string"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "files",
+                    "impact"
+                  ],
+                  "default": "impact"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "inbound",
+                    "outbound",
+                    "both"
+                  ],
+                  "default": "inbound",
+                  "description": "inbound=callers; outbound=dependencies; both=union."
+                },
+                "depth": {
+                  "type": "integer",
+                  "default": 2
+                },
+                "limit": {
+                  "type": "integer",
+                  "default": 200,
+                  "maximum": 5000
+                },
+                "impact_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "impact_cursor": {
+                  "type": "string"
+                },
+                "changed_limit": {
+                  "type": "integer",
+                  "default": 20,
+                  "minimum": 0,
+                  "maximum": 5000
+                },
+                "changed_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "changed_cursor": {
+                  "type": "string"
+                },
+                "module_limit": {
+                  "type": "integer",
+                  "default": 20,
+                  "minimum": 0,
+                  "maximum": 256
+                },
+                "module_offset": {
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0
+                },
+                "module_cursor": {
+                  "type": "string"
+                },
+                "max_output_tokens": {
+                  "type": "integer",
+                  "default": 3200,
+                  "minimum": 128,
+                  "maximum": 1000000,
+                  "description": "Sizing hint; hard ceiling is 4 UTF-8 bytes/token."
+                },
+                "base_branch": {
+                  "type": "string",
+                  "default": "main"
+                },
+                "since": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string",
+                  "enum": [
+                    "tree",
+                    "json"
+                  ],
+                  "default": "tree"
+                }
+              },
+              "required": [
+                "project"
+              ]
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          }
+        ]
+      }
+    },
+    "seconds": 0.0116
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "list_projects",
+        "arguments": {}
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "projects: 1  (cols: name root_path branch)\n  SiroV2 /workspace/projects/SiroV2 -\ntotal: 1\nreturned: 1\nhas_more: false\n"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "seconds": 0.01165
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "tools/call",
+      "params": {
+        "name": "get_graph_schema",
+        "arguments": {
+          "project": "SiroV2"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "node_labels: 19  (cols: label count)\n  Method 772\n  Function 713\n  Variable 465\n  Class 419\n  File 250\n  Module 250\n  Route 83\n  Folder 41\n  EnvVar 31\n  Field 29\n  Decorator 11\n  Struct 10\n  Macro 7\n  Section 4\n  Enum 3\n  Branch 1\n  Interface 1\n  Project 1\n  Type 1\nedge_types: 22  (cols: type count)\n  DEFINES 5254\n  CALLS 4138\n  TESTS 1839\n  USAGE 1769\n  IMPORTS 967\n  DEFINES_METHOD 766\n  WRITES 606\n  DECORATES 471\n  SEMANTICALLY_RELATED 301\n  CONTAINS_FILE 250\n  CONFIGURES 87\n  INHERITS 47\n  CALL_REFERENCE 41\n  RAISES 40\n  CONTAINS_FOLDER 36\n  THROWS 32\n  HTTP_CALLS 31\n  OVERRIDE 13\n  ASYNC_CALLS 7\n  IMPLEMENTS 2\n  SIMILAR_TO 2\n  HAS_BRANCH 1\ntotal: 41\nreturned: 41\nhas_more: false\nadr_present: false\n"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "seconds": 0.014575
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "tools/call",
+      "params": {
+        "name": "get_architecture",
+        "arguments": {
+          "project": "SiroV2",
+          "aspects": [
+            "all"
+          ]
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "project: SiroV2\ntotal_nodes: 3092\ntotal_edges: 16700\nnode_labels: 19  (cols: label count)\n  Method 772\n  Function 713\n  Variable 465\n  Class 419\n  File 250\n  Module 250\n  Route 83\n  Folder 41\n  EnvVar 31\n  Field 29\n  Decorator 11\n  Struct 10\n  Macro 7\n  Section 4\n  Enum 3\n  Branch 1\n  Interface 1\n  Project 1\n  Type 1\nedge_types: 22  (cols: type count)\n  DEFINES 5254\n  CALLS 4138\n  TESTS 1839\n  USAGE 1769\n  IMPORTS 967\n  DEFINES_METHOD 766\n  WRITES 606\n  DECORATES 471\n  SEMANTICALLY_RELATED 301\n  CONTAINS_FILE 250\n  CONFIGURES 87\n  INHERITS 47\n  CALL_REFERENCE 41\n  RAISES 40\n  CONTAINS_FOLDER 36\n  THROWS 32\n  HTTP_CALLS 31\n  OVERRIDE 13\n  ASYNC_CALLS 7\n  IMPLEMENTS 2\n  SIMILAR_TO 2\n  HAS_BRANCH 1\nlanguages: 6  (cols: language files)\n  Python 214\n  TOML 4\n  Rust 4\n  HTML 3\n  C++ 1\n  C 1\npackages: 15  (cols: name nodes fan_in fan_out)\n  siro 1144 0 0\n  integration 427 0 0\n  contract 81 0 0\n  siro-runtime 65 0 0\n  test_qwen_worker_completion 19 0 0\n  test_codebase_memory 17 0 0\n  test_affect 14 0 0\n  test_local_event_bus 13 0 0\n  test_cognition 11 0 0\n  test_audio_pipeline 9 0 0\n  qwen_tts_worker 8 0 0\n  real 8 0 0\n  tool 7 0 0\n  esp32 7 0 0\n  helpers 6 0 0\nentry_points: 15  (cols: qn file)\n  SiroV2.runtime.siro-runtime.src.main.main runtime/siro-runtime/src/main.rs\n  SiroV2.scripts.codebase_memory.main scripts/codebase_memory.py\n  SiroV2.scripts.evaluate_affect.main scripts/evaluate_affect\n  SiroV2.scripts.export_schemas.main scripts/export_schemas\n  SiroV2.scripts.launch_companion.main scripts/launch_companion.py\n  SiroV2.scripts.prepare_live2d_renderer.main scripts/prepare_live2d_renderer.py\n  SiroV2.scripts.qwen_tts_worker.main scripts/qwen_tts_worker.py\n  SiroV2.scripts.repair_companion_renderer.main scripts/repair_companion_renderer.py\n  SiroV2.scripts.setup_context_tokenizer.main scripts/setup_context_tokenizer.py\n  SiroV2.scripts.t24_visible_browser_demo.main scripts/t24_visible_browser_demo.py\n  SiroV2.scripts.t25_linux_a17.main scripts/t25_linux_a17.py\n  SiroV2.src.siro.cli.main src/siro/cli.py\n  SiroV2.src.siro.services.compute.worker.main src/siro/services/compute/worker.py\n  SiroV2.src.siro.services.presentation.gateway.main src/siro/services/presentation/gateway.py\n  SiroV2.src.siro.skill_worker.main src/siro/skill_worker.py\nroutes: 20  (cols: method path handler)\n  - \"**SIRO**：請看[說明](https://example.com)。\\\\n- 第一件事\\\\n- 第二件事\" -\n  GET https://raw.githubusercontent.com/openai/whisper/main/tests/jfk.flac -\n  POST /v1/session -\n  GET /v1/runtime -\n  POST /v1/workspace/read?path=note.txt -\n  POST /v1/workspace/read?path=../siro.db -\n  PUT /v1/kill-switches/tools -\n  POST /v1/conversations/test/turns -\n  GET /v1/agent-runs/test -\n  POST /v1/memory-organization?enabled=true&refresh=true -\n  GET /v1/memory-organization -\n  GET /v1/memories -\n  POST /v1/conversations/fresh/turns -\n  POST /v1/conversations/owner/turns -\n  PUT /v1/kill-switches/cloud -\n  GET /v1/snapshot -\n  POST /v1/conversations/main/turns -\n  GET /v1/agent-runs/legacy -\n  GET /v1/agent-runs/missing -\n  POST /v1/conversations/manual/turns -\nhotspots: 10  (cols: qn fan_in)\n  builtins.len 169\n  SiroV2.src.siro.persistence.sqlite.SQLiteStore.run_transaction 90\n  SiroV2.src.siro.persistence.sqlite.SQLiteStore.initialize 71\n  builtins.list.append 71\n  builtins.dict.get 69\n  SiroV2.src.siro.ports.events.Clock.now 55\n  SiroV2.src.siro.services.presentation.gateway.create_app 31\n  SiroV2.scripts.t24_visible_browser_demo.run 26\n  builtins.print 24\n  SiroV2.src.siro.core.cognition.GoalRepository.replace 15\nboundaries: 10  (cols: from to calls)\n  integration siro 1134\n  contract siro 169\n  test_affect siro 38\n  real siro 32\n  integration range 32\n  test_cognition siro 27\n  test_audio_pipeline siro 17\n  test_barge_in siro 16\n  contract list 14\n  contract len 13\nlayers: 29  (cols: name layer reason)\n  - api \"has HTTP route definitions\"\n  /siro api \"has HTTP route definitions\"\n  \"0\" api \"has HTTP route definitions\"\n  codebase_memory internal \"fan-in=0, fan-out=0\"\n  \"com)。\\\\n- 第一件事\\\\n- 第二件事\" api \"has HTTP route definitions\"\n  com/openai/whisper/main/tests/jfk api \"has HTTP route definitions\"\n  contract entry \"only outbound calls\"\n  evaluate_affect internal \"fan-in=0, fan-out=0\"\n  export_schemas internal \"fan-in=0, fan-out=0\"\n  fixtures internal \"fan-in=0, fan-out=0\"\n  integration entry \"only outbound calls\"\n  launch_companion internal \"fan-in=0, fan-out=0\"\n  len core \"high fan-in (13 in, 0 out)\"\n  list core \"high fan-in (14 in, 0 out)\"\n  prepare_live2d_renderer internal \"fan-in=0, fan-out=0\"\n  qwen_tts_worker internal \"fan-in=0, fan-out=0\"\n  range core \"high fan-in (32 in, 0 out)\"\n  real entry \"only outbound calls\"\n  repair_companion_renderer internal \"fan-in=0, fan-out=0\"\n  setup_context_tokenizer internal \"fan-in=0, fan-out=0\"\n  siro core \"high fan-in (1433 in, 0 out)\"\n  siro-runtime internal \"fan-in=0, fan-out=0\"\n  t24_visible_browser_demo internal \"fan-in=0, fan-out=0\"\n  t25_linux_a17 internal \"fan-in=0, fan-out=0\"\n  test_affect entry \"only outbound calls\"\n  test_audio_pipeline entry \"only outbound calls\"\n  test_barge_in entry \"only outbound calls\"\n  test_cognition entry \"only outbound calls\"\n  txt api \"has HTTP route definitions\"\nclusters: 12  (cols: id label members cohesion top_nodes packages edge_types)\n  11 src 153 0.4956 str;int;run;list;print print;str;int;list;src CALLS\n  8 src 152 0.4343 len;run_transaction;get;test_partial_batch_pending_approval_fenced_and_pairs_ordered;continue_after_tool src;len;list;dict;tests CALLS\n  14 tests 141 0.7464 append;ModelRequest;ToolCall;ModelChunk;CancellationToken list;tests;src CALLS\n  5 src 123 0.8147 run;room_stack;test_t26_cross_brand_actions_availability_and_conservative_presence;ingest_presence;record_property src;str;tests;scripts CALLS\n  10 src 95 0.6326 now;_ensure_core;run;test_identity_survives_real_backend_swap;setup src;tests CALLS\n  4 tests 94 0.5081 SQLiteStore;initialize;respond;main;SQLiteToolProposalRepository src;tests CALLS\n  30 src 85 0.7337 ComputerActionError;run;run;observe;write tests;src;scripts CALLS\n  6 src 71 0.7191 run_affect_simulation;AffectSystem;evaluate;memory_corrected;advance_time src;tests;scripts CALLS\n  80 src 63 0.5707 coordinator;test_local_preferences_stay_out_of_cloud_prompt_and_native_messages;test_persisted_repair_coping_changes_real_planner_selection;test_affect_and_preferences_survive_repository_restart;test_canonical_decision_loop_requires_attention_and_cancel_forces_no_action src;tests CALLS\n  12 tests 61 0.5588 range;create_app;SessionTokens;issue;GatewayState dict;range;tests;src;scripts CALLS\n  0 src 60 0.9083 connectControl;request;authorizedFetch;playTts;test_t36_t38_fake_dual_node_transport_faults_and_a23 src;tests CALLS\n  41 runtime 50 0.7917 execute;new;connect;local_socket_health_is_bounded_and_owner_only;command runtime;tests;scripts;src CALLS\nfile_tree_refs: 13  (cols: id prefix)\n  0 tests/integration/\n  1 src/siro/core/\n  2 src/siro/persistence/\n  3 src/siro/adapters/\n  4 src/siro/services/\n  5 tests/contract/\n  6 runtime/siro-runtime/src/\n  7 src/siro/ports/\n  8 tests/fixtures/\n  9 tests/fixtures/events/user_text.\n  10 src/siro/events/\n  11 firmware/esp32/\n  12 src/siro/contracts/\nfile_tree_ref_rule: @N+suffix=prefix+suffix\nfile_tree: 250  (cols: path type children)\n  Cargo.toml file 0\n  README.md file 0\n  config dir 3\n  config/compute-nodes.example.json file 0\n  config/home-assistant.example.json file 0\n  config/models.example.env file 0\n  firmware dir 1\n  firmware/esp32 dir 2\n  @11+include dir 1\n  @11+include/secrets.example.h file 0\n  @11+src dir 1\n  @11+src/main.cpp file 0\n  pyproject.toml file 0\n  runtime dir 1\n  runtime/siro-runtime dir 2\n  runtime/siro-runtime/Cargo.toml file 0\n  runtime/siro-runtime/src dir 4\n  @6+lib.rs file 0\n  @6+linux.rs file 0\n  @6+main.rs file 0\n  @6+rpc.rs file 0\n  rust-toolchain.toml file 0\n  schemas dir 3\n  schemas/audio dir 1\n  schemas/audio/frame.v1.schema.json file 0\n  schemas/devices dir 1\n  schemas/devices/descriptor.v1.schema.json file 0\n  schemas/events dir 1\n  schemas/events/event.v1.schema.json file 0\n  scripts dir 21\n  scripts/backup file 0\n  scripts/check file 0\n  scripts/codebase_memory.py file 0\n  scripts/doctor file 0\n  scripts/evaluate_affect file 0\n  scripts/export_schemas file 0\n  scripts/install file 0\n  scripts/launch_companion.py file 0\n  scripts/prepare_live2d_renderer.py file 0\n  scripts/qwen_tts_worker.py file 0\n  scripts/r02_ablation.py file 0\n  scripts/repair_companion_renderer.py file 0\n  scripts/restore file 0\n  scripts/setup_context_tokenizer.py file 0\n  scripts/soak-smoke file 0\n  scripts/start file 0\n  scripts/start-runtime-product file 0\n  scripts/stop file 0\n  scripts/t24_visible_browser_demo.py file 0\n  scripts/t25_linux_a17.py file 0\n  scripts/t29_room_demo.py file 0\n  src dir 1\n  src/siro dir 15\n  src/siro/__init__.py file 0\n  src/siro/adapters dir 12\n  @3+__init__.py file 0\n  @3+body dir 0\n  @3+browser.py file 0\n  @3+computer.py file 0\n  @3+devices.py file 0\n  @3+home_assistant.py file 0\n  @3+models dir 0\n  @3+runtime.py file 0\n  @3+services.py file 0\n  @3+skill_worker.py file 0\n  @3+vision.py file 0\n  @3+wot.py file 0\n  src/siro/cli.py file 0\n  src/siro/config.py file 0\n  src/siro/contracts dir 3\n  @12+__init__.py file 0\n  @12+boundaries.py file 0\n  @12+events.py file 0\n  src/siro/core dir 27\n  @1+__init__.py file 0\n  @1+affect.py file 0\n  @1+authorization.py file 0\n  @1+cognition.py file 0\n  @1+companion.py file 0\n  @1+computer.py file 0\n  @1+consolidation.py file 0\n  @1+conversation.py file 0\n  @1+devices.py file 0\n  @1+evolution.py file 0\n  @1+expression.py file 0\n  @1+governor.py file 0\n  @1+identity.py file 0\n  @1+jobs.py file 0\n  @1+memory.py file 0\n  @1+nodes.py file 0\n  @1+outcomes.py file 0\n  @1+preferences.py file 0\n  @1+proactivity.py file 0\n  @1+procedural.py file 0\n  @1+relationships.py file 0\n  @1+releases.py file 0\n  @1+rooms.py file 0\n  @1+router.py file 0\n  @1+self_preferences.py file 0\n  @1+skills.py file 0\n  @1+world.py file 0\n  src/siro/doctor.py file 0\n  src/siro/evaluation dir 2\n  src/siro/evaluation/__init__.py file 0\n  src/siro/evaluation/affect_simulation.py file 0\n  src/siro/events dir 4\n  @10+__init__.py file 0\n  @10+local.py file 0\n  @10+nats.py file 0\n  @10+replay.py file 0\n  src/siro/operations.py file 0\n  src/siro/persistence dir 13\n  @2+__init__.py file 0\n  @2+affect.py file 0\n  @2+consolidation.py file 0\n  @2+conversation.py file 0\n  @2+devices.py file 0\n  @2+goals.py file 0\n  @2+memory.py file 0\n  @2+planning.py file 0\n  @2+procedural.py file 0\n  @2+relationships.py file 0\n  @2+skills.py file 0\n  @2+sqlite.py file 0\n  @2+state.py file 0\n  src/siro/ports dir 7\n  @7+__init__.py file 0\n  @7+body.py file 0\n  @7+events.py file 0\n  @7+models.py file 0\n  @7+persistence.py file 0\n  @7+runtime.py file 0\n  @7+vision.py file 0\n  src/siro/redaction.py file 0\n  src/siro/services dir 8\n  @4+__init__.py file 0\n  @4+affect dir 0\n  @4+agent dir 0\n  @4+audio dir 0\n  @4+compute dir 0\n  @4+devices dir 0\n  @4+presentation dir 0\n  @4+tools dir 0\n  src/siro/skill_worker.py file 0\n  tests dir 26\n  tests/contract dir 8\n  @5+test_audio_protocol.py file 0\n  @5+test_body_adapter.py file 0\n  @5+test_body_assets.py file 0\n  @5+test_boundaries.py file 0\n  @5+test_events.py file 0\n  @5+test_failover_policy.py file 0\n  @5+test_model_adapters.py file 0\n  @5+test_runtime_client.py file 0\n  tests/fixtures dir 3\n  @8+audio dir 1\n  @8+audio/frame.v1.json file 0\n  @8+events dir 3\n  @9+missing_source.json file 0\n  @9+unknown_version.json file 0\n  @9+valid.json file 0\n  @8+run_journal_crash.py file 0\n  tests/helpers dir 2\n  tests/helpers/consolidation_crash.py file 0\n  tests/helpers/mqtt_crash_client.py file 0\n  tests/integration dir 60\n  @0+test_affect_outcomes.py file 0\n  @0+test_affect_persistence.py file 0\n  @0+test_agent_batches.py file 0\n  @0+test_agent_runs.py file 0\n  @0+test_body_failure_isolation.py file 0\n  @0+test_bounded_execution.py file 0\n  @0+test_browser_driver.py file 0\n  @0+test_browser_sessions.py file 0\n  @0+test_cloud_conversation_switch.py file 0\n  @0+test_companion_launcher.py file 0\n  @0+test_compute_fabric.py file 0\n  @0+test_computer_driver.py file 0\n  @0+test_consolidation.py file 0\n  @0+test_context_budget.py file 0\n  @0+test_context_summary.py file 0\n  @0+test_conversation.py file 0\n  @0+test_device_registry.py file 0\n  @0+test_execution_lifecycle.py file 0\n  @0+test_frontend_companion.py file 0\n  @0+test_frontend_control.py file 0\n  @0+test_frontend_session.py file 0\n  @0+test_frontend_speech_cancel.py file 0\n  @0+test_frontend_speech_queue.py file 0\n  @0+test_gateway.py file 0\n  @0+test_gateway_main.py file 0\n  @0+test_gateway_terminal_fence.py file 0\n  @0+test_goals.py file 0\n  @0+test_home_assistant.py file 0\n  @0+test_identity_world.py file 0\n  @0+test_integrated_companion.py file 0\n  @0+test_memory_ingress.py file 0\n  @0+test_memory_organization.py file 0\n  @0+test_memory_v2.py file 0\n  @0+test_mqtt_gateway.py file 0\n  @0+test_native_context_budget.py file 0\n  @0+test_nats_delivery.py file 0\n  @0+test_operational_cli.py file 0\n  @0+test_patch_verifier.py file 0\n  @0+test_persistent_companion.py file 0\n  @0+test_preference_prompt_privacy.py file 0\n  @0+test_procedural_candidates.py file 0\n  @0+test_provider_completion.py file 0\n  @0+test_provider_retry.py file 0\n  @0+test_qwen_lifecycle.py file 0\n  @0+test_relationships.py file 0\n  @0+test_release_manager.py file 0\n  @0+test_room_automation.py file 0\n  @0+test_run_journal.py file 0\n  @0+test_runtime_boundary.py file 0\n  @0+test_runtime_product.py file 0\n  @0+test_service_driver.py file 0\n  @0+test_session_restore.py file 0\n  @0+test_session_tokens.py file 0\n  @0+test_skill_registry.py file 0\n  @0+test_speech_completion_edges.py file 0\n  @0+test_speech_plan.py file 0\n  @0+test_sqlite_store.py file 0\n  @0+test_tool_catalog.py file 0\n  @0+test_tool_orchestrator.py file 0\n  @0+test_workspace_runtime.py file 0\n  tests/real dir 2\n  tests/real/test_model_providers.py file 0\n  tests/real/test_speech_providers.py file 0\n  tests/test_affect.py file 0\n  tests/test_affect_simulation.py file 0\n  tests/test_audio_pipeline.py file 0\n  tests/test_authorization.py file 0\n  tests/test_barge_in.py file 0\n  tests/test_codebase_memory.py file 0\n  tests/test_cognition.py file 0\n  tests/test_config.py file 0\n  tests/test_doctor.py file 0\n  tests/test_expression.py file 0\n  tests/test_governor.py file 0\n  tests/test_jobs.py file 0\n  tests/test_local_event_bus.py file 0\n  tests/test_nodes.py file 0\n  tests/test_preferences.py file 0\n  tests/test_proactivity.py file 0\n  tests/test_qwen_worker_completion.py file 0\n  tests/test_redaction.py file 0\n  tests/test_router.py file 0\n  tests/test_self_preferences.py file 0\n  tests/test_wot.py file 0\n"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "seconds": 0.067418
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "tools/call",
+      "params": {
+        "name": "search_graph",
+        "arguments": {
+          "project": "SiroV2",
+          "name_pattern": "^_finish_candidate$",
+          "format": "json"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"qn_rule\":\"qn = qn_prefix == \\\"\\\" ? name : qn_prefix + \\\".\\\" + name\",\"cols\":[\"name\",\"label\",\"lines\",\"in\",\"out\"],\"groups\":[{\"qn_prefix\":\"SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion\",\"file\":\"src/siro/services/presentation/integrated.py\",\"rows\":[[\"_finish_candidate\",\"Method\",\"881-948\",4,8]]}],\"total\":1,\"returned\":1,\"count\":1,\"has_more\":false,\"truncated\":false}"
+          }
+        ],
+        "structuredContent": {
+          "qn_rule": "qn = qn_prefix == \"\" ? name : qn_prefix + \".\" + name",
+          "cols": [
+            "name",
+            "label",
+            "lines",
+            "in",
+            "out"
+          ],
+          "groups": [
+            {
+              "qn_prefix": "SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion",
+              "file": "src/siro/services/presentation/integrated.py",
+              "rows": [
+                [
+                  "_finish_candidate",
+                  "Method",
+                  "881-948",
+                  4,
+                  8
+                ]
+              ]
+            }
+          ],
+          "total": 1,
+          "returned": 1,
+          "count": 1,
+          "has_more": false,
+          "truncated": false
+        },
+        "isError": false
+      }
+    },
+    "seconds": 0.014257
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "tools/call",
+      "params": {
+        "name": "trace_path",
+        "arguments": {
+          "project": "SiroV2",
+          "function_name": "SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion._finish_candidate",
+          "direction": "outbound",
+          "depth": 2,
+          "limit": 45,
+          "format": "json",
+          "include_evidence": true,
+          "max_output_tokens": 8000
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"function\":\"SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion._finish_candidate\",\"direction\":\"outbound\",\"callees_total\":14,\"callees_total_relation\":\"eq\",\"callees\":{\"qn_rule\":\"qn = qn_prefix == \\\"\\\" ? name : qn_prefix + \\\".\\\" + name\",\"cols\":[\"name\",\"hop\",\"strategy\",\"confidence\"],\"groups\":[{\"qn_prefix\":\"SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion\",\"rows\":[[\"_broadcast_stream\",1,\"lsp\",0.9]]},{\"qn_prefix\":\"builtins.list\",\"rows\":[[\"pop\",1,\"lsp\",0.88]]},{\"qn_prefix\":\"builtins.dict\",\"rows\":[[\"get\",1,\"lsp\",0.88]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator\",\"rows\":[[\"cancel_run\",1,\"lsp\",0.85],[\"discard_unstarted\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.services.agent.runs.SQLiteAgentRunRepository\",\"rows\":[[\"append\",1,\"lsp\",0.85],[\"checkpoint\",1,\"lsp\",0.85],[\"finish_journal\",1,\"lsp\",0.85]]},{\"qn_prefix\":\"SiroV2.src.siro.persistence.sqlite.SQLiteStore\",\"rows\":[[\"run_transaction\",2,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.services.presentation.gateway.GatewayHub\",\"rows\":[[\"broadcast\",2,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.orchestrator.SQLiteToolProposalRepository\",\"rows\":[[\"get\",2,\"lsp\",0.9],[\"transition\",2,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.services.agent.runs.SQLiteAgentRunRepository\",\"rows\":[[\"_run\",2,\"lsp\",0.9]]},{\"qn_prefix\":\"SiroV2.src.siro.services.tools.execution\",\"rows\":[[\"ExecutionCleanupError\",2,\"lsp\",0.85]]}]}}"
+          }
+        ],
+        "structuredContent": {
+          "function": "SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion._finish_candidate",
+          "direction": "outbound",
+          "callees_total": 14,
+          "callees_total_relation": "eq",
+          "callees": {
+            "qn_rule": "qn = qn_prefix == \"\" ? name : qn_prefix + \".\" + name",
+            "cols": [
+              "name",
+              "hop",
+              "strategy",
+              "confidence"
+            ],
+            "groups": [
+              {
+                "qn_prefix": "SiroV2.src.siro.services.presentation.integrated.IntegratedCompanion",
+                "rows": [
+                  [
+                    "_broadcast_stream",
+                    1,
+                    "lsp",
+                    0.9
+                  ]
+                ]
+              },
+              {
+                "qn_prefix": "builtins.list",
+                "rows": [
+                  [
+                    "pop",
+                    1,
+                    "lsp",
+                    0.88
+                  ]
+                ]
+              },
+              {
+                "qn_prefix": "builtins.dict",
+                "rows": [
+                  [
+                    "get",
+                    1,
+                    "lsp",
+                    0.88
+                  ]
+                ]
+              },
+              {
+                "qn_prefix": "SiroV2.src.siro.services.tools.orchestrator.ToolOrchestrator",
+                "rows": [
+                  [
+                    "cancel_run",
+                    1,
+                    "lsp",
+                    0.85
+                  ],
+                  [
+                    "discard_unstarted",
+                    1,
+                    "lsp",
+                    0.85
+                  ]
+                ]
+              },
+              {
+                "qn_prefix": "SiroV2.src.siro.services.agent.runs.SQLiteAgentRunRepository",
+                "rows": [
+                  [
+                    "append",
+                    1,
+                    "lsp",
+                    0.85
+                  ],
+                  [
+                    "checkpoint",
+                    1,
+                    "lsp",
+                    0.85
+                  ],
+                  [
+                    "finish_journal",
+                    1,
+                    "lsp",
+                    0.85
+                  ]
+                ]
+              },
+              {
+                "qn_prefix": "SiroV2.src.siro.persistence.sqlite.SQLiteStore",
+                "rows": [
+                  [
+                    "run_transaction",
+                    2,
+                    "lsp",
+                    0.9
+                  ]
+                ]
+              },
+              {
+                "qn_prefix": "SiroV2.src.siro.services.presentation.gateway.GatewayHub",
+                "rows": [
+                  [
+                    "broadcast",
+                    2,
+                    "lsp",
+                    0.9
+                  ]
+                ]
+              },
+              {
+                "qn_prefix": "SiroV2.src.siro.services.tools.orchestrator.SQLiteToolProposalRepository",
+                "rows": [
+                  [
+                    "get",
+                    2,
+                    "lsp",
+                    0.9
+                  ],
+                  [
+                    "transition",
+                    2,
+                    "lsp",
+                    0.9
+                  ]
+                ]
+              },
+              {
+                "qn_prefix": "SiroV2.src.siro.services.agent.runs.SQLiteAgentRunRepository",
+                "rows": [
+                  [
+                    "_run",
+                    2,
+                    "lsp",
+                    0.9
+                  ]
+                ]
+              },
+              {
+                "qn_prefix": "SiroV2.src.siro.services.tools.execution",
+                "rows": [
+                  [
+                    "ExecutionCleanupError",
+                    2,
+                    "lsp",
+                    0.85
+                  ]
+                ]
+              }
+            ]
+          }
+        },
+        "isError": false
+      }
+    },
+    "seconds": 0.014705
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "tools/call",
+      "params": {
+        "name": "trace_path",
+        "arguments": {
+          "project": "SiroV2",
+          "function_name": "SiroV2.src.siro.persistence.memory.SQLiteMemoryRepository.add",
+          "direction": "outbound",
+          "depth": 2,
+          "limit": 45,
+          "format": "json",
+          "include_evidence": true,
+          "max_output_tokens": 8000
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"function\":\"SiroV2.src.siro.persistence.memory.SQLiteMemoryRepository.add\",\"direction\":\"outbound\",\"callees_total\":1,\"callees_total_relation\":\"eq\",\"callees\":{\"qn_rule\":\"qn = qn_prefix == \\\"\\\" ? name : qn_prefix + \\\".\\\" + name\",\"cols\":[\"name\",\"hop\",\"strategy\",\"confidence\"],\"groups\":[{\"qn_prefix\":\"SiroV2.src.siro.persistence.sqlite.SQLiteStore\",\"rows\":[[\"run_transaction\",1,\"lsp\",0.9]]}]}}"
+          }
+        ],
+        "structuredContent": {
+          "function": "SiroV2.src.siro.persistence.memory.SQLiteMemoryRepository.add",
+          "direction": "outbound",
+          "callees_total": 1,
+          "callees_total_relation": "eq",
+          "callees": {
+            "qn_rule": "qn = qn_prefix == \"\" ? name : qn_prefix + \".\" + name",
+            "cols": [
+              "name",
+              "hop",
+              "strategy",
+              "confidence"
+            ],
+            "groups": [
+              {
+                "qn_prefix": "SiroV2.src.siro.persistence.sqlite.SQLiteStore",
+                "rows": [
+                  [
+                    "run_transaction",
+                    1,
+                    "lsp",
+                    0.9
+                  ]
+                ]
+              }
+            ]
+          }
+        },
+        "isError": false
+      }
+    },
+    "seconds": 0.015228
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "tools/call",
+      "params": {
+        "name": "trace_path",
+        "arguments": {
+          "project": "SiroV2",
+          "function_name": "SiroV2.src.siro.persistence.memory.SQLiteMemoryRepository.search",
+          "direction": "outbound",
+          "depth": 2,
+          "limit": 45,
+          "format": "json",
+          "include_evidence": true,
+          "max_output_tokens": 8000
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"function\":\"SiroV2.src.siro.persistence.memory.SQLiteMemoryRepository.search\",\"direction\":\"outbound\",\"callees_total\":1,\"callees_total_relation\":\"eq\",\"callees\":{\"qn_rule\":\"qn = qn_prefix == \\\"\\\" ? name : qn_prefix + \\\".\\\" + name\",\"cols\":[\"name\",\"hop\",\"strategy\",\"confidence\"],\"groups\":[{\"qn_prefix\":\"SiroV2.src.siro.persistence.sqlite.SQLiteStore\",\"rows\":[[\"run_transaction\",1,\"lsp\",0.9]]}]}}"
+          }
+        ],
+        "structuredContent": {
+          "function": "SiroV2.src.siro.persistence.memory.SQLiteMemoryRepository.search",
+          "direction": "outbound",
+          "callees_total": 1,
+          "callees_total_relation": "eq",
+          "callees": {
+            "qn_rule": "qn = qn_prefix == \"\" ? name : qn_prefix + \".\" + name",
+            "cols": [
+              "name",
+              "hop",
+              "strategy",
+              "confidence"
+            ],
+            "groups": [
+              {
+                "qn_prefix": "SiroV2.src.siro.persistence.sqlite.SQLiteStore",
+                "rows": [
+                  [
+                    "run_transaction",
+                    1,
+                    "lsp",
+                    0.9
+                  ]
+                ]
+              }
+            ]
+          }
+        },
+        "isError": false
+      }
+    },
+    "seconds": 0.013986
+  },
+  {
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "tools/call",
+      "params": {
+        "name": "index_repository",
+        "arguments": {
+          "repo_path": "/workspace/projects/SiroV2"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "tool 'index_repository' is not available in the analysis tool profile"
+          }
+        ],
+        "structuredContent": {
+          "error": "tool 'index_repository' is not available in the analysis tool profile"
+        },
+        "isError": true
+      }
+    },
+    "seconds": 0.010364
+  }
+]

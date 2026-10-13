@@ -39,6 +39,25 @@ class ProactivitySettings(BaseModel):
     daily_social_limit: int = Field(default=6, ge=0, le=100)
 
 
+class RoomAutomationSettings(BaseModel):
+    """Opt-in automatic device actions, separate from social proactivity."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool = False
+
+
+class ResourceSettings(BaseModel):
+    """Conservative local resource budget; cloud routing has a separate hard cap."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    high_water_ratio: float = Field(default=0.15, gt=0, lt=1)
+    low_water_ratio: float = Field(default=0.25, gt=0, lt=1)
+    max_model_slots: int = Field(default=1, ge=1, le=32)
+    cloud_daily_budget: float = Field(default=0, ge=0)
+
+
 class NetworkSettings(BaseModel):
     """Network defaults remain loopback and offline."""
 
@@ -59,6 +78,8 @@ class SiroSettings(BaseModel):
     privacy: PrivacyClass = PrivacyClass.LOCAL_ONLY
     network: NetworkSettings = NetworkSettings()
     proactivity: ProactivitySettings = ProactivitySettings()
+    room_automation: RoomAutomationSettings = RoomAutomationSettings()
+    resources: ResourceSettings = ResourceSettings()
 
 
 def load_settings(path: Path | None = None) -> SiroSettings:

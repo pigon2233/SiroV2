@@ -1,0 +1,34 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_preparation_cleanup_failure_cannot_claim_removed_workspace ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-84/test_preparation_cleanup_failu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b0c36b1ad70>
+
+    @pytest.mark.asyncio
+    async def test_preparation_cleanup_failure_cannot_claim_removed_workspace(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        root = project(tmp_path)
+        (root / "src/alias.py").symlink_to(root / "src/value.py")
+        module = backend()
+        original_remove = module.shutil.rmtree
+        original_temp = module.tempfile.mkdtemp
+        workspaces: list[Path] = []
+        def temporary(*args: Any, **kwargs: Any) -> str:
+            path = str(original_temp(*args, **kwargs))
+            workspaces.append(Path(path))
+            return path
+        def failed_remove(*args: object, **kwargs: object) -> None:
+            raise OSError("synthetic cleanup failure")
+        monkeypatch.setattr(module.tempfile, "mkdtemp", temporary)
+        monkeypatch.setattr(module.shutil, "rmtree", failed_remove)
+        try:
+>           with pytest.raises(ExecutionCleanupError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ExecutionCleanupError
+
+tests/integration/test_isolated_patch_verification.py:431: Failed
+=========================== short test summary info ============================
+FAILED tests/integration/test_isolated_patch_verification.py::test_preparation_cleanup_failure_cannot_claim_removed_workspace
+1 failed, 32 deselected in 0.11s

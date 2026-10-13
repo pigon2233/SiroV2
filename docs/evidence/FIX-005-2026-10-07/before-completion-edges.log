@@ -1,0 +1,184 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_plan_preserves_canonical_text_across_segment_separators[alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta ] _
+
+text = 'alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta al...ta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta '
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "alpha beta gamma delta " * 12,
+            "First sentence. Second sentence! " * 12,
+            "repeated " * 60,
+            "甲\u2003乙\t丙\u00a0丁 " * 40,
+        ],
+    )
+    def test_plan_preserves_canonical_text_across_segment_separators(text: str) -> None:
+        plan = plan_speech(text)
+        segments = plan["segments"]
+        assert isinstance(segments, list)
+        assert len(segments) > 1
+>       assert "".join(segments) == plan["spoken_text"]
+E       AssertionError: assert 'alpha beta g... gamma delta。' == 'alpha beta g... gamma delta。'
+E         
+E         Skipping 69 identical leading characters in diff, use -v to show
+E         - alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta。
+E         + alpha betagamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma deltaalpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha betagamma delta alpha beta gamma delta。
+
+tests/integration/test_speech_completion_edges.py:31: AssertionError
+_ test_plan_preserves_canonical_text_across_segment_separators[First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! ] _
+
+text = 'First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Se.... Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! '
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "alpha beta gamma delta " * 12,
+            "First sentence. Second sentence! " * 12,
+            "repeated " * 60,
+            "甲\u2003乙\t丙\u00a0丁 " * 40,
+        ],
+    )
+    def test_plan_preserves_canonical_text_across_segment_separators(text: str) -> None:
+        plan = plan_speech(text)
+        segments = plan["segments"]
+        assert isinstance(segments, list)
+        assert len(segments) > 1
+>       assert "".join(segments) == plan["spoken_text"]
+E       AssertionError: assert 'First senten...nd sentence!。' == 'First senten...nd sentence!。'
+E         
+E         Skipping 55 identical leading characters in diff, use -v to show
+E         -  sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence!。
+E         +  sentence!First sentence. Second sentence! First sentence. Second sentence!First sentence. Second sentence! First sentence. Second sentence!First sentence. Second sent...
+E         
+E         ...Full output truncated (1 line hidden), use '-vv' to show
+
+tests/integration/test_speech_completion_edges.py:31: AssertionError
+_ test_plan_preserves_canonical_text_across_segment_separators[repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated ] _
+
+text = 'repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated ... repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated '
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "alpha beta gamma delta " * 12,
+            "First sentence. Second sentence! " * 12,
+            "repeated " * 60,
+            "甲\u2003乙\t丙\u00a0丁 " * 40,
+        ],
+    )
+    def test_plan_preserves_canonical_text_across_segment_separators(text: str) -> None:
+        plan = plan_speech(text)
+        segments = plan["segments"]
+        assert isinstance(segments, list)
+        assert len(segments) > 1
+>       assert "".join(segments) == plan["spoken_text"]
+E       AssertionError: assert 'repeated rep...ted repeated。' == 'repeated rep...ted repeated。'
+E         
+E         Skipping 70 identical leading characters in diff, use -v to show
+E         - d repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated。
+E         + d repeatedrepeated repeated repeated r...
+E         
+E         ...Full output truncated (1 line hidden), use '-vv' to show
+
+tests/integration/test_speech_completion_edges.py:31: AssertionError
+_ test_plan_preserves_canonical_text_across_segment_separators[\u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 ] _
+
+text = '甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0...\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 甲\u2003乙\t丙\xa0丁 '
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "alpha beta gamma delta " * 12,
+            "First sentence. Second sentence! " * 12,
+            "repeated " * 60,
+            "甲\u2003乙\t丙\u00a0丁 " * 40,
+        ],
+    )
+    def test_plan_preserves_canonical_text_across_segment_separators(text: str) -> None:
+        plan = plan_speech(text)
+        segments = plan["segments"]
+        assert isinstance(segments, list)
+        assert len(segments) > 1
+>       assert "".join(segments) == plan["spoken_text"]
+E       AssertionError: assert '甲\u2003乙 丙\x...2003乙 丙\xa0丁。' == '甲\u2003乙 丙\x...2003乙 丙\xa0丁。'
+E         
+E         Skipping 69 identical leading characters in diff, use -v to show
+E         -  丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁。
+E         +  丁 甲 乙 丙 丁甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁 甲 乙 丙 丁。
+
+tests/integration/test_speech_completion_edges.py:31: AssertionError
+___ test_explicit_null_completion_protocol_cannot_be_legacy_downgrade[False] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-146/test_explicit_null_completion_0')
+lifecycle = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("lifecycle", [False, True])
+    async def test_explicit_null_completion_protocol_cannot_be_legacy_downgrade(
+        tmp_path: Path, lifecycle: bool
+    ) -> None:
+        worker = tmp_path / "worker.py"
+        worker.write_text(
+            "import base64,json,sys\n"
+            "print(json.dumps({'ready':True,'completion_protocol':None}),flush=True)\n"
+            "for line in sys.stdin:\n"
+            " r=json.loads(line)\n"
+            " print(json.dumps({**r,'audio':base64.b64encode(b'unverified').decode()}),flush=True)\n"
+        )
+        tts = QwenReferenceTTS(
+            Path(sys.executable), worker, tmp_path, worker, "synthetic", tmp_path / "cache",
+            lifecycle=lifecycle,
+        )
+        try:
+>           with pytest.raises(RuntimeError, match="failed to initialize"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/integration/test_speech_completion_edges.py:53: Failed
+___ test_explicit_null_completion_protocol_cannot_be_legacy_downgrade[True] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-146/test_explicit_null_completion_1')
+lifecycle = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("lifecycle", [False, True])
+    async def test_explicit_null_completion_protocol_cannot_be_legacy_downgrade(
+        tmp_path: Path, lifecycle: bool
+    ) -> None:
+        worker = tmp_path / "worker.py"
+        worker.write_text(
+            "import base64,json,sys\n"
+            "print(json.dumps({'ready':True,'completion_protocol':None}),flush=True)\n"
+            "for line in sys.stdin:\n"
+            " r=json.loads(line)\n"
+            " print(json.dumps({**r,'audio':base64.b64encode(b'unverified').decode()}),flush=True)\n"
+        )
+        tts = QwenReferenceTTS(
+            Path(sys.executable), worker, tmp_path, worker, "synthetic", tmp_path / "cache",
+            lifecycle=lifecycle,
+        )
+        try:
+>           with pytest.raises(RuntimeError, match="failed to initialize"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/integration/test_speech_completion_edges.py:53: Failed
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_speech_completion_edges.py::test_plan_preserves_canonical_text_across_segment_separators[alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta ]
+FAILED tests/integration/test_speech_completion_edges.py::test_plan_preserves_canonical_text_across_segment_separators[First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! First sentence. Second sentence! ]
+FAILED tests/integration/test_speech_completion_edges.py::test_plan_preserves_canonical_text_across_segment_separators[repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated repeated ]
+FAILED tests/integration/test_speech_completion_edges.py::test_plan_preserves_canonical_text_across_segment_separators[\u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 \u7532\u2003\u4e59\t\u4e19\xa0\u4e01 ]
+FAILED tests/integration/test_speech_completion_edges.py::test_explicit_null_completion_protocol_cannot_be_legacy_downgrade[False]
+FAILED tests/integration/test_speech_completion_edges.py::test_explicit_null_completion_protocol_cannot_be_legacy_downgrade[True]
+6 failed, 2 warnings in 1.43s

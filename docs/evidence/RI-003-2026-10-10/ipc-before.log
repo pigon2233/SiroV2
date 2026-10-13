@@ -1,0 +1,55 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________________ test_ipc_kernel_allocations_are_denied ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-107/test_ipc_kernel_allocations_ar0')
+
+    @pytest.mark.asyncio
+    @real_profile
+    async def test_ipc_kernel_allocations_are_denied(tmp_path: Path) -> None:
+        root = project(tmp_path)
+        attack = """import ctypes, errno, os
+    libc=ctypes.CDLL('/usr/lib/x86_64-linux-gnu/libc.so.6',use_errno=True)
+    violations=[]
+    semaphore=libc.semget(0,1,0o1600)
+    if semaphore>=0:
+        assert libc.semctl(semaphore,0,0)==0 # immediately remove private synthetic object
+        violations.append('semget allowed')
+    else:
+        assert ctypes.get_errno()==errno.EPERM
+    queue=libc.msgget(0,0o1600)
+    if queue>=0:
+        assert libc.msgctl(queue,0,None)==0 # IPC_RMID, no message data allocated
+        violations.append('msgget allowed')
+    else:
+        assert ctypes.get_errno()==errno.EPERM
+    name=b'/siro-synthetic-private'
+    descriptor=libc.mq_open(name,os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600,None)
+    if descriptor>=0:
+        assert libc.mq_close(descriptor)==0
+        assert libc.mq_unlink(name)==0
+        violations.append('mq_open allowed')
+    else:
+        assert ctypes.get_errno()==errno.EPERM
+    assert not violations, violations
+    VALUE=2
+    """
+        result = await backend().verify_isolated_patch(root, proposal(new=attack))
+>       assert result.status == "passed", result.outputs
+E       AssertionError: ('', "E
+E         ======================================================================
+E         ERROR: test_value (unittest.loader._F...
+E         ----------------------------------------------------------------------
+E         Ran 1 test in 0.000s
+E         
+E         FAILED (errors=1)
+E         ")
+E       assert 'failed_checks' == 'passed'
+E         
+E         - passed
+E         + failed_checks
+
+tests/integration/test_isolated_patch_verification.py:322: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_isolated_patch_verification.py::test_ipc_kernel_allocations_are_denied
+1 failed, 37 deselected in 0.30s

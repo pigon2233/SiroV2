@@ -1,0 +1,45 @@
+[
+  {
+    "label": "format",
+    "argv": [
+      ".venv/bin/ruff",
+      "format",
+      "--check",
+      "src",
+      "tests",
+      "scripts"
+    ],
+    "exit_code": 0,
+    "log": "format.log"
+  },
+  {
+    "label": "lint",
+    "argv": [
+      ".venv/bin/ruff",
+      "check",
+      "src",
+      "tests",
+      "scripts"
+    ],
+    "exit_code": 0,
+    "log": "lint.log"
+  },
+  {
+    "label": "mypy",
+    "argv": [
+      ".venv/bin/mypy"
+    ],
+    "exit_code": 0,
+    "log": "mypy.log"
+  },
+  {
+    "label": "schemas",
+    "argv": [
+      ".venv/bin/python",
+      "scripts/export_schemas",
+      "--check"
+    ],
+    "exit_code": 0,
+    "log": "schemas.log"
+  }
+]

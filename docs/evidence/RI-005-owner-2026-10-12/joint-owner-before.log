@@ -1,0 +1,149 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+___ test_joint_owner_partial_busy_acquisition_releases_the_other_actual_key ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_joint_owner_partial_busy_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x756b7760d6e0>
+
+    def test_joint_owner_partial_busy_acquisition_releases_the_other_actual_key(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        source, target = tmp_path / "a-source.db", tmp_path / "z-target.db"
+        source_leaf = lock_path(domain, source)
+        source_acquisitions: list[int] = []
+        original_flock = fcntl.flock
+    
+        def observe(descriptor: int, operation: int) -> None:
+            original_flock(descriptor, operation)
+            if source_leaf.exists() and os.fstat(descriptor).st_ino == source_leaf.stat().st_ino:
+                source_acquisitions.append(descriptor)
+    
+        with owner.exclusive_data_owner(target):
+            monkeypatch.setattr(fcntl, "flock", observe)
+            with (
+                pytest.raises(owner.DataOwnerBusyError),
+>               owner.exclusive_data_owner(source, write_target=target),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            ):
+
+tests/integration/test_data_owner_lifecycle.py:756: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/contextlib.py:305: in helper
+    return _GeneratorContextManager(func, args, kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <contextlib._GeneratorContextManager object at 0x756b77a1d050>
+func = <function exclusive_data_owner at 0x756b77a15c70>
+args = (PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_joint_owner_partial_busy_0/a-source.db'),)
+kwds = {'write_target': PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_joint_owner_partial_busy_0/z-target.db')}
+
+    def __init__(self, func, args, kwds):
+>       self.gen = func(*args, **kwds)
+                   ^^^^^^^^^^^^^^^^^^^
+E       TypeError: exclusive_data_owner() got an unexpected keyword argument 'write_target'
+
+/usr/lib/python3.14/contextlib.py:109: TypeError
+__ test_joint_owner_deduplicates_canonical_write_target_alias_without_reentry __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_joint_owner_deduplicates_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x756b77c93bb0>
+
+    def test_joint_owner_deduplicates_canonical_write_target_alias_without_reentry(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        data = tmp_path / "data"
+        data.mkdir()
+        source = data / "siro.db"
+        alias = tmp_path / "canonical-alias"
+        alias.symlink_to(data, target_is_directory=True)
+        target = alias / source.name
+>       with owner.exclusive_data_owner(source, write_target=target):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_lifecycle.py:777: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/contextlib.py:305: in helper
+    return _GeneratorContextManager(func, args, kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <contextlib._GeneratorContextManager object at 0x756b77a15f40>
+func = <function exclusive_data_owner at 0x756b77a15c70>
+args = (PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_joint_owner_deduplicates_0/data/siro.db'),)
+kwds = {'write_target': PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_joint_owner_deduplicates_0/canonical-alias/siro.db')}
+
+    def __init__(self, func, args, kwds):
+>       self.gen = func(*args, **kwds)
+                   ^^^^^^^^^^^^^^^^^^^
+E       TypeError: exclusive_data_owner() got an unexpected keyword argument 'write_target'
+
+/usr/lib/python3.14/contextlib.py:109: TypeError
+_ test_joint_owner_io_join_refusal_retains_both_descriptors_and_primary_failure _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_joint_owner_io_join_refus0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x756b77a48dd0>
+
+    def test_joint_owner_io_join_refusal_retains_both_descriptors_and_primary_failure(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from concurrent.futures import ThreadPoolExecutor
+    
+        owner, domain = ownership(tmp_path, monkeypatch)
+        source, target = tmp_path / "source.db", tmp_path / "target.db"
+        leaves = {lock_path(domain, resource) for resource in (source, target)}
+        original_open, original_close = os.open, os.close
+        captured: list[int] = []
+        owner_fds: list[int] = []
+        sensitive_detail = "synthetic-joint-owner-pool-detail"
+    
+        def tracked_open(
+            path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            flags: int,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> int:
+            descriptor = original_open(path, flags, mode, dir_fd=dir_fd)
+            if Path(os.fsdecode(path)) in leaves:
+                captured.append(descriptor)
+            return descriptor
+    
+        def refuse_join(
+            _executor: ThreadPoolExecutor, wait: bool = True, *, cancel_futures: bool = False
+        ) -> None:
+            raise RuntimeError(sensitive_detail)
+    
+        monkeypatch.setattr(os, "open", tracked_open)
+        try:
+            with (
+                pytest.raises(ValueError, match="synthetic joint primary") as error,
+>               owner.exclusive_data_owner(source, write_target=target) as held,
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            ):
+
+tests/integration/test_data_owner_lifecycle.py:820: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/contextlib.py:305: in helper
+    return _GeneratorContextManager(func, args, kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <contextlib._GeneratorContextManager object at 0x756b779c3f50>
+func = <function exclusive_data_owner at 0x756b77a15c70>
+args = (PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_joint_owner_io_join_refus0/source.db'),)
+kwds = {'write_target': PosixPath('/tmp/pytest-of-jasonliao/pytest-113/test_joint_owner_io_join_refus0/target.db')}
+
+    def __init__(self, func, args, kwds):
+>       self.gen = func(*args, **kwds)
+                   ^^^^^^^^^^^^^^^^^^^
+E       TypeError: exclusive_data_owner() got an unexpected keyword argument 'write_target'
+
+/usr/lib/python3.14/contextlib.py:109: TypeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_lifecycle.py::test_joint_owner_partial_busy_acquisition_releases_the_other_actual_key
+FAILED tests/integration/test_data_owner_lifecycle.py::test_joint_owner_deduplicates_canonical_write_target_alias_without_reentry
+FAILED tests/integration/test_data_owner_lifecycle.py::test_joint_owner_io_join_refusal_retains_both_descriptors_and_primary_failure
+3 failed, 31 deselected in 0.12s

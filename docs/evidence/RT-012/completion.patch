@@ -1,0 +1,886 @@
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -433,6 +433,7 @@
+     runtime_profile: str = "legacy",
+     configuration_source: str = "injected",
+     on_startup: Callable[[], Awaitable[None]] | None = None,
++    on_shutdown: Callable[[], Awaitable[None]] | None = None,
+     on_recovery: Callable[[str], Awaitable[dict[str, object] | None]] | None = None,
+ ) -> FastAPI:
+     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
+@@ -455,10 +456,14 @@
+                 with contextlib.suppress(Exception):
+                     await on_cancel(turn["turn_id"], "service shutdown")
+             try:
+-                if isinstance(text_to_speech, QwenReferenceTTS):
+-                    await text_to_speech.close()
++                if on_shutdown is not None:
++                    await on_shutdown()
+             finally:
+-                await gateway_hub.shutdown()
++                try:
++                    if isinstance(text_to_speech, QwenReferenceTTS):
++                        await text_to_speech.close()
++                finally:
++                    await gateway_hub.shutdown()
+ 
+     app = FastAPI(title="SIRO Presentation Gateway", lifespan=lifespan)
+     app.state.gateway_hub = gateway_hub
+@@ -1131,6 +1136,17 @@
+     shared_store = SQLiteStore(data_dir / "siro.db")
+     asyncio.run(shared_store.initialize())
+     memory_service = MemoryService(SQLiteMemoryRepository(shared_store))
++
++    from siro.services.tools.browser_session import BrowserSessions
++    from siro.services.tools.orchestrator import BROWSER_SESSION_TOOLS
++
++    browser_sessions = None
++    if runtime_profile == "candidate":
++        browser_setting = os.environ.get("SIRO_BROWSER_SESSION_ENABLED", "1")
++        if browser_setting not in {"0", "1"}:
++            raise ValueError("SIRO_BROWSER_SESSION_ENABLED must be 0 or 1")
++        if browser_setting == "1":
++            browser_sessions = BrowserSessions(ScopedBrowserDriver)
+ 
+     async def browser_tool(url: str) -> dict[str, str]:
+         parsed = urlsplit(url)
+@@ -1329,12 +1345,32 @@
+         "process.start": execute_application,
+         "computer.execute": execute_computer,
+     }
++
++    async def browser_without_context(arguments: dict[str, object]) -> object:
++        raise PermissionError("browser requires session context")
++
++    async def session_browser(
++        action: str, arguments: dict[str, object], context: ExecutionContext
++    ) -> object:
++        if browser_sessions is None:
++            raise RuntimeError("browser sessions disabled")
++        return await browser_sessions.execute(action, arguments, context)
++
++    browser_contextual = {}
++    if browser_sessions is not None:
++        for action in ("navigate+read", "read", "fill", "click", "close"):
++            name = "browser." + action
++            handlers[name] = browser_without_context
++            browser_contextual[name] = partial(session_browser, action)
++
+     definitions = {definition.name: definition for definition in DEFAULT_MODEL_TOOLS}
++    if browser_sessions is not None:
++        definitions.update({d.name: d for d in BROWSER_SESSION_TOOLS})
+ 
+     def readiness(name: str) -> bool:
+         if not state.kill_switches["tools"]:
+             return False
+-        if name == "browser.navigate+read":
++        if name.startswith("browser."):
+             return bool(shutil.which("google-chrome") or shutil.which("chromium"))
+         return True  # argv/application target checks remain in their existing handlers
+ 
+@@ -1346,9 +1382,13 @@
+                     definitions.get(name),
+                     handler,
+                     available=partial(readiness, name),
+-                    backend="playwright" if name == "browser.navigate+read" else "python.argv",
+-                    effect="read" if name == "browser.navigate+read" else "computer",
+-                    contextual_executor=execute_computer if name == "computer.execute" else None,
++                    backend="playwright" if name.startswith("browser.") else "python.argv",
++                    effect="read"
++                    if name in {"browser.navigate+read", "browser.read"}
++                    else "computer",
++                    contextual_executor=execute_computer
++                    if name == "computer.execute"
++                    else browser_contextual.get(name),
+                 )
+                 for name, handler in handlers.items()
+             )
+@@ -1359,7 +1399,7 @@
+     tool_orchestrator = ToolOrchestrator(
+         SQLiteToolProposalRepository(shared_store),
+         handlers,
+-        contextual_executors={"computer.execute": execute_computer}
++        contextual_executors={"computer.execute": execute_computer, **browser_contextual}
+         if runtime_profile == "candidate"
+         else None,
+         catalog=catalog,
+@@ -1382,6 +1422,11 @@
+         auto_authorize=lambda: state.authorization_mode == "full" and state.kill_switches["tools"],
+     )
+ 
++    async def start_controller() -> None:
++        await controller.startup()
++        if browser_sessions is not None:
++            await browser_sessions.start()
++
+     async def cancel_controller(turn_id: str, reason: str) -> None:
+         if runtime_profile == "candidate" and turn_id != "active":
+             # Keep the HTTP contract; map its existing turn ID to the owned session.
+@@ -1392,8 +1437,12 @@
+             ]
+             for session_id in sessions:
+                 await controller.cancel(turn_id, reason, session_id=session_id)
++                if browser_sessions is not None:
++                    await browser_sessions.close_session(session_id)
+             return
+         await controller.cancel(turn_id, reason)
++        if browser_sessions is not None:
++            await browser_sessions.clear()
+ 
+     log_directory = os.environ.get("SIRO_LOG_DIR")
+     if log_directory:
+@@ -1422,7 +1471,8 @@
+             speech_to_text=speech_to_text,
+             text_to_speech=text_to_speech,
+             live2d_dist=live2d_dist,
+-            on_startup=controller.startup,
++            on_startup=start_controller,
++            on_shutdown=browser_sessions.close if browser_sessions is not None else None,
+             on_recovery=controller.recovery_readback,
+             on_turn=controller.respond,
+             on_cancel=cancel_controller,
+--- a/src/siro/services/tools/orchestrator.py
++++ b/src/siro/services/tools/orchestrator.py
+@@ -60,6 +60,44 @@
+ )
+ 
+ 
++# Candidate-only definitions; legacy DEFAULT_MODEL_TOOLS remains unchanged.
++BROWSER_SESSION_TOOLS = (
++    ToolDefinition(
++        "browser.read",
++        "Read the current session page and fresh screen_version.",
++        {"type": "object", "properties": {}, "additionalProperties": False},
++    ),
++    *(
++        ToolDefinition(
++            "browser." + action,
++            "Use an exact semantic target and screen_version from the latest session readback. "
++            "Returns fresh page readback; never reuse a stale version.",
++            {
++                "type": "object",
++                "properties": {
++                    "role": {
++                        "type": "string",
++                        "enum": ["button", "checkbox", "combobox", "heading", "link", "textbox"],
++                    },
++                    "name": {"type": "string"},
++                    "screen_version": {"type": "string"},
++                    **({"value": {"type": "string"}} if action == "fill" else {}),
++                },
++                "required": ["role", "name", "screen_version"]
++                + (["value"] if action == "fill" else []),
++                "additionalProperties": False,
++            },
++        )
++        for action in ("fill", "click")
++    ),
++    ToolDefinition(
++        "browser.close",
++        "Close the session browser and discard its in-memory state.",
++        {"type": "object", "properties": {}, "additionalProperties": False},
++    ),
++)
++
++
+ class ToolUnavailableError(RuntimeError):
+     """An explicitly registered tool is not currently available."""
+ 
+@@ -87,6 +125,9 @@
+         return isinstance(items, dict) and all(_valid_arguments(v, items) for v in value)
+     if kind == "string":
+         if not isinstance(value, str):
++            return False
++        choices = schema.get("enum")
++        if isinstance(choices, list) and value not in choices:
+             return False
+         if schema.get("format") == "uri":
+             parsed = urlsplit(value)
+--- /dev/null
++++ b/src/siro/services/tools/browser_session.py
+@@ -0,0 +1,243 @@
++"""Bounded session ownership around the existing scoped browser driver."""
++
++from __future__ import annotations
++
++import asyncio
++import time
++from collections.abc import Callable
++from dataclasses import dataclass, field
++from typing import cast
++from urllib.parse import urlsplit
++from uuid import uuid4
++
++from siro.adapters.browser import (
++    BrowserObservation,
++    BrowserRole,
++    BrowserTarget,
++    ScopedBrowserDriver,
++)
++from siro.adapters.computer import ComputerActionError
++from siro.services.tools.execution import (
++    ExecutionCancelled,
++    ExecutionCleanupError,
++    ExecutionContext,
++)
++
++
++@dataclass
++class _Session:
++    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
++    driver: ScopedBrowserDriver | None = None
++    origin: str = ""
++    epoch: str = field(default_factory=lambda: uuid4().hex)
++    touched: float = 0
++    active: asyncio.Task[dict[str, str]] | None = None
++
++
++class BrowserSessions:
++    def __init__(
++        self,
++        factory: Callable[[tuple[str, ...]], ScopedBrowserDriver],
++        *,
++        ttl: float = 300,
++        capacity: int = 8,
++        timeout: float = 30,
++        clock: Callable[[], float] = time.monotonic,
++    ) -> None:
++        if ttl <= 0 or capacity < 1 or timeout <= 0:
++            raise ValueError("invalid browser session limits")
++        self._factory, self._ttl, self._capacity = factory, ttl, capacity
++        self._timeout, self._clock = timeout, clock
++        self._sessions: dict[str, _Session] = {}
++        self._reaper: asyncio.Task[None] | None = None
++        self._closed = False
++
++    async def start(self) -> None:
++        if self._closed:
++            raise RuntimeError("browser sessions closed")
++        if self._reaper is None:
++            self._reaper = asyncio.create_task(self._reap())
++
++    async def _reap(self) -> None:
++        while True:
++            await asyncio.sleep(min(self._ttl, 30))
++            await self.expire()
++
++    async def _drop(self, key: str, entry: _Session) -> None:
++        # Keep ownership until bounded cleanup completes, despite repeated cancellation.
++        async def cleanup() -> None:
++            try:
++                if entry.driver is not None:
++                    async with asyncio.timeout(4):
++                        await entry.driver.__aexit__()
++                    entry.driver = None
++            except Exception as error:
++                # Retain failed cleanup ownership; never replace an uncertain driver.
++                self._closed = True
++                raise ExecutionCleanupError("browser session cleanup failed") from error
++            if self._sessions.get(key) is entry:
++                del self._sessions[key]
++
++        task = asyncio.create_task(cleanup())
++        interrupted = False
++        while True:
++            try:
++                await asyncio.shield(task)
++                break
++            except asyncio.CancelledError:
++                interrupted = True
++                if task.done():
++                    task.result()
++                    break
++        if interrupted:
++            raise asyncio.CancelledError
++
++    async def expire(self) -> None:
++        for key, entry in tuple(self._sessions.items()):
++            if not entry.lock.locked() and self._clock() - entry.touched >= self._ttl:
++                async with entry.lock:
++                    if self._clock() - entry.touched >= self._ttl:
++                        await self._drop(key, entry)
++
++    async def close_session(self, session_id: str) -> None:
++        entry = self._sessions.get(session_id)
++        if entry is not None:
++            if entry.active is not None and entry.active is not asyncio.current_task():
++                entry.active.cancel()
++            async with entry.lock:
++                await self._drop(session_id, entry)
++
++    async def clear(self) -> None:
++        results = await asyncio.gather(
++            *(self.close_session(k) for k in tuple(self._sessions)), return_exceptions=True
++        )
++        if any(isinstance(result, BaseException) for result in results):
++            raise ExecutionCleanupError("browser pool cleanup failed")
++
++    async def close(self) -> None:
++        self._closed = True
++        reaper, self._reaper = self._reaper, None
++        if reaper is not None:
++            reaper.cancel()
++            await asyncio.gather(reaper, return_exceptions=True)
++        await self.clear()
++
++    async def execute(
++        self, action: str, arguments: dict[str, object], context: ExecutionContext
++    ) -> dict[str, str]:
++        context.check()
++        operation = asyncio.create_task(self._execute(action, arguments, context))
++        cancelled = asyncio.create_task(context.cancellation.wait())
++
++        async def stop() -> None:
++            operation.cancel()
++            outcome = (await asyncio.gather(operation, return_exceptions=True))[0]
++            if isinstance(outcome, ExecutionCleanupError):
++                raise outcome
++
++        try:
++            await asyncio.wait({operation, cancelled}, return_when=asyncio.FIRST_COMPLETED)
++            if context.cancellation.cancelled:
++                await stop()
++                raise ExecutionCancelled("browser run cancelled")
++            return operation.result()
++        except asyncio.CancelledError:
++            cleanup = asyncio.create_task(stop())
++            while True:
++                try:
++                    await asyncio.shield(cleanup)
++                    break
++                except asyncio.CancelledError:
++                    if cleanup.done():
++                        cleanup.result()
++                        break
++            raise
++        finally:
++            cancelled.cancel()
++            await asyncio.gather(cancelled, return_exceptions=True)
++
++    async def _execute(
++        self, action: str, arguments: dict[str, object], context: ExecutionContext
++    ) -> dict[str, str]:
++        context.check()
++        if not context.authorized or not context.session_id:
++            raise PermissionError("browser requires authorized session context")
++        if self._closed:
++            raise RuntimeError("browser sessions unavailable")
++        await self.expire()
++        key = context.session_id
++        if action == "close":
++            await self.close_session(key)
++            context.check()
++            return {"state": "closed"}
++        entry = self._sessions.get(key)
++        if entry is None:
++            if action != "navigate+read":
++                raise ComputerActionError("browser session missing; navigate first")
++            if len(self._sessions) >= self._capacity:
++                raise ComputerActionError("browser session capacity reached")
++            entry = _Session(touched=self._clock())
++            self._sessions[key] = entry
++        async with entry.lock:
++            context.check()
++            if self._closed or self._sessions.get(key) is not entry:
++                raise ComputerActionError("browser session expired; navigate again")
++            entry.active = asyncio.current_task()
++            try:
++                timeout = self._timeout
++                if context.deadline is not None:
++                    timeout = min(
++                        timeout, max(0, context.deadline - asyncio.get_running_loop().time())
++                    )
++                async with asyncio.timeout(timeout):
++                    if action == "navigate+read":
++                        url = str(arguments["url"])
++                        parsed = urlsplit(url)
++                        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
++                            raise ValueError("browser requires HTTP/HTTPS URL")
++                        origin = f"{parsed.scheme}://{parsed.netloc}"
++                        if entry.driver is not None and entry.origin != origin:
++                            await entry.driver.__aexit__()
++                            entry.driver = None
++                            entry.epoch = uuid4().hex
++                        if entry.driver is None:
++                            entry.driver = self._factory((origin,))
++                            entry.origin = origin
++                            await entry.driver.__aenter__()
++                        observation = await entry.driver.navigate(url)
++                    elif entry.driver is None:
++                        raise ComputerActionError("browser session missing; navigate first")
++                    elif action == "read":
++                        observation = await entry.driver.observe()
++                    elif action in {"fill", "click"}:
++                        version = str(arguments["screen_version"])
++                        if not version.startswith(entry.epoch + ":"):
++                            raise ComputerActionError("screen changed; observe the session again")
++                        role = cast(BrowserRole, arguments["role"])
++                        target = BrowserTarget(
++                            role, str(arguments["name"]), version[len(entry.epoch) + 1 :]
++                        )
++                        observation = (
++                            await entry.driver.fill(target, str(arguments["value"]))
++                            if action == "fill"
++                            else await entry.driver.click(target)
++                        )
++                    else:
++                        raise ValueError("unsupported browser action")
++                    context.check()
++                    entry.touched = self._clock()
++                    return self._observation(entry, observation)
++            except BaseException:
++                await self._drop(key, entry)
++                raise
++            finally:
++                entry.active = None
++
++    @staticmethod
++    def _observation(entry: _Session, value: BrowserObservation) -> dict[str, str]:
++        return {
++            "url": value.url,
++            "title": value.title,
++            "text": value.text[:4000],
++            "screen_version": entry.epoch + ":" + value.screen_version,
++        }
+--- a/tests/integration/test_tool_catalog.py
++++ b/tests/integration/test_tool_catalog.py
+@@ -170,7 +170,10 @@
+             assert "API_KEY" not in response.text
+             assert "unused-cloud-model" not in response.text
+             tools = {item["name"]: item for item in snapshot["tools"]}
+-            assert set(tools) == {"computer.execute", "browser.navigate+read", "process.start"}
++            expected = {"computer.execute", "browser.navigate+read", "process.start"}
++            if profile == "candidate":
++                expected |= {"browser.read", "browser.fill", "browser.click", "browser.close"}
++            assert set(tools) == expected
+             assert tools["process.start"]["model_visible"] is False
+             if profile == "candidate":
+                 assert tools["browser.navigate+read"]["available"] is False
+@@ -339,6 +342,10 @@
+             assert {tool.name for tool in requests[0].tools} == {
+                 "computer.execute",
+                 "browser.navigate+read",
++                "browser.read",
++                "browser.fill",
++                "browser.click",
++                "browser.close",
+             }
+             tool_message = next(m for m in requests[1].messages if m.role == "tool")
+             assert tool_message.tool_call_id == "route"
+--- /dev/null
++++ b/tests/integration/test_browser_sessions.py
+@@ -0,0 +1,414 @@
++from __future__ import annotations
++
++import asyncio
++import contextlib
++import json
++import os
++import threading
++from collections.abc import AsyncIterator
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from pathlib import Path
++from typing import Any
++
++import pytest
++
++from siro.adapters.browser import ScopedBrowserDriver
++from siro.adapters.computer import ComputerActionError
++from siro.services.tools.browser_session import BrowserSessions
++from siro.services.tools.execution import ExecutionCleanupError, ExecutionContext
++
++PAGE = b"""<title>RT012 synthetic</title><label>Name<input id="name"></label>
++<button onclick="location.href='/next'">Next</button><p id="result">Waiting</p>
++<button onclick="result.textContent='Saved '+nameInput.value">Save</button>
++<script>let nameInput=document.querySelector('#name');nameInput.value=sessionStorage.name||'';
++nameInput.oninput=()=>sessionStorage.name=nameInput.value;</script>"""
++
++
++@pytest.fixture
++def origin() -> Any:
++    class Handler(BaseHTTPRequestHandler):
++        def do_GET(self) -> None:
++            self.send_response(200)
++            self.send_header("Content-Type", "text/html")
++            self.end_headers()
++            with contextlib.suppress(BrokenPipeError):
++                self.wfile.write(PAGE)
++
++        def log_message(self, *args: object) -> None:
++            pass
++
++    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
++    thread = threading.Thread(target=server.serve_forever, daemon=True)
++    thread.start()
++    yield f"http://127.0.0.1:{server.server_port}"
++    server.shutdown()
++    server.server_close()
++    thread.join(2)
++
++
++def owner(session: str = "A", run: str = "run1") -> ExecutionContext:
++    return ExecutionContext(run, session, run, authorized=True)
++
++
++@pytest.mark.asyncio
++async def test_real_chrome_cross_run_form_isolation_stale_ttl_close(origin: str) -> None:
++    now = [0.0]
++    pool = BrowserSessions(ScopedBrowserDriver, clock=lambda: now[0], ttl=10, capacity=2)
++    try:
++        a = await pool.execute("navigate+read", {"url": origin}, owner())
++        b = await pool.execute("navigate+read", {"url": origin}, owner("B"))
++        assert a["screen_version"] != b["screen_version"]
++        a = await pool.execute(
++            "fill",
++            {
++                "role": "textbox",
++                "name": "Name",
++                "screen_version": a["screen_version"],
++                "value": "SIRO",
++            },
++            owner(),
++        )
++        a = await pool.execute(
++            "click",
++            {"role": "button", "name": "Next", "screen_version": a["screen_version"]},
++            owner(run="run2"),
++        )
++        assert a["url"].endswith("/next")
++        a = await pool.execute(
++            "click",
++            {"role": "button", "name": "Save", "screen_version": a["screen_version"]},
++            owner(run="run3"),
++        )
++        assert "Saved SIRO" in a["text"]
++        b = await pool.execute(
++            "click",
++            {"role": "button", "name": "Save", "screen_version": b["screen_version"]},
++            owner("B"),
++        )
++        assert "Saved SIRO" not in b["text"]
++        with pytest.raises(ComputerActionError, match="screen changed"):
++            await pool.execute(
++                "click",
++                {"role": "button", "name": "Save", "screen_version": a["screen_version"]},
++                owner("B"),
++            )
++        # Failed action closes only B, A remains readable.
++        assert "Saved SIRO" in (await pool.execute("read", {}, owner()))["text"]
++        old = a["screen_version"]
++        result = await pool.execute("close", {}, owner())
++        assert result == {"state": "closed"}
++        a = await pool.execute("navigate+read", {"url": origin}, owner())
++        with pytest.raises(ComputerActionError, match="screen changed"):
++            await pool.execute(
++                "fill",
++                {"role": "textbox", "name": "Name", "screen_version": old, "value": "wrong"},
++                owner(),
++            )
++        await pool.execute("navigate+read", {"url": origin}, owner())
++        drivers = [e.driver for e in pool._sessions.values()]
++        now[0] = 11
++        await pool.expire()
++        assert not pool._sessions
++        assert all(d is not None and d._browser is None and d._playwright is None for d in drivers)
++    finally:
++        await pool.close()
++
++
++@pytest.mark.asyncio
++async def test_real_chrome_stale_after_fill_and_origin_reset(origin: str) -> None:
++    pool = BrowserSessions(ScopedBrowserDriver)
++    try:
++        observation = await pool.execute("navigate+read", {"url": origin}, owner())
++        args: dict[str, object] = {
++            "role": "textbox",
++            "name": "Name",
++            "screen_version": observation["screen_version"],
++            "value": "new",
++        }
++        await pool.execute("fill", args, owner())
++        with pytest.raises(ComputerActionError, match="screen changed"):
++            await pool.execute("fill", args, owner())
++        with pytest.raises(ComputerActionError, match="missing"):
++            await pool.execute("read", {}, owner())
++        await pool.execute("navigate+read", {"url": origin}, owner())
++        driver = pool._sessions["A"].driver
++        observation = await pool.execute(
++            "navigate+read", {"url": origin.replace("127.0.0.1", "localhost")}, owner()
++        )
++        assert driver is not None and driver._browser is None
++        assert observation["url"].startswith("http://localhost")
++    finally:
++        await pool.close()
++
++
++@pytest.mark.asyncio
++async def test_capacity_authorization_and_idle_reaper(origin: str) -> None:
++    pool = BrowserSessions(ScopedBrowserDriver, capacity=1, ttl=0.15)
++    await pool.start()
++    try:
++        with pytest.raises(PermissionError):
++            await pool.execute("navigate+read", {"url": origin}, ExecutionContext("r", "A", "e"))
++        await pool.execute("navigate+read", {"url": origin}, owner())
++        with pytest.raises(ComputerActionError, match="capacity"):
++            await pool.execute("navigate+read", {"url": origin}, owner("B"))
++        for _ in range(30):
++            if not pool._sessions:
++                break
++            await asyncio.sleep(0.03)
++        assert not pool._sessions
++    finally:
++        reaper = pool._reaper
++        await pool.close()
++        assert reaper is not None and reaper.done()
++
++
++@pytest.mark.asyncio
++async def test_cancel_timeout_and_cleanup_failure() -> None:
++    entered = asyncio.Event()
++
++    class Driver(ScopedBrowserDriver):
++        def __init__(self) -> None:
++            pass
++
++        closed = False
++
++        async def __aenter__(self) -> Any:
++            return self
++
++        async def navigate(self, url: str) -> Any:
++            entered.set()
++            await asyncio.Future()
++
++        async def __aexit__(self, *_error: object) -> None:
++            self.closed = True
++
++    driver = Driver()
++    pool = BrowserSessions(lambda origins: driver, timeout=0.1)
++    with pytest.raises(TimeoutError):
++        await pool.execute("navigate+read", {"url": "http://localhost"}, owner())
++    assert driver.closed and not pool._sessions
++    driver.closed = False
++    task = asyncio.create_task(pool.execute("navigate+read", {"url": "http://localhost"}, owner()))
++    await asyncio.sleep(0.01)
++    task.cancel()
++    with pytest.raises(asyncio.CancelledError):
++        await task
++    assert driver.closed and not pool._sessions
++
++    class Broken(Driver):
++        async def __aexit__(self, *_error: object) -> None:
++            raise RuntimeError("synthetic close failure")
++
++    pool = BrowserSessions(lambda origins: Broken(), timeout=0.01)
++    with pytest.raises(ExecutionCleanupError):
++        await pool.execute("navigate+read", {"url": "http://localhost"}, owner())
++    assert pool._closed and "A" in pool._sessions
++    with pytest.raises(ExecutionCleanupError):
++        await pool.close()
++
++
++def test_main_catalog_real_browser_across_runs_and_shutdown(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, origin: str
++) -> None:
++    import uvicorn
++    from fastapi.testclient import TestClient
++
++    from siro.ports.models import ToolCall
++    from siro.services.presentation import gateway
++
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
++    captured: dict[str, Any] = {}
++    original = gateway.create_app
++
++    def capture(**kwargs: Any) -> Any:
++        captured.update(kwargs)
++        return original(**kwargs)
++
++    monkeypatch.setattr(gateway, "create_app", capture)
++    monkeypatch.setattr(uvicorn, "run", lambda *args, **kwargs: None)
++    gateway.main()
++    from siro.ports.models import CancellationToken, ModelChunk, ModelRequest
++
++    class Model:
++        name = "synthetic browser runtime"
++        step = 0
++
++        def __init__(self) -> None:
++            self.observations: list[dict[str, str]] = []
++
++        async def stream(
++            self, request: ModelRequest, cancellation: CancellationToken
++        ) -> AsyncIterator[ModelChunk]:
++            observations = [json.loads(m.content) for m in request.messages if m.role == "tool"]
++            if observations:
++                self.observations.append(observations[-1])
++            names = {tool.name for tool in request.tools}
++            assert {"browser.read", "browser.fill", "browser.click", "browser.close"} <= names
++            if self.step == 0:
++                call = ToolCall("nav", "browser.navigate+read", {"url": origin})
++            elif self.step == 1:
++                call = ToolCall(
++                    "fill",
++                    "browser.fill",
++                    {
++                        "role": "textbox",
++                        "name": "Name",
++                        "value": "Runtime",
++                        "screen_version": observations[-1]["screen_version"],
++                    },
++                )
++            elif self.step == 2:
++                call = ToolCall(
++                    "click",
++                    "browser.click",
++                    {
++                        "role": "button",
++                        "name": "Save",
++                        "screen_version": observations[-1]["screen_version"],
++                    },
++                )
++            elif self.step in {3, 5}:
++                call = ToolCall("read", "browser.read", {})
++            else:
++                yield ModelChunk("text_delta", text="Synthetic complete")
++                yield ModelChunk("finished")
++                self.step += 1
++                return
++            self.step += 1
++            yield ModelChunk("tool_request", tool_call=call)
++            yield ModelChunk("finished")
++
++    model = Model()
++    controller = captured["on_turn"].__self__
++    controller._model = model
++    with TestClient(original(**captured)) as client:
++        assert client.portal is not None
++        client.portal.call(controller.respond, "A", "synthetic form task")
++        assert "Saved Runtime" in model.observations[-1]["text"]
++        client.portal.call(controller.respond, "A", "synthetic same-session read")
++        assert "Saved Runtime" in model.observations[-1]["text"]
++        pool = captured["on_shutdown"].__self__
++        drivers = [e.driver for e in pool._sessions.values()]
++    assert not pool._sessions and pool._reaper is None
++    assert all(d._browser is None and d._playwright is None for d in drivers)
++
++
++@pytest.mark.asyncio
++async def test_token_cancel_repeated_cancel_active_close_and_deadline() -> None:
++    class Slow(ScopedBrowserDriver):
++        def __init__(self) -> None:
++            self.entered = asyncio.Event()
++            self.closed = False
++
++        async def __aenter__(self) -> Any:
++            return self
++
++        async def navigate(self, url: str) -> Any:
++            self.entered.set()
++            await asyncio.Future()
++
++        async def __aexit__(self, *_error: object) -> None:
++            await asyncio.sleep(0.05)
++            self.closed = True
++
++    from siro.services.tools.execution import ExecutionCancelled
++
++    for mode in ("token", "repeat", "shutdown", "session-close", "deadline"):
++        driver = Slow()
++
++        def factory(origins: tuple[str, ...], driver: Slow = driver) -> Slow:
++            return driver
++
++        pool = BrowserSessions(factory)
++        context = owner()
++        if mode == "deadline":
++            from dataclasses import replace
++
++            context = replace(context, deadline=asyncio.get_running_loop().time() + 0.05)
++        task = asyncio.create_task(
++            pool.execute("navigate+read", {"url": "http://localhost"}, context)
++        )
++        await driver.entered.wait()
++        expected: type[BaseException]
++        if mode == "token":
++            context.cancellation.cancel()
++            expected = ExecutionCancelled
++        elif mode == "repeat":
++            task.cancel()
++            await asyncio.sleep(0.01)
++            task.cancel()
++            expected = asyncio.CancelledError
++        elif mode == "shutdown":
++            await asyncio.wait_for(pool.close(), 1)
++            expected = asyncio.CancelledError
++        elif mode == "session-close":
++            await asyncio.wait_for(pool.close_session("A"), 1)
++            expected = asyncio.CancelledError
++        else:
++            expected = TimeoutError
++        with pytest.raises(expected):
++            await asyncio.wait_for(task, 1)
++        assert driver.closed and not pool._sessions
++        await pool.close()
++
++
++@pytest.mark.parametrize("profile,enabled", [("legacy", "1"), ("candidate", "0")])
++def test_main_rollback_stateless_browser(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, enabled: str
++) -> None:
++    import uvicorn
++
++    from siro.adapters import browser as module
++    from siro.adapters.browser import BrowserObservation
++    from siro.services.presentation import gateway
++
++    instances: list[Any] = []
++
++    class Driver(ScopedBrowserDriver):
++        def __init__(self, origins: tuple[str, ...]) -> None:
++            self.closed = False
++            instances.append(self)
++
++        async def __aenter__(self) -> Any:
++            return self
++
++        async def navigate(self, url: str) -> BrowserObservation:
++            return BrowserObservation(url, "synthetic", "readback", "version")
++
++        async def __aexit__(self, *_error: object) -> None:
++            self.closed = True
++
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
++    monkeypatch.setenv("SIRO_BROWSER_SESSION_ENABLED", enabled)
++    monkeypatch.setattr(module, "ScopedBrowserDriver", Driver)
++    captured: dict[str, Any] = {}
++    original = gateway.create_app
++
++    def capture(**kwargs: Any) -> Any:
++        captured.update(kwargs)
++        return original(**kwargs)
++
++    monkeypatch.setattr(gateway, "create_app", capture)
++    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
++    gateway.main()
++    tools = captured["tool_orchestrator"]
++    assert not {"browser.read", "browser.fill", "browser.click", "browser.close"} & {
++        d.name for d in tools.model_tools()
++    }
++
++    async def flow() -> None:
++        for _ in range(2):
++            result = await captured["on_browser_tool"]("http://localhost")
++            assert result["screen_version"] == "version"
++
++    asyncio.run(flow())
++    assert len(instances) == 2 and all(d.closed for d in instances)
++    assert captured["on_shutdown"] is None

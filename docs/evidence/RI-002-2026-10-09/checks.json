@@ -1,0 +1,55 @@
+{
+  "commands": [
+    {
+      "command": ".venv/bin/pytest -q tests/integration/test_capability_inventory.py tests/integration/test_capability_product.py",
+      "exit_code": 0,
+      "result": "15 passed, 3 existing warnings, 1.03s",
+      "log": "specialized.log"
+    },
+    {
+      "command": ".venv/bin/pytest -q -m \"not real_provider\"",
+      "exit_code": 0,
+      "result": "716 passed, 5 deselected, 3 existing warnings, 98.91s",
+      "log": "full-suite.log"
+    },
+    {
+      "command": ".venv/bin/ruff format --check .",
+      "exit_code": 0,
+      "result": "271 files already formatted",
+      "log": "format.log"
+    },
+    {
+      "command": ".venv/bin/ruff check .",
+      "exit_code": 0,
+      "result": "All checks passed",
+      "log": "lint.log"
+    },
+    {
+      "command": ".venv/bin/mypy",
+      "exit_code": 0,
+      "result": "206 files checked",
+      "log": "types.log"
+    },
+    {
+      "command": ".venv/bin/python scripts/export_schemas --check",
+      "exit_code": 0,
+      "result": "No schema drift"
+    },
+    {
+      "command": ".venv/bin/python docs/evidence/RI-002-2026-10-09/verify_ui.py",
+      "exit_code": 0,
+      "result": "13 checks PASS",
+      "log": "ui-verification.json"
+    }
+  ],
+  "not_run": [
+    "real_provider",
+    "GPU/audio/human speech",
+    "human Live2D",
+    "hardware",
+    "24h soak",
+    "remote CI",
+    "formal deployment",
+    "fresh MCP queries due to existing owner lease"
+  ]
+}

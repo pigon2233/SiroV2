@@ -1,0 +1,54 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_queued_remember_cannot_adopt_post_suspend_epoch _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_queued_remember_cannot_ad0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7970753976f0>
+
+    @pytest.mark.asyncio
+    async def test_queued_remember_cannot_adopt_post_suspend_epoch(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store = SQLiteStore(tmp_path / "synthetic.sqlite3")
+        await store.initialize()
+        registry = SQLiteSkillRegistry(store)
+        owner = fresh_owner(tmp_path, registry)
+        preparer = SkillCandidatePreparer(ToolCatalog(()))
+        try:
+            item = await preparer.prepare(CAPABILITY)
+        finally:
+            await preparer.close()
+        original = activation._restored
+        entered, release = threading.Event(), threading.Event()
+    
+        def blocked(path: Path) -> Any:
+            result = original(path)
+            entered.set()
+            assert release.wait(3)
+            return result
+    
+        monkeypatch.setattr(activation, "_restored", blocked)
+        initialize = asyncio.create_task(owner.initialize())
+        remember: asyncio.Task[dict[str, object]] | None = None
+        suspend: asyncio.Task[None] | None = None
+        epoch = owner._epoch
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            remember = asyncio.create_task(owner.remember(item))
+            async with asyncio.timeout(2):
+                while len(owner._operations) < 2:
+                    await asyncio.sleep(0)
+            suspend = asyncio.create_task(owner.suspend())
+            async with asyncio.timeout(2):
+                while owner._epoch == epoch:
+                    await asyncio.sleep(0)
+            release.set()
+            await asyncio.wait_for(initialize, 2)
+>           with pytest.raises(activation.SkillActivationError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE SkillActivationError
+
+tests/integration/test_skill_activation_review.py:247: Failed
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation_review.py::test_queued_remember_cannot_adopt_post_suspend_epoch
+1 failed, 18 deselected in 0.30s

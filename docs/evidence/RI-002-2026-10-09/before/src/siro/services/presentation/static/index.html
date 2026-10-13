@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIRO · 今天，也陪著你</title>
+    <style>
+      :root { color-scheme: dark; font-family: "Noto Sans TC", system-ui, sans-serif; background:#10131b; color:#eae8ee; --muted:#a4a2b3; --pink:#e5b6c8; --line:#ffffff14; }
+      * { box-sizing:border-box; } body { margin:0 auto; padding:0 36px 36px; max-width:1600px; background:radial-gradient(ellipse at 20% 20%,#30233460,transparent 50%); }
+      header { display:flex; justify-content:space-between; align-items:center; height:94px; border-bottom:1px solid var(--line); }
+      .brand { font-size:23px; font-weight:600; letter-spacing:6px; } .brand small { font-size:11px; letter-spacing:2px; color:var(--muted); margin-left:20px; font-weight:400; }
+      .connection-pill { color:#bad6c8; font-size:12px; background:#afdbc00c; border:1px solid #afdbc02a; padding:9px 15px; border-radius:30px; }
+      .companion-layout { display:grid; grid-template-columns:1.05fr 1fr; gap:28px; padding-top:28px; }
+      section { background:#191d29; border:1px solid var(--line); border-radius:20px; padding:22px; margin:0 0 16px; }
+      .stage { padding:0; position:relative; overflow:hidden; min-height:690px; background:radial-gradient(ellipse at 50% 55%,#423247,#181b29 70%); }
+      .stage-title { position:absolute; z-index:1; top:24px; left:28px; pointer-events:none; } .eyebrow { font-size:10px; letter-spacing:3px; color:var(--pink); text-transform:uppercase; }
+      h1 { font-weight:450; font-size:31px; letter-spacing:2px; margin:10px 0; } h2 { font-size:17px; font-weight:550; margin:0 0 14px; } h3 { font-size:14px; } p { color:var(--muted); font-size:13px; line-height:1.8; }
+      #companion { border:0; width:100%; height:100%; min-height:690px; display:block; }
+      .stage-footer { position:absolute; bottom:22px; left:24px; right:24px; background:#171b26d9; backdrop-filter:blur(12px); border:1px solid var(--line); border-radius:14px; padding:14px 18px; }
+      #renderer-status { margin:0; } #companion-state { color:#dfc4cf; font-size:13px; margin:0 0 4px; }
+      .conversation { display:flex; flex-direction:column; height:690px; padding:24px; }
+      .conversation-heading { display:flex; justify-content:space-between; align-items:center; padding-bottom:18px; border-bottom:1px solid var(--line); } .conversation-heading h2 { margin:0; } #model-status { color:var(--muted); font-size:11px; }
+      #messages { flex:1; min-height:180px; overflow:auto; padding:22px 0; scroll-behavior:smooth; }
+      .empty-state { padding:60px 20px 20px; text-align:center; } .empty-state strong { font-weight:450; font-size:23px; } #messages:has(.message) .empty-state { display:none; }
+      .message { padding:14px 18px; margin:0 0 15px; border-radius:16px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.85; }
+      .message strong { color:#f2dce5; font-weight:650; } .message code { font-family:ui-monospace,monospace; font-size:.92em; background:#111722; padding:2px 5px; border-radius:5px; }
+      .message pre { max-width:100%; overflow:auto; margin:10px 0; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:#111722; white-space:pre; overflow-wrap:normal; } .message pre code { padding:0; background:none; }
+      .user { background:#443442; margin-left:15%; border-bottom-right-radius:4px; } .assistant { background:#222939; margin-right:10%; border-bottom-left-radius:4px; }
+      .assistant:empty::after { content:"正在想…"; color:var(--muted); }
+      #chat { display:flex; gap:10px; align-items:flex-end; border:1px solid #c4a1b433; border-radius:16px; background:#111722; padding:8px; }
+      input, textarea { background:#111722; color:#ece9ef; border:1px solid #ffffff20; border-radius:9px; padding:10px; font:inherit; } textarea { resize:vertical; flex:1; min-height:62px; border:0; background:transparent; outline:none; font-size:14px; }
+      button { background:#292f40; color:#d5d4df; border:1px solid var(--line); border-radius:10px; padding:10px 14px; cursor:pointer; font:inherit; font-size:12px; } button:hover { background:#353b4f; } button:disabled { opacity:.4; cursor:default; } #chat button { background:var(--pink); color:#30222e; font-weight:600; }
+      .conversation-actions { display:flex; gap:9px; align-items:center; flex-wrap:wrap; padding-top:10px; color:var(--muted); font-size:11px; } .conversation-actions button { background:transparent; border:0; padding:6px 8px; }
+      .conversation-actions label { margin-left:auto; } .conversation-actions input { width:auto; }
+      .toolbox { align-items:start; display:grid; grid-template-columns:1fr 1fr; gap:20px; } details { border:1px solid var(--line); border-radius:14px; background:#191d29; margin:0 0 16px; padding:18px; } summary { cursor:pointer; font-size:14px; color:#d4d0de; } details[open]>summary { margin-bottom:18px; }
+      details section { border:0; padding:14px 0; background:none; } .quick-actions { display:flex; flex-wrap:wrap; gap:7px; } .capability-note { font-size:12px; } #authorization-status { margin:0; }
+      #events,#snapshot,#workspace-result { white-space:pre-wrap; overflow-wrap:anywhere; max-height:250px; overflow:auto; font-size:11px; color:var(--muted); }
+      #affect-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; } .affect-card { font-size:11px; background:#111722; border-radius:8px; padding:10px; } .meter { height:4px; background:#303748; margin-top:5px; }.meter span { display:block;height:100%;background:var(--pink); }
+      .proposal { border:1px solid #e5b6c844; border-radius:10px; padding:12px; margin:8px 0; font-size:12px; } .ok { color:#a7d0b9; }.warn { color:#c9ac89; } a { color:#dcc0d0; } small { color:var(--muted);overflow-wrap:anywhere;font-size:10px; }
+      @media(max-width:850px) { body {padding:0 14px 20px;} header {height:74px;} .brand small {display:none;} .companion-layout,.toolbox {grid-template-columns:1fr;} .stage,#companion {min-height:450px;height:450px;} .conversation {height:620px;} }
+    </style>
+  </head>
+  <body>
+    <header><div class="brand">SIRO <small>YOUR EVERYDAY COMPANION</small></div><button id="connection" class="connection-pill" type="button" title="重新連線，不會重新執行工作">連線中</button></header>
+    <main class="companion-layout">
+      <section class="stage" aria-label="SIRO 角色">
+        <div class="stage-title"><span class="eyebrow">A LITTLE CLOSER, EVERY DAY</span><h1>今天，也陪著你。</h1></div>
+        <iframe id="companion" src="__SIRO_RENDERER_PATH__" title="SIRO Live2D 角色"></iframe>
+        <div class="stage-footer"><p id="companion-state">正在與角色連線</p><p id="renderer-status">__SIRO_RENDERER_STATUS__</p></div>
+      </section>
+      <section class="conversation">
+        <div class="conversation-heading"><h2>和 SIRO 聊聊</h2><span id="model-status">確認對話連線中</span></div>
+        <div id="messages" aria-live="polite"><div class="empty-state"><strong>從一句「你好」開始。</strong><p>聊聊今天，或一起處理電腦上的事情。<br>想讓我留下的事，可以說「記住：…」。</p></div></div>
+        <form id="chat"><textarea id="text" required maxlength="32768" placeholder="想和 SIRO 說什麼？" aria-label="對話內容"></textarea><button type="submit">送出 ↗</button></form>
+        <div class="conversation-actions"><button id="voice" type="button">開始說話</button><button id="cancel" type="button">停止回覆</button><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
+        <div class="conversation-actions"><span id="voice-status">麥克風待命</span><span id="tts-status">TTS 待命</span></div>
+      </section>
+    </main>
+    <div class="toolbox">
+      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><div id="tool-proposals"></div><details><summary>指定工作目錄讀取</summary>    <section>
+      <h2>我的工作目錄</h2>
+      <p id="workspace-status">讀取狀態中…</p>
+      <p>將要分享的文字檔放入上方目錄，再請 SIRO 閱讀。每份文字檔最多 8 KiB。</p>
+      <input id="workspace-file" placeholder="例如 notes.txt" aria-label="工作目錄內檔名">
+      <button id="workspace-list" type="button">列出檔案</button>
+      <button id="workspace-read" type="button">讀取檔案</button>
+      <pre id="workspace-result" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></pre>
+      <p>這個讀檔入口只允許工作目錄；一般電腦操作仍依上方授權模式。</p>
+    </section>
+</details></details>
+      <details id="memories-panel"><summary>共同記憶</summary>    <section>
+      <h2>閒置記憶整理</h2>
+      <p>只在本機整理已記住的內容，將相同內容放在一起；保留原記憶，不推測新的事實，也不主動打擾。</p>
+      <p id="organization-status" aria-live="polite">讀取狀態中…</p>
+      <button id="organization-on" type="button">開啟閒置整理</button>
+      <button id="organization-off" type="button">暫停整理</button>
+      <button id="organization-refresh" type="button">現在整理</button>
+      <button id="product-refresh" type="button">重新整理畫面</button>
+      <div id="organization-items"></div>
+      <h3>原始記憶</h3>
+      <p>對 SIRO 說「記住：…」即可新增。更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p>
+      <div id="memory-items"></div>
+    </section>
+</details>
+    </div>
+    <details><summary>連線與進階設定</summary>    <section>
+      <h2>長對話續作</h2>
+      <p id="summary-status">讀取狀態中…</p>
+      <p>較舊的長回覆採摘錄摘要，省略處會標示；目標、授權與尚未完成的工具結果保留。摘要不是永久記憶。</p>
+    </section>
+<section><h2>內在狀態</h2><p id="affect-summary">尚無事件評估</p><div id="affect-grid"></div></section><section><h2>能力開關</h2><div id="switches"></div></section><section><h2>連線資訊</h2><pre id="snapshot"></pre></section><section><h2>事件紀錄</h2><pre id="events"></pre></section><p><a href="/audio-field-test">音訊驗收工具</a></p></details>
+    <script>
+      let socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
+      let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
+      let submissionGeneration = 0, pendingSubmission;
+      let recorder, recordedChunks = [], ttsAudio;
+      let ttsController, ttsGeneration = 0, speechCancelled = false;
+      let lastSpeech;
+      const headers = () => ({"Content-Type": "application/json"});
+      const log = data => { document.querySelector("#events").textContent += JSON.stringify(data) + "\n"; };
+      function createSessionAccess({fetcher = fetch, now = () => performance.now(), origin = location.origin} = {}) {
+        let session, pending, retryAfter = 0, closed = false, bootstrap;
+        async function getToken() {
+          if (closed) throw new Error("頁面已關閉");
+          if (session && now() < session.renewAt) return session.token;
+          if (pending) return pending;
+          if (now() < retryAfter) throw new Error("連線暫時無法恢復，請稍後按重新連線。");
+          pending = (async () => {
+            bootstrap = new AbortController();
+            const timeout = setTimeout(() => bootstrap.abort(), 5000);
+            try {
+              const response = await fetcher("/v1/session", {method: "POST", redirect: "error", headers: {Origin: origin}, signal: bootstrap.signal});
+              if (!response.ok) throw new Error("無法建立連線，請稍後按重新連線。");
+              const data = await response.json(), ttl = data.expires_in_seconds * 1000;
+              if (typeof data.token !== "string" || !data.token || !Number.isFinite(ttl) || ttl <= 0) throw new Error("連線資料無效，請重新連線。");
+              if (closed) throw new Error("頁面已關閉");
+              session = {token: data.token, renewAt: now() + ttl - Math.min(ttl * 0.1, 15000)};
+              retryAfter = 0;
+              return session.token;
+            } catch (error) {
+              retryAfter = now() + 3000;
+              throw error;
+            } finally { clearTimeout(timeout); bootstrap = undefined; }
+          })().finally(() => { pending = undefined; });
+          return pending;
+        }
+        async function request(url, options = {}) {
+          if (typeof url !== "string" || !url.startsWith("/v1/")) throw new Error("不允許的連線目標");
+          const target = new URL(url, origin);
+          if (target.origin !== origin || !target.pathname.startsWith("/v1/")) throw new Error("不允許的連線目標");
+          const check = () => {
+            if (closed) throw new Error("頁面已關閉");
+            if (options.signal?.aborted) throw new DOMException("已取消", "AbortError");
+          };
+          const send = token => {
+            check();
+            const requestHeaders = new Headers(options.headers); requestHeaders.set("Authorization", `Bearer ${token}`);
+            return fetcher(url, {...options, redirect: "error", headers: requestHeaders});
+          };
+          check();
+          const usedToken = await getToken();
+          const response = await send(usedToken);
+          if (response.url && new URL(response.url, origin).origin !== origin) throw new Error("不允許的連線回應");
+          if (response.status !== 401) return response;
+          const body = await response.clone().json().catch(() => null);
+          if (body?.detail !== "session token is invalid or expired") return response;
+          check();
+          if (session?.token === usedToken) session = undefined;
+          const renewed = await getToken();
+          return send(renewed); // Only this verified pre-accept rejection permits one retry.
+        }
+        return {getToken, request, dispose: () => { closed = true; session = undefined; bootstrap?.abort(); }};
+      }
+      const sessionAccess = createSessionAccess();
+      const authorizedFetch = (url, options) => sessionAccess.request(url, options);
+      function createTerminalFence(limit = 1024) {
+        const ended = new Set(), order = [];
+        const progress = new Set(["assistant_started", "assistant_delta", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
+        return data => {
+          if (typeof data.stream_id !== "string") return true;
+          if (ended.has(data.stream_id) && (progress.has(data.type) || data.type === "assistant_terminal")) return false;
+          if (data.type === "assistant_terminal") {
+            ended.add(data.stream_id); order.push(data.stream_id);
+            if (order.length > limit) ended.delete(order.shift());
+          }
+          return true;
+        };
+      }
+      const acceptRunEvent = createTerminalFence();
+      function recoveryNotice(run) {
+        if (run.recovery_status !== "interrupted") return null;
+        return run.error === "outcome_unknown"
+          ? "上次工作中斷，有些操作的結果未知。我沒有重新執行；請先確認實際結果。"
+          : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
+      }
+      async function boot() {
+        await connectControl();
+        await refreshProduct();
+        const recovery = await authorizedFetch("/v1/agent-runs/browser", {headers: headers()});
+        if (recovery.ok) {
+          const run = await recovery.json();
+          const notice = recoveryNotice(run);
+          if (notice) appendMessage("assistant", notice);
+        }
+      }
+      function connectControl() {
+        if (pageClosing) return Promise.reject(new Error("頁面已關閉"));
+        if (controlAuthenticated && socket?.readyState === 1) return Promise.resolve();
+        if (controlAttempt) return controlAttempt;
+        const epoch = ++controlEpoch;
+        controlAttempt = (async () => {
+          const token = await sessionAccess.getToken();
+          if (pageClosing || epoch !== controlEpoch) throw new Error("頁面已關閉或連線已交接");
+          const ready = {};
+          const authenticated = new Promise((resolve, reject) => { ready.resolve = resolve; ready.reject = reject; });
+          const owner = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/control`);
+          socket = owner; controlAuthenticated = false;
+          let retired = false;
+          const abandon = message => {
+            retired = true; clearTimeout(timeout); controlAuthenticated = false; ready.reject(new Error(message));
+          };
+          controlDispose = abandon;
+          const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
+          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; ready.resolve(); };
+          socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
+        socket.onmessage = event => {
+          if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
+          const data = JSON.parse(event.data);
+          if (!acceptRunEvent(data)) return;
+          log(data);
+          if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }
+          if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
+          if (data.type === "affect_state") { renderAffect(data); }
+          if (data.type === "assistant_started") {
+            assistantBubble = appendMessage("assistant", "");
+          }
+          if (data.type === "assistant_delta") {
+            if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
+            assistantBubble.textContent += data.text;
+            document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;
+          }
+          if (data.type === "assistant_terminal") {
+            const canonicalText = assistantBubble?.textContent || "";
+            if (data.state === "completed" && assistantBubble) formatAssistantMessage(assistantBubble);
+            if (data.state !== "completed") {
+              if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
+              const reasons = {
+                ProviderOutputTruncated: "這次回覆未完成，文字生成已達上限。已收到的內容保留，沒有自動重送操作。",
+                ProviderOutputFiltered: "這次回覆未完成，對話服務停止了這段輸出。",
+                ProviderOutputIncomplete: "這次回覆未完成，沒有收到完整結束資訊。已收到的內容保留，沒有自動重送操作。"
+              };
+              const notice = document.createElement("p"); notice.className = "warn";
+              notice.textContent = data.state === "cancelled" ? "已停止這次回覆。"
+                : reasons[data.error] || "這次回覆未完成。已執行的操作結果會保留在電腦協助，請確認後再試。";
+              if (data.error && !reasons[data.error]) notice.textContent += `（${data.error}）`;
+              assistantBubble.appendChild(notice);
+            }
+            if (data.state !== "completed") stopTts();
+            if (data.state === "completed" && canonicalText) {
+              lastSpeech = {text: canonicalText, prosody: data.prosody || {}};
+              document.querySelector("#replay-speech").disabled = false;
+              if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);
+            }
+            assistantBubble = undefined; currentTurn = undefined;
+          }
+          if (data.type === "tool_proposal") renderToolProposal(data);
+          if (data.type === "tool_started") updateToolProposal(data.proposal_id, "執行中…");
+          if (data.type === "tool_result") renderToolResult(data);
+          document.querySelector("#connection").textContent = "已連線";
+          document.querySelector("#connection").className = "connection-pill ok";
+        };
+          socket.onclose = () => {
+            if (socket !== owner || epoch !== controlEpoch) return;
+            abandon("連線中斷，已送出的工作不會自動重送。"); stopTts();
+            document.querySelector("#connection").textContent = "連線中斷 · 點此重新連線";
+            document.querySelector("#connection").className = "connection-pill warn";
+            if (!pageClosing && reconnectAttempts < 3 && !reconnectTimer) {
+              reconnectAttempts += 1;
+              reconnectTimer = setTimeout(() => {
+                reconnectTimer = undefined;
+                connectControl().catch(() => {});
+              }, 250 * 2 ** reconnectAttempts);
+            }
+          };
+          try { await authenticated; } finally { clearTimeout(timeout); }
+        })().finally(() => { controlAttempt = undefined; });
+        return controlAttempt;
+      }
+      document.querySelector("#connection").onclick = () => {
+        clearTimeout(reconnectTimer); reconnectTimer = undefined; reconnectAttempts = 0;
+        connectControl().catch(error => { document.querySelector("#connection").textContent = error.message; });
+      };
+      window.addEventListener("beforeunload", () => {
+        pageClosing = true; controlDispose?.("頁面已關閉"); controlDispose = undefined; controlEpoch += 1;
+        submissionGeneration += 1; pendingSubmission?.abort();
+        clearTimeout(reconnectTimer); sessionAccess.dispose(); stopTts(); socket?.close();
+      });
+      function renderAffect(data) {
+        const emotions = data.mixed_emotions.map(item => `${item.name} ${item.intensity.toFixed(2)}`).join("、") || "neutral";
+        document.querySelector("#affect-summary").textContent =
+          `主要：${data.dominant}｜混合：${emotions}｜調節：${data.coping}｜原因：${data.reason}`;
+        const values = {...data.drives, "mood pleasure": (data.mood.pleasure + 1) / 2,
+          "mood arousal": data.mood.arousal, "mood dominance": (data.mood.dominance + 1) / 2,
+          "relationship trust": data.relationship.trust,
+          "relationship familiarity": data.relationship.familiarity,
+          "relationship attachment": data.relationship.attachment,
+          "relationship rupture": data.relationship.rupture};
+        const root = document.querySelector("#affect-grid"); root.textContent = "";
+        Object.entries(values).forEach(([name, value]) => {
+          const card = document.createElement("div"); card.className = "affect-card";
+          const label = document.createElement("div"); label.textContent = `${name}: ${value.toFixed(2)}`;
+          const meter = document.createElement("div"); meter.className = "meter";
+          const fill = document.createElement("span"); fill.style.width = `${Math.max(0, Math.min(1, value)) * 100}%`;
+          meter.appendChild(fill); card.append(label, meter); root.appendChild(card);
+        });
+      }
+      async function productRequest(url, options = {}) {
+        const response = await authorizedFetch(url, {...options, headers: headers()});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "操作未完成");
+        return data;
+      }
+      async function refreshProduct() {
+        try {
+          const runtime = await productRequest("/v1/runtime");
+          const features = runtime.features || {}, workspace = features.workspace || {};
+          const backend = runtime.routes?.model || "offline";
+          document.querySelector("#model-status").textContent = backend === "offline" ? "尚未連接對話模型" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
+          document.querySelector("#workspace-status").textContent = workspace.available
+            ? `可讀取：${workspace.directory}` : `工作目錄尚未就緒${workspace.directory ? "：" + workspace.directory : "（此執行模式未啟用）"}`;
+          document.querySelector("#workspace-list").disabled = !workspace.available;
+          document.querySelector("#workspace-read").disabled = !workspace.available;
+          const summary = features.summary || {};
+          document.querySelector("#summary-status").textContent = summary.enabled
+            ? `已啟用摘錄摘要，可帶入最近 ${summary.history_pairs} 組對話；本次啟動已縮減 ${summary.budget_compactions} 次超限請求。`
+            : "目前使用原始近期對話，未啟用摘要。";
+          const report = await productRequest("/v1/memory-organization");
+          const labels = {ready:"已整理", waiting:"等待閒置", foreground:"先回應你", organizing:"整理中", disabled:"已暫停", unavailable:"此執行模式未啟用", error:"整理未完成，稍後重試", stopped:"已停止"};
+          document.querySelector("#organization-status").textContent = (labels[report.state] || report.state) + (report.updated_at ? ` · ${new Date(report.updated_at).toLocaleString()}` : "");
+          const groups = document.querySelector("#organization-items"); groups.textContent = "";
+          for (const group of report.groups || []) {
+            const item = document.createElement("p");
+            item.textContent = group.text + (group.truncated ? "…（摘錄）" : "") + (group.duplicates ? `（${group.duplicates + 1} 筆相同內容）` : "");
+            const source = document.createElement("small");
+            source.textContent = "來源：" + group.sources.map(s => `${s.memory_id} · 第 ${s.revision} 版`).join("；");
+            groups.append(item, source);
+          }
+          const memories = await productRequest("/v1/memories?limit=100");
+          const root = document.querySelector("#memory-items"); root.textContent = "";
+          if (!memories.items.length) root.textContent = "還沒有記憶。可以先說：記住：我喜歡喝無糖茶。";
+          for (const memory of memories.items) {
+            const card = document.createElement("div"); card.className = "message";
+            const text = document.createElement("p"); text.textContent = memory.text;
+            const source = document.createElement("small"); source.textContent = `第 ${memory.revision} 版 · 來源 ${(memory.source_event_ids || []).join(", ")}`;
+            const correct = document.createElement("button"); correct.textContent = "更正";
+            correct.onclick = async () => {
+              const value = window.prompt("更正這筆記憶", memory.text);
+              if (!value || value === memory.text) return;
+              try { await productRequest(`/v1/memories/${memory.memory_id}/correct`, {method:"POST", body:JSON.stringify({text:value, reason:"owner correction from memory panel"})}); await refreshProduct(); }
+              catch (error) { document.querySelector("#organization-status").textContent = error.message; }
+            };
+            const remove = document.createElement("button"); remove.textContent = "刪除記憶";
+            remove.onclick = async () => {
+              if (!window.confirm("刪除這筆記憶及其已連結的衍生內容？原始對話與備份不會一併刪除。")) return;
+              try { await productRequest(`/v1/memories/${memory.memory_id}`, {method:"DELETE"}); await refreshProduct(); }
+              catch (error) { document.querySelector("#organization-status").textContent = error.message; }
+            };
+            card.append(text, source, correct, remove); root.appendChild(card);
+          }
+        } catch (error) { document.querySelector("#organization-status").textContent = error.message; }
+      }
+      async function setOrganization(enabled, refresh = false) {
+        try { await productRequest(`/v1/memory-organization?enabled=${enabled}&refresh=${refresh}`, {method:"POST"}); await refreshProduct(); if (refresh) setTimeout(refreshProduct, 1000); }
+        catch (error) { document.querySelector("#organization-status").textContent = error.message; }
+      }
+      document.querySelector("#organization-on").onclick = () => setOrganization(true);
+      document.querySelector("#organization-off").onclick = () => setOrganization(false);
+      document.querySelector("#organization-refresh").onclick = () => setOrganization(true, true);
+      document.querySelector("#product-refresh").onclick = refreshProduct;
+      async function readWorkspace(action, path) {
+        const output = document.querySelector("#workspace-result"); output.textContent = "讀取中…";
+        try {
+          const data = await productRequest(`/v1/workspace/${action}?path=${encodeURIComponent(path)}`, {method:"POST"});
+          output.textContent = typeof data.result?.text === "string" ? data.result.text : JSON.stringify(data.result, null, 2);
+        } catch (error) { output.textContent = error.message; }
+      }
+      document.querySelector("#workspace-list").onclick = () => readWorkspace("list", ".");
+      document.querySelector("#workspace-read").onclick = () => {
+        const path = document.querySelector("#workspace-file").value.trim();
+        if (path) readWorkspace("read", path);
+      };
+      function renderSnapshot(data) {
+        if (data.active_turns) {
+          const active = data.active_turns.browser;
+          const nextTurn = active && ["responding", "awaiting_approval"].includes(active.state) ? active.turn_id : undefined;
+          if (currentTurn && currentTurn !== nextTurn && assistantBubble) {
+            const notice = document.createElement("p"); notice.className = "warn";
+            notice.textContent = "連線已恢復。先前工作已不在執行中，請確認保存的結果；我沒有重新執行或重播語音。";
+            assistantBubble.appendChild(notice); assistantBubble = undefined;
+          }
+          currentTurn = nextTurn;
+        }
+        authorizationMode = data.authorization_mode || "safe";
+        document.querySelector("#authorization-status").textContent = authorizationMode === "full"
+          ? "完整權限模式：目前支援的一般使用者操作會自動授權；tools kill switch 可立即停用新操作。"
+          : "安全模式：操作需要逐次授權。";
+        document.querySelector("#snapshot").textContent = JSON.stringify({identity: data.identity, health: data.health, routes: data.routes, authorization_mode: authorizationMode}, null, 2);
+        const root = document.querySelector("#switches"); root.textContent = "";
+        microphoneEnabled = Boolean(data.kill_switches.microphone);
+        document.querySelector("#voice-status").textContent = microphoneEnabled ? "麥克風待命" : "請先開啟 microphone switch";
+        Object.entries(data.kill_switches).forEach(([name, enabled]) => {
+          const button = document.createElement("button"); button.textContent = `${name}: ${enabled ? "ON" : "OFF"}`;
+          button.onclick = async () => { await authorizedFetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})}); location.reload(); };
+          root.appendChild(button);
+        });
+      }
+      function appendMessage(role, text) {
+        document.querySelector(".empty-state")?.remove();
+        const item = document.createElement("div"); item.className = `message ${role}`;
+        item.textContent = text; document.querySelector("#messages").appendChild(item); return item;
+      }
+      function renderToolProposal(data) {
+        const root = document.querySelector("#tool-proposals");
+        document.querySelector("#computer-panel").open = true;
+        if (document.getElementById(`tool-${data.proposal_id}`)) return;
+        const card = document.createElement("div"); card.className = "proposal"; card.id = `tool-${data.proposal_id}`;
+        const description = document.createElement("p");
+        const operation = data.capability === "process.start" ? "啟動應用程式" :
+          data.capability === "browser.navigate+read" ? "開啟並讀取頁面" : data.capability;
+        description.textContent = `操作：${operation}\n範圍：${data.scope}\n目標：${data.target}\n風險：${data.risk}`;
+        const button = document.createElement("button"); button.textContent = "授權這一次";
+        button.onclick = async () => {
+          button.disabled = true;
+          try {
+            await connectControl();
+            const response = await authorizedFetch(`/v1/tool-proposals/${data.proposal_id}/approve`, {
+              method: "POST", headers: headers(), body: JSON.stringify({approved: true})
+            });
+            if (!response.ok) updateToolProposal(data.proposal_id, `授權結果未確認：${(await response.json()).detail}。沒有自動重送。`);
+          } catch (error) { updateToolProposal(data.proposal_id, "連線未完成，操作結果未確認。沒有自動重送，請先確認保存的結果。"); }
+        };
+        card.append(description);
+        if (authorizationMode !== "full") card.appendChild(button);
+        root.appendChild(card);
+        if (authorizationMode === "full") updateToolProposal(data.proposal_id, "已自動授權，等待執行…");
+      }
+      function updateToolProposal(id, status) {
+        const card = document.querySelector(`#tool-${id}`); if (!card) return;
+        let node = card.querySelector(".tool-status");
+        if (!node) { node = document.createElement("p"); node.className = "tool-status"; card.appendChild(node); }
+        node.textContent = status;
+      }
+      function renderToolResult(data) {
+        if (data.error) { updateToolProposal(data.proposal_id, `失敗：${data.error}`); return; }
+        const result = data.result;
+        if (data.capability === "process.start") {
+          const detail = result.pid ? `PID ${result.pid}` : "桌面啟動器已確認";
+          const message = `${result.application} 已啟動（${detail}）`;
+          updateToolProposal(data.proposal_id, `完成：${message}`);
+          appendMessage("assistant", message); return;
+        }
+        if (data.capability === "browser.navigate+read") {
+          updateToolProposal(data.proposal_id, `完成：${result.title}\n${result.url}\n\n${result.text}`);
+          return;
+        }
+        if (data.capability === "computer.execute") {
+          const output = result.stdout || result.stderr || "程式已結束，沒有文字輸出。";
+          updateToolProposal(data.proposal_id, `${result.returncode === 0 ? "完成" : "程式結束"}（結束碼 ${result.returncode}）\n${output}${result.truncated ? "\n輸出過長，已截短。" : ""}`);
+          return;
+        }
+        updateToolProposal(data.proposal_id, `完成：${JSON.stringify(result, null, 2)}`);
+      }
+      async function submitText(value, inputMode = "text") {
+        const submission = ++submissionGeneration;
+        pendingSubmission?.abort(); pendingSubmission = undefined;
+        stopTts(); speechCancelled = false;
+        try { await connectControl(); }
+        catch (error) { appendMessage("assistant", "連線尚未完成，這則訊息沒有送出。請按右上角重新連線。"); return false; }
+        if (pageClosing || submission !== submissionGeneration) return false;
+        const controller = new AbortController(); pendingSubmission = controller;
+        appendMessage("user", value);
+        try {
+          const response = await authorizedFetch("/v1/conversations/browser/turns", {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify({text: value, input_mode: inputMode})});
+          if (!response.ok) appendMessage("assistant", response.status === 403 ? "對話目前被停用。請到能力開關確認雲端對話設定。" : `訊息結果未確認（${response.status}），沒有自動重送；請先確認工作結果。`);
+        } catch (error) { appendMessage("assistant", "連線中斷，訊息結果未確認。我沒有自動重送，請先確認工作結果。"); }
+        finally { if (pendingSubmission === controller) pendingSubmission = undefined; }
+        // The ordered control stream owns currentTurn, including completion before HTTP returns.
+        return true;
+      }
+      function formatAssistantMessage(message) {
+        const source = message.textContent || "", doc = message.ownerDocument;
+        if (!doc) return source;
+        message.replaceChildren();
+        function inline(parent, text) {
+          const tokens = /\*\*([^\n]+?)\*\*|(?<!`)`([^`\n]+)`(?!`)/g;
+          let start = 0;
+          for (const match of text.matchAll(tokens)) {
+            parent.appendChild(doc.createTextNode(text.slice(start, match.index)));
+            const node = doc.createElement(match[1] === undefined ? "code" : "strong");
+            node.textContent = match[1] ?? match[2]; parent.appendChild(node);
+            start = match.index + match[0].length;
+          }
+          parent.appendChild(doc.createTextNode(text.slice(start)));
+        }
+        const fences = /^```[^\n]*\n([\s\S]*?)^```[ \t]*(?:\n|$)/gm;
+        let start = 0;
+        for (const match of source.matchAll(fences)) {
+          inline(message, source.slice(start, match.index));
+          const block = doc.createElement("pre"), code = doc.createElement("code");
+          code.textContent = match[1]; block.appendChild(code); message.appendChild(block);
+          start = match.index + match[0].length;
+        }
+        inline(message, source.slice(start));
+        return message.textContent;
+      }
+      function stopTts() {
+        const active = Boolean(ttsController || ttsAudio);
+        ttsGeneration++;
+        ttsController?.abort(); ttsController = undefined;
+        if (ttsAudio) {
+          ttsAudio.onplay = null; ttsAudio.onended = null; ttsAudio.onerror = null;
+          ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src);
+          ttsAudio.removeAttribute?.("src"); ttsAudio.load?.(); ttsAudio = undefined;
+        }
+        const status = document.querySelector("#tts-status");
+        status.textContent = active ? "朗讀已停止" : "TTS 待命"; status.className = "warn";
+      }
+      async function playTts(text, prosody) {
+        stopTts();
+        if (document.querySelector("#voice-output")?.checked === false) return;
+        const generation = ttsGeneration;
+        const controller = new AbortController(); ttsController = controller;
+        const current = () => generation === ttsGeneration && !controller.signal.aborted;
+        const status = document.querySelector("#tts-status"); status.textContent = "準備全文朗讀…";
+        const started = performance.now();
+        let played = 0, total = 0, deadlineReached = false;
+        let timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, 1200000);
+        const aborted = () => new DOMException("朗讀已停止", "AbortError");
+        const assertCurrent = () => { if (!current()) throw aborted(); };
+        const waitFor = promise => new Promise((resolve, reject) => {
+          const cancel = () => reject(aborted());
+          controller.signal.addEventListener("abort", cancel, {once: true});
+          Promise.resolve(promise).then(resolve, reject).finally(() => controller.signal.removeEventListener("abort", cancel));
+          if (!current()) cancel();
+        });
+        const request = async (url, body) => {
+          assertCurrent();
+          const response = await waitFor(authorizedFetch(url, {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify(body)}));
+          assertCurrent();
+          if (!response.ok) throw new Error((await waitFor(response.json())).detail || `HTTP ${response.status}`);
+          return response;
+        };
+        const loadSegment = async segment => {
+          try {
+            const response = await request("/v1/audio/speech", {text: segment, ...prosody});
+            const blob = await waitFor(response.blob()); assertCurrent();
+            return {blob};
+          } catch (error) { return {error}; } // A prefetched rejection always has an owner.
+        };
+        const playSegment = async blob => {
+          assertCurrent();
+          const url = URL.createObjectURL(blob);
+          let audio;
+          try { audio = new Audio(url); } catch (error) { URL.revokeObjectURL(url); throw error; }
+          ttsAudio = audio;
+          let cancel;
+          try {
+            await new Promise((resolve, reject) => {
+              cancel = () => reject(aborted());
+              controller.signal.addEventListener("abort", cancel, {once: true});
+              audio.onplay = () => {
+                if (current()) { status.textContent = `SIRO 正在說話（已播 ${played}/${total} 段）`; status.className = "ok"; }
+              };
+              audio.onended = () => { if (current()) resolve(); else reject(aborted()); };
+              audio.onerror = () => reject(new Error("音訊播放失敗"));
+              try {
+                Promise.resolve(audio.play()).then(() => { if (!current()) audio.pause(); }, reject);
+              } catch (error) { reject(error); }
+            });
+            assertCurrent();
+          } finally {
+            controller.signal.removeEventListener("abort", cancel);
+            audio.onplay = null; audio.onended = null; audio.onerror = null; audio.pause();
+            if (ttsAudio === audio) {
+              URL.revokeObjectURL(audio.src); audio.removeAttribute?.("src"); audio.load?.(); ttsAudio = undefined;
+            }
+          }
+        };
+        try {
+          const response = await request("/v1/audio/speech/plan", {text});
+          const plan = await waitFor(response.json()); assertCurrent();
+          if (!Array.isArray(plan.segments) || !plan.segments.length || plan.segments.length > 128 ||
+              plan.max_chars !== 80 || plan.max_segments !== 128 || plan.max_total_chars !== 8000 ||
+              typeof plan.version !== "string" || !plan.version || typeof plan.spoken_text !== "string" ||
+              !plan.spoken_text.trim() || Array.from(plan.spoken_text).length > 8000 ||
+              plan.segments.some(segment => typeof segment !== "string" || !segment.trim() || Array.from(segment).length > 80) ||
+              plan.segments.reduce((sum, segment) => sum + Array.from(segment).length, 0) > 8000 ||
+              plan.segments.join("") !== plan.spoken_text ||
+              !Number.isFinite(plan.deadline_seconds) || plan.deadline_seconds <= 0 || plan.deadline_seconds > 1200)
+            throw new Error("朗讀計畫超出上限或內容無效，沒有截短播放");
+          total = plan.segments.length;
+          clearTimeout(timer);
+          const remaining = plan.deadline_seconds * 1000 - (performance.now() - started);
+          if (remaining <= 0) { deadlineReached = true; controller.abort(); throw aborted(); }
+          timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, remaining);
+          let next = loadSegment(plan.segments[0]);
+          for (let index = 0; index < total; index++) {
+            status.textContent = `語音準備中（已播 ${played}/${total} 段）`; status.className = "warn";
+            const result = await next; assertCurrent();
+            if (result.error) throw result.error;
+            const playback = playSegment(result.blob);
+            next = index + 1 < total ? loadSegment(plan.segments[index + 1]) : undefined;
+            await playback; assertCurrent();
+            played++;
+          }
+          status.textContent = `全文朗讀完成（${played}/${total} 段）`; status.className = "ok";
+        } catch (error) {
+          if (generation === ttsGeneration && (deadlineReached || !controller.signal.aborted)) {
+            status.textContent = deadlineReached ? `已達朗讀時限（已播 ${played}/${total} 段），全文未完成。`
+              : `朗讀失敗（已播 ${played}/${total} 段）：${error.message}。全文未完成。`;
+            status.className = "warn";
+          }
+        } finally {
+          clearTimeout(timer); controller.abort();
+          if (ttsController === controller) ttsController = undefined;
+        }
+      }
+      function wavFromBuffer(buffer) {
+        const samples = buffer.getChannelData(0), data = new ArrayBuffer(44 + samples.length * 2);
+        const view = new DataView(data), write = (offset, text) => [...text].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+        write(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); write(8, "WAVE"); write(12, "fmt ");
+        view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+        view.setUint32(24, buffer.sampleRate, true); view.setUint32(28, buffer.sampleRate * 2, true);
+        view.setUint16(32, 2, true); view.setUint16(34, 16, true); write(36, "data"); view.setUint32(40, samples.length * 2, true);
+        samples.forEach((sample, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sample)) * (sample < 0 ? 32768 : 32767), true));
+        return new Blob([data], {type: "audio/wav"});
+      }
+      async function transcribeRecording() {
+        const status = document.querySelector("#voice-status"); status.textContent = "辨識中…";
+        const encoded = await new Blob(recordedChunks).arrayBuffer();
+        const context = new AudioContext();
+        try {
+          const decoded = await context.decodeAudioData(encoded);
+          const response = await authorizedFetch("/v1/audio/transcriptions?language=zh", {method: "POST", headers: {"Content-Type": "audio/wav"}, body: wavFromBuffer(decoded)});
+          if (!response.ok) throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+          const result = await response.json();
+          if (!result.text) throw new Error("沒有辨識到語音");
+          document.querySelector("#text").value = result.text;
+          status.textContent = `辨識：${result.text}`; status.className = "ok";
+          await submitText(result.text, "speech");
+        } finally { await context.close(); }
+      }
+      document.querySelector("#chat").onsubmit = async event => {
+        event.preventDefault(); const input = document.querySelector("#text");
+        const value = input.value; input.value = "";
+        if (await submitText(value) === false && !input.value) input.value = value;
+      };
+      document.querySelector("#voice").onclick = async () => {
+        const button = document.querySelector("#voice"), status = document.querySelector("#voice-status");
+        if (!microphoneEnabled) { status.textContent = "請先開啟 microphone switch"; return; }
+        if (recorder?.state === "recording") { recorder.stop(); button.textContent = "開始說話"; return; }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, channelCount: 1}});
+          recordedChunks = []; recorder = new MediaRecorder(stream);
+          recorder.ondataavailable = event => { if (event.data.size) recordedChunks.push(event.data); };
+          recorder.onstop = async () => { stream.getTracks().forEach(track => track.stop()); try { await transcribeRecording(); } catch (error) { status.textContent = `語音失敗：${error.message}`; status.className = "warn"; } };
+          recorder.start(); button.textContent = "停止並送出"; status.textContent = "正在聆聽…"; status.className = "ok";
+        } catch (error) { status.textContent = `無法使用麥克風：${error.message}`; status.className = "warn"; }
+      };
+      document.querySelector("#cancel").onclick = async () => { submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
+      document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };
+      document.querySelector("#replay-speech").onclick = async () => {
+        if (!lastSpeech || pageClosing) return;
+        document.querySelector("#voice-output").checked = true;
+        speechCancelled = false;
+        await playTts(lastSpeech.text, lastSpeech.prosody);
+      };
+      window.addEventListener("message", event => {
+        if (event.origin !== location.origin || event.source !== document.querySelector("#companion").contentWindow || event.data?.type !== "siro.renderer.ready") return;
+        const labels = {neutral:"平靜地陪著你", happy:"開心", sad:"有點難過", angry:"認真表達不滿", surprised:"好奇、留意著"};
+        document.querySelector("#companion-state").textContent = labels[event.data.emotion] || "陪著你";
+        document.querySelector("#renderer-status").textContent = "Live2D 已就緒 · 情緒與對話同步";
+      });
+      document.querySelectorAll(".computer-prompt").forEach(button => button.onclick = () => { document.querySelector("#text").value = button.dataset.prompt; document.querySelector("#text").focus(); document.querySelector("#chat").scrollIntoView({behavior:"smooth",block:"center"}); });
+      document.querySelector("#text").addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); document.querySelector("#chat").requestSubmit(); } });
+      boot().catch(error => { document.querySelector("#connection").textContent = error; });
+    </script>
+  </body>
+</html>

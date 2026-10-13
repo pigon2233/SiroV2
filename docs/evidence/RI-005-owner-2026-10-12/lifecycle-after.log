@@ -1,0 +1,76 @@
+......................F....                                              [100%]
+=================================== FAILURES ===================================
+_ test_descriptor_close_failure_is_visible_and_preserves_primary_error[False] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-95/test_descriptor_close_failure_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x746cf07c8360>
+primary = False
+
+    @pytest.mark.parametrize("primary", [False, True])
+    def test_descriptor_close_failure_is_visible_and_preserves_primary_error(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary: bool
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "siro.db"
+        leaf = lock_path(domain, database)
+        original_open, original_close = os.open, os.close
+        captured: list[int] = []
+        sensitive_detail = "synthetic-private-detail-not-for-error-text"
+    
+        def tracked_open(
+            path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            flags: int,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> int:
+            fd = original_open(path, flags, mode, dir_fd=dir_fd)
+            if os.fsdecode(path).endswith(leaf.name):
+                captured.append(fd)
+            return fd
+    
+        def denied_close(fd: int) -> None:
+            if fd in captured:
+                raise OSError(sensitive_detail)
+            original_close(fd)
+    
+        monkeypatch.setattr(os, "open", tracked_open)
+        monkeypatch.setattr(os, "close", denied_close)
+        try:
+            if primary:
+                with (
+                    pytest.raises(RuntimeError, match="synthetic primary") as error,
+                    owner.exclusive_data_owner(database),
+                ):
+                    raise RuntimeError("synthetic primary")
+                notes = getattr(error.value, "__notes__", [])
+                assert notes and all(sensitive_detail not in note for note in notes)
+            else:
+                with (
+                    pytest.raises(owner.DataOwnerUnavailableError) as unavailable,
+>                   owner.exclusive_data_owner(database),
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                ):
+
+tests/integration/test_data_owner_lifecycle.py:486: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/contextlib.py:148: in __exit__
+    next(self.gen)
+src/siro/adapters/data_ownership.py:152: in exclusive_data_owner
+    if owner._finish():
+       ^^^^^^^^^^^^^^^
+src/siro/adapters/data_ownership.py:88: in _finish
+    os.close(self._descriptor)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+fd = 11
+
+    def denied_close(fd: int) -> None:
+        if fd in captured:
+>           raise OSError(sensitive_detail)
+E           OSError: synthetic-private-detail-not-for-error-text
+
+tests/integration/test_data_owner_lifecycle.py:469: OSError
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_lifecycle.py::test_descriptor_close_failure_is_visible_and_preserves_primary_error[False]
+1 failed, 26 passed in 0.79s

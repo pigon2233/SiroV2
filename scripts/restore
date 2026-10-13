@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+  echo "usage: scripts/restore DATA_DIRECTORY SOURCE_BACKUP [CONFIG_FILE]" >&2
+  exit 2
+fi
+if [ "$#" -eq 3 ]; then
+  exec uv run siro restore --data "$1" --config "$3" "$2"
+fi
+exec uv run siro restore --data "$1" "$2"

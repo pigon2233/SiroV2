@@ -7,7 +7,7 @@ import sqlite3
 from datetime import UTC, datetime
 from uuid import UUID
 
-from siro.contracts.events import Event
+from siro.contracts.events import Event, Privacy
 from siro.core.memory import Memory, MemoryKind, MemoryRevision, MemoryStatus, SemanticFact
 from siro.persistence.sqlite import SQLiteStore
 
@@ -74,6 +74,7 @@ class SQLiteMemoryRepository:
         kinds: tuple[MemoryKind, ...] = (),
         as_of: datetime | None = None,
         source_event_id: UUID | None = None,
+        route_privacy: Privacy | None = None,
         limit: int = 5,
     ) -> list[Memory]:
         if not query.strip() or not 1 <= limit <= 100 or not identity_id or not person_id:
@@ -87,6 +88,16 @@ class SQLiteMemoryRepository:
                 "m.status = 'committed'",
                 "m.deleted_at IS NULL",
             ]
+            if route_privacy is Privacy.CLOUD_ALLOWED:
+                where.append(
+                    "NOT EXISTS (SELECT 1 FROM memory_sources ms LEFT JOIN events e "
+                    "ON e.event_id=ms.source_event_id WHERE ms.memory_id=m.memory_id "
+                    "AND COALESCE(json_extract(e.envelope_json, '$.privacy'), '') "
+                    "!= 'cloud_allowed')"
+                )
+                where.append(
+                    "EXISTS (SELECT 1 FROM memory_sources ms WHERE ms.memory_id=m.memory_id)"
+                )
             if kinds:
                 where.append(f"m.kind IN ({','.join('?' for _ in kinds)})")
                 params.extend(kinds)

@@ -1,0 +1,29 @@
+temporary_workspace_removed: True
+Traceback (most recent call last):
+  File "/usr/lib/python3.14/asyncio/runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/RI-004-activation-2026-10-11/product_browser.py", line 32, in main
+    await owner.close()
+  File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 486, in close
+    await self._control(lambda: self._disable(persistent=False))
+  File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 242, in _control
+    result = await asyncio.shield(task)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/RI-004-activation-2026-10-11/product_browser.py", line 39, in <module>
+    if __name__=='__main__': asyncio.run(main())
+                             ~~~~~~~~~~~^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 132, in run
+    raise KeyboardInterrupt()
+KeyboardInterrupt

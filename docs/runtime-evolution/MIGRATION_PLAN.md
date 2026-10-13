@@ -1,0 +1,45 @@
+# Migration plan
+
+> 2026-10-01 狀態說明：下列「尚未實作／僅設計」為 Phase 2 原始設計時點。當前逐卡完成與修正狀態以 RUNTIME_EVOLUTION_ROADMAP.md 及對應 evidence 為準。
+僅設計；使用者本輪授權 Phase 2，尚未執行任何 RT task。
+
+| 階段 | 任務 | 退出條件 | 回退界線 |
+|---|---|---|---|
+| G0 基線可信 | RT-001 | migration invariant 核對、main composition smoke、真服務未驗明列；已知 pytest fail 解決 | 只回退測試/驗證修改 |
+| G1 工具迴圈正確 | RT-002–003 | 原生訊息 + 同批工具結果完整；legacy 同時通過 | 新 run 回 legacy，舊 candidate drain |
+| G2 執行與語音有界 | RT-004–007 | process cancellation/output、Qwen cleanup、catalog availability 通過 | backend/profile 關閉；不重送 unresolved action |
+| G3 任務可恢復 | RT-008 | journal/crash/reconciliation pass | 留新 schema 關 feature；不能用舊 run parser 接中途工作 |
+| G4 日常任務能力 | RT-009–013 | provider/session/context/browser + Rust read-only backend 各自驗證 | 每項獨立關閉；來源與 session 不合併 |
+| G5 記憶與排程接入 | RT-014–015 | source-backed memory、預設關閉 proactive scheduler、公平取消 | 停止新增候選/排程；既有 revisions 保留 |
+
+每張卡先用 audit 指向的 source 重現或明確縮小問題；若 evidence 不成立，標 KEEP—NO CHANGE REQUIRED，不硬做預設方案。實作時發現 public contract 改動，先更新 docs/DECISIONS.md 和相應契約再改 code。
+
+## 每張卡操作程序
+
+1. 確认依賴、git diff、source drift；保留全部既有修改。記錄 baseline 与新卡精確范围。
+2. 以合成 fixture 補主路徑/故障案例；不能只測 wrapper 並假設 main 已接。
+3. 做單一 subsystem 增量；先 candidate，再舊/新 profile 對照。
+4. 驗證 docs/ACCEPTANCE 受影響情境、ruff/mypy 與相鄰 integration；Rust 有改才追加 Rust checks。
+5. 保存 docs/evidence/RT-xxx/ 的指令、exit code、source digest、profile、mock/real 層級、差異與 rollback rehearsal。
+6. 通過才標 DONE；外部條件不足用 BLOCKED-EXTERNAL；不得因 synthetic pass 宣稱硬體通過。
+
+## 故障注入矩陣
+
+| 故障 | 必須觀察 |
+|---|---|
+| assistant 回兩個 calls，其中一個失敗/拒絕 | 兩個 observations 後才下一 model round；一次 final |
+| provider 在 text/tool emission 前/後斷線 | 前可 bounded retry；後不重發工具意圖 |
+| cancel 與 tool completion 同時發生 | epoch fence 決定唯一 terminal；late output 不出 UI |
+| child 無限 stdout/stderr 或派生 child | bounded memory、無 pipe deadlock、只清理 owned group |
+| worker startup/render timeout | reap、下一 render 正確配對、單 worker |
+| crash 在 side effect 後 observation commit 前 | unknown + readback，不直接重做 |
+| restore 舊 schema / old frontend | 相容明確 PASS 或 blocked；不靜默變資料 |
+| browser session A/B | 不交叉 page/state；disconnect/TTL 清理 |
+
+## 升級門檻與停止條件
+
+G1–G3 的 runtime 基礎版本需：所有受影響 automated gates 通過、一次真選用 provider 工具閉環、一次可視 Live2D/文字回歸、RTX3050 Qwen lifecycle 驗證及 rollback rehearsal。未完成真測時只能稱測試候選版本。
+
+發現 state corruption、取消後仍 dispatch、未知副作用被重送、private data 混入 evidence 或未授權 cloud fallback：停止擴展、保留現場與去識別證據，回退新 run profile。不是刪資料或重寫整個 subsystem。
+
+G4/G5 不必等待 ESP32/HA/第二主機；這些能力保留 LATER，另做外部驗收計畫。24h soak 是產品發布 gate，不能被這份遷移計畫取代。

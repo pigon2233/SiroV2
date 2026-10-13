@@ -1,0 +1,245 @@
+FF..                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_missing_pwd_account_returns_safe_unavailable_before_any_directory_effect _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-99/test_missing_pwd_account_retur0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x786422561220>
+
+    def test_missing_pwd_account_returns_safe_unavailable_before_any_directory_effect(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner = importlib.import_module("siro.adapters.data_ownership")
+        database = tmp_path / "untouched" / "siro.db"
+        sensitive_detail = "synthetic-missing-account-detail"
+    
+        def unknown_account(_uid: int) -> object:
+            raise KeyError(sensitive_detail)
+    
+        monkeypatch.setattr(pwd, "getpwuid", unknown_account)
+        with (
+            pytest.raises(owner.DataOwnerUnavailableError) as error,
+>           owner.exclusive_data_owner(database),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        ):
+
+tests/integration/test_data_owner_lifecycle.py:617: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src/siro/adapters/data_ownership.py:109: in exclusive_data_owner
+    directory = _owner_directory()
+                ^^^^^^^^^^^^^^^^^^
+src/siro/adapters/data_ownership.py:30: in _owner_directory
+    return Path(pwd.getpwuid(os.geteuid()).pw_dir) / ".local/state/siro/data-owners"
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_uid = 1000
+
+    def unknown_account(_uid: int) -> object:
+>       raise KeyError(sensitive_detail)
+E       KeyError: 'synthetic-missing-account-detail'
+
+tests/integration/test_data_owner_lifecycle.py:612: KeyError
+________ test_busy_error_survives_contender_descriptor_cleanup_refusal _________
+
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-99/test_busy_error_survives_conte0/siro.db')
+
+    @contextmanager
+    def exclusive_data_owner(database: Path) -> Iterator[_DataOwner]:
+        """Hold one stable advisory key; caller loops must use the yielded factory."""
+        if sys.platform != "linux":
+            raise DataOwnerUnavailableError
+        import fcntl
+    
+        try:
+            canonical = database.resolve()
+            if canonical.exists():
+                info = canonical.stat()
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise DataOwnerUnavailableError
+            directory = _owner_directory()
+            directory.mkdir(parents=True, mode=0o700, exist_ok=True)
+            info = directory.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o077:
+                raise DataOwnerUnavailableError
+            key = hashlib.sha256(str(canonical).encode()).hexdigest() + ".lock"
+            lock = directory / key
+            descriptor = os.open(
+                lock, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600
+            )
+        except OSError as error:
+            raise DataOwnerUnavailableError from error
+        owner = _DataOwner(descriptor)
+        try:
+            info = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_nlink != 1
+                or info.st_uid != os.geteuid()
+                or info.st_mode & 0o077
+            ):
+                raise DataOwnerUnavailableError
+            try:
+>               fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+E               BlockingIOError: [Errno 11] Resource temporarily unavailable
+
+src/siro/adapters/data_ownership.py:132: BlockingIOError
+
+The above exception was the direct cause of the following exception:
+
+database = PosixPath('/tmp/pytest-of-jasonliao/pytest-99/test_busy_error_survives_conte0/siro.db')
+
+    @contextmanager
+    def exclusive_data_owner(database: Path) -> Iterator[_DataOwner]:
+        """Hold one stable advisory key; caller loops must use the yielded factory."""
+        if sys.platform != "linux":
+            raise DataOwnerUnavailableError
+        import fcntl
+    
+        try:
+            canonical = database.resolve()
+            if canonical.exists():
+                info = canonical.stat()
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    raise DataOwnerUnavailableError
+            directory = _owner_directory()
+            directory.mkdir(parents=True, mode=0o700, exist_ok=True)
+            info = directory.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o077:
+                raise DataOwnerUnavailableError
+            key = hashlib.sha256(str(canonical).encode()).hexdigest() + ".lock"
+            lock = directory / key
+            descriptor = os.open(
+                lock, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600
+            )
+        except OSError as error:
+            raise DataOwnerUnavailableError from error
+        owner = _DataOwner(descriptor)
+        try:
+            info = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_nlink != 1
+                or info.st_uid != os.geteuid()
+                or info.st_mode & 0o077
+            ):
+                raise DataOwnerUnavailableError
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+>               raise DataOwnerBusyError from error
+E               siro.adapters.data_ownership.DataOwnerBusyError: SIRO data is already in use
+
+src/siro/adapters/data_ownership.py:134: DataOwnerBusyError
+
+During handling of the above exception, another exception occurred:
+
+descriptor = 12
+
+    def denied_close(descriptor: int) -> None:
+        if descriptor in contender_fds:
+>           raise OSError(sensitive_detail)
+E           OSError: synthetic-contender-cleanup-detail
+
+tests/integration/test_data_owner_lifecycle.py:647: OSError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-99/test_busy_error_survives_conte0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x786422c93bb0>
+
+    def test_busy_error_survives_contender_descriptor_cleanup_refusal(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner, domain = ownership(tmp_path, monkeypatch)
+        database = tmp_path / "siro.db"
+        leaf = lock_path(domain, database)
+        original_open, original_close = os.open, os.close
+        contender_fds: list[int] = []
+        sensitive_detail = "synthetic-contender-cleanup-detail"
+    
+        def tracked_open(
+            path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            flags: int,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> int:
+            descriptor = original_open(path, flags, mode, dir_fd=dir_fd)
+            if os.fsdecode(path).endswith(leaf.name):
+                contender_fds.append(descriptor)
+            return descriptor
+    
+        def denied_close(descriptor: int) -> None:
+            if descriptor in contender_fds:
+                raise OSError(sensitive_detail)
+            original_close(descriptor)
+    
+        with owner.exclusive_data_owner(database):
+            monkeypatch.setattr(os, "open", tracked_open)
+            monkeypatch.setattr(os, "close", denied_close)
+            try:
+                with (
+                    pytest.raises(owner.DataOwnerBusyError) as error,
+>                   owner.exclusive_data_owner(database),
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                ):
+
+tests/integration/test_data_owner_lifecycle.py:656: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src/siro/adapters/data_ownership.py:140: in exclusive_data_owner
+    owner._finish()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.adapters.data_ownership._DataOwner object at 0x786422bc6210>
+
+    def _finish(self) -> bool:
+        if self._closed:
+            return False
+        interrupted = False
+        if self._executors:
+            done = threading.Event()
+            failures: list[BaseException] = []
+    
+            def join_io() -> None:
+                try:
+                    for executor in self._executors:
+                        executor.shutdown(wait=True, cancel_futures=True)
+                except BaseException as error:
+                    failures.append(error)
+                finally:
+                    done.set()
+    
+            worker = threading.Thread(target=join_io, name="siro-data-io-join")
+            worker.start()
+            while not done.is_set():
+                try:
+                    done.wait()
+                except KeyboardInterrupt:
+                    interrupted = True
+            while True:
+                try:
+                    worker.join()
+                    break
+                except KeyboardInterrupt:
+                    interrupted = True
+            if failures:
+                # Unknown IO completion keeps the fd held until this process exits.
+                raise DataOwnerUnavailableError from failures[0]
+            asyncio.set_event_loop(None)
+        try:
+            os.close(self._descriptor)
+        except OSError as error:
+>           raise DataOwnerUnavailableError from error
+E           siro.adapters.data_ownership.DataOwnerUnavailableError: SIRO data ownership is unavailable
+
+src/siro/adapters/data_ownership.py:91: DataOwnerUnavailableError
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_lifecycle.py::test_missing_pwd_account_returns_safe_unavailable_before_any_directory_effect
+FAILED tests/integration/test_data_owner_lifecycle.py::test_busy_error_survives_contender_descriptor_cleanup_refusal
+2 failed, 2 passed, 27 deselected in 0.13s

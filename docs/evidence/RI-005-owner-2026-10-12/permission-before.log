@@ -1,0 +1,61 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_unreadable_existing_database_is_not_treated_as_a_new_target _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-100/test_unreadable_existing_datab0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-100/test_unreadable_existing_datab0/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75aa3afc0d60>
+capsys = <_pytest.capture.CaptureFixture object at 0x75aa3af1d7f0>
+
+    def test_unreadable_existing_database_is_not_treated_as_a_new_target(
+        tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        if os.geteuid() == 0:
+            pytest.skip("actual permission denial requires an unprivileged Linux account")
+        data = tmp_path / "data"
+        data.mkdir()
+        database = data / "siro.db"
+        seed(database, "latest-completed")
+        called: list[str] = []
+    
+        async def initialize(_store: SQLiteStore) -> None:
+            called.append("initialize")
+            raise AssertionError("unknown target access must refuse before any database work")
+    
+        monkeypatch.setattr(SQLiteStore, "initialize", initialize)
+        data.chmod(0)
+        try:
+>           assert main(["backup", "--data", str(data), str(tmp_path / "backup.db")]) == 1
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_callers.py:254: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/cli.py:394: in main
+    return int(arguments.handler(arguments))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/cli.py:244: in _backup
+    return asyncio.run(
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+src/siro/cli.py:213: in _backup_data
+    await store.initialize()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_store = <siro.persistence.sqlite.SQLiteStore object at 0x75aa3af1ee40>
+
+    async def initialize(_store: SQLiteStore) -> None:
+        called.append("initialize")
+>       raise AssertionError("unknown target access must refuse before any database work")
+E       AssertionError: unknown target access must refuse before any database work
+
+tests/integration/test_data_owner_callers.py:249: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_callers.py::test_unreadable_existing_database_is_not_treated_as_a_new_target
+1 failed, 10 deselected in 0.18s

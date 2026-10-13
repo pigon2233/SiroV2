@@ -1,0 +1,69 @@
+{
+  "preservation": {
+    "status": "PASS",
+    "baseline_files": 231,
+    "changed_existing_files": [
+      "src/siro/cli.py",
+      "src/siro/core/evolution.py"
+    ],
+    "new_files": [
+      "src/siro/services/tools/patch_verification.py",
+      "src/siro/services/tools/patch_verification_runner.py",
+      "tests/integration/test_isolated_patch_verification.py",
+      "tests/integration/test_verify_patch_cli.py"
+    ],
+    "private_files_read": false,
+    "final_sha256": {
+      "src/siro/core/evolution.py": "e0ee0c165b8e00e84569a555a94e548354f7aa083b9670a13f114192245b409d",
+      "src/siro/cli.py": "f52bfaee74d99c250b0c06f605b4d91dee1b02f5cc9a12a4d0dd071cada42411",
+      "src/siro/services/tools/patch_verification.py": "41ea8083e429b65719ff9be3db1c648055706d37fde662f68983bcc8647acb94",
+      "src/siro/services/tools/patch_verification_runner.py": "fa390f392037173ae65f113c5cf0805d106dc1ffb52ff6e0171ba72a17b432d2",
+      "tests/integration/test_isolated_patch_verification.py": "4a885d992458e076ea6c26d180e2cfeb8c5a2584fd5e7e17324d340d4a902a6b",
+      "tests/integration/test_verify_patch_cli.py": "86a9c5fa8b532b8ebc0c545ee0e7971c01df6b7551402bec737d6a2e3a39caf3"
+    }
+  },
+  "rollback": {
+    "status": "PASS",
+    "scope": "isolated exact source patch, no runtime restart or database rollback",
+    "production_files": [
+      "src/siro/core/evolution.py",
+      "src/siro/cli.py"
+    ],
+    "new_files": [
+      "src/siro/services/tools/patch_verification.py",
+      "src/siro/services/tools/patch_verification_runner.py",
+      "tests/integration/test_isolated_patch_verification.py",
+      "tests/integration/test_verify_patch_cli.py"
+    ],
+    "commands": [
+      [
+        "git",
+        "apply",
+        "--reverse",
+        "--check",
+        "repair.patch"
+      ],
+      [
+        "git",
+        "apply",
+        "--reverse",
+        "repair.patch"
+      ],
+      [
+        "git",
+        "apply",
+        "--check",
+        "repair.patch"
+      ],
+      [
+        "git",
+        "apply",
+        "repair.patch"
+      ]
+    ],
+    "patch_sha256": "0793b640f4e54a05a65b168adebd9e28366aa109e4dafb7c59d5ef65323fa8a6",
+    "baseline_restored": true,
+    "candidate_reapplied": true,
+    "temporary_directory_removed": true
+  }
+}

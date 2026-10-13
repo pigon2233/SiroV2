@@ -1,0 +1,1424 @@
+diff --git a/src/siro/services/presentation/gateway.py b/src/siro/services/presentation/gateway.py
+index 9234ee7..fb11639 100644
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -64,13 +64,30 @@ class SpeechSynthesizer(Protocol):
+ 
+ 
+ class SessionTokens:
+-    def __init__(self, *, ttl_seconds: float = 300) -> None:
++    class CapacityExceeded(RuntimeError):
++        """All retained session tokens are still valid."""
++
++    def __init__(
++        self,
++        *,
++        ttl_seconds: float = 300,
++        max_tokens: int = 128,
++        clock: Callable[[], float] = time.monotonic,
++    ) -> None:
++        if max_tokens < 1:
++            raise ValueError("session token capacity must be positive")
+         self._ttl = ttl_seconds
++        self._max_tokens = max_tokens
++        self._clock = clock
+         self._tokens: dict[str, float] = {}
+ 
+     def issue(self) -> tuple[str, float]:
++        now = self._clock()
++        self._tokens = {token: expiry for token, expiry in self._tokens.items() if expiry > now}
++        if len(self._tokens) >= self._max_tokens:
++            raise self.CapacityExceeded("session token capacity reached")
+         token = secrets.token_urlsafe(32)
+-        expires_at = time.monotonic() + self._ttl
++        expires_at = now + self._ttl
+         self._tokens[token] = expires_at
+         return token, self._ttl
+ 
+@@ -78,7 +95,7 @@ class SessionTokens:
+         expires_at = self._tokens.get(token)
+         if expires_at is None:
+             return False
+-        if time.monotonic() >= expires_at:
++        if self._clock() >= expires_at:
+             self._tokens.pop(token, None)
+             return False
+         return True
+@@ -525,7 +542,10 @@ def create_app(
+         require_origin(request.headers.get("origin"))
+         if request.client is None or request.client.host not in {"127.0.0.1", "testclient"}:
+             raise HTTPException(status_code=403, detail="session bootstrap is loopback only")
+-        token, ttl = session_tokens.issue()
++        try:
++            token, ttl = session_tokens.issue()
++        except SessionTokens.CapacityExceeded as error:
++            raise HTTPException(status_code=429, detail="too many active sessions") from error
+         return {"token": token, "expires_in_seconds": ttl}
+ 
+     @app.post("/v1/audio/transcriptions")
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+index add3e17..ca4ee7d 100644
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -41,7 +41,7 @@
+     </style>
+   </head>
+   <body>
+-    <header><div class="brand">SIRO <small>YOUR EVERYDAY COMPANION</small></div><span id="connection" class="connection-pill">連線中</span></header>
++    <header><div class="brand">SIRO <small>YOUR EVERYDAY COMPANION</small></div><button id="connection" class="connection-pill" type="button" title="重新連線，不會重新執行工作">連線中</button></header>
+     <main class="companion-layout">
+       <section class="stage" aria-label="SIRO 角色">
+         <div class="stage-title"><span class="eyebrow">A LITTLE CLOSER, EVERY DAY</span><h1>今天，也陪著你。</h1></div>
+@@ -90,11 +90,68 @@
+     </section>
+ <section><h2>內在狀態</h2><p id="affect-summary">尚無事件評估</p><div id="affect-grid"></div></section><section><h2>能力開關</h2><div id="switches"></div></section><section><h2>連線資訊</h2><pre id="snapshot"></pre></section><section><h2>事件紀錄</h2><pre id="events"></pre></section><p><a href="/audio-field-test">音訊驗收工具</a></p></details>
+     <script>
+-      let token, socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
++      let socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
++      let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
++      let submissionGeneration = 0, pendingSubmission;
+       let recorder, recordedChunks = [], ttsAudio;
+       let ttsController, ttsGeneration = 0, speechCancelled = false;
+-      const headers = () => ({"Authorization": `Bearer ${token}`, "Content-Type": "application/json"});
++      const headers = () => ({"Content-Type": "application/json"});
+       const log = data => { document.querySelector("#events").textContent += JSON.stringify(data) + "\n"; };
++      function createSessionAccess({fetcher = fetch, now = () => performance.now(), origin = location.origin} = {}) {
++        let session, pending, retryAfter = 0, closed = false, bootstrap;
++        async function getToken() {
++          if (closed) throw new Error("頁面已關閉");
++          if (session && now() < session.renewAt) return session.token;
++          if (pending) return pending;
++          if (now() < retryAfter) throw new Error("連線暫時無法恢復，請稍後按重新連線。");
++          pending = (async () => {
++            bootstrap = new AbortController();
++            const timeout = setTimeout(() => bootstrap.abort(), 5000);
++            try {
++              const response = await fetcher("/v1/session", {method: "POST", redirect: "error", headers: {Origin: origin}, signal: bootstrap.signal});
++              if (!response.ok) throw new Error("無法建立連線，請稍後按重新連線。");
++              const data = await response.json(), ttl = data.expires_in_seconds * 1000;
++              if (typeof data.token !== "string" || !data.token || !Number.isFinite(ttl) || ttl <= 0) throw new Error("連線資料無效，請重新連線。");
++              if (closed) throw new Error("頁面已關閉");
++              session = {token: data.token, renewAt: now() + ttl - Math.min(ttl * 0.1, 15000)};
++              retryAfter = 0;
++              return session.token;
++            } catch (error) {
++              retryAfter = now() + 3000;
++              throw error;
++            } finally { clearTimeout(timeout); bootstrap = undefined; }
++          })().finally(() => { pending = undefined; });
++          return pending;
++        }
++        async function request(url, options = {}) {
++          if (typeof url !== "string" || !url.startsWith("/v1/")) throw new Error("不允許的連線目標");
++          const target = new URL(url, origin);
++          if (target.origin !== origin || !target.pathname.startsWith("/v1/")) throw new Error("不允許的連線目標");
++          const check = () => {
++            if (closed) throw new Error("頁面已關閉");
++            if (options.signal?.aborted) throw new DOMException("已取消", "AbortError");
++          };
++          const send = token => {
++            check();
++            const requestHeaders = new Headers(options.headers); requestHeaders.set("Authorization", `Bearer ${token}`);
++            return fetcher(url, {...options, redirect: "error", headers: requestHeaders});
++          };
++          check();
++          const usedToken = await getToken();
++          const response = await send(usedToken);
++          if (response.url && new URL(response.url, origin).origin !== origin) throw new Error("不允許的連線回應");
++          if (response.status !== 401) return response;
++          const body = await response.clone().json().catch(() => null);
++          if (body?.detail !== "session token is invalid or expired") return response;
++          check();
++          if (session?.token === usedToken) session = undefined;
++          const renewed = await getToken();
++          return send(renewed); // Only this verified pre-accept rejection permits one retry.
++        }
++        return {getToken, request, dispose: () => { closed = true; session = undefined; bootstrap?.abort(); }};
++      }
++      const sessionAccess = createSessionAccess();
++      const authorizedFetch = (url, options) => sessionAccess.request(url, options);
+       function createTerminalFence(limit = 1024) {
+         const ended = new Set(), order = [];
+         const progress = new Set(["assistant_started", "assistant_delta", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
+@@ -116,22 +173,41 @@
+           : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
+       }
+       async function boot() {
+-        const session = await fetch("/v1/session", {method: "POST", headers: {"Origin": location.origin}}).then(r => r.json());
+-        token = session.token;
++        await connectControl();
+         await refreshProduct();
+-        const recovery = await fetch("/v1/agent-runs/browser", {headers: headers()});
++        const recovery = await authorizedFetch("/v1/agent-runs/browser", {headers: headers()});
+         if (recovery.ok) {
+           const run = await recovery.json();
+           const notice = recoveryNotice(run);
+           if (notice) appendMessage("assistant", notice);
+         }
+-        socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/control`);
+-        socket.onopen = () => socket.send(JSON.stringify({type: "authenticate", token}));
++      }
++      function connectControl() {
++        if (pageClosing) return Promise.reject(new Error("頁面已關閉"));
++        if (controlAuthenticated && socket?.readyState === 1) return Promise.resolve();
++        if (controlAttempt) return controlAttempt;
++        const epoch = ++controlEpoch;
++        controlAttempt = (async () => {
++          const token = await sessionAccess.getToken();
++          if (pageClosing || epoch !== controlEpoch) throw new Error("頁面已關閉或連線已交接");
++          const ready = {};
++          const authenticated = new Promise((resolve, reject) => { ready.resolve = resolve; ready.reject = reject; });
++          const owner = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/control`);
++          socket = owner; controlAuthenticated = false;
++          let retired = false;
++          const abandon = message => {
++            retired = true; clearTimeout(timeout); controlAuthenticated = false; ready.reject(new Error(message));
++          };
++          controlDispose = abandon;
++          const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
++          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; ready.resolve(); };
++          socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
+         socket.onmessage = event => {
++          if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
+           const data = JSON.parse(event.data);
+           if (!acceptRunEvent(data)) return;
+           log(data);
+-          if (data.type === "snapshot") { renderSnapshot(data); }
++          if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }
+           if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
+           if (data.type === "affect_state") { renderAffect(data); }
+           if (data.type === "assistant_started") {
+@@ -168,8 +244,32 @@
+           document.querySelector("#connection").textContent = "已連線";
+           document.querySelector("#connection").className = "connection-pill ok";
+         };
+-        socket.onclose = () => { document.querySelector("#connection").textContent = "已斷線，請重新整理"; };
++          socket.onclose = () => {
++            if (socket !== owner || epoch !== controlEpoch) return;
++            abandon("連線中斷，已送出的工作不會自動重送。"); stopTts();
++            document.querySelector("#connection").textContent = "連線中斷 · 點此重新連線";
++            document.querySelector("#connection").className = "connection-pill warn";
++            if (!pageClosing && reconnectAttempts < 3 && !reconnectTimer) {
++              reconnectAttempts += 1;
++              reconnectTimer = setTimeout(() => {
++                reconnectTimer = undefined;
++                connectControl().catch(() => {});
++              }, 250 * 2 ** reconnectAttempts);
++            }
++          };
++          try { await authenticated; } finally { clearTimeout(timeout); }
++        })().finally(() => { controlAttempt = undefined; });
++        return controlAttempt;
+       }
++      document.querySelector("#connection").onclick = () => {
++        clearTimeout(reconnectTimer); reconnectTimer = undefined; reconnectAttempts = 0;
++        connectControl().catch(error => { document.querySelector("#connection").textContent = error.message; });
++      };
++      window.addEventListener("beforeunload", () => {
++        pageClosing = true; controlDispose?.("頁面已關閉"); controlDispose = undefined; controlEpoch += 1;
++        submissionGeneration += 1; pendingSubmission?.abort();
++        clearTimeout(reconnectTimer); sessionAccess.dispose(); stopTts(); socket?.close();
++      });
+       function renderAffect(data) {
+         const emotions = data.mixed_emotions.map(item => `${item.name} ${item.intensity.toFixed(2)}`).join("、") || "neutral";
+         document.querySelector("#affect-summary").textContent =
+@@ -190,7 +290,7 @@
+         });
+       }
+       async function productRequest(url, options = {}) {
+-        const response = await fetch(url, {...options, headers: headers()});
++        const response = await authorizedFetch(url, {...options, headers: headers()});
+         const data = await response.json();
+         if (!response.ok) throw new Error(data.detail || "操作未完成");
+         return data;
+@@ -265,6 +365,16 @@
+         if (path) readWorkspace("read", path);
+       };
+       function renderSnapshot(data) {
++        if (data.active_turns) {
++          const active = data.active_turns.browser;
++          const nextTurn = active && ["responding", "awaiting_approval"].includes(active.state) ? active.turn_id : undefined;
++          if (currentTurn && currentTurn !== nextTurn && assistantBubble) {
++            const notice = document.createElement("p"); notice.className = "warn";
++            notice.textContent = "連線已恢復。先前工作已不在執行中，請確認保存的結果；我沒有重新執行或重播語音。";
++            assistantBubble.appendChild(notice); assistantBubble = undefined;
++          }
++          currentTurn = nextTurn;
++        }
+         authorizationMode = data.authorization_mode || "safe";
+         document.querySelector("#authorization-status").textContent = authorizationMode === "full"
+           ? "完整權限模式：目前支援的一般使用者操作會自動授權；tools kill switch 可立即停用新操作。"
+@@ -275,7 +385,7 @@
+         document.querySelector("#voice-status").textContent = microphoneEnabled ? "麥克風待命" : "請先開啟 microphone switch";
+         Object.entries(data.kill_switches).forEach(([name, enabled]) => {
+           const button = document.createElement("button"); button.textContent = `${name}: ${enabled ? "ON" : "OFF"}`;
+-          button.onclick = async () => { await fetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})}); location.reload(); };
++          button.onclick = async () => { await authorizedFetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})}); location.reload(); };
+           root.appendChild(button);
+         });
+       }
+@@ -296,10 +406,13 @@
+         const button = document.createElement("button"); button.textContent = "授權這一次";
+         button.onclick = async () => {
+           button.disabled = true;
+-          const response = await fetch(`/v1/tool-proposals/${data.proposal_id}/approve`, {
+-            method: "POST", headers: headers(), body: JSON.stringify({approved: true})
+-          });
+-          if (!response.ok) updateToolProposal(data.proposal_id, `未執行：${(await response.json()).detail}`);
++          try {
++            await connectControl();
++            const response = await authorizedFetch(`/v1/tool-proposals/${data.proposal_id}/approve`, {
++              method: "POST", headers: headers(), body: JSON.stringify({approved: true})
++            });
++            if (!response.ok) updateToolProposal(data.proposal_id, `授權結果未確認：${(await response.json()).detail}。沒有自動重送。`);
++          } catch (error) { updateToolProposal(data.proposal_id, "連線未完成，操作結果未確認。沒有自動重送，請先確認保存的結果。"); }
+         };
+         card.append(description);
+         if (authorizationMode !== "full") card.appendChild(button);
+@@ -333,11 +446,21 @@
+         updateToolProposal(data.proposal_id, `完成：${JSON.stringify(result, null, 2)}`);
+       }
+       async function submitText(value, inputMode = "text") {
++        const submission = ++submissionGeneration;
++        pendingSubmission?.abort(); pendingSubmission = undefined;
+         stopTts(); speechCancelled = false;
++        try { await connectControl(); }
++        catch (error) { appendMessage("assistant", "連線尚未完成，這則訊息沒有送出。請按右上角重新連線。"); return false; }
++        if (pageClosing || submission !== submissionGeneration) return false;
++        const controller = new AbortController(); pendingSubmission = controller;
+         appendMessage("user", value);
+-        const response = await fetch("/v1/conversations/browser/turns", {method: "POST", headers: headers(), body: JSON.stringify({text: value, input_mode: inputMode})});
+-        if (!response.ok) appendMessage("assistant", response.status === 403 ? "對話目前被停用。請到能力開關確認雲端對話設定。" : `暫時無法送出訊息（${response.status}），請稍後再試。`);
++        try {
++          const response = await authorizedFetch("/v1/conversations/browser/turns", {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify({text: value, input_mode: inputMode})});
++          if (!response.ok) appendMessage("assistant", response.status === 403 ? "對話目前被停用。請到能力開關確認雲端對話設定。" : `訊息結果未確認（${response.status}），沒有自動重送；請先確認工作結果。`);
++        } catch (error) { appendMessage("assistant", "連線中斷，訊息結果未確認。我沒有自動重送，請先確認工作結果。"); }
++        finally { if (pendingSubmission === controller) pendingSubmission = undefined; }
+         // The ordered control stream owns currentTurn, including completion before HTTP returns.
++        return true;
+       }
+       function formatAssistantMessage(message) {
+         const source = message.textContent || "", doc = message.ownerDocument;
+@@ -383,7 +506,7 @@
+         const current = () => generation === ttsGeneration && !controller.signal.aborted;
+         const status = document.querySelector("#tts-status"); status.textContent = "語音生成中…";
+         try {
+-          const response = await fetch("/v1/audio/speech", {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify({text, ...prosody})});
++          const response = await authorizedFetch("/v1/audio/speech", {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify({text, ...prosody})});
+           if (!current()) return;
+           if (!response.ok) throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+           const blob = await response.blob();
+@@ -413,7 +536,7 @@
+         const context = new AudioContext();
+         try {
+           const decoded = await context.decodeAudioData(encoded);
+-          const response = await fetch("/v1/audio/transcriptions?language=zh", {method: "POST", headers: {"Authorization": `Bearer ${token}`, "Content-Type": "audio/wav"}, body: wavFromBuffer(decoded)});
++          const response = await authorizedFetch("/v1/audio/transcriptions?language=zh", {method: "POST", headers: {"Content-Type": "audio/wav"}, body: wavFromBuffer(decoded)});
+           if (!response.ok) throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+           const result = await response.json();
+           if (!result.text) throw new Error("沒有辨識到語音");
+@@ -424,7 +547,8 @@
+       }
+       document.querySelector("#chat").onsubmit = async event => {
+         event.preventDefault(); const input = document.querySelector("#text");
+-        const value = input.value; input.value = ""; await submitText(value);
++        const value = input.value; input.value = "";
++        if (await submitText(value) === false && !input.value) input.value = value;
+       };
+       document.querySelector("#voice").onclick = async () => {
+         const button = document.querySelector("#voice"), status = document.querySelector("#voice-status");
+@@ -438,7 +562,7 @@
+           recorder.start(); button.textContent = "停止並送出"; status.textContent = "正在聆聽…"; status.className = "ok";
+         } catch (error) { status.textContent = `無法使用麥克風：${error.message}`; status.className = "warn"; }
+       };
+-      document.querySelector("#cancel").onclick = async () => { speechCancelled = true; stopTts(); if (currentTurn) await fetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
++      document.querySelector("#cancel").onclick = async () => { submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
+       window.addEventListener("message", event => {
+         if (event.origin !== location.origin || event.source !== document.querySelector("#companion").contentWindow || event.data?.type !== "siro.renderer.ready") return;
+         const labels = {neutral:"平靜地陪著你", happy:"開心", sad:"有點難過", angry:"認真表達不滿", surprised:"好奇、留意著"};
+diff --git a/tests/integration/test_agent_batches.py b/tests/integration/test_agent_batches.py
+index b4eb34e..137b5de 100644
+--- a/tests/integration/test_agent_batches.py
++++ b/tests/integration/test_agent_batches.py
+@@ -214,7 +214,8 @@ async def test_cancel_completion_orderings_100_times(
+         await wait_for_executor_entry(task, entered, iteration)
+         if completion_first:
+             release.set()
+-            await asyncio.wait_for(task, 2)
++            # This establishes completion before cancel, not the two-second stop deadline.
++            await asyncio.wait_for(task, 10)
+         elif iteration % 2:
+             release.set()
+         await controller.cancel("active", "test cancel")
+diff --git a/tests/integration/test_frontend_companion.py b/tests/integration/test_frontend_companion.py
+index 7dd1ed8..f96cdad 100644
+--- a/tests/integration/test_frontend_companion.py
++++ b/tests/integration/test_frontend_companion.py
+@@ -58,6 +58,8 @@ const pending = () => {
+ const turnResponse = pending(), calls = [];
+ const fetch = (url, options) => {
+   calls.push({url, options});
++  if (url === '/v1/session') return Promise.resolve({ok:true,
++    json:async()=>({token:'synthetic', expires_in_seconds:300})});
+   return url === '/v1/conversations/browser/turns'
+     ? turnResponse.promise : Promise.resolve({ok: true, json: async () => ({})});
+ };
+@@ -75,10 +77,13 @@ document.querySelector('#voice-output').checked = false;
+             setup
+             + initialize
+             + script
+-            + "\nsocket = {};\n"
++            + "\nsocket = {readyState:1}; controlAuthenticated = true;\n"
++            + "const owner = socket, epoch = controlEpoch, retired = false;\n"
++            + "const markAuthenticated = () => {};\n"
+             + handler
+             + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
+             + "(async () => {\n"
++            + "await sessionAccess.getToken(); calls.length = 0;\n"
+             + checks
+             + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
+         ],
+diff --git a/tests/integration/test_frontend_control.py b/tests/integration/test_frontend_control.py
+new file mode 100644
+index 0000000..0a42612
+--- /dev/null
++++ b/tests/integration/test_frontend_control.py
+@@ -0,0 +1,421 @@
++from __future__ import annotations
++
++import json
++import re
++import subprocess
++from pathlib import Path
++
++
++def run_control(checks: str) -> None:
++    """Run the real page with synthetic socket events and a manually advanced clock."""
++    html = Path("src/siro/services/presentation/static/index.html").read_text()
++    script = html.split("<script>", 1)[1].split("</script>", 1)[0]
++    script = script[: script.rindex("      boot().catch(")]
++    ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
++    setup = r"""
++const assert = require('node:assert/strict');
++const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
++let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
++const performance = {now: () => clock};
++const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
++  throw new Error('Connection recovery must not reload the page');
++}};
++class Element {
++  constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
++  set textContent(value) { this._text = String(value); this.children = []; }
++  get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
++  appendChild(child) { child.parent = this; this.children.push(child); return child; }
++  append(...children) { children.forEach(child => this.appendChild(child)); }
++  querySelector(selector) { return find(this.children, selector); }
++  addEventListener() {}
++  remove() {}
++}
++function find(elements, selector) {
++  for (const element of elements) {
++    if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
++        (selector.startsWith('.') && element.className === selector.slice(1))) return element;
++    const child = find(element.children, selector); if (child) return child;
++  }
++  return null;
++}
++const document = {
++  querySelector: selector => find(roots, selector), querySelectorAll: () => [],
++  getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
++};
++const window = {
++  addEventListener: (name, callback) => {
++    if (!listeners.has(name)) listeners.set(name, []);
++    listeners.get(name).push(callback);
++  }
++};
++const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
++const setTimeout = (callback, delay) => {
++  const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
++};
++const clearTimeout = id => timers.delete(id);
++const fireTimer = predicate => {
++  const entry = [...timers].find(([id, timer]) => predicate(timer));
++  assert(entry, 'Expected owned timer does not exist');
++  const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
++};
++const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
++const until = async predicate => {
++  await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
++};
++class WebSocket {
++  constructor(url) {
++    this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
++  }
++  send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
++  open() { this.readyState = 1; this.onopen?.(); }
++  message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
++  close() { this.closeCalls++; this.readyState = 2; }
++  disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
++}
++const response = (status, body) => new Response(JSON.stringify(body), {
++  status, headers: {'Content-Type':'application/json'}
++});
++const fetch = async (url, options) => {
++  calls.push({url, options});
++  if (url === '/v1/session') {
++    if (bootstrapPlan) return bootstrapPlan(options);
++    return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
++  }
++  return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
++};
++const snapshot = active_turns => ({
++  type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
++  kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
++});
++"""
++    initialize = f"""
++for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
++document.querySelector('#voice-output').checked = false;
++"""
++    helpers = r"""
++const readyControl = async (state = {}) => {
++  const count = sockets.length, connecting = connectControl();
++  await until(() => sockets.length === count + 1);
++  const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
++  await connecting; return owner;
++};
++const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
++let finished = false;
++process.on('beforeExit', () => {
++  if (!finished) {
++    console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
++  }
++});
++"""
++    result = subprocess.run(
++        [
++            "node",
++            "-e",
++            setup
++            + initialize
++            + script
++            + helpers
++            + "\n(async () => {\n"
++            + checks
++            + "\n})().then(() => { finished = true; }, error => {"
++            + " finished = true; console.error(error); process.exitCode = 1; });",
++        ],
++        capture_output=True,
++        text=True,
++        timeout=10,
++    )
++    assert result.returncode == 0, result.stderr
++
++
++def test_concurrent_connect_has_one_owner_and_open_is_not_authenticated() -> None:
++    run_control(
++        """
++const first = connectControl(), second = connectControl();
++assert.equal(first, second);
++let settled = false; first.then(() => { settled = true; });
++await until(() => sockets.length === 1);
++const owner = sockets[0]; owner.open(); await flush();
++assert.equal(settled, false); assert.equal(controlAuthenticated, false);
++assert.deepEqual(owner.sent, [{type:'authenticate', token:'synthetic-1'}]);
++assert.equal(targetCalls().length, 0);
++owner.message(snapshot()); await first;
++assert.equal(controlAuthenticated, true);
++await connectControl();
++assert.equal(sockets.length, 1);
++"""
++    )
++
++
++def test_turn_waits_for_snapshot_before_http_dispatch() -> None:
++    run_control(
++        """
++const submission = submitText('synthetic unsent until ready');
++await until(() => sockets.length === 1);
++const owner = sockets[0]; owner.open(); await flush();
++assert.equal(targetCalls().length, 0);
++owner.message(snapshot()); await submission;
++assert.equal(targetCalls().length, 1);
++assert.equal(targetCalls()[0].url, '/v1/conversations/browser/turns');
++"""
++    )
++
++
++def test_stale_callbacks_cannot_change_new_owner_or_replay_text() -> None:
++    run_control(
++        """
++const first = await readyControl(), oldOpen = first.onopen, oldMessage = first.onmessage,
++      oldClose = first.onclose;
++first.disconnect(); await flush();
++const second = await readyControl();
++const before = document.querySelector('#messages').textContent;
++const timerCount = timers.size;
++oldOpen();
++oldMessage({data:JSON.stringify({type:'assistant_delta', text:'stale private-free canary'})});
++oldClose();
++assert.equal(socket, second); assert.equal(controlAuthenticated, true);
++assert.equal(first.sent.length, 1); assert.equal(second.sent.length, 1);
++assert.equal(document.querySelector('#messages').textContent, before);
++assert.equal(timers.size, timerCount);
++assert.equal(sockets.length, 2); assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++def test_snapshot_reconciles_missed_terminal_without_replay() -> None:
++    run_control(
++        """
++const spoken = []; playTts = text => spoken.push(text);
++const first = await readyControl();
++first.message({type:'turn_started', turn_id:'old-turn'});
++first.message({type:'assistant_started', stream_id:'old-stream'});
++first.message({type:'assistant_delta', stream_id:'old-stream', text:'synthetic partial'});
++first.disconnect(); await flush();
++await readyControl({browser:{turn_id:'old-turn', state:'completed'}});
++assert.equal(currentTurn, undefined); assert.equal(assistantBubble, undefined);
++assert(document.querySelector('#messages').textContent.includes('synthetic partial'));
++assert(document.querySelector('#messages').textContent.includes('沒有重新執行'));
++assert.equal(spoken.length, 0); assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++def test_snapshot_changing_active_turn_does_not_reuse_previous_partial_bubble() -> None:
++    run_control(
++        """
++const first = await readyControl();
++first.message({type:'turn_started', turn_id:'old-turn'});
++first.message({type:'assistant_started', stream_id:'old-stream'});
++first.message({type:'assistant_delta', stream_id:'old-stream', text:'old partial'});
++first.disconnect(); await flush();
++await readyControl({browser:{turn_id:'different-turn', state:'responding'}});
++assert.equal(currentTurn, 'different-turn'); assert.equal(assistantBubble, undefined);
++assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++def test_ready_timeout_rejects_and_late_snapshot_cannot_authenticate_closing_socket() -> None:
++    run_control(
++        """
++const connecting = connectControl(), rejected = assert.rejects(connecting);
++await until(() => sockets.length === 1);
++const owner = sockets[0]; owner.open();
++fireTimer(timer => timer.delay === 5000); await rejected;
++assert.equal(owner.closeCalls, 1); assert.equal(controlAuthenticated, false);
++owner.message(snapshot({browser:{turn_id:'stale-turn', state:'responding'}}));
++assert.equal(controlAuthenticated, false, 'Readiness timeout must retire the closing socket');
++assert.equal(currentTurn, undefined);
++assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++def test_close_before_snapshot_rejects_and_schedules_only_one_reconnect() -> None:
++    run_control(
++        """
++const connecting = connectControl(), rejected = assert.rejects(connecting);
++await until(() => sockets.length === 1);
++sockets[0].open(); sockets[0].disconnect(); await rejected;
++assert.equal(controlAuthenticated, false);
++assert.equal(timers.size, 1); assert.equal(reconnectAttempts, 1);
++assert.equal([...timers.values()][0].delay, 500);
++assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++def test_automatic_reconnect_is_bounded_to_three_attempts() -> None:
++    run_control(
++        """
++const initial = connectControl(), rejected = assert.rejects(initial);
++await until(() => sockets.length === 1);
++sockets[0].open(); sockets[0].disconnect(); await rejected;
++for (let retry = 1; retry <= 3; retry++) {
++  fireTimer(timer => timer.delay < 5000);
++  await until(() => sockets.length === retry + 1);
++  sockets.at(-1).open(); sockets.at(-1).disconnect(); await flush();
++}
++assert.equal(sockets.length, 4); assert.equal(reconnectAttempts, 3);
++assert.equal(timers.size, 0); assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++def test_http_token_renewal_keeps_healthy_control_owner() -> None:
++    run_control(
++        """
++const owner = await readyControl(); clock = 285_000;
++await authorizedFetch('/v1/runtime');
++assert.equal(calls.filter(call => call.url === '/v1/session').length, 2);
++assert.equal(sockets.length, 1); assert.equal(socket, owner);
++assert.equal(owner.closeCalls, 0); assert.equal(owner.sent.length, 1);
++assert.equal(controlAuthenticated, true);
++"""
++    )
++
++
++def test_unload_during_bootstrap_rejects_pending_connection_without_dispatch() -> None:
++    run_control(
++        """
++bootstrapPlan = options => new Promise((resolve, reject) => {
++  options.signal.addEventListener('abort', () => reject(options.signal.reason), {once:true});
++});
++const connecting = connectControl(), rejected = assert.rejects(connecting);
++await until(() => calls.length === 1);
++dispatchWindow('beforeunload'); await rejected;
++assert.equal(pageClosing, true); assert.equal(sockets.length, 0);
++assert.equal(timers.size, 0); assert.equal(targetCalls().length, 0);
++await assert.rejects(connectControl());
++"""
++    )
++
++
++def test_unload_while_waiting_for_snapshot_releases_readiness_owner_and_timer() -> None:
++    run_control(
++        """
++let outcome;
++const connecting = connectControl();
++connecting.then(() => { outcome = 'resolved'; }, () => { outcome = 'rejected'; });
++await until(() => sockets.length === 1);
++sockets[0].open(); dispatchWindow('beforeunload'); await flush();
++assert.equal(outcome, 'rejected', 'Unload must settle its pending readiness promise');
++assert.equal(sockets[0].closeCalls, 1); assert.equal(timers.size, 0);
++sockets[0].disconnect(); await flush();
++assert.equal(timers.size, 0); assert.equal(targetCalls().length, 0);
++await assert.rejects(connectControl());
++"""
++    )
++
++
++def test_unknown_turn_outcome_is_never_resent_on_reconnect() -> None:
++    run_control(
++        """
++let effects = 0;
++fetchPlan = url => {
++  if (url === '/v1/conversations/browser/turns') {
++    effects++; throw new TypeError('synthetic disconnect after acceptance');
++  }
++  return response(404, {detail:'not found'});
++};
++const owner = await readyControl();
++await submitText('synthetic action accepted before disconnect');
++assert.equal(effects, 1);
++assert(document.querySelector('#messages').textContent.includes('未確認'));
++owner.disconnect(); await flush();
++fireTimer(timer => timer.delay < 5000);
++await until(() => sockets.length === 2);
++sockets[1].open(); sockets[1].message(snapshot()); await flush();
++assert.equal(effects, 1);
++assert.equal(targetCalls().filter(call => call.options.method === 'POST').length, 1);
++"""
++    )
++
++
++def test_cancel_during_readiness_wait_does_not_dispatch_queued_turn() -> None:
++    run_control(
++        """
++const submission = submitText('synthetic queued action');
++await until(() => sockets.length === 1);
++sockets[0].open(); await document.querySelector('#cancel').onclick();
++sockets[0].message(snapshot()); await submission;
++assert.equal(targetCalls().length, 0, 'Cancelling before readiness must prevent queued dispatch');
++"""
++    )
++
++
++def test_cancel_during_token_renewal_does_not_dispatch_queued_turn() -> None:
++    run_control(
++        """
++await readyControl(); clock = 285_000;
++let finishRenewal;
++bootstrapPlan = () => new Promise(resolve => { finishRenewal = resolve; });
++const submission = submitText('synthetic queued during renewal');
++await until(() => calls.filter(call => call.url === '/v1/session').length === 2);
++await document.querySelector('#cancel').onclick();
++finishRenewal(response(200, {token:'synthetic-renewed', expires_in_seconds:300}));
++await submission;
++assert.equal(targetCalls().length, 0, 'Cancellation during renewal must stop queued dispatch');
++"""
++    )
++
++
++def test_cancel_overlapping_submissions_during_renewal_cannot_revive_older_dispatch() -> None:
++    run_control(
++        """
++await readyControl(); clock = 285_000;
++let finishRenewal;
++bootstrapPlan = () => new Promise(resolve => { finishRenewal = resolve; });
++const first = submitText('synthetic superseded request');
++await until(() => calls.filter(call => call.url === '/v1/session').length === 2);
++const second = submitText('synthetic newer request'); await flush();
++await document.querySelector('#cancel').onclick();
++finishRenewal(response(200, {token:'synthetic-renewed', expires_in_seconds:300}));
++await Promise.all([first, second]);
++assert.equal(targetCalls().length, 0, 'Cancellation must not revive a superseded pending request');
++"""
++    )
++
++
++def test_form_restores_draft_when_readiness_fails_before_dispatch() -> None:
++    run_control(
++        """
++const input = document.querySelector('#text'); input.value = 'synthetic unsent draft';
++const submitting = document.querySelector('#chat').onsubmit({preventDefault(){}});
++await until(() => sockets.length === 1);
++sockets[0].open(); sockets[0].disconnect(); await submitting;
++assert.equal(input.value, 'synthetic unsent draft');
++assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++def test_form_preserves_new_input_when_old_draft_fails_preflight() -> None:
++    run_control(
++        """
++const input = document.querySelector('#text'); input.value = 'synthetic old draft';
++const submitting = document.querySelector('#chat').onsubmit({preventDefault(){}});
++await until(() => sockets.length === 1);
++input.value = 'synthetic newer draft';
++sockets[0].open(); sockets[0].disconnect(); await submitting;
++assert.equal(input.value, 'synthetic newer draft');
++assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++def test_form_does_not_restore_draft_after_unknown_accepted_outcome() -> None:
++    run_control(
++        """
++let accepted = 0;
++fetchPlan = url => {
++  accepted++; throw new TypeError('synthetic lost response after acceptance');
++};
++await readyControl();
++const input = document.querySelector('#text'); input.value = 'synthetic accepted draft';
++await document.querySelector('#chat').onsubmit({preventDefault(){}});
++assert.equal(input.value, '');
++assert.equal(accepted, 1);
++assert.equal(targetCalls().length, 1);
++assert(document.querySelector('#messages').textContent.includes('未確認'));
++"""
++    )
+diff --git a/tests/integration/test_frontend_session.py b/tests/integration/test_frontend_session.py
+new file mode 100644
+index 0000000..0da8c10
+--- /dev/null
++++ b/tests/integration/test_frontend_session.py
+@@ -0,0 +1,370 @@
++from __future__ import annotations
++
++import json
++import subprocess
++from pathlib import Path
++
++import pytest
++
++
++def run_session_access(checks: str) -> None:
++    """Exercise the page's actual factory without a browser, server, or private data."""
++    html = Path("src/siro/services/presentation/static/index.html").read_text()
++    start = html.index("function createSessionAccess(")
++    end = html.index("const sessionAccess = createSessionAccess();", start)
++    factory = html[start:end]
++    setup = r"""
++const assert = require('node:assert/strict');
++const origin = 'http://localhost';
++const invalid = {detail: 'session token is invalid or expired'};
++const deferred = () => {
++  let resolve, reject;
++  const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
++  return {promise, resolve, reject};
++};
++const reply = (status, data, path = '/v1/runtime') => {
++  const response = new Response(JSON.stringify(data), {
++    status, headers: {'Content-Type': 'application/json'}
++  });
++  Object.defineProperty(response, 'url', {value: origin + path});
++  return response;
++};
++const issued = (token, ttl = 100) => reply(200, {
++  token, expires_in_seconds: ttl
++}, '/v1/session');
++const authorization = options => new Headers(options.headers).get('Authorization');
++const until = async predicate => {
++  for (let attempt = 0; attempt < 100 && !predicate(); attempt++) await Promise.resolve();
++  assert(predicate(), 'Expected asynchronous step was not reached');
++};
++"""
++    result = subprocess.run(
++        [
++            "node",
++            "-e",
++            setup
++            + factory
++            + "\n(async () => {\n"
++            + checks
++            + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
++        ],
++        capture_output=True,
++        text=True,
++        timeout=15,
++    )
++    assert result.returncode == 0, result.stderr
++
++
++@pytest.mark.parametrize(("ttl", "refresh_at"), [(100, 90_000), (300, 285_000)])
++def test_token_refreshes_on_demand_with_bounded_expiry_margin(ttl: int, refresh_at: int) -> None:
++    run_session_access(
++        f"""
++let clock = 0, bootstraps = 0;
++const access = createSessionAccess({{origin, now: () => clock, fetcher: async () =>
++  issued(`token-${{++bootstraps}}`, {ttl})
++}});
++assert.equal(await access.getToken(), 'token-1');
++clock = {refresh_at} - 1;
++assert.equal(await access.getToken(), 'token-1');
++assert.equal(bootstraps, 1);
++clock = {refresh_at};
++assert.equal(bootstraps, 1, 'Time passing alone must not bootstrap');
++assert.equal(await access.getToken(), 'token-2');
++assert.equal(bootstraps, 2);
++clock = 10_000_000;
++assert.equal(await access.getToken(), 'token-3');
++assert.equal(bootstraps, 3, 'Waking after a long suspension needs one fresh token');
++"""
++    )
++
++
++def test_concurrent_expiry_uses_one_shared_bootstrap() -> None:
++    run_session_access(
++        """
++let clock = 0, bootstraps = 0;
++const renewal = deferred(), calls = [];
++const access = createSessionAccess({origin, now: () => clock, fetcher: async (url, options) => {
++  if (url === '/v1/session') {
++    bootstraps++;
++    return bootstraps === 1 ? issued('first') : renewal.promise;
++  }
++  calls.push({url, options}); return reply(200, {ok: true}, url);
++}});
++await access.getToken(); clock = 90_000;
++const requests = Array.from({length: 8}, (_, index) => access.request(`/v1/read-${index}`));
++await until(() => bootstraps === 2);
++assert.equal(calls.length, 0);
++renewal.resolve(issued('renewed'));
++assert((await Promise.all(requests)).every(response => response.ok));
++assert.equal(bootstraps, 2);
++assert.equal(calls.length, 8);
++assert(calls.every(call => authorization(call.options) === 'Bearer renewed'));
++"""
++    )
++
++
++def test_delayed_old_401_does_not_invalidate_a_new_token() -> None:
++    run_session_access(
++        """
++let bootstraps = 0;
++const first = deferred(), delayed = deferred(), calls = [];
++const access = createSessionAccess({origin, now: () => 0, fetcher: async (url, options) => {
++  if (url === '/v1/session') return issued(`token-${++bootstraps}`);
++  const bearer = authorization(options); calls.push({url, bearer});
++  if (bearer === 'Bearer token-1') return url === '/v1/first' ? first.promise : delayed.promise;
++  return reply(200, {ok: true}, url);
++}});
++await access.getToken();
++const quick = access.request('/v1/first'), slow = access.request('/v1/delayed');
++await until(() => calls.length === 2);
++first.resolve(reply(401, invalid, '/v1/first'));
++assert.equal((await quick).status, 200);
++assert.equal(bootstraps, 2);
++delayed.resolve(reply(401, invalid, '/v1/delayed'));
++assert.equal((await slow).status, 200);
++assert.equal(bootstraps, 2, 'A stale rejection must not mint a third token');
++assert.deepEqual(calls.map(call => call.bearer), [
++  'Bearer token-1', 'Bearer token-1', 'Bearer token-2', 'Bearer token-2'
++]);
++"""
++    )
++
++
++def test_auth_retry_is_once_and_keeps_post_body() -> None:
++    run_session_access(
++        """
++let bootstraps = 0;
++const calls = [], body = JSON.stringify({approved: true});
++const access = createSessionAccess({origin, now: () => 0, fetcher: async (url, options) => {
++  if (url === '/v1/session') return issued(`token-${++bootstraps}`);
++  calls.push(options); return reply(401, invalid, url);
++}});
++const response = await access.request('/v1/tool-proposals/synthetic/approve', {
++  method: 'POST', body
++});
++assert.equal(response.status, 401);
++assert.deepEqual(await response.json(), invalid, 'The returned response must remain readable');
++assert.equal(bootstraps, 2);
++assert.equal(calls.length, 2);
++assert(calls.every(call => call.method === 'POST' && call.body === body));
++assert.deepEqual(calls.map(authorization), ['Bearer token-1', 'Bearer token-2']);
++"""
++    )
++
++
++def test_page_disposal_after_token_lookup_prevents_dispatch() -> None:
++    run_session_access(
++        """
++let sends = 0;
++const access = createSessionAccess({origin, fetcher: async url => {
++  if (url === '/v1/session') return issued('valid');
++  sends++; return reply(200, {});
++}});
++await access.getToken();
++const request = access.request('/v1/tool-proposals/synthetic/approve', {method: 'POST'});
++access.dispose();
++await assert.rejects(request, /頁面已關閉/);
++assert.equal(sends, 0);
++"""
++    )
++
++
++@pytest.mark.parametrize(
++    ("status", "detail"),
++    [
++        (401, "session token is required"),
++        (401, "session token is invalid or expired "),
++        (401, "provider authorization failed"),
++        (403, "session token is invalid or expired"),
++        (500, "session token is invalid or expired"),
++        (502, "tool execution failed"),
++    ],
++)
++def test_other_http_failures_never_replay_an_accepted_effect(status: int, detail: str) -> None:
++    run_session_access(
++        f"""
++let bootstraps = 0, effects = 0;
++const access = createSessionAccess({{origin, now: () => 0, fetcher: async (url) => {{
++  if (url === '/v1/session') {{ bootstraps++; return issued('valid'); }}
++  effects++; return reply({status}, {{detail: {json.dumps(detail)}}}, url);
++}}}});
++const response = await access.request('/v1/tool-proposals/synthetic/approve', {{
++  method: 'POST', body: '{{"approved":true}}'
++}});
++assert.equal(response.status, {status});
++assert.equal(effects, 1);
++assert.equal(bootstraps, 1);
++assert.deepEqual(await response.json(), {{detail: {json.dumps(detail)}}});
++"""
++    )
++
++
++def test_transport_failure_after_acceptance_never_replays() -> None:
++    run_session_access(
++        """
++let effects = 0, bootstraps = 0;
++const disconnected = new TypeError('synthetic connection lost after acceptance');
++const access = createSessionAccess({origin, now: () => 0, fetcher: async url => {
++  if (url === '/v1/session') { bootstraps++; return issued('valid'); }
++  effects++; throw disconnected;
++}});
++await assert.rejects(access.request('/v1/conversations/browser/turns', {
++  method: 'POST', body: '{"text":"synthetic"}'
++}), error => error === disconnected);
++assert.equal(effects, 1); assert.equal(bootstraps, 1);
++"""
++    )
++
++
++@pytest.mark.parametrize("refresh_reason", ["expiry", "401"])
++def test_abort_while_awaiting_refresh_prevents_dispatch_without_cancelling_shared_refresh(
++    refresh_reason: str,
++) -> None:
++    run_session_access(
++        f"""
++let clock = 0, bootstraps = 0, speechCalls = 0, bootstrapSignal;
++const renewal = deferred(), controller = new AbortController();
++const access = createSessionAccess({{origin, now: () => clock, fetcher: async (url, options) => {{
++  if (url === '/v1/session') {{
++    bootstraps++;
++    if (bootstraps === 1) return issued('first');
++    bootstrapSignal = options.signal; return renewal.promise;
++  }}
++  if (url === '/v1/audio/speech') {{ speechCalls++; return reply(401, invalid, url); }}
++  return reply(200, {{ok: true}}, url);
++}}}});
++await access.getToken();
++clock = {"90_000" if refresh_reason == "expiry" else "0"};
++const speaking = access.request('/v1/audio/speech', {{
++  method: 'POST', body: '{{"text":"synthetic"}}', signal: controller.signal
++}});
++const rejected = assert.rejects(speaking, {{name: 'AbortError'}});
++await until(() => bootstraps === 2);
++const other = access.request('/v1/runtime');
++controller.abort();
++assert.notEqual(bootstrapSignal?.aborted, true);
++renewal.resolve(issued('renewed'));
++await rejected;
++assert.equal((await other).status, 200);
++assert.equal(speechCalls, {0 if refresh_reason == "expiry" else 1});
++assert.equal(bootstraps, 2);
++"""
++    )
++
++
++def test_audio_headers_body_and_signal_survive_authorization() -> None:
++    run_session_access(
++        """
++const controller = new AbortController(), body = new Blob(['synthetic wav']);
++const originalHeaders = new Headers({
++  'Content-Type': 'audio/wav', 'X-Synthetic': 'preserved', 'Authorization': 'Bearer stale'
++});
++let observed;
++const access = createSessionAccess({origin, now: () => 0, fetcher: async (url, options) => {
++  if (url === '/v1/session') return issued('current');
++  observed = options; return reply(200, {text: 'synthetic'}, url);
++}});
++const response = await access.request('/v1/audio/transcriptions?language=zh', {
++  method: 'POST', headers: originalHeaders, body, signal: controller.signal, redirect: 'follow'
++});
++assert.equal(response.status, 200);
++assert.equal(new Headers(observed.headers).get('Content-Type'), 'audio/wav');
++assert.equal(new Headers(observed.headers).get('X-Synthetic'), 'preserved');
++assert.equal(authorization(observed), 'Bearer current');
++assert.equal(originalHeaders.get('Authorization'), 'Bearer stale');
++assert.equal(observed.body, body);
++assert.equal(observed.signal, controller.signal);
++assert.equal(observed.redirect, 'error');
++"""
++    )
++
++
++@pytest.mark.parametrize(
++    "url",
++    [
++        "https://evil.invalid/v1/runtime",
++        "//evil.invalid/v1/runtime",
++        "http://localhost/v1/runtime",
++        "/body",
++        "/v10/runtime",
++        "/v1",
++        "/v1/../body",
++    ],
++)
++def test_unsafe_url_is_rejected_before_any_credential_or_request(url: str) -> None:
++    run_session_access(
++        f"""
++let calls = 0;
++const access = createSessionAccess({{origin, now: () => 0, fetcher: async () => {{
++  calls++; return issued('must-not-be-issued');
++}}}});
++await assert.rejects(access.request({json.dumps(url)}));
++assert.equal(calls, 0);
++"""
++    )
++
++
++@pytest.mark.parametrize("failure", ["http", "transport"])
++def test_bootstrap_failure_has_single_flight_and_three_second_cooldown(failure: str) -> None:
++    fail_bootstrap = (
++        'failed.resolve(reply(403, {detail: "origin is not allowed"}, "/v1/session"));'
++        if failure == "http"
++        else 'failed.reject(new TypeError("synthetic bootstrap unavailable"));'
++    )
++    run_session_access(
++        f"""
++let clock = 0, bootstraps = 0;
++const failed = deferred();
++const access = createSessionAccess({{origin, now: () => clock, fetcher: async () => {{
++  bootstraps++;
++  return bootstraps === 1 ? failed.promise : issued('recovered');
++}}}});
++const first = access.getToken(), second = access.getToken();
++const results = Promise.allSettled([first, second]);
++await until(() => bootstraps === 1);
++{fail_bootstrap}
++assert((await results).every(result => result.status === 'rejected'));
++assert.equal(bootstraps, 1);
++await assert.rejects(access.getToken());
++clock = 2999; await assert.rejects(access.getToken());
++assert.equal(bootstraps, 1, 'Failed bootstrap must not spin on foreground requests');
++clock = 3001;
++assert.equal(await access.getToken(), 'recovered');
++assert.equal(bootstraps, 2);
++"""
++    )
++
++
++def test_bootstrap_timeout_is_bounded_and_can_recover_after_cooldown() -> None:
++    run_session_access(
++        """
++let clock = 0, bootstraps = 0, nextTimer = 0, aborted = false;
++const timers = new Map();
++globalThis.setTimeout = (callback, delay) => {
++  const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
++};
++globalThis.clearTimeout = id => timers.delete(id);
++const access = createSessionAccess({origin, now: () => clock, fetcher: async (url, options) => {
++  bootstraps++;
++  if (bootstraps > 1) return issued('recovered');
++  return new Promise((resolve, reject) => {
++    options.signal.addEventListener('abort', () => {
++      aborted = true; reject(options.signal.reason);
++    }, {once: true});
++  });
++}});
++const waiting = access.getToken(), rejected = assert.rejects(waiting);
++await until(() => [...timers.values()].some(timer => timer.delay === 5000));
++clock = 5000;
++const timeout = [...timers.values()].find(timer => timer.delay === 5000);
++timeout.callback();
++await rejected;
++assert(aborted);
++await assert.rejects(access.getToken());
++assert.equal(bootstraps, 1);
++clock = 8001;
++assert.equal(await access.getToken(), 'recovered');
++assert.equal(bootstraps, 2);
++assert.equal(timers.size, 0, 'Successful recovery must release its timeout');
++"""
++    )
+diff --git a/tests/integration/test_frontend_speech_cancel.py b/tests/integration/test_frontend_speech_cancel.py
+index 5f8c0de..f69f064 100644
+--- a/tests/integration/test_frontend_speech_cancel.py
++++ b/tests/integration/test_frontend_speech_cancel.py
+@@ -27,6 +27,9 @@ const button = {}, status = {}, calls = [], audios = [], revoked = [];
+ let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+ let assistantBubble;
+ const socket = {}, log = () => {};
++socket.readyState = 1;
++const owner = socket, epoch = 0, controlEpoch = 0, retired = false, markAuthenticated = () => {};
++let submissionGeneration = 0, pendingSubmission;
+ const acceptRunEvent = () => true;
+ const headers = () => ({});
+ const document = {querySelector: s => s === '#cancel' ? button : status};
+@@ -45,6 +48,7 @@ const fetch = (url, options) => {
+  if(url!='/v1/audio/speech')return Promise.resolve({ok:true});
+  return call.promise;
+ };
++const authorizedFetch = (url, options) => fetch(url, options);
+ const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+ const tick = async()=>{await Promise.resolve();await Promise.resolve();await Promise.resolve();};
+ """
+diff --git a/tests/integration/test_run_journal.py b/tests/integration/test_run_journal.py
+index 2f1ca23..6b95a4c 100644
+--- a/tests/integration/test_run_journal.py
++++ b/tests/integration/test_run_journal.py
+@@ -317,7 +317,7 @@ def test_http_approval_uses_dispatch_and_observation_journal(tmp_path: Path) ->
+ def test_actual_frontend_recovery_notice() -> None:
+     html = Path("src/siro/services/presentation/static/index.html").read_text()
+     function = html[html.index("function recoveryNotice(") : html.index("async function boot()")]
+-    boot = html[html.index("async function boot()") : html.index("socket = new WebSocket")]
++    boot = html[html.index("async function boot()") : html.index("function connectControl()")]
+     assert "/v1/agent-runs/browser" in boot and "recoveryNotice(run)" in boot
+     script = (
+         function
+diff --git a/tests/integration/test_session_tokens.py b/tests/integration/test_session_tokens.py
+new file mode 100644
+index 0000000..f5f5cf8
+--- /dev/null
++++ b/tests/integration/test_session_tokens.py
+@@ -0,0 +1,200 @@
++from __future__ import annotations
++
++from dataclasses import dataclass
++
++import httpx
++import pytest
++
++from siro.services.presentation.gateway import GatewayState, SessionTokens, create_app
++
++_ORIGIN = "http://127.0.0.1:8000"
++
++
++@dataclass
++class FakeClock:
++    now: float = 0
++
++    def __call__(self) -> float:
++        return self.now
++
++
++def test_default_token_lifetime_expires_at_exact_deadline() -> None:
++    clock = FakeClock()
++    tokens = SessionTokens(clock=clock)
++    token, ttl = tokens.issue()
++    assert ttl == 300
++    assert tokens.valid(token)
++    assert not tokens.valid("unknown")
++    clock.now = 299.999
++    assert tokens.valid(token)
++    clock.now = 300
++    assert not tokens.valid(token)
++    assert token not in tokens._tokens
++
++
++def test_issue_reaps_all_expired_tokens_without_prior_validation() -> None:
++    clock = FakeClock()
++    tokens = SessionTokens(max_tokens=2, clock=clock)
++    first, _ = tokens.issue()
++    second, _ = tokens.issue()
++    clock.now = 300
++    fresh, ttl = tokens.issue()
++    assert ttl == 300
++    assert set(tokens._tokens) == {fresh}
++    assert tokens.valid(fresh)
++    assert not tokens.valid(first)
++    assert not tokens.valid(second)
++
++
++def test_default_capacity_preserves_all_128_active_tokens() -> None:
++    tokens = SessionTokens(clock=FakeClock())
++    active = [tokens.issue()[0] for _ in range(128)]
++    retained = dict(tokens._tokens)
++    with pytest.raises(SessionTokens.CapacityExceeded):
++        tokens.issue()
++    assert tokens._tokens == retained
++    assert len(set(active)) == 128
++    assert all(tokens.valid(token) for token in active)
++
++
++@pytest.mark.parametrize("max_tokens", [0, -1])
++def test_token_capacity_must_be_positive(max_tokens: int) -> None:
++    with pytest.raises(ValueError, match="capacity must be positive"):
++        SessionTokens(max_tokens=max_tokens)
++
++
++def test_overlapping_renewals_preserve_other_active_tokens() -> None:
++    clock = FakeClock()
++    tokens = SessionTokens(max_tokens=2, clock=clock)
++    first, _ = tokens.issue()
++    clock.now = 100
++    second, _ = tokens.issue()
++    clock.now = 299
++    retained = dict(tokens._tokens)
++    with pytest.raises(SessionTokens.CapacityExceeded):
++        tokens.issue()
++    assert tokens._tokens == retained
++    assert tokens.valid(first) and tokens.valid(second)
++    clock.now = 300
++    third, _ = tokens.issue()
++    assert not tokens.valid(first)
++    assert tokens.valid(second) and tokens.valid(third)
++    assert set(tokens._tokens) == {second, third}
++    assert tokens._tokens[second] == 400
++
++
++def test_repeated_renewal_retention_stays_bounded() -> None:
++    clock = FakeClock()
++    tokens = SessionTokens(max_tokens=2, clock=clock)
++    for _ in range(1000):
++        token, ttl = tokens.issue()
++        assert ttl == 300
++        assert tokens.valid(token)
++        assert 1 <= len(tokens._tokens) <= 2
++        assert all(expiry > clock.now for expiry in tokens._tokens.values())
++        clock.now += 240
++
++
++@pytest.mark.asyncio
++async def test_real_session_route_capacity_expiry_and_existing_bearers() -> None:
++    clock = FakeClock()
++    tokens = SessionTokens(max_tokens=2, clock=clock)
++    app = create_app(tokens=tokens)
++    transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 50100))
++    async with httpx.AsyncClient(transport=transport, base_url=_ORIGIN) as client:
++        active = []
++        for _ in range(2):
++            response = await client.post("/v1/session", headers={"origin": _ORIGIN})
++            assert response.status_code == 200
++            assert response.json()["expires_in_seconds"] == 300
++            active.append(response.json()["token"])
++        full = await client.post("/v1/session", headers={"origin": _ORIGIN})
++        assert full.status_code == 429
++        assert full.json() == {"detail": "too many active sessions"}
++        for token in active:
++            snapshot = await client.get(
++                "/v1/snapshot", headers={"authorization": f"Bearer {token}"}
++            )
++            assert snapshot.status_code == 200
++        for authorization in (None, "Bearer unknown", f"bearer {active[0]}"):
++            headers = {} if authorization is None else {"authorization": authorization}
++            assert (await client.get("/v1/snapshot", headers=headers)).status_code == 401
++        clock.now = 300
++        refreshed = await client.post("/v1/session", headers={"origin": _ORIGIN})
++        assert refreshed.status_code == 200
++        fresh = refreshed.json()["token"]
++        assert fresh not in active
++        assert set(tokens._tokens) == {fresh}
++        assert (
++            await client.get("/v1/snapshot", headers={"authorization": f"Bearer {fresh}"})
++        ).status_code == 200
++        for token in active:
++            assert (
++                await client.get("/v1/snapshot", headers={"authorization": f"Bearer {token}"})
++            ).status_code == 401
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    ("host", "origin"),
++    [
++        ("127.0.0.1", None),
++        ("127.0.0.1", "null"),
++        ("127.0.0.1", "https://evil.invalid"),
++        ("192.0.2.1", _ORIGIN),
++    ],
++)
++async def test_real_session_route_checks_origin_and_loopback_before_capacity(
++    host: str, origin: str | None
++) -> None:
++    tokens = SessionTokens(max_tokens=1, clock=FakeClock())
++    existing, _ = tokens.issue()
++    retained = dict(tokens._tokens)
++    app = create_app(tokens=tokens)
++    transport = httpx.ASGITransport(app=app, client=(host, 50100))
++    async with httpx.AsyncClient(transport=transport, base_url=_ORIGIN) as client:
++        headers = {} if origin is None else {"origin": origin}
++        denied = await client.post("/v1/session", headers=headers)
++        assert denied.status_code == 403
++    assert tokens._tokens == retained
++    assert tokens.valid(existing)
++
++
++@pytest.mark.asyncio
++async def test_expired_bearer_rejects_turn_and_speech_before_accepting_work() -> None:
++    clock = FakeClock()
++    tokens = SessionTokens(clock=clock)
++    expired, _ = tokens.issue()
++    clock.now = 300
++    state = GatewayState()
++    accepted: list[str] = []
++
++    async def turn(session: str, text: str, input_mode: str) -> None:
++        accepted.append("turn")
++
++    class Speech:
++        async def render(self, text: str, *, rate: float, pitch: float, energy: float) -> bytes:
++            accepted.append("speech")
++            return b"RIFFsynthetic"
++
++    app = create_app(tokens=tokens, state=state, on_turn=turn, text_to_speech=Speech())
++    transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 50100))
++    async with httpx.AsyncClient(transport=transport, base_url=_ORIGIN) as client:
++        headers = {"origin": _ORIGIN, "authorization": f"Bearer {expired}"}
++        for path in ("/v1/conversations/browser/turns", "/v1/audio/speech"):
++            response = await client.post(path, headers=headers, json={"text": "synthetic"})
++            assert response.status_code == 401
++            assert response.json() == {"detail": "session token is invalid or expired"}
++        assert accepted == []
++        assert state.active_turns == {}
++        fresh, _ = tokens.issue()
++        headers["authorization"] = f"Bearer {fresh}"
++        assert (
++            await client.post(
++                "/v1/conversations/browser/turns", headers=headers, json={"text": "synthetic"}
++            )
++        ).status_code == 200
++        assert (
++            await client.post("/v1/audio/speech", headers=headers, json={"text": "synthetic"})
++        ).status_code == 200
++    assert accepted == ["turn", "speech"]

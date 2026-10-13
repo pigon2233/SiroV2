@@ -1,0 +1,49 @@
+.F..........................                                             [100%]
+=================================== FAILURES ===================================
+______ test_runtime_restart_restores_only_exact_approved_managed_package _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-39/test_runtime_restart_restores_0')
+
+    @pytest.mark.asyncio
+    async def test_runtime_restart_restores_only_exact_approved_managed_package(tmp_path: Path) -> None:
+        owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
+        await owner.enable(package_hash)
+        # Simulate ended owner without revoke mutation: new process must match persisted receipt.
+        new_catalog = ToolCatalog(())
+        other = activation_module().SkillActivationOwner(
+            new_catalog,
+            registry,
+            SkillDispatcher(registry, WorkerSupervisor(profile="python-stdlib-single")),
+            tmp_path / "managed",
+        )
+>       await other.initialize()
+
+tests/integration/test_skill_activation.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/tools/skill_activation.py:270: in initialize
+    await self._control(initialize)
+src/siro/services/tools/skill_activation.py:232: in _control
+    result = await asyncio.shield(task)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:227: in invoke
+    return await operation()
+           ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def initialize() -> dict[str, object]:
+        if self._closed:
+            raise SkillActivationError("owner closed")
+        try:
+            skill = await asyncio.to_thread(_restored, self._root)
+            if skill is not None:
+                # Register only an exact receipt/registry identity, even when disabled.
+>               if not await self._registry.is_installed(
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    skill.manifest.id, skill.manifest.version, identity=skill
+                ):
+E               AttributeError: 'SQLiteSkillRegistry' object has no attribute 'is_installed'. Did you mean: 'is_enabled'?
+
+src/siro/services/tools/skill_activation.py:256: AttributeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation.py::test_runtime_restart_restores_only_exact_approved_managed_package
+1 failed, 27 passed in 4.48s

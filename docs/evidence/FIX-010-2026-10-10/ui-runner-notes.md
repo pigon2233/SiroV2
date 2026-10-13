@@ -1,0 +1,7 @@
+# FIX-010 browser acceptance runner notes
+
+`ui-verification.json` and `ui-verification.log` contain the final result: **21 / 21 PASS** on real Chrome 154.0.8037.92, with matching source hashes at start and finish. The two screenshots were visually inspected. The pure counter returns the existing `computer.execute` observation shape; it does not create any operating-system effect.
+
+`ui-runner-assertion-failed.json` and its log preserve an intermediate **runner assertion failure**, not a production regression. A strengthened check incorrectly expected a dispatched prior call to retain SQL NULL in its observation. `SQLiteAgentRunRepository.finish_journal()` already closes this pair with `{"error": "outcome_unknown", "recovered": true}`. The final runner checks the exact original status, dispatched flag, and observation bytes before and after explicit approval, and verifies the prior receipt remains unknown. Production source hashes were identical during both runs.
+
+The acceptance covers a new call UUID with the same arguments in full mode, the initial manual warning, no automatic execution, authenticated WebSocket reconnection without retry, explicit approval once, authentication and tool kill-switch rejection, duplicate approval rejection, and browser/server/temporary-DB cleanup. It does not establish pending-card restoration after a page reload, live-provider behavior, actual OS effects, audio completion, or Live2D readiness. The existing difference between the gateway active-turn snapshot and a `waiting_tool` agent run remains outside this repair.

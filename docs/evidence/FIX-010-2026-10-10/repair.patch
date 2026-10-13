@@ -1,0 +1,1050 @@
+diff --git a/src/siro/services/tools/orchestrator.py b/src/siro/services/tools/orchestrator.py
+--- a/src/siro/services/tools/orchestrator.py
++++ b/src/siro/services/tools/orchestrator.py
+@@ -103,6 +103,10 @@
+     """An explicitly registered tool is not currently available."""
+ 
+ 
++class PriorOutcomeUnknown(PermissionError):
++    """A previous possibly effectful action requires explicit owner confirmation."""
++
++
+ def _valid_arguments(value: object, schema: dict[str, object]) -> bool:
+     kind = schema.get("type")
+     if kind == "object":
+@@ -453,6 +457,7 @@
+         *,
+         observation: object | None = None,
+         error: str | None = None,
++        automatic: bool = False,
+     ) -> ToolProposal:
+         observation_json = (
+             json.dumps(observation, separators=(",", ":"), sort_keys=True)
+@@ -461,6 +466,63 @@
+         )
+ 
+         def write(connection: sqlite3.Connection) -> sqlite3.Row:
++            if automatic and expected is ProposalState.PENDING and target is ProposalState.APPROVED:
++                current = connection.execute(
++                    "SELECT session_id,capability,arguments_hash,state FROM tool_proposals "
++                    "WHERE proposal_id=?",
++                    (proposal_id,),
++                ).fetchone()
++                if current is None or current["state"] != expected.value:
++                    raise ValueError("tool proposal state changed or does not exist")
++                unknown = connection.execute(
++                    "WITH unknown_calls AS (SELECT calls.proposal_id,r.session_id,"
++                    "calls.capability,CASE "
++                    "WHEN length(CAST(calls.arguments_json AS BLOB))<=65536 THEN CASE "
++                    "WHEN json_valid(calls.arguments_json) THEN calls.arguments_json "
++                    "ELSE 'null' END ELSE 'null' END AS safe_arguments "
++                    "FROM run_journal_calls calls "
++                    "JOIN agent_runs r ON r.run_id=calls.run_id "
++                    "JOIN run_journal j ON j.run_id=r.run_id "
++                    "WHERE r.session_id=? AND calls.capability=? AND calls.dispatched=1 "
++                    "AND j.version=1 AND j.runtime_profile='candidate' "
++                    "AND j.status IN ('terminal','interrupted') "
++                    "AND (calls.observation_json IS NULL OR CASE "
++                    "WHEN json_valid(calls.observation_json)=0 THEN 1 "
++                    "WHEN json_extract(calls.observation_json,'$.error')='outcome_unknown' "
++                    "THEN 1 ELSE 0 END=1)) "
++                    "SELECT 1 FROM unknown_calls calls LEFT JOIN "
++                    "(SELECT proposal_id,session_id,capability,arguments_hash,CASE "
++                    "WHEN length(CAST(arguments_json AS BLOB))<=65536 THEN CASE "
++                    "WHEN json_valid(arguments_json) THEN arguments_json "
++                    "ELSE 'null' END ELSE 'null' END AS safe_arguments FROM tool_proposals) p "
++                    "ON p.proposal_id=calls.proposal_id AND p.session_id=calls.session_id "
++                    "AND p.capability=calls.capability "
++                    "AND json_type(calls.safe_arguments)='object' "
++                    "AND json_type(p.safe_arguments)='object' "
++                    "AND NOT EXISTS (WITH RECURSIVE nodes AS ("
++                    "SELECT 0 AS side,id,parent,key,type,CASE "
++                    "WHEN type IN ('integer','real') THEN calls.safe_arguments -> fullkey "
++                    "ELSE atom END AS value FROM json_tree(calls.safe_arguments) "
++                    "UNION ALL SELECT 1,id,parent,key,type,CASE "
++                    "WHEN type IN ('integer','real') THEN p.safe_arguments -> fullkey "
++                    "ELSE atom END FROM json_tree(p.safe_arguments)), paths AS ("
++                    "SELECT side,id,type,value,'[]' AS path FROM nodes WHERE parent IS NULL "
++                    "UNION ALL SELECT n.side,n.id,n.type,n.value,"
++                    "json_insert(parent.path,'$[#]',n.key) FROM nodes n "
++                    "JOIN paths parent ON parent.side=n.side AND parent.id=n.parent) "
++                    "SELECT 1 WHERE EXISTS (SELECT 1 FROM nodes "
++                    "WHERE type IN ('integer','real') AND value IS NULL) "
++                    "OR EXISTS (SELECT 1 FROM nodes WHERE typeof(key)='text' "
++                    "GROUP BY side,parent,key HAVING count(*)>1) OR EXISTS ("
++                    "SELECT path,type,value FROM paths WHERE side=0 EXCEPT "
++                    "SELECT path,type,value FROM paths WHERE side=1) OR EXISTS ("
++                    "SELECT path,type,value FROM paths WHERE side=1 EXCEPT "
++                    "SELECT path,type,value FROM paths WHERE side=0)) "
++                    "WHERE p.proposal_id IS NULL OR p.arguments_hash=? LIMIT 1",
++                    (current["session_id"], current["capability"], current["arguments_hash"]),
++                ).fetchone()
++                if unknown is not None:
++                    raise PriorOutcomeUnknown("prior operation outcome is unknown")
+             cursor = connection.execute(
+                 "UPDATE tool_proposals SET state = ?, observation_json = ?, error = ?, "
+                 "updated_at = ? WHERE proposal_id = ? AND state = ?",
+@@ -614,6 +676,7 @@
+         *,
+         approved: bool,
+         arguments: dict[str, object],
++        automatic: bool = False,
+     ) -> ToolProposal:
+         proposal = await self._repository.get(proposal_id)
+         if proposal is None or proposal.state is not ProposalState.PENDING:
+@@ -624,8 +687,14 @@
+             return await self._repository.transition(
+                 proposal_id, ProposalState.PENDING, ProposalState.DENIED
+             )
++        guard_unknown = automatic
++        if automatic and self.catalog is not None:
++            # Only the trusted current executor classification exempts a readback.
++            # Optional descriptive metadata and the model's risk label grant no rights.
++            descriptor = self.catalog.require(proposal.capability, proposal.arguments)
++            guard_unknown = descriptor.effect != "read"
+         return await self._repository.transition(
+-            proposal_id, ProposalState.PENDING, ProposalState.APPROVED
++            proposal_id, ProposalState.PENDING, ProposalState.APPROVED, automatic=guard_unknown
+         )
+ 
+     async def discard_unstarted(self, proposal_id: str) -> None:
+diff --git a/src/siro/services/presentation/integrated.py b/src/siro/services/presentation/integrated.py
+--- a/src/siro/services/presentation/integrated.py
++++ b/src/siro/services/presentation/integrated.py
+@@ -45,6 +45,7 @@
+ from siro.services.tools.execution import ExecutionCleanupError
+ from siro.services.tools.orchestrator import (
+     DEFAULT_MODEL_TOOLS,
++    PriorOutcomeUnknown,
+     ProposalState,
+     ToolOrchestrator,
+     ToolProposal,
+@@ -853,6 +854,22 @@
+                     state=AgentRunState.WAITING_TOOL,
+                     proposal_id=proposal.proposal_id,
+                 )
++            automatic = self._auto_authorize()
++            automatic_blocked = False
++            if automatic:
++                try:
++                    await orchestrator.resolve(
++                        proposal.proposal_id,
++                        approved=True,
++                        arguments=proposal.arguments,
++                        automatic=True,
++                    )
++                except PriorOutcomeUnknown:
++                    automatic = False
++                    automatic_blocked = True
++            if self._runtime_profile == "candidate" and run_id in self._terminated:
++                await orchestrator.discard_unstarted(proposal.proposal_id)
++                return
+             await emit(
+                 {
+                     "type": "tool_proposal",
+@@ -865,15 +882,15 @@
+                     "status": proposal.state.value,
+                     "target": str(proposal.arguments),
+                     "scope": "model-selected tool call",
++                    **(
++                        {"automatic_approval_blocked": "prior_outcome_unknown"}
++                        if automatic_blocked
++                        else {}
++                    ),
+                 },
+                 urgent=True,
+             )
+-            if self._auto_authorize():
+-                await orchestrator.resolve(
+-                    proposal.proposal_id,
+-                    approved=True,
+-                    arguments=proposal.arguments,
+-                )
++            if automatic:
+                 if self._runtime_profile == "candidate" and run_id in self._terminated:
+                     await orchestrator.discard_unstarted(proposal.proposal_id)
+                     return
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -429,6 +429,8 @@
+           data.capability === "browser.navigate+read" ? "開啟並讀取頁面" : data.capability;
+         description.textContent = `操作：${operation}\n範圍：${data.scope}\n目標：${data.target}\n風險：${data.risk}`;
+         const button = document.createElement("button"); button.textContent = "授權這一次";
++        const unknownPriorOutcome = data.automatic_approval_blocked === "prior_outcome_unknown";
++        if (unknownPriorOutcome) button.textContent = "確認結果後，授權這一次";
+         button.onclick = async () => {
+           button.disabled = true;
+           try {
+@@ -440,9 +442,10 @@
+           } catch (error) { updateToolProposal(data.proposal_id, "連線未完成，操作結果未確認。沒有自動重送，請先確認保存的結果。"); }
+         };
+         card.append(description);
+-        if (authorizationMode !== "full") card.appendChild(button);
++        if (authorizationMode !== "full" || unknownPriorOutcome) card.appendChild(button);
+         root.appendChild(card);
+-        if (authorizationMode === "full") updateToolProposal(data.proposal_id, "已自動授權，等待執行…");
++        if (unknownPriorOutcome) updateToolProposal(data.proposal_id, "先前操作的結果未確認，重做可能造成重複。請先確認實際結果，再決定是否授權這一次。");
++        else if (authorizationMode === "full") updateToolProposal(data.proposal_id, "已自動授權，等待執行…");
+       }
+       function updateToolProposal(id, status) {
+         const card = document.querySelector(`#tool-${id}`); if (!card) return;
+diff --git a/tests/integration/test_unknown_effect_approval.py b/tests/integration/test_unknown_effect_approval.py
+--- /dev/null
++++ b/tests/integration/test_unknown_effect_approval.py
+@@ -0,0 +1,785 @@
++from __future__ import annotations
++
++import asyncio
++from collections.abc import AsyncIterator
++from dataclasses import dataclass
++from pathlib import Path
++from typing import Literal
++from uuid import uuid4
++
++import pytest
++
++from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import (
++    CancellationToken,
++    ModelChunk,
++    ModelMessage,
++    ModelRequest,
++    Privacy,
++    ToolCall,
++    ToolDefinition,
++)
++from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
++from siro.services.presentation.gateway import GatewayHub
++from siro.services.presentation.integrated import IntegratedCompanion
++from siro.services.tools.orchestrator import (
++    DEFAULT_MODEL_TOOLS,
++    ProposalState,
++    SQLiteToolProposalRepository,
++    ToolCatalog,
++    ToolDescriptor,
++    ToolOrchestrator,
++    ToolProposal,
++)
++
++ARGS: dict[str, object] = {"argv": ["synthetic-operation"]}
++
++
++@dataclass
++class Fixture:
++    store: SQLiteStore
++    runs: SQLiteAgentRunRepository
++    proposals: SQLiteToolProposalRepository
++    orchestrator: ToolOrchestrator
++    effects: list[dict[str, object]]
++
++
++async def fixture_at(tmp_path: Path, *, effects: dict[str, str] | None = None) -> Fixture:
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    recorded: list[dict[str, object]] = []
++
++    async def execute(arguments: dict[str, object]) -> object:
++        recorded.append(arguments.copy())
++        return {"confirmed": True}
++
++    names = ("computer.execute", "other.effect", "browser.read")
++    catalog = None
++    if effects is not None:
++        catalog = ToolCatalog(
++            tuple(
++                ToolDescriptor(
++                    name,
++                    DEFAULT_MODEL_TOOLS[1]
++                    if name == "computer.execute"
++                    else ToolDefinition(name, "Synthetic fixture", {"type": "object"}),
++                    execute,
++                    lambda: True,
++                    "synthetic-counter",
++                    effects.get(name, "computer"),
++                )
++                for name in names
++            )
++        )
++    proposals = SQLiteToolProposalRepository(store)
++    return Fixture(
++        store,
++        SQLiteAgentRunRepository(store),
++        proposals,
++        ToolOrchestrator(proposals, dict.fromkeys(names, execute), catalog=catalog),
++        recorded,
++    )
++
++
++async def prior_call(
++    fixture: Fixture,
++    *,
++    session: str = "owner-session",
++    capability: str = "computer.execute",
++    arguments: dict[str, object] | None = None,
++    dispatched: bool = True,
++    observation: object | None = None,
++    fenced: bool = True,
++    interrupted: bool = False,
++    state: AgentRunState = AgentRunState.FAILED,
++    privacy: str = "local_only",
++    binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"] = "linked",
++) -> tuple[str, ToolProposal | None]:
++    run = await fixture.runs.start(
++        session,
++        "SECRET-PRIOR-GOAL",
++        runtime_backend="synthetic",
++        privacy=privacy,
++    )
++    await fixture.runs.reserve_round(run.run_id)
++    call = ToolCall(str(uuid4()), capability, (ARGS if arguments is None else arguments).copy())
++    await fixture.runs.checkpoint(
++        run.run_id,
++        [
++            ModelMessage("system", "SECRET-PRIOR-PROMPT"),
++            ModelMessage("user", run.goal),
++            ModelMessage("assistant", tool_calls=(call,)),
++        ],
++    )
++    proposal = None
++    if binding != "null":
++        fixture.orchestrator.start_run(run.run_id, session)
++        proposal = await fixture.orchestrator.propose(
++            session, call, risk="computer", run_id=run.run_id
++        )
++        fixture.orchestrator.bind_proposal(run.run_id, proposal)
++        if binding == "orphan":
++            await fixture.store.run_transaction(
++                lambda c: c.execute(
++                    "UPDATE run_journal_calls SET proposal_id=? WHERE run_id=?",
++                    (str(uuid4()), run.run_id),
++                )
++            )
++        elif binding == "cross_session":
++            await fixture.store.run_transaction(
++                lambda c: c.execute(
++                    "UPDATE tool_proposals SET session_id='another-owner-session' "
++                    "WHERE proposal_id=?",
++                    (proposal.proposal_id,),
++                )
++            )
++        elif binding == "wrong_capability":
++            await fixture.store.run_transaction(
++                lambda c: c.execute(
++                    "UPDATE tool_proposals SET capability='other.effect' WHERE proposal_id=?",
++                    (proposal.proposal_id,),
++                )
++            )
++    if dispatched:
++        await fixture.runs.record_dispatch(run.run_id, call.call_id)
++    if observation is not None:
++        await fixture.runs.record_observation(run.run_id, call.call_id, observation)
++    if fenced:
++        await fixture.runs.finish_journal(run.run_id, interrupted=interrupted)
++        await fixture.runs.append(
++            run.run_id,
++            "final",
++            {"text": "SECRET-PRIOR-FINAL"},
++            state=state,
++            error="outcome_unknown",
++        )
++    return run.run_id, proposal
++
++
++async def fresh_proposal(
++    fixture: Fixture,
++    *,
++    session: str = "owner-session",
++    capability: str = "computer.execute",
++    arguments: dict[str, object] | None = None,
++    risk: str = "computer",
++) -> ToolProposal:
++    return await fixture.orchestrator.propose(
++        session,
++        ToolCall(str(uuid4()), capability, (ARGS if arguments is None else arguments).copy()),
++        risk=risk,
++    )
++
++
++async def assert_automatic_hold(fixture: Fixture, proposal: ToolProposal) -> None:
++    before = await fixture.store.run_transaction(lambda c: tuple(c.iterdump()))
++    with pytest.raises(PermissionError) as raised:
++        await fixture.orchestrator.resolve(
++            proposal.proposal_id,
++            approved=True,
++            arguments=proposal.arguments,
++            automatic=True,
++        )
++    assert type(raised.value).__name__ == "PriorOutcomeUnknown"
++    assert "SECRET" not in str(raised.value)
++    actual = await fixture.orchestrator.get(proposal.proposal_id)
++    assert actual is not None and actual.state is ProposalState.PENDING
++    assert await fixture.store.run_transaction(lambda c: tuple(c.iterdump())) == before
++    assert fixture.effects == []
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("interrupted", [False, True])
++@pytest.mark.parametrize(
++    "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
++)
++async def test_fenced_unknown_same_content_holds_new_uuid(
++    tmp_path: Path, interrupted: bool, state: AgentRunState
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    _, old = await prior_call(fixture, interrupted=interrupted, state=state)
++    proposal = await fresh_proposal(fixture)
++    assert old is not None and proposal.proposal_id != old.proposal_id
++    assert proposal.arguments_hash == old.arguments_hash
++    await assert_automatic_hold(fixture, proposal)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("binding", ["null", "orphan", "cross_session", "wrong_capability"])
++async def test_unverifiable_binding_conservatively_holds_same_capability(
++    tmp_path: Path,
++    binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"],
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    await prior_call(fixture, binding=binding)
++    proposal = await fresh_proposal(fixture, arguments={"argv": ["different-synthetic-operation"]})
++    await assert_automatic_hold(fixture, proposal)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("fresh_matches_old", [True, False])
++async def test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation(
++    tmp_path: Path, fresh_matches_old: bool
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    run_id, old = await prior_call(fixture)
++    assert old is not None
++    wrong = await fresh_proposal(fixture, arguments={"argv": ["different-bound-payload"]})
++    await fixture.store.run_transaction(
++        lambda c: c.execute(
++            "UPDATE run_journal_calls SET proposal_id=? WHERE run_id=?",
++            (wrong.proposal_id, run_id),
++        )
++    )
++    fresh = await fresh_proposal(
++        fixture, arguments=None if fresh_matches_old else {"argv": ["third-operation"]}
++    )
++    assert fresh.arguments_hash != wrong.arguments_hash
++    if fresh_matches_old:
++        assert fresh.arguments_hash == old.arguments_hash
++    await assert_automatic_hold(fixture, fresh)
++
++
++@pytest.mark.asyncio
++async def test_structurally_equal_nested_json_and_unicode_do_not_hold_unrelated_call(
++    tmp_path: Path,
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    # Checkpoint uses the model's key order and UTF-8; proposal storage sorts keys
++    # and escapes Unicode. A byte comparison would misclassify this valid binding.
++    original: dict[str, object] = {
++        "z": {"nested": [{"界": "合成", "a": True}, None, 1.5]},
++        "argv": ["synthetic-operation"],
++        "a": {"second": [], "first": {}},
++    }
++    run_id, old = await prior_call(fixture, arguments=original)
++    assert old is not None
++    row = await fixture.store.run_transaction(
++        lambda c: c.execute(
++            "SELECT p.arguments_json AS proposal_json,c.arguments_json AS call_json "
++            "FROM run_journal_calls c JOIN tool_proposals p ON p.proposal_id=c.proposal_id "
++            "WHERE c.run_id=?",
++            (run_id,),
++        ).fetchone()
++    )
++    assert row is not None and row["proposal_json"] != row["call_json"]
++    fresh = await fresh_proposal(fixture)
++    assert fresh.arguments_hash != old.arguments_hash
++    approved = await fixture.orchestrator.resolve(
++        fresh.proposal_id, approved=True, arguments=fresh.arguments, automatic=True
++    )
++    assert approved.state is ProposalState.APPROVED
++    assert fixture.effects == []
++
++
++@pytest.mark.asyncio
++async def test_sqlite_large_integer_atom_collision_does_not_validate_wrong_binding(
++    tmp_path: Path,
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    original: dict[str, object] = {"argv": ["synthetic-operation"], "count": 2**80}
++    run_id, old = await prior_call(fixture, arguments=original)
++    assert old is not None
++    wrong = await fresh_proposal(
++        fixture, arguments={"argv": ["synthetic-operation"], "count": 2**80 + 1}
++    )
++    assert wrong.arguments_hash != old.arguments_hash
++    await fixture.store.run_transaction(
++        lambda c: c.execute(
++            "UPDATE run_journal_calls SET proposal_id=? WHERE run_id=?",
++            (wrong.proposal_id, run_id),
++        )
++    )
++    row = await fixture.store.run_transaction(
++        lambda c: c.execute(
++            "SELECT (SELECT atom FROM json_tree(c.arguments_json) WHERE fullkey='$.count') "
++            "AS call_atom,(SELECT atom FROM json_tree(p.arguments_json) "
++            "WHERE fullkey='$.count') AS proposal_atom "
++            "FROM run_journal_calls c JOIN tool_proposals p ON p.proposal_id=c.proposal_id "
++            "WHERE c.run_id=?",
++            (run_id,),
++        ).fetchone()
++    )
++    assert row is not None and row["call_atom"] == row["proposal_atom"]
++    await assert_automatic_hold(fixture, await fresh_proposal(fixture, arguments=original))
++
++
++@pytest.mark.asyncio
++async def test_unextractable_numeric_key_does_not_validate_wrong_binding(tmp_path: Path) -> None:
++    fixture = await fixture_at(tmp_path)
++    original: dict[str, object] = {"argv": ["synthetic-operation"], 'quote"key': 2**80}
++    run_id, old = await prior_call(fixture, arguments=original)
++    assert old is not None
++    wrong = await fresh_proposal(
++        fixture, arguments={"argv": ["synthetic-operation"], 'quote"key': 2**80 + 1}
++    )
++    assert wrong.arguments_hash != old.arguments_hash
++    await fixture.store.run_transaction(
++        lambda c: c.execute(
++            "UPDATE run_journal_calls SET proposal_id=? WHERE run_id=?",
++            (wrong.proposal_id, run_id),
++        )
++    )
++    row = await fixture.store.run_transaction(
++        lambda c: c.execute(
++            "SELECT (SELECT c.arguments_json -> fullkey FROM json_tree(c.arguments_json) "
++            "WHERE type='integer') AS call_lexeme, "
++            "(SELECT p.arguments_json -> fullkey FROM json_tree(p.arguments_json) "
++            "WHERE type='integer') AS proposal_lexeme "
++            "FROM run_journal_calls c JOIN tool_proposals p ON p.proposal_id=c.proposal_id "
++            "WHERE c.run_id=?",
++            (run_id,),
++        ).fetchone()
++    )
++    assert row is not None and row["call_lexeme"] is None and row["proposal_lexeme"] is None
++    await assert_automatic_hold(fixture, await fresh_proposal(fixture, arguments=original))
++
++
++@pytest.mark.asyncio
++async def test_duplicate_object_keys_are_not_a_verified_binding(tmp_path: Path) -> None:
++    fixture = await fixture_at(tmp_path)
++    run_id, _ = await prior_call(fixture)
++    # SQLite accepts this JSON and a set of tree rows hides the duplicate. The
++    # final effective value also matches the proposal, so refuse the ambiguity.
++    duplicate = '{"argv":["synthetic-operation"],"argv":["synthetic-operation"]}'
++    await fixture.store.run_transaction(
++        lambda c: c.execute(
++            "UPDATE run_journal_calls SET arguments_json=? WHERE run_id=?", (duplicate, run_id)
++        )
++    )
++    assert await fixture.store.run_transaction(
++        lambda c: c.execute("SELECT json_valid(?)", (duplicate,)).fetchone()[0]
++    )
++    fresh = await fresh_proposal(fixture, arguments={"argv": ["different-new-operation"]})
++    await assert_automatic_hold(fixture, fresh)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("column_owner", ["call", "proposal"])
++@pytest.mark.parametrize("malformed", [False, True])
++async def test_oversized_or_invalid_bound_arguments_fail_closed(
++    tmp_path: Path, column_owner: str, malformed: bool
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    run_id, old = await prior_call(fixture)
++    assert old is not None
++    raw = "synthetic-invalid-json" if malformed else '{"payload":"' + "界" * 22_000 + '"}'
++    if not malformed:
++        assert len(raw) < 65_536 < len(raw.encode())
++
++    def corrupt_temporary_arguments(connection: object) -> None:
++        import sqlite3
++
++        assert isinstance(connection, sqlite3.Connection)
++        # Only a diagnostic temporary DB can contain invalid checkpoint JSON.
++        connection.execute("PRAGMA ignore_check_constraints=ON")
++        try:
++            if column_owner == "call":
++                connection.execute(
++                    "UPDATE run_journal_calls SET arguments_json=? WHERE run_id=?", (raw, run_id)
++                )
++            else:
++                connection.execute(
++                    "UPDATE tool_proposals SET arguments_json=? WHERE proposal_id=?",
++                    (raw, old.proposal_id),
++                )
++        finally:
++            connection.execute("PRAGMA ignore_check_constraints=OFF")
++
++    await fixture.store.run_transaction(corrupt_temporary_arguments)
++    # An unverifiable old payload must not be treated as a valid different hash.
++    fresh = await fresh_proposal(fixture, arguments={"argv": ["unrelated-new-operation"]})
++    await assert_automatic_hold(fixture, fresh)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("difference", ["arguments", "session", "capability"])
++async def test_verified_binding_does_not_block_unrelated_new_call(
++    tmp_path: Path, difference: str
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    await prior_call(fixture)
++    proposal = await fresh_proposal(
++        fixture,
++        arguments={"argv": ["different-operation"]} if difference == "arguments" else None,
++        session="different-session" if difference == "session" else "owner-session",
++        capability="other.effect" if difference == "capability" else "computer.execute",
++    )
++    approved = await fixture.orchestrator.resolve(
++        proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
++    )
++    assert approved.state is ProposalState.APPROVED
++    assert fixture.effects == []
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("case", ["known_success", "known_failure", "not_dispatched", "active"])
++async def test_guard_requires_fenced_dispatched_unknown(tmp_path: Path, case: str) -> None:
++    fixture = await fixture_at(tmp_path)
++    await prior_call(
++        fixture,
++        dispatched=case != "not_dispatched",
++        observation={"confirmed": True}
++        if case == "known_success"
++        else ({"error": "ValueError"} if case == "known_failure" else {"error": "outcome_unknown"}),
++        fenced=case != "active",
++    )
++    proposal = await fresh_proposal(fixture)
++    approved = await fixture.orchestrator.resolve(
++        proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
++    )
++    assert approved.state is ProposalState.APPROVED
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("receipt", [None, "synthetic corrupt JSON"])
++async def test_fenced_dispatch_without_parseable_receipt_holds(
++    tmp_path: Path, receipt: str | None
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    run_id, _ = await prior_call(fixture)
++
++    def corrupt_temporary_fixture(connection: object) -> None:
++        # Corruption recovery only: production's JSON CHECK remains unchanged.
++        # A fresh connection cannot retain this fixture-only SQLite setting.
++        import sqlite3
++
++        assert isinstance(connection, sqlite3.Connection)
++        connection.execute("PRAGMA ignore_check_constraints=ON")
++        try:
++            connection.execute(
++                "UPDATE run_journal_calls SET observation_json=? WHERE run_id=?",
++                (receipt, run_id),
++            )
++        finally:
++            connection.execute("PRAGMA ignore_check_constraints=OFF")
++
++    await fixture.store.run_transaction(corrupt_temporary_fixture)
++    await assert_automatic_hold(fixture, await fresh_proposal(fixture))
++
++
++@pytest.mark.asyncio
++async def test_unknown_effect_does_not_expire_or_depend_on_model_privacy_route(
++    tmp_path: Path,
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    run_id, _ = await prior_call(fixture, privacy="cloud_allowed")
++    await fixture.store.run_transaction(
++        lambda c: c.execute(
++            "UPDATE agent_runs SET created_at='2000-01-01T00:00:00+00:00', "
++            "updated_at='2000-01-01T00:00:00+00:00' WHERE run_id=?",
++            (run_id,),
++        )
++    )
++    await assert_automatic_hold(fixture, await fresh_proposal(fixture))
++
++
++@pytest.mark.asyncio
++async def test_repository_transition_cannot_bypass_automatic_guard(tmp_path: Path) -> None:
++    fixture = await fixture_at(tmp_path)
++    await prior_call(fixture)
++    proposal = await fresh_proposal(fixture)
++    with pytest.raises(PermissionError) as raised:
++        await fixture.proposals.transition(
++            proposal.proposal_id, ProposalState.PENDING, ProposalState.APPROVED, automatic=True
++        )
++    assert type(raised.value).__name__ == "PriorOutcomeUnknown"
++    actual = await fixture.proposals.get(proposal.proposal_id)
++    assert actual is not None and actual.state is ProposalState.PENDING
++
++
++@pytest.mark.asyncio
++async def test_manual_default_remains_hash_bound_and_executes_only_once(tmp_path: Path) -> None:
++    fixture = await fixture_at(tmp_path)
++    await prior_call(fixture)
++    proposal = await fresh_proposal(fixture)
++    await assert_automatic_hold(fixture, proposal)
++    with pytest.raises(PermissionError):
++        await fixture.orchestrator.resolve(
++            proposal.proposal_id, approved=True, arguments={"argv": ["changed"]}
++        )
++    pending = await fixture.orchestrator.get(proposal.proposal_id)
++    assert pending is not None and pending.state is ProposalState.PENDING
++    await fixture.orchestrator.resolve(
++        proposal.proposal_id, approved=True, arguments=proposal.arguments
++    )
++    completed = await fixture.orchestrator.execute(proposal.proposal_id)
++    assert completed.state is ProposalState.COMPLETED
++    with pytest.raises(ValueError):
++        await fixture.orchestrator.execute(proposal.proposal_id)
++    assert fixture.effects == [ARGS]
++
++
++@pytest.mark.asyncio
++async def test_denial_ignores_automatic_hold_and_does_not_dispatch(tmp_path: Path) -> None:
++    fixture = await fixture_at(tmp_path)
++    await prior_call(fixture)
++    proposal = await fresh_proposal(fixture)
++    denied = await fixture.orchestrator.resolve(
++        proposal.proposal_id, approved=False, arguments=proposal.arguments, automatic=True
++    )
++    assert denied.state is ProposalState.DENIED
++    assert fixture.effects == []
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("catalog_effect", [None, "computer", "unknown"])
++async def test_untrusted_read_only_risk_does_not_exempt_effectful_call(
++    tmp_path: Path, catalog_effect: str | None
++) -> None:
++    fixture = await fixture_at(
++        tmp_path, effects=None if catalog_effect is None else {"computer.execute": catalog_effect}
++    )
++    await prior_call(fixture)
++    proposal = await fresh_proposal(fixture, risk="observe/read-only")
++    await assert_automatic_hold(fixture, proposal)
++
++
++@pytest.mark.asyncio
++async def test_trusted_read_descriptor_can_repeat_readback(tmp_path: Path) -> None:
++    fixture = await fixture_at(tmp_path, effects={"browser.read": "read"})
++    await prior_call(fixture, capability="browser.read", arguments={})
++    proposal = await fresh_proposal(fixture, capability="browser.read", arguments={})
++    approved = await fixture.orchestrator.resolve(
++        proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
++    )
++    assert approved.state is ProposalState.APPROVED
++    assert fixture.effects == []
++
++
++@pytest.mark.asyncio
++async def test_stale_pending_and_simultaneous_approvals_keep_compare_and_set(
++    tmp_path: Path,
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    proposal = await fresh_proposal(fixture)
++    results = await asyncio.gather(
++        *(
++            fixture.orchestrator.resolve(
++                proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
++            )
++            for _ in range(2)
++        ),
++        return_exceptions=True,
++    )
++    assert sum(isinstance(result, ToolProposal) for result in results) == 1
++    assert sum(isinstance(result, ValueError) for result in results) == 1
++    await prior_call(fixture)
++    with pytest.raises(ValueError):
++        await fixture.orchestrator.resolve(
++            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
++        )
++    assert fixture.effects == []
++
++
++@pytest.mark.asyncio
++async def test_fence_committed_before_approval_transaction_is_seen(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    fixture = await fixture_at(tmp_path)
++    run_id, _ = await prior_call(fixture, fenced=False)
++    proposal = await fresh_proposal(fixture)
++    entered, proceed = asyncio.Event(), asyncio.Event()
++    original = fixture.proposals.transition
++
++    async def paused_transition(
++        proposal_id: str,
++        expected: ProposalState,
++        target: ProposalState,
++        *,
++        observation: object | None = None,
++        error: str | None = None,
++        automatic: bool = False,
++    ) -> ToolProposal:
++        entered.set()
++        await proceed.wait()
++        return await original(
++            proposal_id,
++            expected,
++            target,
++            observation=observation,
++            error=error,
++            automatic=automatic,
++        )
++
++    monkeypatch.setattr(fixture.proposals, "transition", paused_transition)
++    task = asyncio.create_task(
++        fixture.orchestrator.resolve(
++            proposal.proposal_id, approved=True, arguments=proposal.arguments, automatic=True
++        )
++    )
++    ready = asyncio.create_task(entered.wait())
++    try:
++        done, _ = await asyncio.wait({task, ready}, timeout=2, return_when=asyncio.FIRST_COMPLETED)
++        if task in done:
++            await task
++            pytest.fail("approval bypassed its transaction")
++        assert ready in done, "approval did not reach the fixture barrier"
++        await fixture.runs.finish_journal(run_id)
++        await fixture.runs.append(
++            run_id, "final", {}, state=AgentRunState.FAILED, error="outcome_unknown"
++        )
++        proceed.set()
++        with pytest.raises(PermissionError) as raised:
++            await asyncio.wait_for(task, 2)
++        assert type(raised.value).__name__ == "PriorOutcomeUnknown"
++        assert fixture.effects == []
++    finally:
++        proceed.set()
++        ready.cancel()
++        if not task.done():
++            task.cancel()
++        await asyncio.gather(task, ready, return_exceptions=True)
++
++
++class CounterModel:
++    name = "synthetic-unknown-effect"
++
++    def __init__(self, calls: tuple[ToolCall, ...]) -> None:
++        self.calls = calls
++        self.requests: list[ModelRequest] = []
++
++    async def stream(
++        self, request: ModelRequest, cancellation: CancellationToken
++    ) -> AsyncIterator[ModelChunk]:
++        self.requests.append(request)
++        if len(self.requests) == 1:
++            for call in self.calls:
++                yield ModelChunk("tool_request", tool_call=call)
++        else:
++            yield ModelChunk("text", "Synthetic observed completion")
++        yield ModelChunk("finished")
++
++
++class RecordingHub(GatewayHub):
++    def __init__(self) -> None:
++        super().__init__()
++        self.events: list[dict[str, object]] = []
++
++    async def broadcast(self, payload: dict[str, object], *, urgent: bool = False) -> None:
++        self.events.append(payload)
++
++
++async def controller_at(
++    tmp_path: Path, *, batch: bool = False
++) -> tuple[Fixture, IntegratedCompanion, CounterModel, RecordingHub]:
++    fixture = await fixture_at(tmp_path)
++    calls: tuple[ToolCall, ...] = (ToolCall("fresh-held", "computer.execute", ARGS.copy()),)
++    if batch:
++        calls += (ToolCall("fresh-normal", "computer.execute", {"argv": ["new-operation"]}),)
++    model, hub = CounterModel(calls), RecordingHub()
++    controller = IntegratedCompanion(
++        tmp_path,
++        model,
++        hub,
++        MinimalWebBodyAdapter(WebSocketBodyTransport()),
++        privacy=Privacy.LOCAL_ONLY,
++        tool_orchestrator=fixture.orchestrator,
++        runtime_profile="candidate",
++        auto_authorize=lambda: True,
++    )
++    await controller.startup()
++    await prior_call(fixture)
++    return fixture, controller, model, hub
++
++
++def held_event(hub: RecordingHub) -> dict[str, object]:
++    proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
++    held = [event for event in proposals if event["call_id"] == "fresh-held"]
++    assert len(held) == 1
++    assert held[0]["automatic_approval_blocked"] == "prior_outcome_unknown"
++    assert held[0]["status"] == "pending"
++    assert not any(
++        event["type"] in {"tool_started", "tool_result"} and event.get("call_id") == "fresh-held"
++        for event in hub.events
++    )
++    return held[0]
++
++
++@pytest.mark.asyncio
++async def test_full_mode_fresh_identical_call_waits_for_owner_without_effects(
++    tmp_path: Path,
++) -> None:
++    fixture, controller, model, hub = await controller_at(tmp_path)
++    await controller.respond("owner-session", "Please repeat the operation")
++    event = held_event(hub)
++    assert fixture.effects == []
++    assert len(model.requests) == 1
++    assert not any(event["type"] == "assistant_terminal" for event in hub.events)
++    assert "SECRET-PRIOR" not in model.requests[0].prompt
++    proposal = await fixture.orchestrator.get(str(event["proposal_id"]))
++    assert proposal is not None and proposal.state is ProposalState.PENDING
++    await controller.cancel("active", "fixture cleanup", session_id="owner-session")
++
++
++@pytest.mark.asyncio
++async def test_held_call_manual_approval_completes_once(tmp_path: Path) -> None:
++    fixture, controller, model, hub = await controller_at(tmp_path)
++    await controller.respond("owner-session", "Please repeat the operation")
++    event = held_event(hub)
++    proposal_id = str(event["proposal_id"])
++    proposal = await fixture.orchestrator.get(proposal_id)
++    assert proposal is not None
++    await fixture.orchestrator.resolve(proposal_id, approved=True, arguments=proposal.arguments)
++    result = await fixture.orchestrator.execute(proposal_id)
++    await controller.continue_after_tool(result)
++    await controller.continue_after_tool(result)
++    with pytest.raises(ValueError):
++        await fixture.orchestrator.execute(proposal_id)
++    assert fixture.effects == [ARGS]
++    assert len(model.requests) == 2
++    assert len([event for event in hub.events if event["type"] == "assistant_terminal"]) == 1
++
++
++@pytest.mark.asyncio
++async def test_held_call_denial_is_observed_without_execution(tmp_path: Path) -> None:
++    fixture, controller, model, hub = await controller_at(tmp_path)
++    await controller.respond("owner-session", "Please repeat the operation")
++    event = held_event(hub)
++    proposal_id = str(event["proposal_id"])
++    denied = await fixture.orchestrator.resolve(proposal_id, approved=False, arguments=ARGS)
++    await controller.continue_after_tool(denied)
++    assert fixture.effects == []
++    assert len(model.requests) == 2
++    assert '"error": "denied"' in model.requests[-1].messages[-1].content
++    assert len([event for event in hub.events if event["type"] == "assistant_terminal"]) == 1
++
++
++@pytest.mark.asyncio
++async def test_cancel_held_call_fences_late_manual_approval(tmp_path: Path) -> None:
++    fixture, controller, model, hub = await controller_at(tmp_path)
++    await controller.respond("owner-session", "Please repeat the operation")
++    event = held_event(hub)
++    await controller.cancel("active", "synthetic owner cancellation", session_id="owner-session")
++    with pytest.raises(ValueError):
++        await fixture.orchestrator.resolve(str(event["proposal_id"]), approved=True, arguments=ARGS)
++    assert fixture.effects == []
++    assert len(model.requests) == 1
++    terminal = [event for event in hub.events if event["type"] == "assistant_terminal"]
++    assert len(terminal) == 1 and terminal[0]["state"] == "cancelled"
++
++
++@pytest.mark.asyncio
++async def test_held_batch_allows_unrelated_call_and_resumes_after_manual_once(
++    tmp_path: Path,
++) -> None:
++    fixture, controller, model, hub = await controller_at(tmp_path, batch=True)
++    await controller.respond("owner-session", "Repeat operation and perform the new one")
++    event = held_event(hub)
++    assert fixture.effects == [{"argv": ["new-operation"]}]
++    assert len(model.requests) == 1
++    proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
++    assert len(proposals) == 2
++    assert not any(event["type"] == "assistant_terminal" for event in hub.events)
++    proposal_id = str(event["proposal_id"])
++    await fixture.orchestrator.resolve(proposal_id, approved=True, arguments=ARGS)
++    result = await fixture.orchestrator.execute(proposal_id)
++    await controller.continue_after_tool(result)
++    assert fixture.effects == [{"argv": ["new-operation"]}, ARGS]
++    assert len(model.requests) == 2
++    assert [message.tool_call_id for message in model.requests[-1].messages[-2:]] == [
++        "fresh-held",
++        "fresh-normal",
++    ]
++    assert len([event for event in hub.events if event["type"] == "assistant_terminal"]) == 1
+diff --git a/tests/integration/test_frontend_unknown_effect.py b/tests/integration/test_frontend_unknown_effect.py
+--- /dev/null
++++ b/tests/integration/test_frontend_unknown_effect.py
+@@ -0,0 +1,66 @@
++import subprocess
++from pathlib import Path
++
++
++def test_full_mode_unknown_effect_requires_visible_manual_confirmation() -> None:
++    html = Path("src/siro/services/presentation/static/index.html").read_text()
++    script = html[
++        html.index("      function renderToolProposal(") : html.index(
++            "      function renderToolResult("
++        )
++    ]
++    setup = r"""
++const assert = require('node:assert/strict');
++const cards = new Map(), root = {appendChild:card=>cards.set(card.id,card)};
++let authorizationMode = 'full', requests = 0;
++class Element {
++  constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
++  set textContent(value) { this._text=String(value); this.children=[]; }
++  get textContent() { return this._text + this.children.map(c=>c.textContent).join(''); }
++  set innerHTML(value) { throw new Error('untrusted HTML'); }
++  append(...items) { this.children.push(...items); }
++  appendChild(child) { this.children.push(child); }
++  querySelector(selector) { return this.children.find(c=>c.className===selector.slice(1)); }
++}
++const document = {
++  createElement: tag=>new Element(tag), getElementById:id=>cards.get(id),
++  querySelector:selector=>selector==='#tool-proposals'?root:
++    selector==='#computer-panel'?{}:cards.get(selector.slice(1))
++};
++const connectControl=async()=>{}, headers=()=>({});
++const authorizedFetch=async(url,options)=>{
++  requests++; assert.equal(JSON.parse(options.body).approved,true);
++  assert(url.endsWith('/approve')); return {ok:true};
++};
++const proposal = (id,extra={})=>({proposal_id:id,capability:'computer.execute',
++  scope:'synthetic',target:'synthetic',risk:'computer',...extra});
++"""
++    checks = r"""
++(async()=>{
++  renderToolProposal(proposal('held',{automatic_approval_blocked:'prior_outcome_unknown'}));
++  const held=cards.get('tool-held');
++  assert(held.textContent.includes('結果'));
++  assert(held.textContent.includes('未確認'));
++  assert(held.textContent.includes('重複'));
++  assert(!held.textContent.includes('已自動授權'));
++  const button=held.children.find(c=>c.tag==='button'); assert(button);
++  assert.equal(requests,0); await button.onclick();
++  assert.equal(requests,1); assert.equal(button.disabled,true);
++  renderToolProposal(proposal('held',{automatic_approval_blocked:'prior_outcome_unknown'}));
++  assert.equal(cards.size,1);
++  renderToolProposal(proposal('normal'));
++  assert(!cards.get('tool-normal').children.some(c=>c.tag==='button'));
++  assert(cards.get('tool-normal').textContent.includes('已自動授權'));
++  authorizationMode='safe'; renderToolProposal(proposal('safe'));
++  assert(cards.get('tool-safe').children.some(c=>c.tag==='button'));
++  renderToolProposal(proposal('injected',{
++    automatic_approval_blocked:'<img src=x onerror="globalThis.injected=1">PRIVATE-CANARY'
++  }));
++  assert(!cards.get('tool-injected').textContent.includes('PRIVATE-CANARY'));
++  assert.equal(globalThis.injected,undefined);
++})().catch(error=>{process.stderr.write(String(error));process.exitCode=1;});
++"""
++    result = subprocess.run(
++        ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
++    )
++    assert result.returncode == 0, result.stderr

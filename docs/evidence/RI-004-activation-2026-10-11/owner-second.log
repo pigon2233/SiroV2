@@ -1,0 +1,965 @@
+FFFFFFFFFFFFFFFFFFFFFFFFFFFF                                             [100%]
+=================================== FAILURES ===================================
+_____ test_real_prepare_owner_approval_disabled_enable_normal_tool_revoke ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_real_prepare_owner_approv0')
+
+    @pytest.mark.asyncio
+    async def test_real_prepare_owner_approval_disabled_enable_normal_tool_revoke(
+        tmp_path: Path,
+    ) -> None:
+>       owner, store, registry, catalog, package_hash = await installed(tmp_path)
+                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+______ test_runtime_restart_restores_only_exact_approved_managed_package _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_runtime_restart_restores_0')
+
+    @pytest.mark.asyncio
+    async def test_runtime_restart_restores_only_exact_approved_managed_package(tmp_path: Path) -> None:
+>       owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+___________ test_changed_package_refuses_enable_but_can_still_revoke ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_changed_package_refuses_e0')
+
+    @pytest.mark.asyncio
+    async def test_changed_package_refuses_enable_but_can_still_revoke(tmp_path: Path) -> None:
+>       owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:121: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+____________ test_tampered_review_cannot_be_approved[package_hash] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_tampered_review_cannot_be0')
+field = 'package_hash'
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "package_hash",
+            "source_sha256",
+            "tests_sha256",
+            "proposal_sha256",
+            "proposal_id",
+            "files",
+            "verification",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_tampered_review_cannot_be_approved(tmp_path: Path, field: str) -> None:
+        from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
+    
+>       owner, _store, _registry, catalog = await owner_fixture(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+____________ test_tampered_review_cannot_be_approved[source_sha256] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_tampered_review_cannot_be1')
+field = 'source_sha256'
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "package_hash",
+            "source_sha256",
+            "tests_sha256",
+            "proposal_sha256",
+            "proposal_id",
+            "files",
+            "verification",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_tampered_review_cannot_be_approved(tmp_path: Path, field: str) -> None:
+        from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
+    
+>       owner, _store, _registry, catalog = await owner_fixture(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+____________ test_tampered_review_cannot_be_approved[tests_sha256] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_tampered_review_cannot_be2')
+field = 'tests_sha256'
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "package_hash",
+            "source_sha256",
+            "tests_sha256",
+            "proposal_sha256",
+            "proposal_id",
+            "files",
+            "verification",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_tampered_review_cannot_be_approved(tmp_path: Path, field: str) -> None:
+        from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
+    
+>       owner, _store, _registry, catalog = await owner_fixture(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+___________ test_tampered_review_cannot_be_approved[proposal_sha256] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_tampered_review_cannot_be3')
+field = 'proposal_sha256'
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "package_hash",
+            "source_sha256",
+            "tests_sha256",
+            "proposal_sha256",
+            "proposal_id",
+            "files",
+            "verification",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_tampered_review_cannot_be_approved(tmp_path: Path, field: str) -> None:
+        from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
+    
+>       owner, _store, _registry, catalog = await owner_fixture(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_____________ test_tampered_review_cannot_be_approved[proposal_id] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_tampered_review_cannot_be4')
+field = 'proposal_id'
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "package_hash",
+            "source_sha256",
+            "tests_sha256",
+            "proposal_sha256",
+            "proposal_id",
+            "files",
+            "verification",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_tampered_review_cannot_be_approved(tmp_path: Path, field: str) -> None:
+        from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
+    
+>       owner, _store, _registry, catalog = await owner_fixture(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+________________ test_tampered_review_cannot_be_approved[files] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_tampered_review_cannot_be5')
+field = 'files'
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "package_hash",
+            "source_sha256",
+            "tests_sha256",
+            "proposal_sha256",
+            "proposal_id",
+            "files",
+            "verification",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_tampered_review_cannot_be_approved(tmp_path: Path, field: str) -> None:
+        from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
+    
+>       owner, _store, _registry, catalog = await owner_fixture(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+____________ test_tampered_review_cannot_be_approved[verification] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_tampered_review_cannot_be6')
+field = 'verification'
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "package_hash",
+            "source_sha256",
+            "tests_sha256",
+            "proposal_sha256",
+            "proposal_id",
+            "files",
+            "verification",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_tampered_review_cannot_be_approved(tmp_path: Path, field: str) -> None:
+        from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
+    
+>       owner, _store, _registry, catalog = await owner_fixture(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:148: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_________ test_single_review_expiry_stale_identity_and_client_mutation _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_single_review_expiry_stal0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x791b550f7770>
+
+    @pytest.mark.asyncio
+    async def test_single_review_expiry_stale_identity_and_client_mutation(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+>       owner, _store, _registry, catalog = await owner_fixture(tmp_path)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:161: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_____________ test_revoke_drains_active_and_queued_jobs_before_ack _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_revoke_drains_active_and_0')
+
+    @pytest.mark.asyncio
+    async def test_revoke_drains_active_and_queued_jobs_before_ack(tmp_path: Path) -> None:
+>       owner, _, registry, catalog, package_hash = await installed(tmp_path)
+                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_______ test_foreground_cancellation_and_disable_join_owned_jobs[token] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_foreground_cancellation_a0')
+action = 'token'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+______ test_foreground_cancellation_and_disable_join_owned_jobs[deadline] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_foreground_cancellation_a1')
+action = 'deadline'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_______ test_foreground_cancellation_and_disable_join_owned_jobs[caller] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_foreground_cancellation_a2')
+action = 'caller'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+______ test_foreground_cancellation_and_disable_join_owned_jobs[suspend] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_foreground_cancellation_a3')
+action = 'suspend'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_______ test_foreground_cancellation_and_disable_join_owned_jobs[close] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_foreground_cancellation_a4')
+action = 'close'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+__________ test_late_cancel_enable_transaction_is_joined_and_disabled __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_late_cancel_enable_transa0')
+
+    @pytest.mark.asyncio
+    async def test_late_cancel_enable_transaction_is_joined_and_disabled(tmp_path: Path) -> None:
+>       owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:263: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_______________ test_product_input_bounds_before_dispatch[args0] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_product_input_bounds_befo0')
+args = {'text': True}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:300: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_______________ test_product_input_bounds_before_dispatch[args1] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_product_input_bounds_befo1')
+args = {'text': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:300: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_______________ test_product_input_bounds_before_dispatch[args2] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_product_input_bounds_befo2')
+args = {'text': '界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界...界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界'}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:300: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_______________ test_product_input_bounds_before_dispatch[args3] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_product_input_bounds_befo3')
+args = {'text': '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n...n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:300: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+_______________ test_product_input_bounds_before_dispatch[args4] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_product_input_bounds_befo4')
+args = {'text': '', 'path': '/private'}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:300: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+________ test_no_authority_from_argument_executor_or_unapproved_context ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_no_authority_from_argumen0')
+
+    @pytest.mark.asyncio
+    async def test_no_authority_from_argument_executor_or_unapproved_context(tmp_path: Path) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:309: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+__________ test_output_counts_are_exact_integer_and_consistent[True] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_output_counts_are_exact_i0')
+invalid = True
+
+    @pytest.mark.parametrize("invalid", [True, 2, -1, "1"])
+    @pytest.mark.asyncio
+    async def test_output_counts_are_exact_integer_and_consistent(
+        tmp_path: Path, invalid: object
+    ) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:324: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+____________ test_output_counts_are_exact_integer_and_consistent[2] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_output_counts_are_exact_i1')
+invalid = 2
+
+    @pytest.mark.parametrize("invalid", [True, 2, -1, "1"])
+    @pytest.mark.asyncio
+    async def test_output_counts_are_exact_integer_and_consistent(
+        tmp_path: Path, invalid: object
+    ) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:324: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+___________ test_output_counts_are_exact_integer_and_consistent[-1] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_output_counts_are_exact_i2')
+invalid = -1
+
+    @pytest.mark.parametrize("invalid", [True, 2, -1, "1"])
+    @pytest.mark.asyncio
+    async def test_output_counts_are_exact_integer_and_consistent(
+        tmp_path: Path, invalid: object
+    ) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:324: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+____________ test_output_counts_are_exact_integer_and_consistent[1] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-38/test_output_counts_are_exact_i3')
+invalid = '1'
+
+    @pytest.mark.parametrize("invalid", [True, 2, -1, "1"])
+    @pytest.mark.asyncio
+    async def test_output_counts_are_exact_integer_and_consistent(
+        tmp_path: Path, invalid: object
+    ) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:324: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:59: in installed
+    owner, store, registry, catalog = await owner_fixture(tmp_path)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:37: in owner_fixture
+    owner = activation_module().SkillActivationOwner(
+            ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def activation_module() -> Any:
+>       from siro.services.tools import skill_activation
+E         File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 500
+E           finally:
+E           ^^^^^^^
+E       SyntaxError: invalid syntax
+
+tests/integration/test_skill_activation.py:25: SyntaxError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation.py::test_real_prepare_owner_approval_disabled_enable_normal_tool_revoke
+FAILED tests/integration/test_skill_activation.py::test_runtime_restart_restores_only_exact_approved_managed_package
+FAILED tests/integration/test_skill_activation.py::test_changed_package_refuses_enable_but_can_still_revoke
+FAILED tests/integration/test_skill_activation.py::test_tampered_review_cannot_be_approved[package_hash]
+FAILED tests/integration/test_skill_activation.py::test_tampered_review_cannot_be_approved[source_sha256]
+FAILED tests/integration/test_skill_activation.py::test_tampered_review_cannot_be_approved[tests_sha256]
+FAILED tests/integration/test_skill_activation.py::test_tampered_review_cannot_be_approved[proposal_sha256]
+FAILED tests/integration/test_skill_activation.py::test_tampered_review_cannot_be_approved[proposal_id]
+FAILED tests/integration/test_skill_activation.py::test_tampered_review_cannot_be_approved[files]
+FAILED tests/integration/test_skill_activation.py::test_tampered_review_cannot_be_approved[verification]
+FAILED tests/integration/test_skill_activation.py::test_single_review_expiry_stale_identity_and_client_mutation
+FAILED tests/integration/test_skill_activation.py::test_revoke_drains_active_and_queued_jobs_before_ack
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[token]
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[deadline]
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[caller]
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[suspend]
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[close]
+FAILED tests/integration/test_skill_activation.py::test_late_cancel_enable_transaction_is_joined_and_disabled
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args0]
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args1]
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args2]
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args3]
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args4]
+FAILED tests/integration/test_skill_activation.py::test_no_authority_from_argument_executor_or_unapproved_context
+FAILED tests/integration/test_skill_activation.py::test_output_counts_are_exact_integer_and_consistent[True]
+FAILED tests/integration/test_skill_activation.py::test_output_counts_are_exact_integer_and_consistent[2]
+FAILED tests/integration/test_skill_activation.py::test_output_counts_are_exact_integer_and_consistent[-1]
+FAILED tests/integration/test_skill_activation.py::test_output_counts_are_exact_integer_and_consistent[1]
+28 failed in 0.88s

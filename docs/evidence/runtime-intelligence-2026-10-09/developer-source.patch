@@ -1,0 +1,611 @@
+diff --git a/.gitignore b/.gitignore
+index e3ac3f5..480d11a 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -35,3 +35,6 @@ docs/evidence/**/private/
+ 
+ # Private local companion service output
+ /.siro-data/companion-service.log
++
++# Local, pinned development analysis tool and disposable source graph.
++/.siro-data/developer-tools/
+diff --git a/.cbmignore b/.cbmignore
+new file mode 100644
+--- /dev/null
++++ b/.cbmignore
+@@ -0,0 +1,25 @@
++# Defense in depth for an explicitly approved manual index of this repository.
++# The supplied developer launcher indexes a narrower source-only projection.
++.siro-data/
++.codex/
++.env
++.env.*
++models/
++config/body-assets/
++docs/evidence/
++docs/runtime-evolution/verification/
++.venv/
++node_modules/
++target/
++build/
++dist/
++recordings/
++screenshots/
++runtime-data/
++**/secrets.h
++**/*.pem
++**/*.key
++**/*.db
++**/*.sqlite*
++**/*.wav
++**/__pycache__/
+diff --git a/.codex/config.toml b/.codex/config.toml
+new file mode 100644
+--- /dev/null
++++ b/.codex/config.toml
+@@ -0,0 +1,10 @@
++# SIRO developer-only graph. No runtime memory or tool execution integration.
++[mcp_servers.siro_codebase]
++command = "/usr/bin/python3"
++args = ["/home/jasonliao/文件/Siro/SiroV2/scripts/codebase_memory.py", "serve"]
++cwd = "/home/jasonliao/文件/Siro/SiroV2"
++enabled = true
++required = false
++startup_timeout_sec = 45
++tool_timeout_sec = 60
++enabled_tools = ["search_graph", "query_graph", "trace_path", "get_code_snippet", "get_file_outline", "get_graph_schema", "get_architecture", "search_code", "list_projects", "index_status", "check_index_coverage"]
+diff --git a/config/development/codebase-memory.lock.toml b/config/development/codebase-memory.lock.toml
+new file mode 100644
+--- /dev/null
++++ b/config/development/codebase-memory.lock.toml
+@@ -0,0 +1,13 @@
++# Public source and release hashes; not credentials.
++version = "0.11.0"
++source_commit = "8972ea69c6ad94b1ef1d4ffbf0a92d78d2db1798" # pragma: allowlist secret
++platform = "linux-amd64"
++license = "MIT plus bundled THIRD_PARTY_NOTICES.md"
++url = "https://github.com/DeusData/codebase-memory-mcp/releases/download/v0.11.0/codebase-memory-mcp-linux-amd64.tar.gz"
++archive_sha256 = "032b33c1833919a2d1de67ff6367fa6ea46aee8689c86ef223c88fae3b6e4536" # pragma: allowlist secret
++verification = "SHA256 matched official release API and checksums.txt; attestation NOT_VERIFIED"
++
++[release_files]
++"codebase-memory-mcp" = "a831cdcafaed7b1f7c23ce996a72a035f2188d7e20e9a18f39ec4b2d4e3302a6" # pragma: allowlist secret
++"LICENSE" = "1f58f9911dc5e3bcb96de28bb28e7b6bb7eb323952d29569c5d7214a152146bb" # pragma: allowlist secret
++"THIRD_PARTY_NOTICES.md" = "57df11de7391283832f4b0d1f015acddbd93bbd94ce1b49e8e05ab68fbad3e8c" # pragma: allowlist secret
+diff --git a/scripts/codebase_memory.py b/scripts/codebase_memory.py
+new file mode 100644
+--- /dev/null
++++ b/scripts/codebase_memory.py
+@@ -0,0 +1,258 @@
++#!/usr/bin/env python3
++"""Local development graph only: filtered source, no network, no runtime integration."""
++
++from __future__ import annotations
++
++import argparse
++import fcntl
++import hashlib
++import json
++import shutil
++import subprocess
++import sys
++import tomllib
++from pathlib import Path
++
++REPOSITORY = Path(__file__).resolve().parents[1]
++VERSION = "0.11.0"
++SOURCE_ROOTS = frozenset({"src", "runtime", "tests", "scripts", "schemas", "firmware"})
++ROOT_FILES = frozenset({"pyproject.toml", "Cargo.toml", "rust-toolchain.toml", "README.md"})
++SUFFIXES = frozenset({".py", ".rs", ".html", ".js", ".ts", ".json", ".toml", ".h", ".cpp"})
++BLOCKED_PARTS = frozenset(
++    {
++        ".git",
++        ".siro-data",
++        "__pycache__",
++        "node_modules",
++        "target",
++        "build",
++        "dist",
++        ".venv",
++        "venv",
++        "site-packages",
++        "vendor",
++        "vendored",
++        "deps",
++        "generated",
++    }
++)
++MAX_FILE_BYTES = 2 * 1024 * 1024
++MAX_TOTAL_BYTES = 32 * 1024 * 1024
++
++
++def source_paths(repository: Path) -> list[Path]:
++    """Use Git's inventory, including current untracked source, never a home-directory scan."""
++    output = subprocess.check_output(
++        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
++        cwd=repository,
++    )
++    ignored = subprocess.run(
++        ["git", "check-ignore", "--no-index", "--stdin", "-z"],
++        input=output,
++        cwd=repository,
++        capture_output=True,
++        check=False,
++    )
++    if ignored.returncode not in {0, 1}:
++        raise RuntimeError("Could not validate Git ignore rules")
++    excluded = set(ignored.stdout.decode().split("\0"))
++    result = []
++    for raw in sorted(set(output.decode().split("\0")) - {""}):
++        relative = Path(raw)
++        if raw in excluded:
++            continue
++        if relative.is_absolute() or ".." in relative.parts:
++            raise ValueError("unsafe Git path")
++        if any(part in BLOCKED_PARTS for part in relative.parts):
++            continue
++        if any(part.startswith(".env") or part == "secrets.h" for part in relative.parts):
++            continue
++        if any(
++            marker in part.lower()
++            for part in relative.parts
++            for marker in (
++                "credential",
++                "private-key",
++                "private_key",
++                "auth-token",
++                "auth_token",
++                "access-token",
++                "access_token",
++            )
++        ):
++            continue
++        accepted = (
++            relative.parts[0] in SOURCE_ROOTS
++            and (relative.suffix in SUFFIXES or relative.parent == Path("scripts"))
++        ) or raw in ROOT_FILES
++        accepted |= relative.parts[0] == "config" and ".example." in relative.name
++        if not accepted:
++            continue
++        path = repository / relative
++        if any(parent.is_symlink() for parent in (path, *path.parents)):
++            continue
++        if path.is_file():
++            result.append(relative)
++    return result
++
++
++def prepare(repository: Path, destination: Path) -> dict[str, object]:
++    """Build a disposable projection; record exact source hashes rather than copying Git history."""
++    if destination.exists():
++        raise FileExistsError("projection exists; use the index command to refresh it")
++    files: dict[str, str] = {}
++    total = 0
++    for relative in source_paths(repository):
++        path = repository / relative
++        size = path.stat().st_size
++        if size > MAX_FILE_BYTES or total + size > MAX_TOTAL_BYTES or len(files) >= 5000:
++            raise ValueError("source projection exceeds development budget")
++        data = path.read_bytes()
++        if len(data) > MAX_FILE_BYTES or total + len(data) > MAX_TOTAL_BYTES:
++            raise ValueError("source changed beyond development budget")
++        total += len(data)
++        target = destination / relative
++        target.parent.mkdir(parents=True, exist_ok=True)
++        target.write_bytes(data)
++        files[str(relative)] = hashlib.sha256(data).hexdigest()
++    return {"repository": str(repository), "files": files, "total_bytes": total}
++
++
++def require_current_index(repository: Path, home: Path) -> None:
++    if not (home / "index-ready.json").is_file():
++        raise RuntimeError("No verified index; run scripts/codebase_memory.py index")
++    manifest = json.loads((home / "source-manifest.json").read_text())
++    current = {
++        str(path): hashlib.sha256((repository / path).read_bytes()).hexdigest()
++        for path in source_paths(repository)
++    }
++    if current != manifest["files"]:
++        raise RuntimeError("Source changed; run scripts/codebase_memory.py index before querying")
++
++
++def sandbox_command(tool_home: Path, arguments: list[str]) -> list[str]:
++    """Fail closed if Linux bubblewrap is unavailable; never fall back to host access."""
++    bubblewrap = shutil.which("bwrap")
++    if not bubblewrap:
++        raise RuntimeError("Linux bubblewrap is required; see the integration report")
++    return [
++        bubblewrap,
++        "--unshare-all",
++        "--die-with-parent",
++        "--new-session",
++        "--ro-bind",
++        "/usr",
++        "/usr",
++        "--symlink",
++        "usr/lib",
++        "/lib",
++        "--symlink",
++        "usr/lib64",
++        "/lib64",
++        "--proc",
++        "/proc",
++        "--dev",
++        "/dev",
++        "--tmpfs",
++        "/tmp",
++        "--dir",
++        "/home/cbm",
++        "--ro-bind",
++        str(tool_home / "release"),
++        "/opt/cbm",
++        "--ro-bind",
++        str(tool_home / "source/SiroV2"),
++        "/workspace/projects/SiroV2",
++        "--bind",
++        str(tool_home / "cache"),
++        "/cache",
++        "--chdir",
++        "/workspace/projects/SiroV2",
++        "--setenv",
++        "HOME",
++        "/home/cbm",
++        "--setenv",
++        "CBM_CACHE_DIR",
++        "/cache",
++        "--setenv",
++        "CBM_ALLOWED_ROOT",
++        "/workspace/projects/SiroV2",
++        "--setenv",
++        "CBM_WORKERS",
++        "2",
++        "--setenv",
++        "CBM_MEM_BUDGET_MB",
++        "512",
++        "/opt/cbm/codebase-memory-mcp",
++        *arguments,
++    ]
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("action", choices=["index", "serve", "config", "version"])
++    options = parser.parse_args()
++    home = REPOSITORY / ".siro-data/developer-tools/codebase-memory" / VERSION
++    lock_path = REPOSITORY / "config/development/codebase-memory.lock.toml"
++    lock = tomllib.loads(lock_path.read_text())
++    for name, expected in lock["release_files"].items():
++        if hashlib.sha256((home / "release" / name).read_bytes()).hexdigest() != expected:
++            raise RuntimeError("pinned release mismatch: " + name)
++    home.mkdir(parents=True, exist_ok=True)
++    (home / "cache").mkdir(exist_ok=True, mode=0o700)
++    with (home / "session.lock").open("a") as lease:
++        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
++        if options.action == "index":
++            projection = home / "source/SiroV2"
++            pending = home / "source/pending"
++            if pending.exists():
++                shutil.rmtree(pending)
++            manifest = prepare(REPOSITORY, pending)
++            (home / "index-ready.json").unlink(missing_ok=True)
++            if projection.exists():
++                shutil.rmtree(projection)
++            pending.rename(projection)
++            (home / "source-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
++        elif options.action == "serve":
++            require_current_index(REPOSITORY, home)
++        environment = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
++
++        def run(args: list[str], *, diagnostic: bool = False) -> int:
++            return subprocess.call(
++                sandbox_command(home, args),
++                env=environment,
++                stdout=sys.stderr if diagnostic else None,
++            )
++
++        if options.action in {"index", "serve"}:
++            for key in ("watcher_enabled", "auto_watch", "auto_index", "ui_enabled"):
++                if run(["config", "set", key, "false"], diagnostic=True):
++                    return 1
++        if options.action == "index":
++            result = run(
++                [
++                    "cli",
++                    "--quiet",
++                    "index_repository",
++                    "--repo-path",
++                    "/workspace/projects/SiroV2",
++                    "--name",
++                    "SiroV2",
++                ]
++            )
++            if result == 0:
++                (home / "index-ready.json").write_text('{"status":"indexed"}\n')
++            return result
++        if options.action == "serve":
++            return run(["--tool-profile=analysis"])
++        if options.action == "config":
++            return run(["config", "list"])
++        return run(["--version"])
++
++
++if __name__ == "__main__":
++    try:
++        sys.exit(main())
++    except (OSError, RuntimeError, ValueError) as error:
++        print(str(error), file=sys.stderr)
++        sys.exit(2)
+diff --git a/tests/test_codebase_memory.py b/tests/test_codebase_memory.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_codebase_memory.py
+@@ -0,0 +1,269 @@
++"""Development graph projection must not expose runtime data or host capabilities."""
++
++from __future__ import annotations
++
++import hashlib
++import importlib.util
++import json
++import subprocess
++import sys
++from pathlib import Path
++from types import ModuleType
++from typing import Any
++
++import pytest
++
++
++@pytest.fixture
++def helper() -> ModuleType:
++    path = Path(__file__).resolve().parents[1] / "scripts/codebase_memory.py"
++    spec = importlib.util.spec_from_file_location("siro_developer_graph_test_helper", path)
++    assert spec is not None and spec.loader is not None
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++@pytest.fixture
++def repository(tmp_path: Path) -> Path:
++    root = tmp_path / "repository"
++    root.mkdir()
++    subprocess.run(["git", "init", "-q", str(root)], check=True)
++    return root
++
++
++def write(root: Path, relative: str, text: str = "SYNTHETIC_FIXTURE\n") -> Path:
++    path = root / relative
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(text)
++    return path
++
++
++def track(root: Path, relative: str) -> None:
++    subprocess.run(["git", "add", "--", relative], cwd=root, check=True)
++
++
++def test_projection_preserves_current_source_without_git_or_runtime_data(
++    helper: ModuleType, repository: Path, tmp_path: Path
++) -> None:
++    tracked = write(repository, "src/current.py", "VALUE = 'old'\n")
++    track(repository, "src/current.py")
++    tracked.write_text("VALUE = 'current uncommitted source'\n")
++    write(repository, "tests/new_test.py", "def test_new(): pass\n")
++    write(repository, "README.md", "Synthetic repository\n")
++    write(repository, ".siro-data/private.json")
++    write(repository, "docs/evidence/old-source/src/obsolete.py")
++    destination = tmp_path / "projection"
++
++    manifest = helper.prepare(repository, destination)
++
++    assert set(manifest["files"]) == {"src/current.py", "tests/new_test.py", "README.md"}
++    assert (destination / "src/current.py").read_bytes() == tracked.read_bytes()
++    assert manifest["files"]["src/current.py"] == hashlib.sha256(tracked.read_bytes()).hexdigest()
++    assert manifest["total_bytes"] == sum(
++        (destination / relative).stat().st_size for relative in manifest["files"]
++    )
++    assert not (destination / ".git").exists()
++    assert not (destination / ".siro-data").exists()
++
++
++@pytest.mark.parametrize(
++    "relative",
++    [
++        ".siro-data/private.json",
++        "config/providers.json",
++        "src/.env.local",
++        "src/nested/.env.secret.json",
++        "firmware/secrets.h",
++        "src/credentials.json",
++        "scripts/access-token.json",
++        "src/.venv/lib/secret.py",
++        "src/venv/lib/dependency.py",
++        "src/vendor/dependency.py",
++        "runtime/vendored/dependency.rs",
++        "src/generated/client.py",
++        "runtime/target/debug/dependency.rs",
++        "src/node_modules/dependency.js",
++        "tests/__pycache__/generated.py",
++    ],
++)
++def test_projection_excludes_sensitive_and_dependency_paths_even_if_tracked(
++    helper: ModuleType, repository: Path, relative: str
++) -> None:
++    write(repository, relative)
++    track(repository, relative)
++
++    assert Path(relative) not in helper.source_paths(repository)
++
++
++@pytest.mark.parametrize("tracked_first", [False, True])
++def test_projection_excludes_gitignored_files(
++    helper: ModuleType, repository: Path, tracked_first: bool
++) -> None:
++    write(repository, "src/private_fixture.json")
++    if tracked_first:
++        track(repository, "src/private_fixture.json")
++    write(repository, ".gitignore", "src/private_fixture.json\n")
++
++    assert Path("src/private_fixture.json") not in helper.source_paths(repository)
++
++
++def test_projection_never_follows_source_symlinks(
++    helper: ModuleType, repository: Path, tmp_path: Path
++) -> None:
++    outside = write(tmp_path, "outside/private.py")
++    (repository / "src").mkdir()
++    (repository / "src/leak.py").symlink_to(outside)
++    (repository / "src/shortcut").symlink_to(outside.parent, target_is_directory=True)
++    track(repository, "src")
++
++    assert helper.source_paths(repository) == []
++
++
++def test_projection_refuses_overwrite(helper: ModuleType, repository: Path, tmp_path: Path) -> None:
++    destination = tmp_path / "existing"
++    destination.mkdir()
++    sentinel = write(destination, "sentinel.py")
++
++    with pytest.raises(FileExistsError):
++        helper.prepare(repository, destination)
++
++    assert sentinel.read_text() == "SYNTHETIC_FIXTURE\n"
++
++
++def test_projection_enforces_per_file_budget(
++    helper: ModuleType, repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    write(repository, "src/large.py", "1234")
++    monkeypatch.setattr(helper, "MAX_FILE_BYTES", 3)
++
++    with pytest.raises(ValueError, match="budget"):
++        helper.prepare(repository, tmp_path / "projection")
++
++
++def test_projection_enforces_aggregate_budget(
++    helper: ModuleType, repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    write(repository, "src/a.py", "123")
++    write(repository, "src/b.py", "456")
++    monkeypatch.setattr(helper, "MAX_TOTAL_BYTES", 5)
++
++    with pytest.raises(ValueError, match="budget"):
++        helper.prepare(repository, tmp_path / "projection")
++
++
++def test_projection_rechecks_actual_bytes_when_source_grows_during_read(
++    helper: ModuleType, repository: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    source = write(repository, "src/growing.py", "1")
++    original_read = Path.read_bytes
++
++    def read_after_growth(path: Path) -> bytes:
++        return b"123456" if path == source else original_read(path)
++
++    monkeypatch.setattr(helper, "MAX_FILE_BYTES", 4)
++    monkeypatch.setattr(Path, "read_bytes", read_after_growth)
++
++    with pytest.raises(ValueError, match="budget"):
++        helper.prepare(repository, tmp_path / "projection")
++
++
++def test_query_requires_a_verified_index(
++    helper: ModuleType, repository: Path, tmp_path: Path
++) -> None:
++    with pytest.raises(RuntimeError, match="verified index"):
++        helper.require_current_index(repository, tmp_path / "tool")
++
++
++@pytest.mark.parametrize("change", ["edit", "add", "delete"])
++def test_query_rejects_a_stale_source_snapshot(
++    helper: ModuleType, repository: Path, tmp_path: Path, change: str
++) -> None:
++    source = write(repository, "src/current.py", "VALUE = 1\n")
++    home = tmp_path / "tool"
++    manifest = helper.prepare(repository, home / "source/SiroV2")
++    write(home, "source-manifest.json", json.dumps(manifest))
++    write(home, "index-ready.json", '{"status":"indexed"}\n')
++    helper.require_current_index(repository, home)
++
++    if change == "edit":
++        source.write_text("VALUE = 2\n")
++    elif change == "add":
++        write(repository, "src/added.py", "VALUE = 3\n")
++    else:
++        source.unlink()
++
++    with pytest.raises(RuntimeError, match="Source changed"):
++        helper.require_current_index(repository, home)
++
++
++def test_sandbox_command_has_no_host_home_network_or_writable_source(
++    helper: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    monkeypatch.setattr(helper.shutil, "which", lambda _: "/usr/bin/bwrap")
++    command = helper.sandbox_command(tmp_path, ["--tool-profile=analysis"])
++
++    assert "--unshare-all" in command
++    assert "--share-net" not in command
++    assert "--die-with-parent" in command
++    readonly_mounts = [
++        tuple(command[index + 1 : index + 3])
++        for index, argument in enumerate(command)
++        if argument == "--ro-bind"
++    ]
++    writable_mounts = [
++        tuple(command[index + 1 : index + 3])
++        for index, argument in enumerate(command)
++        if argument == "--bind"
++    ]
++    assert (str(tmp_path / "release"), "/opt/cbm") in readonly_mounts
++    assert (str(tmp_path / "source/SiroV2"), "/workspace/projects/SiroV2") in readonly_mounts
++    assert writable_mounts == [(str(tmp_path / "cache"), "/cache")]
++    assert command[-1] == "--tool-profile=analysis"
++    assert str(Path.home()) not in command
++
++
++def test_missing_bubblewrap_fails_closed(
++    helper: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    monkeypatch.setattr(helper.shutil, "which", lambda _: None)
++
++    with pytest.raises(RuntimeError, match="bubblewrap"):
++        helper.sandbox_command(tmp_path, ["--version"])
++
++
++def test_main_does_not_forward_host_credentials(
++    helper: ModuleType, repository: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    home = repository / ".siro-data/developer-tools/codebase-memory" / helper.VERSION
++    release_files = {
++        "codebase-memory-mcp": "synthetic executable fixture",
++        "LICENSE": "synthetic license fixture",
++        "THIRD_PARTY_NOTICES.md": "synthetic notices fixture",
++    }
++    hashes = {}
++    for name, value in release_files.items():
++        path = write(home, "release/" + name, value)
++        hashes[name] = hashlib.sha256(path.read_bytes()).hexdigest()
++    write(
++        repository,
++        "config/development/codebase-memory.lock.toml",
++        "[release_files]\n"
++        + "\n".join(f"{json.dumps(k)} = {json.dumps(v)}" for k, v in hashes.items()),
++    )
++    captured: list[dict[str, Any]] = []
++
++    def execute(command: list[str], **kwargs: Any) -> int:
++        captured.append({"command": command, **kwargs})
++        return 0
++
++    monkeypatch.setattr(helper, "REPOSITORY", repository)
++    monkeypatch.setattr(helper.shutil, "which", lambda _: "/usr/bin/bwrap")
++    monkeypatch.setattr(helper.subprocess, "call", execute)
++    monkeypatch.setattr(sys, "argv", ["codebase_memory.py", "version"])
++    monkeypatch.setenv("SIRO_SYNTHETIC_CREDENTIAL", "synthetic-marker-not-a-secret")
++
++    assert helper.main() == 0
++    assert len(captured) == 1
++    assert captured[0]["env"] == {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
++    assert "SIRO_SYNTHETIC_CREDENTIAL" not in captured[0]["env"]

@@ -1,0 +1,109 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_actual_main_budget_and_feature_off[candidate-64-0-ContextBudgetExceeded] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_actual_main_budget_and_fe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x74b155dbe060>
+profile = 'candidate', limit = '64', expected_calls = 0
+error = 'ContextBudgetExceeded'
+
+    @pytest.mark.parametrize(
+        "profile,limit,expected_calls,error",
+        [
+            ("candidate", "64", 0, "ContextBudgetExceeded"),
+            ("candidate", "0", 1, None),
+            ("legacy", "64", 1, None),
+        ],
+    )
+    def test_actual_main_budget_and_feature_off(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        limit: str,
+        expected_calls: int,
+        error: str | None,
+    ) -> None:
+        import siro.adapters.models.ollama as ollama
+        from siro.services.presentation.gateway import main
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", limit)
+        monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-context")
+        provider = CaptureModel()
+        monkeypatch.setattr(ollama, "OllamaAdapter", lambda **kwargs: provider)
+    
+        def run(app: object, **kwargs: object) -> None:
+            monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "65536" if limit != "0" else "1")
+            with TestClient(cast(FastAPI, app)) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                assert (
+                    client.post(
+                        "/v1/conversations/A/turns", headers=headers, json={"text": "保留原始目標"}
+                    ).status_code
+                    == 200
+                )
+                readback = client.get("/v1/agent-runs/A", headers=headers).json()
+                assert readback["state"] == ("failed" if error else "completed")
+                assert readback["error"] == error
+                if profile == "candidate":
+                    assert readback["backend"] == provider.name
+                    assert readback["messages"][1]["content"] == "保留原始目標"
+                    assert readback["messages"][0]["role"] == "system"
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_context_budget.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/tmp/siro-rt011-before-e5a2l5ns/src/siro/services/presentation/gateway.py:1368: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x74b155b0e900>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(app: object, **kwargs: object) -> None:
+        monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "65536" if limit != "0" else "1")
+        with TestClient(cast(FastAPI, app)) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            assert (
+                client.post(
+                    "/v1/conversations/A/turns", headers=headers, json={"text": "保留原始目標"}
+                ).status_code
+                == 200
+            )
+            readback = client.get("/v1/agent-runs/A", headers=headers).json()
+>           assert readback["state"] == ("failed" if error else "completed")
+E           AssertionError: assert 'completed' == 'failed'
+E             
+E             - failed
+E             + completed
+
+tests/integration/test_context_budget.py:138: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_context_budget.py::test_actual_main_budget_and_feature_off[candidate-64-0-ContextBudgetExceeded]
+1 failed, 3 warnings in 1.49s

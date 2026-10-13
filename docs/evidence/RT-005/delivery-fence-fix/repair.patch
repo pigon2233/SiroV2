@@ -1,0 +1,639 @@
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -9,6 +9,7 @@
+ import re
+ import secrets
+ import time
++from collections import deque
+ from collections.abc import AsyncIterator, Awaitable, Callable
+ from contextlib import asynccontextmanager
+ from dataclasses import dataclass, field, replace
+@@ -98,6 +99,19 @@
+         }
+ 
+ 
++_RUN_PROGRESS_EVENTS = frozenset(
++    {
++        "assistant_started",
++        "assistant_delta",
++        "affect_state",
++        "agent_step",
++        "tool_proposal",
++        "tool_started",
++        "tool_result",
++    }
++)
++
++
+ class ClientChannel:
+     def __init__(
+         self,
+@@ -106,6 +120,7 @@
+         *,
+         urgent_capacity: int,
+         normal_capacity: int,
++        terminal_fencing: bool = False,
+     ) -> None:
+         self.client_id = client_id
+         self.socket = socket
+@@ -113,6 +128,10 @@
+         self.normal: asyncio.Queue[dict[str, object]] = asyncio.Queue(normal_capacity)
+         self.writer: asyncio.Task[None] | None = None
+         self.closed = False
++        self.terminal_fencing = terminal_fencing
++        self._ended_streams: set[str] = set()
++        self._ended_order: deque[str] = deque()
++        self._fence_capacity = 5 * (urgent_capacity + normal_capacity) + 2
+ 
+     def start(self) -> None:
+         self.writer = asyncio.create_task(
+@@ -165,7 +184,27 @@
+                     selected = done.pop()
+                 message = selected.result()
+                 urgent_burst = 1 if selected is urgent_get else 0
++            stream_id = message.get("stream_id")
++            kind = message.get("type")
++            if (
++                self.terminal_fencing
++                and isinstance(stream_id, str)
++                and stream_id in self._ended_streams
++                and (kind in _RUN_PROGRESS_EVENTS or kind == "assistant_terminal")
++            ):
++                continue
+             await self.socket.send_json(message)
++            # Only this writer sends frames: after this await, no later frame from
++            # this stream may resurrect it, regardless of queue arbitration.
++            if (
++                self.terminal_fencing
++                and isinstance(stream_id, str)
++                and kind == "assistant_terminal"
++            ):
++                self._ended_streams.add(stream_id)
++                self._ended_order.append(stream_id)
++                if len(self._ended_order) > self._fence_capacity:
++                    self._ended_streams.discard(self._ended_order.popleft())
+ 
+ 
+ class GatewayHub:
+@@ -174,6 +213,13 @@
+         self._normal_capacity = normal_capacity
+         self._clients: dict[str, ClientChannel] = {}
+         self._closing_tasks: set[asyncio.Task[None]] = set()
++        self._terminal_fencing = False
++        self._proposal_streams: dict[str, str] = {}
++
++    def enable_terminal_fencing(self) -> None:
++        self._terminal_fencing = True
++        for channel in self._clients.values():
++            channel.terminal_fencing = True
+ 
+     @property
+     def client_count(self) -> int:
+@@ -185,6 +231,7 @@
+             socket,
+             urgent_capacity=self._urgent_capacity,
+             normal_capacity=self._normal_capacity,
++            terminal_fencing=self._terminal_fencing,
+         )
+         self._clients[channel.client_id] = channel
+         channel.start()
+@@ -196,6 +243,21 @@
+         await channel.stop()
+ 
+     async def broadcast(self, message: dict[str, object], *, urgent: bool = False) -> None:
++        if self._terminal_fencing:
++            stream_id, proposal_id = message.get("stream_id"), message.get("proposal_id")
++            if not isinstance(stream_id, str) and isinstance(proposal_id, str):
++                stream_id = self._proposal_streams.get(proposal_id)
++                if stream_id is not None:
++                    message = {**message, "stream_id": stream_id}
++            if isinstance(stream_id, str):
++                if message.get("type") == "tool_proposal" and isinstance(proposal_id, str):
++                    self._proposal_streams[proposal_id] = stream_id
++                elif message.get("type") == "assistant_terminal":
++                    self._proposal_streams = {
++                        key: value
++                        for key, value in self._proposal_streams.items()
++                        if value != stream_id
++                    }
+         overflowed: list[ClientChannel] = []
+         for channel in tuple(self._clients.values()):
+             if not channel.enqueue(message, urgent=urgent):
+--- a/src/siro/services/presentation/integrated.py
++++ b/src/siro/services/presentation/integrated.py
+@@ -127,9 +127,12 @@
+         self._seen_calls: dict[str, set[str]] = {}
+         self._terminated: set[str] = set()
+         self._message_histories: dict[str, list[ModelMessage]] = {}
++        self._event_streams: dict[str, str] = {}
+         self._data_dir = data_dir
+         self._model = model
+         self._hub = hub
++        if runtime_profile == "candidate":
++            self._hub.enable_terminal_fencing()
+         self._body = body
+         self._privacy = privacy
+         self._tool_orchestrator = tool_orchestrator
+@@ -148,6 +151,13 @@
+         self._affect = AffectSystem()
+         self._expression = ExpressionPolicy()
+ 
++    async def _broadcast_stream(
++        self, stream_id: str, message: dict[str, object], *, urgent: bool = False
++    ) -> None:
++        if self._runtime_profile == "candidate":
++            message = {**message, "stream_id": stream_id}
++        await self._hub.broadcast(message, urgent=urgent)
++
+     async def respond(self, session_id: str, text: str, input_mode: str = "text") -> None:
+         await self._ensure_core()
+         assert self._core is not None
+@@ -155,17 +165,20 @@
+             await self._finish_candidate(
+                 self._run_ids[session_id], session_id, TurnState.CANCELLED, "superseded"
+             )
++        stream_id = str(uuid4())
++
++        async def emit(message: dict[str, object], *, urgent: bool = False) -> None:
++            await self._broadcast_stream(stream_id, message, urgent=urgent)
++
+         self._active_sessions.add(session_id)
+-        await self._hub.broadcast({"type": "assistant_started", "session_id": session_id})
++        await emit({"type": "assistant_started", "session_id": session_id})
+         direct_command = _local_status_command(text) or _emotion_command(text)
+         if direct_command is not None:
+             emotion, reply = direct_command
+             generation_id = str(uuid4())
+             await self._body.set_emotion(EmotionIntent(emotion, 0.85))
+-            await self._hub.broadcast(
+-                {"type": "assistant_delta", "session_id": session_id, "text": reply}
+-            )
+-            await self._hub.broadcast(
++            await emit({"type": "assistant_delta", "session_id": session_id, "text": reply})
++            await emit(
+                 {
+                     "type": "assistant_terminal",
+                     "session_id": session_id,
+@@ -191,6 +204,7 @@
+         self._run_ids[session_id] = agent_run.run_id
+         if self._runtime_profile == "candidate":
+             self._message_histories[agent_run.run_id] = []
++            self._event_streams[agent_run.run_id] = stream_id
+             if self._tool_orchestrator is not None:
+                 self._tool_orchestrator.start_run(agent_run.run_id, session_id)
+         now = datetime.now(UTC)
+@@ -284,7 +298,7 @@
+             )
+             await self._relationships.record("siro", "owner", update)
+             relationship = update.state
+-        await self._hub.broadcast(
++        await emit(
+             {
+                 "type": "affect_state",
+                 "session_id": session_id,
+@@ -326,9 +340,7 @@
+         async def delta(value: str) -> None:
+             if agent_run.run_id in self._terminated:
+                 return
+-            await self._hub.broadcast(
+-                {"type": "assistant_delta", "session_id": session_id, "text": value}
+-            )
++            await emit({"type": "assistant_delta", "session_id": session_id, "text": value})
+ 
+         try:
+             verified_preferences = tuple(
+@@ -389,8 +401,9 @@
+                 error=result.error,
+             )
+             self._message_histories.pop(agent_run.run_id, None)
++            self._event_streams.pop(agent_run.run_id, None)
+             self._run_ids.pop(session_id, None)
+-            await self._hub.broadcast(
++            await emit(
+                 {
+                     "type": "assistant_terminal",
+                     "session_id": session_id,
+@@ -434,6 +447,11 @@
+                 raise RuntimeError("tool observation has no persistent agent run")
+             run_id = latest.run_id
+             self._run_ids[session_id] = run_id
++        stream_id = self._event_streams.get(run_id, run_id)
++
++        async def emit(message: dict[str, object], *, urgent: bool = False) -> None:
++            await self._broadcast_stream(stream_id, message, urgent=urgent)
++
+         batch_results: tuple[ToolProposal, ...] = (proposal,)
+         if self._runtime_profile == "candidate":
+             if run_id in self._terminated:
+@@ -502,7 +520,7 @@
+                 error="agent_step_limit",
+             )
+             self._run_ids.pop(session_id, None)
+-            await self._hub.broadcast(
++            await emit(
+                 {
+                     "type": "assistant_terminal",
+                     "session_id": session_id,
+@@ -522,15 +540,11 @@
+         )
+         if history is not None:
+             prompt = "Continue the current run using the paired tool observation."
+-        await self._hub.broadcast(
+-            {"type": "agent_step", "session_id": session_id, "step": step}, urgent=True
+-        )
++        await emit({"type": "agent_step", "session_id": session_id, "step": step}, urgent=True)
+ 
+         async def continuation_delta(value: str) -> None:
+             if run_id not in self._terminated:
+-                await self._hub.broadcast(
+-                    {"type": "assistant_delta", "session_id": session_id, "text": value}
+-                )
++                await emit({"type": "assistant_delta", "session_id": session_id, "text": value})
+ 
+         result = await self._core.respond(
+             session_id,
+@@ -569,7 +583,7 @@
+             error=result.error,
+         )
+         self._run_ids.pop(session_id, None)
+-        await self._hub.broadcast(
++        await emit(
+             {
+                 "type": "assistant_terminal",
+                 "session_id": session_id,
+@@ -600,6 +614,11 @@
+             seen.update(call_ids)
+             self._batches[run_id] = call_ids
+             self._batch_results[run_id] = {}
++        stream_id = self._event_streams.get(self._run_ids.get(session_id, ""), "")
++
++        async def emit(message: dict[str, object], *, urgent: bool = False) -> None:
++            await self._broadcast_stream(stream_id, message, urgent=urgent)
++
+         self._agent_steps.setdefault(session_id, 1)
+         for call in calls:
+             if self._runtime_profile == "candidate" and (
+@@ -624,7 +643,7 @@
+                     state=AgentRunState.WAITING_TOOL,
+                     proposal_id=proposal.proposal_id,
+                 )
+-            await self._hub.broadcast(
++            await emit(
+                 {
+                     "type": "tool_proposal",
+                     "proposal_id": proposal.proposal_id,
+@@ -648,7 +667,7 @@
+                 if self._runtime_profile == "candidate" and run_id in self._terminated:
+                     await orchestrator.discard_unstarted(proposal.proposal_id)
+                     return
+-                await self._hub.broadcast(
++                await emit(
+                     {
+                         "type": "tool_started",
+                         "proposal_id": proposal.proposal_id,
+@@ -667,7 +686,7 @@
+                 result = await orchestrator.execute(proposal.proposal_id)
+                 if self._runtime_profile == "candidate" and run_id in self._terminated:
+                     return
+-                await self._hub.broadcast(
++                await emit(
+                     {
+                         "type": "tool_result",
+                         "proposal_id": result.proposal_id,
+@@ -690,6 +709,7 @@
+         if run_id in self._terminated:
+             return
+         self._terminated.add(run_id)
++        stream_id = self._event_streams.pop(run_id, run_id)
+         if self._tool_orchestrator is not None and state is not TurnState.COMPLETED:
+             try:
+                 await self._tool_orchestrator.cancel_run(run_id)
+@@ -717,8 +737,14 @@
+             }[state],
+             error=error,
+         )
+-        await self._hub.broadcast(
+-            {"type": "assistant_terminal", "session_id": session_id, "state": state, "error": error}
++        await self._broadcast_stream(
++            stream_id,
++            {
++                "type": "assistant_terminal",
++                "session_id": session_id,
++                "state": state,
++                "error": error,
++            },
+         )
+ 
+     async def cancel(self, _turn_id: str, reason: str, *, session_id: str | None = None) -> None:
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -62,13 +62,29 @@
+       let recorder, recordedChunks = [], ttsAudio;
+       const headers = () => ({"Authorization": `Bearer ${token}`, "Content-Type": "application/json"});
+       const log = data => { document.querySelector("#events").textContent += JSON.stringify(data) + "\n"; };
++      function createTerminalFence(limit = 1024) {
++        const ended = new Set(), order = [];
++        const progress = new Set(["assistant_started", "assistant_delta", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
++        return data => {
++          if (typeof data.stream_id !== "string") return true;
++          if (ended.has(data.stream_id) && (progress.has(data.type) || data.type === "assistant_terminal")) return false;
++          if (data.type === "assistant_terminal") {
++            ended.add(data.stream_id); order.push(data.stream_id);
++            if (order.length > limit) ended.delete(order.shift());
++          }
++          return true;
++        };
++      }
++      const acceptRunEvent = createTerminalFence();
+       async function boot() {
+         const session = await fetch("/v1/session", {method: "POST", headers: {"Origin": location.origin}}).then(r => r.json());
+         token = session.token;
+         socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/control`);
+         socket.onopen = () => socket.send(JSON.stringify({type: "authenticate", token}));
+         socket.onmessage = event => {
+-          const data = JSON.parse(event.data); log(data);
++          const data = JSON.parse(event.data);
++          if (!acceptRunEvent(data)) return;
++          log(data);
+           if (data.type === "snapshot") { renderSnapshot(data); }
+           if (data.type === "turn_started") { currentTurn = data.turn_id; }
+           if (data.type === "affect_state") { renderAffect(data); }
+--- a/tests/integration/test_agent_batches.py
++++ b/tests/integration/test_agent_batches.py
+@@ -161,6 +161,30 @@
+     assert row[0] == "failed"
+ 
+ 
++async def wait_for_executor_entry(
++    task: asyncio.Task[None], entered: asyncio.Event, iteration: int, *, timeout: float = 10
++) -> None:
++    """Fixture readiness is separate from the product's two-second stop deadline."""
++    ready = asyncio.create_task(entered.wait())
++    try:
++        done, _ = await asyncio.wait(
++            {task, ready}, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
++        )
++        if ready in done:
++            return
++        if task in done:
++            await task  # expose the original exception instead of a misleading barrier timeout
++            pytest.fail(f"iteration {iteration}: respond ended before executor entry")
++        stack = [(frame.f_code.co_name, frame.f_lineno) for frame in task.get_stack()]
++        pytest.fail(f"iteration {iteration}: fixture entry exceeded {timeout}s; task stack={stack}")
++    finally:
++        ready.cancel()
++        await asyncio.gather(ready, return_exceptions=True)
++        if not entered.is_set() and not task.done():
++            task.cancel()
++            await asyncio.gather(task, return_exceptions=True)
++
++
+ @pytest.mark.asyncio
+ @pytest.mark.parametrize("completion_first", [False, True])
+ async def test_cancel_completion_orderings_100_times(
+@@ -183,8 +207,9 @@
+ 
+         model = BatchModel()
+         controller, _, store, hub = await setup(tmp_path / str(iteration), model, execute)
++        await controller._ensure_core()  # move SQLite/identity startup outside the race barrier
+         task = asyncio.create_task(controller.respond("race", "goal"))
+-        await asyncio.wait_for(entered.wait(), 2)
++        await wait_for_executor_entry(task, entered, iteration)
+         if completion_first:
+             release.set()
+             await asyncio.wait_for(task, 2)
+@@ -262,3 +287,21 @@
+         assert response.json() == {"status": "denied"}
+     assert len(delivered) == 1
+     assert delivered[0].state is ProposalState.DENIED
++
++
++@pytest.mark.asyncio
++async def test_executor_entry_exposes_original_error() -> None:
++    async def fail() -> None:
++        raise RuntimeError("original respond failure")
++
++    task = asyncio.create_task(fail())
++    with pytest.raises(RuntimeError, match="original respond failure"):
++        await wait_for_executor_entry(task, asyncio.Event(), 17)
++
++
++@pytest.mark.asyncio
++async def test_executor_entry_timeout_diagnoses_and_cleans_task() -> None:
++    task = asyncio.create_task(asyncio.sleep(100))
++    with pytest.raises(pytest.fail.Exception, match=r"iteration 23.*task stack"):
++        await wait_for_executor_entry(task, asyncio.Event(), 23, timeout=0.01)
++    assert task.cancelled()
+--- /dev/null
++++ b/tests/integration/test_gateway_terminal_fence.py
+@@ -0,0 +1,210 @@
++from __future__ import annotations
++
++import asyncio
++import subprocess
++from pathlib import Path
++
++import pytest
++
++from siro.services.presentation.gateway import ClientChannel
++
++
++class BufferedSocket:
++    def __init__(self) -> None:
++        self.entered = asyncio.Event()
++        self.release = asyncio.Event()
++        self.drained = asyncio.Event()
++        self.messages: list[dict[str, object]] = []
++
++    async def send_json(self, data: object) -> None:
++        assert isinstance(data, dict)
++        if data["type"] == "snapshot":
++            self.entered.set()
++            await self.release.wait()
++        self.messages.append(data)
++        if data["type"] == "barrier":
++            self.drained.set()
++
++    async def close(self, code: int = 1000, reason: str | None = None) -> None:
++        pass
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("terminal_urgent", [False, True])
++async def test_real_writer_buffers_100_cancelled_streams(terminal_urgent: bool) -> None:
++    for iteration in range(100):
++        socket = BufferedSocket()
++        channel = ClientChannel(
++            "client", socket, urgent_capacity=64, normal_capacity=64, terminal_fencing=True
++        )
++        assert channel.enqueue({"type": "snapshot"})
++        channel.start()
++        try:
++            await asyncio.wait_for(socket.entered.wait(), 2)
++            stream = str(iteration)
++            for kind in ["tool_proposal", "tool_started", "tool_result"] * 10:
++                assert channel.enqueue({"type": kind, "stream_id": stream}, urgent=True)
++            assert channel.enqueue(
++                {"type": "assistant_terminal", "stream_id": stream}, urgent=terminal_urgent
++            )
++            for kind in [
++                "assistant_started",
++                "assistant_delta",
++                "affect_state",
++                "agent_step",
++                "tool_proposal",
++                "tool_started",
++                "tool_result",
++                "assistant_terminal",
++            ]:
++                assert channel.enqueue({"type": kind, "stream_id": stream})
++            assert channel.enqueue({"type": "assistant_delta", "stream_id": "next"})
++            assert channel.enqueue({"type": "assistant_delta", "stream_id": "other-session"})
++            assert channel.enqueue({"type": "barrier"})
++            socket.release.set()
++            await asyncio.wait_for(socket.drained.wait(), 2)
++            terminal = next(
++                i
++                for i, event in enumerate(socket.messages)
++                if event["type"] == "assistant_terminal"
++            )
++            assert not any(
++                event.get("stream_id") == stream for event in socket.messages[terminal + 1 :]
++            ), iteration
++            assert {event.get("stream_id") for event in socket.messages[terminal + 1 :]} >= {
++                "next",
++                "other-session",
++            }
++        finally:
++            socket.release.set()
++            await channel.stop()
++
++
++def test_actual_frontend_terminal_consumer() -> None:
++    html = Path("src/siro/services/presentation/static/index.html").read_text()
++    block = html[html.index("function createTerminalFence") : html.index("async function boot")]
++    script = (
++        block
++        + """
++const assert = require('node:assert/strict');
++assert(acceptRunEvent({type:'assistant_terminal', stream_id:'old'}));
++for (const type of ['assistant_started','assistant_delta','affect_state','agent_step',
++                    'tool_proposal','tool_started','tool_result','assistant_terminal']) {
++  assert.equal(acceptRunEvent({type,stream_id:'old'}),false);
++  assert.equal(acceptRunEvent({type,stream_id:'new-'+type}),true);
++}
++assert(acceptRunEvent({type:'assistant_delta'}));
++"""
++    )
++    subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
++    assert html.index("if (!acceptRunEvent(data)) return;") < html.index("log(data);")
++
++
++@pytest.mark.asyncio
++async def test_manual_proposal_events_share_delivery_stream() -> None:
++    from siro.services.presentation.gateway import GatewayHub
++
++    hub = GatewayHub()
++    hub.enable_terminal_fencing()
++    socket = BufferedSocket()
++    await hub.connect(socket, {"type": "snapshot"})
++    try:
++        await asyncio.wait_for(socket.entered.wait(), 2)
++        await hub.broadcast(
++            {"type": "tool_proposal", "proposal_id": "p", "stream_id": "s"}, urgent=True
++        )
++        # The HTTP/manual caller has proposal identity, not controller stream identity.
++        await hub.broadcast({"type": "tool_started", "proposal_id": "p"}, urgent=True)
++        await hub.broadcast({"type": "tool_result", "proposal_id": "p"}, urgent=True)
++        await hub.broadcast({"type": "assistant_terminal", "stream_id": "s"})
++        await hub.broadcast({"type": "tool_result", "stream_id": "s"})
++        await hub.broadcast({"type": "barrier"})
++        socket.release.set()
++        await asyncio.wait_for(socket.drained.wait(), 2)
++        tool_events = [event for event in socket.messages if str(event["type"]).startswith("tool_")]
++        assert len(tool_events) == 3
++        assert all(event["stream_id"] == "s" for event in tool_events)
++    finally:
++        socket.release.set()
++        await hub.shutdown()
++
++
++@pytest.mark.asyncio
++async def test_real_controller_cancel_fences_buffered_tool_batch(tmp_path: Path) -> None:
++    from collections.abc import AsyncIterator
++
++    from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
++    from siro.persistence.sqlite import SQLiteStore
++    from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, Privacy, ToolCall
++    from siro.services.presentation.gateway import GatewayHub
++    from siro.services.presentation.integrated import IntegratedCompanion
++    from siro.services.tools.execution import ExecutionContext
++    from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
++
++    class Model:
++        name = "buffered-batch"
++
++        async def stream(
++            self, request: ModelRequest, cancellation: CancellationToken
++        ) -> AsyncIterator[ModelChunk]:
++            for index in range(10):
++                yield ModelChunk(
++                    "tool_request",
++                    tool_call=ToolCall(str(index), "computer.execute", {"index": index}),
++                )
++            yield ModelChunk("finished")
++
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    entered = asyncio.Event()
++
++    async def old(arguments: dict[str, object]) -> object:
++        raise AssertionError("legacy bypass")
++
++    async def execute(arguments: dict[str, object], context: ExecutionContext) -> object:
++        if arguments["index"] == 9:
++            entered.set()
++            await context.cancellation.wait()
++            context.check()
++        return arguments
++
++    orchestrator = ToolOrchestrator(
++        SQLiteToolProposalRepository(store),
++        {"computer.execute": old},
++        contextual_executors={"computer.execute": execute},
++    )
++    hub = GatewayHub()
++    socket = BufferedSocket()
++    await hub.connect(socket, {"type": "snapshot"})
++    await asyncio.wait_for(socket.entered.wait(), 2)
++    controller = IntegratedCompanion(
++        tmp_path,
++        Model(),
++        hub,
++        MinimalWebBodyAdapter(WebSocketBodyTransport()),
++        privacy=Privacy.LOCAL_ONLY,
++        tool_orchestrator=orchestrator,
++        runtime_profile="candidate",
++        auto_authorize=lambda: True,
++    )
++    await controller._ensure_core()
++    task = asyncio.create_task(controller.respond("session", "synthetic goal"))
++    try:
++        await asyncio.wait_for(entered.wait(), 10)
++        await asyncio.wait_for(controller.cancel("active", "stop"), 2)
++        await asyncio.wait_for(task, 2)
++        await hub.broadcast({"type": "barrier"})
++        socket.release.set()
++        await asyncio.wait_for(socket.drained.wait(), 2)
++        terminal = next(
++            i for i, event in enumerate(socket.messages) if event["type"] == "assistant_terminal"
++        )
++        ended = socket.messages[terminal]["stream_id"]
++        assert not any(event.get("stream_id") == ended for event in socket.messages[terminal + 1 :])
++        assert not controller._event_streams
++    finally:
++        socket.release.set()
++        if not task.done():
++            await controller.cancel("active", "cleanup")
++            await task
++        await hub.shutdown()

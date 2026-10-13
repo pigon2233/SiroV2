@@ -1,0 +1,176 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+__ test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent[done] ___
+
+ending = 'done'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("ending", ["done", "length", "cancel"])
+    async def test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent(ending: str) -> None:
+        class ClosingTransport:
+            def stream_lines(
+                self, url: str, payload: dict[str, object], headers: dict[str, str],
+                timeout: float, cancellation: CancellationToken,
+            ) -> Any:
+                values = iter((
+                    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"intent",'
+                    '"function":{"name":"weather","arguments":"{}"}}]}}]}',
+                    'data: {"choices":[{"finish_reason":"length"}]}' if ending == "length"
+                    else 'data: [DONE]',
+                ))
+    
+                class Lines:
+                    def __aiter__(self) -> Any:
+                        return self
+    
+                    async def __anext__(self) -> str:
+                        value = next(values, None)
+                        if value is None:
+                            raise StopAsyncIteration
+                        if ending == "cancel" and value == 'data: [DONE]':
+                            cancellation.cancel()
+                        return value
+    
+                    async def aclose(self) -> None:
+                        raise ConnectionError("synthetic cleanup failure")
+    
+                return Lines()
+    
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test",
+            transport=ClosingTransport(),
+        )
+        token = CancellationToken()
+        fallback = RecordingModel()
+        chunks = []
+        failure = None
+        try:
+            async for chunk in FailoverModel((adapter, fallback), backoff_seconds=0).stream(
+                ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED), token
+            ):
+                chunks.append(chunk)
+        except Exception as error:
+            failure = type(error).__name__
+>       assert not fallback.generations
+E       AssertionError: assert not ['43db6dbe-ca43-44f7-8567-1fa66faba994']
+E        +  where ['43db6dbe-ca43-44f7-8567-1fa66faba994'] = <test_model_adapters.RecordingModel object at 0x7cf5a06f8050>.generations
+
+tests/contract/test_model_adapters.py:579: AssertionError
+_ test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent[length] __
+
+ending = 'length'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("ending", ["done", "length", "cancel"])
+    async def test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent(ending: str) -> None:
+        class ClosingTransport:
+            def stream_lines(
+                self, url: str, payload: dict[str, object], headers: dict[str, str],
+                timeout: float, cancellation: CancellationToken,
+            ) -> Any:
+                values = iter((
+                    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"intent",'
+                    '"function":{"name":"weather","arguments":"{}"}}]}}]}',
+                    'data: {"choices":[{"finish_reason":"length"}]}' if ending == "length"
+                    else 'data: [DONE]',
+                ))
+    
+                class Lines:
+                    def __aiter__(self) -> Any:
+                        return self
+    
+                    async def __anext__(self) -> str:
+                        value = next(values, None)
+                        if value is None:
+                            raise StopAsyncIteration
+                        if ending == "cancel" and value == 'data: [DONE]':
+                            cancellation.cancel()
+                        return value
+    
+                    async def aclose(self) -> None:
+                        raise ConnectionError("synthetic cleanup failure")
+    
+                return Lines()
+    
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test",
+            transport=ClosingTransport(),
+        )
+        token = CancellationToken()
+        fallback = RecordingModel()
+        chunks = []
+        failure = None
+        try:
+            async for chunk in FailoverModel((adapter, fallback), backoff_seconds=0).stream(
+                ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED), token
+            ):
+                chunks.append(chunk)
+        except Exception as error:
+            failure = type(error).__name__
+>       assert not fallback.generations
+E       AssertionError: assert not ['224e6166-7b5d-4277-bb45-8c14b8854c7b']
+E        +  where ['224e6166-7b5d-4277-bb45-8c14b8854c7b'] = <test_model_adapters.RecordingModel object at 0x7cf5a0893890>.generations
+
+tests/contract/test_model_adapters.py:579: AssertionError
+_ test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent[cancel] __
+
+ending = 'cancel'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("ending", ["done", "length", "cancel"])
+    async def test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent(ending: str) -> None:
+        class ClosingTransport:
+            def stream_lines(
+                self, url: str, payload: dict[str, object], headers: dict[str, str],
+                timeout: float, cancellation: CancellationToken,
+            ) -> Any:
+                values = iter((
+                    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"intent",'
+                    '"function":{"name":"weather","arguments":"{}"}}]}}]}',
+                    'data: {"choices":[{"finish_reason":"length"}]}' if ending == "length"
+                    else 'data: [DONE]',
+                ))
+    
+                class Lines:
+                    def __aiter__(self) -> Any:
+                        return self
+    
+                    async def __anext__(self) -> str:
+                        value = next(values, None)
+                        if value is None:
+                            raise StopAsyncIteration
+                        if ending == "cancel" and value == 'data: [DONE]':
+                            cancellation.cancel()
+                        return value
+    
+                    async def aclose(self) -> None:
+                        raise ConnectionError("synthetic cleanup failure")
+    
+                return Lines()
+    
+        adapter = OpenAICompatibleAdapter(
+            base_url="https://provider.invalid", api_key="synthetic", model="test",
+            transport=ClosingTransport(),
+        )
+        token = CancellationToken()
+        fallback = RecordingModel()
+        chunks = []
+        failure = None
+        try:
+            async for chunk in FailoverModel((adapter, fallback), backoff_seconds=0).stream(
+                ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED), token
+            ):
+                chunks.append(chunk)
+        except Exception as error:
+            failure = type(error).__name__
+        assert not fallback.generations
+        assert chunks == []
+>       assert failure == {"done": "ConnectionError", "length": "ProviderOutputTruncated", "cancel": None}[ending]
+E       AssertionError: assert 'ConnectionError' == None
+
+tests/contract/test_model_adapters.py:581: AssertionError
+=========================== short test summary info ============================
+FAILED tests/contract/test_model_adapters.py::test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent[done]
+FAILED tests/contract/test_model_adapters.py::test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent[length]
+FAILED tests/contract/test_model_adapters.py::test_cleanup_error_cannot_erase_failure_cancellation_or_tool_intent[cancel]
+3 failed, 39 deselected in 0.13s

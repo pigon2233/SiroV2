@@ -7,8 +7,16 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from siro.persistence.sqlite import SQLiteStore
 from siro.services.audio.protocol import AudioFrame
-from siro.services.presentation.gateway import GatewayHub, create_app
+from siro.services.audio.stt import MockSpeechToText
+from siro.services.presentation.gateway import (
+    GatewayHub,
+    GatewayState,
+    _application_request,
+    create_app,
+)
+from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
 
 ORIGIN = "http://testserver"
 
@@ -19,6 +27,21 @@ def issue_token(client: TestClient) -> str:
     return str(response.json()["token"])
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("幫我打開 Firefox", "firefox"),
+        ("請開啟檔案", "files"),
+        ("啟動終端機", "terminal"),
+        ("打開計算機", "calculator"),
+        ("open visual studio code", "vscode"),
+        ("我喜歡 Firefox", None),
+    ],
+)
+def test_allowlisted_application_intent(text: str, expected: str | None) -> None:
+    assert _application_request(text) == expected
+
+
 def test_http_auth_snapshot_and_control_websocket() -> None:
     app = create_app(allowed_origins={ORIGIN})
     client = TestClient(app)
@@ -26,6 +49,9 @@ def test_http_auth_snapshot_and_control_websocket() -> None:
     body_page = client.get("/body")
     assert body_page.status_code == 200
     assert "placeholder, not Live2D" in body_page.text
+    audio_test = client.get("/audio-field-test")
+    assert audio_test.status_code == 200
+    assert "不傳送或保存錄音" in audio_test.text
     assert client.get("/v1/snapshot").status_code == 401
     assert client.post("/v1/session", headers={"origin": "https://evil.invalid"}).status_code == 403
     token = issue_token(client)
@@ -58,6 +84,21 @@ def test_http_auth_snapshot_and_control_websocket() -> None:
             == 200
         )
         assert socket.receive_json()["type"] == "turn_cancelled"
+
+
+def test_gateway_shutdown_marks_inflight_and_calls_cancel() -> None:
+    state = GatewayState()
+    state.active_turns["session"] = {"turn_id": "turn-1", "state": "responding"}
+    cancelled: list[tuple[str, str]] = []
+
+    async def cancel(turn_id: str, reason: str) -> None:
+        cancelled.append((turn_id, reason))
+
+    with TestClient(create_app(state=state, on_cancel=cancel)):
+        assert state.health["core"] == "healthy"
+    assert state.health["core"] == "draining"
+    assert state.active_turns["session"]["state"] == "interrupted_shutdown"
+    assert cancelled == [("turn-1", "service shutdown")]
 
 
 def test_websocket_rejects_bad_origin_and_reconnects_100_times() -> None:
@@ -105,13 +146,171 @@ def test_audio_channels_negotiate_frames_and_enforce_single_playback_owner() -> 
             assert error.value.code == 1008
 
 
+def test_authenticated_microphone_transcription_obeys_kill_switch() -> None:
+    state = GatewayState()
+    stt = MockSpeechToText("你好 SIRO", "zh")
+    client = TestClient(create_app(allowed_origins={ORIGIN}, state=state, speech_to_text=stt))
+    token = issue_token(client)
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {token}"}
+
+    denied = client.post("/v1/audio/transcriptions", headers=headers, content=b"wav")
+    assert denied.status_code == 403
+    state.kill_switches["microphone"] = True
+    accepted = client.post("/v1/audio/transcriptions?language=zh", headers=headers, content=b"wav")
+    assert accepted.status_code == 200
+    assert accepted.json() == {"text": "你好 SIRO", "language": "zh", "final": True}
+    assert stt.calls == 1
+
+
+def test_authenticated_neural_speech_obeys_cloud_switch() -> None:
+    class FakeSpeech:
+        async def render(self, text: str, *, rate: float, pitch: float, energy: float) -> bytes:
+            assert (text, rate, pitch, energy) == ("你好", 1.1, 0.2, 0.7)
+            return b"mp3-audio"
+
+    state = GatewayState()
+    state.routes["tts"] = "edge:test"
+    client = TestClient(
+        create_app(allowed_origins={ORIGIN}, state=state, text_to_speech=FakeSpeech())
+    )
+    token = issue_token(client)
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {token}"}
+    body = {"text": "你好", "rate": 1.1, "pitch": 0.2, "energy": 0.7}
+    assert client.post("/v1/audio/speech", headers=headers, json=body).status_code == 403
+    state.kill_switches["cloud"] = True
+    response = client.post("/v1/audio/speech", headers=headers, json=body)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/mpeg"
+    assert response.content == b"mp3-audio"
+
+
+def test_browser_proposal_requires_owner_approval_and_tools_switch(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    async def browser_tool(url: str) -> dict[str, str]:
+        calls.append(url)
+        return {
+            "url": url,
+            "title": "Example",
+            "text": "readback",
+            "screen_version": "v1",
+        }
+
+    store = SQLiteStore(tmp_path / "tools.db")
+    asyncio.run(store.initialize())
+
+    async def execute(arguments: dict[str, object]) -> object:
+        return await browser_tool(str(arguments["url"]))
+
+    orchestrator = ToolOrchestrator(
+        SQLiteToolProposalRepository(store), {"browser.navigate+read": execute}
+    )
+    state = GatewayState()
+    state.kill_switches["tools"] = False
+
+    client = TestClient(
+        create_app(
+            allowed_origins={ORIGIN},
+            state=state,
+            on_browser_tool=browser_tool,
+            tool_orchestrator=orchestrator,
+            legacy_shortcuts=True,
+        )
+    )
+    token = issue_token(client)
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {token}"}
+    with client.websocket_connect("/ws/control", headers={"origin": ORIGIN}) as socket:
+        socket.send_json({"type": "authenticate", "token": token})
+        assert socket.receive_json()["type"] == "snapshot"
+        response = client.post(
+            "/v1/conversations/browser/turns",
+            headers=headers,
+            json={"text": "請開啟 https://example.test/page 並讀取"},
+        )
+        assert response.status_code == 200
+        first_two = [socket.receive_json(), socket.receive_json()]
+        assert {message["type"] for message in first_two} == {"turn_started", "tool_proposal"}
+        proposal = next(message for message in first_two if message["type"] == "tool_proposal")
+        assert proposal["type"] == "tool_proposal"
+        assert proposal["scope"] == "https://example.test"
+        endpoint = f"/v1/tool-proposals/{proposal['proposal_id']}/approve"
+        assert client.post(endpoint, headers=headers, json={"approved": True}).status_code == 403
+        assert calls == []
+        client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": True})
+        assert socket.receive_json()["type"] == "kill_switch"
+        assert client.post(endpoint, headers=headers, json={"approved": True}).status_code == 200
+        assert socket.receive_json()["type"] == "tool_started"
+        result = socket.receive_json()
+        assert result["type"] == "tool_result"
+        assert result["result"]["text"] == "readback"
+    assert calls == ["https://example.test/page"]
+
+
+def test_firefox_request_becomes_allowlisted_process_proposal(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    async def application_tool(application: str) -> dict[str, str]:
+        calls.append(application)
+        return {"application": "Firefox", "state": "running", "pid": "123"}
+
+    store = SQLiteStore(tmp_path / "tools.db")
+    asyncio.run(store.initialize())
+
+    async def execute(arguments: dict[str, object]) -> object:
+        return await application_tool(str(arguments["application"]))
+
+    orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {"process.start": execute})
+
+    state = GatewayState()
+    state.kill_switches["tools"] = True
+    client = TestClient(
+        create_app(
+            allowed_origins={ORIGIN},
+            state=state,
+            on_application_tool=application_tool,
+            tool_orchestrator=orchestrator,
+            legacy_shortcuts=True,
+        )
+    )
+    token = issue_token(client)
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {token}"}
+    with client.websocket_connect("/ws/control", headers={"origin": ORIGIN}) as socket:
+        socket.send_json({"type": "authenticate", "token": token})
+        socket.receive_json()
+        response = client.post(
+            "/v1/conversations/browser/turns",
+            headers=headers,
+            json={"text": "幫我打開firefox"},
+        )
+        assert response.status_code == 200
+        first_two = [socket.receive_json(), socket.receive_json()]
+        proposal = next(message for message in first_two if message["type"] == "tool_proposal")
+        assert proposal["capability"] == "process.start"
+        assert proposal["target"] == "firefox"
+        assert proposal["scope"] == "allowlisted application: firefox"
+        endpoint = f"/v1/tool-proposals/{proposal['proposal_id']}/approve"
+        assert client.post(endpoint, headers=headers, json={"approved": True}).status_code == 200
+        assert socket.receive_json()["type"] == "tool_started"
+        result = socket.receive_json()
+        assert result["result"] == {
+            "application": "Firefox",
+            "state": "running",
+            "pid": "123",
+        }
+    assert calls == ["firefox"]
+
+
 def test_live2d_distribution_is_only_mounted_when_configured(tmp_path: Path) -> None:
     (tmp_path / "index.html").write_text("<title>licensed renderer</title>", encoding="utf-8")
     configured = TestClient(create_app(live2d_dist=tmp_path))
     assert configured.get("/live2d/").text == "<title>licensed renderer</title>"
+    configured_index = configured.get("/").text
+    assert 'src="/live2d/"' in configured_index
+    assert "Live2D 載入中" in configured_index
 
     unconfigured = TestClient(create_app())
     assert unconfigured.get("/live2d/").status_code == 404
+    assert 'src="/body"' in unconfigured.get("/").text
 
 
 class FakeSocket:

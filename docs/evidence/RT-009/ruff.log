@@ -1,0 +1,27 @@
+I001 [*] Import block is un-sorted or un-formatted
+  --> src/siro/adapters/models/failover.py:3:1
+   |
+ 1 |   """Bounded, privacy-aware provider attempts before any generation emission."""
+ 2 |
+ 3 | / from __future__ import annotations
+ 4 | |
+ 5 | | import asyncio
+ 6 | | from collections.abc import AsyncIterator, Sequence
+ 7 | | from dataclasses import replace
+ 8 | | from uuid import uuid4
+ 9 | |
+10 | | import httpx
+11 | |
+12 | | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter, _TOOL_INTENT_EMITTED
+13 | | from siro.ports.models import CancellationToken, LanguageModel, ModelChunk, ModelRequest, Privacy
+   | |_________________________________________________________________________________________________^
+help: Organize imports
+   |
+11 |
+   - from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter, _TOOL_INTENT_EMITTED
+12 + from siro.adapters.models.openai_compatible import _TOOL_INTENT_EMITTED, OpenAICompatibleAdapter
+13 | from siro.ports.models import CancellationToken, LanguageModel, ModelChunk, ModelRequest, Privacy
+   |
+
+Found 1 error.
+[*] 1 fixable with the `--fix` option.

@@ -1,0 +1,2318 @@
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF                            [100%]
+=================================== FAILURES ===================================
+________ test_fenced_unknown_same_content_holds_new_uuid[failed-False] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_fenced_unknown_same_conte0')
+interrupted = False, state = <AgentRunState.FAILED: 'failed'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_________ test_fenced_unknown_same_content_holds_new_uuid[failed-True] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_fenced_unknown_same_conte1')
+interrupted = True, state = <AgentRunState.FAILED: 'failed'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_______ test_fenced_unknown_same_content_holds_new_uuid[cancelled-False] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_fenced_unknown_same_conte2')
+interrupted = False, state = <AgentRunState.CANCELLED: 'cancelled'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_______ test_fenced_unknown_same_content_holds_new_uuid[cancelled-True] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_fenced_unknown_same_conte3')
+interrupted = True, state = <AgentRunState.CANCELLED: 'cancelled'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_______ test_fenced_unknown_same_content_holds_new_uuid[completed-False] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_fenced_unknown_same_conte4')
+interrupted = False, state = <AgentRunState.COMPLETED: 'completed'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_______ test_fenced_unknown_same_content_holds_new_uuid[completed-True] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_fenced_unknown_same_conte5')
+interrupted = True, state = <AgentRunState.COMPLETED: 'completed'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("interrupted", [False, True])
+    @pytest.mark.parametrize(
+        "state", [AgentRunState.FAILED, AgentRunState.CANCELLED, AgentRunState.COMPLETED]
+    )
+    async def test_fenced_unknown_same_content_holds_new_uuid(
+        tmp_path: Path, interrupted: bool, state: AgentRunState
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_____ test_unverifiable_binding_conservatively_holds_same_capability[null] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_unverifiable_binding_cons0')
+binding = 'null'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("binding", ["null", "orphan", "cross_session", "wrong_capability"])
+    async def test_unverifiable_binding_conservatively_holds_same_capability(
+        tmp_path: Path,
+        binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"],
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+____ test_unverifiable_binding_conservatively_holds_same_capability[orphan] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_unverifiable_binding_cons1')
+binding = 'orphan'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("binding", ["null", "orphan", "cross_session", "wrong_capability"])
+    async def test_unverifiable_binding_conservatively_holds_same_capability(
+        tmp_path: Path,
+        binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"],
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_ test_unverifiable_binding_conservatively_holds_same_capability[cross_session] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_unverifiable_binding_cons2')
+binding = 'cross_session'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("binding", ["null", "orphan", "cross_session", "wrong_capability"])
+    async def test_unverifiable_binding_conservatively_holds_same_capability(
+        tmp_path: Path,
+        binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"],
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_ test_unverifiable_binding_conservatively_holds_same_capability[wrong_capability] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_unverifiable_binding_cons3')
+binding = 'wrong_capability'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("binding", ["null", "orphan", "cross_session", "wrong_capability"])
+    async def test_unverifiable_binding_conservatively_holds_same_capability(
+        tmp_path: Path,
+        binding: Literal["linked", "null", "orphan", "cross_session", "wrong_capability"],
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_ test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation[True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_same_owner_capability_but0')
+fresh_matches_old = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("fresh_matches_old", [True, False])
+    async def test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation(
+        tmp_path: Path, fresh_matches_old: bool
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_ test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation[False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_same_owner_capability_but1')
+fresh_matches_old = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("fresh_matches_old", [True, False])
+    async def test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation(
+        tmp_path: Path, fresh_matches_old: bool
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+__ test_structurally_equal_nested_json_and_unicode_do_not_hold_unrelated_call __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_structurally_equal_nested0')
+
+    @pytest.mark.asyncio
+    async def test_structurally_equal_nested_json_and_unicode_do_not_hold_unrelated_call(
+        tmp_path: Path,
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:248: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+___ test_sqlite_large_integer_atom_collision_does_not_validate_wrong_binding ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_sqlite_large_integer_atom0')
+
+    @pytest.mark.asyncio
+    async def test_sqlite_large_integer_atom_collision_does_not_validate_wrong_binding(
+        tmp_path: Path,
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:280: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+________ test_unextractable_numeric_key_does_not_validate_wrong_binding ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_unextractable_numeric_key0')
+
+    @pytest.mark.asyncio
+    async def test_unextractable_numeric_key_does_not_validate_wrong_binding(tmp_path: Path) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:310: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+____________ test_duplicate_object_keys_are_not_a_verified_binding _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_duplicate_object_keys_are0')
+
+    @pytest.mark.asyncio
+    async def test_duplicate_object_keys_are_not_a_verified_binding(tmp_path: Path) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:341: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+______ test_oversized_or_invalid_bound_arguments_fail_closed[False-call] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_oversized_or_invalid_boun0')
+column_owner = 'call', malformed = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("column_owner", ["call", "proposal"])
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_oversized_or_invalid_bound_arguments_fail_closed(
+        tmp_path: Path, column_owner: str, malformed: bool
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:364: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+____ test_oversized_or_invalid_bound_arguments_fail_closed[False-proposal] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_oversized_or_invalid_boun1')
+column_owner = 'proposal', malformed = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("column_owner", ["call", "proposal"])
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_oversized_or_invalid_bound_arguments_fail_closed(
+        tmp_path: Path, column_owner: str, malformed: bool
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:364: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_______ test_oversized_or_invalid_bound_arguments_fail_closed[True-call] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_oversized_or_invalid_boun2')
+column_owner = 'call', malformed = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("column_owner", ["call", "proposal"])
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_oversized_or_invalid_bound_arguments_fail_closed(
+        tmp_path: Path, column_owner: str, malformed: bool
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:364: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_____ test_oversized_or_invalid_bound_arguments_fail_closed[True-proposal] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_oversized_or_invalid_boun3')
+column_owner = 'proposal', malformed = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("column_owner", ["call", "proposal"])
+    @pytest.mark.parametrize("malformed", [False, True])
+    async def test_oversized_or_invalid_bound_arguments_fail_closed(
+        tmp_path: Path, column_owner: str, malformed: bool
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:364: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+______ test_verified_binding_does_not_block_unrelated_new_call[arguments] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_verified_binding_does_not0')
+difference = 'arguments'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("difference", ["arguments", "session", "capability"])
+    async def test_verified_binding_does_not_block_unrelated_new_call(
+        tmp_path: Path, difference: str
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:401: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_______ test_verified_binding_does_not_block_unrelated_new_call[session] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_verified_binding_does_not1')
+difference = 'session'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("difference", ["arguments", "session", "capability"])
+    async def test_verified_binding_does_not_block_unrelated_new_call(
+        tmp_path: Path, difference: str
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:401: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_____ test_verified_binding_does_not_block_unrelated_new_call[capability] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_verified_binding_does_not2')
+difference = 'capability'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("difference", ["arguments", "session", "capability"])
+    async def test_verified_binding_does_not_block_unrelated_new_call(
+        tmp_path: Path, difference: str
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:401: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_________ test_guard_requires_fenced_dispatched_unknown[known_success] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_guard_requires_fenced_dis0')
+case = 'known_success'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", ["known_success", "known_failure", "not_dispatched", "active"])
+    async def test_guard_requires_fenced_dispatched_unknown(tmp_path: Path, case: str) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:419: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_________ test_guard_requires_fenced_dispatched_unknown[known_failure] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_guard_requires_fenced_dis1')
+case = 'known_failure'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", ["known_success", "known_failure", "not_dispatched", "active"])
+    async def test_guard_requires_fenced_dispatched_unknown(tmp_path: Path, case: str) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:419: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+________ test_guard_requires_fenced_dispatched_unknown[not_dispatched] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_guard_requires_fenced_dis2')
+case = 'not_dispatched'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", ["known_success", "known_failure", "not_dispatched", "active"])
+    async def test_guard_requires_fenced_dispatched_unknown(tmp_path: Path, case: str) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:419: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+____________ test_guard_requires_fenced_dispatched_unknown[active] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_guard_requires_fenced_dis3')
+case = 'active'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", ["known_success", "known_failure", "not_dispatched", "active"])
+    async def test_guard_requires_fenced_dispatched_unknown(tmp_path: Path, case: str) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:419: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+__________ test_fenced_dispatch_without_parseable_receipt_holds[None] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_fenced_dispatch_without_p0')
+receipt = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("receipt", [None, "synthetic corrupt JSON"])
+    async def test_fenced_dispatch_without_parseable_receipt_holds(
+        tmp_path: Path, receipt: str | None
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:440: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_ test_fenced_dispatch_without_parseable_receipt_holds[synthetic corrupt JSON] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_fenced_dispatch_without_p1')
+receipt = 'synthetic corrupt JSON'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("receipt", [None, "synthetic corrupt JSON"])
+    async def test_fenced_dispatch_without_parseable_receipt_holds(
+        tmp_path: Path, receipt: str | None
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:440: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_____ test_unknown_effect_does_not_expire_or_depend_on_model_privacy_route _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_unknown_effect_does_not_e0')
+
+    @pytest.mark.asyncio
+    async def test_unknown_effect_does_not_expire_or_depend_on_model_privacy_route(
+        tmp_path: Path,
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:466: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+___________ test_repository_transition_cannot_bypass_automatic_guard ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_repository_transition_can0')
+
+    @pytest.mark.asyncio
+    async def test_repository_transition_cannot_bypass_automatic_guard(tmp_path: Path) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:480: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+________ test_manual_default_remains_hash_bound_and_executes_only_once _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_manual_default_remains_ha0')
+
+    @pytest.mark.asyncio
+    async def test_manual_default_remains_hash_bound_and_executes_only_once(tmp_path: Path) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:494: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+___________ test_denial_ignores_automatic_hold_and_does_not_dispatch ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_denial_ignores_automatic_0')
+
+    @pytest.mark.asyncio
+    async def test_denial_ignores_automatic_hold_and_does_not_dispatch(tmp_path: Path) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:516: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+______ test_untrusted_read_only_risk_does_not_exempt_effectful_call[None] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_untrusted_read_only_risk_0')
+catalog_effect = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("catalog_effect", [None, "computer", "unknown"])
+    async def test_untrusted_read_only_risk_does_not_exempt_effectful_call(
+        tmp_path: Path, catalog_effect: str | None
+    ) -> None:
+>       fixture = await fixture_at(
+            tmp_path, effects=None if catalog_effect is None else {"computer.execute": catalog_effect}
+        )
+
+tests/integration/test_unknown_effect_approval.py:531: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+____ test_untrusted_read_only_risk_does_not_exempt_effectful_call[computer] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_untrusted_read_only_risk_1')
+catalog_effect = 'computer'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("catalog_effect", [None, "computer", "unknown"])
+    async def test_untrusted_read_only_risk_does_not_exempt_effectful_call(
+        tmp_path: Path, catalog_effect: str | None
+    ) -> None:
+>       fixture = await fixture_at(
+            tmp_path, effects=None if catalog_effect is None else {"computer.execute": catalog_effect}
+        )
+
+tests/integration/test_unknown_effect_approval.py:531: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+____ test_untrusted_read_only_risk_does_not_exempt_effectful_call[unknown] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_untrusted_read_only_risk_2')
+catalog_effect = 'unknown'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("catalog_effect", [None, "computer", "unknown"])
+    async def test_untrusted_read_only_risk_does_not_exempt_effectful_call(
+        tmp_path: Path, catalog_effect: str | None
+    ) -> None:
+>       fixture = await fixture_at(
+            tmp_path, effects=None if catalog_effect is None else {"computer.execute": catalog_effect}
+        )
+
+tests/integration/test_unknown_effect_approval.py:531: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_______________ test_trusted_read_descriptor_can_repeat_readback _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_trusted_read_descriptor_c0')
+
+    @pytest.mark.asyncio
+    async def test_trusted_read_descriptor_can_repeat_readback(tmp_path: Path) -> None:
+>       fixture = await fixture_at(tmp_path, effects={"browser.read": "read"})
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:541: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+______ test_stale_pending_and_simultaneous_approvals_keep_compare_and_set ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_stale_pending_and_simulta0')
+
+    @pytest.mark.asyncio
+    async def test_stale_pending_and_simultaneous_approvals_keep_compare_and_set(
+        tmp_path: Path,
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:555: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+___________ test_fence_committed_before_approval_transaction_is_seen ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_fence_committed_before_ap0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7e2a82c9dda0>
+
+    @pytest.mark.asyncio
+    async def test_fence_committed_before_approval_transaction_is_seen(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+>       fixture = await fixture_at(tmp_path)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:580: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_____ test_full_mode_fresh_identical_call_waits_for_owner_without_effects ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_full_mode_fresh_identical0')
+
+    @pytest.mark.asyncio
+    async def test_full_mode_fresh_identical_call_waits_for_owner_without_effects(
+        tmp_path: Path,
+    ) -> None:
+>       fixture, controller, model, hub = await controller_at(tmp_path)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:704: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:667: in controller_at
+    fixture = await fixture_at(tmp_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+________________ test_held_call_manual_approval_completes_once _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_held_call_manual_approval0')
+
+    @pytest.mark.asyncio
+    async def test_held_call_manual_approval_completes_once(tmp_path: Path) -> None:
+>       fixture, controller, model, hub = await controller_at(tmp_path)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:718: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:667: in controller_at
+    fixture = await fixture_at(tmp_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_____________ test_held_call_denial_is_observed_without_execution ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_held_call_denial_is_obser0')
+
+    @pytest.mark.asyncio
+    async def test_held_call_denial_is_observed_without_execution(tmp_path: Path) -> None:
+>       fixture, controller, model, hub = await controller_at(tmp_path)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:737: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:667: in controller_at
+    fixture = await fixture_at(tmp_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+______________ test_cancel_held_call_fences_late_manual_approval _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_cancel_held_call_fences_l0')
+
+    @pytest.mark.asyncio
+    async def test_cancel_held_call_fences_late_manual_approval(tmp_path: Path) -> None:
+>       fixture, controller, model, hub = await controller_at(tmp_path)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:751: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:667: in controller_at
+    fixture = await fixture_at(tmp_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+_____ test_held_batch_allows_unrelated_call_and_resumes_after_manual_once ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-77/test_held_batch_allows_unrelat0')
+
+    @pytest.mark.asyncio
+    async def test_held_batch_allows_unrelated_call_and_resumes_after_manual_once(
+        tmp_path: Path,
+    ) -> None:
+>       fixture, controller, model, hub = await controller_at(tmp_path, batch=True)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_unknown_effect_approval.py:767: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_unknown_effect_approval.py:667: in controller_at
+    fixture = await fixture_at(tmp_path)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_unknown_effect_approval.py:50: in fixture_at
+    await store.initialize()
+src/siro/persistence/sqlite.py:133: in initialize
+    await asyncio.to_thread(self._initialize_sync)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:138: in _initialize_sync
+    apply_migrations(connection, load_migrations())
+                                 ^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:50: in load_migrations
+    for resource in sorted(directory.iterdir(), key=lambda item: item.name):
+                           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations')
+
+    def iterdir(self):
+        """Yield path objects of the directory contents.
+    
+        The children are yielded in arbitrary order, and the
+        special entries '.' and '..' are not included.
+        """
+        root_dir = str(self)
+>       with os.scandir(root_dir) as scandir_it:
+             ^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-fix010-before-0z7dws3k/src/siro/persistence/migrations'
+
+/usr/lib/python3.14/pathlib/__init__.py:837: FileNotFoundError
+______ test_full_mode_unknown_effect_requires_visible_manual_confirmation ______
+
+    def test_full_mode_unknown_effect_requires_visible_manual_confirmation() -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html[
+            html.index("      function renderToolProposal(") : html.index(
+                "      function renderToolResult("
+            )
+        ]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const cards = new Map(), root = {appendChild:card=>cards.set(card.id,card)};
+    let authorizationMode = 'full', requests = 0;
+    class Element {
+      constructor(tag) { this.tag = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text=String(value); this.children=[]; }
+      get textContent() { return this._text + this.children.map(c=>c.textContent).join(''); }
+      set innerHTML(value) { throw new Error('untrusted HTML'); }
+      append(...items) { this.children.push(...items); }
+      appendChild(child) { this.children.push(child); }
+      querySelector(selector) { return this.children.find(c=>c.className===selector.slice(1)); }
+    }
+    const document = {
+      createElement: tag=>new Element(tag), getElementById:id=>cards.get(id),
+      querySelector:selector=>selector==='#tool-proposals'?root:
+        selector==='#computer-panel'?{}:cards.get(selector.slice(1))
+    };
+    const connectControl=async()=>{}, headers=()=>({});
+    const authorizedFetch=async(url,options)=>{
+      requests++; assert.equal(JSON.parse(options.body).approved,true);
+      assert(url.endsWith('/approve')); return {ok:true};
+    };
+    const proposal = (id,extra={})=>({proposal_id:id,capability:'computer.execute',
+      scope:'synthetic',target:'synthetic',risk:'computer',...extra});
+    """
+        checks = r"""
+    (async()=>{
+      renderToolProposal(proposal('held',{automatic_approval_blocked:'prior_outcome_unknown'}));
+      const held=cards.get('tool-held');
+      assert(held.textContent.includes('結果'));
+      assert(held.textContent.includes('未確認'));
+      assert(held.textContent.includes('重複'));
+      assert(!held.textContent.includes('已自動授權'));
+      const button=held.children.find(c=>c.tag==='button'); assert(button);
+      assert.equal(requests,0); await button.onclick();
+      assert.equal(requests,1); assert.equal(button.disabled,true);
+      renderToolProposal(proposal('held',{automatic_approval_blocked:'prior_outcome_unknown'}));
+      assert.equal(cards.size,1);
+      renderToolProposal(proposal('normal'));
+      assert(!cards.get('tool-normal').children.some(c=>c.tag==='button'));
+      assert(cards.get('tool-normal').textContent.includes('已自動授權'));
+      authorizationMode='safe'; renderToolProposal(proposal('safe'));
+      assert(cards.get('tool-safe').children.some(c=>c.tag==='button'));
+      renderToolProposal(proposal('injected',{
+        automatic_approval_blocked:'<img src=x onerror="globalThis.injected=1">PRIVATE-CANARY'
+      }));
+      assert(!cards.get('tool-injected').textContent.includes('PRIVATE-CANARY'));
+      assert.equal(globalThis.injected,undefined);
+    })().catch(error=>{process.stderr.write(String(error));process.exitCode=1;});
+    """
+        result = subprocess.run(
+            ["node", "-e", setup + script + checks], capture_output=True, text=True, timeout=10
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E         
+E           assert(held.textContent.includes('結果'))
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst cards = new Map(), root...rtionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(held.textContent.includes('結果'))\n").returncode
+
+tests/integration/test_frontend_unknown_effect.py:66: AssertionError
+=============================== warnings summary ===============================
+../../home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+../../home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[failed-False]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[failed-True]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[cancelled-False]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[cancelled-True]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[completed-False]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_unknown_same_content_holds_new_uuid[completed-True]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unverifiable_binding_conservatively_holds_same_capability[null]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unverifiable_binding_conservatively_holds_same_capability[orphan]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unverifiable_binding_conservatively_holds_same_capability[cross_session]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unverifiable_binding_conservatively_holds_same_capability[wrong_capability]
+FAILED tests/integration/test_unknown_effect_approval.py::test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation[True]
+FAILED tests/integration/test_unknown_effect_approval.py::test_same_owner_capability_but_mismatched_bound_payload_requires_confirmation[False]
+FAILED tests/integration/test_unknown_effect_approval.py::test_structurally_equal_nested_json_and_unicode_do_not_hold_unrelated_call
+FAILED tests/integration/test_unknown_effect_approval.py::test_sqlite_large_integer_atom_collision_does_not_validate_wrong_binding
+FAILED tests/integration/test_unknown_effect_approval.py::test_unextractable_numeric_key_does_not_validate_wrong_binding
+FAILED tests/integration/test_unknown_effect_approval.py::test_duplicate_object_keys_are_not_a_verified_binding
+FAILED tests/integration/test_unknown_effect_approval.py::test_oversized_or_invalid_bound_arguments_fail_closed[False-call]
+FAILED tests/integration/test_unknown_effect_approval.py::test_oversized_or_invalid_bound_arguments_fail_closed[False-proposal]
+FAILED tests/integration/test_unknown_effect_approval.py::test_oversized_or_invalid_bound_arguments_fail_closed[True-call]
+FAILED tests/integration/test_unknown_effect_approval.py::test_oversized_or_invalid_bound_arguments_fail_closed[True-proposal]
+FAILED tests/integration/test_unknown_effect_approval.py::test_verified_binding_does_not_block_unrelated_new_call[arguments]
+FAILED tests/integration/test_unknown_effect_approval.py::test_verified_binding_does_not_block_unrelated_new_call[session]
+FAILED tests/integration/test_unknown_effect_approval.py::test_verified_binding_does_not_block_unrelated_new_call[capability]
+FAILED tests/integration/test_unknown_effect_approval.py::test_guard_requires_fenced_dispatched_unknown[known_success]
+FAILED tests/integration/test_unknown_effect_approval.py::test_guard_requires_fenced_dispatched_unknown[known_failure]
+FAILED tests/integration/test_unknown_effect_approval.py::test_guard_requires_fenced_dispatched_unknown[not_dispatched]
+FAILED tests/integration/test_unknown_effect_approval.py::test_guard_requires_fenced_dispatched_unknown[active]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_dispatch_without_parseable_receipt_holds[None]
+FAILED tests/integration/test_unknown_effect_approval.py::test_fenced_dispatch_without_parseable_receipt_holds[synthetic corrupt JSON]
+FAILED tests/integration/test_unknown_effect_approval.py::test_unknown_effect_does_not_expire_or_depend_on_model_privacy_route
+FAILED tests/integration/test_unknown_effect_approval.py::test_repository_transition_cannot_bypass_automatic_guard
+FAILED tests/integration/test_unknown_effect_approval.py::test_manual_default_remains_hash_bound_and_executes_only_once
+FAILED tests/integration/test_unknown_effect_approval.py::test_denial_ignores_automatic_hold_and_does_not_dispatch
+FAILED tests/integration/test_unknown_effect_approval.py::test_untrusted_read_only_risk_does_not_exempt_effectful_call[None]
+FAILED tests/integration/test_unknown_effect_approval.py::test_untrusted_read_only_risk_does_not_exempt_effectful_call[computer]
+FAILED tests/integration/test_unknown_effect_approval.py::test_untrusted_read_only_risk_does_not_exempt_effectful_call[unknown]
+FAILED tests/integration/test_unknown_effect_approval.py::test_trusted_read_descriptor_can_repeat_readback
+FAILED tests/integration/test_unknown_effect_approval.py::test_stale_pending_and_simultaneous_approvals_keep_compare_and_set
+FAILED tests/integration/test_unknown_effect_approval.py::test_fence_committed_before_approval_transaction_is_seen
+FAILED tests/integration/test_unknown_effect_approval.py::test_full_mode_fresh_identical_call_waits_for_owner_without_effects
+FAILED tests/integration/test_unknown_effect_approval.py::test_held_call_manual_approval_completes_once
+FAILED tests/integration/test_unknown_effect_approval.py::test_held_call_denial_is_observed_without_execution
+FAILED tests/integration/test_unknown_effect_approval.py::test_cancel_held_call_fences_late_manual_approval
+FAILED tests/integration/test_unknown_effect_approval.py::test_held_batch_allows_unrelated_call_and_resumes_after_manual_once
+FAILED tests/integration/test_frontend_unknown_effect.py::test_full_mode_unknown_effect_requires_visible_manual_confirmation
+45 failed, 2 warnings in 3.19s

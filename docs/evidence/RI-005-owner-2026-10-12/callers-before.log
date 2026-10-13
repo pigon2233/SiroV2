@@ -1,0 +1,1191 @@
+FFFFFFFFFF                                                               [100%]
+=================================== FAILURES ===================================
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[demo] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d0/synthetic-home')
+command = 'demo'
+capsys = <_pytest.capture.CaptureFixture object at 0x754a549296a0>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend([str(bundle), "--manifest", str(manifest), "--healthcheck", health])
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['demo', '--data', '/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d0/data', '--once', 'synthetic conversation'])
+
+tests/integration/test_data_owner_callers.py:171: AssertionError
+----------------------------- Captured stdout call -----------------------------
+SIRO: 我沒有可追溯的記憶來源, 所以目前不知道。
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[backup] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d1/synthetic-home')
+command = 'backup'
+capsys = <_pytest.capture.CaptureFixture object at 0x754a548cde50>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend([str(bundle), "--manifest", str(manifest), "--healthcheck", health])
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['backup', '--data', '/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d1/data', '/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d1/new-backup.db'])
+
+tests/integration/test_data_owner_callers.py:171: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "backed_up", "destination": "/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d1/new-backup.db"}
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[raw-restore] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d2')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d2/synthetic-home')
+command = 'raw-restore'
+capsys = <_pytest.capture.CaptureFixture object at 0x754a548cee90>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend([str(bundle), "--manifest", str(manifest), "--healthcheck", health])
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['restore', '--data', '/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d2/data', '/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d2/backup.db'])
+
+tests/integration/test_data_owner_callers.py:171: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d2/data"}
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[zip-restore] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d3')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d3/synthetic-home')
+command = 'zip-restore'
+capsys = <_pytest.capture.CaptureFixture object at 0x754a548dfe10>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend([str(bundle), "--manifest", str(manifest), "--healthcheck", health])
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['restore', '--data', '/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d3/data', '--config', '/tmp/pyt...naged_cli_busy_has_no_d3/config.json', '/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d3/backup.zip'])
+
+tests/integration/test_data_owner_callers.py:171: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d3/data"}
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[stage] _
+
+self = ArgumentParser(prog='siro release stage', usage=None, description=None, formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+args = ['/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d4/bundle', '--manifest', '/tmp/pytest-of-jasonliao/...lib import Path; Path(\'/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d4/health-called\').touch()"]']
+namespace = Namespace(bundle=None, manifest='/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d4/manifest.json', he...st-93/test_managed_cli_busy_has_no_d4/health-called\').touch()"]', handler=<function _release_stage at 0x754a5498bd70>)
+intermixed = False
+
+    def _parse_known_args2(self, args, namespace, intermixed):
+        if args is None:
+            # args default to the system args
+            args = _sys.argv[1:]
+        else:
+            # make sure that args are mutable
+            args = list(args)
+    
+        # default Namespace built from parser defaults
+        if namespace is None:
+            namespace = Namespace()
+    
+        # add any action defaults that aren't present
+        for action in self._actions:
+            if action.dest is not SUPPRESS:
+                if not hasattr(namespace, action.dest):
+                    if action.default is not SUPPRESS:
+                        setattr(namespace, action.dest, action.default)
+    
+        # add any parser defaults that aren't present
+        for dest in self._defaults:
+            if not hasattr(namespace, dest):
+                setattr(namespace, dest, self._defaults[dest])
+    
+        # parse the arguments and exit if there are any errors
+        if self.exit_on_error:
+            try:
+>               namespace, args = self._parse_known_args(args, namespace, intermixed)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/usr/lib/python3.14/argparse.py:2055: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='siro release stage', usage=None, description=None, formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+arg_strings = ['/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d4/bundle', '--manifest', '/tmp/pytest-of-jasonliao/...lib import Path; Path(\'/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d4/health-called\').touch()"]']
+namespace = Namespace(bundle=None, manifest='/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d4/manifest.json', he...st-93/test_managed_cli_busy_has_no_d4/health-called\').touch()"]', handler=<function _release_stage at 0x754a5498bd70>)
+intermixed = False
+
+    def _parse_known_args(self, arg_strings, namespace, intermixed):
+        # replace arg strings that are file references
+        if self.fromfile_prefix_chars is not None:
+            arg_strings = self._read_args_from_files(arg_strings)
+    
+        # map all mutually exclusive arguments to the other arguments
+        # they can't occur with
+        action_conflicts = {}
+        for mutex_group in self._mutually_exclusive_groups:
+            group_actions = mutex_group._group_actions
+            for i, mutex_action in enumerate(mutex_group._group_actions):
+                conflicts = action_conflicts.setdefault(mutex_action, [])
+                conflicts.extend(group_actions[:i])
+                conflicts.extend(group_actions[i + 1:])
+    
+        # find all option indices, and determine the arg_string_pattern
+        # which has an 'O' if there is an option at an index,
+        # an 'A' if there is an argument, or a '-' if there is a '--'
+        option_string_indices = {}
+        arg_string_pattern_parts = []
+        arg_strings_iter = iter(arg_strings)
+        for i, arg_string in enumerate(arg_strings_iter):
+    
+            # all args after -- are non-options
+            if arg_string == '--':
+                arg_string_pattern_parts.append('-')
+                for arg_string in arg_strings_iter:
+                    arg_string_pattern_parts.append('A')
+    
+            # otherwise, add the arg to the arg strings
+            # and note the index if it was an option
+            else:
+                option_tuples = self._parse_optional(arg_string)
+                if option_tuples is None:
+                    pattern = 'A'
+                else:
+                    option_string_indices[i] = option_tuples
+                    pattern = 'O'
+                arg_string_pattern_parts.append(pattern)
+    
+        # join the pieces together to form the pattern
+        arg_strings_pattern = ''.join(arg_string_pattern_parts)
+    
+        # converts arg strings to the appropriate and then takes the action
+        seen_actions = set()
+        seen_non_default_actions = set()
+        warned = set()
+    
+        def take_action(action, argument_strings, option_string=None):
+            seen_actions.add(action)
+            argument_values = self._get_values(action, argument_strings)
+    
+            # error if this argument is not allowed with other previously
+            # seen arguments
+            if action.option_strings or argument_strings:
+                seen_non_default_actions.add(action)
+                for conflict_action in action_conflicts.get(action, []):
+                    if conflict_action in seen_non_default_actions:
+                        msg = _('not allowed with argument %s')
+                        action_name = _get_action_name(conflict_action)
+                        raise ArgumentError(action, msg % action_name)
+    
+            # take the action if we didn't receive a SUPPRESS value
+            # (e.g. from a default)
+            if argument_values is not SUPPRESS:
+                action(self, namespace, argument_values, option_string)
+    
+        # function to convert arg_strings into an optional action
+        def consume_optional(start_index):
+    
+            # get the optional identified at this index
+            option_tuples = option_string_indices[start_index]
+            # if multiple actions match, the option string was ambiguous
+            if len(option_tuples) > 1:
+                options = ', '.join([option_string
+                    for action, option_string, sep, explicit_arg in option_tuples])
+                args = {'option': arg_strings[start_index], 'matches': options}
+                msg = _('ambiguous option: %(option)s could match %(matches)s')
+                raise ArgumentError(None, msg % args)
+    
+            action, option_string, sep, explicit_arg = option_tuples[0]
+    
+            # identify additional optionals in the same arg string
+            # (e.g. -xyz is the same as -x -y -z if no args are required)
+            match_argument = self._match_argument
+            action_tuples = []
+            while True:
+    
+                # if we found no optional action, skip it
+                if action is None:
+                    extras.append(arg_strings[start_index])
+                    extras_pattern.append('O')
+                    return start_index + 1
+    
+                # if there is an explicit argument, try to match the
+                # optional's string arguments to only this
+                if explicit_arg is not None:
+                    arg_count = match_argument(action, 'A')
+    
+                    # if the action is a single-dash option and takes no
+                    # arguments, try to parse more single-dash options out
+                    # of the tail of the option string
+                    chars = self.prefix_chars
+                    if (
+                        arg_count == 0
+                        and option_string[1] not in chars
+                        and explicit_arg != ''
+                    ):
+                        if sep or explicit_arg[0] in chars:
+                            msg = _('ignored explicit argument %r')
+                            raise ArgumentError(action, msg % explicit_arg)
+                        action_tuples.append((action, [], option_string))
+                        char = option_string[0]
+                        option_string = char + explicit_arg[0]
+                        optionals_map = self._option_string_actions
+                        if option_string in optionals_map:
+                            action = optionals_map[option_string]
+                            explicit_arg = explicit_arg[1:]
+                            if not explicit_arg:
+                                sep = explicit_arg = None
+                            elif explicit_arg[0] == '=':
+                                sep = '='
+                                explicit_arg = explicit_arg[1:]
+                            else:
+                                sep = ''
+                        else:
+                            extras.append(char + explicit_arg)
+                            extras_pattern.append('O')
+                            stop = start_index + 1
+                            break
+                    # if the action expect exactly one argument, we've
+                    # successfully matched the option; exit the loop
+                    elif arg_count == 1:
+                        stop = start_index + 1
+                        args = [explicit_arg]
+                        action_tuples.append((action, args, option_string))
+                        break
+    
+                    # error if a double-dash option did not use the
+                    # explicit argument
+                    else:
+                        msg = _('ignored explicit argument %r')
+                        raise ArgumentError(action, msg % explicit_arg)
+    
+                # if there is no explicit argument, try to match the
+                # optional's string arguments with the following strings
+                # if successful, exit the loop
+                else:
+                    start = start_index + 1
+                    selected_patterns = arg_strings_pattern[start:]
+                    arg_count = match_argument(action, selected_patterns)
+                    stop = start + arg_count
+                    args = arg_strings[start:stop]
+                    action_tuples.append((action, args, option_string))
+                    break
+    
+            # add the Optional to the list and return the index at which
+            # the Optional's string args stopped
+            assert action_tuples
+            for action, args, option_string in action_tuples:
+                if action.deprecated and option_string not in warned:
+                    self._warning(_("option '%(option)s' is deprecated") %
+                                  {'option': option_string})
+                    warned.add(option_string)
+                take_action(action, args, option_string)
+            return stop
+    
+        # the list of Positionals left to be parsed; this is modified
+        # by consume_positionals()
+        positionals = self._get_positional_actions()
+    
+        # function to convert arg_strings into positional actions
+        def consume_positionals(start_index):
+            # match as many Positionals as possible
+            match_partial = self._match_arguments_partial
+            selected_pattern = arg_strings_pattern[start_index:]
+            arg_counts = match_partial(positionals, selected_pattern)
+    
+            # slice off the appropriate arg strings for each Positional
+            # and add the Positional and its args to the list
+            for action, arg_count in zip(positionals, arg_counts):
+                args = arg_strings[start_index: start_index + arg_count]
+                # Strip out the first '--' if it is not in REMAINDER arg.
+                if action.nargs == PARSER:
+                    if arg_strings_pattern[start_index] == '-':
+                        assert args[0] == '--'
+                        args.remove('--')
+                elif action.nargs != REMAINDER:
+                    if (arg_strings_pattern.find('-', start_index,
+                                                 start_index + arg_count) >= 0):
+                        args.remove('--')
+                start_index += arg_count
+                if args and action.deprecated and action.dest not in warned:
+                    self._warning(_("argument '%(argument_name)s' is deprecated") %
+                                  {'argument_name': action.dest})
+                    warned.add(action.dest)
+                take_action(action, args)
+    
+            # slice off the Positionals that we just parsed and return the
+            # index at which the Positionals' string args stopped
+            positionals[:] = positionals[len(arg_counts):]
+            return start_index
+    
+        # consume Positionals and Optionals alternately, until we have
+        # passed the last option string
+        extras = []
+        extras_pattern = []
+        start_index = 0
+        if option_string_indices:
+            max_option_string_index = max(option_string_indices)
+        else:
+            max_option_string_index = -1
+        while start_index <= max_option_string_index:
+    
+            # consume any Positionals preceding the next option
+            next_option_string_index = start_index
+            while next_option_string_index <= max_option_string_index:
+                if next_option_string_index in option_string_indices:
+                    break
+                next_option_string_index += 1
+            if not intermixed and start_index != next_option_string_index:
+                positionals_end_index = consume_positionals(start_index)
+    
+                # only try to parse the next optional if we didn't consume
+                # the option string during the positionals parsing
+                if positionals_end_index > start_index:
+                    start_index = positionals_end_index
+                    continue
+                else:
+                    start_index = positionals_end_index
+    
+            # if we consumed all the positionals we could and we're not
+            # at the index of an option string, there were extra arguments
+            if start_index not in option_string_indices:
+                strings = arg_strings[start_index:next_option_string_index]
+                extras.extend(strings)
+                extras_pattern.extend(arg_strings_pattern[start_index:next_option_string_index])
+                start_index = next_option_string_index
+    
+            # consume the next optional and any arguments for it
+            start_index = consume_optional(start_index)
+    
+        if not intermixed:
+            # consume any positionals following the last Optional
+            stop_index = consume_positionals(start_index)
+    
+            # if we didn't consume all the argument strings, there were extras
+            extras.extend(arg_strings[stop_index:])
+        else:
+            extras.extend(arg_strings[start_index:])
+            extras_pattern.extend(arg_strings_pattern[start_index:])
+            extras_pattern = ''.join(extras_pattern)
+            assert len(extras_pattern) == len(extras)
+            # consume all positionals
+            arg_strings = [s for s, c in zip(extras, extras_pattern) if c != 'O']
+            arg_strings_pattern = extras_pattern.replace('O', '')
+            stop_index = consume_positionals(0)
+            # leave unknown optionals and non-consumed positionals in extras
+            for i, c in enumerate(extras_pattern):
+                if not stop_index:
+                    break
+                if c != 'O':
+                    stop_index -= 1
+                    extras[i] = None
+            extras = [s for s in extras if s is not None]
+    
+        # make sure all required actions were present and also convert
+        # action defaults which were not given as arguments
+        required_actions = []
+        for action in self._actions:
+            if action not in seen_actions:
+                if action.required:
+                    required_actions.append(_get_action_name(action))
+                else:
+                    # Convert action default now instead of doing it before
+                    # parsing arguments to avoid calling convert functions
+                    # twice (which may fail) if the argument was given, but
+                    # only if it was defined already in the namespace
+                    if (action.default is not None and
+                        isinstance(action.default, str) and
+                        hasattr(namespace, action.dest) and
+                        action.default is getattr(namespace, action.dest)):
+                        setattr(namespace, action.dest,
+                                self._get_value(action, action.default))
+    
+        if required_actions:
+>           raise ArgumentError(None, _('the following arguments are required: %s') %
+                       ', '.join(required_actions))
+E           argparse.ArgumentError: the following arguments are required: --bundle
+
+/usr/lib/python3.14/argparse.py:2352: ArgumentError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d4')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d4/synthetic-home')
+command = 'stage'
+capsys = <_pytest.capture.CaptureFixture object at 0x754a548ddf30>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend([str(bundle), "--manifest", str(manifest), "--healthcheck", health])
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+                   ^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_callers.py:171: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/cli.py:372: in main
+    arguments = parser.parse_args(argv)
+                ^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2016: in parse_args
+    args, argv = self.parse_known_args(args, namespace)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2026: in parse_known_args
+    return self._parse_known_args2(args, namespace, intermixed=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2055: in _parse_known_args2
+    namespace, args = self._parse_known_args(args, namespace, intermixed)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2287: in _parse_known_args
+    positionals_end_index = consume_positionals(start_index)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2262: in consume_positionals
+    take_action(action, args)
+/usr/lib/python3.14/argparse.py:2131: in take_action
+    action(self, namespace, argument_values, option_string)
+/usr/lib/python3.14/argparse.py:1329: in __call__
+    subnamespace, arg_strings = subparser.parse_known_args(arg_strings, None)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2026: in parse_known_args
+    return self._parse_known_args2(args, namespace, intermixed=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2055: in _parse_known_args2
+    namespace, args = self._parse_known_args(args, namespace, intermixed)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2287: in _parse_known_args
+    positionals_end_index = consume_positionals(start_index)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2262: in consume_positionals
+    take_action(action, args)
+/usr/lib/python3.14/argparse.py:2131: in take_action
+    action(self, namespace, argument_values, option_string)
+/usr/lib/python3.14/argparse.py:1329: in __call__
+    subnamespace, arg_strings = subparser.parse_known_args(arg_strings, None)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2026: in parse_known_args
+    return self._parse_known_args2(args, namespace, intermixed=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/argparse.py:2057: in _parse_known_args2
+    self.error(str(err))
+/usr/lib/python3.14/argparse.py:2797: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ArgumentParser(prog='siro release stage', usage=None, description=None, formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+status = 2
+message = 'siro release stage: error: the following arguments are required: --bundle\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+>       _sys.exit(status)
+E       SystemExit: 2
+
+/usr/lib/python3.14/argparse.py:2784: SystemExit
+----------------------------- Captured stderr call -----------------------------
+usage: siro release stage [-h] --bundle BUNDLE --manifest MANIFEST
+                          --healthcheck HEALTHCHECK
+siro release stage: error: the following arguments are required: --bundle
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[rollback] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d5')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d5/synthetic-home')
+command = 'rollback'
+capsys = <_pytest.capture.CaptureFixture object at 0x754a54458050>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend([str(bundle), "--manifest", str(manifest), "--healthcheck", health])
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['release', '--release-root', '/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d5/releases', '--database', '/tmp/pytest-of-jasonliao/pytest-93/test_managed_cli_busy_has_no_d5/data/siro.db', 'rollback'])
+
+tests/integration/test_data_owner_callers.py:171: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "rolled_back", "active_version": "1.0.0"}
+__ test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_gateway_refuses_owner_bef0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_gateway_refuses_owner_bef0/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x754a54498450>
+profile = 'legacy'
+
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    def test_gateway_refuses_owner_before_sqlite_initialization_or_server(
+        tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, profile: str
+    ) -> None:
+        import uvicorn
+    
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        data = tmp_path / "must-remain-absent"
+        monkeypatch.setenv("SIRO_DATA_DIR", str(data))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        called: list[str] = []
+    
+        async def initialize(_store: SQLiteStore) -> None:
+            called.append("initialize")
+            raise AssertionError("busy owner must precede initialization")
+    
+        monkeypatch.setattr(SQLiteStore, "initialize", initialize)
+        monkeypatch.setattr(uvicorn, "run", lambda *_args, **_kwargs: called.append("server"))
+        with kernel_owner(data / "siro.db", account):
+            with pytest.raises(SystemExit, match="already in use"):
+>               gateway.main()
+
+tests/integration/test_data_owner_callers.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1477: in main
+    asyncio.run(shared_store.initialize())
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_store = <siro.persistence.sqlite.SQLiteStore object at 0x754a1ae27820>
+
+    async def initialize(_store: SQLiteStore) -> None:
+        called.append("initialize")
+>       raise AssertionError("busy owner must precede initialization")
+E       AssertionError: busy owner must precede initialization
+
+tests/integration/test_data_owner_callers.py:197: AssertionError
+_ test_gateway_refuses_owner_before_sqlite_initialization_or_server[candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_gateway_refuses_owner_bef1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_gateway_refuses_owner_bef1/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x754a1ac6e3f0>
+profile = 'candidate'
+
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    def test_gateway_refuses_owner_before_sqlite_initialization_or_server(
+        tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, profile: str
+    ) -> None:
+        import uvicorn
+    
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        data = tmp_path / "must-remain-absent"
+        monkeypatch.setenv("SIRO_DATA_DIR", str(data))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        called: list[str] = []
+    
+        async def initialize(_store: SQLiteStore) -> None:
+            called.append("initialize")
+            raise AssertionError("busy owner must precede initialization")
+    
+        monkeypatch.setattr(SQLiteStore, "initialize", initialize)
+        monkeypatch.setattr(uvicorn, "run", lambda *_args, **_kwargs: called.append("server"))
+        with kernel_owner(data / "siro.db", account):
+            with pytest.raises(SystemExit, match="already in use"):
+>               gateway.main()
+
+tests/integration/test_data_owner_callers.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1477: in main
+    asyncio.run(shared_store.initialize())
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_store = <siro.persistence.sqlite.SQLiteStore object at 0x754a1ad71910>
+
+    async def initialize(_store: SQLiteStore) -> None:
+        called.append("initialize")
+>       raise AssertionError("busy owner must precede initialization")
+E       AssertionError: busy owner must precede initialization
+
+tests/integration/test_data_owner_callers.py:197: AssertionError
+__ test_gateway_owner_is_held_through_server_and_released_on_failure[error0] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_gateway_owner_is_held_thr0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_gateway_owner_is_held_thr0/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x754a1ac6fb60>
+error = RuntimeError('synthetic startup failure')
+
+    @pytest.mark.parametrize("error", [RuntimeError("synthetic startup failure"), KeyboardInterrupt()])
+    def test_gateway_owner_is_held_through_server_and_released_on_failure(
+        tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException
+    ) -> None:
+        import uvicorn
+    
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path / "data"))
+        checks: list[str] = []
+    
+        def run(*_args: Any, **_kwargs: Any) -> None:
+            with pytest.raises(BlockingIOError):
+                with kernel_owner(tmp_path / "data/siro.db", account):
+                    checks.append("incorrectly acquired")
+            checks.append("busy while server owns")
+            raise error
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+        with pytest.raises(type(error)):
+>           gateway.main()
+
+tests/integration/test_data_owner_callers.py:230: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1957: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_args = (<fastapi.applications.FastAPI object at 0x754a1abe16a0>,)
+_kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(*_args: Any, **_kwargs: Any) -> None:
+>       with pytest.raises(BlockingIOError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE BlockingIOError
+
+tests/integration/test_data_owner_callers.py:222: Failed
+__ test_gateway_owner_is_held_through_server_and_released_on_failure[error1] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_gateway_owner_is_held_thr1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-93/test_gateway_owner_is_held_thr1/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x754a1a99b850>
+error = KeyboardInterrupt()
+
+    @pytest.mark.parametrize("error", [RuntimeError("synthetic startup failure"), KeyboardInterrupt()])
+    def test_gateway_owner_is_held_through_server_and_released_on_failure(
+        tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException
+    ) -> None:
+        import uvicorn
+    
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path / "data"))
+        checks: list[str] = []
+    
+        def run(*_args: Any, **_kwargs: Any) -> None:
+            with pytest.raises(BlockingIOError):
+                with kernel_owner(tmp_path / "data/siro.db", account):
+                    checks.append("incorrectly acquired")
+            checks.append("busy while server owns")
+            raise error
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+        with pytest.raises(type(error)):
+>           gateway.main()
+
+tests/integration/test_data_owner_callers.py:230: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1957: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_args = (<fastapi.applications.FastAPI object at 0x754a1a8267b0>,)
+_kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(*_args: Any, **_kwargs: Any) -> None:
+>       with pytest.raises(BlockingIOError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE BlockingIOError
+
+tests/integration/test_data_owner_callers.py:222: Failed
+=============================== warnings summary ===============================
+tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[demo]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[backup]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[raw-restore]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[zip-restore]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[stage]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[rollback]
+FAILED tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy]
+FAILED tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[candidate]
+FAILED tests/integration/test_data_owner_callers.py::test_gateway_owner_is_held_through_server_and_released_on_failure[error0]
+FAILED tests/integration/test_data_owner_callers.py::test_gateway_owner_is_held_through_server_and_released_on_failure[error1]
+10 failed, 2 warnings in 1.72s

@@ -1,0 +1,63 @@
+{
+  "scope": "FIX-008 bounded text-diff path preflight; component and synthetic temp-copy tests",
+  "baseline_source_entries": 225,
+  "changed_baseline_source_paths": [
+    "src/siro/core/evolution.py"
+  ],
+  "source_sha256": "ac20aa27578cb816cf5aa5d2c4c68f628b33a9198e70ac05483f96ae88bf5cc5",
+  "before_source_sha256": "0439c6bf93910e9c5501581b85e60cfdbafbecc2a02d229e8fead6d52e9f2e1a",
+  "new_test_sha256": "8124c7cb9634cdb91509e065681dc5baf3700a8d9eaf117e2b6857c1460871eb",
+  "initial_authored_before_production": {
+    "failed": 37,
+    "passed": 14,
+    "seconds": 0.49
+  },
+  "complete_tests_against_isolated_exact_before_source": {
+    "failed": 46,
+    "passed": 16,
+    "warnings": 2,
+    "seconds": 0.49
+  },
+  "after_new_and_existing_verifier_tests": {
+    "passed": 63,
+    "seconds": 0.36
+  },
+  "operational_cli_synthetic": {
+    "passed": 3,
+    "deselected": 1,
+    "seconds": 0.36,
+    "deselected_reason": "unrelated runtime start-stop lifecycle"
+  },
+  "static_checks": {
+    "ruff": "PASS",
+    "format": "PASS",
+    "mypy": "PASS (2 source files)"
+  },
+  "verified": [
+    "complete old/new union",
+    "protected source/destination zero-copy/apply/check preflight",
+    "invalid format zero-copy/apply/check preflight",
+    "counted header-looking payload with actual git apply",
+    "trusted checks pass/fail and unappliable status compatibility",
+    "source fixture unchanged and temporary workspace removal"
+  ],
+  "not_verified": [
+    "untrusted checks OS isolation",
+    "runtime/product caller",
+    "automatic self-modification",
+    "release promotion",
+    "production deployment"
+  ],
+  "source_untouched_by_candidate": true,
+  "production_8026_accessed": false,
+  "private_inputs_or_providers_used": false,
+  "logs": {
+    "path-protection-before.log": "8d632045efcce0fae2b40f76554825841a4225dd53d91e284b8cf3b46652e85e",
+    "path-protection-complete-before.log": "6e887ca1e3fb1a9f88a58d5b7dd13e4249d25343a84a91a96ec6f4804f556ddd",
+    "path-protection-after.log": "17eac8ebcfcb22c54b118cc795f416f7e1a9868ecb16850d62c18997787c59c0",
+    "operational-cli-after.log": "4e9133b8df59641eddd43d84dfe45d34aee1e031341654158990ab6aef970e8a",
+    "ruff-after.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "format-after.log": "3bc53bf3e981a98a34a852e175bf9b77af841edea74fca595d9aedcbaf9a4938",
+    "mypy-after.log": "f9b031e5c45aa702cd4fef028d465551cb20a2c4698e0913c7b00766b20ac4d8"
+  }
+}

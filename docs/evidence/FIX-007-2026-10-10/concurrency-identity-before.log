@@ -1,0 +1,48 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_reapproved_package_cannot_inherit_previous_concurrency_limit _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-54/test_reapproved_package_cannot0')
+
+    @pytest.mark.asyncio
+    async def test_reapproved_package_cannot_inherit_previous_concurrency_limit(tmp_path: Path) -> None:
+        skill, registry, _, _, _ = await approved(tmp_path)
+        manifest_path = skill.root / "manifest.json"
+        values = json.loads(manifest_path.read_text())
+        values["concurrency"] = 2
+        manifest_path.write_text(json.dumps(values))
+        old = load_skill(skill.root)
+        await registry.install(old, enabled=True)
+    
+        class CountingSupervisor(WorkerSupervisor):
+            active = 0
+            peak = 0
+    
+            async def _execute_one(
+                self, snapshot: InstalledSkill, arguments: object
+            ) -> dict[str, object]:
+                self.active += 1
+                self.peak = max(self.peak, self.active)
+                try:
+                    await asyncio.sleep(0.05)
+                    return {"text": "synthetic admission probe"}
+                finally:
+                    self.active -= 1
+    
+        supervisor = CountingSupervisor()
+        dispatcher = SkillDispatcher(registry, supervisor)
+        await dispatcher.execute(old, {})
+        values["concurrency"] = 1
+        manifest_path.write_text(json.dumps(values))
+        current = load_skill(skill.root)
+        await registry.install(current, enabled=True)
+        supervisor.peak = 0
+        await asyncio.gather(dispatcher.execute(current, {}), dispatcher.execute(current, {}))
+>       assert supervisor.peak == 1
+E       assert 2 == 1
+E        +  where 2 = <test_skill_package_identity.test_reapproved_package_cannot_inherit_previous_concurrency_limit.<locals>.CountingSupervisor object at 0x752453232270>.peak
+
+tests/integration/test_skill_package_identity.py:483: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_package_identity.py::test_reapproved_package_cannot_inherit_previous_concurrency_limit
+1 failed, 42 deselected in 0.29s

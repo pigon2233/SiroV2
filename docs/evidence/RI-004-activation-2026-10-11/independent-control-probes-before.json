@@ -1,0 +1,33 @@
+{
+  "synthetic_only": true,
+  "real_temporary_sqlite_package_receipt": true,
+  "os_boundary_not_retested_by_cleanup_stub": true,
+  "private_data_used": false,
+  "live_service_touched": false,
+  "rows": [
+    {
+      "case": "cleanup_failure_revoke",
+      "observed_revoke": {
+        "exception": "ExecutionCleanupError",
+        "detail": "synthetic owned worker cleanup failed"
+      },
+      "in_memory_enabled": false,
+      "registry_enabled_after_revoke": true,
+      "fresh_owner_restored_enabled": true,
+      "job_result": "ExecutionCleanupError",
+      "controlled_seam": "dispatcher stub throws typed cleanup failure when cancelled; real temp registry/receipt/initialize",
+      "expected": "durable disable remains effective even if owned drain raises typed cleanup failure"
+    },
+    {
+      "case": "cancelled_initialize",
+      "caller_result": "CancelledError",
+      "fresh_owner_enabled_after_cancel": true,
+      "fresh_catalog_tool_names": [
+        "text.checklist.parse"
+      ],
+      "controlled_seam": "actual offloop restored reads then blocked publication; repeat caller cancellation",
+      "expected": "cancelled initialize cannot publish available enabled descriptor after epoch invalidation"
+    }
+  ],
+  "temporary_fixture_removed": true
+}

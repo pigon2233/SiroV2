@@ -1,0 +1,49 @@
+{
+  "timestamp_utc": "2026-10-08T17:36:41Z",
+  "scope": "real Linux bubblewrap; synthetic marker files only; no SIRO private data opened",
+  "helper_sha256_start": "bbd553f087f38b08971dd3b9a1fb8dd32472e1b732e156a6e293fbc7be1035c6",
+  "tested_binary": "/usr/bin/python3 substituted for codebase-memory-mcp to exercise the same sandbox command",
+  "network_test": "1.1.1.1:443 connect under unshared network namespace",
+  "limitations": [
+    "This probes the generated OS isolation, not source-code vulnerability freedom or archive provenance.",
+    "MCP server/query verification is recorded separately by the root agent."
+  ],
+  "returncode": 0,
+  "stderr": "",
+  "probe": {
+    "checks": {
+      "source_visible": true,
+      "release_visible": true,
+      "host_marker_inaccessible": true,
+      "host_home_inaccessible": true,
+      "host_environment_not_inherited": true,
+      "private_home": true,
+      "allowed_root": true,
+      "isolated_pid_namespace": true,
+      "source_readonly": true,
+      "release_readonly": true,
+      "cache_writable": true,
+      "outbound_network_blocked": true
+    },
+    "errors": {
+      "source_readonly": {
+        "errno": 30,
+        "type": "OSError"
+      },
+      "release_readonly": {
+        "errno": 30,
+        "type": "OSError"
+      },
+      "network": {
+        "errno": 101,
+        "type": "OSError"
+      }
+    },
+    "all_passed": true
+  },
+  "host_marker_preserved": true,
+  "cache_write_observed_on_host": true,
+  "helper_sha256_finish": "bbd553f087f38b08971dd3b9a1fb8dd32472e1b732e156a6e293fbc7be1035c6",
+  "same_helper_source": true,
+  "status": "PASS"
+}

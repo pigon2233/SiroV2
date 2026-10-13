@@ -1,0 +1,3412 @@
+diff --git a/src/siro/persistence/skills.py b/src/siro/persistence/skills.py
+--- a/src/siro/persistence/skills.py
++++ b/src/siro/persistence/skills.py
+@@ -3,6 +3,7 @@
+ from __future__ import annotations
+ 
+ import asyncio
++import json
+ import sqlite3
+ from pathlib import Path
+ 
+@@ -14,6 +15,25 @@
+     load_skill,
+ )
+ from siro.persistence.sqlite import SQLiteStore
++
++
++def _verify_install_identity(skill: InstalledSkill) -> InstalledSkill:
++    current = load_skill(skill.root)
++
++    def metadata(value: InstalledSkill) -> str:
++        return json.dumps(
++            [value.manifest.model_dump(mode="python"), value.input_schema, value.output_schema],
++            sort_keys=True,
++            allow_nan=False,
++        )
++
++    if (
++        current.root != skill.root
++        or current.manifest_hash != skill.manifest_hash
++        or metadata(current) != metadata(skill)
++    ):
++        raise SkillApprovalRequired("skill requires package verification and approval")
++    return current
+ 
+ 
+ class SQLiteSkillRegistry:
+@@ -46,7 +66,38 @@
+             )
+         )
+ 
+-    async def set_enabled(self, skill_id: str, version: str, *, enabled: bool) -> bool:
++    async def install_if_absent(self, skill: InstalledSkill, *, enabled: bool = False) -> bool:
++        try:
++            current = await asyncio.to_thread(_verify_install_identity, skill)
++        except (OSError, TypeError, ValueError) as error:
++            raise SkillApprovalRequired(
++                "skill requires package verification and approval"
++            ) from error
++        state = SkillState.ENABLED if enabled else SkillState.DISABLED
++        return await self._store.run_transaction(
++            lambda connection: bool(
++                connection.execute(
++                    "INSERT OR IGNORE INTO skills "
++                    "(skill_id, version, manifest_hash, state, path_ref) VALUES (?, ?, ?, ?, ?)",
++                    (
++                        current.manifest.id,
++                        current.manifest.version,
++                        current.manifest_hash,
++                        state,
++                        str(current.root),
++                    ),
++                ).rowcount
++            )
++        )
++
++    async def set_enabled(
++        self,
++        skill_id: str,
++        version: str,
++        *,
++        enabled: bool,
++        identity: InstalledSkill | None = None,
++    ) -> bool:
+         state = SkillState.ENABLED if enabled else SkillState.DISABLED
+         row = await self._store.run_transaction(
+             lambda connection: connection.execute(
+@@ -55,6 +106,13 @@
+             ).fetchone()
+         )
+         if row is None:
++            return False
++        if identity is not None and (
++            identity.manifest.id != skill_id
++            or identity.manifest.version != version
++            or identity.manifest_hash != row["manifest_hash"]
++            or str(identity.root) != row["path_ref"]
++        ):
+             return False
+         if enabled:
+             try:
+@@ -83,6 +141,23 @@
+ 
+         return await self._store.run_transaction(update)
+ 
++    async def is_installed(self, skill_id: str, version: str, *, identity: InstalledSkill) -> bool:
++        def read(connection: sqlite3.Connection) -> bool:
++            row = connection.execute(
++                "SELECT manifest_hash, path_ref FROM skills WHERE skill_id = ? AND version = ?",
++                (skill_id, version),
++            ).fetchone()
++            return bool(
++                row is not None
++                and is_package_hash(row["manifest_hash"])
++                and identity.manifest.id == skill_id
++                and identity.manifest.version == version
++                and row["manifest_hash"] == identity.manifest_hash
++                and row["path_ref"] == str(identity.root)
++            )
++
++        return await self._store.run_transaction(read)
++
+     async def is_enabled(
+         self, skill_id: str, version: str, *, identity: InstalledSkill | None = None
+     ) -> bool:
+diff --git a/src/siro/services/tools/orchestrator.py b/src/siro/services/tools/orchestrator.py
+--- a/src/siro/services/tools/orchestrator.py
++++ b/src/siro/services/tools/orchestrator.py
+@@ -224,15 +224,19 @@
+     def __init__(self, descriptors: tuple[ToolDescriptor, ...]) -> None:
+         self._descriptors: dict[str, ToolDescriptor] = {}
+         for descriptor in descriptors:
+-            if descriptor.name in self._descriptors:
+-                raise ValueError("duplicate tool descriptor")
+-            if descriptor.definition is not None and descriptor.definition.name != descriptor.name:
+-                raise ValueError("tool descriptor name differs from schema")
+-            self._descriptors[descriptor.name] = replace(
+-                descriptor,
+-                definition=deepcopy(descriptor.definition),
+-                metadata=deepcopy(descriptor.metadata),
+-            )
++            self.register(descriptor)
++
++    def register(self, descriptor: ToolDescriptor) -> None:
++        if descriptor.name in self._descriptors:
++            raise ValueError("duplicate tool descriptor")
++        if descriptor.definition is not None and descriptor.definition.name != descriptor.name:
++            raise ValueError("tool descriptor name differs from schema")
++        captured = replace(
++            descriptor,
++            definition=deepcopy(descriptor.definition),
++            metadata=deepcopy(descriptor.metadata),
++        )
++        self._descriptors = {**self._descriptors, descriptor.name: captured}
+ 
+     @staticmethod
+     def _availability(descriptor: ToolDescriptor) -> ToolAvailability:
+diff --git a/src/siro/services/presentation/gateway.py b/src/siro/services/presentation/gateway.py
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -58,6 +58,7 @@
+     ToolOrchestrator,
+     ToolProposal,
+ )
++from siro.services.tools.skill_activation import SkillActivationError, SkillActivationOwner
+ from siro.services.tools.skill_candidates import (
+     SkillCandidateBusy,
+     SkillCandidateClosed,
+@@ -368,6 +369,25 @@
+     capability: str = Field(strict=True, min_length=1, max_length=128)
+ 
+ 
++class SkillActivationInput(BaseModel):
++    model_config = ConfigDict(extra="forbid")
++    package_hash: str = Field(
++        strict=True,
++        min_length=86,
++        max_length=86,
++        pattern=r"^siro-skill-package-v1:[0-9a-f]{64}$",
++    )
++
++
++class SkillInstallInput(SkillActivationInput):
++    review_id: str = Field(
++        strict=True,
++        min_length=36,
++        max_length=36,
++        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
++    )
++
++
+ _URL = re.compile(r"https?://[^\s<>]+")
+ _APPLICATION_ALIASES = {
+     "firefox": ("firefox", "火狐"),
+@@ -482,6 +502,7 @@
+     workspace_service: WorkspaceRuntime | None = None,
+     on_memory_invalidated: Callable[[], Awaitable[None]] | None = None,
+     skill_candidates: SkillCandidatePreparer | None = None,
++    skill_activation: SkillActivationOwner | None = None,
+ ) -> FastAPI:
+     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
+     gateway_state = state or GatewayState()
+@@ -490,6 +511,7 @@
+     renderer_transport = body_transport or WebSocketBodyTransport()
+     audio_owners = playback_ownership or PlaybackOwnership()
+     candidate_owner = skill_candidates if runtime_profile == "candidate" else None
++    activation_owner = skill_activation if runtime_profile == "candidate" else None
+ 
+     def candidate_metadata() -> dict[str, object]:
+         return {
+@@ -504,6 +526,21 @@
+             **gateway_state.snapshot(),
+             "runtime_profile": runtime_profile,
+             "skill_candidates": candidate_metadata(),
++            "skill_activation": activation_metadata(),
++        }
++
++    def activation_metadata() -> dict[str, object]:
++        if activation_owner is not None:
++            return activation_owner.snapshot()
++        return {
++            "available": False,
++            "installed": False,
++            "enabled": False,
++            "package_hash": None,
++            "profile": "markdown-checklist-v1",
++            "capability": "text.checklist.parse",
++            "authorizes_execution": False,
++            "busy": False,
+         }
+ 
+     @asynccontextmanager
+@@ -511,6 +548,10 @@
+         try:
+             if on_startup is not None:
+                 await on_startup()
++            if activation_owner is not None:
++                await activation_owner.initialize()
++                if not gateway_state.kill_switches["tools"]:
++                    await activation_owner.suspend()
+             yield
+         finally:
+             gateway_state.health["core"] = "draining"
+@@ -523,14 +564,18 @@
+                     await candidate_owner.close()
+             finally:
+                 try:
+-                    if on_shutdown is not None:
+-                        await on_shutdown()
++                    if activation_owner is not None:
++                        await activation_owner.close()
+                 finally:
+                     try:
+-                        if isinstance(text_to_speech, QwenReferenceTTS):
+-                            await text_to_speech.close()
++                        if on_shutdown is not None:
++                            await on_shutdown()
+                     finally:
+-                        await gateway_hub.shutdown()
++                        try:
++                            if isinstance(text_to_speech, QwenReferenceTTS):
++                                await text_to_speech.close()
++                        finally:
++                            await gateway_hub.shutdown()
+ 
+     app = FastAPI(title="SIRO Presentation Gateway", lifespan=lifespan)
+     app.state.gateway_hub = gateway_hub
+@@ -706,6 +751,7 @@
+             },
+             "tools": tool_orchestrator.tool_status() if tool_orchestrator is not None else [],
+             "skill_candidates": candidate_metadata(),
++            "skill_activation": activation_metadata(),
+         }
+ 
+     @app.post("/v1/skills/candidates")
+@@ -721,7 +767,14 @@
+         if not gateway_state.kill_switches["tools"]:
+             raise HTTPException(status_code=403, detail="tools are disabled")
+         try:
+-            return await candidate_owner.prepare(body.capability)
++            result = await candidate_owner.prepare(body.capability)
++            return (
++                await activation_owner.remember(result) if activation_owner is not None else result
++            )
++        except SkillActivationError as error:
++            raise HTTPException(
++                status_code=409, detail="skill activation could not be completed"
++            ) from error
+         except SkillCandidateBusy as error:
+             raise HTTPException(
+                 status_code=409, detail="skill candidate preparation is busy"
+@@ -761,6 +814,67 @@
+         require_origin(request.headers.get("origin"))
+         require_token(authorization)
+         return {"cancelled": await cancel_skill_candidate()}
++
++    def require_activation(*, tools_required: bool = True) -> SkillActivationOwner:
++        if activation_owner is None:
++            raise HTTPException(status_code=503, detail="skill activation is unavailable")
++        if tools_required and not gateway_state.kill_switches["tools"]:
++            raise HTTPException(status_code=403, detail="tools are disabled")
++        return activation_owner
++
++    async def activation_result(
++        operation: Callable[[], Awaitable[dict[str, object]]],
++    ) -> dict[str, object]:
++        try:
++            return await operation()
++        except SkillActivationError as error:
++            raise HTTPException(
++                status_code=409, detail="skill activation could not be completed"
++            ) from error
++        except (asyncio.CancelledError, ExecutionCancelled) as error:
++            raise HTTPException(status_code=409, detail="skill activation was cancelled") from error
++        except ExecutionCleanupError as error:
++            raise HTTPException(
++                status_code=503, detail="skill activation cleanup could not be confirmed"
++            ) from error
++
++    @app.post("/v1/skills/activation/install")
++    async def install_skill(
++        request: Request,
++        body: SkillInstallInput,
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_origin(request.headers.get("origin"))
++        require_token(authorization)
++        owner = require_activation()
++        return await activation_result(lambda: owner.install(body.review_id, body.package_hash))
++
++    @app.post("/v1/skills/activation/enable")
++    async def enable_skill(
++        request: Request,
++        body: SkillActivationInput,
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_origin(request.headers.get("origin"))
++        require_token(authorization)
++        owner = require_activation()
++        return await activation_result(lambda: owner.enable(body.package_hash))
++
++    @app.post("/v1/skills/activation/revoke")
++    async def revoke_skill(
++        request: Request,
++        body: SkillActivationInput,
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_origin(request.headers.get("origin"))
++        require_token(authorization)
++        owner = require_activation(tools_required=False)
++        return await activation_result(lambda: owner.revoke(body.package_hash))
++
++    async def suspend_skill_activation() -> dict[str, object]:
++        if activation_owner is not None:
++            await activation_owner.suspend()
++        return activation_metadata()
+ 
+     @app.post("/v1/workspace/{action}")
+     async def workspace_readback(
+@@ -949,8 +1063,13 @@
+         if name not in gateway_state.kill_switches:
+             raise HTTPException(status_code=404, detail="unknown kill switch")
+         gateway_state.kill_switches[name] = body.enabled
+-        if name == "tools" and not body.enabled and candidate_owner is not None:
+-            await cancel_skill_candidate()
++        if name == "tools" and not body.enabled:
++            try:
++                if activation_owner is not None:
++                    await activation_result(suspend_skill_activation)
++            finally:
++                if candidate_owner is not None:
++                    await cancel_skill_candidate()
+         if (
+             name == "cloud"
+             and not body.enabled
+@@ -1219,8 +1338,10 @@
+     from siro.adapters.models.mock import OfflineDemoModel
+     from siro.adapters.models.ollama import OllamaAdapter
+     from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
++    from siro.adapters.skill_worker import SkillDispatcher, WorkerSupervisor
+     from siro.core.memory import MemoryService
+     from siro.persistence.memory import SQLiteMemoryRepository
++    from siro.persistence.skills import SQLiteSkillRegistry
+     from siro.persistence.sqlite import SQLiteStore
+     from siro.ports.models import LanguageModel
+     from siro.ports.models import Privacy as ModelPrivacy
+@@ -1703,6 +1824,17 @@
+         if runtime_profile == "candidate" and catalog is not None
+         else None
+     )
++    skill_registry = SQLiteSkillRegistry(shared_store)
++    skill_activation = (
++        SkillActivationOwner(
++            catalog,
++            skill_registry,
++            SkillDispatcher(skill_registry, WorkerSupervisor(profile="python-stdlib-single")),
++            data_dir / "approved-skills",
++        )
++        if runtime_profile == "candidate" and catalog is not None
++        else None
++    )
+     tool_orchestrator = ToolOrchestrator(
+         SQLiteToolProposalRepository(shared_store),
+         handlers,
+@@ -1849,6 +1981,7 @@
+             on_application_tool=application_tool,
+             tool_orchestrator=tool_orchestrator,
+             skill_candidates=skill_candidates,
++            skill_activation=skill_activation,
+         ),
+         host="127.0.0.1",
+         port=port,
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -64,6 +64,11 @@
+         <p id="skill-candidate-status" aria-live="polite">確認準備功能狀態中…</p>
+         <details><summary>來源與驗證紀錄</summary><pre id="skill-candidate-review"></pre></details>
+         <details><summary>待審技能內容</summary><pre id="skill-candidate-files"></pre></details>
++      </section><section id="skill-activation-panel">
++        <h3>批准與使用待辦清單技能</h3>
++        <p>先閱讀上方來源、程式內容與驗證紀錄。確認後可安裝，初始保持停用；啟用需要你再按一次。技能只解析你貼上的文字，使用時仍沿用對話中的操作授權。</p>
++        <div class="quick-actions"><button id="skill-activation-install" type="button" disabled>安裝（保持停用）</button><button id="skill-activation-enable" type="button" disabled>啟用已批准技能</button><button id="skill-activation-revoke" type="button" disabled>撤銷啟用</button><button id="skill-activation-fill" type="button" disabled>將待辦範例填入對話</button><button id="skill-activation-refresh" type="button">確認技能狀態</button></div>
++        <p id="skill-activation-status" aria-live="polite">確認技能狀態中…</p>
+       </section><div id="tool-proposals"></div><details><summary>指定工作目錄讀取</summary>    <section>
+       <h2>我的工作目錄</h2>
+       <p id="workspace-status">讀取狀態中…</p>
+@@ -216,6 +221,7 @@
+           if (!acceptRunEvent(data)) return;
+           log(data);
+           if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }
++          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);
+           if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
+           if (data.type === "affect_state") { renderAffect(data); }
+           if (data.type === "assistant_started") {
+@@ -338,6 +344,7 @@
+         const status = document.querySelector("#skill-candidate-status");
+         const details = document.querySelector("#skill-candidate-review"), files = document.querySelector("#skill-candidate-files");
+         skillCandidateReview = undefined; details.textContent = ""; files.textContent = "";
++        forgetSkillActivationReview();
+         const existing = {
+           existing_available: "已有相同能力，目前可用；沒有準備新技能。操作仍依原授權。",
+           existing_unavailable: "已有相同能力，目前尚未就緒；沒有另造技能繞過限制。",
+@@ -350,6 +357,7 @@
+         const review = acceptedSkillCandidateReview(data);
+         if (!review) { status.textContent = "無法確認審查資料或驗證狀態；尚未安裝或啟用。"; return; }
+         skillCandidateReview = review;
++        rememberSkillActivationReview(review);
+         status.textContent = review.status === "awaiting_review"
+           ? "待你審查；尚未安裝或啟用。"
+           : "驗證未通過；尚未安裝或啟用。可匯出紀錄供檢查。";
+@@ -361,6 +369,7 @@
+         if (!skillCandidateAvailable || skillCandidateServiceBusy || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling) return;
+         const epoch = ++skillCandidateEpoch;
+         skillCandidateBusy = true; skillCandidateReview = undefined;
++        forgetSkillActivationReview();
+         document.querySelector("#skill-candidate-review").textContent = "";
+         document.querySelector("#skill-candidate-files").textContent = "";
+         document.querySelector("#skill-candidate-status").textContent = "正在準備待審技能與隔離測試紀錄…";
+@@ -378,6 +387,7 @@
+       async function cancelSkillCandidate() {
+         if (skillCandidateCancelling || !(skillCandidateBusy || skillCandidateUnknown || skillCandidateServiceBusy)) return;
+         ++skillCandidateEpoch; skillCandidateCancelling = true; skillCandidateReview = undefined;
++        forgetSkillActivationReview();
+         document.querySelector("#skill-candidate-status").textContent = "正在取消準備，等待停止確認…";
+         updateSkillCandidateControls();
+         try {
+@@ -402,6 +412,107 @@
+         const link = document.createElement("a"); link.href = url; link.download = "siro-markdown-checklist-review.json";
+         link.click(); URL.revokeObjectURL(url);
+       };
++      let skillActivationState, skillActivationReview;
++      let skillActivationTools = false, skillActivationBusy = false, skillActivationUnknown = false;
++      let skillActivationEpoch = 0;
++      function acceptedSkillActivation(data) {
++        if (!data || ["available", "installed", "enabled", "busy"].some(key => typeof data[key] !== "boolean") || data.authorizes_execution !== false || data.profile !== "markdown-checklist-v1" || data.capability !== "text.checklist.parse") return undefined;
++        if (data.installed ? typeof data.package_hash !== "string" || !/^siro-skill-package-v1:[0-9a-f]{64}$/.test(data.package_hash) : data.package_hash !== null || data.enabled) return undefined;
++        if (data.enabled && !data.available) return undefined;
++        return {available:data.available, installed:data.installed, enabled:data.enabled, busy:data.busy, package_hash:data.package_hash, authorizes_execution:false, profile:"markdown-checklist-v1", capability:"text.checklist.parse"};
++      }
++      function updateSkillActivationControls() {
++        const state = skillActivationState;
++        const idle = state?.available === true && !state.busy && !skillActivationBusy && !skillActivationUnknown;
++        document.querySelector("#skill-activation-install").disabled = !(idle && skillActivationTools && !state.installed && skillActivationReview);
++        document.querySelector("#skill-activation-enable").disabled = !(idle && skillActivationTools && state.installed && !state.enabled);
++        document.querySelector("#skill-activation-revoke").disabled = !(idle && state.installed);
++        document.querySelector("#skill-activation-fill").disabled = !(idle && skillActivationTools && state.enabled);
++        document.querySelector("#skill-activation-refresh").disabled = skillActivationBusy;
++      }
++      function skillActivationDescription() {
++        const state = skillActivationState;
++        if (!state?.available) return "目前無法安裝或啟用技能；請確認執行模式與連線。";
++        if (state.busy) return "技能狀態正在更新，請等待確認。";
++        if (!skillActivationTools) return "電腦操作已暫停；技能不可使用，你仍可撤銷已安裝技能的啟用。";
++        if (state.enabled) return "待辦清單技能已啟用。可將範例填入對話，再由你送出；每次操作仍依授權。";
++        if (state.installed) return "待辦清單技能已安裝，目前停用；啟用需要你明確批准。";
++        return skillActivationReview ? "待你確認上方審查資料；安裝後保持停用。" : "尚未安裝；先準備並檢查上方技能內容與驗證紀錄。";
++      }
++      function renderSkillActivation(runtime = {}, confirmed = false) {
++        const state = runtime.runtime_profile === "candidate" ? acceptedSkillActivation(runtime.skill_activation) : undefined;
++        skillActivationTools = runtime.kill_switches?.tools === true;
++        if (!state?.available || !skillActivationTools) {
++          ++skillActivationEpoch; skillActivationBusy = false; skillActivationReview = undefined;
++        }
++        skillActivationState = state;
++        labelSkillCandidateHistory(state);
++        if (confirmed && state && !state.busy) skillActivationUnknown = false;
++        if (!skillActivationBusy && !skillActivationUnknown) document.querySelector("#skill-activation-status").textContent = skillActivationDescription();
++        updateSkillActivationControls();
++      }
++      function forgetSkillActivationReview() {
++        skillActivationReview = undefined; updateSkillActivationControls();
++      }
++      function labelSkillCandidateHistory(state) {
++        if (state?.installed === true && skillCandidateReview?.package_hash === state.package_hash) {
++          document.querySelector("#skill-candidate-status").textContent = "這是準備時的審查紀錄；目前已安裝。使用狀態見下方。";
++        }
++      }
++      function applySkillActivationTools(enabled) {
++        if (skillActivationState) {
++          renderSkillActivation({runtime_profile:"candidate",kill_switches:{tools:enabled},skill_activation:{...skillActivationState,enabled:enabled && skillActivationState.enabled,busy:enabled && skillActivationState.busy}});
++        } else {
++          skillActivationTools = enabled; updateSkillActivationControls();
++        }
++      }
++      function rememberSkillActivationReview(review) {
++        if (review.status === "awaiting_review" && review.verification.status === "passed" && typeof review.review_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(review.review_id)) {
++          skillActivationReview = {review_id:review.review_id,package_hash:review.package_hash};
++        }
++        if (!skillActivationBusy && !skillActivationUnknown) document.querySelector("#skill-activation-status").textContent = skillActivationDescription();
++        updateSkillActivationControls();
++      }
++      async function changeSkillActivation(action) {
++        updateSkillActivationControls();
++        if (document.querySelector(`#skill-activation-${action}`).disabled) return;
++        const request = action === "install" ? {...skillActivationReview} : {package_hash:skillActivationState.package_hash};
++        const epoch = ++skillActivationEpoch;
++        skillActivationBusy = true; skillActivationReview = undefined;
++        document.querySelector("#skill-activation-status").textContent = "正在更新技能，等待結果確認…";
++        updateSkillActivationControls();
++        try {
++          const data = await productRequest(`/v1/skills/activation/${action}`, {method:"POST",body:JSON.stringify(request)});
++          if (epoch !== skillActivationEpoch) return;
++          const state = acceptedSkillActivation(data);
++          if (!state || !state.available || !state.installed || state.busy || state.package_hash !== request.package_hash || state.enabled !== (action === "enable")) throw new Error("unconfirmed skill state");
++          skillActivationState = state;
++          labelSkillCandidateHistory(state);
++          document.querySelector("#skill-activation-status").textContent = skillActivationDescription();
++        } catch {
++          if (epoch !== skillActivationEpoch) return;
++          skillActivationUnknown = true;
++          document.querySelector("#skill-activation-status").textContent = "技能操作結果未知；沒有自動重送。請按確認技能狀態，再決定下一步。";
++        } finally {
++          if (epoch === skillActivationEpoch) skillActivationBusy = false;
++          updateSkillActivationControls();
++        }
++      }
++      document.querySelector("#skill-activation-install").onclick = () => changeSkillActivation("install");
++      document.querySelector("#skill-activation-enable").onclick = () => changeSkillActivation("enable");
++      document.querySelector("#skill-activation-revoke").onclick = () => changeSkillActivation("revoke");
++      document.querySelector("#skill-activation-refresh").onclick = async () => {
++        if (skillActivationBusy) return;
++        try { renderSkillActivation(await productRequest("/v1/runtime"), true); }
++        catch { document.querySelector("#skill-activation-status").textContent = "目前無法確認技能狀態；沒有重新執行先前操作。"; }
++      };
++      document.querySelector("#skill-activation-fill").onclick = () => {
++        updateSkillActivationControls();
++        if (document.querySelector("#skill-activation-fill").disabled) return;
++        const field = document.querySelector("#text");
++        field.value = "請用待辦清單技能整理這段文字，列出待辦與已完成項目：\n- [ ] 整理今天的筆記\n- [x] 喝一杯水";
++        field.focus?.();
++      };
+       async function productRequest(url, options = {}) {
+         const response = await authorizedFetch(url, {...options, headers: headers()});
+         const data = await response.json();
+@@ -432,6 +543,7 @@
+           const runtime = await productRequest("/v1/runtime");
+           renderCapabilities(runtime.tools);
+           renderSkillCandidateAvailability(runtime);
++          renderSkillActivation(runtime);
+           const features = runtime.features || {}, workspace = features.workspace || {};
+           const backend = runtime.routes?.model || "offline";
+           document.querySelector("#model-status").textContent = backend === "offline" ? "尚未連接對話模型" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
+@@ -500,6 +612,7 @@
+       };
+       function renderSnapshot(data) {
+         renderSkillCandidateAvailability(data.runtime || data);
++        renderSkillActivation(data.runtime || data);
+         if (data.active_turns) {
+           const active = data.active_turns.browser;
+           const nextTurn = active && ["responding", "awaiting_approval"].includes(active.state) ? active.turn_id : undefined;
+diff --git a/src/siro/services/tools/skill_activation.py b/src/siro/services/tools/skill_activation.py
+--- /dev/null
++++ b/src/siro/services/tools/skill_activation.py
+@@ -0,0 +1,579 @@
++"""Explicit owner approval for one fixed, verified pasted-text capability."""
++
++from __future__ import annotations
++
++import asyncio
++import hashlib
++import json
++import os
++import stat
++import tempfile
++from collections.abc import Awaitable, Callable
++from contextlib import suppress
++from copy import deepcopy
++from dataclasses import dataclass
++from pathlib import Path
++from uuid import UUID, uuid4
++
++from siro.adapters.skill_worker import SkillDispatcher, SkillExecutionError, WorkerSupervisor
++from siro.core.skills import InstalledSkill, capture_skill
++from siro.persistence.skills import SQLiteSkillRegistry
++from siro.ports.models import ToolDefinition
++from siro.services.tools.execution import (
++    ExecutionCancelled,
++    ExecutionCleanupError,
++    ExecutionContext,
++)
++from siro.services.tools.orchestrator import ToolCatalog, ToolDescriptor, ToolMetadata
++from siro.services.tools.skill_candidates import _TESTS, CAPABILITY, PROFILE, _package_files
++
++
++class SkillActivationError(RuntimeError):
++    """Fail closed; callers publish only a fixed safe message."""
++
++
++def _now() -> float:
++    return asyncio.get_running_loop().time()
++
++
++async def _join[T](task: asyncio.Task[T]) -> T:
++    while not task.done():
++        try:
++            await asyncio.shield(task)
++        except asyncio.CancelledError:
++            continue
++    return task.result()
++
++
++@dataclass(frozen=True, slots=True)
++class _Review:
++    review_id: str
++    package_hash: str
++    files: tuple[tuple[str, str], ...]
++    expires: float
++    epoch: int
++
++
++def _verify_package(path: Path, package_hash: str) -> InstalledSkill:
++    skill, files = capture_skill(path)
++    expected = _package_files()
++    if (
++        skill.manifest_hash != package_hash
++        or set(files) != set(expected)
++        or any(
++            data != expected[name].encode("utf-8") or mode != 0
++            for name, (data, mode) in files.items()
++        )
++    ):
++        raise SkillActivationError("managed package identity mismatch")
++    return skill
++
++
++def _template_hash() -> str:
++    with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
++        root = Path(name)
++        for filename, text in _package_files().items():
++            (root / filename).write_text(text, encoding="utf-8")
++        return capture_skill(root)[0].manifest_hash
++
++
++def _receipt(package_hash: str) -> dict[str, object]:
++    return {
++        "version": 1,
++        "profile": PROFILE,
++        "package_hash": package_hash,
++        "tests_sha256": hashlib.sha256(_TESTS.encode()).hexdigest(),
++        "owner_approved": True,
++    }
++
++
++def _read_receipt(root: Path) -> str | None:
++    target = root / "approval.json"
++    try:
++        fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
++    except FileNotFoundError:
++        return None
++    with os.fdopen(fd, "rb") as stream:
++        info = os.fstat(stream.fileno())
++        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 4096:
++            raise SkillActivationError("invalid approval receipt")
++        data = stream.read(4097)
++    value = json.loads(data)
++    if not isinstance(value, dict) or not isinstance(value.get("package_hash"), str):
++        raise SkillActivationError("invalid approval receipt")
++    package_hash = value["package_hash"]
++    # JSON equality alone would confuse bool/integer receipt fields.
++    if json.dumps(value, sort_keys=True) != json.dumps(_receipt(package_hash), sort_keys=True):
++        raise SkillActivationError("invalid approval receipt")
++    _package_path(root, package_hash)
++    return str(package_hash)
++
++
++def _package_path(root: Path, package_hash: str) -> Path:
++    import re
++
++    if re.fullmatch(r"siro-skill-package-v1:[0-9a-f]{64}", package_hash) is None:
++        raise SkillActivationError("invalid package identity")
++    return root / ("1.0.0-" + package_hash.split(":")[1])
++
++
++def _root(root: Path) -> None:
++    if root.resolve() != root:
++        raise SkillActivationError("managed root cannot contain symlinks")
++    root.mkdir(mode=0o700, parents=True, exist_ok=True)
++    if root.resolve() != root or not root.is_dir():
++        raise SkillActivationError("invalid managed root")
++
++
++def _materialize(root: Path, review: _Review) -> InstalledSkill:
++    _root(root)
++    previous = _read_receipt(root)
++    if previous is not None and previous != review.package_hash:
++        raise SkillActivationError("different approved package already exists")
++    path = _package_path(root, review.package_hash)
++    if not path.exists():
++        path.mkdir(mode=0o700)
++        for name, text in review.files:
++            with (path / name).open("x", encoding="utf-8") as stream:
++                stream.write(text)
++            (path / name).chmod(0o400)
++    return _verify_package(path, review.package_hash)
++
++
++def _persist_receipt(root: Path, package_hash: str) -> None:
++    _root(root)
++    temporary = root / ("approval-" + str(uuid4()) + ".tmp")
++    try:
++        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
++        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
++            json.dump(_receipt(package_hash), stream, sort_keys=True)
++            stream.flush()
++            os.fsync(stream.fileno())
++        os.replace(temporary, root / "approval.json")
++    finally:
++        temporary.unlink(missing_ok=True)
++
++
++def _restored(root: Path) -> InstalledSkill | None:
++    if not root.exists():
++        return None
++    _root(root)
++    package_hash = _read_receipt(root)
++    if package_hash is None:
++        return None
++    return _verify_package(_package_path(root, package_hash), package_hash)
++
++
++def _input(arguments: dict[str, object]) -> None:
++    text = arguments.get("text")
++    if set(arguments) != {"text"} or not isinstance(text, str):
++        raise SkillActivationError("only pasted text is accepted")
++    if len(text.encode("utf-8")) > 16384 or len(text.splitlines()) > 256:
++        raise SkillActivationError("pasted text exceeds bounds")
++
++
++def _output(result: dict[str, object]) -> None:
++    if set(result) != {"pending", "completed", "pending_count", "completed_count"}:
++        raise SkillActivationError("invalid checklist output")
++    total = 0
++    for key in ("pending", "completed"):
++        items = result[key]
++        count = result[key + "_count"]
++        if not isinstance(items, list) or type(count) is not int or count != len(items):
++            raise SkillActivationError("invalid checklist counts")
++        if any(not isinstance(item, str) or not item or len(item) > 256 for item in items):
++            raise SkillActivationError("invalid checklist item")
++        total += len(items)
++    if total > 128:
++        raise SkillActivationError("checklist output exceeds bounds")
++
++
++class SkillActivationOwner:
++    def __init__(
++        self,
++        catalog: ToolCatalog,
++        registry: SQLiteSkillRegistry,
++        dispatcher: SkillDispatcher,
++        managed_root: Path,
++    ) -> None:
++        self._catalog = catalog
++        self._registry = registry
++        self._dispatcher = dispatcher
++        self._verification = WorkerSupervisor(profile="python-stdlib-single")
++        self._root = managed_root.absolute()
++        self._review: _Review | None = None
++        self._skill: InstalledSkill | None = None
++        self._available = False
++        self._registered = False
++        self._closed = False
++        self._epoch = 0
++        self._lock = asyncio.Lock()
++        self._slot = asyncio.Semaphore(1)
++        self._jobs: set[asyncio.Task[dict[str, object]]] = set()
++        self._operations: set[asyncio.Task[dict[str, object]]] = set()
++
++    def snapshot(self) -> dict[str, object]:
++        return {
++            "available": not self._closed,
++            "installed": self._skill is not None,
++            "enabled": self._available and not self._closed,
++            "capability": CAPABILITY,
++            "profile": PROFILE,
++            "package_hash": self._skill.manifest_hash if self._skill else None,
++            "busy": bool(self._operations),
++            "authorizes_execution": False,
++        }
++
++    def _invalidate(self) -> None:
++        self._available = False
++        self._epoch += 1
++        self._review = None
++
++    async def _control(
++        self, operation: Callable[[], Awaitable[dict[str, object]]]
++    ) -> dict[str, object]:
++        async def invoke() -> dict[str, object]:
++            async with self._lock:
++                return await operation()
++
++        task = asyncio.create_task(invoke())
++        self._operations.add(task)
++        try:
++            result = await asyncio.shield(task)
++            self._operations.discard(task)
++            return {**result, "busy": bool(self._operations)} if "busy" in result else result
++        except asyncio.CancelledError:
++            self._invalidate()
++            # Do not cancel a transaction already in to_thread: join and fence late enable.
++            try:
++                await _join(task)
++            except ExecutionCleanupError:
++                raise
++            except Exception:
++                pass
++            raise
++        finally:
++            self._operations.discard(task)
++
++    async def initialize(self) -> None:
++        epoch = self._epoch
++
++        async def initialize() -> dict[str, object]:
++            if self._closed:
++                raise SkillActivationError("owner closed")
++            try:
++                skill = await asyncio.to_thread(_restored, self._root)
++                if skill is not None:
++                    # Register only an exact receipt/registry identity, even when disabled.
++                    if not await self._registry.is_installed(
++                        skill.manifest.id, skill.manifest.version, identity=skill
++                    ):
++                        raise SkillActivationError("approved registry identity missing")
++                    self._skill = skill
++                    self._register()
++                    enabled = await self._registry.is_enabled(
++                        skill.manifest.id, skill.manifest.version, identity=skill
++                    )
++                    if enabled:
++                        try:
++                            _output(await self._verification.execute(skill, {"text": ""}))
++                        except SkillExecutionError:
++                            enabled = False
++                    self._available = enabled and epoch == self._epoch and not self._closed
++            except (OSError, ValueError, KeyError, SkillActivationError):
++                self._skill = None
++                self._available = False
++            return self.snapshot()
++
++        await self._control(initialize)
++
++    async def remember(self, result: dict[str, object]) -> dict[str, object]:
++        epoch = self._epoch
++        captured = deepcopy(result)
++        return await self._control(lambda: self._remember(captured, epoch))
++
++    async def _remember(self, result: dict[str, object], epoch: int) -> dict[str, object]:
++        if self._closed or epoch != self._epoch:
++            raise SkillActivationError("owner closed")
++        self._review = None
++        if result.get("status") != "awaiting_review":
++            return result
++        # Legacy compatibility fixtures have no package marker and gain no review authority.
++        if all(key not in result for key in ("source", "profile", "files", "package_hash")):
++            return result
++        try:
++            expected = _package_files()
++            verification = result["verification"]
++            proposal_id = result["proposal_id"]
++            UUID(str(proposal_id))
++            lines = expected["plugin.py"].splitlines(keepends=True)
++            diff = (
++                "diff --git a/src/plugin.py b/src/plugin.py\nnew file mode 100644\n"
++                "--- /dev/null\n+++ b/src/plugin.py\n"
++                f"@@ -0,0 +1,{len(lines)} @@\n" + "".join("+" + line for line in lines)
++            )
++            valid = (
++                result.get("files") == expected
++                and result.get("profile") == PROFILE
++                and result.get("source") == f"siro_builtin_template:{PROFILE}"
++                and result.get("installed") is False
++                and result.get("enabled") is False
++                and result.get("authorizes_execution") is False
++                and result.get("tests_sha256") == hashlib.sha256(_TESTS.encode()).hexdigest()
++                and result.get("source_sha256")
++                == hashlib.sha256(expected["plugin.py"].encode()).hexdigest()
++                and result.get("proposal_sha256") == hashlib.sha256(diff.encode()).hexdigest()
++                and isinstance(verification, dict)
++                and verification.get("proposal_id") == proposal_id
++                and verification.get("status") == "passed"
++                and verification.get("changed_paths") == ["src/plugin.py"]
++                and verification.get("workspace_removed") is True
++            )
++            if not valid:
++                raise SkillActivationError("review binding mismatch")
++            package_hash = result["package_hash"]
++            if not isinstance(package_hash, str):
++                raise SkillActivationError("invalid package identity")
++            _package_path(self._root, package_hash)
++        except (KeyError, ValueError, TypeError) as error:
++            raise SkillActivationError("invalid review") from error
++        expected_hash = await self._control_hash()
++        if package_hash != expected_hash:
++            raise SkillActivationError("review package hash mismatch")
++        if epoch != self._epoch or self._closed:
++            raise SkillActivationError("review preparation was stopped")
++        review_id = str(uuid4())
++        self._review = _Review(
++            review_id, package_hash, tuple(sorted(expected.items())), _now() + 900, self._epoch
++        )
++        return {**deepcopy(result), "review_id": review_id}
++
++    async def _control_hash(self) -> str:
++        task = asyncio.create_task(asyncio.to_thread(_template_hash))
++        try:
++            return await asyncio.shield(task)
++        except asyncio.CancelledError:
++            await _join(task)
++            raise
++
++    async def install(self, review_id: str, package_hash: str) -> dict[str, object]:
++        captured = self._review
++
++        async def install() -> dict[str, object]:
++            if (
++                self._closed
++                or captured is None
++                or self._review is not captured
++                or captured.epoch != self._epoch
++                or captured.expires <= _now()
++                or captured.review_id != review_id
++                or captured.package_hash != package_hash
++            ):
++                raise SkillActivationError("review is stale or missing")
++            if self._skill is not None or any(
++                row["name"] in {CAPABILITY, "siro.text.checklist", "skill.siro.text.checklist"}
++                for row in self._catalog.snapshot()
++            ):
++                raise SkillActivationError("capability already exists")
++            skill = await asyncio.to_thread(_materialize, self._root, captured)
++            if not await self._registry.install_if_absent(skill, enabled=False):
++                raise SkillActivationError("installed version conflicts")
++            # An interrupted receipt write leaves an unavailable disabled row, never enabled.
++            await asyncio.to_thread(_persist_receipt, self._root, package_hash)
++            self._skill = skill
++            self._review = None
++            self._register()
++            return self.snapshot()
++
++        return await self._control(install)
++
++    async def enable(self, package_hash: str) -> dict[str, object]:
++        epoch = self._epoch
++
++        async def enable() -> dict[str, object]:
++            skill = self._require(package_hash)
++            self._available = False
++            current = await asyncio.to_thread(_restored, self._root)
++            if (
++                current is None
++                or current.root != skill.root
++                or current.manifest_hash != skill.manifest_hash
++            ):
++                raise SkillActivationError("approved package changed")
++            # Approved but disabled package: verify the actual strict runtime before enabling.
++            _output(await self._verification.execute(current, {"text": ""}))
++            if epoch != self._epoch:
++                raise SkillActivationError("activation was revoked")
++            try:
++                if not await self._registry.set_enabled(
++                    skill.manifest.id, skill.manifest.version, enabled=True, identity=skill
++                ):
++                    raise SkillActivationError("approved registry identity changed")
++            finally:
++                if epoch != self._epoch or self._closed:
++                    await self._registry.set_enabled(
++                        skill.manifest.id, skill.manifest.version, enabled=False, identity=skill
++                    )
++            if epoch != self._epoch or self._closed:
++                raise SkillActivationError("activation was revoked")
++            self._available = True
++            return self.snapshot()
++
++        try:
++            return await self._control(enable)
++        except (OSError, ValueError, SkillExecutionError) as error:
++            raise SkillActivationError("approved package verification failed") from error
++
++    def _require(self, package_hash: str) -> InstalledSkill:
++        if self._closed or self._skill is None or self._skill.manifest_hash != package_hash:
++            raise SkillActivationError("approved package not found")
++        return self._skill
++
++    async def _drain(self) -> None:
++        jobs = tuple(self._jobs)
++        for job in jobs:
++            job.cancel()
++        failure: ExecutionCleanupError | None = None
++        for job in jobs:
++            try:
++                await _join(job)
++            except (asyncio.CancelledError, ExecutionCancelled):
++                pass
++            except ExecutionCleanupError as error:
++                if failure is None:
++                    failure = error
++            except Exception:
++                # Ordinary failed results carry no surviving owned work.
++                pass
++        if failure is not None:
++            raise failure
++
++    async def _disable(self, *, persistent: bool) -> dict[str, object]:
++        failure: Exception | None = None
++        try:
++            await self._drain()
++        except Exception as error:
++            failure = error
++        skill = self._skill
++        try:
++            if (
++                persistent
++                and skill is not None
++                and not await self._registry.set_enabled(
++                    skill.manifest.id, skill.manifest.version, enabled=False, identity=skill
++                )
++            ):
++                raise SkillActivationError("approved registry identity changed")
++        except Exception:
++            if failure is None:
++                raise
++        if failure is not None:
++            raise failure
++        return self.snapshot()
++
++    async def revoke(self, package_hash: str) -> dict[str, object]:
++        self._require(package_hash)
++        self._invalidate()
++        return await self._control(lambda: self._disable(persistent=True))
++
++    async def suspend(self) -> None:
++        self._invalidate()
++        await self._control(lambda: self._disable(persistent=True))
++
++    async def close(self) -> None:
++        self._closed = True
++        self._invalidate()
++        await self._control(lambda: self._disable(persistent=False))
++
++    def _register(self) -> None:
++        if self._registered:
++            return
++        assert self._skill is not None
++
++        async def unauthorized(_arguments: dict[str, object]) -> object:
++            raise PermissionError("approved tool execution context required")
++
++        self._catalog.register(
++            ToolDescriptor(
++                CAPABILITY,
++                ToolDefinition(
++                    CAPABILITY,
++                    "Parse a pasted Markdown checklist into pending/completed tasks. "
++                    "Text only; no files or network.",
++                    deepcopy(self._skill.input_schema),
++                ),
++                unauthorized,
++                lambda: self._available and not self._closed,
++                "python-stdlib-single",
++                "read",
++                contextual_executor=self.execute,
++                metadata=ToolMetadata(
++                    display_name="整理貼上的待辦清單",
++                    output_contract="pending/completed text items with exact counts; max128 tasks",
++                    required_permissions=(),
++                    risk_level="observe",
++                    version="1.0.0",
++                    provenance=f"siro_builtin_template:{PROFILE}",
++                    timeout_seconds=1,
++                    failure_behavior="Fail closed; no host fallback or automatic retry.",
++                ),
++            )
++        )
++        self._registered = True
++
++    async def execute(
++        self, arguments: dict[str, object], context: ExecutionContext
++    ) -> dict[str, object]:
++        if not context.authorized:
++            raise PermissionError("approved tool execution context required")
++        context.check()
++        caller = asyncio.current_task()
++        assert caller is not None
++        cancellation_count = caller.cancelling()
++        _input(arguments)
++        if not self._available or self._closed or self._skill is None:
++            raise SkillActivationError("skill unavailable")
++        if len(self._jobs) >= 8:
++            raise SkillActivationError("skill queue full")
++        skill = self._skill
++        epoch = self._epoch
++
++        async def invoke() -> dict[str, object]:
++            async with self._slot:
++                context.check()
++                if not self._available or epoch != self._epoch:
++                    raise ExecutionCancelled("skill revoked")
++                result = await self._dispatcher.execute(skill, deepcopy(arguments))
++                context.check()
++                if not self._available or epoch != self._epoch:
++                    raise ExecutionCancelled("skill revoked")
++                _output(result)
++                return result
++
++        job = asyncio.create_task(invoke())
++        self._jobs.add(job)
++        watcher = asyncio.create_task(context.cancellation.wait())
++        try:
++            remaining = None if context.deadline is None else max(0, context.deadline - _now())
++            async with asyncio.timeout(remaining):
++                await asyncio.wait((job, watcher), return_when=asyncio.FIRST_COMPLETED)
++                context.check()
++                result = job.result()
++        finally:
++            watcher.cancel()
++            if not job.done():
++                job.cancel()
++            try:
++                with suppress(asyncio.CancelledError, ExecutionCancelled):
++                    await _join(job)
++            finally:
++                self._jobs.discard(job)
++                with suppress(asyncio.CancelledError):
++                    await _join(watcher)
++
++        if caller.cancelling() > cancellation_count:
++            raise asyncio.CancelledError
++        context.check()
++        if not self._available or self._closed or epoch != self._epoch:
++            raise ExecutionCancelled("skill revoked")
++        return result
+diff --git a/tests/integration/test_skill_activation.py b/tests/integration/test_skill_activation.py
+--- /dev/null
++++ b/tests/integration/test_skill_activation.py
+@@ -0,0 +1,340 @@
++from __future__ import annotations
++
++import asyncio
++import threading
++from pathlib import Path
++from typing import Any, cast
++
++import pytest
++
++from siro.adapters.skill_worker import SkillDispatcher, WorkerSupervisor
++from siro.persistence.skills import SQLiteSkillRegistry
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import ToolCall
++from siro.services.tools.execution import ExecutionContext
++from siro.services.tools.orchestrator import (
++    ProposalState,
++    SQLiteToolProposalRepository,
++    ToolCatalog,
++    ToolOrchestrator,
++    ToolUnavailableError,
++)
++
++
++def activation_module() -> Any:
++    from siro.services.tools import skill_activation
++
++    return skill_activation
++
++
++async def owner_fixture(
++    tmp_path: Path,
++) -> tuple[Any, SQLiteStore, SQLiteSkillRegistry, ToolCatalog]:
++    store = SQLiteStore(tmp_path / "synthetic.sqlite3")
++    await store.initialize()
++    registry = SQLiteSkillRegistry(store)
++    catalog = ToolCatalog(())
++    owner = activation_module().SkillActivationOwner(
++        catalog,
++        registry,
++        SkillDispatcher(registry, WorkerSupervisor(profile="python-stdlib-single")),
++        tmp_path / "managed",
++    )
++    await owner.initialize()
++    return owner, store, registry, catalog
++
++
++async def review(owner: Any, catalog: ToolCatalog) -> dict[str, Any]:
++    from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
++
++    prepared = await SkillCandidatePreparer(catalog).prepare(CAPABILITY)
++    result = await owner.remember(prepared)
++    assert result["review_id"] and result["installed"] is False
++    return cast(dict[str, Any], result)
++
++
++async def installed(
++    tmp_path: Path,
++) -> tuple[Any, SQLiteStore, SQLiteSkillRegistry, ToolCatalog, str]:
++    owner, store, registry, catalog = await owner_fixture(tmp_path)
++    item = await review(owner, catalog)
++    state = await owner.install(item["review_id"], item["package_hash"])
++    assert state["installed"] is True and state["enabled"] is False
++    return owner, store, registry, catalog, item["package_hash"]
++
++
++@pytest.mark.asyncio
++async def test_real_prepare_owner_approval_disabled_enable_normal_tool_revoke(
++    tmp_path: Path,
++) -> None:
++    owner, store, registry, catalog, package_hash = await installed(tmp_path)
++    assert not await registry.is_enabled("siro.text.checklist", "1.0.0")
++    subject = ToolOrchestrator(SQLiteToolProposalRepository(store), {}, catalog=catalog)
++    assert not subject.model_tools()
++    await owner.enable(package_hash)
++    assert subject.model_tools()[0].name == "text.checklist.parse"
++    subject.start_run("run", "synthetic")
++    args: dict[str, object] = {"text": "- [ ] 買牛奶\n* [x] 完成\n```\n- [ ] hidden\n```"}
++    proposal = await subject.propose(
++        "synthetic", ToolCall("one", "text.checklist.parse", args), risk="observe"
++    )
++    subject.bind_proposal("run", proposal)
++    assert proposal.state is ProposalState.PENDING
++    await subject.resolve(proposal.proposal_id, approved=True, arguments=args)
++    done = await subject.execute(proposal.proposal_id)
++    assert done.state is ProposalState.COMPLETED
++    assert done.observation == {
++        "pending": ["買牛奶"],
++        "completed": ["完成"],
++        "pending_count": 1,
++        "completed_count": 1,
++    }
++    await owner.revoke(package_hash)
++    assert not subject.model_tools()
++    with pytest.raises(ToolUnavailableError):
++        catalog.require("text.checklist.parse", args)
++    assert not await registry.is_enabled("siro.text.checklist", "1.0.0")
++    await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_runtime_restart_restores_only_exact_approved_managed_package(tmp_path: Path) -> None:
++    owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
++    await owner.enable(package_hash)
++    # Simulate ended owner without revoke mutation: new process must match persisted receipt.
++    new_catalog = ToolCatalog(())
++    other = activation_module().SkillActivationOwner(
++        new_catalog,
++        registry,
++        SkillDispatcher(registry, WorkerSupervisor(profile="python-stdlib-single")),
++        tmp_path / "managed",
++    )
++    await other.initialize()
++    assert other.snapshot()["enabled"] is True
++    assert len(new_catalog.definitions()) == 1
++    await other.close()
++    await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_changed_package_refuses_enable_but_can_still_revoke(tmp_path: Path) -> None:
++    owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
++    path = next((tmp_path / "managed").glob("*/plugin.py"))
++    path.chmod(0o600)
++    path.write_text('raise RuntimeError("tampered")\n')
++    with pytest.raises(activation_module().SkillActivationError):
++        await owner.enable(package_hash)
++    await owner.revoke(package_hash)
++    assert not await registry.is_enabled("siro.text.checklist", "1.0.0")
++    await owner.close()
++
++
++@pytest.mark.parametrize(
++    "field",
++    [
++        "package_hash",
++        "source_sha256",
++        "tests_sha256",
++        "proposal_sha256",
++        "proposal_id",
++        "files",
++        "verification",
++    ],
++)
++@pytest.mark.asyncio
++async def test_tampered_review_cannot_be_approved(tmp_path: Path, field: str) -> None:
++    from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
++
++    owner, _store, _registry, catalog = await owner_fixture(tmp_path)
++    item = await SkillCandidatePreparer(catalog).prepare(CAPABILITY)
++    item[field] = "forged"
++    with pytest.raises(activation_module().SkillActivationError):
++        await owner.remember(item)
++    assert not list((tmp_path / "managed").glob("*/plugin.py"))
++    await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_single_review_expiry_stale_identity_and_client_mutation(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, _store, _registry, catalog = await owner_fixture(tmp_path)
++    item = await review(owner, catalog)
++    stale = item["review_id"]
++    newer = await review(owner, catalog)
++    with pytest.raises(activation_module().SkillActivationError):
++        await owner.install(stale, newer["package_hash"])
++    newer["files"]["plugin.py"] = "raise SystemExit(0)"
++    await owner.install(newer["review_id"], newer["package_hash"])
++    assert "raise SystemExit" not in next((tmp_path / "managed").glob("*/plugin.py")).read_text()
++    await owner.close()
++    owner, _, _, catalog = await owner_fixture(tmp_path / "other")
++    item = await review(owner, catalog)
++    monkeypatch.setattr(activation_module(), "_now", lambda: 1e50)
++    with pytest.raises(activation_module().SkillActivationError):
++        await owner.install(item["review_id"], item["package_hash"])
++    await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_revoke_drains_active_and_queued_jobs_before_ack(tmp_path: Path) -> None:
++    owner, _, registry, catalog, package_hash = await installed(tmp_path)
++    await owner.enable(package_hash)
++    entered = asyncio.Event()
++    exited = asyncio.Event()
++    calls = 0
++
++    async def controlled(*_args: Any) -> dict[str, object]:
++        nonlocal calls
++        calls += 1
++        entered.set()
++        try:
++            return await asyncio.Future[dict[str, object]]()
++        finally:
++            await asyncio.sleep(0.02)
++            exited.set()
++
++    owner._dispatcher.execute = controlled
++    d = catalog.require("text.checklist.parse", {"text": ""})
++    assert d.contextual_executor is not None
++    first = asyncio.create_task(
++        owner.execute({"text": ""}, ExecutionContext("r", "s", "e", authorized=True))
++    )
++    await entered.wait()
++    second = asyncio.create_task(
++        owner.execute({"text": ""}, ExecutionContext("r2", "s", "e", authorized=True))
++    )
++    await asyncio.sleep(0)
++    await owner.revoke(package_hash)
++    result = await asyncio.gather(first, second, return_exceptions=True)
++    assert calls == 1
++    assert exited.is_set() and all(isinstance(x, BaseException) for x in result)
++    assert not owner.snapshot()["enabled"] and not owner._jobs
++    assert not await registry.is_enabled("siro.text.checklist", "1.0.0")
++    await owner.close()
++
++
++@pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
++@pytest.mark.asyncio
++async def test_foreground_cancellation_and_disable_join_owned_jobs(
++    tmp_path: Path, action: str
++) -> None:
++    owner, _, _, catalog, package_hash = await installed(tmp_path)
++    await owner.enable(package_hash)
++    entered = asyncio.Event()
++    exited = asyncio.Event()
++
++    async def controlled(*_args: Any) -> dict[str, object]:
++        entered.set()
++        try:
++            return await asyncio.Future[dict[str, object]]()
++        finally:
++            await asyncio.sleep(0.02)
++            exited.set()
++
++    owner._dispatcher.execute = controlled
++    d = catalog.require("text.checklist.parse", {"text": ""})
++    assert d.contextual_executor
++    context = ExecutionContext(
++        "r",
++        "s",
++        "e",
++        authorized=True,
++        deadline=asyncio.get_running_loop().time() + 0.05 if action == "deadline" else None,
++    )
++    job = asyncio.create_task(owner.execute({"text": ""}, context))
++    await entered.wait()
++    if action == "token":
++        context.cancellation.cancel()
++    elif action == "caller":
++        job.cancel()
++        job.cancel()
++    elif action == "suspend":
++        await owner.suspend()
++    elif action == "close":
++        await owner.close()
++    outcome = await asyncio.gather(job, return_exceptions=True)
++    assert isinstance(outcome[0], BaseException) and exited.is_set() and not owner._jobs
++    await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_late_cancel_enable_transaction_is_joined_and_disabled(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
++    started = threading.Event()
++    release = threading.Event()
++    original = registry.set_enabled
++
++    async def delayed(*args: Any, **kwargs: Any) -> bool:
++        if kwargs["enabled"]:
++
++            def wait() -> None:
++                started.set()
++                release.wait(3)
++
++            await asyncio.to_thread(wait)
++        return await original(*args, **kwargs)
++
++    monkeypatch.setattr(registry, "set_enabled", delayed)
++    job = asyncio.create_task(owner.enable(package_hash))
++    assert await asyncio.to_thread(started.wait, 2)
++    job.cancel()
++    await asyncio.sleep(0.01)
++    job.cancel()
++    assert not job.done()
++    release.set()
++    with pytest.raises(asyncio.CancelledError):
++        await job
++    assert not await registry.is_enabled("siro.text.checklist", "1.0.0")
++    assert owner.snapshot()["enabled"] is False
++    await owner.close()
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        {"text": True},
++        {"text": "a" * 16385},
++        {"text": "界" * 5462},
++        {"text": "\n" * 257},
++        {"text": "", "path": "/private"},
++    ],
++)
++@pytest.mark.asyncio
++async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
++    owner, _, _, _catalog, package_hash = await installed(tmp_path)
++    await owner.enable(package_hash)
++    with pytest.raises((ValueError, activation_module().SkillActivationError)):
++        await owner.execute(args, ExecutionContext("r", "s", "e", authorized=True))
++    await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_no_authority_from_argument_executor_or_unapproved_context(tmp_path: Path) -> None:
++    owner, _, _, catalog, package_hash = await installed(tmp_path)
++    await owner.enable(package_hash)
++    d = catalog.require("text.checklist.parse", {"text": ""})
++    with pytest.raises(PermissionError):
++        await d.executor({"text": ""})
++    with pytest.raises(PermissionError):
++        await owner.execute({"text": ""}, ExecutionContext("r", "s", "e"))
++    await owner.close()
++
++
++@pytest.mark.parametrize("invalid", [True, 2, -1, "1"])
++@pytest.mark.asyncio
++async def test_output_counts_are_exact_integer_and_consistent(
++    tmp_path: Path, invalid: object
++) -> None:
++    owner, _, _, _catalog, package_hash = await installed(tmp_path)
++    await owner.enable(package_hash)
++
++    async def malformed(*_args: Any) -> dict[str, object]:
++        return {"pending": ["a"], "completed": [], "pending_count": invalid, "completed_count": 0}
++
++    owner._dispatcher.execute = malformed
++    with pytest.raises(activation_module().SkillActivationError):
++        await owner.execute({"text": ""}, ExecutionContext("r", "s", "e", authorized=True))
++    await owner.close()
+diff --git a/tests/integration/test_skill_activation_foundation.py b/tests/integration/test_skill_activation_foundation.py
+--- /dev/null
++++ b/tests/integration/test_skill_activation_foundation.py
+@@ -0,0 +1,491 @@
++from __future__ import annotations
++
++import asyncio
++import json
++import sqlite3
++import threading
++from dataclasses import replace
++from pathlib import Path
++
++import pytest
++
++import siro.persistence.skills as registry_module
++from siro.core.skills import InstalledSkill, SkillApprovalRequired, load_skill
++from siro.persistence.skills import SQLiteSkillRegistry
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import ToolCall, ToolDefinition
++from siro.services.tools.orchestrator import (
++    ProposalState,
++    SQLiteToolProposalRepository,
++    ToolCatalog,
++    ToolDescriptor,
++    ToolMetadata,
++    ToolOrchestrator,
++    ToolUnavailableError,
++)
++from siro.services.tools.skill_candidates import SkillCandidatePreparer
++
++
++def package(root: Path, *, suffix: str = "original") -> InstalledSkill:
++    root.mkdir()
++    manifest = {
++        "id": "fixture.activation",
++        "version": "1.0.0",
++        "contract_version": 1,
++        "description": "Synthetic activation foundation fixture",
++        "entrypoint": "python:plugin:run",
++        "input_schema": "input.json",
++        "output_schema": "output.json",
++        "permissions": [],
++        "risk": "observe",
++        "timeout_ms": 1000,
++        "concurrency": 1,
++        "resource_limits": {"memory_mb": 64, "output_bytes": 4096, "cpu_seconds": 1},
++        "network": "denied",
++        "idempotency": "read_only",
++        "cancellation": "process",
++        "compensation": "none",
++    }
++    (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
++    schema = {
++        "type": "object",
++        "properties": {"text": {"type": "string"}},
++        "required": ["text"],
++        "additionalProperties": False,
++    }
++    for name in ("input.json", "output.json"):
++        (root / name).write_text(json.dumps(schema), encoding="utf-8")
++    (root / "plugin.py").write_text(
++        f"# {suffix}\ndef run(arguments):\n    return arguments\n", encoding="utf-8"
++    )
++    return load_skill(root)
++
++
++async def registry_at(tmp_path: Path) -> tuple[SQLiteSkillRegistry, SQLiteStore]:
++    store = SQLiteStore(tmp_path / "synthetic.sqlite3")
++    await store.initialize()
++    return SQLiteSkillRegistry(store), store
++
++
++async def rows(store: SQLiteStore) -> list[tuple[object, ...]]:
++    return await store.run_transaction(
++        lambda connection: [
++            tuple(row)
++            for row in connection.execute(
++                "SELECT skill_id, version, manifest_hash, state, path_ref FROM skills "
++                "ORDER BY skill_id, version"
++            ).fetchall()
++        ]
++    )
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("enabled", [False, True])
++async def test_absent_install_records_exact_identity_and_requested_state(
++    tmp_path: Path, enabled: bool
++) -> None:
++    skill = package(tmp_path / "package")
++    registry, store = await registry_at(tmp_path)
++    assert await registry.install_if_absent(skill, enabled=enabled) is True
++    assert await rows(store) == [
++        (
++            skill.manifest.id,
++            skill.manifest.version,
++            skill.manifest_hash,
++            "enabled" if enabled else "disabled",
++            str(skill.root),
++        )
++    ]
++    assert (
++        await registry.is_enabled(skill.manifest.id, skill.manifest.version, identity=skill)
++        is enabled
++    )
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("enabled", [False, True])
++@pytest.mark.parametrize("conflict", ["identical", "other-root", "other-bytes"])
++async def test_install_conflict_preserves_entire_existing_row(
++    tmp_path: Path, enabled: bool, conflict: str
++) -> None:
++    original = package(tmp_path / "original")
++    replacement = (
++        original
++        if conflict == "identical"
++        else package(
++            tmp_path / "replacement", suffix="changed" if conflict == "other-bytes" else "original"
++        )
++    )
++    registry, store = await registry_at(tmp_path)
++    await registry.install(original, enabled=enabled)
++    before = await rows(store)
++    assert await registry.install_if_absent(replacement, enabled=not enabled) is False
++    assert await rows(store) == before
++
++
++@pytest.mark.asyncio
++async def test_concurrent_absent_installs_have_one_exact_winner(tmp_path: Path) -> None:
++    first = package(tmp_path / "first")
++    second = package(tmp_path / "second", suffix="different")
++    registry, store = await registry_at(tmp_path)
++    results = await asyncio.gather(
++        registry.install_if_absent(first), registry.install_if_absent(second, enabled=True)
++    )
++    assert sorted(results) == [False, True]
++    winner = first if results[0] else second
++    assert await rows(store) == [
++        (
++            winner.manifest.id,
++            winner.manifest.version,
++            winner.manifest_hash,
++            "disabled" if results[0] else "enabled",
++            str(winner.root),
++        )
++    ]
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("forgery", ["hash", "input", "output", "manifest", "changed-source"])
++async def test_absent_install_rejects_unverified_or_type_ambiguous_metadata(
++    tmp_path: Path, forgery: str
++) -> None:
++    skill = package(tmp_path / "package")
++    if forgery == "hash":
++        skill = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
++    elif forgery == "input":
++        skill = replace(skill, input_schema={**skill.input_schema, "additionalProperties": 0})
++    elif forgery == "output":
++        skill = replace(skill, output_schema={**skill.output_schema, "additionalProperties": 0})
++    elif forgery == "manifest":
++        skill = replace(skill, manifest=skill.manifest.model_copy(update={"concurrency": True}))
++    else:
++        (skill.root / "plugin.py").write_text("def run(arguments): return {}\n")
++    registry, store = await registry_at(tmp_path)
++    with pytest.raises(SkillApprovalRequired, match="package verification and approval"):
++        await registry.install_if_absent(skill)
++    assert await rows(store) == []
++
++
++@pytest.mark.asyncio
++async def test_absent_install_verification_runs_off_event_loop(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    skill = package(tmp_path / "package")
++    registry, _ = await registry_at(tmp_path)
++    entered = threading.Event()
++    release = threading.Event()
++    verifier_threads: list[int] = []
++    original_load = load_skill
++
++    def blocked_load(root: Path) -> InstalledSkill:
++        verifier_threads.append(threading.get_ident())
++        entered.set()
++        if not release.wait(2):
++            raise AssertionError("synthetic verifier release missing")
++        return original_load(root)
++
++    monkeypatch.setattr(registry_module, "load_skill", blocked_load)
++    task = asyncio.create_task(registry.install_if_absent(skill))
++    try:
++        async with asyncio.timeout(1):
++            while not entered.is_set():
++                await asyncio.sleep(0.001)
++            assert not task.done()
++            assert verifier_threads != [threading.get_ident()]
++    finally:
++        release.set()
++        await task
++
++
++@pytest.mark.asyncio
++async def test_legacy_install_retains_explicit_upsert_compatibility(tmp_path: Path) -> None:
++    original = package(tmp_path / "original")
++    replacement = package(tmp_path / "replacement", suffix="legacy replacement")
++    registry, store = await registry_at(tmp_path)
++    await registry.install(original, enabled=True)
++    await registry.install(replacement)
++    assert await rows(store) == [
++        (
++            replacement.manifest.id,
++            replacement.manifest.version,
++            replacement.manifest_hash,
++            "disabled",
++            str(replacement.root),
++        )
++    ]
++    assert await registry.set_enabled(
++        replacement.manifest.id, replacement.manifest.version, enabled=True
++    )
++
++
++@pytest.mark.asyncio
++async def test_expected_identity_can_enable_then_disable_exact_row(tmp_path: Path) -> None:
++    skill = package(tmp_path / "package")
++    registry, _ = await registry_at(tmp_path)
++    await registry.install(skill)
++    for enabled in (True, False):
++        assert await registry.set_enabled(
++            skill.manifest.id, skill.manifest.version, enabled=enabled, identity=skill
++        )
++        assert (
++            await registry.is_enabled(skill.manifest.id, skill.manifest.version, identity=skill)
++            is enabled
++        )
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("enabled", [False, True])
++async def test_installed_identity_is_independent_of_enabled_state_and_source_io(
++    tmp_path: Path, enabled: bool, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    skill = package(tmp_path / "package")
++    registry, _ = await registry_at(tmp_path)
++    await registry.install(skill, enabled=enabled)
++
++    def forbidden(root: Path) -> InstalledSkill:
++        raise AssertionError("registry identity query performed source verification")
++
++    monkeypatch.setattr(registry_module, "load_skill", forbidden)
++    (skill.root / "plugin.py").unlink()
++    assert await registry.is_installed(skill.manifest.id, skill.manifest.version, identity=skill)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root", "missing"])
++async def test_installed_identity_rejects_mismatched_or_missing_row(
++    tmp_path: Path, mismatch: str
++) -> None:
++    skill = package(tmp_path / "package")
++    registry, _ = await registry_at(tmp_path)
++    await registry.install(skill)
++    identity = skill
++    query_id = skill.manifest.id
++    if mismatch in {"id", "version"}:
++        identity = replace(
++            skill,
++            manifest=skill.manifest.model_copy(
++                update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
++            ),
++        )
++    elif mismatch == "hash":
++        identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
++    elif mismatch == "root":
++        identity = replace(skill, root=tmp_path / "other-root")
++    else:
++        query_id = "fixture.missing"
++    assert not await registry.is_installed(query_id, skill.manifest.version, identity=identity)
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("enabled", [False, True])
++@pytest.mark.parametrize("mismatch", ["id", "version", "hash", "root"])
++async def test_expected_identity_mismatch_cannot_enable_or_disable_current_row(
++    tmp_path: Path, enabled: bool, mismatch: str
++) -> None:
++    skill = package(tmp_path / "package")
++    identity = skill
++    if mismatch in {"id", "version"}:
++        identity = replace(
++            skill,
++            manifest=skill.manifest.model_copy(
++                update={mismatch: "fixture.other" if mismatch == "id" else "2.0.0"}
++            ),
++        )
++    elif mismatch == "hash":
++        identity = replace(skill, manifest_hash="siro-skill-package-v1:" + "0" * 64)
++    else:
++        identity = replace(skill, root=tmp_path / "other-root")
++    registry, store = await registry_at(tmp_path)
++    await registry.install(skill, enabled=not enabled)
++    before = await rows(store)
++    assert not await registry.set_enabled(
++        skill.manifest.id, skill.manifest.version, enabled=enabled, identity=identity
++    )
++    assert await rows(store) == before
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("enabled", [False, True])
++async def test_old_approval_cannot_change_same_version_replacement(
++    tmp_path: Path, enabled: bool
++) -> None:
++    old = package(tmp_path / "old")
++    current = package(tmp_path / "current", suffix="replacement")
++    registry, store = await registry_at(tmp_path)
++    await registry.install(old, enabled=enabled)
++    await registry.install(current, enabled=not enabled)
++    before = await rows(store)
++    assert not await registry.set_enabled(
++        old.manifest.id, old.manifest.version, enabled=enabled, identity=old
++    )
++    assert await rows(store) == before
++
++
++@pytest.mark.asyncio
++async def test_matching_disable_remains_possible_after_package_corruption(tmp_path: Path) -> None:
++    skill = package(tmp_path / "package")
++    registry, _ = await registry_at(tmp_path)
++    await registry.install(skill, enabled=True)
++    (skill.root / "plugin.py").unlink()
++    assert await registry.set_enabled(
++        skill.manifest.id, skill.manifest.version, enabled=False, identity=skill
++    )
++    with pytest.raises(SkillApprovalRequired):
++        await registry.set_enabled(
++            skill.manifest.id, skill.manifest.version, enabled=True, identity=skill
++        )
++
++
++@pytest.mark.asyncio
++async def test_expected_enable_cas_rejects_replacement_during_verification(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    old = package(tmp_path / "old")
++    current = package(tmp_path / "current", suffix="replacement")
++    registry, store = await registry_at(tmp_path)
++    await registry.install(old)
++    original_load = load_skill
++
++    def replace_while_verifying(root: Path) -> InstalledSkill:
++        verified = original_load(root)
++        with sqlite3.connect(store.path) as connection:
++            connection.execute(
++                "UPDATE skills SET manifest_hash=?, path_ref=?, state='disabled' "
++                "WHERE skill_id=? AND version=?",
++                (current.manifest_hash, str(current.root), old.manifest.id, old.manifest.version),
++            )
++        return verified
++
++    monkeypatch.setattr(registry_module, "load_skill", replace_while_verifying)
++    assert not await registry.set_enabled(
++        old.manifest.id, old.manifest.version, enabled=True, identity=old
++    )
++    assert await rows(store) == [
++        (
++            current.manifest.id,
++            current.manifest.version,
++            current.manifest_hash,
++            "disabled",
++            str(current.root),
++        )
++    ]
++
++
++async def echo(arguments: dict[str, object]) -> object:
++    return arguments
++
++
++def descriptor(name: str = "text.checklist.parse", *, enabled: bool = True) -> ToolDescriptor:
++    return ToolDescriptor(
++        name,
++        ToolDefinition(
++            name,
++            "Synthetic read-only activation fixture",
++            {
++                "type": "object",
++                "properties": {"text": {"type": "string"}},
++                "required": ["text"],
++                "additionalProperties": False,
++            },
++        ),
++        echo,
++        lambda: enabled,
++        "python-stdlib-single",
++        "read",
++        metadata=ToolMetadata(provenance="synthetic-only"),
++    )
++
++
++@pytest.mark.asyncio
++async def test_registration_reaches_existing_orchestrator_without_fallback(tmp_path: Path) -> None:
++    catalog = ToolCatalog(())
++    old_snapshot = catalog.capture()
++    store = SQLiteStore(tmp_path / "catalog.sqlite3")
++    await store.initialize()
++
++    async def forbidden(arguments: dict[str, object]) -> object:
++        raise AssertionError("legacy executor bypassed registered descriptor")
++
++    orchestrator = ToolOrchestrator(
++        SQLiteToolProposalRepository(store), {"text.checklist.parse": forbidden}, catalog=catalog
++    )
++    assert orchestrator.model_tools() == ()
++    catalog.register(descriptor())
++    assert old_snapshot.definitions == ()
++    assert old_snapshot.inventory == ()
++    assert [item.name for item in orchestrator.model_tools()] == ["text.checklist.parse"]
++    proposal = await orchestrator.propose(
++        "synthetic-session",
++        ToolCall("synthetic-call", "text.checklist.parse", {"text": "hello"}),
++        risk="observe",
++    )
++    await orchestrator.resolve(proposal.proposal_id, approved=True, arguments=proposal.arguments)
++    result = await orchestrator.execute(proposal.proposal_id)
++    assert result.state == ProposalState.COMPLETED
++    assert result.observation == {"text": "hello"}
++
++
++@pytest.mark.parametrize("duplicate", ["identical", "different"])
++def test_registration_refuses_duplicates_without_replacing_executor_or_readiness(
++    duplicate: str,
++) -> None:
++    original = descriptor()
++    catalog = ToolCatalog((original,))
++    with pytest.raises(ValueError, match="duplicate tool descriptor"):
++        catalog.register(original if duplicate == "identical" else descriptor(enabled=False))
++    assert catalog.require(original.name, {"text": "kept"}).executor is echo
++    assert catalog.snapshot()[0]["available"] is True
++
++
++def test_registration_refuses_schema_name_mismatch_without_partial_addition() -> None:
++    catalog = ToolCatalog((descriptor("original.tool"),))
++    invalid = replace(descriptor(), definition=descriptor("other.name").definition)
++    with pytest.raises(ValueError, match="tool descriptor name differs from schema"):
++        catalog.register(invalid)
++    assert [item["name"] for item in catalog.snapshot()] == ["original.tool"]
++
++
++def test_registration_copies_mutable_schema_and_snapshot_payloads() -> None:
++    candidate = descriptor()
++    assert candidate.definition is not None
++    catalog = ToolCatalog(())
++    catalog.register(candidate)
++    candidate.definition.input_schema["required"] = []
++    catalog.definitions()[0].input_schema["required"] = []
++    catalog.snapshot()[0]["input_schema"] = {}
++    with pytest.raises(ValueError, match="invalid tool arguments"):
++        catalog.require(candidate.name, {})
++
++
++def test_registration_is_copy_on_write_during_synchronous_capture() -> None:
++    added = False
++    catalog = ToolCatalog(())
++
++    def available() -> bool:
++        nonlocal added
++        if not added:
++            added = True
++            catalog.register(descriptor("second.tool"))
++        return True
++
++    catalog.register(replace(descriptor("first.tool"), available=available))
++    first = catalog.capture()
++    assert [row["name"] for row in first.inventory] == ["first.tool"]
++    assert [row["name"] for row in catalog.capture().inventory] == ["first.tool", "second.tool"]
++
++
++@pytest.mark.asyncio
++async def test_disabled_registration_remains_known_and_cannot_trigger_regeneration() -> None:
++    catalog = ToolCatalog(())
++    catalog.register(descriptor(enabled=False))
++    assert catalog.definitions() == ()
++    with pytest.raises(ToolUnavailableError):
++        catalog.require("text.checklist.parse", {"text": "blocked"})
++    preparer = SkillCandidatePreparer(catalog)
++    try:
++        result = await preparer.prepare("text.checklist.parse")
++        assert result["status"] == "existing_unavailable"
++        assert result["installed"] is False
++        assert result["enabled"] is False
++    finally:
++        await preparer.close()
+diff --git a/tests/integration/test_skill_activation_lifecycle.py b/tests/integration/test_skill_activation_lifecycle.py
+--- /dev/null
++++ b/tests/integration/test_skill_activation_lifecycle.py
+@@ -0,0 +1,286 @@
++from __future__ import annotations
++
++import asyncio
++import os
++import signal
++import sqlite3
++import threading
++from collections.abc import Callable
++from contextlib import suppress
++from pathlib import Path
++from typing import Any
++
++import pytest
++from test_skill_activation import activation_module, installed
++from test_strict_skill_worker import REAL, alive, descendants
++
++from siro.adapters import skill_worker
++from siro.core.skills import InstalledSkill, load_skill
++from siro.services.tools.execution import ExecutionCleanupError, ExecutionContext
++
++_MARKER = b"SIRO_ACTIVATION_CONTROLLED_STRICT_WAIT\n"
++
++
++class _Processes:
++    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
++        self.processes: list[asyncio.subprocess.Process] = []
++        self.execution_processes: list[asyncio.subprocess.Process] = []
++        self.pids: set[int] = set()
++        self.restricted_wait = asyncio.Event()
++        self.stderr = bytearray()
++        original = asyncio.create_subprocess_exec
++
++        async def spawn(*argv: str, **kwargs: Any) -> asyncio.subprocess.Process:
++            process = await original(*argv, **kwargs)
++            self.processes.append(process)
++            self.pids.add(process.pid)
++            if "--probe" not in argv:
++                self.execution_processes.append(process)
++                assert process.stderr is not None
++                original_feed = process.stderr.feed_data
++                observed = bytearray()
++
++                def feed(data: bytes) -> None:
++                    observed.extend(data)
++                    self.stderr.extend(data)
++                    if _MARKER in observed:
++                        self.restricted_wait.set()
++                    original_feed(data)
++
++                monkeypatch.setattr(process.stderr, "feed_data", feed)
++            return process
++
++        monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
++
++    async def observe(self) -> None:
++        await asyncio.wait_for(self.restricted_wait.wait(), 2)
++        for _ in range(5):
++            for process in self.processes:
++                self.pids |= descendants(process.pid)
++            await asyncio.sleep(0.002)
++
++    async def cleanup(self, tasks: list[asyncio.Task[Any]]) -> None:
++        for task in tasks:
++            if not task.done():
++                task.cancel()
++        with suppress(TimeoutError):
++            async with asyncio.timeout(3):
++                await asyncio.gather(*tasks, return_exceptions=True)
++        for process in self.processes:
++            self.pids |= descendants(process.pid)
++        # Failing probes clean only the exact synthetic processes captured by this fixture.
++        for pid in self.pids:
++            if alive(pid):
++                with suppress(ProcessLookupError):
++                    os.kill(pid, signal.SIGKILL)
++        async with asyncio.timeout(3):
++            await asyncio.gather(*(process.wait() for process in self.processes))
++
++
++@pytest.mark.asyncio
++@REAL
++async def test_actual_revoke_joins_restricted_worker_and_admitted_queue_without_second_spawn(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
++    await owner.enable(package_hash)
++    original = skill_worker._prepare_strict
++    workspaces: list[Path] = []
++
++    def controlled(workspace: Path, skill: InstalledSkill) -> InstalledSkill:
++        verified = original(workspace, skill)
++        workspaces.append(workspace)
++        runner = workspace / "trusted" / "runner.py"
++        source = runner.read_text()
++        source = source.replace("import sys\n", "import sys\nimport time\n", 1)
++        before_request = '    request = _read_object(Path("/trusted/request.json"), 65536)'
++        assert source.count(before_request) == 1
++        # Fixed template bytes remain unchanged. Only this fixture's trusted runner delays
++        # after irreversible restrictions and after the normal --probe early return.
++        runner.chmod(0o600)
++        runner.write_text(
++            source.replace(
++                before_request,
++                "    time.sleep(0.05)\n"
++                '    sys.stderr.write("SIRO_ACTIVATION_CONTROLLED_STRICT_WAIT\\n")\n'
++                "    sys.stderr.flush()\n"
++                "    time.sleep(30)\n" + before_request,
++                1,
++            )
++        )
++        runner.chmod(0o400)
++        return verified
++
++    monkeypatch.setattr(skill_worker, "_prepare_strict", controlled)
++    tracked = _Processes(monkeypatch)
++    first = asyncio.create_task(
++        owner.execute(
++            {"text": "- [ ] first"}, ExecutionContext("first", "synthetic", "e", authorized=True)
++        )
++    )
++    tasks: list[asyncio.Task[Any]] = [first]
++    try:
++        try:
++            await tracked.observe()
++        except TimeoutError as error:
++            raise AssertionError(
++                f"controlled runner marker missing: {tracked.stderr!r}; "
++                f"job error={first.exception() if first.done() else 'pending'}"
++            ) from error
++        second = asyncio.create_task(
++            owner.execute(
++                {"text": "- [ ] queued"},
++                ExecutionContext("second", "synthetic", "e", authorized=True),
++            )
++        )
++        tasks.append(second)
++        async with asyncio.timeout(1):
++            while len(owner._jobs) != 2:
++                await asyncio.sleep(0)
++        assert not first.done() and not second.done()
++        assert len(tracked.execution_processes) == 1
++        result = await asyncio.wait_for(owner.revoke(package_hash), 2)
++        outcomes = await asyncio.gather(*tasks, return_exceptions=True)
++        assert result["enabled"] is False
++        assert all(isinstance(outcome, BaseException) for outcome in outcomes)
++        assert not owner._jobs
++        assert len(tracked.processes) == 2, "one actual probe and one actual execution only"
++        assert len(tracked.execution_processes) == 1, "admitted queued job must never spawn"
++        assert all(process.returncode is not None for process in tracked.processes)
++        assert not any(alive(pid) for pid in tracked.pids)
++        assert workspaces and all(not path.exists() for path in workspaces)
++        managed_package = next((tmp_path / "managed").glob("*/manifest.json")).parent
++        assert load_skill(managed_package).manifest_hash == package_hash
++        assert not await registry.is_enabled("siro.text.checklist", "1.0.0")
++    finally:
++        await tracked.cleanup(tasks)
++        await owner.close()
++
++
++@pytest.mark.asyncio
++@REAL
++@pytest.mark.parametrize("action", ["caller", "revoke", "suspend", "close"])
++async def test_real_sqlite_uncommitted_enable_is_joined_and_compensated_after_stop(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, action: str
++) -> None:
++    owner, store, registry, _catalog, package_hash = await installed(tmp_path)
++    original = store._run_transaction_sync
++    entered, release = threading.Event(), threading.Event()
++    thread_ids: list[int] = []
++    observed_states: list[str] = []
++
++    def blocked_transaction[T](work: Callable[[sqlite3.Connection], T]) -> T:
++        def inside(connection: sqlite3.Connection) -> T:
++            result = work(connection)
++            row = connection.execute(
++                "SELECT state FROM skills WHERE skill_id='siro.text.checklist' AND version='1.0.0'"
++            ).fetchone()
++            if row is not None:
++                observed_states.append(str(row["state"]))
++                if row["state"] == "enabled" and not entered.is_set():
++                    assert connection.in_transaction
++                    thread_ids.append(threading.get_ident())
++                    entered.set()
++                    assert release.wait(3), "synthetic pre-commit release missing"
++            return result
++
++        return original(inside)
++
++    monkeypatch.setattr(store, "_run_transaction_sync", blocked_transaction)
++    enable = asyncio.create_task(owner.enable(package_hash))
++    stopper: asyncio.Task[Any] | None = None
++    try:
++        async with asyncio.timeout(2):
++            while not entered.is_set():
++                await asyncio.sleep(0.002)
++        assert thread_ids == [thread_ids[0]] and thread_ids[0] != threading.get_ident()
++        assert store._writer_lock.locked(), "live transaction must retain its writer owner"
++        with sqlite3.connect(store.path, timeout=0) as reader:
++            assert reader.execute("SELECT state FROM skills").fetchone()[0] == "disabled"
++            with pytest.raises(sqlite3.OperationalError, match="locked"):
++                reader.execute("BEGIN IMMEDIATE")
++        if action == "caller":
++            enable.cancel()
++            await asyncio.sleep(0.01)
++            enable.cancel()
++        else:
++            stopper = asyncio.create_task(
++                owner.revoke(package_hash)
++                if action == "revoke"
++                else (owner.suspend() if action == "suspend" else owner.close())
++            )
++        await asyncio.sleep(0.01)
++        assert not enable.done(), "cancellation must wait for the real COMMIT owner"
++        assert store._writer_lock.locked()
++        assert owner.snapshot()["enabled"] is False
++        if stopper is not None:
++            assert not stopper.done()
++        release.set()
++        with pytest.raises(
++            asyncio.CancelledError
++            if action == "caller"
++            else activation_module().SkillActivationError
++        ):
++            await asyncio.wait_for(enable, 2)
++        if stopper is not None:
++            await asyncio.wait_for(stopper, 2)
++        assert "enabled" in observed_states and observed_states[-1] == "disabled"
++        assert not await registry.is_enabled("siro.text.checklist", "1.0.0")
++        assert owner.snapshot()["enabled"] is False
++        assert not owner._operations
++    finally:
++        release.set()
++        await asyncio.gather(enable, *([stopper] if stopper else []), return_exceptions=True)
++        await owner.close()
++
++
++@pytest.mark.asyncio
++@REAL
++@pytest.mark.parametrize("primary_failure", [False, True])
++async def test_owned_worker_cleanup_join_preserves_primary_error_or_late_cancellation(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary_failure: bool
++) -> None:
++    owner, _store, _registry, _catalog, package_hash = await installed(tmp_path)
++    await owner.enable(package_hash)
++    original = skill_worker._remove_request
++    entered, release = threading.Event(), threading.Event()
++    workspaces: list[Path] = []
++    thread_ids: list[int] = []
++
++    def blocked(workspace: Path) -> None:
++        workspaces.append(workspace)
++        thread_ids.append(threading.get_ident())
++        entered.set()
++        assert release.wait(3), "synthetic cleanup release missing"
++        original(workspace)
++
++    async def failure(*args: object, **kwargs: object) -> object:
++        raise ExecutionCleanupError("synthetic activation worker primary cleanup failure")
++
++    monkeypatch.setattr(skill_worker, "_remove_request", blocked)
++    if primary_failure:
++        monkeypatch.setattr(skill_worker, "execute_bounded_argv", failure)
++    task = asyncio.create_task(
++        owner.execute(
++            {"text": "- [ ] synthetic"},
++            ExecutionContext("cleanup", "synthetic", "e", authorized=True),
++        )
++    )
++    try:
++        async with asyncio.timeout(2):
++            while not entered.is_set():
++                await asyncio.sleep(0.002)
++        task.cancel()
++        await asyncio.sleep(0.01)
++        task.cancel()
++        assert not task.done(), "cleanup must remain owned after repeated caller cancellation"
++        release.set()
++        with pytest.raises(ExecutionCleanupError if primary_failure else asyncio.CancelledError):
++            await asyncio.wait_for(task, 2)
++        assert thread_ids[0] != threading.get_ident()
++        assert workspaces and all(not path.exists() for path in workspaces)
++        assert not owner._jobs
++    finally:
++        release.set()
++        await asyncio.gather(task, return_exceptions=True)
++        await owner.close()
+diff --git a/tests/integration/test_skill_activation_review.py b/tests/integration/test_skill_activation_review.py
+--- /dev/null
++++ b/tests/integration/test_skill_activation_review.py
+@@ -0,0 +1,405 @@
++from __future__ import annotations
++
++import asyncio
++import json
++import platform
++import threading
++from contextlib import suppress
++from pathlib import Path
++from typing import Any
++
++import pytest
++
++from siro.adapters.skill_worker import SkillDispatcher, WorkerSupervisor
++from siro.persistence.skills import SQLiteSkillRegistry
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import CancellationToken
++from siro.services.tools import skill_activation as activation
++from siro.services.tools.execution import (
++    ExecutionCancelled,
++    ExecutionCleanupError,
++    ExecutionContext,
++)
++from siro.services.tools.orchestrator import ToolCatalog
++from siro.services.tools.skill_candidates import CAPABILITY, SkillCandidatePreparer
++
++
++async def fixture(
++    tmp_path: Path, *, enabled: bool = True
++) -> tuple[Any, SQLiteSkillRegistry, ToolCatalog, str]:
++    store = SQLiteStore(tmp_path / "synthetic.sqlite3")
++    await store.initialize()
++    registry = SQLiteSkillRegistry(store)
++    catalog = ToolCatalog(())
++    owner = activation.SkillActivationOwner(
++        catalog,
++        registry,
++        SkillDispatcher(registry, WorkerSupervisor(profile="python-stdlib-single")),
++        tmp_path / "managed",
++    )
++    await owner.initialize()
++    preparer = SkillCandidatePreparer(catalog)
++    try:
++        report = await preparer.prepare(CAPABILITY)
++    finally:
++        await preparer.close()
++    item = await owner.remember(report)
++    review_id, package_hash = item["review_id"], item["package_hash"]
++    assert isinstance(review_id, str) and isinstance(package_hash, str)
++    await owner.install(review_id, package_hash)
++    if enabled:
++        await owner.enable(package_hash)
++    return owner, registry, catalog, package_hash
++
++
++def fresh_owner(tmp_path: Path, registry: SQLiteSkillRegistry) -> Any:
++    return activation.SkillActivationOwner(
++        ToolCatalog(()),
++        registry,
++        SkillDispatcher(registry, WorkerSupervisor(profile="python-stdlib-single")),
++        tmp_path / "managed",
++    )
++
++
++@pytest.mark.asyncio
++async def test_revoke_cleanup_failure_still_durably_disables_restart(tmp_path: Path) -> None:
++    owner, registry, _, package_hash = await fixture(tmp_path)
++    entered = asyncio.Event()
++
++    async def fail_cleanup(*_args: object) -> dict[str, object]:
++        entered.set()
++        try:
++            return await asyncio.Future[dict[str, object]]()
++        except asyncio.CancelledError:
++            raise ExecutionCleanupError("synthetic owned worker cleanup failure") from None
++
++    owner._dispatcher.execute = fail_cleanup
++    job = asyncio.create_task(
++        owner.execute({"text": "synthetic"}, ExecutionContext("r", "s", "e", authorized=True))
++    )
++    other = fresh_owner(tmp_path, registry)
++    try:
++        await asyncio.wait_for(entered.wait(), 2)
++        with pytest.raises(ExecutionCleanupError, match="synthetic owned worker cleanup"):
++            await owner.revoke(package_hash)
++        await asyncio.gather(job, return_exceptions=True)
++        assert not await registry.is_enabled("siro.text.checklist", "1.0.0")
++        assert owner.snapshot()["enabled"] is False
++        await other.initialize()
++        assert other.snapshot()["enabled"] is False
++        assert not other._catalog.definitions()
++    finally:
++        if not job.done():
++            job.cancel()
++        await asyncio.gather(job, return_exceptions=True)
++        await other.close()
++        await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_cancelled_restore_cannot_publish_late_enabled_descriptor(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, registry, _, _ = await fixture(tmp_path)
++    other = fresh_owner(tmp_path, registry)
++    original = activation._restored
++    entered, release = threading.Event(), threading.Event()
++
++    def blocked(path: Path) -> Any:
++        result = original(path)
++        entered.set()
++        assert release.wait(3)
++        return result
++
++    monkeypatch.setattr(activation, "_restored", blocked)
++    job = asyncio.create_task(other.initialize())
++    try:
++        assert await asyncio.to_thread(entered.wait, 2)
++        job.cancel()
++        await asyncio.sleep(0.01)
++        job.cancel()
++        assert not job.done(), "restored IO must remain owned until joined"
++        release.set()
++        with pytest.raises(asyncio.CancelledError):
++            await asyncio.wait_for(job, 2)
++        assert other.snapshot()["enabled"] is False
++        assert not other._catalog.definitions()
++        # Cancelling a read does not revoke a previously explicit durable approval.
++        assert await registry.is_enabled("siro.text.checklist", "1.0.0")
++    finally:
++        release.set()
++        await asyncio.gather(job, return_exceptions=True)
++        await other.close()
++        await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_valid_format_wrong_review_package_hash_is_rejected(tmp_path: Path) -> None:
++    store = SQLiteStore(tmp_path / "synthetic.sqlite3")
++    await store.initialize()
++    registry = SQLiteSkillRegistry(store)
++    owner = fresh_owner(tmp_path, registry)
++    preparer = SkillCandidatePreparer(ToolCatalog(()))
++    try:
++        await owner.initialize()
++        item = await preparer.prepare(CAPABILITY)
++        wrong = "siro-skill-package-v1:" + "f" * 64
++        assert item["package_hash"] != wrong
++        item["package_hash"] = wrong
++        with pytest.raises(activation.SkillActivationError):
++            await owner.remember(item)
++        assert owner._review is None
++        assert owner._skill is None
++        rows = await registry._store.run_transaction(
++            lambda connection: connection.execute("SELECT COUNT(*) FROM skills").fetchone()[0]
++        )
++        assert rows == 0
++        assert not list((tmp_path / "managed").glob("*/plugin.py"))
++    finally:
++        await preparer.close()
++        await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_delayed_remember_cannot_revive_review_after_suspend(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    store = SQLiteStore(tmp_path / "synthetic.sqlite3")
++    await store.initialize()
++    registry = SQLiteSkillRegistry(store)
++    owner = fresh_owner(tmp_path, registry)
++    await owner.initialize()
++    preparer = SkillCandidatePreparer(ToolCatalog(()))
++    try:
++        item = await preparer.prepare(CAPABILITY)
++    finally:
++        await preparer.close()
++    original = activation._template_hash
++    entered, release = threading.Event(), threading.Event()
++
++    def blocked() -> str:
++        result = original()
++        entered.set()
++        assert release.wait(3)
++        return result
++
++    monkeypatch.setattr(activation, "_template_hash", blocked)
++    job = asyncio.create_task(owner.remember(item))
++    suspend: asyncio.Task[None] | None = None
++    epoch = owner._epoch
++    try:
++        assert await asyncio.to_thread(entered.wait, 2)
++        suspend = asyncio.create_task(owner.suspend())
++        async with asyncio.timeout(2):
++            while owner._epoch == epoch:
++                await asyncio.sleep(0)
++        release.set()
++        with pytest.raises((activation.SkillActivationError, asyncio.CancelledError)):
++            await asyncio.wait_for(job, 2)
++        await asyncio.wait_for(suspend, 2)
++        assert owner._review is None
++        assert owner.snapshot()["enabled"] is False
++    finally:
++        release.set()
++        await asyncio.gather(job, return_exceptions=True)
++        if suspend is not None:
++            await asyncio.gather(suspend, return_exceptions=True)
++        await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_queued_remember_cannot_adopt_post_suspend_epoch(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    store = SQLiteStore(tmp_path / "synthetic.sqlite3")
++    await store.initialize()
++    registry = SQLiteSkillRegistry(store)
++    owner = fresh_owner(tmp_path, registry)
++    preparer = SkillCandidatePreparer(ToolCatalog(()))
++    try:
++        item = await preparer.prepare(CAPABILITY)
++    finally:
++        await preparer.close()
++    original = activation._restored
++    entered, release = threading.Event(), threading.Event()
++
++    def blocked(path: Path) -> Any:
++        result = original(path)
++        entered.set()
++        assert release.wait(3)
++        return result
++
++    monkeypatch.setattr(activation, "_restored", blocked)
++    initialize = asyncio.create_task(owner.initialize())
++    remember: asyncio.Task[dict[str, object]] | None = None
++    suspend: asyncio.Task[None] | None = None
++    epoch = owner._epoch
++    try:
++        assert await asyncio.to_thread(entered.wait, 2)
++        remember = asyncio.create_task(owner.remember(item))
++        async with asyncio.timeout(2):
++            while len(owner._operations) < 2:
++                await asyncio.sleep(0)
++        suspend = asyncio.create_task(owner.suspend())
++        async with asyncio.timeout(2):
++            while owner._epoch == epoch:
++                await asyncio.sleep(0)
++        release.set()
++        await asyncio.wait_for(initialize, 2)
++        with pytest.raises(activation.SkillActivationError):
++            await asyncio.wait_for(remember, 2)
++        await asyncio.wait_for(suspend, 2)
++        assert owner._review is None
++        assert owner.snapshot()["enabled"] is False
++    finally:
++        release.set()
++        await asyncio.gather(
++            *(task for task in (initialize, remember, suspend) if task is not None),
++            return_exceptions=True,
++        )
++        await owner.close()
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "change",
++    [
++        "source",
++        "source_alias",
++        "source_mode",
++        "missing_receipt",
++        "receipt_type",
++        "receipt_alias",
++        "row_hash",
++        "row_path",
++    ],
++)
++async def test_actual_restart_rejects_receipt_source_or_row_tamper(
++    tmp_path: Path, change: str
++) -> None:
++    owner, registry, _, _ = await fixture(tmp_path)
++    other = fresh_owner(tmp_path, registry)
++    managed = tmp_path / "managed"
++    package = next(managed.glob("*/plugin.py"))
++    receipt = managed / "approval.json"
++    if change == "source":
++        package.chmod(0o600)
++        package.write_text("raise SystemExit('synthetic changed source')\n")
++    elif change == "source_alias":
++        outside = tmp_path / "synthetic-copy.py"
++        outside.write_bytes(package.read_bytes())
++        package.unlink()
++        package.symlink_to(outside)
++    elif change == "source_mode":
++        package.chmod(0o500)
++    elif change == "missing_receipt":
++        receipt.unlink()
++    elif change == "receipt_type":
++        value = json.loads(receipt.read_text())
++        value["owner_approved"] = 1
++        receipt.write_text(json.dumps(value))
++    elif change == "receipt_alias":
++        outside = tmp_path / "synthetic-receipt.json"
++        outside.write_bytes(receipt.read_bytes())
++        receipt.unlink()
++        receipt.symlink_to(outside)
++    elif change == "row_hash":
++        await registry._store.run_transaction(
++            lambda connection: connection.execute(
++                "UPDATE skills SET manifest_hash='legacy-synthetic'"
++            )
++        )
++    else:
++        await registry._store.run_transaction(
++            lambda connection: connection.execute(
++                "UPDATE skills SET path_ref=?", (str(tmp_path / "synthetic-unmanaged"),)
++            )
++        )
++    try:
++        await other.initialize()
++        assert other.snapshot()["enabled"] is False
++        assert not other._catalog.definitions()
++    finally:
++        await other.close()
++        await owner.close()
++
++
++@pytest.mark.asyncio
++async def test_unsupported_strict_runtime_cannot_enable_registry(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, registry, _, package_hash = await fixture(tmp_path, enabled=False)
++    monkeypatch.setattr(platform, "machine", lambda: "synthetic-unsupported")
++    try:
++        with pytest.raises(activation.SkillActivationError):
++            await owner.enable(package_hash)
++        assert not await registry.is_enabled("siro.text.checklist", "1.0.0")
++        assert owner.snapshot()["enabled"] is False
++    finally:
++        await owner.close()
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("trigger", ["caller", "token", "deadline", "revoke", "primary_cleanup"])
++async def test_result_publication_after_watcher_cleanup_preserves_cancellation_and_failure(
++    tmp_path: Path, trigger: str
++) -> None:
++    owner, _, _, package_hash = await fixture(tmp_path)
++    entered, release = asyncio.Event(), asyncio.Event()
++
++    class DelayedToken(CancellationToken):
++        async def wait(self) -> None:
++            try:
++                await super().wait()
++            finally:
++                entered.set()
++                await release.wait()
++
++    token = DelayedToken()
++    context = ExecutionContext(
++        "r",
++        "s",
++        "e",
++        authorized=True,
++        cancellation=token,
++        deadline=asyncio.get_running_loop().time() + 0.2 if trigger == "deadline" else None,
++    )
++
++    async def result(*_args: object) -> dict[str, object]:
++        if trigger == "primary_cleanup":
++            raise ExecutionCleanupError("synthetic primary cleanup failure")
++        return {"pending": ["synthetic"], "completed": [], "pending_count": 1, "completed_count": 0}
++
++    owner._dispatcher.execute = result
++    job = asyncio.create_task(owner.execute({"text": "synthetic"}, context))
++    try:
++        await asyncio.wait_for(entered.wait(), 2)
++        if trigger in {"caller", "primary_cleanup"}:
++            job.cancel()
++            await asyncio.sleep(0.01)
++            job.cancel()
++        elif trigger == "token":
++            token.cancel()
++        elif trigger == "deadline":
++            await asyncio.sleep(0.21)
++        else:
++            await owner.revoke(package_hash)
++        release.set()
++        expected = {
++            "primary_cleanup": ExecutionCleanupError,
++            "caller": asyncio.CancelledError,
++            "deadline": TimeoutError,
++            "token": ExecutionCancelled,
++            "revoke": ExecutionCancelled,
++        }[trigger]
++        with pytest.raises(expected):
++            await asyncio.wait_for(job, 2)
++        assert not owner._jobs
++    finally:
++        release.set()
++        if not job.done():
++            job.cancel()
++        await asyncio.gather(job, return_exceptions=True)
++        with suppress(activation.SkillActivationError):
++            await owner.revoke(package_hash)
++        await owner.close()
+diff --git a/tests/integration/test_skill_activation_product.py b/tests/integration/test_skill_activation_product.py
+--- /dev/null
++++ b/tests/integration/test_skill_activation_product.py
+@@ -0,0 +1,402 @@
++from __future__ import annotations
++
++import asyncio
++from typing import Any, cast
++
++import httpx
++import pytest
++from fastapi import FastAPI
++from fastapi.testclient import TestClient
++from test_skill_candidate_product import CAPABILITY, ORIGIN, PreparedService, authenticated
++
++from siro.services.presentation import gateway
++from siro.services.tools.execution import ExecutionCancelled, ExecutionCleanupError
++from siro.services.tools.skill_activation import SkillActivationError
++
++HASH = "siro-skill-package-v1:" + "a" * 64
++REVIEW_ID = "621f1ee2-8092-4ccb-8794-cf52683e1405"
++BASE = {
++    "available": True,
++    "installed": False,
++    "enabled": False,
++    "package_hash": None,
++    "profile": "markdown-checklist-v1",
++    "capability": CAPABILITY,
++    "authorizes_execution": False,
++    "busy": False,
++}
++
++
++class ActivationService:
++    def __init__(self) -> None:
++        self.view = dict(BASE)
++        self.calls: list[tuple[str, object]] = []
++        self.error: BaseException | None = None
++        self.close_error: BaseException | None = None
++
++    async def initialize(self) -> None:
++        self.calls.append(("initialize", None))
++
++    async def remember(self, result: dict[str, object]) -> dict[str, object]:
++        self.calls.append(("remember", dict(result)))
++        if self.error is not None:
++            raise self.error
++        return {**result, "review_id": REVIEW_ID, "package_hash": HASH}
++
++    async def install(self, review_id: str, package_hash: str) -> dict[str, object]:
++        self.calls.append(("install", (review_id, package_hash)))
++        if self.error is not None:
++            raise self.error
++        self.view.update(installed=True, enabled=False, package_hash=package_hash)
++        return self.snapshot()
++
++    async def enable(self, package_hash: str) -> dict[str, object]:
++        self.calls.append(("enable", package_hash))
++        if self.error is not None:
++            raise self.error
++        self.view.update(installed=True, enabled=True, package_hash=package_hash)
++        return self.snapshot()
++
++    async def revoke(self, package_hash: str) -> dict[str, object]:
++        self.calls.append(("revoke", package_hash))
++        if self.error is not None:
++            raise self.error
++        self.view.update(enabled=False)
++        return self.snapshot()
++
++    async def suspend(self) -> None:
++        self.calls.append(("suspend", None))
++        self.view.update(enabled=False)
++
++    async def close(self) -> None:
++        self.calls.append(("close", None))
++        self.view.update(available=False, enabled=False)
++        if self.close_error is not None:
++            raise self.close_error
++
++    def snapshot(self) -> dict[str, object]:
++        return dict(self.view)
++
++
++def application(owner: ActivationService | None, **kwargs: Any) -> FastAPI:
++    return gateway.create_app(
++        allowed_origins={ORIGIN},
++        runtime_profile="candidate",
++        skill_activation=cast(Any, owner),
++        **kwargs,
++    )
++
++
++def body(action: str) -> dict[str, object]:
++    return {"package_hash": HASH, **({"review_id": REVIEW_ID} if action == "install" else {})}
++
++
++def test_explicit_actions_prepare_install_disabled_enable_and_revoke_are_separate() -> None:
++    owner = ActivationService()
++    candidate = PreparedService()
++    with TestClient(application(owner, skill_candidates=cast(Any, candidate))) as client:
++        headers = authenticated(client)
++        review = client.post(
++            "/v1/skills/candidates", headers=headers, json={"capability": CAPABILITY}
++        )
++        assert review.json()["review_id"] == REVIEW_ID
++        assert owner.calls[1][0] == "remember"
++        assert all(action != "install" for action, _ in owner.calls)
++        installed = client.post(
++            "/v1/skills/activation/install", headers=headers, json=body("install")
++        )
++        assert installed.status_code == 200
++        assert installed.json()["installed"] is True and installed.json()["enabled"] is False
++        enabled = client.post("/v1/skills/activation/enable", headers=headers, json=body("enable"))
++        assert enabled.status_code == 200 and enabled.json()["enabled"] is True
++        revoked = client.post("/v1/skills/activation/revoke", headers=headers, json=body("revoke"))
++        assert revoked.status_code == 200 and revoked.json()["enabled"] is False
++        assert client.post("/v1/skills/activation/execute", headers=headers).status_code == 404
++    assert [action for action, _ in owner.calls] == [
++        "initialize",
++        "remember",
++        "install",
++        "enable",
++        "revoke",
++        "close",
++    ]
++    assert owner.calls[2][1] == (REVIEW_ID, HASH)
++
++
++@pytest.mark.parametrize("action", ["install", "enable", "revoke"])
++def test_controls_require_session_and_same_origin_without_owner_effects(action: str) -> None:
++    owner = ActivationService()
++    with TestClient(application(owner)) as client:
++        headers = authenticated(client)
++        for request_headers, expected in [
++            ({"origin": ORIGIN}, 401),
++            ({"origin": ORIGIN, "authorization": "Bearer invalid"}, 401),
++            ({"authorization": headers["authorization"]}, 403),
++            ({**headers, "origin": "https://evil.invalid"}, 403),
++        ]:
++            result = client.post(
++                f"/v1/skills/activation/{action}", headers=request_headers, json=body(action)
++            )
++            assert result.status_code == expected
++    assert [action for action, _ in owner.calls] == ["initialize", "close"]
++
++
++@pytest.mark.parametrize("action", ["install", "enable", "revoke"])
++@pytest.mark.parametrize(
++    "change",
++    [
++        {"package_hash": 1},
++        {"package_hash": True},
++        {"package_hash": "forged"},
++        {"package_hash": "siro-skill-package-v1:" + "a" * 65},
++        {"package_hash": "siro-skill-package-v1:" + "A" * 64},
++        {"files": {"plugin.py": "private-source-canary"}},
++        {"profile": "trusted-local"},
++        {"enabled": True},
++        {"path": "/private"},
++    ],
++)
++def test_controls_accept_only_exact_bounded_server_identity(
++    action: str, change: dict[str, object]
++) -> None:
++    owner = ActivationService()
++    with TestClient(application(owner)) as client:
++        result = client.post(
++            f"/v1/skills/activation/{action}",
++            headers=authenticated(client),
++            json={**body(action), **change},
++        )
++        assert result.status_code == 422
++    assert [action for action, _ in owner.calls] == ["initialize", "close"]
++
++
++@pytest.mark.parametrize("review_id", [1, True, "", "forged", REVIEW_ID + "x"])
++def test_install_requires_strict_review_id(review_id: object) -> None:
++    owner = ActivationService()
++    with TestClient(application(owner)) as client:
++        result = client.post(
++            "/v1/skills/activation/install",
++            headers=authenticated(client),
++            json={"package_hash": HASH, "review_id": review_id},
++        )
++        assert result.status_code == 422
++    assert [action for action, _ in owner.calls] == ["initialize", "close"]
++
++
++@pytest.mark.parametrize(
++    "action,payload",
++    [
++        ("install", {}),
++        ("install", {"review_id": REVIEW_ID}),
++        ("install", {"package_hash": HASH}),
++        ("enable", {}),
++        ("revoke", {}),
++        ("enable", {"package_hash": HASH, "review_id": REVIEW_ID}),
++        ("revoke", {"package_hash": HASH, "review_id": REVIEW_ID}),
++    ],
++)
++def test_required_body_fields_and_no_review_id_on_enable_or_revoke(
++    action: str, payload: dict[str, object]
++) -> None:
++    owner = ActivationService()
++    with TestClient(application(owner)) as client:
++        assert (
++            client.post(
++                f"/v1/skills/activation/{action}", headers=authenticated(client), json=payload
++            ).status_code
++            == 422
++        )
++    assert [action for action, _ in owner.calls] == ["initialize", "close"]
++
++
++def test_startup_with_tools_off_suspends_restored_activation_before_serving_requests() -> None:
++    owner = ActivationService()
++    owner.view.update(installed=True, enabled=True, package_hash=HASH)
++    state = gateway.GatewayState()
++    state.kill_switches["tools"] = False
++    with TestClient(application(owner, state=state)) as client:
++        assert [action for action, _ in owner.calls] == ["initialize", "suspend"]
++        view = client.get("/v1/runtime", headers=authenticated(client)).json()["skill_activation"]
++        assert view["installed"] is True and view["enabled"] is False
++    assert [action for action, _ in owner.calls] == ["initialize", "suspend", "close"]
++
++
++@pytest.mark.parametrize(
++    "profile,inject", [("candidate", False), ("legacy", False), ("legacy", True)]
++)
++def test_missing_or_legacy_owner_is_inert(profile: str, inject: bool) -> None:
++    owner = ActivationService()
++    app = gateway.create_app(
++        allowed_origins={ORIGIN},
++        runtime_profile=profile,
++        skill_activation=cast(Any, owner) if inject else None,
++    )
++    with TestClient(app) as client:
++        headers = authenticated(client)
++        for action in ("install", "enable", "revoke"):
++            result = client.post(
++                f"/v1/skills/activation/{action}", headers=headers, json=body(action)
++            )
++            assert result.status_code == 503
++            assert result.json() == {"detail": "skill activation is unavailable"}
++        view = client.get("/v1/runtime", headers=headers).json()["skill_activation"]
++        assert view == {**BASE, "available": False}
++    assert owner.calls == []
++
++
++def test_runtime_and_control_snapshot_only_read_activation_metadata() -> None:
++    owner = ActivationService()
++    with TestClient(application(owner)) as client:
++        headers = authenticated(client)
++        assert client.get("/v1/runtime").status_code == 401
++        assert client.get("/v1/runtime", headers=headers).json()["skill_activation"] == BASE
++        assert client.get("/v1/snapshot", headers=headers).json()["skill_activation"] == BASE
++        token = headers["authorization"].removeprefix("Bearer ")
++        with client.websocket_connect("/ws/control", headers={"origin": ORIGIN}) as socket:
++            socket.send_json({"type": "authenticate", "token": token})
++            assert socket.receive_json()["skill_activation"] == BASE
++    assert [action for action, _ in owner.calls] == ["initialize", "close"]
++
++
++def test_tools_off_suspends_even_if_candidate_cancel_fails_and_revoke_remains_available() -> None:
++    owner = ActivationService()
++    owner.view.update(installed=True, enabled=True, package_hash=HASH)
++    candidate = PreparedService()
++    candidate.cancel_error = ExecutionCleanupError("private-cleanup-canary")
++    with TestClient(application(owner, skill_candidates=cast(Any, candidate))) as client:
++        headers = authenticated(client)
++        result = client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": False})
++        assert result.status_code == 503
++        assert ("suspend", None) in owner.calls
++        assert owner.view["enabled"] is False
++        for action in ("install", "enable"):
++            assert (
++                client.post(
++                    f"/v1/skills/activation/{action}", headers=headers, json=body(action)
++                ).status_code
++                == 403
++            )
++        assert (
++            client.post(
++                "/v1/skills/activation/revoke", headers=headers, json=body("revoke")
++            ).status_code
++            == 200
++        )
++        client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": True})
++        assert not owner.view["enabled"]
++    assert sum(action == "enable" for action, _ in owner.calls) == 0
++
++
++@pytest.mark.asyncio
++async def test_tools_off_blocks_skill_owner_before_waiting_for_candidate_cancel() -> None:
++    owner = ActivationService()
++    owner.view.update(installed=True, enabled=True, package_hash=HASH)
++    candidate = PreparedService()
++    started, release = asyncio.Event(), asyncio.Event()
++
++    async def cancel() -> bool:
++        started.set()
++        await release.wait()
++        return True
++
++    candidate.cancel = cancel  # type: ignore[method-assign]
++    app = application(owner, skill_candidates=cast(Any, candidate))
++    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as client:
++        token = (await client.post("/v1/session", headers={"origin": ORIGIN})).json()["token"]
++        headers = {"origin": ORIGIN, "authorization": f"Bearer {token}"}
++        stopping = asyncio.create_task(
++            client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": False})
++        )
++        await asyncio.wait_for(started.wait(), timeout=1)
++        try:
++            assert owner.view["enabled"] is False
++            assert ("suspend", None) in owner.calls
++        finally:
++            release.set()
++            result = await stopping
++        assert result.status_code == 200
++
++
++@pytest.mark.parametrize("action", ["install", "enable", "revoke"])
++@pytest.mark.parametrize(
++    "error,status,detail",
++    [
++        (
++            SkillActivationError("private-path-canary"),
++            409,
++            "skill activation could not be completed",
++        ),
++        (ExecutionCancelled("private-path-canary"), 409, "skill activation was cancelled"),
++        (asyncio.CancelledError("private-path-canary"), 409, "skill activation was cancelled"),
++        (
++            ExecutionCleanupError("private-path-canary"),
++            503,
++            "skill activation cleanup could not be confirmed",
++        ),
++    ],
++)
++def test_activation_failures_have_fixed_public_messages(
++    action: str, error: BaseException, status: int, detail: str
++) -> None:
++    owner = ActivationService()
++    owner.error = error
++    with TestClient(application(owner)) as client:
++        result = client.post(
++            f"/v1/skills/activation/{action}", headers=authenticated(client), json=body(action)
++        )
++        assert result.status_code == status
++        assert result.json() == {"detail": detail}
++        assert "private" not in result.text
++
++
++def test_prepare_remember_failure_is_fixed_safe_and_never_installs() -> None:
++    owner = ActivationService()
++    owner.error = SkillActivationError("private-path-canary")
++    with TestClient(application(owner, skill_candidates=cast(Any, PreparedService()))) as client:
++        result = client.post(
++            "/v1/skills/candidates", headers=authenticated(client), json={"capability": CAPABILITY}
++        )
++        assert result.status_code == 409
++        assert result.json() == {"detail": "skill activation could not be completed"}
++    assert [action for action, _ in owner.calls] == ["initialize", "remember", "close"]
++
++
++def test_candidate_close_failure_still_closes_activation_and_later_cleanup() -> None:
++    owner = ActivationService()
++    candidate = PreparedService()
++    candidate.close_error = ExecutionCleanupError("private-cleanup-canary")
++    stopped: list[str] = []
++
++    async def shutdown() -> None:
++        stopped.append("controller")
++
++    with (
++        pytest.raises(ExecutionCleanupError),
++        TestClient(application(owner, skill_candidates=cast(Any, candidate), on_shutdown=shutdown)),
++    ):
++        pass
++    assert [action for action, _ in owner.calls] == ["initialize", "close"]
++    assert stopped == ["controller"]
++
++
++def test_activation_close_failure_still_finishes_controller_and_hub_cleanup() -> None:
++    owner = ActivationService()
++    owner.close_error = ExecutionCleanupError("private-cleanup-canary")
++    stopped: list[str] = []
++    hub = gateway.GatewayHub()
++    original_shutdown = hub.shutdown
++
++    async def controller_shutdown() -> None:
++        stopped.append("controller")
++
++    async def hub_shutdown() -> None:
++        await original_shutdown()
++        stopped.append("hub")
++
++    hub.shutdown = hub_shutdown  # type: ignore[method-assign]
++    with (
++        pytest.raises(ExecutionCleanupError),
++        TestClient(application(owner, hub=hub, on_shutdown=controller_shutdown)),
++    ):
++        pass
++    assert stopped == ["controller", "hub"]
+diff --git a/tests/integration/test_frontend_skill_activation.py b/tests/integration/test_frontend_skill_activation.py
+--- /dev/null
++++ b/tests/integration/test_frontend_skill_activation.py
+@@ -0,0 +1,300 @@
++from __future__ import annotations
++
++from pathlib import Path
++
++import pytest
++from test_frontend_control import run_control
++from test_frontend_skill_candidate import REVIEW_FIXTURE
++
++FIXTURE = (
++    REVIEW_FIXTURE
++    + r"""
++const hash = 'siro-skill-package-v1:' + 'a'.repeat(64);
++const reviewId = '621f1ee2-8092-4ccb-8794-cf52683e1405';
++const activation = (changes = {}) => ({available:true, installed:false, enabled:false,
++  package_hash:null,profile:'markdown-checklist-v1',capability:'text.checklist.parse',
++  authorizes_execution:false,busy:false,...changes});
++const runtime = (changes = {}) => ({...candidateRuntime(),
++  skill_activation:activation(),...changes});
++const installButton = document.querySelector('#skill-activation-install');
++const enableButton = document.querySelector('#skill-activation-enable');
++const revokeButton = document.querySelector('#skill-activation-revoke');
++const fillButton = document.querySelector('#skill-activation-fill');
++const refreshButton = document.querySelector('#skill-activation-refresh');
++const activationStatus = document.querySelector('#skill-activation-status');
++const activationPosts = () => targetCalls().filter(call =>
++  call.url.startsWith('/v1/skills/activation/') && call.options?.method === 'POST');
++const offerReview = () => renderSkillCandidateResult(candidateReview({review_id:reviewId}));
++"""
++)
++
++
++def control(checks: str) -> None:
++    run_control(FIXTURE + checks)
++
++
++def test_activation_panel_has_separate_explicit_controls_without_direct_executor() -> None:
++    html = Path("src/siro/services/presentation/static/index.html").read_text()
++    panel = html.split('id="computer-panel"', 1)[1].split('id="memories-panel"', 1)[0]
++    for suffix in ("install", "enable", "revoke", "fill", "refresh", "status"):
++        assert f'id="skill-activation-{suffix}"' in panel
++    assert "安裝（保持停用）" in panel  # noqa: RUF001
++    assert 'id="skill-candidate-approve"' not in html
++    assert 'id="skill-candidate-enable"' not in html
++    assert "/v1/skills/activation/execute" not in html
++
++
++def test_review_install_enable_and_revoke_require_individual_human_clicks() -> None:
++    control(
++        """
++renderSkillActivation(runtime()); offerReview();
++assert.equal(activationPosts().length, 0);
++assert.equal(installButton.disabled, false); assert.equal(enableButton.disabled, true);
++assert.equal(fillButton.disabled, true);
++fetchPlan = async (url, options) => {
++  if (url.endsWith('/install'))
++    return response(200, activation({installed:true,package_hash:hash}));
++  if (url.endsWith('/enable'))
++    return response(200, activation({installed:true,enabled:true,package_hash:hash}));
++  if (url.endsWith('/revoke')) return response(200, activation({installed:true,package_hash:hash}));
++  throw Error('unexpected auto-request');
++};
++await installButton.onclick();
++assert.deepEqual(JSON.parse(activationPosts()[0].options.body),
++  {review_id:reviewId,package_hash:hash});
++assert(new Headers(activationPosts()[0].options.headers)
++  .get('Authorization').startsWith('Bearer '));
++assert.equal(activationPosts().length, 1); assert.equal(installButton.disabled, true);
++assert.equal(enableButton.disabled, false); assert.equal(fillButton.disabled, true);
++assert(activationStatus.textContent.includes('停用'));
++await enableButton.onclick();
++assert.deepEqual(JSON.parse(activationPosts()[1].options.body), {package_hash:hash});
++assert.equal(fillButton.disabled, false);
++await revokeButton.onclick();
++assert.deepEqual(JSON.parse(activationPosts()[2].options.body), {package_hash:hash});
++assert.equal(fillButton.disabled, true); assert.equal(enableButton.disabled, false);
++assert.equal(activationPosts().length, 3);
++"""
++    )
++
++
++@pytest.mark.parametrize(
++    "view",
++    [
++        "{}",
++        "runtime({runtime_profile:'legacy'})",
++        "runtime({kill_switches:{tools:false}})",
++        "runtime({skill_activation:activation({available:false})})",
++        "runtime({skill_activation:activation({busy:true})})",
++        "runtime({skill_activation:activation({authorizes_execution:true})})",
++        "runtime({skill_activation:activation({profile:'host'})})",
++        "runtime({skill_activation:activation({capability:'computer.execute'})})",
++    ],
++)
++def test_unavailable_or_inconsistent_runtime_cannot_install_or_enable(view: str) -> None:
++    control(
++        f"""
++renderSkillActivation({view}); offerReview();
++assert.equal(installButton.disabled, true); assert.equal(enableButton.disabled, true);
++await installButton.onclick(); await enableButton.onclick(); await fillButton.onclick();
++assert.equal(activationPosts().length, 0);
++"""
++    )
++
++
++@pytest.mark.parametrize(
++    "change",
++    [
++        "{review_id:undefined}",
++        "{review_id:'forged'}",
++        "{review_id:1}",
++        "{review_id:reviewId+'x'}",
++        "{enabled:true}",
++        "{installed:true}",
++        "{source:'unknown'}",
++        "{status:'verification_failed',verification:{status:'failed_checks',workspace_removed:true}}",
++    ],
++)
++def test_only_passed_server_review_identity_offers_install(change: str) -> None:
++    control(
++        f"""
++renderSkillActivation(runtime());
++renderSkillCandidateResult(candidateReview({{review_id:reviewId,...{change}}}));
++assert.equal(installButton.disabled, true);
++await installButton.onclick(); assert.equal(activationPosts().length, 0);
++"""
++    )
++
++
++def test_pending_install_double_click_is_one_request_and_does_not_auto_enable() -> None:
++    control(
++        """
++renderSkillActivation(runtime()); offerReview();
++const pending = deferredCandidate(); fetchPlan = async () => pending.promise;
++const first = installButton.onclick(), second = installButton.onclick();
++await until(() => activationPosts().length === 1);
++assert.equal(installButton.disabled, true); assert.equal(enableButton.disabled, true);
++pending.resolve(response(200, activation({installed:true,package_hash:hash})));
++await Promise.all([first,second]); assert.equal(activationPosts().length, 1);
++"""
++    )
++
++
++def test_network_unknown_has_no_retry_and_manual_read_confirms_actual_state() -> None:
++    control(
++        """
++renderSkillActivation(runtime()); offerReview();
++fetchPlan = async () => { throw Error('private-network-canary'); };
++await installButton.onclick();
++assert(activationStatus.textContent.includes('未知'));
++assert(!activationStatus.textContent.includes('private'));
++await installButton.onclick(); await enableButton.onclick();
++assert.equal(activationPosts().length, 1);
++fetchPlan = async url => {
++  assert.equal(url, '/v1/runtime');
++  return response(200,runtime({skill_activation:activation({installed:true,package_hash:hash})}));
++};
++await refreshButton.onclick();
++assert.equal(activationPosts().length, 1);
++assert.equal(installButton.disabled, true); assert.equal(enableButton.disabled, false);
++"""
++    )
++
++
++def test_tools_off_fences_late_enable_and_still_offers_explicit_revoke() -> None:
++    control(
++        """
++renderSkillActivation(runtime({skill_activation:activation({installed:true,package_hash:hash})}));
++const pending = deferredCandidate(); fetchPlan = async () => pending.promise;
++const enabling = enableButton.onclick(); await until(() => activationPosts().length === 1);
++renderSkillActivation(runtime({kill_switches:{tools:false},skill_activation:activation({installed:true,package_hash:hash})}));
++pending.resolve(response(200,activation({installed:true,enabled:true,package_hash:hash})));
++await enabling;
++assert.equal(fillButton.disabled, true); assert.equal(enableButton.disabled, true);
++assert.equal(revokeButton.disabled, false);
++fetchPlan = async () => response(200,activation({installed:true,package_hash:hash}));
++await revokeButton.onclick(); assert.equal(activationPosts().length, 2);
++assert.equal(activationPosts()[1].url, '/v1/skills/activation/revoke');
++"""
++    )
++
++
++def test_reconnect_and_metadata_refresh_never_replay_activation_or_execute_chat() -> None:
++    control(
++        """
++const view = runtime({skill_activation:
++  activation({installed:true,enabled:true,package_hash:hash})});
++renderSnapshot({...snapshot(),...view}); renderSnapshot({...snapshot(),...view});
++assert.equal(activationPosts().length, 0);
++await fillButton.onclick();
++assert(document.querySelector('#text').value.includes('- [ ]'));
++assert(document.querySelector('#text').value.includes('待辦'));
++assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++def test_unsafe_response_is_plain_fixed_text_and_never_becomes_enabled() -> None:
++    control(
++        """
++Element.prototype.__defineSetter__('innerHTML', () => { throw Error('activation entered HTML'); });
++renderSkillActivation(runtime()); offerReview();
++fetchPlan = async () => response(200,{
++  ...activation({installed:true,enabled:true,package_hash:hash}),
++  capability:'<img src=x onerror=evil()>',detail:'private-path-canary'});
++await installButton.onclick();
++assert.equal(fillButton.disabled, true); assert.equal(enableButton.disabled, true);
++assert(activationStatus.textContent.includes('未知'));
++assert(!activationStatus.textContent.includes('<img'));
++assert(!activationStatus.textContent.includes('private'));
++"""
++    )
++
++
++def test_new_preparation_invalidates_prior_install_review_without_replaying_actions() -> None:
++    control(
++        """
++renderSkillCandidateAvailability(candidateRuntime());
++renderSkillActivation(runtime()); offerReview();
++assert.equal(installButton.disabled,false);
++const pending = deferredCandidate(); fetchPlan = async () => pending.promise;
++const preparation = prepareButton.onclick();
++await until(() => candidatePosts().length === 1);
++assert.equal(installButton.disabled,true); await installButton.onclick();
++assert.equal(activationPosts().length,0);
++pending.resolve(response(200,candidateReview())); await preparation;
++assert.equal(installButton.disabled,true);
++"""
++    )
++
++
++def test_live_tools_off_event_disables_skill_and_tools_on_requires_explicit_enable() -> None:
++    control(
++        """
++const connecting = connectControl(); await until(() => sockets.length === 1);
++const owner = sockets[0]; owner.open();
++owner.message({...snapshot(),...runtime({skill_activation:
++  activation({installed:true,enabled:true,package_hash:hash})})});
++await connecting; assert.equal(fillButton.disabled,false);
++owner.message({type:'kill_switch',name:'tools',enabled:false});
++assert.equal(fillButton.disabled,true); assert.equal(enableButton.disabled,true);
++assert.equal(revokeButton.disabled,false);
++owner.message({type:'kill_switch',name:'tools',enabled:true});
++assert.equal(fillButton.disabled,true); assert.equal(enableButton.disabled,false);
++assert.equal(activationPosts().length,0);
++"""
++    )
++
++
++def test_successful_activation_labels_review_history_without_rewriting_exported_facts() -> None:
++    control(
++        """
++renderSkillActivation(runtime()); offerReview();
++const original = JSON.stringify(skillCandidateReview);
++fetchPlan = async url => response(200,activation({installed:true,
++  enabled:url.endsWith('/enable'),package_hash:hash}));
++for (const button of [installButton,enableButton,revokeButton]) {
++  await button.onclick();
++  assert(candidateStatus.textContent.includes('準備時的審查紀錄'));
++  assert(candidateStatus.textContent.includes('目前已安裝'));
++  assert(!candidateStatus.textContent.includes('尚未安裝'));
++  assert.equal(JSON.stringify(skillCandidateReview),original);
++}
++const blobs = [];
++URL.createObjectURL = blob => { blobs.push(blob); return 'blob:historical-review'; };
++URL.revokeObjectURL = () => {};
++const create = document.createElement;
++document.createElement = tag => {
++  const node = create(tag); if (tag === 'a') node.click = () => {}; return node;
++};
++await exportButton.onclick();
++const exported = JSON.parse(await blobs[0].text());
++assert.equal(exported.installed,false); assert.equal(exported.enabled,false);
++assert.equal(exported.trust_level,'unreviewed'); assert.equal(exported.authorizes_execution,false);
++assert.equal(activationPosts().length,3);
++"""
++    )
++
++
++def test_manual_status_read_labels_only_matching_installed_review_as_history() -> None:
++    control(
++        """
++renderSkillActivation(runtime()); offerReview();
++const original = JSON.stringify(skillCandidateReview);
++let currentHash = 'siro-skill-package-v1:' + 'b'.repeat(64);
++fetchPlan = async url => {
++  assert.equal(url,'/v1/runtime');
++  return response(200,runtime({skill_activation:
++    activation({installed:true,package_hash:currentHash})}));
++};
++await refreshButton.onclick();
++assert(candidateStatus.textContent.includes('尚未安裝'));
++assert(!candidateStatus.textContent.includes('準備時的審查紀錄'));
++currentHash = hash; await refreshButton.onclick();
++assert(candidateStatus.textContent.includes('準備時的審查紀錄'));
++assert(candidateStatus.textContent.includes('目前已安裝'));
++assert(!candidateStatus.textContent.includes('尚未安裝'));
++assert.equal(JSON.stringify(skillCandidateReview),original);
++assert.equal(activationPosts().length,0); assert.equal(targetCalls().length,2);
++"""
++    )

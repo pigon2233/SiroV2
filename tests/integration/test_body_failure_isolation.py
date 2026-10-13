@@ -103,12 +103,14 @@ async def test_killed_renderer_does_not_stop_core_and_reconnects(tmp_path: Path)
     assert await body.speak(SpeechIntent("speech-2", result.text, result.generation_id))
     await asyncio.sleep(0)
     assert renderer.messages == [
+        {"v": 1, "type": "body.emotion", "name": "surprised", "intensity": 1.0},
         {
             "v": 1,
             "type": "body.speech",
             "intent_id": "speech-2",
             "generation_id": result.generation_id,
             "text": "文字核心仍然可用",
-        }
+            "prosody": {"rate": 1.0, "pitch": 0.0, "energy": 0.5},
+        },
     ]
     await transport.detach()

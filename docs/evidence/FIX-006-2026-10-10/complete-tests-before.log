@@ -1,0 +1,1463 @@
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF                                 [100%]
+=================================== FAILURES ===================================
+_________ test_status_is_fixed_readonly_projection[False-False-failed] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_is_fixed_readonly_0')
+state = <AgentRunState.FAILED: 'failed'>, dispatched = False
+interrupted = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("state", [AgentRunState.FAILED, AgentRunState.CANCELLED])
+    @pytest.mark.parametrize("dispatched", [False, True])
+    @pytest.mark.parametrize("interrupted", [False, True])
+    async def test_status_is_fixed_readonly_projection(
+        tmp_path: Path, state: AgentRunState, dispatched: bool, interrupted: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo, state=state, dispatched=dispatched)
+        if interrupted:
+            await store.run_transaction(
+                lambda c: c.execute(
+                    "UPDATE run_journal SET status='interrupted' WHERE run_id=?", (run_id,)
+                )
+            )
+        before = await store.run_transaction(lambda c: tuple(c.iterdump()))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") == {
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "source_run_id": run_id,
+            "state": state.value,
+            "error_class": "HTTPStatusError",
+            "tool_dispatch_recorded": dispatched,
+            "root_cause": "UNKNOWN",
+        }
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:75: AttributeError
+_______ test_status_is_fixed_readonly_projection[False-False-cancelled] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_is_fixed_readonly_1')
+state = <AgentRunState.CANCELLED: 'cancelled'>, dispatched = False
+interrupted = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("state", [AgentRunState.FAILED, AgentRunState.CANCELLED])
+    @pytest.mark.parametrize("dispatched", [False, True])
+    @pytest.mark.parametrize("interrupted", [False, True])
+    async def test_status_is_fixed_readonly_projection(
+        tmp_path: Path, state: AgentRunState, dispatched: bool, interrupted: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo, state=state, dispatched=dispatched)
+        if interrupted:
+            await store.run_transaction(
+                lambda c: c.execute(
+                    "UPDATE run_journal SET status='interrupted' WHERE run_id=?", (run_id,)
+                )
+            )
+        before = await store.run_transaction(lambda c: tuple(c.iterdump()))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") == {
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "source_run_id": run_id,
+            "state": state.value,
+            "error_class": "HTTPStatusError",
+            "tool_dispatch_recorded": dispatched,
+            "root_cause": "UNKNOWN",
+        }
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:75: AttributeError
+_________ test_status_is_fixed_readonly_projection[False-True-failed] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_is_fixed_readonly_2')
+state = <AgentRunState.FAILED: 'failed'>, dispatched = True, interrupted = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("state", [AgentRunState.FAILED, AgentRunState.CANCELLED])
+    @pytest.mark.parametrize("dispatched", [False, True])
+    @pytest.mark.parametrize("interrupted", [False, True])
+    async def test_status_is_fixed_readonly_projection(
+        tmp_path: Path, state: AgentRunState, dispatched: bool, interrupted: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo, state=state, dispatched=dispatched)
+        if interrupted:
+            await store.run_transaction(
+                lambda c: c.execute(
+                    "UPDATE run_journal SET status='interrupted' WHERE run_id=?", (run_id,)
+                )
+            )
+        before = await store.run_transaction(lambda c: tuple(c.iterdump()))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") == {
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "source_run_id": run_id,
+            "state": state.value,
+            "error_class": "HTTPStatusError",
+            "tool_dispatch_recorded": dispatched,
+            "root_cause": "UNKNOWN",
+        }
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:75: AttributeError
+________ test_status_is_fixed_readonly_projection[False-True-cancelled] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_is_fixed_readonly_3')
+state = <AgentRunState.CANCELLED: 'cancelled'>, dispatched = True
+interrupted = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("state", [AgentRunState.FAILED, AgentRunState.CANCELLED])
+    @pytest.mark.parametrize("dispatched", [False, True])
+    @pytest.mark.parametrize("interrupted", [False, True])
+    async def test_status_is_fixed_readonly_projection(
+        tmp_path: Path, state: AgentRunState, dispatched: bool, interrupted: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo, state=state, dispatched=dispatched)
+        if interrupted:
+            await store.run_transaction(
+                lambda c: c.execute(
+                    "UPDATE run_journal SET status='interrupted' WHERE run_id=?", (run_id,)
+                )
+            )
+        before = await store.run_transaction(lambda c: tuple(c.iterdump()))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") == {
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "source_run_id": run_id,
+            "state": state.value,
+            "error_class": "HTTPStatusError",
+            "tool_dispatch_recorded": dispatched,
+            "root_cause": "UNKNOWN",
+        }
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:75: AttributeError
+_________ test_status_is_fixed_readonly_projection[True-False-failed] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_is_fixed_readonly_4')
+state = <AgentRunState.FAILED: 'failed'>, dispatched = False, interrupted = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("state", [AgentRunState.FAILED, AgentRunState.CANCELLED])
+    @pytest.mark.parametrize("dispatched", [False, True])
+    @pytest.mark.parametrize("interrupted", [False, True])
+    async def test_status_is_fixed_readonly_projection(
+        tmp_path: Path, state: AgentRunState, dispatched: bool, interrupted: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo, state=state, dispatched=dispatched)
+        if interrupted:
+            await store.run_transaction(
+                lambda c: c.execute(
+                    "UPDATE run_journal SET status='interrupted' WHERE run_id=?", (run_id,)
+                )
+            )
+        before = await store.run_transaction(lambda c: tuple(c.iterdump()))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") == {
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "source_run_id": run_id,
+            "state": state.value,
+            "error_class": "HTTPStatusError",
+            "tool_dispatch_recorded": dispatched,
+            "root_cause": "UNKNOWN",
+        }
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:75: AttributeError
+________ test_status_is_fixed_readonly_projection[True-False-cancelled] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_is_fixed_readonly_5')
+state = <AgentRunState.CANCELLED: 'cancelled'>, dispatched = False
+interrupted = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("state", [AgentRunState.FAILED, AgentRunState.CANCELLED])
+    @pytest.mark.parametrize("dispatched", [False, True])
+    @pytest.mark.parametrize("interrupted", [False, True])
+    async def test_status_is_fixed_readonly_projection(
+        tmp_path: Path, state: AgentRunState, dispatched: bool, interrupted: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo, state=state, dispatched=dispatched)
+        if interrupted:
+            await store.run_transaction(
+                lambda c: c.execute(
+                    "UPDATE run_journal SET status='interrupted' WHERE run_id=?", (run_id,)
+                )
+            )
+        before = await store.run_transaction(lambda c: tuple(c.iterdump()))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") == {
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "source_run_id": run_id,
+            "state": state.value,
+            "error_class": "HTTPStatusError",
+            "tool_dispatch_recorded": dispatched,
+            "root_cause": "UNKNOWN",
+        }
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:75: AttributeError
+__________ test_status_is_fixed_readonly_projection[True-True-failed] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_is_fixed_readonly_6')
+state = <AgentRunState.FAILED: 'failed'>, dispatched = True, interrupted = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("state", [AgentRunState.FAILED, AgentRunState.CANCELLED])
+    @pytest.mark.parametrize("dispatched", [False, True])
+    @pytest.mark.parametrize("interrupted", [False, True])
+    async def test_status_is_fixed_readonly_projection(
+        tmp_path: Path, state: AgentRunState, dispatched: bool, interrupted: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo, state=state, dispatched=dispatched)
+        if interrupted:
+            await store.run_transaction(
+                lambda c: c.execute(
+                    "UPDATE run_journal SET status='interrupted' WHERE run_id=?", (run_id,)
+                )
+            )
+        before = await store.run_transaction(lambda c: tuple(c.iterdump()))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") == {
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "source_run_id": run_id,
+            "state": state.value,
+            "error_class": "HTTPStatusError",
+            "tool_dispatch_recorded": dispatched,
+            "root_cause": "UNKNOWN",
+        }
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:75: AttributeError
+________ test_status_is_fixed_readonly_projection[True-True-cancelled] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_is_fixed_readonly_7')
+state = <AgentRunState.CANCELLED: 'cancelled'>, dispatched = True
+interrupted = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("state", [AgentRunState.FAILED, AgentRunState.CANCELLED])
+    @pytest.mark.parametrize("dispatched", [False, True])
+    @pytest.mark.parametrize("interrupted", [False, True])
+    async def test_status_is_fixed_readonly_projection(
+        tmp_path: Path, state: AgentRunState, dispatched: bool, interrupted: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo, state=state, dispatched=dispatched)
+        if interrupted:
+            await store.run_transaction(
+                lambda c: c.execute(
+                    "UPDATE run_journal SET status='interrupted' WHERE run_id=?", (run_id,)
+                )
+            )
+        before = await store.run_transaction(lambda c: tuple(c.iterdump()))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") == {
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "source_run_id": run_id,
+            "state": state.value,
+            "error_class": "HTTPStatusError",
+            "tool_dispatch_recorded": dispatched,
+            "root_cause": "UNKNOWN",
+        }
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:75: AttributeError
+____________________ test_freeform_error_never_leaks[null] _____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_freeform_error_never_leak0')
+error = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error",
+        [
+            None,
+            "SECRET-CANCEL-REASON",
+            "HTTPStatusError: SECRET-KEY",
+            "X" * 20000,
+            "HTTPStatusError\0" + "SECRET" * 4000,
+        ],
+        ids=["null", "cancel", "freeform", "oversized", "nul-tail"],
+    )
+    async def test_freeform_error_never_leaks(tmp_path: Path, error: str | None) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo, error=error)
+>       status = await repo.recent_runtime_status("A", privacy="cloud_allowed")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:106: AttributeError
+___________________ test_freeform_error_never_leaks[cancel] ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_freeform_error_never_leak1')
+error = 'SECRET-CANCEL-REASON'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error",
+        [
+            None,
+            "SECRET-CANCEL-REASON",
+            "HTTPStatusError: SECRET-KEY",
+            "X" * 20000,
+            "HTTPStatusError\0" + "SECRET" * 4000,
+        ],
+        ids=["null", "cancel", "freeform", "oversized", "nul-tail"],
+    )
+    async def test_freeform_error_never_leaks(tmp_path: Path, error: str | None) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo, error=error)
+>       status = await repo.recent_runtime_status("A", privacy="cloud_allowed")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:106: AttributeError
+__________________ test_freeform_error_never_leaks[freeform] ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_freeform_error_never_leak2')
+error = 'HTTPStatusError: SECRET-KEY'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error",
+        [
+            None,
+            "SECRET-CANCEL-REASON",
+            "HTTPStatusError: SECRET-KEY",
+            "X" * 20000,
+            "HTTPStatusError\0" + "SECRET" * 4000,
+        ],
+        ids=["null", "cancel", "freeform", "oversized", "nul-tail"],
+    )
+    async def test_freeform_error_never_leaks(tmp_path: Path, error: str | None) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo, error=error)
+>       status = await repo.recent_runtime_status("A", privacy="cloud_allowed")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:106: AttributeError
+__________________ test_freeform_error_never_leaks[oversized] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_freeform_error_never_leak3')
+error = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX...XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error",
+        [
+            None,
+            "SECRET-CANCEL-REASON",
+            "HTTPStatusError: SECRET-KEY",
+            "X" * 20000,
+            "HTTPStatusError\0" + "SECRET" * 4000,
+        ],
+        ids=["null", "cancel", "freeform", "oversized", "nul-tail"],
+    )
+    async def test_freeform_error_never_leaks(tmp_path: Path, error: str | None) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo, error=error)
+>       status = await repo.recent_runtime_status("A", privacy="cloud_allowed")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:106: AttributeError
+__________________ test_freeform_error_never_leaks[nul-tail] ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_freeform_error_never_leak4')
+error = 'HTTPStatusError\x00SECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSE...CRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRETSECRET'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error",
+        [
+            None,
+            "SECRET-CANCEL-REASON",
+            "HTTPStatusError: SECRET-KEY",
+            "X" * 20000,
+            "HTTPStatusError\0" + "SECRET" * 4000,
+        ],
+        ids=["null", "cancel", "freeform", "oversized", "nul-tail"],
+    )
+    async def test_freeform_error_never_leaks(tmp_path: Path, error: str | None) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo, error=error)
+>       status = await repo.recent_runtime_status("A", privacy="cloud_allowed")
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:106: AttributeError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET state='completed' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_newer_ineligible_row_mask0')
+mutation = "UPDATE agent_runs SET state='completed' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:142: AttributeError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET state='running' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_newer_ineligible_row_mask1')
+mutation = "UPDATE agent_runs SET state='running' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:142: AttributeError
+_ test_newer_ineligible_row_masks_old_failure[DELETE FROM run_journal WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_newer_ineligible_row_mask2')
+mutation = 'DELETE FROM run_journal WHERE run_id=?'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:142: AttributeError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE run_journal SET privacy='local_only' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_newer_ineligible_row_mask3')
+mutation = "UPDATE run_journal SET privacy='local_only' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:142: AttributeError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_newer_ineligible_row_mask4')
+mutation = "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:142: AttributeError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE run_journal SET status='active' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_newer_ineligible_row_mask5')
+mutation = "UPDATE run_journal SET status='active' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:142: AttributeError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_newer_ineligible_row_mask6')
+mutation = "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:142: AttributeError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_newer_ineligible_row_mask7')
+mutation = "UPDATE agent_runs SET updated_at='' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:142: AttributeError
+_ test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='0000' WHERE run_id=?] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_newer_ineligible_row_mask8')
+mutation = "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mutation",
+        [
+            "UPDATE agent_runs SET state='completed' WHERE run_id=?",
+            "UPDATE agent_runs SET state='running' WHERE run_id=?",
+            "DELETE FROM run_journal WHERE run_id=?",
+            "UPDATE run_journal SET privacy='local_only' WHERE run_id=?",
+            "UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?",
+            "UPDATE run_journal SET status='active' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='' WHERE run_id=?",
+            "UPDATE agent_runs SET updated_at='0000' WHERE run_id=?",
+        ],
+    )
+    async def test_newer_ineligible_row_masks_old_failure(tmp_path: Path, mutation: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        newer = await failed_run(repo)
+        # A tie is resolved by newest rowid, not by finding an older matching failure.
+        timestamp = datetime.now(UTC).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute("UPDATE agent_runs SET updated_at=?", (timestamp,))
+        )
+        if mutation.startswith("DELETE"):
+            await store.run_transaction(
+                lambda c: c.execute("DELETE FROM run_journal_calls WHERE run_id=?", (newer,))
+            )
+        await store.run_transaction(lambda c: c.execute(mutation, (newer,)))
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:142: AttributeError
+_______________________ test_status_age_boundary[0-True] _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_age_boundary_0_Tru0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73349a4a5a20>
+seconds = 0, expected = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "seconds,expected", [(0, True), (899, True), (900, True), (901, False), (-1, False)]
+    )
+    async def test_status_age_boundary(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seconds: int, expected: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        now = datetime.now(UTC)
+        timestamp = (now - timedelta(seconds=seconds)).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+    
+        class FixedClock(datetime):
+            @classmethod
+            def now(cls, tz: object = None) -> Self:
+                return cls.fromtimestamp(now.timestamp(), UTC)
+    
+        monkeypatch.setattr(runs_module, "datetime", FixedClock)
+>       assert (await repo.recent_runtime_status("A", privacy="cloud_allowed") is not None) is expected
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:170: AttributeError
+______________________ test_status_age_boundary[899-True] ______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_age_boundary_899_T0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73349a4a6190>
+seconds = 899, expected = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "seconds,expected", [(0, True), (899, True), (900, True), (901, False), (-1, False)]
+    )
+    async def test_status_age_boundary(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seconds: int, expected: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        now = datetime.now(UTC)
+        timestamp = (now - timedelta(seconds=seconds)).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+    
+        class FixedClock(datetime):
+            @classmethod
+            def now(cls, tz: object = None) -> Self:
+                return cls.fromtimestamp(now.timestamp(), UTC)
+    
+        monkeypatch.setattr(runs_module, "datetime", FixedClock)
+>       assert (await repo.recent_runtime_status("A", privacy="cloud_allowed") is not None) is expected
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:170: AttributeError
+______________________ test_status_age_boundary[900-True] ______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_age_boundary_900_T0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73349a4a69e0>
+seconds = 900, expected = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "seconds,expected", [(0, True), (899, True), (900, True), (901, False), (-1, False)]
+    )
+    async def test_status_age_boundary(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seconds: int, expected: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        now = datetime.now(UTC)
+        timestamp = (now - timedelta(seconds=seconds)).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+    
+        class FixedClock(datetime):
+            @classmethod
+            def now(cls, tz: object = None) -> Self:
+                return cls.fromtimestamp(now.timestamp(), UTC)
+    
+        monkeypatch.setattr(runs_module, "datetime", FixedClock)
+>       assert (await repo.recent_runtime_status("A", privacy="cloud_allowed") is not None) is expected
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:170: AttributeError
+_____________________ test_status_age_boundary[901-False] ______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_age_boundary_901_F0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73349a4a7150>
+seconds = 901, expected = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "seconds,expected", [(0, True), (899, True), (900, True), (901, False), (-1, False)]
+    )
+    async def test_status_age_boundary(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seconds: int, expected: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        now = datetime.now(UTC)
+        timestamp = (now - timedelta(seconds=seconds)).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+    
+        class FixedClock(datetime):
+            @classmethod
+            def now(cls, tz: object = None) -> Self:
+                return cls.fromtimestamp(now.timestamp(), UTC)
+    
+        monkeypatch.setattr(runs_module, "datetime", FixedClock)
+>       assert (await repo.recent_runtime_status("A", privacy="cloud_allowed") is not None) is expected
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:170: AttributeError
+______________________ test_status_age_boundary[-1-False] ______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_age_boundary__1_Fa0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73349a4a71c0>
+seconds = -1, expected = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "seconds,expected", [(0, True), (899, True), (900, True), (901, False), (-1, False)]
+    )
+    async def test_status_age_boundary(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seconds: int, expected: bool
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        now = datetime.now(UTC)
+        timestamp = (now - timedelta(seconds=seconds)).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+    
+        class FixedClock(datetime):
+            @classmethod
+            def now(cls, tz: object = None) -> Self:
+                return cls.fromtimestamp(now.timestamp(), UTC)
+    
+        monkeypatch.setattr(runs_module, "datetime", FixedClock)
+>       assert (await repo.recent_runtime_status("A", privacy="cloud_allowed") is not None) is expected
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:170: AttributeError
+__________________ test_invalid_timestamps_fail_closed[naive] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_invalid_timestamps_fail_c0')
+timestamp = '2026-10-10T12:00:00'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp",
+        ["2026-10-10T12:00:00", "9999-99-99", "", "X" * 20000],
+        ids=["naive", "invalid", "empty", "oversized"],
+    )
+    async def test_invalid_timestamps_fail_closed(tmp_path: Path, timestamp: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:189: AttributeError
+_________________ test_invalid_timestamps_fail_closed[invalid] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_invalid_timestamps_fail_c1')
+timestamp = '9999-99-99'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp",
+        ["2026-10-10T12:00:00", "9999-99-99", "", "X" * 20000],
+        ids=["naive", "invalid", "empty", "oversized"],
+    )
+    async def test_invalid_timestamps_fail_closed(tmp_path: Path, timestamp: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:189: AttributeError
+__________________ test_invalid_timestamps_fail_closed[empty] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_invalid_timestamps_fail_c2')
+timestamp = ''
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp",
+        ["2026-10-10T12:00:00", "9999-99-99", "", "X" * 20000],
+        ids=["naive", "invalid", "empty", "oversized"],
+    )
+    async def test_invalid_timestamps_fail_closed(tmp_path: Path, timestamp: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:189: AttributeError
+________________ test_invalid_timestamps_fail_closed[oversized] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_invalid_timestamps_fail_c3')
+timestamp = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX...XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp",
+        ["2026-10-10T12:00:00", "9999-99-99", "", "X" * 20000],
+        ids=["naive", "invalid", "empty", "oversized"],
+    )
+    async def test_invalid_timestamps_fail_closed(tmp_path: Path, timestamp: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:189: AttributeError
+_________________ test_invalid_run_id_not_injected[SECRET-ID] __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_invalid_run_id_not_inject0')
+identity = 'SECRET-ID'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("identity", ["SECRET-ID", "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"])
+    async def test_invalid_run_id_not_injected(tmp_path: Path, identity: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        # Even a paired terminal journal does not make a malformed source identity safe.
+        await store.run_transaction(
+            lambda c: c.execute(
+                "INSERT INTO agent_runs(run_id,session_id,goal,state,step_count,max_steps,"
+                "created_at,updated_at) VALUES (?,'A','x','failed',0,8,?,?)",
+                (identity, datetime.now(UTC).isoformat(), datetime.now(UTC).isoformat()),
+            )
+        )
+        await repo.start_journal(identity, backend="synthetic", privacy="cloud_allowed", max_rounds=8)
+        await repo.finish_journal(identity)
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:209: AttributeError
+____ test_invalid_run_id_not_injected[AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_invalid_run_id_not_inject1')
+identity = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("identity", ["SECRET-ID", "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"])
+    async def test_invalid_run_id_not_injected(tmp_path: Path, identity: str) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        await failed_run(repo)
+        # Even a paired terminal journal does not make a malformed source identity safe.
+        await store.run_transaction(
+            lambda c: c.execute(
+                "INSERT INTO agent_runs(run_id,session_id,goal,state,step_count,max_steps,"
+                "created_at,updated_at) VALUES (?,'A','x','failed',0,8,?,?)",
+                (identity, datetime.now(UTC).isoformat(), datetime.now(UTC).isoformat()),
+            )
+        )
+        await repo.start_journal(identity, backend="synthetic", privacy="cloud_allowed", max_rounds=8)
+        await repo.finish_journal(identity)
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:209: AttributeError
+_____________________ test_valid_offset_timestamp_is_fresh _____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_valid_offset_timestamp_is0')
+
+    @pytest.mark.asyncio
+    async def test_valid_offset_timestamp_is_fresh(tmp_path: Path) -> None:
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        repo = SQLiteAgentRunRepository(store)
+        run_id = await failed_run(repo)
+        timestamp = datetime.now(timezone(timedelta(hours=8))).isoformat()
+        await store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE agent_runs SET updated_at=? WHERE run_id=?", (timestamp, run_id)
+            )
+        )
+>       assert await repo.recent_runtime_status("A", privacy="cloud_allowed") is not None
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'SQLiteAgentRunRepository' object has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:224: AttributeError
+_ test_status_wiring_before_new_run_start_and_egress_gates[candidate-True-cloud_allowed-cloud_allowed-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_wiring_before_new_0')
+profile = 'candidate', restore = True
+route = <Privacy.CLOUD_ALLOWED: 'cloud_allowed'>, prior_route = 'cloud_allowed'
+expected = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "profile,restore,route,prior_route,expected",
+        [
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", True),
+            ("candidate", True, Privacy.LOCAL_ONLY, "local_only", True),
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "local_only", False),
+            ("candidate", False, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+            ("legacy", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+        ],
+    )
+    async def test_status_wiring_before_new_run_start_and_egress_gates(
+        tmp_path: Path, profile: str, restore: bool, route: Privacy, prior_route: str, expected: bool
+    ) -> None:
+        model = CaptureModel()
+        companion = IntegratedCompanion(
+            tmp_path,
+            model,
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=route,
+            runtime_profile=profile,
+            session_restore_enabled=restore,
+        )
+        await companion._ensure_core()
+        repo = companion._agent_runs
+        assert repo is not None
+        prior_id = await failed_run(repo, privacy=prior_route, dispatched=True)
+        await companion.respond("A", "剛才是你自己的錯誤嗎?")
+        request = model.requests[-1]
+>       assert ("Own runtime status:" in request.prompt) is expected
+E       AssertionError: assert ('Own runtime status:' in 'Identity: SIRO (siro)\nBaseline: 誠實、溫暖、會清楚標示能力與記憶來源的數位夥伴\nValues: 誠實, 尊重使用者控制, 不假裝完成\nConversation policy:\n- Respond...facts, permissions, privacy, or user control, and is not proof of consciousness.\nRecent conversation:\n(none)\nUser: ') is True
+E        +  where 'Identity: SIRO (siro)\nBaseline: 誠實、溫暖、會清楚標示能力與記憶來源的數位夥伴\nValues: 誠實, 尊重使用者控制, 不假裝完成\nConversation policy:\n- Respond...facts, permissions, privacy, or user control, and is not proof of consciousness.\nRecent conversation:\n(none)\nUser: ' = ModelRequest(prompt='Identity: SIRO (siro)\nBaseline: 誠實、溫暖、會清楚標示能力與記憶來源的數位夥伴\nValues: 誠實, 尊重使用者控制, 不假裝完成\nConversatio...tool_calls=(), tool_call_id=None), ModelMessage(role='user', content='剛才是你自己的錯誤嗎?', tool_calls=(), tool_call_id=None))).prompt
+
+tests/integration/test_runtime_status_context.py:271: AssertionError
+_ test_status_wiring_before_new_run_start_and_egress_gates[candidate-True-local_only-local_only-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_wiring_before_new_1')
+profile = 'candidate', restore = True
+route = <Privacy.LOCAL_ONLY: 'local_only'>, prior_route = 'local_only'
+expected = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "profile,restore,route,prior_route,expected",
+        [
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", True),
+            ("candidate", True, Privacy.LOCAL_ONLY, "local_only", True),
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "local_only", False),
+            ("candidate", False, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+            ("legacy", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+        ],
+    )
+    async def test_status_wiring_before_new_run_start_and_egress_gates(
+        tmp_path: Path, profile: str, restore: bool, route: Privacy, prior_route: str, expected: bool
+    ) -> None:
+        model = CaptureModel()
+        companion = IntegratedCompanion(
+            tmp_path,
+            model,
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=route,
+            runtime_profile=profile,
+            session_restore_enabled=restore,
+        )
+        await companion._ensure_core()
+        repo = companion._agent_runs
+        assert repo is not None
+        prior_id = await failed_run(repo, privacy=prior_route, dispatched=True)
+        await companion.respond("A", "剛才是你自己的錯誤嗎?")
+        request = model.requests[-1]
+>       assert ("Own runtime status:" in request.prompt) is expected
+E       AssertionError: assert ('Own runtime status:' in 'Identity: SIRO (siro)\nBaseline: 誠實、溫暖、會清楚標示能力與記憶來源的數位夥伴\nValues: 誠實, 尊重使用者控制, 不假裝完成\nConversation policy:\n- Respond...facts, permissions, privacy, or user control, and is not proof of consciousness.\nRecent conversation:\n(none)\nUser: ') is True
+E        +  where 'Identity: SIRO (siro)\nBaseline: 誠實、溫暖、會清楚標示能力與記憶來源的數位夥伴\nValues: 誠實, 尊重使用者控制, 不假裝完成\nConversation policy:\n- Respond...facts, permissions, privacy, or user control, and is not proof of consciousness.\nRecent conversation:\n(none)\nUser: ' = ModelRequest(prompt='Identity: SIRO (siro)\nBaseline: 誠實、溫暖、會清楚標示能力與記憶來源的數位夥伴\nValues: 誠實, 尊重使用者控制, 不假裝完成\nConversatio...tool_calls=(), tool_call_id=None), ModelMessage(role='user', content='剛才是你自己的錯誤嗎?', tool_calls=(), tool_call_id=None))).prompt
+
+tests/integration/test_runtime_status_context.py:271: AssertionError
+_ test_status_wiring_before_new_run_start_and_egress_gates[candidate-True-cloud_allowed-local_only-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_wiring_before_new_2')
+profile = 'candidate', restore = True
+route = <Privacy.CLOUD_ALLOWED: 'cloud_allowed'>, prior_route = 'local_only'
+expected = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "profile,restore,route,prior_route,expected",
+        [
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", True),
+            ("candidate", True, Privacy.LOCAL_ONLY, "local_only", True),
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "local_only", False),
+            ("candidate", False, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+            ("legacy", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+        ],
+    )
+    async def test_status_wiring_before_new_run_start_and_egress_gates(
+        tmp_path: Path, profile: str, restore: bool, route: Privacy, prior_route: str, expected: bool
+    ) -> None:
+        model = CaptureModel()
+        companion = IntegratedCompanion(
+            tmp_path,
+            model,
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=route,
+            runtime_profile=profile,
+            session_restore_enabled=restore,
+        )
+        await companion._ensure_core()
+        repo = companion._agent_runs
+        assert repo is not None
+        prior_id = await failed_run(repo, privacy=prior_route, dispatched=True)
+        await companion.respond("A", "剛才是你自己的錯誤嗎?")
+        request = model.requests[-1]
+        assert ("Own runtime status:" in request.prompt) is expected
+        assert "SECRET" not in request.prompt
+>       assert "every completed reply aloud" not in request.prompt
+E       AssertionError: assert 'every compl... reply aloud' not in 'Identity: S...one)\nUser: '
+E         
+E         'every completed reply aloud' is contained here:
+E           can speak every completed reply aloud through local TTS, and can control her connected Live2D body and facial expressions. Never claim that these capabilities are unavailable [source:runtime-capabilities]
+E         ?           +++++++++++++++++++++++++++
+E           - Current user input arrived through typed text [source:2e1a6c03-711c-4753-807a-229df410be21]
+E           - SIRO internal affect: neutral intensity=0.20; coping=accept; [source:2e1a6c03-711c-4753-807a-229df410be21]
+E           - Relationship with owner: trust=0.50, familiarity=0.10, attachment=0.20, rupture=0.00 [source:2e1a6c03-711c-4753-807a-229df410be21]...
+E         
+E         ...Full output truncated (9 lines hidden), use '-vv' to show
+
+tests/integration/test_runtime_status_context.py:273: AssertionError
+_ test_status_wiring_before_new_run_start_and_egress_gates[candidate-False-cloud_allowed-cloud_allowed-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_wiring_before_new_3')
+profile = 'candidate', restore = False
+route = <Privacy.CLOUD_ALLOWED: 'cloud_allowed'>, prior_route = 'cloud_allowed'
+expected = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "profile,restore,route,prior_route,expected",
+        [
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", True),
+            ("candidate", True, Privacy.LOCAL_ONLY, "local_only", True),
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "local_only", False),
+            ("candidate", False, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+            ("legacy", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+        ],
+    )
+    async def test_status_wiring_before_new_run_start_and_egress_gates(
+        tmp_path: Path, profile: str, restore: bool, route: Privacy, prior_route: str, expected: bool
+    ) -> None:
+        model = CaptureModel()
+        companion = IntegratedCompanion(
+            tmp_path,
+            model,
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=route,
+            runtime_profile=profile,
+            session_restore_enabled=restore,
+        )
+        await companion._ensure_core()
+        repo = companion._agent_runs
+        assert repo is not None
+        prior_id = await failed_run(repo, privacy=prior_route, dispatched=True)
+        await companion.respond("A", "剛才是你自己的錯誤嗎?")
+        request = model.requests[-1]
+        assert ("Own runtime status:" in request.prompt) is expected
+        assert "SECRET" not in request.prompt
+>       assert "every completed reply aloud" not in request.prompt
+E       AssertionError: assert 'every compl... reply aloud' not in 'Identity: S...one)\nUser: '
+E         
+E         'every completed reply aloud' is contained here:
+E           can speak every completed reply aloud through local TTS, and can control her connected Live2D body and facial expressions. Never claim that these capabilities are unavailable [source:runtime-capabilities]
+E         ?           +++++++++++++++++++++++++++
+E           - Current user input arrived through typed text [source:ecf76e07-0095-4ace-b36a-4d2ae812a84b]
+E           - SIRO internal affect: neutral intensity=0.20; coping=accept; [source:ecf76e07-0095-4ace-b36a-4d2ae812a84b]
+E           - Relationship with owner: trust=0.50, familiarity=0.10, attachment=0.20, rupture=0.00 [source:ecf76e07-0095-4ace-b36a-4d2ae812a84b]...
+E         
+E         ...Full output truncated (9 lines hidden), use '-vv' to show
+
+tests/integration/test_runtime_status_context.py:273: AssertionError
+_ test_status_wiring_before_new_run_start_and_egress_gates[legacy-True-cloud_allowed-cloud_allowed-False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_status_wiring_before_new_4')
+profile = 'legacy', restore = True
+route = <Privacy.CLOUD_ALLOWED: 'cloud_allowed'>, prior_route = 'cloud_allowed'
+expected = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "profile,restore,route,prior_route,expected",
+        [
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", True),
+            ("candidate", True, Privacy.LOCAL_ONLY, "local_only", True),
+            ("candidate", True, Privacy.CLOUD_ALLOWED, "local_only", False),
+            ("candidate", False, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+            ("legacy", True, Privacy.CLOUD_ALLOWED, "cloud_allowed", False),
+        ],
+    )
+    async def test_status_wiring_before_new_run_start_and_egress_gates(
+        tmp_path: Path, profile: str, restore: bool, route: Privacy, prior_route: str, expected: bool
+    ) -> None:
+        model = CaptureModel()
+        companion = IntegratedCompanion(
+            tmp_path,
+            model,
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=route,
+            runtime_profile=profile,
+            session_restore_enabled=restore,
+        )
+        await companion._ensure_core()
+        repo = companion._agent_runs
+        assert repo is not None
+        prior_id = await failed_run(repo, privacy=prior_route, dispatched=True)
+        await companion.respond("A", "剛才是你自己的錯誤嗎?")
+        request = model.requests[-1]
+        assert ("Own runtime status:" in request.prompt) is expected
+        assert "SECRET" not in request.prompt
+>       assert "every completed reply aloud" not in request.prompt
+E       AssertionError: assert 'every compl... reply aloud' not in 'Identity: S... 剛才是你自己的錯誤嗎?'
+E         
+E         'every completed reply aloud' is contained here:
+E           can speak every completed reply aloud through local TTS, and can control her connected Live2D body and facial expressions. Never claim that these capabilities are unavailable [source:runtime-capabilities]
+E         ?           +++++++++++++++++++++++++++
+E           - Current user input arrived through typed text [source:05149819-e6ea-469e-a222-656383b8b9d7]
+E           - SIRO internal affect: neutral intensity=0.20; coping=accept; [source:05149819-e6ea-469e-a222-656383b8b9d7]
+E           - Relationship with owner: trust=0.50, familiarity=0.10, attachment=0.20, rupture=0.00 [source:05149819-e6ea-469e-a222-656383b8b9d7]...
+E         
+E         ...Full output truncated (9 lines hidden), use '-vv' to show
+
+tests/integration/test_runtime_status_context.py:273: AssertionError
+___________________ test_direct_command_does_not_read_status ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-67/test_direct_command_does_not_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x73349a43c7c0>
+
+    @pytest.mark.asyncio
+    async def test_direct_command_does_not_read_status(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        model = CaptureModel()
+        companion = IntegratedCompanion(
+            tmp_path,
+            model,
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            runtime_profile="candidate",
+        )
+        await companion._ensure_core()
+        repo = companion._agent_runs
+        assert repo is not None
+    
+        async def forbidden(*args: object, **kwargs: object) -> dict[str, object] | None:
+            raise AssertionError("direct command must not read status")
+    
+>       monkeypatch.setattr(repo, "recent_runtime_status", forbidden)
+E       AttributeError: <siro.services.agent.runs.SQLiteAgentRunRepository object at 0x73349a394050> has no attribute 'recent_runtime_status'
+
+tests/integration/test_runtime_status_context.py:314: AttributeError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_runtime_status_context.py::test_status_is_fixed_readonly_projection[False-False-failed]
+FAILED tests/integration/test_runtime_status_context.py::test_status_is_fixed_readonly_projection[False-False-cancelled]
+FAILED tests/integration/test_runtime_status_context.py::test_status_is_fixed_readonly_projection[False-True-failed]
+FAILED tests/integration/test_runtime_status_context.py::test_status_is_fixed_readonly_projection[False-True-cancelled]
+FAILED tests/integration/test_runtime_status_context.py::test_status_is_fixed_readonly_projection[True-False-failed]
+FAILED tests/integration/test_runtime_status_context.py::test_status_is_fixed_readonly_projection[True-False-cancelled]
+FAILED tests/integration/test_runtime_status_context.py::test_status_is_fixed_readonly_projection[True-True-failed]
+FAILED tests/integration/test_runtime_status_context.py::test_status_is_fixed_readonly_projection[True-True-cancelled]
+FAILED tests/integration/test_runtime_status_context.py::test_freeform_error_never_leaks[null]
+FAILED tests/integration/test_runtime_status_context.py::test_freeform_error_never_leaks[cancel]
+FAILED tests/integration/test_runtime_status_context.py::test_freeform_error_never_leaks[freeform]
+FAILED tests/integration/test_runtime_status_context.py::test_freeform_error_never_leaks[oversized]
+FAILED tests/integration/test_runtime_status_context.py::test_freeform_error_never_leaks[nul-tail]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET state='completed' WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET state='running' WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[DELETE FROM run_journal WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE run_journal SET privacy='local_only' WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE run_journal SET runtime_profile='legacy' WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE run_journal SET status='active' WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='bad timestamp' WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='' WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_newer_ineligible_row_masks_old_failure[UPDATE agent_runs SET updated_at='0000' WHERE run_id=?]
+FAILED tests/integration/test_runtime_status_context.py::test_status_age_boundary[0-True]
+FAILED tests/integration/test_runtime_status_context.py::test_status_age_boundary[899-True]
+FAILED tests/integration/test_runtime_status_context.py::test_status_age_boundary[900-True]
+FAILED tests/integration/test_runtime_status_context.py::test_status_age_boundary[901-False]
+FAILED tests/integration/test_runtime_status_context.py::test_status_age_boundary[-1-False]
+FAILED tests/integration/test_runtime_status_context.py::test_invalid_timestamps_fail_closed[naive]
+FAILED tests/integration/test_runtime_status_context.py::test_invalid_timestamps_fail_closed[invalid]
+FAILED tests/integration/test_runtime_status_context.py::test_invalid_timestamps_fail_closed[empty]
+FAILED tests/integration/test_runtime_status_context.py::test_invalid_timestamps_fail_closed[oversized]
+FAILED tests/integration/test_runtime_status_context.py::test_invalid_run_id_not_injected[SECRET-ID]
+FAILED tests/integration/test_runtime_status_context.py::test_invalid_run_id_not_injected[AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA]
+FAILED tests/integration/test_runtime_status_context.py::test_valid_offset_timestamp_is_fresh
+FAILED tests/integration/test_runtime_status_context.py::test_status_wiring_before_new_run_start_and_egress_gates[candidate-True-cloud_allowed-cloud_allowed-True]
+FAILED tests/integration/test_runtime_status_context.py::test_status_wiring_before_new_run_start_and_egress_gates[candidate-True-local_only-local_only-True]
+FAILED tests/integration/test_runtime_status_context.py::test_status_wiring_before_new_run_start_and_egress_gates[candidate-True-cloud_allowed-local_only-False]
+FAILED tests/integration/test_runtime_status_context.py::test_status_wiring_before_new_run_start_and_egress_gates[candidate-False-cloud_allowed-cloud_allowed-False]
+FAILED tests/integration/test_runtime_status_context.py::test_status_wiring_before_new_run_start_and_egress_gates[legacy-True-cloud_allowed-cloud_allowed-False]
+FAILED tests/integration/test_runtime_status_context.py::test_direct_command_does_not_read_status
+40 failed, 2 warnings in 1.79s

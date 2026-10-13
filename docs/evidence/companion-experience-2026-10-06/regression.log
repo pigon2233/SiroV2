@@ -1,0 +1,87 @@
+........................................................................ [ 16%]
+......................................F................................. [ 32%]
+........................................................................ [ 48%]
+........................................................................ [ 65%]
+........................................................................ [ 81%]
+..................sssss................................................. [ 97%]
+...........                                                              [100%]
+=================================== FAILURES ===================================
+____________ test_killed_renderer_does_not_stop_core_and_reconnects ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-110/test_killed_renderer_does_not_0')
+
+    async def test_killed_renderer_does_not_stop_core_and_reconnects(tmp_path: Path) -> None:
+        core, memory = await make_core(tmp_path / "siro.db")
+        now = datetime.now(UTC)
+        source = UserTextEvent(
+            event_id=uuid4(),
+            type="conversation.user_text.v1",
+            source="owner",
+            occurred_at=now,
+            received_at=now,
+            trace_id="a07",
+            session_id="a07",
+            turn_id="memory-source",
+            sequence=1,
+            priority=Priority.INTERACTIVE,
+            privacy=Privacy.LOCAL_ONLY,
+            payload=UserTextPayload(text="renderer failure drill", language="en"),
+        )
+        remembered = Memory(uuid4(), "siro", "renderer failure drill", (source.event_id,), now)
+        await memory.remember(remembered, source)
+    
+        transport = WebSocketBodyTransport()
+        body = MinimalWebBodyAdapter(transport)
+        await transport.attach(KilledRenderer())
+        assert await body.set_emotion(EmotionIntent("surprised"))
+        await asyncio.sleep(0)
+        assert (await body.status()).connection is BodyConnection.OFFLINE
+    
+        result = await core.respond("a07", "siro", "身體斷線後請繼續")
+        assert result.state is TurnState.COMPLETED
+        assert result.text == "文字核心仍然可用"
+        assert await memory.recall("siro", "renderer failure") == [remembered]
+    
+        renderer = HealthyRenderer()
+        await transport.attach(renderer)
+        assert await body.speak(SpeechIntent("speech-2", result.text, result.generation_id))
+        await asyncio.sleep(0)
+>       assert renderer.messages == [
+            {
+                "v": 1,
+                "type": "body.speech",
+                "intent_id": "speech-2",
+                "generation_id": result.generation_id,
+                "text": "文字核心仍然可用",
+                "prosody": {"rate": 1.0, "pitch": 0.0, "energy": 0.5},
+            }
+        ]
+E       AssertionError: assert [{'v': 1, 'ty...23ec01', ...}] == [{'v': 1, 'ty...23ec01', ...}]
+E         
+E         At index 0 diff: {'v': 1, 'type': 'body.emotion', 'name': 'surprised', 'intensity': 1.0} != {'v': 1, 'type': 'body.speech', 'intent_id': 'speech-2', 'generation_id': 'da920220-c7d9-4bfb-a91a-a8768823ec01', 'text': '文字核心仍然可用', 'prosody': {'rate': 1.0, 'pitch': 0.0, 'energy': 0.5}}
+E         Left contains one more item: {'v': 1, 'type': 'body.speech', 'intent_id': 'speech-2', 'generation_id': 'da920220-c7d9-4bfb-a91a-a8768823ec01', ...}
+E         Use -v to get more diff
+
+tests/integration/test_body_failure_isolation.py:105: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/real/test_model_providers.py:41: set SIRO_RUN_REAL_PROVIDERS=1 to permit an external request
+SKIPPED [1] tests/real/test_model_providers.py:62: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+SKIPPED [1] tests/real/test_model_providers.py:80: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+SKIPPED [1] tests/real/test_speech_providers.py:18: set GROQ_API_KEY for the opt-in Groq speech test
+SKIPPED [1] tests/real/test_speech_providers.py:32: set GROQ_API_KEY for the opt-in Groq speech test
+FAILED tests/integration/test_body_failure_isolation.py::test_killed_renderer_does_not_stop_core_and_reconnects
+1 failed, 437 passed, 5 skipped, 3 warnings in 121.82s (0:02:01)

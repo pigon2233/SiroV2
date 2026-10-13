@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 
 from siro.contracts.events import SystemHealthEvent
-from siro.persistence.sqlite import Migration, MigrationError, SQLiteStore, apply_migrations
+from siro.persistence.sqlite import (
+    Migration,
+    MigrationError,
+    SQLiteStore,
+    apply_migrations,
+    load_migrations,
+)
 
 
 def make_event(number: int = 1) -> SystemHealthEvent:
@@ -45,7 +51,7 @@ async def test_empty_database_is_migrated_with_wal(tmp_path: Path) -> None:
     foreign_keys = await store.run_transaction(
         lambda connection: int(connection.execute("PRAGMA foreign_keys").fetchone()[0])
     )
-    assert versions == [1, 2, 3, 4, 5, 6, 7]
+    assert versions == [migration.version for migration in load_migrations()]
     assert journal == "wal"
     assert foreign_keys == 1
     assert await store.integrity_check() == "ok"
@@ -155,3 +161,42 @@ async def test_unusable_parent_path_fails_clearly(tmp_path: Path) -> None:
 
     with pytest.raises((FileExistsError, NotADirectoryError)):
         await store.initialize()
+
+
+@pytest.mark.parametrize("starting_version", [0, 10, 12])
+def test_real_schema_upgrade_preserves_data_and_is_idempotent(starting_version: int) -> None:
+    connection = sqlite3.connect(":memory:")
+    migrations = load_migrations()
+    apply_migrations(connection, migrations[:starting_version])
+    if starting_version:
+        connection.execute(
+            "INSERT INTO identities(identity_id, core_json, core_version, created_at) "
+            "VALUES ('baseline', '{}', 1, 'synthetic')"
+        )
+        connection.commit()
+    apply_migrations(connection, migrations)
+    snapshot = list(connection.execute("SELECT * FROM schema_migrations ORDER BY version"))
+    apply_migrations(connection, migrations)
+    assert list(connection.execute("SELECT * FROM schema_migrations ORDER BY version")) == snapshot
+    assert len(snapshot) >= 12
+    for table in ("tool_proposals", "agent_runs", "agent_steps"):
+        assert connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+        ).fetchone() == (table,)
+    for index in ("idx_tool_proposals_session_state", "idx_agent_runs_session_updated"):
+        assert connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name=?", (index,)
+        ).fetchone() == (index,)
+    assert {row[1] for row in connection.execute("PRAGMA table_info(agent_steps)")} >= {
+        "run_id",
+        "step_index",
+        "kind",
+        "payload_json",
+    }
+    assert connection.execute("PRAGMA foreign_key_list(agent_steps)").fetchone()[2] == "agent_runs"
+    if starting_version:
+        assert connection.execute(
+            "SELECT core_json FROM identities WHERE identity_id='baseline'"
+        ).fetchone() == ("{}",)
+    assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+    connection.close()

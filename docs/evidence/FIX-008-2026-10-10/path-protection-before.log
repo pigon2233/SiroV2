@@ -1,0 +1,1405 @@
+..F..FFFF.FFFFF.FF.FFFF...FFFFFFFFFFF.FFFFFFFF...FF                      [100%]
+=================================== FAILURES ===================================
+__________ test_complete_path_union_uses_counted_hunks[plain-delete] ___________
+
+diff = '--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n'
+expected = ('old.py',)
+
+    @pytest.mark.parametrize(("diff", "expected"), VALID_DIFFS)
+    def test_complete_path_union_uses_counted_hunks(diff: str, expected: tuple[str, ...]) -> None:
+>       assert PatchVerifier._changed_paths(diff) == expected
+E       AssertionError: assert () == ('old.py',)
+E         
+E         Right contains one more item: 'old.py'
+E         Use -v to get more diff
+
+tests/integration/test_patch_path_protection.py:89: AssertionError
+___________ test_complete_path_union_uses_counted_hunks[git-delete] ____________
+
+diff = 'diff --git a/old.py b/old.py\ndeleted file mode 100644\nindex 012abcd..0000000\n--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n'
+expected = ('old.py',)
+
+    @pytest.mark.parametrize(("diff", "expected"), VALID_DIFFS)
+    def test_complete_path_union_uses_counted_hunks(diff: str, expected: tuple[str, ...]) -> None:
+>       assert PatchVerifier._changed_paths(diff) == expected
+E       AssertionError: assert () == ('old.py',)
+E         
+E         Right contains one more item: 'old.py'
+E         Use -v to get more diff
+
+tests/integration/test_patch_path_protection.py:89: AssertionError
+_______ test_complete_path_union_uses_counted_hunks[git-rename-content] ________
+
+diff = 'diff --git a/old.py b/new.py\nsimilarity index 50%\nrename from old.py\nrename to new.py\n--- a/old.py\n+++ b/new.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+expected = ('old.py', 'new.py')
+
+    @pytest.mark.parametrize(("diff", "expected"), VALID_DIFFS)
+    def test_complete_path_union_uses_counted_hunks(diff: str, expected: tuple[str, ...]) -> None:
+>       assert PatchVerifier._changed_paths(diff) == expected
+E       AssertionError: assert ('new.py',) == ('old.py', 'new.py')
+E         
+E         At index 0 diff: 'new.py' != 'old.py'
+E         Right contains one more item: 'new.py'
+E         Use -v to get more diff
+
+tests/integration/test_patch_path_protection.py:89: AssertionError
+________ test_complete_path_union_uses_counted_hunks[first-seen-union] _________
+
+diff = '--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE...dev/null\n+++ b/new.py\n@@ -0,0 +1 @@\n+VALUE = 2\n--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+expected = ('old.py', 'calc.py', 'new.py')
+
+    @pytest.mark.parametrize(("diff", "expected"), VALID_DIFFS)
+    def test_complete_path_union_uses_counted_hunks(diff: str, expected: tuple[str, ...]) -> None:
+>       assert PatchVerifier._changed_paths(diff) == expected
+E       AssertionError: assert ('calc.py', 'new.py') == ('old.py', 'c...py', 'new.py')
+E         
+E         At index 0 diff: 'calc.py' != 'old.py'
+E         Right contains one more item: 'new.py'
+E         Use -v to get more diff
+
+tests/integration/test_patch_path_protection.py:89: AssertionError
+_ test_complete_path_union_uses_counted_hunks[counted-header-looking-payload] __
+
+diff = '--- a/docs/example.txt\n+++ b/docs/example.txt\n@@ -1 +1 @@\n--- a/src/siro/core/authorization.py\n+++ b/docs/other.txt\n'
+expected = ('docs/example.txt',)
+
+    @pytest.mark.parametrize(("diff", "expected"), VALID_DIFFS)
+    def test_complete_path_union_uses_counted_hunks(diff: str, expected: tuple[str, ...]) -> None:
+>       assert PatchVerifier._changed_paths(diff) == expected
+E       AssertionError: assert ('docs/exampl...cs/other.txt') == ('docs/example.txt',)
+E         
+E         Left contains one more item: 'docs/other.txt'
+E         Use -v to get more diff
+
+tests/integration/test_patch_path_protection.py:89: AssertionError
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[orphan-new-header] _
+
+diff = '+++ b/calc.py\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2e5b360>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2d30590>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_0'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+____ test_ambiguous_or_unsupported_diff_rejected_before_any_work[no-hunks] _____
+
+diff = '--- a/calc.py\n+++ b/calc.py\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2e5b6f0>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2e8e5d0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_1'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[git-identity-conflict] _
+
+diff = 'diff --git a/other.py b/other.py\n--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2e97890>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2e8f890>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_2'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[rename-source-conflict] _
+
+diff = 'diff --git a/old.py b/new.py\nsimilarity index 50%\nrename from x.py\nrename to new.py\n--- a/old.py\n+++ b/new.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2e9f240>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2e5bce0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_3'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[incomplete-rename] _
+
+diff = 'diff --git a/old.py b/new.py\nsimilarity index 50%\nrename from old.py\n--- a/old.py\n+++ b/new.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2e9f460>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2df0180>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_4'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[mixed-binary-marker] _
+
+diff = '--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\nGIT binary patch\nliteral 5\nabc\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2d4d750>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2e9f680>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_6'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+__ test_ambiguous_or_unsupported_diff_rejected_before_any_work[copy-metadata] __
+
+diff = 'diff --git a/old.py b/new.py\ncopy from old.py\ncopy to new.py\n--- a/new.py\n+++ b/new.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_7')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2decc80>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2e9f8a0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_7'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[old-header-timestamp] _
+
+diff = '--- a/calc.py\t2026-10-10\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_9')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2d1a270>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2d4e550>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_9'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[new-header-timestamp] _
+
+diff = '--- a/calc.py\n+++ b/calc.py\t2026-10-10\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_10')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2d1add0>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2deeb70>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_10'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+__ test_ambiguous_or_unsupported_diff_rejected_before_any_work[quoted-header] __
+
+diff = '--- "a/calc.py"\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_11')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2daa270>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2def980>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_11'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+___ test_ambiguous_or_unsupported_diff_rejected_before_any_work[space-path] ____
+
+diff = '--- a/space file.py\n+++ b/space file.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_12')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2e79550>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2d1ba10>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_12'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[nested-git-metadata] _
+
+diff = '--- a/nested/.git/config\n+++ b/nested/.git/config\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_16')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2d2e210>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2e7a5d0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_16'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[leading-dot-alias] _
+
+diff = '--- a/./src/siro/core/authorization.py\n+++ b/./src/siro/core/authorization.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_17')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2d2e490>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2dc8c00>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_17'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[inner-dot-alias] _
+
+diff = '--- a/src/siro/core/./authorization.py\n+++ b/src/siro/core/./authorization.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_18')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f385ef90>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2dc95a0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_18'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[double-slash-alias] _
+
+diff = '--- a/src//siro/core/authorization.py\n+++ b/src//siro/core/authorization.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_19')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2dd1d50>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2d2ea30>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_19'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+__ test_ambiguous_or_unsupported_diff_rejected_before_any_work[dot-git-alias] __
+
+diff = '--- a/./.git/config\n+++ b/./.git/config\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_20')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2dd23d0>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2d2ecb0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_20'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+__ test_ambiguous_or_unsupported_diff_rejected_before_any_work[escaped-path] ___
+
+diff = '--- a/escaped\\040file.py\n+++ b/escaped\\040file.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_21')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2dc7e00>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2ee79b0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_21'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[truncated-hunk] __
+
+diff = '--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,2 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_22')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2dc7310>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2dd3250>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_22'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[unconsumed-content] _
+
+diff = '--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\nnot a diff line\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_23')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c45550>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2dd3bd0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_23'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[extra-new-header] _
+
+diff = '--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n+++ b/ghost.py\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_24')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c44440>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2c45be0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_24'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[invalid-hunk-prefix] _
+
+diff = '--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\nVALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_25')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c46430>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2c465f0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_25'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[oversized-count] _
+
+diff = '--- a/calc.py\n+++ b/calc.py\n@@ -1,999999999999 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_26')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c470e0>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2d61d90>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_26'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_ambiguous_or_unsupported_diff_rejected_before_any_work[trailing-slash] __
+
+diff = '--- a/calc.py/\n+++ b/calc.py/\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_28')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c478c0>
+
+    @pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+    def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+        diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail(
+                "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+            )
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2dda850>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_ambiguous_or_unsupported_28'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+E       Failed: invalid diff must not inspect/copy source, create workspace, apply or run checks
+
+tests/integration/test_patch_path_protection.py:165: Failed
+_ test_protected_source_or_destination_rejected_before_apply_or_checks[--- a/src/siro/core/authorization.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n-expected0] _
+
+diff = '--- a/src/siro/core/authorization.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n'
+expected = ('src/siro/core/authorization.py',)
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c47a80>
+
+    @pytest.mark.parametrize(
+        ("diff", "expected"),
+        [
+            (deletion(POLICY), (POLICY,)),
+            (deletion(CONFIG), (CONFIG,)),
+            (deletion(POLICY) + modification(), (POLICY, "calc.py")),
+            (rename(POLICY, "scratch.py"), (POLICY, "scratch.py")),
+            (rename("scratch.py", POLICY), ("scratch.py", POLICY)),
+            (rename(CONFIG, "scratch.py"), (CONFIG, "scratch.py")),
+            (rename("scratch.py", CONFIG), ("scratch.py", CONFIG)),
+        ],
+    )
+    def test_protected_source_or_destination_rejected_before_apply_or_checks(
+        diff: str, expected: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail("protected paths must be rejected before copy/apply/checks")
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+        report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+>       assert report.status == "rejected_policy_change"
+E       AssertionError: assert 'rejected_invalid_diff' == 'rejected_policy_change'
+E         
+E         - rejected_policy_change
+E         + rejected_invalid_diff
+
+tests/integration/test_patch_path_protection.py:201: AssertionError
+_ test_protected_source_or_destination_rejected_before_apply_or_checks[--- a/src/siro/config.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n-expected1] _
+
+diff = '--- a/src/siro/config.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n'
+expected = ('src/siro/config.py',)
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c462e0>
+
+    @pytest.mark.parametrize(
+        ("diff", "expected"),
+        [
+            (deletion(POLICY), (POLICY,)),
+            (deletion(CONFIG), (CONFIG,)),
+            (deletion(POLICY) + modification(), (POLICY, "calc.py")),
+            (rename(POLICY, "scratch.py"), (POLICY, "scratch.py")),
+            (rename("scratch.py", POLICY), ("scratch.py", POLICY)),
+            (rename(CONFIG, "scratch.py"), (CONFIG, "scratch.py")),
+            (rename("scratch.py", CONFIG), ("scratch.py", CONFIG)),
+        ],
+    )
+    def test_protected_source_or_destination_rejected_before_apply_or_checks(
+        diff: str, expected: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail("protected paths must be rejected before copy/apply/checks")
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+        report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+>       assert report.status == "rejected_policy_change"
+E       AssertionError: assert 'rejected_invalid_diff' == 'rejected_policy_change'
+E         
+E         - rejected_policy_change
+E         + rejected_invalid_diff
+
+tests/integration/test_patch_path_protection.py:201: AssertionError
+_ test_protected_source_or_destination_rejected_before_apply_or_checks[--- a/src/siro/core/authorization.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected2] _
+
+diff = '--- a/src/siro/core/authorization.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+expected = ('src/siro/core/authorization.py', 'calc.py')
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c46820>
+
+    @pytest.mark.parametrize(
+        ("diff", "expected"),
+        [
+            (deletion(POLICY), (POLICY,)),
+            (deletion(CONFIG), (CONFIG,)),
+            (deletion(POLICY) + modification(), (POLICY, "calc.py")),
+            (rename(POLICY, "scratch.py"), (POLICY, "scratch.py")),
+            (rename("scratch.py", POLICY), ("scratch.py", POLICY)),
+            (rename(CONFIG, "scratch.py"), (CONFIG, "scratch.py")),
+            (rename("scratch.py", CONFIG), ("scratch.py", CONFIG)),
+        ],
+    )
+    def test_protected_source_or_destination_rejected_before_apply_or_checks(
+        diff: str, expected: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail("protected paths must be rejected before copy/apply/checks")
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2ddacb0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti2'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail("protected paths must be rejected before copy/apply/checks")
+E       Failed: protected paths must be rejected before copy/apply/checks
+
+tests/integration/test_patch_path_protection.py:195: Failed
+_ test_protected_source_or_destination_rejected_before_apply_or_checks[diff --git a/src/siro/core/authorization.py b/scratch.py\nsimilarity index 50%\nrename from src/siro/core/authorization.py\nrename to scratch.py\n--- a/src/siro/core/authorization.py\n+++ b/scratch.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected3] _
+
+diff = 'diff --git a/src/siro/core/authorization.py b/scratch.py\nsimilarity index 50%\nrename from src/siro/core/authorizati...y\nrename to scratch.py\n--- a/src/siro/core/authorization.py\n+++ b/scratch.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+expected = ('src/siro/core/authorization.py', 'scratch.py')
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c39940>
+
+    @pytest.mark.parametrize(
+        ("diff", "expected"),
+        [
+            (deletion(POLICY), (POLICY,)),
+            (deletion(CONFIG), (CONFIG,)),
+            (deletion(POLICY) + modification(), (POLICY, "calc.py")),
+            (rename(POLICY, "scratch.py"), (POLICY, "scratch.py")),
+            (rename("scratch.py", POLICY), ("scratch.py", POLICY)),
+            (rename(CONFIG, "scratch.py"), (CONFIG, "scratch.py")),
+            (rename("scratch.py", CONFIG), ("scratch.py", CONFIG)),
+        ],
+    )
+    def test_protected_source_or_destination_rejected_before_apply_or_checks(
+        diff: str, expected: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail("protected paths must be rejected before copy/apply/checks")
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2ddb700>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti3'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail("protected paths must be rejected before copy/apply/checks")
+E       Failed: protected paths must be rejected before copy/apply/checks
+
+tests/integration/test_patch_path_protection.py:195: Failed
+_ test_protected_source_or_destination_rejected_before_apply_or_checks[diff --git a/scratch.py b/src/siro/core/authorization.py\nsimilarity index 50%\nrename from scratch.py\nrename to src/siro/core/authorization.py\n--- a/scratch.py\n+++ b/src/siro/core/authorization.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected4] _
+
+diff = 'diff --git a/scratch.py b/src/siro/core/authorization.py\nsimilarity index 50%\nrename from scratch.py\nrename to src...o/core/authorization.py\n--- a/scratch.py\n+++ b/src/siro/core/authorization.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+expected = ('scratch.py', 'src/siro/core/authorization.py')
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c3a5f0>
+
+    @pytest.mark.parametrize(
+        ("diff", "expected"),
+        [
+            (deletion(POLICY), (POLICY,)),
+            (deletion(CONFIG), (CONFIG,)),
+            (deletion(POLICY) + modification(), (POLICY, "calc.py")),
+            (rename(POLICY, "scratch.py"), (POLICY, "scratch.py")),
+            (rename("scratch.py", POLICY), ("scratch.py", POLICY)),
+            (rename(CONFIG, "scratch.py"), (CONFIG, "scratch.py")),
+            (rename("scratch.py", CONFIG), ("scratch.py", CONFIG)),
+        ],
+    )
+    def test_protected_source_or_destination_rejected_before_apply_or_checks(
+        diff: str, expected: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail("protected paths must be rejected before copy/apply/checks")
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+        report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+        assert report.status == "rejected_policy_change"
+>       assert report.changed_paths == expected
+E       AssertionError: assert ('src/siro/co...rization.py',) == ('scratch.py'...orization.py')
+E         
+E         At index 0 diff: 'src/siro/core/authorization.py' != 'scratch.py'
+E         Right contains one more item: 'src/siro/core/authorization.py'
+E         Use -v to get more diff
+
+tests/integration/test_patch_path_protection.py:202: AssertionError
+_ test_protected_source_or_destination_rejected_before_apply_or_checks[diff --git a/src/siro/config.py b/scratch.py\nsimilarity index 50%\nrename from src/siro/config.py\nrename to scratch.py\n--- a/src/siro/config.py\n+++ b/scratch.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected5] _
+
+diff = 'diff --git a/src/siro/config.py b/scratch.py\nsimilarity index 50%\nrename from src/siro/config.py\nrename to scratch.py\n--- a/src/siro/config.py\n+++ b/scratch.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+expected = ('src/siro/config.py', 'scratch.py')
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c3add0>
+
+    @pytest.mark.parametrize(
+        ("diff", "expected"),
+        [
+            (deletion(POLICY), (POLICY,)),
+            (deletion(CONFIG), (CONFIG,)),
+            (deletion(POLICY) + modification(), (POLICY, "calc.py")),
+            (rename(POLICY, "scratch.py"), (POLICY, "scratch.py")),
+            (rename("scratch.py", POLICY), ("scratch.py", POLICY)),
+            (rename(CONFIG, "scratch.py"), (CONFIG, "scratch.py")),
+            (rename("scratch.py", CONFIG), ("scratch.py", CONFIG)),
+        ],
+    )
+    def test_protected_source_or_destination_rejected_before_apply_or_checks(
+        diff: str, expected: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail("protected paths must be rejected before copy/apply/checks")
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+>       report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_patch_path_protection.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/evolution.py:51: in verify
+    before = self._tree_digest(root)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<siro.core.evolution.PatchVerifier object at 0x77b8f2ddb5c0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti5'))
+kwargs = {}
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+>       pytest.fail("protected paths must be rejected before copy/apply/checks")
+E       Failed: protected paths must be rejected before copy/apply/checks
+
+tests/integration/test_patch_path_protection.py:195: Failed
+_ test_protected_source_or_destination_rejected_before_apply_or_checks[diff --git a/scratch.py b/src/siro/config.py\nsimilarity index 50%\nrename from scratch.py\nrename to src/siro/config.py\n--- a/scratch.py\n+++ b/src/siro/config.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected6] _
+
+diff = 'diff --git a/scratch.py b/src/siro/config.py\nsimilarity index 50%\nrename from scratch.py\nrename to src/siro/config.py\n--- a/scratch.py\n+++ b/src/siro/config.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+expected = ('scratch.py', 'src/siro/config.py')
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_protected_source_or_desti6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c3b700>
+
+    @pytest.mark.parametrize(
+        ("diff", "expected"),
+        [
+            (deletion(POLICY), (POLICY,)),
+            (deletion(CONFIG), (CONFIG,)),
+            (deletion(POLICY) + modification(), (POLICY, "calc.py")),
+            (rename(POLICY, "scratch.py"), (POLICY, "scratch.py")),
+            (rename("scratch.py", POLICY), ("scratch.py", POLICY)),
+            (rename(CONFIG, "scratch.py"), (CONFIG, "scratch.py")),
+            (rename("scratch.py", CONFIG), ("scratch.py", CONFIG)),
+        ],
+    )
+    def test_protected_source_or_destination_rejected_before_apply_or_checks(
+        diff: str, expected: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def forbidden(*args: object, **kwargs: object) -> object:
+            pytest.fail("protected paths must be rejected before copy/apply/checks")
+    
+        monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+        monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+        monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+        report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+        assert report.status == "rejected_policy_change"
+>       assert report.changed_paths == expected
+E       AssertionError: assert ('src/siro/config.py',) == ('scratch.py'...ro/config.py')
+E         
+E         At index 0 diff: 'src/siro/config.py' != 'scratch.py'
+E         Right contains one more item: 'src/siro/config.py'
+E         Use -v to get more diff
+
+tests/integration/test_patch_path_protection.py:202: AssertionError
+_ test_supported_patch_checks_copy_only_and_remove_workspace[--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n-expected3-from pathlib import Path; assert not Path('old.py').exists()-passed] _
+
+diff = '--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n'
+expected = ('old.py',)
+check = "from pathlib import Path; assert not Path('old.py').exists()"
+status = 'passed'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_supported_patch_checks_co3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c3b9a0>
+
+    @pytest.mark.parametrize(
+        ("diff", "expected", "check", "status"),
+        [
+            (modification(), ("calc.py",), "from calc import VALUE; assert VALUE == 2", "passed"),
+            (
+                modification(),
+                ("calc.py",),
+                "from calc import VALUE; assert VALUE == 3",
+                "failed_checks",
+            ),
+            (addition("new.py"), ("new.py",), "from new import VALUE; assert VALUE == 2", "passed"),
+            (
+                deletion("old.py"),
+                ("old.py",),
+                "from pathlib import Path; assert not Path('old.py').exists()",
+                "passed",
+            ),
+            (
+                rename("old.py", "new.py"),
+                ("old.py", "new.py"),
+                "from new import VALUE; from pathlib import Path; "
+                "assert VALUE == 2 and not Path('old.py').exists()",
+                "passed",
+            ),
+        ],
+    )
+    def test_supported_patch_checks_copy_only_and_remove_workspace(
+        diff: str,
+        expected: tuple[str, ...],
+        check: str,
+        status: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        root = tmp_path / "source"
+        root.mkdir()
+        (root / "calc.py").write_text("VALUE = 1\n", encoding="utf-8")
+        (root / "old.py").write_text("VALUE = 1\n", encoding="utf-8")
+        before = {p.name: p.read_bytes() for p in root.iterdir()}
+        workspaces: list[Path] = []
+        original_mkdtemp = tempfile.mkdtemp
+    
+        def record_workspace(*args: object, **kwargs: object) -> str:
+            path = original_mkdtemp(prefix="siro-test-patch-", dir=tmp_path)
+            workspaces.append(Path(path))
+            return path
+    
+        monkeypatch.setattr(tempfile, "mkdtemp", record_workspace)
+        report = PatchVerifier(((sys.executable, "-c", check),)).verify(root, proposal(diff))
+>       assert report.status == status
+E       AssertionError: assert 'rejected_invalid_diff' == 'passed'
+E         
+E         - passed
+E         + rejected_invalid_diff
+
+tests/integration/test_patch_path_protection.py:256: AssertionError
+_ test_supported_patch_checks_copy_only_and_remove_workspace[diff --git a/old.py b/new.py\nsimilarity index 50%\nrename from old.py\nrename to new.py\n--- a/old.py\n+++ b/new.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected4-from new import VALUE; from pathlib import Path; assert VALUE == 2 and not Path('old.py').exists()-passed] _
+
+diff = 'diff --git a/old.py b/new.py\nsimilarity index 50%\nrename from old.py\nrename to new.py\n--- a/old.py\n+++ b/new.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n'
+expected = ('old.py', 'new.py')
+check = "from new import VALUE; from pathlib import Path; assert VALUE == 2 and not Path('old.py').exists()"
+status = 'passed'
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-31/test_supported_patch_checks_co4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77b8f2c3b620>
+
+    @pytest.mark.parametrize(
+        ("diff", "expected", "check", "status"),
+        [
+            (modification(), ("calc.py",), "from calc import VALUE; assert VALUE == 2", "passed"),
+            (
+                modification(),
+                ("calc.py",),
+                "from calc import VALUE; assert VALUE == 3",
+                "failed_checks",
+            ),
+            (addition("new.py"), ("new.py",), "from new import VALUE; assert VALUE == 2", "passed"),
+            (
+                deletion("old.py"),
+                ("old.py",),
+                "from pathlib import Path; assert not Path('old.py').exists()",
+                "passed",
+            ),
+            (
+                rename("old.py", "new.py"),
+                ("old.py", "new.py"),
+                "from new import VALUE; from pathlib import Path; "
+                "assert VALUE == 2 and not Path('old.py').exists()",
+                "passed",
+            ),
+        ],
+    )
+    def test_supported_patch_checks_copy_only_and_remove_workspace(
+        diff: str,
+        expected: tuple[str, ...],
+        check: str,
+        status: str,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        root = tmp_path / "source"
+        root.mkdir()
+        (root / "calc.py").write_text("VALUE = 1\n", encoding="utf-8")
+        (root / "old.py").write_text("VALUE = 1\n", encoding="utf-8")
+        before = {p.name: p.read_bytes() for p in root.iterdir()}
+        workspaces: list[Path] = []
+        original_mkdtemp = tempfile.mkdtemp
+    
+        def record_workspace(*args: object, **kwargs: object) -> str:
+            path = original_mkdtemp(prefix="siro-test-patch-", dir=tmp_path)
+            workspaces.append(Path(path))
+            return path
+    
+        monkeypatch.setattr(tempfile, "mkdtemp", record_workspace)
+        report = PatchVerifier(((sys.executable, "-c", check),)).verify(root, proposal(diff))
+        assert report.status == status
+>       assert report.changed_paths == expected
+E       AssertionError: assert ('new.py',) == ('old.py', 'new.py')
+E         
+E         At index 0 diff: 'new.py' != 'old.py'
+E         Right contains one more item: 'new.py'
+E         Use -v to get more diff
+
+tests/integration/test_patch_path_protection.py:257: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_patch_path_protection.py::test_complete_path_union_uses_counted_hunks[plain-delete]
+FAILED tests/integration/test_patch_path_protection.py::test_complete_path_union_uses_counted_hunks[git-delete]
+FAILED tests/integration/test_patch_path_protection.py::test_complete_path_union_uses_counted_hunks[git-rename-content]
+FAILED tests/integration/test_patch_path_protection.py::test_complete_path_union_uses_counted_hunks[first-seen-union]
+FAILED tests/integration/test_patch_path_protection.py::test_complete_path_union_uses_counted_hunks[counted-header-looking-payload]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[orphan-new-header]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[no-hunks]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[git-identity-conflict]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[rename-source-conflict]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[incomplete-rename]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[mixed-binary-marker]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[copy-metadata]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[old-header-timestamp]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[new-header-timestamp]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[quoted-header]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[space-path]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[nested-git-metadata]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[leading-dot-alias]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[inner-dot-alias]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[double-slash-alias]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[dot-git-alias]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[escaped-path]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[truncated-hunk]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[unconsumed-content]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[extra-new-header]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[invalid-hunk-prefix]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[oversized-count]
+FAILED tests/integration/test_patch_path_protection.py::test_ambiguous_or_unsupported_diff_rejected_before_any_work[trailing-slash]
+FAILED tests/integration/test_patch_path_protection.py::test_protected_source_or_destination_rejected_before_apply_or_checks[--- a/src/siro/core/authorization.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n-expected0]
+FAILED tests/integration/test_patch_path_protection.py::test_protected_source_or_destination_rejected_before_apply_or_checks[--- a/src/siro/config.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n-expected1]
+FAILED tests/integration/test_patch_path_protection.py::test_protected_source_or_destination_rejected_before_apply_or_checks[--- a/src/siro/core/authorization.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected2]
+FAILED tests/integration/test_patch_path_protection.py::test_protected_source_or_destination_rejected_before_apply_or_checks[diff --git a/src/siro/core/authorization.py b/scratch.py\nsimilarity index 50%\nrename from src/siro/core/authorization.py\nrename to scratch.py\n--- a/src/siro/core/authorization.py\n+++ b/scratch.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected3]
+FAILED tests/integration/test_patch_path_protection.py::test_protected_source_or_destination_rejected_before_apply_or_checks[diff --git a/scratch.py b/src/siro/core/authorization.py\nsimilarity index 50%\nrename from scratch.py\nrename to src/siro/core/authorization.py\n--- a/scratch.py\n+++ b/src/siro/core/authorization.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected4]
+FAILED tests/integration/test_patch_path_protection.py::test_protected_source_or_destination_rejected_before_apply_or_checks[diff --git a/src/siro/config.py b/scratch.py\nsimilarity index 50%\nrename from src/siro/config.py\nrename to scratch.py\n--- a/src/siro/config.py\n+++ b/scratch.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected5]
+FAILED tests/integration/test_patch_path_protection.py::test_protected_source_or_destination_rejected_before_apply_or_checks[diff --git a/scratch.py b/src/siro/config.py\nsimilarity index 50%\nrename from scratch.py\nrename to src/siro/config.py\n--- a/scratch.py\n+++ b/src/siro/config.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected6]
+FAILED tests/integration/test_patch_path_protection.py::test_supported_patch_checks_copy_only_and_remove_workspace[--- a/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n-expected3-from pathlib import Path; assert not Path('old.py').exists()-passed]
+FAILED tests/integration/test_patch_path_protection.py::test_supported_patch_checks_copy_only_and_remove_workspace[diff --git a/old.py b/new.py\nsimilarity index 50%\nrename from old.py\nrename to new.py\n--- a/old.py\n+++ b/new.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n-expected4-from new import VALUE; from pathlib import Path; assert VALUE == 2 and not Path('old.py').exists()-passed]
+37 failed, 14 passed in 0.49s

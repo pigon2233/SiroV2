@@ -1,0 +1,1737 @@
+--- a/src/siro/cli.py
++++ b/src/siro/cli.py
+@@ -82,7 +82,9 @@
+ 
+ 
+ def _demo(arguments: argparse.Namespace) -> int:
+-    return asyncio.run(_run_demo(arguments))
++    return asyncio.run(
++        _run_demo(arguments), loop_factory=getattr(arguments, "_data_loop_factory", None)
++    )
+ 
+ 
+ def _doctor(arguments: argparse.Namespace) -> int:
+@@ -239,11 +241,15 @@
+ 
+ 
+ def _backup(arguments: argparse.Namespace) -> int:
+-    return asyncio.run(_backup_data(arguments))
++    return asyncio.run(
++        _backup_data(arguments), loop_factory=getattr(arguments, "_data_loop_factory", None)
++    )
+ 
+ 
+ def _restore(arguments: argparse.Namespace) -> int:
+-    return asyncio.run(_restore_data(arguments))
++    return asyncio.run(
++        _restore_data(arguments), loop_factory=getattr(arguments, "_data_loop_factory", None)
++    )
+ 
+ 
+ def _install(arguments: argparse.Namespace) -> int:
+@@ -370,6 +376,42 @@
+ 
+     parser = build_parser()
+     arguments = parser.parse_args(argv)
++    from siro.adapters.data_ownership import (
++        DataOwnerBusyError,
++        DataOwnerUnavailableError,
++        exclusive_data_owner,
++    )
++
++    database = None
++    if arguments.command in {"demo", "backup", "restore"}:
++        database = Path(arguments.data) / "siro.db"
++    elif arguments.command == "release" and arguments.database:
++        database = Path(arguments.database)
++    if database is not None:
++        try:
++            write_target = None
++            if arguments.command == "backup":
++                write_target = Path(arguments.destination)
++                inputs = [database]
++                if arguments.config:
++                    inputs.append(Path(arguments.config))
++                if any(write_target.resolve() == path.resolve() for path in inputs):
++                    print(json.dumps({"status": "invalid_backup_destination"}))
++                    return 1
++            elif arguments.command == "restore" and arguments.config:
++                write_target = Path(arguments.config)
++                if write_target.resolve() in {database.resolve(), Path(arguments.source).resolve()}:
++                    print(json.dumps({"status": "invalid_restore_configuration"}))
++                    return 1
++            with exclusive_data_owner(database, write_target=write_target) as owner:
++                arguments._data_loop_factory = owner.loop_factory
++                return int(arguments.handler(arguments))
++        except DataOwnerBusyError:
++            print(json.dumps({"status": "data_in_use"}))
++            return 1
++        except DataOwnerUnavailableError:
++            print(json.dumps({"status": "data_owner_unavailable"}))
++            return 1
+     return int(arguments.handler(arguments))
+ 
+ 
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -1331,6 +1331,21 @@
+ 
+ 
+ def main() -> None:
++    from siro.adapters.data_ownership import (
++        DataOwnerBusyError,
++        DataOwnerUnavailableError,
++        exclusive_data_owner,
++    )
++
++    data_dir = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
++    try:
++        with exclusive_data_owner(data_dir / "siro.db") as owner:
++            _run_gateway(data_dir, owner.loop_factory)
++    except (DataOwnerBusyError, DataOwnerUnavailableError) as error:
++        raise SystemExit(str(error)) from None
++
++
++def _run_gateway(data_dir: Path, loop_factory: Callable[[], asyncio.AbstractEventLoop]) -> None:
+     import uvicorn
+ 
+     from siro.adapters.body.web import MinimalWebBodyAdapter
+@@ -1440,7 +1455,6 @@
+                 token_budget=token_budget,
+                 summary_enabled=summary_enabled,
+             )
+-    data_dir = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
+     state = GatewayState()
+     state.routes["model"] = backend
+     state.kill_switches["cloud"] = privacy is ModelPrivacy.CLOUD_ALLOWED
+@@ -1474,7 +1488,7 @@
+         state.routes["tts"] = "edge:zh-TW-HsiaoChenNeural"
+     state.routes["audio"] = "groq:whisper-large-v3-turbo" if speech_to_text else "disabled"
+     shared_store = SQLiteStore(data_dir / "siro.db")
+-    asyncio.run(shared_store.initialize())
++    asyncio.run(shared_store.initialize(), loop_factory=loop_factory)
+     memory_service = MemoryService(SQLiteMemoryRepository(shared_store))
+ 
+     from siro.services.tools.browser_session import BrowserSessions
+@@ -1987,4 +2001,6 @@
+         port=port,
+         log_level="info",
+         log_config=None if log_directory else uvicorn.config.LOGGING_CONFIG,
++        # Uvicorn's importer accepts this callable; its published loop annotation is narrower.
++        loop=loop_factory,  # type: ignore[arg-type]
+     )
+--- /dev/null
++++ b/src/siro/adapters/data_ownership.py
+@@ -0,0 +1,173 @@
++"""Local Linux coordination for managed data operations and their blocking IO."""
++
++from __future__ import annotations
++
++import asyncio
++import hashlib
++import os
++import stat
++import sys
++import threading
++from collections.abc import Iterator
++from concurrent.futures import ThreadPoolExecutor
++from contextlib import contextmanager
++from pathlib import Path
++
++
++class DataOwnerBusyError(RuntimeError):
++    def __init__(self) -> None:
++        super().__init__("SIRO data is already in use")
++
++
++class DataOwnerUnavailableError(RuntimeError):
++    def __init__(self) -> None:
++        super().__init__("SIRO data ownership is unavailable")
++
++
++def _owner_directory() -> Path:
++    import pwd
++
++    return Path(pwd.getpwuid(os.geteuid()).pw_dir) / ".local/state/siro/data-owners"
++
++
++class _DataOwner:
++    def __init__(self, descriptors: list[int]) -> None:
++        self._descriptors = descriptors
++        self._executors: list[ThreadPoolExecutor] = []
++        self._closed = False
++
++    def loop_factory(self) -> asyncio.AbstractEventLoop:
++        if self._closed:
++            raise DataOwnerUnavailableError
++        loop = asyncio.new_event_loop()
++        executor = ThreadPoolExecutor(thread_name_prefix="siro-owned-data")
++        try:
++            loop.set_default_executor(executor)
++        except BaseException:
++            executor.shutdown(wait=True)
++            loop.close()
++            raise
++        self._executors.append(executor)
++        asyncio.set_event_loop(loop)
++        return loop
++
++    def _finish(self) -> bool:
++        if self._closed:
++            return False
++        interrupted = False
++        if self._executors:
++            done = threading.Event()
++            failures: list[BaseException] = []
++
++            def join_io() -> None:
++                try:
++                    for executor in self._executors:
++                        executor.shutdown(wait=True, cancel_futures=True)
++                except BaseException as error:
++                    failures.append(error)
++                finally:
++                    done.set()
++
++            worker = threading.Thread(target=join_io, name="siro-data-io-join")
++            worker.start()
++            while not done.is_set():
++                try:
++                    done.wait()
++                except KeyboardInterrupt:
++                    interrupted = True
++            while True:
++                try:
++                    worker.join()
++                    break
++                except KeyboardInterrupt:
++                    interrupted = True
++            if failures:
++                # Unknown IO completion keeps the fd held until this process exits.
++                raise DataOwnerUnavailableError from failures[0]
++            asyncio.set_event_loop(None)
++        close_failures: list[OSError] = []
++        for descriptor in self._descriptors:
++            try:
++                os.close(descriptor)
++            except OSError as error:
++                close_failures.append(error)
++        if close_failures:
++            raise DataOwnerUnavailableError from close_failures[0]
++        self._closed = True
++        return interrupted
++
++
++@contextmanager
++def exclusive_data_owner(
++    database: Path, *, write_target: Path | None = None
++) -> Iterator[_DataOwner]:
++    """Hold one operation's stable advisory keys until all its blocking IO joins."""
++    if sys.platform != "linux":
++        raise DataOwnerUnavailableError
++    import fcntl
++
++    try:
++        requested = (database,) if write_target is None else (database, write_target)
++        canonical_paths = sorted({path.resolve() for path in requested}, key=os.fsencode)
++        directory = _owner_directory()
++        directory.mkdir(parents=True, mode=0o700, exist_ok=True)
++        info = directory.lstat()
++        if (
++            not stat.S_ISDIR(info.st_mode)
++            or info.st_uid != os.geteuid()
++            or stat.S_IMODE(info.st_mode) != 0o700
++        ):
++            raise DataOwnerUnavailableError
++    except (OSError, KeyError) as error:
++        raise DataOwnerUnavailableError from error
++    descriptors: list[int] = []
++    owner = _DataOwner(descriptors)
++    try:
++        for canonical in canonical_paths:
++            try:
++                info = canonical.stat()
++            except FileNotFoundError:
++                pass
++            else:
++                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
++                    raise DataOwnerUnavailableError
++            key = hashlib.sha256(os.fsencode(canonical)).hexdigest() + ".lock"
++            lock = directory / key
++            descriptor = os.open(
++                lock, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600
++            )
++            descriptors.append(descriptor)
++            info = os.fstat(descriptor)
++            if (
++                not stat.S_ISREG(info.st_mode)
++                or info.st_nlink != 1
++                or info.st_uid != os.geteuid()
++                or stat.S_IMODE(info.st_mode) != 0o600
++            ):
++                raise DataOwnerUnavailableError
++            try:
++                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
++            except BlockingIOError as error:
++                raise DataOwnerBusyError from error
++            current = lock.lstat()
++            if (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino):
++                raise DataOwnerUnavailableError
++    except BaseException as error:
++        try:
++            owner._finish()
++        except BaseException as cleanup_error:
++            error.add_note(f"data owner cleanup failed: {type(cleanup_error).__name__}")
++        if isinstance(error, OSError):
++            raise DataOwnerUnavailableError from error
++        raise
++    try:
++        yield owner
++    except BaseException as error:
++        try:
++            owner._finish()
++        except BaseException as cleanup_error:
++            error.add_note(f"data owner cleanup failed: {type(cleanup_error).__name__}")
++        raise
++    else:
++        if owner._finish():
++            raise KeyboardInterrupt
+--- /dev/null
++++ b/tests/integration/test_data_owner_callers.py
+@@ -0,0 +1,593 @@
++from __future__ import annotations
++
++import fcntl
++import hashlib
++import hmac
++import json
++import os
++import signal
++import socket
++import sqlite3
++import subprocess
++import sys
++import time
++import urllib.error
++import urllib.request
++import zipfile
++from collections.abc import Iterator
++from contextlib import closing, contextmanager
++from pathlib import Path
++from types import SimpleNamespace
++from typing import Any
++
++import pytest
++
++from siro.cli import main
++from siro.config import SiroSettings
++from siro.core.releases import ReleaseManager, ReleaseManifest
++from siro.persistence.sqlite import SQLiteStore, apply_migrations, load_migrations
++
++KEY = b"synthetic-d50-owner-key"
++
++
++def seed(path: Path, value: str) -> None:
++    with closing(sqlite3.connect(path)) as connection, connection:
++        apply_migrations(connection, load_migrations())
++        connection.execute("CREATE TABLE owner_fixture(value TEXT)")
++        connection.execute("INSERT INTO owner_fixture VALUES (?)", (value,))
++        connection.execute(
++            "INSERT INTO inbox(consumer_id,event_id,processed_at) "
++            "VALUES ('completed',?,'synthetic')",
++            (value,),
++        )
++
++
++def dump(path: Path) -> tuple[str, ...]:
++    with closing(sqlite3.connect(path)) as connection:
++        return tuple(connection.iterdump())
++
++
++def tree(path: Path) -> dict[str, bytes]:
++    return {str(p.relative_to(path)): p.read_bytes() for p in path.rglob("*") if p.is_file()}
++
++
++@contextmanager
++def kernel_owner(database: Path, home: Path) -> Iterator[Path]:
++    """Independent OS holder of the documented coordination key; no adapter fallback."""
++    domain = home / ".local/state/siro/data-owners"
++    domain.mkdir(parents=True, mode=0o700, exist_ok=True)
++    name = hashlib.sha256(str(database.resolve()).encode()).hexdigest() + ".lock"
++    path = domain / name
++    descriptor = os.open(path, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o600)
++    try:
++        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
++        yield path
++    finally:
++        os.close(descriptor)
++
++
++@pytest.fixture
++def account(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
++    import pwd
++
++    home = tmp_path / "synthetic-home"
++    monkeypatch.setattr(pwd, "getpwuid", lambda _uid: SimpleNamespace(pw_dir=str(home)))
++    monkeypatch.setenv("SIRO_RELEASE_SIGNING_KEY", KEY.decode())
++    return home
++
++
++def signed(bundle: Path, version: str) -> ReleaseManifest:
++    values: dict[str, Any] = {
++        "version": version,
++        "source_sha256": ReleaseManager._digest(bundle),
++        "min_schema": 1,
++        "max_schema": len(load_migrations()),
++        "signing_format": "siro-release-manifest-v1",
++    }
++    wire = json.dumps(values, sort_keys=True, separators=(",", ":")).encode()
++    values["signature"] = hmac.new(KEY, wire, hashlib.sha256).hexdigest()
++    return ReleaseManifest.model_validate(values)
++
++
++@pytest.mark.parametrize(
++    "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
++)
++def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
++    tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
++) -> None:
++    data = tmp_path / "data"
++    data.mkdir()
++    database, source = data / "siro.db", tmp_path / "backup.db"
++    seed(database, "latest-completed")
++    seed(source, "old-snapshot")
++    config = tmp_path / "config.json"
++    config.write_text(SiroSettings().model_dump_json())
++    release_root = tmp_path / "releases"
++    bundle = tmp_path / "bundle"
++    bundle.mkdir()
++    (bundle / "app.txt").write_text("synthetic approved application")
++    manager = ReleaseManager(
++        release_root, KEY, current_schema=len(load_migrations()), database=database
++    )
++    for version in ("1.0.0", "2.0.0"):
++        assert (
++            manager.stage_and_activate(
++                bundle, signed(bundle, version), (sys.executable, "-c", "pass")
++            ).status
++            == "activated"
++        )
++    manifest = tmp_path / "manifest.json"
++    manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
++    health_marker = tmp_path / "health-called"
++    health = json.dumps(
++        [
++            sys.executable,
++            "-c",
++            "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
++        ]
++    )
++    if command == "demo":
++        arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
++    elif command == "backup":
++        arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
++    elif command == "raw-restore":
++        arguments = ["restore", "--data", str(data), str(source)]
++    elif command == "zip-restore":
++        archive_path = tmp_path / "backup.zip"
++        content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
++        with zipfile.ZipFile(archive_path, "w") as archive:
++            for name, raw in content.items():
++                archive.writestr(name, raw)
++            archive.writestr(
++                "manifest.json",
++                json.dumps(
++                    {
++                        "format": 1,
++                        "files": {
++                            name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
++                        },
++                    }
++                ),
++            )
++        arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
++    else:
++        arguments = [
++            "release",
++            "--release-root",
++            str(release_root),
++            "--database",
++            str(database),
++            "stage" if command == "stage" else "rollback",
++        ]
++        if command == "stage":
++            arguments.extend(
++                ["--bundle", str(bundle), "--manifest", str(manifest), "--healthcheck", health]
++            )
++    before, source_before, config_before, release_before = (
++        dump(database),
++        source.read_bytes(),
++        config.read_bytes(),
++        tree(release_root),
++    )
++
++    with kernel_owner(database, account):
++        assert main(arguments) == 1
++
++    assert json.loads(capsys.readouterr().out) == {"status": "data_in_use"}
++    assert dump(database) == before and source.read_bytes() == source_before
++    assert config.read_bytes() == config_before and tree(release_root) == release_before
++    assert not health_marker.exists() and not (tmp_path / "new-backup.db").exists()
++
++
++@pytest.mark.parametrize("profile", ["legacy", "candidate"])
++def test_gateway_refuses_owner_before_sqlite_initialization_or_server(
++    tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, profile: str
++) -> None:
++    import uvicorn
++
++    from siro.services.presentation import gateway
++
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    data = tmp_path / "must-remain-absent"
++    monkeypatch.setenv("SIRO_DATA_DIR", str(data))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
++    called: list[str] = []
++
++    async def initialize(_store: SQLiteStore) -> None:
++        called.append("initialize")
++        raise AssertionError("busy owner must precede initialization")
++
++    monkeypatch.setattr(SQLiteStore, "initialize", initialize)
++    monkeypatch.setattr(uvicorn, "run", lambda *_args, **_kwargs: called.append("server"))
++    with kernel_owner(data / "siro.db", account), pytest.raises(SystemExit, match="already in use"):
++        gateway.main()
++    assert called == [] and not data.exists()
++
++
++@pytest.mark.parametrize("error", [RuntimeError("synthetic startup failure"), KeyboardInterrupt()])
++def test_gateway_owner_is_held_through_server_and_released_on_failure(
++    tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException
++) -> None:
++    import uvicorn
++
++    from siro.services.presentation import gateway
++
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path / "data"))
++    checks: list[str] = []
++
++    def run(*_args: Any, **_kwargs: Any) -> None:
++        with pytest.raises(BlockingIOError), kernel_owner(tmp_path / "data/siro.db", account):
++            checks.append("incorrectly acquired")
++        checks.append("busy while server owns")
++        raise error
++
++    monkeypatch.setattr(uvicorn, "run", run)
++    with pytest.raises(type(error)):
++        gateway.main()
++    assert checks == ["busy while server owns"]
++    with kernel_owner(tmp_path / "data/siro.db", account):
++        pass
++
++
++def test_unreadable_existing_database_is_not_treated_as_a_new_target(
++    tmp_path: Path,
++    account: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    capsys: pytest.CaptureFixture[str],
++) -> None:
++    if os.geteuid() == 0:
++        pytest.skip("actual permission denial requires an unprivileged Linux account")
++    data = tmp_path / "data"
++    data.mkdir()
++    database = data / "siro.db"
++    seed(database, "latest-completed")
++    called: list[str] = []
++
++    async def initialize(_store: SQLiteStore) -> None:
++        called.append("initialize")
++        raise AssertionError("unknown target access must refuse before any database work")
++
++    monkeypatch.setattr(SQLiteStore, "initialize", initialize)
++    data.chmod(0)
++    try:
++        assert main(["backup", "--data", str(data), str(tmp_path / "backup.db")]) == 1
++    finally:
++        data.chmod(0o700)
++    assert called == [] and not (tmp_path / "backup.db").exists()
++    assert json.loads(capsys.readouterr().out) == {"status": "data_owner_unavailable"}
++
++
++def test_owner_key_uses_actual_posix_path_bytes(tmp_path: Path, account: Path) -> None:
++    from siro.adapters.data_ownership import exclusive_data_owner
++
++    database = tmp_path / os.fsdecode(b"synthetic-\xff.db")
++    expected = hashlib.sha256(os.fsencode(database.resolve())).hexdigest() + ".lock"
++    with exclusive_data_owner(database):
++        assert (account / ".local/state/siro/data-owners" / expected).is_file()
++        assert not database.exists()
++
++
++def child_environment() -> dict[str, str]:
++    return {
++        key: value
++        for key, value in os.environ.items()
++        if not key.startswith("SIRO_") and key != "GROQ_API_KEY"
++    }
++
++
++def wait_marker(path: Path, process: subprocess.Popen[str], timeout: float = 5) -> None:
++    deadline = time.monotonic() + timeout
++    while not path.exists():
++        assert process.poll() is None, f"owned fixture exited before {path.name}"
++        assert time.monotonic() < deadline, f"owned fixture never reached {path.name}"
++        time.sleep(0.005)
++
++
++@pytest.mark.parametrize("command", ["backup", "demo"])
++def test_actual_cli_repeated_sigint_joins_old_sqlite_work_before_next_owner(
++    tmp_path: Path, account: Path, command: str
++) -> None:
++    data = tmp_path / "data"
++    data.mkdir()
++    database = data / "siro.db"
++    seed(database, "latest-completed")
++    entered, shutdown, finishing, release, finished = [
++        tmp_path / name for name in ("entered", "shutdown", "finishing", "release", "finished")
++    ]
++    destination = tmp_path / "backup.db"
++    program = tmp_path / "owned_cli.py"
++    program.write_text(
++        """import asyncio, json, pwd, sqlite3, sys, time
++from contextlib import closing
++from pathlib import Path
++from types import SimpleNamespace
++from siro import cli
++from siro.adapters import data_ownership as ownership
++from siro.persistence.sqlite import SQLiteStore
++home, data, entered, shutdown, finishing, release, finished, destination = map(Path, sys.argv[1:9])
++command = sys.argv[9]
++pwd.getpwuid = lambda uid: SimpleNamespace(pw_dir=str(home))
++original_initialize = SQLiteStore._initialize_sync
++def initialize(store):
++    entered.touch()
++    deadline = time.monotonic() + 8
++    while not release.exists():
++        if time.monotonic() >= deadline:
++            raise AssertionError('synthetic SQLite release missing')
++        time.sleep(.005)
++    try:
++        with closing(sqlite3.connect(store.path)) as connection, connection:
++            connection.execute("UPDATE owner_fixture SET value='old-owned-IO-finished'")
++        original_initialize(store)
++    finally:
++        finished.touch()
++SQLiteStore._initialize_sync = initialize
++original_shutdown = asyncio.BaseEventLoop.shutdown_default_executor
++async def stop_executor(loop, *args, **kwargs):
++    shutdown.touch()
++    return await original_shutdown(loop, *args, **kwargs)
++asyncio.BaseEventLoop.shutdown_default_executor = stop_executor
++original_finish = ownership._DataOwner._finish
++def finish(owner):
++    finishing.touch()
++    return original_finish(owner)
++ownership._DataOwner._finish = finish
++arguments = (['backup', '--data', str(data), str(destination)] if command == 'backup'
++             else ['demo', '--data', str(data), '--once', 'synthetic'])
++try:
++    result = cli.main(arguments)
++except KeyboardInterrupt:
++    print(json.dumps({'status': 'cancelled'}), flush=True)
++    raise SystemExit(130)
++else:
++    print(json.dumps({'unexpected_success': result}), flush=True)
++"""
++    )
++    process = subprocess.Popen(
++        [
++            sys.executable,
++            str(program),
++            *map(
++                str, (account, data, entered, shutdown, finishing, release, finished, destination)
++            ),
++            command,
++        ],
++        env=child_environment(),
++        stdout=subprocess.PIPE,
++        stderr=subprocess.PIPE,
++        text=True,
++    )
++    try:
++        wait_marker(entered, process)
++        process.send_signal(signal.SIGINT)
++        wait_marker(shutdown, process)
++        process.send_signal(signal.SIGINT)
++        wait_marker(finishing, process)
++        process.send_signal(signal.SIGINT)
++        time.sleep(0.02)
++        assert process.poll() is None and not finished.exists()
++        with pytest.raises(BlockingIOError), kernel_owner(database, account):
++            pytest.fail("next owner must wait for the actual old IO thread")
++        if command == "backup":
++            with pytest.raises(BlockingIOError), kernel_owner(destination, account):
++                pytest.fail("write target must remain owned until the actual old IO joins")
++        release.touch()
++        stdout, stderr = process.communicate(timeout=5)
++        assert process.returncode == 130 and json.loads(stdout) == {"status": "cancelled"}
++        assert not stderr and finished.exists() and not destination.exists()
++        if command == "backup":
++            with kernel_owner(destination, account):
++                pass
++        with (
++            kernel_owner(database, account),
++            closing(sqlite3.connect(database)) as connection,
++            connection,
++        ):
++            connection.execute("UPDATE owner_fixture SET value='next-owner-write'")
++        assert any("next-owner-write" in line for line in dump(database))
++    finally:
++        release.touch()
++        if process.poll() is None:
++            process.kill()
++            process.wait(timeout=3)
++        for pipe in (process.stdout, process.stderr):
++            if pipe is not None:
++                pipe.close()
++
++
++def test_actual_gateway_process_blocks_competitors_until_shutdown(
++    tmp_path: Path, account: Path
++) -> None:
++    data = tmp_path / "data"
++    with socket.socket() as listener:
++        listener.bind(("127.0.0.1", 0))
++        port = int(listener.getsockname()[1])
++    assert port != 8026
++    code = (
++        "import pwd,sys; from types import SimpleNamespace; "
++        "pwd.getpwuid=lambda uid:SimpleNamespace(pw_dir=sys.argv[1]); "
++        "from siro.services.presentation.gateway import main; main()"
++    )
++    environment = child_environment()
++    environment.update(SIRO_DATA_DIR=str(data), SIRO_GATEWAY_PORT=str(port))
++    with (tmp_path / "gateway.log").open("w") as log:
++        process = subprocess.Popen(
++            [sys.executable, "-c", code, str(account)],
++            env=environment,
++            stdout=log,
++            stderr=log,
++        )
++        try:
++            deadline = time.monotonic() + 15
++            while True:
++                assert process.poll() is None, (tmp_path / "gateway.log").read_text()
++                try:
++                    with urllib.request.urlopen(
++                        f"http://127.0.0.1:{port}/health/live", timeout=0.3
++                    ) as response:
++                        assert json.load(response) == {"state": "alive"}
++                    break
++                except (urllib.error.URLError, TimeoutError):
++                    assert time.monotonic() < deadline, "synthetic gateway startup timed out"
++                    time.sleep(0.02)
++            before = dump(data / "siro.db")
++            with pytest.raises(BlockingIOError), kernel_owner(data / "siro.db", account):
++                pytest.fail("running gateway must hold its data key")
++            blocked = subprocess.run(
++                [sys.executable, "-c", code, str(account)],
++                env=environment,
++                capture_output=True,
++                text=True,
++                timeout=5,
++            )
++            assert (
++                blocked.returncode == 1 and blocked.stderr.strip() == "SIRO data is already in use"
++            )
++            assert main(["restore", "--data", str(data), str(tmp_path / "not-opened.db")]) == 1
++            assert dump(data / "siro.db") == before
++            process.terminate()
++            assert process.wait(timeout=10) in (0, -signal.SIGTERM)
++            assert "Application shutdown complete." in (tmp_path / "gateway.log").read_text()
++            with kernel_owner(data / "siro.db", account):
++                pass
++        finally:
++            if process.poll() is None:
++                process.kill()
++                process.wait(timeout=3)
++
++
++@pytest.mark.parametrize("bundle", [False, True])
++def test_backup_refuses_busy_foreign_write_target_before_any_database_work(
++    tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], bundle: bool
++) -> None:
++    data, other = tmp_path / "source", tmp_path / "other"
++    data.mkdir()
++    other.mkdir()
++    source, destination = data / "siro.db", other / "siro.db"
++    seed(source, "source-snapshot")
++    seed(destination, "foreign-managed-latest")
++    source_before, target_before = dump(source), dump(destination)
++    source_bytes, target_bytes = source.read_bytes(), destination.read_bytes()
++    target_inode = destination.stat().st_ino
++    arguments = ["backup", "--data", str(data)]
++    if bundle:
++        config = tmp_path / "config.json"
++        config.write_text(SiroSettings().model_dump_json())
++        arguments.extend(["--config", str(config)])
++    arguments.append(str(destination))
++
++    with kernel_owner(destination, account):
++        assert main(arguments) == 1
++
++    assert json.loads(capsys.readouterr().out) == {"status": "data_in_use"}
++    assert dump(source) == source_before and dump(destination) == target_before
++    assert source.read_bytes() == source_bytes and destination.read_bytes() == target_bytes
++    assert destination.stat().st_ino == target_inode
++
++
++@pytest.mark.parametrize("alias", [False, True])
++@pytest.mark.parametrize("bundle", [False, True])
++def test_backup_cannot_replace_its_own_source_database(
++    tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], alias: bool, bundle: bool
++) -> None:
++    data = tmp_path / "data"
++    data.mkdir()
++    database = data / "siro.db"
++    seed(database, "latest-completed")
++    before, inode = database.read_bytes(), database.stat().st_ino
++    destination = database
++    if alias:
++        destination = tmp_path / "alias.db"
++        destination.symlink_to(database)
++
++    arguments = ["backup", "--data", str(data)]
++    if bundle:
++        config = tmp_path / "config.json"
++        config.write_text(SiroSettings().model_dump_json())
++        arguments.extend(["--config", str(config)])
++    arguments.append(str(destination))
++    assert main(arguments) == 1
++
++    assert json.loads(capsys.readouterr().out) == {"status": "invalid_backup_destination"}
++    assert database.read_bytes() == before and database.stat().st_ino == inode
++
++
++def make_bundle(path: Path, database: Path) -> None:
++    content = {
++        "siro.db": database.read_bytes(),
++        "config.json": SiroSettings().model_dump_json().encode(),
++    }
++    with zipfile.ZipFile(path, "w") as archive:
++        for name, raw in content.items():
++            archive.writestr(name, raw)
++        archive.writestr(
++            "manifest.json",
++            json.dumps(
++                {
++                    "format": 1,
++                    "files": {
++                        name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
++                    },
++                }
++            ),
++        )
++
++
++def test_backup_cannot_replace_its_input_configuration(
++    tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    data = tmp_path / "data"
++    data.mkdir()
++    database = data / "siro.db"
++    seed(database, "latest-completed")
++    config = tmp_path / "config.json"
++    config.write_text(SiroSettings().model_dump_json())
++    before, config_before = database.read_bytes(), config.read_bytes()
++
++    assert main(["backup", "--data", str(data), "--config", str(config), str(config)]) == 1
++
++    assert json.loads(capsys.readouterr().out) == {"status": "invalid_backup_destination"}
++    assert database.read_bytes() == before and config.read_bytes() == config_before
++
++
++def test_restore_refuses_busy_foreign_configuration_write_target(
++    tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str]
++) -> None:
++    data, other = tmp_path / "data", tmp_path / "other"
++    data.mkdir()
++    other.mkdir()
++    database, foreign, backup = data / "siro.db", other / "siro.db", tmp_path / "backup.db"
++    seed(database, "latest-completed")
++    seed(foreign, "foreign-managed-latest")
++    seed(backup, "old-snapshot")
++    source = tmp_path / "backup.zip"
++    make_bundle(source, backup)
++    before, foreign_before, source_before = dump(database), dump(foreign), source.read_bytes()
++    with kernel_owner(foreign, account):
++        assert main(["restore", "--data", str(data), "--config", str(foreign), str(source)]) == 1
++    assert json.loads(capsys.readouterr().out) == {"status": "data_in_use"}
++    assert dump(database) == before and dump(foreign) == foreign_before
++    assert source.read_bytes() == source_before
++
++
++@pytest.mark.parametrize("config_target", ["database", "archive"])
++def test_restore_configuration_cannot_replace_its_database_or_source_backup(
++    tmp_path: Path, account: Path, capsys: pytest.CaptureFixture[str], config_target: str
++) -> None:
++    data = tmp_path / "data"
++    data.mkdir()
++    database, backup = data / "siro.db", tmp_path / "backup.db"
++    seed(database, "latest-completed")
++    seed(backup, "old-snapshot")
++    source = tmp_path / "backup.zip"
++    make_bundle(source, backup)
++    before, source_before = dump(database), source.read_bytes()
++    target = database if config_target == "database" else source
++    assert main(["restore", "--data", str(data), "--config", str(target), str(source)]) == 1
++    assert json.loads(capsys.readouterr().out) == {"status": "invalid_restore_configuration"}
++    assert dump(database) == before and source.read_bytes() == source_before
+--- /dev/null
++++ b/tests/integration/test_data_owner_lifecycle.py
+@@ -0,0 +1,840 @@
++"""Actual Linux fd ownership with synthetic paths and explicitly joined child processes."""
++
++from __future__ import annotations
++
++import asyncio
++import fcntl
++import hashlib
++import importlib
++import os
++import pwd
++import select
++import signal
++import sqlite3
++import subprocess
++import sys
++import threading
++from collections.abc import Iterator
++from contextlib import closing, contextmanager, suppress
++from pathlib import Path
++from types import ModuleType, SimpleNamespace
++
++import pytest
++
++
++def ownership(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[ModuleType, Path]:
++    # A missing core capability is RED, never an importorskip.
++    module = importlib.import_module("siro.adapters.data_ownership")
++    domain = tmp_path / "owner-domain"
++    monkeypatch.setattr(module, "_owner_directory", lambda: domain)
++    return module, domain
++
++
++def lock_path(domain: Path, database: Path) -> Path:
++    digest = hashlib.sha256(str(database.resolve()).encode()).hexdigest()
++    return domain / f"{digest}.lock"
++
++
++def child_environment() -> dict[str, str]:
++    return {
++        key: value
++        for key, value in os.environ.items()
++        if not key.startswith("SIRO_") and key not in {"GROQ_API_KEY", "OPENAI_API_KEY"}
++    }
++
++
++def line(process: subprocess.Popen[str]) -> str:
++    assert process.stdout is not None
++    poller = select.poll()
++    poller.register(process.stdout, select.POLLIN | select.POLLHUP | select.POLLERR)
++    readable = poller.poll(2000)
++    assert readable, "synthetic child handshake timed out"
++    value = str(process.stdout.readline()).strip()
++    assert value, f"synthetic child exited before handshake: {process.poll()}"
++    return value
++
++
++@contextmanager
++def held_by_process(domain: Path, database: Path) -> Iterator[subprocess.Popen[str]]:
++    code = (
++        "import sys,sqlite3; from pathlib import Path; "
++        "import siro.adapters.data_ownership as owner; "
++        "owner._owner_directory=lambda:Path(sys.argv[1]); "
++        "database=Path(sys.argv[2]); "
++        "\nwith owner.exclusive_data_owner(database):\n"
++        " database.parent.mkdir(parents=True,exist_ok=True)\n"
++        " connection=sqlite3.connect(database)\n"
++        " connection.execute('PRAGMA journal_mode=WAL')\n"
++        " connection.execute('CREATE TABLE synthetic_owner(value TEXT)')\n"
++        " connection.execute(\"INSERT INTO synthetic_owner VALUES ('committed')\")\n"
++        " connection.commit()\n"
++        " print('HELD',flush=True)\n"
++        " sys.stdin.read(1)\n"
++        " connection.close()\n"
++    )
++    process = subprocess.Popen(
++        [sys.executable, "-c", code, str(domain), str(database)],
++        env=child_environment(),
++        stdin=subprocess.PIPE,
++        stdout=subprocess.PIPE,
++        stderr=subprocess.PIPE,
++        text=True,
++    )
++    try:
++        assert line(process) == "HELD"
++        yield process
++    finally:
++        if process.poll() is None:
++            assert process.stdin is not None
++            process.stdin.close()
++            try:
++                process.wait(timeout=3)
++            except subprocess.TimeoutExpired:
++                process.kill()
++                process.wait(timeout=3)
++        for pipe in (process.stdin, process.stdout, process.stderr):
++            if pipe is not None:
++                pipe.close()
++
++
++def test_owner_file_has_fixed_identity_modes_and_survives_normal_release(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "not-created" / "siro.db"
++    leaf = lock_path(domain, database)
++    with owner.exclusive_data_owner(database):
++        assert domain.stat().st_mode & 0o777 == 0o700
++        assert leaf.stat().st_mode & 0o777 == 0o600
++        assert leaf.read_bytes() == b"" and leaf.stat().st_nlink == 1
++        inode = leaf.stat().st_ino
++        assert not database.parent.exists(), (
++            "coordination must not create the target data directory"
++        )
++        with pytest.raises(owner.DataOwnerBusyError), owner.exclusive_data_owner(database):
++            pytest.fail("same-process reentry must not acquire a second owner")
++    assert leaf.exists() and leaf.stat().st_ino == inode and leaf.read_bytes() == b""
++    with owner.exclusive_data_owner(database):
++        assert leaf.stat().st_ino == inode
++
++
++@pytest.mark.parametrize("stop", ["normal", "sigkill"])
++def test_real_wal_writer_process_blocks_competition_until_exit(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop: str
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "data" / "siro.db"
++    with held_by_process(domain, database) as process:
++        leaf = lock_path(domain, database)
++        inode = leaf.stat().st_ino
++        with closing(sqlite3.connect(database)) as connection:
++            before = tuple(connection.iterdump())
++        with pytest.raises(owner.DataOwnerBusyError), owner.exclusive_data_owner(database):
++            pytest.fail("a live managed SQLite writer must exclude the competing owner")
++        with closing(sqlite3.connect(database)) as connection:
++            assert tuple(connection.iterdump()) == before
++        if stop == "sigkill":
++            os.kill(process.pid, signal.SIGKILL)
++        else:
++            assert process.stdin is not None
++            process.stdin.write("x")
++            process.stdin.flush()
++        process.wait(timeout=3)
++        assert process.returncode == (0 if stop == "normal" else -signal.SIGKILL)
++        with owner.exclusive_data_owner(database):
++            assert leaf.stat().st_ino == inode
++
++
++@contextmanager
++def managed_child(
++    code: str, domain: Path, database: Path, *, pass_fds: tuple[int, ...] = ()
++) -> Iterator[subprocess.Popen[str]]:
++    process = subprocess.Popen(
++        [sys.executable, "-c", code, str(domain), str(database)],
++        env=child_environment(),
++        stdin=subprocess.PIPE,
++        stdout=subprocess.PIPE,
++        stderr=subprocess.PIPE,
++        text=True,
++        pass_fds=pass_fds,
++    )
++    try:
++        yield process
++    finally:
++        if process.stdin is not None:
++            with suppress(BrokenPipeError):
++                process.stdin.close()
++        if process.poll() is None:
++            try:
++                process.wait(timeout=3)
++            except subprocess.TimeoutExpired:
++                process.kill()
++                process.wait(timeout=3)
++        for pipe in (process.stdout, process.stderr):
++            if pipe is not None:
++                pipe.close()
++
++
++def test_two_real_processes_compete_atomically_without_wait_or_retry(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "never-created" / "siro.db"
++    code = (
++        "import sys; from pathlib import Path; "
++        "import siro.adapters.data_ownership as owner; "
++        "owner._owner_directory=lambda:Path(sys.argv[1]); "
++        "print('READY',flush=True); sys.stdin.read(1)\n"
++        "try:\n"
++        " with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
++        "  print('HELD',flush=True)\n"
++        "  sys.stdin.read(1)\n"
++        "except owner.DataOwnerBusyError:\n"
++        " print('BUSY',flush=True)\n"
++        " raise SystemExit(7)\n"
++    )
++    with (
++        managed_child(code, domain, database) as first,
++        managed_child(code, domain, database) as second,
++    ):
++        assert line(first) == line(second) == "READY"
++        for process in (first, second):
++            assert process.stdin is not None
++            process.stdin.write("x")
++            process.stdin.flush()
++        statuses = [line(first), line(second)]
++        assert sorted(statuses) == ["BUSY", "HELD"]
++        winner = (first, second)[statuses.index("HELD")]
++        loser = (first, second)[statuses.index("BUSY")]
++        assert loser.wait(timeout=2) == 7
++        assert winner.poll() is None
++        with pytest.raises(owner.DataOwnerBusyError), owner.exclusive_data_owner(database):
++            pytest.fail("atomic winner must retain its owner")
++        assert not database.parent.exists()
++
++
++@pytest.mark.parametrize("alias", ["directory", "database"])
++def test_canonical_symlink_alias_competes_for_exact_same_owner(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, alias: str
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    data = tmp_path / "data"
++    data.mkdir()
++    database = data / "siro.db"
++    with closing(sqlite3.connect(database)) as connection:
++        connection.execute("CREATE TABLE alias_fixture(value TEXT)")
++        connection.commit()
++    if alias == "directory":
++        other = tmp_path / "directory-alias"
++        other.symlink_to(data, target_is_directory=True)
++        alternate = other / database.name
++    else:
++        alternate = tmp_path / "database-alias.db"
++        alternate.symlink_to(database)
++    with (
++        owner.exclusive_data_owner(database),
++        pytest.raises(owner.DataOwnerBusyError),
++        owner.exclusive_data_owner(alternate),
++    ):
++        pytest.fail("canonical database aliases must not create parallel owners")
++    assert len(list(domain.glob("*.lock"))) == 1
++    assert lock_path(domain, database) == lock_path(domain, alternate)
++
++
++def test_distinct_databases_can_hold_independent_owners(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    first, second = tmp_path / "one" / "siro.db", tmp_path / "two" / "siro.db"
++    with owner.exclusive_data_owner(first), owner.exclusive_data_owner(second):
++        assert len(list(domain.glob("*.lock"))) == 2
++        assert not first.parent.exists() and not second.parent.exists()
++
++
++def test_thread_held_context_excludes_other_thread_until_complete_cleanup(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, _domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "siro.db"
++    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
++    failures: list[BaseException] = []
++
++    def hold() -> None:
++        try:
++            with owner.exclusive_data_owner(database):
++                entered.set()
++                assert release.wait(3), "synthetic thread release missing"
++        except BaseException as error:
++            failures.append(error)
++        finally:
++            finished.set()
++
++    thread = threading.Thread(target=hold)
++    thread.start()
++    try:
++        assert entered.wait(2), "synthetic thread owner did not start"
++        with pytest.raises(owner.DataOwnerBusyError), owner.exclusive_data_owner(database):
++            pytest.fail("a live thread-held context must exclude another owner")
++        assert not finished.is_set()
++        release.set()
++        thread.join(timeout=2)
++        assert finished.is_set() and not thread.is_alive() and failures == []
++        with owner.exclusive_data_owner(database):
++            pass
++    finally:
++        release.set()
++        thread.join(timeout=3)
++        assert not thread.is_alive()
++
++
++def test_actual_exec_does_not_inherit_owner_descriptor_with_close_fds_disabled(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "siro.db"
++    child = (
++        "import sys,select; ready,_,_=select.select([sys.stdin],[],[],2); "
++        "sys.stdin.read(1) if ready else None"
++    )
++    code = (
++        "import sys,subprocess; from pathlib import Path; "
++        "import siro.adapters.data_ownership as owner; "
++        "owner._owner_directory=lambda:Path(sys.argv[1])\n"
++        "with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
++        f" child=subprocess.Popen([sys.executable,'-c',{child!r}],close_fds=False)\n"
++        "print('CLOSED '+str(child.pid),flush=True)\n"
++        "raise SystemExit(child.wait(timeout=3))\n"
++    )
++    with managed_child(code, domain, database) as process:
++        message = line(process)
++        assert message.startswith("CLOSED ")
++        child_pid = int(message.partition(" ")[2])
++        os.kill(child_pid, 0)
++        with owner.exclusive_data_owner(database):
++            os.kill(child_pid, 0)
++        assert process.stdin is not None
++        process.stdin.write("x")
++        process.stdin.flush()
++        assert process.wait(timeout=3) == 0
++
++
++@pytest.mark.parametrize("stop", ["normal", "sigkill"])
++def test_raw_fork_child_conservatively_retains_owner_after_parent_context_closes(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stop: str
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "siro.db"
++    read_fd, write_fd = os.pipe()
++    code = (
++        "import os,sys,select; from pathlib import Path; "
++        "import siro.adapters.data_ownership as owner; "
++        "owner._owner_directory=lambda:Path(sys.argv[1])\n"
++        "with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
++        " child=os.fork()\n"
++        " if child==0:\n"
++        "  os.close(0); os.close(1); os.close(2)\n"
++        "  poller=select.poll()\n"
++        f"  poller.register({read_fd},select.POLLIN|select.POLLHUP)\n"
++        "  ready=poller.poll(2000)\n"
++        f"  os.read({read_fd},1) if ready else None\n"
++        "  os._exit(0)\n"
++        "print('CLOSED '+str(child),flush=True)\n"
++        "_,status=os.waitpid(child,0)\n"
++        "print('REAPED',flush=True)\n"
++    )
++    try:
++        with managed_child(code, domain, database, pass_fds=(read_fd,)) as process:
++            message = line(process)
++            assert message.startswith("CLOSED ")
++            child_pid = int(message.partition(" ")[2])
++            with pytest.raises(owner.DataOwnerBusyError), owner.exclusive_data_owner(database):
++                pytest.fail("closing parent fd must not unlock a raw-fork child's fd")
++            if stop == "normal":
++                os.write(write_fd, b"x")
++            else:
++                os.kill(child_pid, signal.SIGKILL)
++            assert line(process) == "REAPED"
++            assert process.wait(timeout=3) == 0
++            with owner.exclusive_data_owner(database):
++                pass
++    finally:
++        os.close(write_fd)
++        os.close(read_fd)
++
++
++@pytest.mark.parametrize("kind", ["symlink", "hardlink", "directory", "fifo", "mode"])
++def test_unsafe_lock_artifacts_fail_closed_without_touching_their_target(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "untouched" / "siro.db"
++    domain.mkdir(mode=0o700)
++    leaf = lock_path(domain, database)
++    other = tmp_path / "synthetic-protected-file"
++    other.write_bytes(b"synthetic preserved content")
++    other.chmod(0o600)
++    if kind == "symlink":
++        leaf.symlink_to(other)
++    elif kind == "hardlink":
++        os.link(other, leaf)
++    elif kind == "directory":
++        leaf.mkdir(mode=0o700)
++    elif kind == "fifo":
++        os.mkfifo(leaf, mode=0o600)
++    else:
++        leaf.touch(mode=0o644)
++        leaf.chmod(0o644)
++    with pytest.raises(owner.DataOwnerUnavailableError), owner.exclusive_data_owner(database):
++        pytest.fail("unsafe lock artifact must not grant ownership")
++    assert other.read_bytes() == b"synthetic preserved content"
++    assert not database.parent.exists()
++
++
++@pytest.mark.parametrize("kind", ["symlink", "file", "mode"])
++def test_unsafe_owner_namespace_is_not_followed_or_repaired(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "untouched" / "siro.db"
++    other = tmp_path / "other-domain"
++    other.mkdir(mode=0o700)
++    if kind == "symlink":
++        domain.symlink_to(other, target_is_directory=True)
++    elif kind == "file":
++        domain.write_bytes(b"synthetic file preserved")
++    else:
++        domain.mkdir(mode=0o755)
++        domain.chmod(0o755)
++    with pytest.raises(owner.DataOwnerUnavailableError), owner.exclusive_data_owner(database):
++        pytest.fail("unsafe coordination namespace must not grant ownership")
++    assert list(other.iterdir()) == [] and not database.parent.exists()
++    if kind == "file":
++        assert domain.read_bytes() == b"synthetic file preserved"
++    elif kind == "mode":
++        assert domain.stat().st_mode & 0o777 == 0o755
++
++
++@pytest.mark.parametrize("kind", ["directory", "hardlink"])
++def test_existing_database_must_be_regular_and_have_no_hardlink_alias(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
++) -> None:
++    owner, _domain = ownership(tmp_path, monkeypatch)
++    database, other = tmp_path / "siro.db", tmp_path / "alias.db"
++    if kind == "directory":
++        database.mkdir()
++    else:
++        database.write_bytes(b"synthetic database bytes")
++        os.link(database, other)
++    with pytest.raises(owner.DataOwnerUnavailableError), owner.exclusive_data_owner(database):
++        pytest.fail("nonregular or multiply-linked database must not grant ownership")
++    if kind == "hardlink":
++        assert database.read_bytes() == other.read_bytes() == b"synthetic database bytes"
++
++
++def test_account_home_namespace_ignores_environment_overrides(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    module = importlib.import_module("siro.adapters.data_ownership")
++    account_home = tmp_path / "account-home"
++    monkeypatch.setattr(
++        pwd,
++        "getpwuid",
++        lambda uid: SimpleNamespace(pw_dir=str(account_home), pw_uid=uid),
++    )
++    for name in ("HOME", "TMPDIR", "XDG_STATE_HOME"):
++        monkeypatch.setenv(name, str(tmp_path / f"untrusted-{name}"))
++    assert module._owner_directory() == account_home / ".local/state/siro/data-owners"
++    assert not account_home.exists(), "namespace resolution itself must not create state"
++
++
++@pytest.mark.parametrize("primary", [False, True])
++def test_descriptor_close_failure_is_visible_and_preserves_primary_error(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary: bool
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "siro.db"
++    leaf = lock_path(domain, database)
++    original_open, original_close = os.open, os.close
++    captured: list[int] = []
++    sensitive_detail = "synthetic-private-detail-not-for-error-text"
++
++    def tracked_open(
++        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
++        flags: int,
++        mode: int = 0o777,
++        *,
++        dir_fd: int | None = None,
++    ) -> int:
++        fd = original_open(path, flags, mode, dir_fd=dir_fd)
++        if os.fsdecode(path).endswith(leaf.name):
++            captured.append(fd)
++        return fd
++
++    def denied_close(fd: int) -> None:
++        if fd in captured:
++            raise OSError(sensitive_detail)
++        original_close(fd)
++
++    monkeypatch.setattr(os, "open", tracked_open)
++    monkeypatch.setattr(os, "close", denied_close)
++    try:
++        if primary:
++            with (
++                pytest.raises(RuntimeError, match="synthetic primary") as error,
++                owner.exclusive_data_owner(database),
++            ):
++                raise RuntimeError("synthetic primary")
++            notes = getattr(error.value, "__notes__", [])
++            assert notes and all(sensitive_detail not in note for note in notes)
++        else:
++            with (
++                pytest.raises(owner.DataOwnerUnavailableError) as unavailable,
++                owner.exclusive_data_owner(database),
++            ):
++                pass
++            assert sensitive_detail not in str(unavailable.value)
++        assert captured and all(os.fstat(fd).st_ino == leaf.stat().st_ino for fd in captured)
++    finally:
++        for fd in captured:
++            with suppress(OSError):
++                original_close(fd)
++
++
++def test_open_failure_returns_safe_unavailable_error_without_data_effects(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, _domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "untouched" / "siro.db"
++    original = os.open
++    sensitive_detail = "synthetic-private-open-error"
++
++    def denied_open(
++        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
++        flags: int,
++        mode: int = 0o777,
++        *,
++        dir_fd: int | None = None,
++    ) -> int:
++        if os.fsdecode(path).endswith(".lock"):
++            raise OSError(sensitive_detail)
++        return original(path, flags, mode, dir_fd=dir_fd)
++
++    monkeypatch.setattr(os, "open", denied_open)
++    with (
++        pytest.raises(owner.DataOwnerUnavailableError) as error,
++        owner.exclusive_data_owner(database),
++    ):
++        pytest.fail("unknown OS open failure must not fall back to PID ownership")
++    assert sensitive_detail not in str(error.value) and str(database) not in str(error.value)
++    assert not database.parent.exists()
++
++
++@pytest.mark.parametrize("primary", [False, True])
++def test_owned_default_pool_sqlite_work_is_joined_before_context_releases_descriptor(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary: bool
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "siro.db"
++    entered, release = threading.Event(), threading.Event()
++    exiting, finished = threading.Event(), threading.Event()
++    failures: list[BaseException] = []
++    busy: list[str] = []
++    code = (
++        "import sys; from pathlib import Path; "
++        "import siro.adapters.data_ownership as owner; "
++        "owner._owner_directory=lambda:Path(sys.argv[1])\n"
++        "try:\n"
++        " with owner.exclusive_data_owner(Path(sys.argv[2])):\n"
++        "  print('UNEXPECTED',flush=True)\n"
++        "except owner.DataOwnerBusyError:\n"
++        " print('BUSY',flush=True)\n"
++    )
++
++    def work() -> None:
++        try:
++            with closing(sqlite3.connect(database)) as connection, connection:
++                connection.execute("CREATE TABLE pool_fixture(value TEXT)")
++                connection.execute("INSERT INTO pool_fixture VALUES ('joined-commit')")
++                entered.set()
++                assert release.wait(3), "synthetic pool COMMIT release missing"
++        finally:
++            finished.set()
++
++    def probe_and_release() -> None:
++        try:
++            assert entered.wait(2) and exiting.wait(2)
++            assert not finished.is_set()
++            with managed_child(code, domain, database) as process:
++                busy.append(line(process))
++                assert process.wait(timeout=2) == 0
++        except BaseException as error:
++            failures.append(error)
++        finally:
++            release.set()
++
++    controller = threading.Thread(target=probe_and_release)
++    controller.start()
++    try:
++        if primary:
++            with (
++                pytest.raises(KeyboardInterrupt, match="synthetic primary interrupt"),
++                owner.exclusive_data_owner(database) as held,
++            ):
++                loop = held.loop_factory()
++                loop.run_in_executor(None, work)
++                assert entered.wait(2)
++                loop.close()  # real loop close leaves actual pool work unfinished
++                exiting.set()
++                raise KeyboardInterrupt("synthetic primary interrupt")
++        else:
++            with owner.exclusive_data_owner(database) as held:
++                loop = held.loop_factory()
++                loop.run_in_executor(None, work)
++                assert entered.wait(2)
++                loop.close()
++                exiting.set()
++        controller.join(timeout=2)
++        assert not controller.is_alive() and failures == []
++        assert busy == ["BUSY"] and finished.is_set()
++        with owner.exclusive_data_owner(database), closing(sqlite3.connect(database)) as connection:
++            assert connection.execute("SELECT value FROM pool_fixture").fetchone() == (
++                "joined-commit",
++            )
++    finally:
++        exiting.set()
++        release.set()
++        controller.join(timeout=3)
++        assert not controller.is_alive()
++
++
++def test_missing_pwd_account_returns_safe_unavailable_before_any_directory_effect(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner = importlib.import_module("siro.adapters.data_ownership")
++    database = tmp_path / "untouched" / "siro.db"
++    sensitive_detail = "synthetic-missing-account-detail"
++
++    def unknown_account(_uid: int) -> object:
++        raise KeyError(sensitive_detail)
++
++    monkeypatch.setattr(pwd, "getpwuid", unknown_account)
++    with (
++        pytest.raises(owner.DataOwnerUnavailableError) as error,
++        owner.exclusive_data_owner(database),
++    ):
++        pytest.fail("unknown account namespace must not create a fallback owner")
++    assert sensitive_detail not in str(error.value) and not database.parent.exists()
++
++
++def test_busy_error_survives_contender_descriptor_cleanup_refusal(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "siro.db"
++    leaf = lock_path(domain, database)
++    original_open, original_close = os.open, os.close
++    contender_fds: list[int] = []
++    sensitive_detail = "synthetic-contender-cleanup-detail"
++
++    def tracked_open(
++        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
++        flags: int,
++        mode: int = 0o777,
++        *,
++        dir_fd: int | None = None,
++    ) -> int:
++        descriptor = original_open(path, flags, mode, dir_fd=dir_fd)
++        if os.fsdecode(path).endswith(leaf.name):
++            contender_fds.append(descriptor)
++        return descriptor
++
++    def denied_close(descriptor: int) -> None:
++        if descriptor in contender_fds:
++            raise OSError(sensitive_detail)
++        original_close(descriptor)
++
++    with owner.exclusive_data_owner(database):
++        monkeypatch.setattr(os, "open", tracked_open)
++        monkeypatch.setattr(os, "close", denied_close)
++        try:
++            with (
++                pytest.raises(owner.DataOwnerBusyError) as error,
++                owner.exclusive_data_owner(database),
++            ):
++                pytest.fail("cleanup refusal must not replace primary busy rejection")
++            notes = getattr(error.value, "__notes__", [])
++            assert notes and all(sensitive_detail not in note for note in notes)
++            assert contender_fds and all(
++                os.fstat(descriptor).st_ino == leaf.stat().st_ino for descriptor in contender_fds
++            )
++        finally:
++            for descriptor in contender_fds:
++                with suppress(OSError):
++                    original_close(descriptor)
++
++
++@pytest.mark.parametrize("primary", [False, True])
++def test_owned_pool_join_refusal_retains_descriptor_and_primary_error(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, primary: bool
++) -> None:
++    from concurrent.futures import ThreadPoolExecutor
++
++    owner, domain = ownership(tmp_path, monkeypatch)
++    database = tmp_path / "siro.db"
++    leaf = lock_path(domain, database)
++    original_open, original_close = os.open, os.close
++    descriptor: list[int] = []
++    sensitive_detail = "synthetic-pool-join-detail"
++
++    def tracked_open(
++        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
++        flags: int,
++        mode: int = 0o777,
++        *,
++        dir_fd: int | None = None,
++    ) -> int:
++        result = original_open(path, flags, mode, dir_fd=dir_fd)
++        if os.fsdecode(path).endswith(leaf.name):
++            descriptor.append(result)
++        return result
++
++    def refuse_join(
++        _executor: ThreadPoolExecutor, wait: bool = True, *, cancel_futures: bool = False
++    ) -> None:
++        raise RuntimeError(sensitive_detail)
++
++    monkeypatch.setattr(os, "open", tracked_open)
++    try:
++        if primary:
++            with (
++                pytest.raises(ValueError, match="synthetic primary") as error,
++                owner.exclusive_data_owner(database) as held,
++            ):
++                loop = held.loop_factory()
++                loop.close()  # no executor task is submitted in this refusal-only fixture
++                monkeypatch.setattr(ThreadPoolExecutor, "shutdown", refuse_join)
++                raise ValueError("synthetic primary")
++            notes = getattr(error.value, "__notes__", [])
++            assert notes and all(sensitive_detail not in note for note in notes)
++        else:
++            with (
++                pytest.raises(owner.DataOwnerUnavailableError) as unavailable,
++                owner.exclusive_data_owner(database) as held,
++            ):
++                loop = held.loop_factory()
++                loop.close()
++                monkeypatch.setattr(ThreadPoolExecutor, "shutdown", refuse_join)
++            assert sensitive_detail not in str(unavailable.value)
++        assert descriptor and os.fstat(descriptor[0]).st_ino == leaf.stat().st_ino
++        with pytest.raises(owner.DataOwnerBusyError), owner.exclusive_data_owner(database):
++            pytest.fail("unknown owned-IO completion must not release ownership")
++    finally:
++        asyncio.set_event_loop(None)
++        for fd in descriptor[:1]:
++            with suppress(OSError):
++                original_close(fd)
++
++
++def test_joint_owner_partial_busy_acquisition_releases_the_other_actual_key(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    source, target = tmp_path / "a-source.db", tmp_path / "z-target.db"
++    source_leaf = lock_path(domain, source)
++    source_acquisitions: list[int] = []
++    original_flock = fcntl.flock
++
++    def observe(descriptor: int, operation: int) -> None:
++        original_flock(descriptor, operation)
++        if source_leaf.exists() and os.fstat(descriptor).st_ino == source_leaf.stat().st_ino:
++            source_acquisitions.append(descriptor)
++
++    with owner.exclusive_data_owner(target):
++        monkeypatch.setattr(fcntl, "flock", observe)
++        with (
++            pytest.raises(owner.DataOwnerBusyError),
++            owner.exclusive_data_owner(source, write_target=target),
++        ):
++            pytest.fail("busy second key must reject before entering the operation body")
++        assert len(source_acquisitions) == 1, "fixture must acquire first key before second is busy"
++        with owner.exclusive_data_owner(source):
++            assert len(source_acquisitions) == 2
++        with pytest.raises(owner.DataOwnerBusyError), owner.exclusive_data_owner(target):
++            pytest.fail("the independent target holder must remain untouched")
++    assert not source.exists() and not target.exists()
++
++
++def test_joint_owner_deduplicates_canonical_write_target_alias_without_reentry(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    owner, domain = ownership(tmp_path, monkeypatch)
++    data = tmp_path / "data"
++    data.mkdir()
++    source = data / "siro.db"
++    alias = tmp_path / "canonical-alias"
++    alias.symlink_to(data, target_is_directory=True)
++    target = alias / source.name
++    with owner.exclusive_data_owner(source, write_target=target):
++        assert list(domain.glob("*.lock")) == [lock_path(domain, source)]
++        with pytest.raises(owner.DataOwnerBusyError), owner.exclusive_data_owner(target):
++            pytest.fail("deduplicated resource must still retain its sole owner")
++    with owner.exclusive_data_owner(target):
++        pass
++    assert not source.exists()
++
++
++def test_joint_owner_io_join_refusal_retains_both_descriptors_and_primary_failure(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    from concurrent.futures import ThreadPoolExecutor
++
++    owner, domain = ownership(tmp_path, monkeypatch)
++    source, target = tmp_path / "source.db", tmp_path / "target.db"
++    leaves = {lock_path(domain, resource) for resource in (source, target)}
++    original_open, original_close = os.open, os.close
++    captured: list[int] = []
++    owner_fds: list[int] = []
++    sensitive_detail = "synthetic-joint-owner-pool-detail"
++
++    def tracked_open(
++        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
++        flags: int,
++        mode: int = 0o777,
++        *,
++        dir_fd: int | None = None,
++    ) -> int:
++        descriptor = original_open(path, flags, mode, dir_fd=dir_fd)
++        if Path(os.fsdecode(path)) in leaves:
++            captured.append(descriptor)
++        return descriptor
++
++    def refuse_join(
++        _executor: ThreadPoolExecutor, wait: bool = True, *, cancel_futures: bool = False
++    ) -> None:
++        raise RuntimeError(sensitive_detail)
++
++    monkeypatch.setattr(os, "open", tracked_open)
++    try:
++        with (
++            pytest.raises(ValueError, match="synthetic joint primary") as error,
++            owner.exclusive_data_owner(source, write_target=target) as held,
++        ):
++            owner_fds.extend(captured)
++            assert len(owner_fds) == len(set(owner_fds)) == 2
++            loop = held.loop_factory()
++            loop.close()  # refusal-only fixture submits no executor tasks
++            monkeypatch.setattr(ThreadPoolExecutor, "shutdown", refuse_join)
++            raise ValueError("synthetic joint primary")
++        notes = getattr(error.value, "__notes__", [])
++        assert notes and all(sensitive_detail not in note for note in notes)
++        assert {os.fstat(descriptor).st_ino for descriptor in owner_fds} == {
++            leaf.stat().st_ino for leaf in leaves
++        }
++        for resource in (source, target):
++            with pytest.raises(owner.DataOwnerBusyError), owner.exclusive_data_owner(resource):
++                pytest.fail("unknown shared IO completion must retain both kernel owners")
++    finally:
++        asyncio.set_event_loop(None)
++        for descriptor in owner_fds:
++            with suppress(OSError):
++                original_close(descriptor)

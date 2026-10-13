@@ -1,0 +1,201 @@
+........................................................................ [ 12%]
+...............................F........................................ [ 25%]
+........................................................................ [ 38%]
+........................................................................ [ 51%]
+........................................................................ [ 64%]
+...................................................................F.... [ 77%]
+........................................................................ [ 90%]
+..................................................                       [100%]
+=================================== FAILURES ===================================
+_______________ test_cancel_completion_orderings_100_times[True] _______________
+
+fut = <Task cancelled name='Task-1004' coro=<IntegratedCompanion.respond() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/services/presentation/integrated.py:166>>
+timeout = 2
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout <= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout <= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+>           return await fut
+                   ^^^^^^^^^
+
+/usr/lib/python3.14/asyncio/tasks.py:488: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/integrated.py:473: in respond
+    await self._propose_tool_calls(session_id, result.tool_calls)
+src/siro/services/presentation/integrated.py:861: in _propose_tool_calls
+    result = await orchestrator.execute(proposal.proposal_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/orchestrator.py:636: in execute
+    return await self._repository.transition(
+src/siro/services/tools/orchestrator.py:374: in transition
+    return self._from_row(await self._store.run_transaction(write))
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:152: in run_transaction
+    return await asyncio.to_thread(self._run_transaction_sync, work)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+func = <bound method SQLiteStore._run_transaction_sync of <siro.persistence.sqlite.SQLiteStore object at 0x78516d50cdd0>>
+args = (<function SQLiteToolProposalRepository.transition.<locals>.write at 0x78516d523cc0>,)
+kwargs = {}
+
+    async def to_thread(func, /, *args, **kwargs):
+        """Asynchronously run function *func* in a separate thread.
+    
+        Any *args and **kwargs supplied for this function are directly passed
+        to *func*. Also, the current :class:`contextvars.Context` is propagated,
+        allowing context variables from the main thread to be accessed in the
+        separate thread.
+    
+        Return a coroutine that can be awaited to get the eventual result of *func*.
+        """
+        loop = events.get_running_loop()
+        ctx = contextvars.copy_context()
+        func_call = functools.partial(ctx.run, func, *args, **kwargs)
+>       return await loop.run_in_executor(None, func_call)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       asyncio.exceptions.CancelledError
+
+/usr/lib/python3.14/asyncio/threads.py:25: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-136/test_cancel_completion_orderin1')
+completion_first = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("completion_first", [False, True])
+    async def test_cancel_completion_orderings_100_times(
+        tmp_path: Path, completion_first: bool
+    ) -> None:
+        for iteration in range(100):
+            entered, release = asyncio.Event(), asyncio.Event()
+            executed: list[object] = []
+    
+            async def execute(
+                arguments: dict[str, object],
+                executed: list[object] = executed,
+                entered: asyncio.Event = entered,
+                release: asyncio.Event = release,
+            ) -> object:
+                executed.append(arguments)
+                entered.set()
+                await release.wait()
+                return {}
+    
+            model = BatchModel()
+            controller, _, store, hub = await setup(tmp_path / str(iteration), model, execute)
+            await controller._ensure_core()  # move SQLite/identity startup outside the race barrier
+            task = asyncio.create_task(controller.respond("race", "goal"))
+            await wait_for_executor_entry(task, entered, iteration)
+            if completion_first:
+                release.set()
+>               await asyncio.wait_for(task, 2)
+
+tests/integration/test_agent_batches.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/asyncio/tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Timeout [expired]>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+exc_val = CancelledError(), exc_tb = <traceback object at 0x78516d5bd000>
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() <= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+>                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+/usr/lib/python3.14/asyncio/timeouts.py:114: TimeoutError
+_____________________ test_actual_frontend_recovery_notice _____________________
+
+    def test_actual_frontend_recovery_notice() -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        function = html[html.index("function recoveryNotice(") : html.index("async function boot()")]
+>       boot = html[html.index("async function boot()") : html.index("socket = new WebSocket")]
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: substring not found
+
+tests/integration/test_run_journal.py:320: ValueError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_agent_batches.py::test_cancel_completion_orderings_100_times[True]
+FAILED tests/integration/test_run_journal.py::test_actual_frontend_recovery_notice
+2 failed, 552 passed, 5 deselected, 3 warnings in 184.28s (0:03:04)

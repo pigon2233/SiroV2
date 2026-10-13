@@ -1,0 +1,52 @@
+{
+  "commands": [
+    {
+      "command": ".venv/bin/pytest -q -m \"not real_provider\" (before changes)",
+      "exit_code": 0,
+      "result": "671 passed, 5 deselected, 3 existing warnings, 156.91s",
+      "log": "full-suite-before.log"
+    },
+    {
+      "command": ".venv/bin/pytest -q -m \"not real_provider\" (final)",
+      "exit_code": 0,
+      "result": "701 passed, 5 deselected, 3 existing warnings, 147.01s",
+      "log": "full-suite-after.log"
+    },
+    {
+      "command": ".venv/bin/ruff format --check .",
+      "exit_code": 0,
+      "result": "269 files already formatted"
+    },
+    {
+      "command": ".venv/bin/ruff check .",
+      "exit_code": 0,
+      "result": "All checks passed"
+    },
+    {
+      "command": ".venv/bin/mypy",
+      "exit_code": 0,
+      "result": "Success: no issues found in 204 source files"
+    },
+    {
+      "command": ".venv/bin/python scripts/export_schemas --check",
+      "exit_code": 0,
+      "result": "No schema drift"
+    },
+    {
+      "command": "cargo test --workspace --locked",
+      "exit_code": 0,
+      "result": "6 library tests passed; binary/doc tests 0; library 0.08s"
+    }
+  ],
+  "not_run": [
+    "real_provider opt-in",
+    "new GPU or audio synthesis",
+    "human listening",
+    "human WebGL/motion acceptance",
+    "ESP32 or real HA",
+    "second host",
+    "24-hour soak",
+    "remote CI",
+    "attestation signature verification"
+  ]
+}

@@ -1,0 +1,123 @@
+{
+  "tasks": [
+    {
+      "task": "RT-001 基線與 migration invariant",
+      "status": "DONE（2026-10-01）；證據 `docs/evidence/RT-001/README.md`",
+      "dependencies": []
+    },
+    {
+      "task": "RT-002 原生工具訊息接入",
+      "status": "DONE（2026-10-01）",
+      "dependencies": [
+        "RT-001"
+      ]
+    },
+    {
+      "task": "RT-003 工具 batch 與終止狀態",
+      "status": "DONE（2026-10-01）",
+      "dependencies": [
+        "RT-002"
+      ]
+    },
+    {
+      "task": "RT-004 有界程序執行 facade",
+      "status": "DONE（2026-10-01）",
+      "dependencies": [
+        "RT-001"
+      ]
+    },
+    {
+      "task": "RT-005 run cancellation 傳到程序",
+      "status": "DONE（2026-10-01；獨立驗證缺口修補後fixtures通過）",
+      "dependencies": [
+        "RT-003",
+        "RT-004"
+      ]
+    },
+    {
+      "task": "RT-006 Qwen worker 生命周期",
+      "status": "PARTIAL（2026-10-01；獨立驗證指出前端取消及人工相容性缺口）",
+      "dependencies": [
+        "RT-001"
+      ]
+    },
+    {
+      "task": "RT-007 工具 catalog 與有效配置",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-003",
+        "RT-004"
+      ]
+    },
+    {
+      "task": "RT-008 durable journal 與恢復",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-003",
+        "RT-005",
+        "RT-007"
+      ]
+    },
+    {
+      "task": "RT-009 provider bounded retry/fallback",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-007",
+        "RT-008"
+      ]
+    },
+    {
+      "task": "RT-010 session context 恢復",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-008"
+      ]
+    },
+    {
+      "task": "RT-011 context budget 與可撤銷摘要",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-002",
+        "RT-010"
+      ]
+    },
+    {
+      "task": "RT-012 持續 browser session",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-005",
+        "RT-007"
+      ]
+    },
+    {
+      "task": "RT-013 Rust read-only execution backend 對接",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-005",
+        "RT-007"
+      ]
+    },
+    {
+      "task": "RT-014 有來源的 memory ingress",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-010"
+      ]
+    },
+    {
+      "task": "RT-015 既有排程的有界接入",
+      "status": "PLANNED",
+      "dependencies": [
+        "RT-008",
+        "RT-014"
+      ]
+    }
+  ],
+  "selected": {
+    "task": "RT-006 Qwen worker 生命周期",
+    "status": "PARTIAL（2026-10-01；獨立驗證指出前端取消及人工相容性缺口）",
+    "dependencies": [
+      "RT-001"
+    ]
+  }
+}

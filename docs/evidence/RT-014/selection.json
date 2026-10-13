@@ -1,0 +1,81 @@
+{
+  "selected": "RT-014",
+  "tasks": [
+    {
+      "task": "RT-001",
+      "status": "DONE（2026-10-01）；證據 `docs/evidence/RT-001/README.md`",
+      "dependencies": "無。"
+    },
+    {
+      "task": "RT-002",
+      "status": "DONE（2026-10-01）",
+      "dependencies": "RT-001。"
+    },
+    {
+      "task": "RT-003",
+      "status": "DONE / VERIFIED（2026-10-04；RT-003-FIX-01 通過；原 PARTIAL 為歷史）",
+      "dependencies": "RT-002。"
+    },
+    {
+      "task": "RT-004",
+      "status": "DONE（2026-10-01）",
+      "dependencies": "RT-001。"
+    },
+    {
+      "task": "RT-005",
+      "status": "DONE（2026-10-01；獨立驗證缺口修補後fixtures通過）",
+      "dependencies": "RT-003、RT-004。"
+    },
+    {
+      "task": "RT-006",
+      "status": "DONE（2026-10-02；前端修補及owner人工驗收確認）",
+      "dependencies": "RT-001。"
+    },
+    {
+      "task": "RT-007",
+      "status": "DONE",
+      "dependencies": "RT-003、RT-004。"
+    },
+    {
+      "task": "RT-008",
+      "status": "DONE",
+      "dependencies": "RT-003、RT-005、RT-007。"
+    },
+    {
+      "task": "RT-009",
+      "status": "DONE",
+      "dependencies": "RT-007、RT-008。"
+    },
+    {
+      "task": "RT-010",
+      "status": "DONE",
+      "dependencies": "RT-008。"
+    },
+    {
+      "task": "RT-011",
+      "status": "DONE（2026-10-05；授權budget切片完成，summary仍DEFER）",
+      "dependencies": "RT-002、RT-010。"
+    },
+    {
+      "task": "RT-012",
+      "status": "DONE（2026-10-05）",
+      "dependencies": "RT-005、RT-007。"
+    },
+    {
+      "task": "RT-013",
+      "status": "DEFER",
+      "dependencies": "RT-005、RT-007。"
+    },
+    {
+      "task": "RT-014",
+      "status": "BLOCKED（dependency RT-010）",
+      "dependencies": "RT-010。"
+    },
+    {
+      "task": "RT-015",
+      "status": "DEFER（另保留 RT-014 dependency 與 retention/single-owner expansion gate）",
+      "dependencies": "RT-008、RT-014。"
+    }
+  ],
+  "discrepancy": "RT-014 stale RT-010 blocker resolved by DONE dependency; RT-013/015 DEFER."
+}

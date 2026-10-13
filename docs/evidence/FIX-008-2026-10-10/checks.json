@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-10",
+  "status": "DONE / VERIFIED within D38 dialect",
+  "commands": [
+    {
+      "command": ".venv/bin/python -m pytest -q -m 'not real_provider'",
+      "result": "829 passed, 5 deselected, 3 existing warnings, 112.86s",
+      "log": "full-suite.log"
+    },
+    {
+      "command": "ruff format --check src tests scripts",
+      "result": "221 files already formatted"
+    },
+    {
+      "command": "ruff check src tests scripts",
+      "result": "All checks passed!"
+    },
+    {
+      "command": "mypy",
+      "result": "Success: no issues found in 211 source files"
+    },
+    {
+      "command": "python scripts/export_schemas --check",
+      "exit_code": 0
+    }
+  ],
+  "new_tests_before": "46 failed /16 passed exact before source",
+  "new_plus_original_tests_after": "63 passed",
+  "preservation": "225 existing source files; only core/evolution.py changed",
+  "rollback": "exact2file reverse/reapply SHA PASS",
+  "scoped_secret_findings": 0,
+  "private_inputs_or_service_restart": false,
+  "not_run": [
+    "untrusted OS sandbox/promotion",
+    "real provider/GPU/hardware",
+    "formal deployment or live rollback"
+  ]
+}

@@ -1,0 +1,336 @@
+from __future__ import annotations
+
+import sys
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+from uuid import uuid4
+
+import pytest
+
+from siro.core.evolution import PatchProposal, PatchVerifier
+
+POLICY = "src/siro/core/authorization.py"
+CONFIG = "src/siro/config.py"
+
+
+def proposal(diff: str) -> PatchProposal:
+    return PatchProposal(
+        proposal_id=uuid4(), unified_diff=diff, created_at=datetime(2026, 10, 10, tzinfo=UTC)
+    )
+
+
+def modification(path: str = "calc.py") -> str:
+    return f"--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n"
+
+
+def deletion(path: str) -> str:
+    return f"--- a/{path}\n+++ /dev/null\n@@ -1 +0,0 @@\n-VALUE = 1\n"
+
+
+def addition(path: str) -> str:
+    return f"--- /dev/null\n+++ b/{path}\n@@ -0,0 +1 @@\n+VALUE = 2\n"
+
+
+def rename(old: str, new: str) -> str:
+    return (
+        f"diff --git a/{old} b/{new}\n"
+        "similarity index 50%\n"
+        f"rename from {old}\nrename to {new}\n"
+        f"--- a/{old}\n+++ b/{new}\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n"
+    )
+
+
+VALID_DIFFS = [
+    pytest.param(modification(), ("calc.py",), id="plain-modify"),
+    pytest.param(addition("new.py"), ("new.py",), id="plain-add"),
+    pytest.param(deletion("old.py"), ("old.py",), id="plain-delete"),
+    pytest.param(
+        "diff --git a/calc.py b/calc.py\nindex 012abcd..345abcd 100644\n" + modification(),
+        ("calc.py",),
+        id="git-modify",
+    ),
+    pytest.param(
+        "diff --git a/new.py b/new.py\nnew file mode 100644\n"
+        "index 0000000..345abcd\n" + addition("new.py"),
+        ("new.py",),
+        id="git-add",
+    ),
+    pytest.param(
+        "diff --git a/old.py b/old.py\ndeleted file mode 100644\n"
+        "index 012abcd..0000000\n" + deletion("old.py"),
+        ("old.py",),
+        id="git-delete",
+    ),
+    pytest.param(rename("old.py", "new.py"), ("old.py", "new.py"), id="git-rename-content"),
+    pytest.param(
+        deletion("old.py") + modification() + addition("new.py") + modification(),
+        ("old.py", "calc.py", "new.py"),
+        id="first-seen-union",
+    ),
+    pytest.param(
+        "--- a/docs/example.txt\n+++ b/docs/example.txt\n@@ -1 +1 @@\n"
+        "--- a/src/siro/core/authorization.py\n+++ b/docs/other.txt\n",
+        ("docs/example.txt",),
+        id="counted-header-looking-payload",
+    ),
+    pytest.param(
+        "--- a/text.txt\n+++ b/text.txt\n@@ -1,2 +1,2 @@ context\n first\n-old\n+new\n"
+        "@@ -4 +4 @@\n-tail\n\\ No newline at end of file\n"
+        "+last\n\\ No newline at end of file\n",
+        ("text.txt",),
+        id="multiple-hunks-context-and-no-newline",
+    ),
+]
+
+
+@pytest.mark.parametrize(("diff", "expected"), VALID_DIFFS)
+def test_complete_path_union_uses_counted_hunks(diff: str, expected: tuple[str, ...]) -> None:
+    assert PatchVerifier._changed_paths(diff) == expected
+
+
+UNSUPPORTED_DIFFS = [
+    pytest.param("+++ b/calc.py\n", id="orphan-new-header"),
+    pytest.param("--- a/calc.py\n+++ b/calc.py\n", id="no-hunks"),
+    pytest.param("diff --git a/other.py b/other.py\n" + modification(), id="git-identity-conflict"),
+    pytest.param(
+        rename("old.py", "new.py").replace("rename from old.py", "rename from x.py"),
+        id="rename-source-conflict",
+    ),
+    pytest.param(
+        rename("old.py", "new.py").replace("rename to new.py\n", ""), id="incomplete-rename"
+    ),
+    pytest.param(
+        "diff --git a/old.py b/new.py\nsimilarity index 100%\n"
+        "rename from old.py\nrename to new.py\n",
+        id="rename-only",
+    ),
+    pytest.param(modification() + "GIT binary patch\nliteral 5\nabc\n", id="mixed-binary-marker"),
+    pytest.param(
+        "diff --git a/old.py b/new.py\ncopy from old.py\ncopy to new.py\n" + modification("new.py"),
+        id="copy-metadata",
+    ),
+    pytest.param(
+        "diff --git a/calc.py b/calc.py\nold mode 100644\nnew mode 100755\n", id="mode-only"
+    ),
+    pytest.param(
+        modification().replace("--- a/calc.py", "--- a/calc.py\t2026-10-10"),
+        id="old-header-timestamp",
+    ),
+    pytest.param(
+        modification().replace("+++ b/calc.py", "+++ b/calc.py\t2026-10-10"),
+        id="new-header-timestamp",
+    ),
+    pytest.param(modification().replace("a/calc.py", '"a/calc.py"'), id="quoted-header"),
+    pytest.param(modification().replace("calc.py", "space file.py"), id="space-path"),
+    pytest.param(modification().replace("calc.py", "../escape.py"), id="parent-escape"),
+    pytest.param(modification().replace("calc.py", "/tmp/escape.py"), id="absolute-path"),
+    pytest.param(modification().replace("calc.py", ".git/config"), id="git-metadata"),
+    pytest.param(modification().replace("calc.py", "nested/.git/config"), id="nested-git-metadata"),
+    pytest.param(
+        modification().replace("calc.py", "./src/siro/core/authorization.py"),
+        id="leading-dot-alias",
+    ),
+    pytest.param(
+        modification().replace("calc.py", "src/siro/core/./authorization.py"), id="inner-dot-alias"
+    ),
+    pytest.param(
+        modification().replace("calc.py", "src//siro/core/authorization.py"),
+        id="double-slash-alias",
+    ),
+    pytest.param(modification().replace("calc.py", "./.git/config"), id="dot-git-alias"),
+    pytest.param(modification().replace("calc.py", "escaped\\040file.py"), id="escaped-path"),
+    pytest.param(modification().replace("@@ -1 +1 @@", "@@ -1,2 +1,2 @@"), id="truncated-hunk"),
+    pytest.param(modification() + "not a diff line\n", id="unconsumed-content"),
+    pytest.param(modification() + "+++ b/ghost.py\n", id="extra-new-header"),
+    pytest.param(modification().replace("-VALUE = 1", "VALUE = 1"), id="invalid-hunk-prefix"),
+    pytest.param(
+        modification().replace("@@ -1 +1 @@", "@@ -1,999999999999 +1 @@"), id="oversized-count"
+    ),
+    pytest.param("--- /dev/null\n+++ /dev/null\n@@ -0,0 +0,0 @@\n", id="both-null"),
+    pytest.param(
+        modification()
+        .replace("--- a/calc.py", "--- a/calc.py/")
+        .replace("+++ b/calc.py", "+++ b/calc.py/"),
+        id="trailing-slash",
+    ),
+    pytest.param(modification().replace("calc.py", "control\x7ffile.py"), id="del-control-path"),
+    pytest.param(modification().replace("calc.py", "control\x80file.py"), id="c1-control-path"),
+    pytest.param(modification().removesuffix("\n"), id="unterminated-diff"),
+    pytest.param(
+        "diff --git a/calc.py b/calc.py\nnew file mode 100644\n" + modification(),
+        id="new-mode-with-non-null-source",
+    ),
+    pytest.param(
+        "diff --git a/old.py b/new.py\n"
+        "--- a/old.py\n+++ b/new.py\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n",
+        id="rename-without-identity-metadata",
+    ),
+    pytest.param(
+        "diff --git a/calc.py b/calc.py\nindex 012abcd..345abcd\n"
+        "index 012abcd..345abcd\n" + modification(),
+        id="duplicate-metadata",
+    ),
+    pytest.param(
+        f'--- "a/{POLICY}"\n+++ "b/{POLICY}"\n@@ -1 +1 @@\n-old\n+new\n',
+        id="quoted-protected-path",
+    ),
+    pytest.param(
+        modification(POLICY).replace(f"+++ b/{POLICY}", f"+++ b/{POLICY}\t2026-10-10"),
+        id="protected-timestamp",
+    ),
+    pytest.param(
+        "--- /dev/null\n+++ b/new.py\n@@ -1 +1 @@\n-old\n+new\n",
+        id="nonempty-null-side",
+    ),
+]
+
+
+@pytest.mark.parametrize("diff", UNSUPPORTED_DIFFS)
+def test_ambiguous_or_unsupported_diff_rejected_before_any_work(
+    diff: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> object:
+        pytest.fail(
+            "invalid diff must not inspect/copy source, create workspace, apply or run checks"
+        )
+
+    monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+    monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+    monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+    report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+    assert report.status == "rejected_invalid_diff"
+    assert report.changed_paths == ()
+    assert report.outputs == ()
+    assert report.workspace_removed is True
+
+
+@pytest.mark.parametrize(
+    ("diff", "expected"),
+    [
+        (deletion(POLICY), (POLICY,)),
+        (deletion(CONFIG), (CONFIG,)),
+        (deletion(POLICY) + modification(), (POLICY, "calc.py")),
+        (rename(POLICY, "scratch.py"), (POLICY, "scratch.py")),
+        (rename("scratch.py", POLICY), ("scratch.py", POLICY)),
+        (rename(CONFIG, "scratch.py"), (CONFIG, "scratch.py")),
+        (rename("scratch.py", CONFIG), ("scratch.py", CONFIG)),
+    ],
+)
+def test_protected_source_or_destination_rejected_before_apply_or_checks(
+    diff: str, expected: tuple[str, ...], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden(*args: object, **kwargs: object) -> object:
+        pytest.fail("protected paths must be rejected before copy/apply/checks")
+
+    monkeypatch.setattr(PatchVerifier, "_tree_digest", forbidden)
+    monkeypatch.setattr(PatchVerifier, "_run", forbidden)
+    monkeypatch.setattr(tempfile, "mkdtemp", forbidden)
+    report = PatchVerifier(((sys.executable, "-c", "pass"),)).verify(tmp_path, proposal(diff))
+    assert report.status == "rejected_policy_change"
+    assert report.changed_paths == expected
+    assert report.outputs == ()
+    assert report.workspace_removed is True
+
+
+@pytest.mark.parametrize(
+    ("diff", "expected", "check", "status"),
+    [
+        (modification(), ("calc.py",), "from calc import VALUE; assert VALUE == 2", "passed"),
+        (
+            modification(),
+            ("calc.py",),
+            "from calc import VALUE; assert VALUE == 3",
+            "failed_checks",
+        ),
+        (addition("new.py"), ("new.py",), "from new import VALUE; assert VALUE == 2", "passed"),
+        (
+            deletion("old.py"),
+            ("old.py",),
+            "from pathlib import Path; assert not Path('old.py').exists()",
+            "passed",
+        ),
+        (
+            rename("old.py", "new.py"),
+            ("old.py", "new.py"),
+            "from new import VALUE; from pathlib import Path; "
+            "assert VALUE == 2 and not Path('old.py').exists()",
+            "passed",
+        ),
+    ],
+)
+def test_supported_patch_checks_copy_only_and_remove_workspace(
+    diff: str,
+    expected: tuple[str, ...],
+    check: str,
+    status: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "calc.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (root / "old.py").write_text("VALUE = 1\n", encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in root.iterdir()}
+    workspaces: list[Path] = []
+    original_mkdtemp = tempfile.mkdtemp
+
+    def record_workspace(*args: object, **kwargs: object) -> str:
+        path = original_mkdtemp(prefix="siro-test-patch-", dir=tmp_path)
+        workspaces.append(Path(path))
+        return path
+
+    monkeypatch.setattr(tempfile, "mkdtemp", record_workspace)
+    report = PatchVerifier(((sys.executable, "-c", check),)).verify(root, proposal(diff))
+    assert report.status == status
+    assert report.changed_paths == expected
+    assert report.workspace_removed is True
+    assert len(workspaces) == 1 and not workspaces[0].exists()
+    assert {p.name: p.read_bytes() for p in root.iterdir()} == before
+
+
+def test_header_looking_payload_applies_only_to_declared_file(tmp_path: Path) -> None:
+    root = tmp_path / "source"
+    document = root / "docs/example.txt"
+    document.parent.mkdir(parents=True)
+    original = "-- a/src/siro/core/authorization.py\n"
+    document.write_text(original, encoding="utf-8")
+    diff = (
+        "--- a/docs/example.txt\n+++ b/docs/example.txt\n@@ -1 +1 @@\n"
+        "--- a/src/siro/core/authorization.py\n+++ b/docs/other.txt\n"
+    )
+    check = (
+        "from pathlib import Path; "
+        "assert Path('docs/example.txt').read_text() == '++ b/docs/other.txt\\n'; "
+        "assert not Path('docs/other.txt').exists()"
+    )
+    report = PatchVerifier(((sys.executable, "-c", check),)).verify(root, proposal(diff))
+    assert report.status == "passed"
+    assert report.changed_paths == ("docs/example.txt",)
+    assert report.workspace_removed is True
+    assert document.read_text(encoding="utf-8") == original
+    assert not (root / "docs/other.txt").exists()
+
+
+def test_valid_but_unappliable_patch_preserves_status_and_skips_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    check = (sys.executable, "-c", "raise AssertionError('must not execute')")
+    calls: list[tuple[str, ...]] = []
+    original_run = PatchVerifier._run
+
+    def record_run(
+        command: tuple[str, ...], cwd: Path, outputs: list[str], input_text: str | None = None
+    ) -> int:
+        calls.append(command)
+        return original_run(command, cwd, outputs, input_text)
+
+    monkeypatch.setattr(PatchVerifier, "_run", staticmethod(record_run))
+    root = tmp_path / "empty-source"
+    root.mkdir()
+    report = PatchVerifier((check,)).verify(root, proposal(modification()))
+    assert report.status == "rejected_unappliable"
+    assert report.changed_paths == ("calc.py",)
+    assert report.workspace_removed is True
+    assert calls == [("git", "init", "-q"), ("git", "apply", "--check", "-")]
+    assert list(root.iterdir()) == []

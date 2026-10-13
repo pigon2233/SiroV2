@@ -1,0 +1,861 @@
+captured source SHA256: src/siro/cli.py f52bfaee74d99c250b0c06f605b4d91dee1b02f5cc9a12a4d0dd071cada42411
+captured source SHA256: src/siro/services/presentation/gateway.py ada0e1df1a7ba8274be62f607c8684008e7ee245bdffc2ccdca28be2904b6ecf
+FFFFFFFFFFF.                                                             [100%]
+=================================== FAILURES ===================================
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[demo] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d0/synthetic-home')
+command = 'demo'
+capsys = <_pytest.capture.CaptureFixture object at 0x7f28e2c26510>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend(
+                    ["--bundle", str(bundle), "--manifest", str(manifest), "--healthcheck", health]
+                )
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['demo', '--data', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d0/data', '--once', 'synthetic conversation'])
+
+tests/integration/test_data_owner_callers.py:174: AssertionError
+----------------------------- Captured stdout call -----------------------------
+SIRO: 我沒有可追溯的記憶來源, 所以目前不知道。
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[backup] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d1/synthetic-home')
+command = 'backup'
+capsys = <_pytest.capture.CaptureFixture object at 0x7f28e2a202d0>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend(
+                    ["--bundle", str(bundle), "--manifest", str(manifest), "--healthcheck", health]
+                )
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['backup', '--data', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d1/data', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d1/new-backup.db'])
+
+tests/integration/test_data_owner_callers.py:174: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "backed_up", "destination": "/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d1/new-backup.db"}
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[raw-restore] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d2')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d2/synthetic-home')
+command = 'raw-restore'
+capsys = <_pytest.capture.CaptureFixture object at 0x7f28e2a20e10>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend(
+                    ["--bundle", str(bundle), "--manifest", str(manifest), "--healthcheck", health]
+                )
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['restore', '--data', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d2/data', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d2/backup.db'])
+
+tests/integration/test_data_owner_callers.py:174: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d2/data"}
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[zip-restore] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d3')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d3/synthetic-home')
+command = 'zip-restore'
+capsys = <_pytest.capture.CaptureFixture object at 0x7f28e29b2d70>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend(
+                    ["--bundle", str(bundle), "--manifest", str(manifest), "--healthcheck", health]
+                )
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['restore', '--data', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d3/data', '--config', '/tmp/py...aged_cli_busy_has_no_d3/config.json', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d3/backup.zip'])
+
+tests/integration/test_data_owner_callers.py:174: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "restored", "data": "/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d3/data"}
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[stage] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d4')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d4/synthetic-home')
+command = 'stage'
+capsys = <_pytest.capture.CaptureFixture object at 0x7f28e28d4e90>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend(
+                    ["--bundle", str(bundle), "--manifest", str(manifest), "--healthcheck", health]
+                )
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['release', '--release-root', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d4/releases', '--database', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d4/data/siro.db', 'stage', ...])
+
+tests/integration/test_data_owner_callers.py:174: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "activated", "active_version": "3.0.0"}
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[rollback] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d5')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d5/synthetic-home')
+command = 'rollback'
+capsys = <_pytest.capture.CaptureFixture object at 0x7f28e2990b90>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+            assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(signed(bundle, "3.0.0").model_dump_json())
+        health_marker = tmp_path / "health-called"
+        health = json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; Path(" + repr(str(health_marker)) + ").touch()",
+            ]
+        )
+        if command == "demo":
+            arguments = ["demo", "--data", str(data), "--once", "synthetic conversation"]
+        elif command == "backup":
+            arguments = ["backup", "--data", str(data), str(tmp_path / "new-backup.db")]
+        elif command == "raw-restore":
+            arguments = ["restore", "--data", str(data), str(source)]
+        elif command == "zip-restore":
+            archive_path = tmp_path / "backup.zip"
+            content = {"siro.db": source.read_bytes(), "config.json": config.read_bytes()}
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for name, raw in content.items():
+                    archive.writestr(name, raw)
+                archive.writestr(
+                    "manifest.json",
+                    json.dumps(
+                        {
+                            "format": 1,
+                            "files": {
+                                name: hashlib.sha256(raw).hexdigest() for name, raw in content.items()
+                            },
+                        }
+                    ),
+                )
+            arguments = ["restore", "--data", str(data), "--config", str(config), str(archive_path)]
+        else:
+            arguments = [
+                "release",
+                "--release-root",
+                str(release_root),
+                "--database",
+                str(database),
+                "stage" if command == "stage" else "rollback",
+            ]
+            if command == "stage":
+                arguments.extend(
+                    ["--bundle", str(bundle), "--manifest", str(manifest), "--healthcheck", health]
+                )
+        before, source_before, config_before, release_before = (
+            dump(database),
+            source.read_bytes(),
+            config.read_bytes(),
+            tree(release_root),
+        )
+    
+        with kernel_owner(database, account):
+>           assert main(arguments) == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = main(['release', '--release-root', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d5/releases', '--database', '/tmp/pytest-of-jasonliao/pytest-106/test_managed_cli_busy_has_no_d5/data/siro.db', 'rollback'])
+
+tests/integration/test_data_owner_callers.py:174: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "rolled_back", "active_version": "1.0.0"}
+__ test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_gateway_refuses_owner_bef0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_gateway_refuses_owner_bef0/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f28e29c6a50>
+profile = 'legacy'
+
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    def test_gateway_refuses_owner_before_sqlite_initialization_or_server(
+        tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, profile: str
+    ) -> None:
+        import uvicorn
+    
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        data = tmp_path / "must-remain-absent"
+        monkeypatch.setenv("SIRO_DATA_DIR", str(data))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        called: list[str] = []
+    
+        async def initialize(_store: SQLiteStore) -> None:
+            called.append("initialize")
+            raise AssertionError("busy owner must precede initialization")
+    
+        monkeypatch.setattr(SQLiteStore, "initialize", initialize)
+        monkeypatch.setattr(uvicorn, "run", lambda *_args, **_kwargs: called.append("server"))
+        with kernel_owner(data / "siro.db", account), pytest.raises(SystemExit, match="already in use"):
+>           gateway.main()
+
+tests/integration/test_data_owner_callers.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+docs/evidence/RI-005-owner-2026-10-12/before/src/siro/services/presentation/gateway.py:1477: in main
+    asyncio.run(shared_store.initialize())
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_store = <siro.persistence.sqlite.SQLiteStore object at 0x7f28e1567490>
+
+    async def initialize(_store: SQLiteStore) -> None:
+        called.append("initialize")
+>       raise AssertionError("busy owner must precede initialization")
+E       AssertionError: busy owner must precede initialization
+
+tests/integration/test_data_owner_callers.py:200: AssertionError
+_ test_gateway_refuses_owner_before_sqlite_initialization_or_server[candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_gateway_refuses_owner_bef1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_gateway_refuses_owner_bef1/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f28e15df110>
+profile = 'candidate'
+
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    def test_gateway_refuses_owner_before_sqlite_initialization_or_server(
+        tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, profile: str
+    ) -> None:
+        import uvicorn
+    
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        data = tmp_path / "must-remain-absent"
+        monkeypatch.setenv("SIRO_DATA_DIR", str(data))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        called: list[str] = []
+    
+        async def initialize(_store: SQLiteStore) -> None:
+            called.append("initialize")
+            raise AssertionError("busy owner must precede initialization")
+    
+        monkeypatch.setattr(SQLiteStore, "initialize", initialize)
+        monkeypatch.setattr(uvicorn, "run", lambda *_args, **_kwargs: called.append("server"))
+        with kernel_owner(data / "siro.db", account), pytest.raises(SystemExit, match="already in use"):
+>           gateway.main()
+
+tests/integration/test_data_owner_callers.py:205: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+docs/evidence/RI-005-owner-2026-10-12/before/src/siro/services/presentation/gateway.py:1477: in main
+    asyncio.run(shared_store.initialize())
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_store = <siro.persistence.sqlite.SQLiteStore object at 0x7f28e15a4a70>
+
+    async def initialize(_store: SQLiteStore) -> None:
+        called.append("initialize")
+>       raise AssertionError("busy owner must precede initialization")
+E       AssertionError: busy owner must precede initialization
+
+tests/integration/test_data_owner_callers.py:200: AssertionError
+__ test_gateway_owner_is_held_through_server_and_released_on_failure[error0] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_gateway_owner_is_held_thr0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_gateway_owner_is_held_thr0/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f28e160c9b0>
+error = RuntimeError('synthetic startup failure')
+
+    @pytest.mark.parametrize("error", [RuntimeError("synthetic startup failure"), KeyboardInterrupt()])
+    def test_gateway_owner_is_held_through_server_and_released_on_failure(
+        tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException
+    ) -> None:
+        import uvicorn
+    
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path / "data"))
+        checks: list[str] = []
+    
+        def run(*_args: Any, **_kwargs: Any) -> None:
+            with pytest.raises(BlockingIOError), kernel_owner(tmp_path / "data/siro.db", account):
+                checks.append("incorrectly acquired")
+            checks.append("busy while server owns")
+            raise error
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+        with pytest.raises(type(error)):
+>           gateway.main()
+
+tests/integration/test_data_owner_callers.py:231: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+docs/evidence/RI-005-owner-2026-10-12/before/src/siro/services/presentation/gateway.py:1957: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_args = (<fastapi.applications.FastAPI object at 0x7f28e1614ec0>,)
+_kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(*_args: Any, **_kwargs: Any) -> None:
+>       with pytest.raises(BlockingIOError), kernel_owner(tmp_path / "data/siro.db", account):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE BlockingIOError
+
+tests/integration/test_data_owner_callers.py:224: Failed
+__ test_gateway_owner_is_held_through_server_and_released_on_failure[error1] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_gateway_owner_is_held_thr1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_gateway_owner_is_held_thr1/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f28e11e0e50>
+error = KeyboardInterrupt()
+
+    @pytest.mark.parametrize("error", [RuntimeError("synthetic startup failure"), KeyboardInterrupt()])
+    def test_gateway_owner_is_held_through_server_and_released_on_failure(
+        tmp_path: Path, account: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException
+    ) -> None:
+        import uvicorn
+    
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path / "data"))
+        checks: list[str] = []
+    
+        def run(*_args: Any, **_kwargs: Any) -> None:
+            with pytest.raises(BlockingIOError), kernel_owner(tmp_path / "data/siro.db", account):
+                checks.append("incorrectly acquired")
+            checks.append("busy while server owns")
+            raise error
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+        with pytest.raises(type(error)):
+>           gateway.main()
+
+tests/integration/test_data_owner_callers.py:231: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+docs/evidence/RI-005-owner-2026-10-12/before/src/siro/services/presentation/gateway.py:1957: in main
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_args = (<fastapi.applications.FastAPI object at 0x7f28e2741fd0>,)
+_kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...sys.stderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}}
+
+    def run(*_args: Any, **_kwargs: Any) -> None:
+>       with pytest.raises(BlockingIOError), kernel_owner(tmp_path / "data/siro.db", account):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE BlockingIOError
+
+tests/integration/test_data_owner_callers.py:224: Failed
+_______ test_unreadable_existing_database_is_not_treated_as_a_new_target _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_unreadable_existing_datab0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-106/test_unreadable_existing_datab0/synthetic-home')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f28e11e1550>
+capsys = <_pytest.capture.CaptureFixture object at 0x7f28e0f52f10>
+
+    def test_unreadable_existing_database_is_not_treated_as_a_new_target(
+        tmp_path: Path,
+        account: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        if os.geteuid() == 0:
+            pytest.skip("actual permission denial requires an unprivileged Linux account")
+        data = tmp_path / "data"
+        data.mkdir()
+        database = data / "siro.db"
+        seed(database, "latest-completed")
+        called: list[str] = []
+    
+        async def initialize(_store: SQLiteStore) -> None:
+            called.append("initialize")
+            raise AssertionError("unknown target access must refuse before any database work")
+    
+        monkeypatch.setattr(SQLiteStore, "initialize", initialize)
+        data.chmod(0)
+        try:
+>           assert main(["backup", "--data", str(data), str(tmp_path / "backup.db")]) == 1
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_data_owner_callers.py:258: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+docs/evidence/RI-005-owner-2026-10-12/before/src/siro/cli.py:373: in main
+    return int(arguments.handler(arguments))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+docs/evidence/RI-005-owner-2026-10-12/before/src/siro/cli.py:242: in _backup
+    return asyncio.run(_backup_data(arguments))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+docs/evidence/RI-005-owner-2026-10-12/before/src/siro/cli.py:211: in _backup_data
+    await store.initialize()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_store = <siro.persistence.sqlite.SQLiteStore object at 0x7f28e11ea550>
+
+    async def initialize(_store: SQLiteStore) -> None:
+        called.append("initialize")
+>       raise AssertionError("unknown target access must refuse before any database work")
+E       AssertionError: unknown target access must refuse before any database work
+
+tests/integration/test_data_owner_callers.py:253: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1345
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/_pytest/config/__init__.py:1345: PytestAssertRewriteWarning: Module already imported so cannot be rewritten; anyio
+    self._mark_plugins_for_rewrite(hook, disable_autoload)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[demo]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[backup]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[raw-restore]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[zip-restore]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[stage]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[rollback]
+FAILED tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy]
+FAILED tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[candidate]
+FAILED tests/integration/test_data_owner_callers.py::test_gateway_owner_is_held_through_server_and_released_on_failure[error0]
+FAILED tests/integration/test_data_owner_callers.py::test_gateway_owner_is_held_through_server_and_released_on_failure[error1]
+FAILED tests/integration/test_data_owner_callers.py::test_unreadable_existing_database_is_not_treated_as_a_new_target
+11 failed, 1 passed, 3 deselected, 1 warning in 1.01s

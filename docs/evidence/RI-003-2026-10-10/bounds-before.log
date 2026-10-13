@@ -1,0 +1,64 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____________________ test_kernel_object_creation_is_denied _____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-81/test_kernel_object_creation_is0')
+
+    @pytest.mark.asyncio
+    async def test_kernel_object_creation_is_denied(tmp_path: Path) -> None:
+        root = project(tmp_path)
+        attack = '''import ctypes, errno, os
+    libc=ctypes.CDLL('/usr/lib/x86_64-linux-gnu/libc.so.6',use_errno=True)
+    fd=libc.memfd_create(b'synthetic',0)
+    if fd>=0:
+        os.close(fd)
+        raise AssertionError('memfd creation allowed')
+    assert ctypes.get_errno()==errno.EPERM
+    segment=libc.shmget(0,4096,0o1600)
+    if segment>=0:
+        libc.shmctl(segment,0,None)
+        raise AssertionError('shm creation allowed')
+    assert ctypes.get_errno()==errno.EPERM
+    assert libc.syscall(250,999999,0,0,0,0)==-1 # invalid keyctl, no key accessed
+    assert ctypes.get_errno()==errno.EPERM
+    VALUE=2
+    '''
+        result = await backend().verify_isolated_patch(root, proposal(new=attack))
+>       assert result.status == "passed", result.outputs
+E       AssertionError: ('', 'E
+E         ======================================================================
+E         ERROR: test_value (unittest.loader._F...
+E         ----------------------------------------------------------------------
+E         Ran 1 test in 0.000s
+E         
+E         FAILED (errors=1)
+E         ')
+E       assert 'failed_checks' == 'passed'
+E         
+E         - passed
+E         + failed_checks
+
+tests/integration/test_isolated_patch_verification.py:254: AssertionError
+_____________ test_patch_cannot_expand_projected_source_byte_limit _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-81/test_patch_cannot_expand_proje0')
+
+    @pytest.mark.asyncio
+    async def test_patch_cannot_expand_projected_source_byte_limit(tmp_path: Path) -> None:
+        root = project(tmp_path)
+        old = "#\n" * (2 * 1024 * 1024)
+        (root / "src/large.py").write_text(old)
+        result = await backend().verify_isolated_patch(
+            root, proposal(old=old, new=old + "# added\n" * 100, path="src/large.py")
+        )
+>       assert result.status == "rejected_source" and result.workspace_removed
+E       AssertionError: assert ('failed_checks' == 'rejected_source'
+E         
+E         - rejected_source
+E         + failed_checks)
+
+tests/integration/test_isolated_patch_verification.py:265: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_isolated_patch_verification.py::test_kernel_object_creation_is_denied
+FAILED tests/integration/test_isolated_patch_verification.py::test_patch_cannot_expand_projected_source_byte_limit
+2 failed, 27 deselected in 1.32s

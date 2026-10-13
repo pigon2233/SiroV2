@@ -1,0 +1,865 @@
+--- a/src/siro/services/tools/orchestrator.py
++++ b/src/siro/services/tools/orchestrator.py
+@@ -6,20 +6,152 @@
+ import json
+ import sqlite3
+ from collections.abc import Awaitable, Callable
++from copy import deepcopy
+ from dataclasses import dataclass, replace
+ from datetime import UTC, datetime
+ from enum import StrEnum
+ from typing import cast
++from urllib.parse import urlsplit
+ from uuid import uuid4
+ 
+ from siro.core.authorization import argument_hash
+ from siro.persistence.sqlite import SQLiteStore
+-from siro.ports.models import ToolCall
++from siro.ports.models import ToolCall, ToolDefinition
+ from siro.services.tools.execution import ExecutionCleanupError, ExecutionContext
+ 
+ ContextToolExecutor = Callable[[dict[str, object], ExecutionContext], Awaitable[object]]
+ 
+ ToolExecutor = Callable[[dict[str, object]], Awaitable[object]]
++
++
++DEFAULT_MODEL_TOOLS = (
++    ToolDefinition(
++        "browser.navigate+read",
++        "Open an HTTP or HTTPS URL and return its title and visible text.",
++        {
++            "type": "object",
++            "properties": {"url": {"type": "string", "format": "uri"}},
++            "required": ["url"],
++            "additionalProperties": False,
++        },
++    ),
++    ToolDefinition(
++        "computer.execute",
++        "Run a program directly with an argv array. Use this for general Linux computer tasks, "
++        "including inspecting the system, downloading, installing, and launching applications. "
++        "Never wrap the command in sh -c or another shell. Omit cwd unless the owner or a prior "
++        "observation gave an exact directory. Set detach=true when launching a GUI application.",
++        {
++            "type": "object",
++            "properties": {
++                "argv": {"type": "array", "items": {"type": "string"}, "minItems": 1},
++                "cwd": {"type": "string"},
++                "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 120},
++                "detach": {"type": "boolean"},
++            },
++            "required": ["argv"],
++            "additionalProperties": False,
++        },
++    ),
++)
++
++
++class ToolUnavailableError(RuntimeError):
++    """An explicitly registered tool is not currently available."""
++
++
++def _valid_arguments(value: object, schema: dict[str, object]) -> bool:
++    kind = schema.get("type")
++    if kind == "object":
++        if not isinstance(value, dict):
++            return False
++        properties = schema.get("properties", {})
++        required = schema.get("required", [])
++        if not isinstance(properties, dict) or not isinstance(required, list):
++            return False
++        if any(key not in value for key in required):
++            return False
++        if schema.get("additionalProperties") is False and any(k not in properties for k in value):
++            return False
++        return all(
++            k not in properties or _valid_arguments(v, properties[k]) for k, v in value.items()
++        )
++    if kind == "array":
++        if not isinstance(value, list) or len(value) < int(str(schema.get("minItems", 0))):
++            return False
++        items = schema.get("items", {})
++        return isinstance(items, dict) and all(_valid_arguments(v, items) for v in value)
++    if kind == "string":
++        if not isinstance(value, str):
++            return False
++        if schema.get("format") == "uri":
++            parsed = urlsplit(value)
++            return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
++        return True
++    if kind == "boolean":
++        return isinstance(value, bool)
++    if kind == "integer":
++        return type(value) is int and int(str(schema.get("minimum", value))) <= value <= int(
++            str(schema.get("maximum", value))
++        )
++    return kind is None
++
++
++@dataclass(frozen=True, slots=True)
++class ToolDescriptor:
++    name: str
++    definition: ToolDefinition | None
++    executor: ToolExecutor
++    available: Callable[[], bool]
++    backend: str
++    effect: str
++    contextual_executor: ContextToolExecutor | None = None
++
++
++class ToolCatalog:
++    """A small facade over the existing registered capabilities, not a skill registry."""
++
++    def __init__(self, descriptors: tuple[ToolDescriptor, ...]) -> None:
++        self._descriptors: dict[str, ToolDescriptor] = {}
++        for descriptor in descriptors:
++            if descriptor.name in self._descriptors:
++                raise ValueError("duplicate tool descriptor")
++            if descriptor.definition is not None and descriptor.definition.name != descriptor.name:
++                raise ValueError("tool descriptor name differs from schema")
++            self._descriptors[descriptor.name] = replace(
++                descriptor, definition=deepcopy(descriptor.definition)
++            )
++
++    def require(self, name: str, arguments: dict[str, object]) -> ToolDescriptor:
++        descriptor = self._descriptors.get(name)
++        if descriptor is None:
++            raise ValueError("unsupported tool capability")
++        if not descriptor.available():
++            raise ToolUnavailableError("tool is unavailable")
++        if descriptor.definition is not None and not _valid_arguments(
++            arguments, descriptor.definition.input_schema
++        ):
++            raise ValueError("invalid tool arguments")
++        return descriptor
++
++    def definitions(self) -> tuple[ToolDefinition, ...]:
++        return tuple(
++            deepcopy(d.definition)
++            for d in self._descriptors.values()
++            if d.definition is not None and d.available()
++        )
++
++    def snapshot(self) -> list[dict[str, object]]:
++        return [
++            {
++                "name": d.name,
++                "available": d.available(),
++                "backend": d.backend,
++                "effect": d.effect,
++                "model_visible": d.definition is not None,
++            }
++            for d in self._descriptors.values()
++        ]
+ 
+ 
+ class ProposalState(StrEnum):
+@@ -149,13 +281,35 @@
+         executors: dict[str, ToolExecutor],
+         *,
+         contextual_executors: dict[str, ContextToolExecutor] | None = None,
++        catalog: ToolCatalog | None = None,
+     ) -> None:
+         self._repository = repository
++        self.catalog = catalog
+         self._executors = executors.copy()
+         self._contextual_executors = (contextual_executors or {}).copy()
+         self._run_contexts: dict[str, ExecutionContext] = {}
+         self._proposal_contexts: dict[str, ExecutionContext] = {}
+         self._active: dict[str, set[asyncio.Task[object]]] = {}
++
++    def model_tools(self) -> tuple[ToolDefinition, ...]:
++        if self.catalog is not None:
++            return self.catalog.definitions()
++        return tuple(deepcopy(d) for d in DEFAULT_MODEL_TOOLS if d.name in self._executors)
++
++    def tool_status(self) -> list[dict[str, object]]:
++        if self.catalog is not None:
++            return self.catalog.snapshot()
++        visible = {d.name for d in DEFAULT_MODEL_TOOLS}
++        return [
++            {
++                "name": name,
++                "available": True,
++                "backend": "legacy",
++                "effect": "legacy",
++                "model_visible": name in visible,
++            }
++            for name in self._executors
++        ]
+ 
+     def start_run(self, run_id: str, session_id: str) -> None:
+         self._run_contexts[run_id] = ExecutionContext(run_id, session_id, run_id)
+@@ -191,7 +345,9 @@
+         return await self._repository.get(proposal_id)
+ 
+     async def propose(self, session_id: str, call: ToolCall, *, risk: str) -> ToolProposal:
+-        if call.name not in self._executors:
++        if self.catalog is not None:
++            self.catalog.require(call.name, call.arguments)
++        elif call.name not in self._executors:
+             raise ValueError(f"unsupported tool capability: {call.name}")
+         proposal = ToolProposal(
+             str(uuid4()),
+@@ -244,15 +400,31 @@
+         proposal = await self._repository.transition(
+             proposal_id, ProposalState.APPROVED, ProposalState.RUNNING
+         )
+-        executor = self._executors[proposal.capability]
+         context = self._proposal_contexts.get(proposal_id)
+         try:
++            descriptor = (
++                self.catalog.require(proposal.capability, proposal.arguments)
++                if self.catalog is not None
++                else None
++            )
++            executor = (
++                descriptor.executor
++                if descriptor is not None
++                else self._executors[proposal.capability]
++            )
+             if context is not None:
+                 context.check()
+-            contextual = self._contextual_executors.get(proposal.capability)
++            contextual = (
++                descriptor.contextual_executor
++                if descriptor is not None
++                else self._contextual_executors.get(proposal.capability)
++            )
+             if context is not None and contextual is not None:
+ 
+                 async def invoke() -> object:
++                    if self.catalog is not None:
++                        self.catalog.require(proposal.capability, proposal.arguments)
++                    context.check()
+                     return await contextual(proposal.arguments, replace(context, authorized=True))
+ 
+                 task = asyncio.create_task(invoke())
+--- a/src/siro/services/presentation/integrated.py
++++ b/src/siro/services/presentation/integrated.py
+@@ -42,38 +42,14 @@
+ from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
+ from siro.services.presentation.gateway import GatewayHub
+ from siro.services.tools.execution import ExecutionCleanupError
+-from siro.services.tools.orchestrator import ProposalState, ToolOrchestrator, ToolProposal
+-
+-_AGENT_TOOLS = (
+-    ToolDefinition(
+-        "browser.navigate+read",
+-        "Open an HTTP or HTTPS URL and return its title and visible text.",
+-        {
+-            "type": "object",
+-            "properties": {"url": {"type": "string", "format": "uri"}},
+-            "required": ["url"],
+-            "additionalProperties": False,
+-        },
+-    ),
+-    ToolDefinition(
+-        "computer.execute",
+-        "Run a program directly with an argv array. Use this for general Linux computer tasks, "
+-        "including inspecting the system, downloading, installing, and launching applications. "
+-        "Never wrap the command in sh -c or another shell. Omit cwd unless the owner or a prior "
+-        "observation gave an exact directory. Set detach=true when launching a GUI application.",
+-        {
+-            "type": "object",
+-            "properties": {
+-                "argv": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+-                "cwd": {"type": "string"},
+-                "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 120},
+-                "detach": {"type": "boolean"},
+-            },
+-            "required": ["argv"],
+-            "additionalProperties": False,
+-        },
+-    ),
++from siro.services.tools.orchestrator import (
++    DEFAULT_MODEL_TOOLS,
++    ProposalState,
++    ToolOrchestrator,
++    ToolProposal,
+ )
++
++_AGENT_TOOLS = DEFAULT_MODEL_TOOLS
+ 
+ _EMOTION_COMMANDS = {
+     "生氣": ("angry", "現在示範生氣的表情。"),
+@@ -151,6 +127,13 @@
+         self._affect = AffectSystem()
+         self._expression = ExpressionPolicy()
+ 
++    def _model_tools(self) -> tuple[ToolDefinition, ...]:
++        if self._tool_orchestrator is None:
++            return ()
++        if self._runtime_profile == "candidate":
++            return self._tool_orchestrator.model_tools()
++        return _AGENT_TOOLS
++
+     async def _broadcast_stream(
+         self, stream_id: str, message: dict[str, object], *, urgent: bool = False
+     ) -> None:
+@@ -379,7 +362,7 @@
+                 privacy=self._privacy,
+                 on_delta=delta,
+                 verified_context=verified_preferences,
+-                tools=_AGENT_TOOLS if self._tool_orchestrator is not None else (),
++                tools=self._model_tools(),
+                 message_history=self._message_histories.get(agent_run.run_id),
+             )
+             if agent_run.run_id in self._terminated:
+@@ -552,7 +535,7 @@
+             prompt,
+             privacy=self._privacy,
+             on_delta=continuation_delta,
+-            tools=_AGENT_TOOLS,
++            tools=self._model_tools(),
+             message_history=history,
+         )
+         if run_id in self._terminated:
+@@ -627,7 +610,15 @@
+                 return
+             capability = call.name
+             risk = "observe/read-only" if capability == "browser.navigate+read" else "computer"
+-            proposal = await orchestrator.propose(session_id, call, risk=risk)
++            try:
++                proposal = await orchestrator.propose(session_id, call, risk=risk)
++            except (ValueError, RuntimeError) as error:
++                if self._runtime_profile != "candidate":
++                    raise
++                await self._finish_candidate(
++                    run_id, session_id, TurnState.FAILED, type(error).__name__
++                )
++                return
+             if self._runtime_profile == "candidate":
+                 orchestrator.bind_proposal(run_id, proposal)
+                 self._run_proposals.setdefault(run_id, []).append(proposal.proposal_id)
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -8,12 +8,14 @@
+ import os
+ import re
+ import secrets
++import shutil
+ import time
+ from collections import deque
+ from collections.abc import AsyncIterator, Awaitable, Callable
+ from contextlib import asynccontextmanager
+ from dataclasses import dataclass, field, replace
+ from datetime import UTC, datetime
++from functools import partial
+ from logging.handlers import TimedRotatingFileHandler
+ from pathlib import Path
+ from typing import Literal, Protocol
+@@ -38,7 +40,15 @@
+ from siro.services.audio.stt import SpeechToText
+ from siro.services.audio.tts import EdgeNeuralTTS, KokoroLocalTTS, QwenReferenceTTS
+ from siro.services.tools.execution import ExecutionContext
+-from siro.services.tools.orchestrator import ProposalState, ToolOrchestrator, ToolProposal
++from siro.services.tools.orchestrator import (
++    DEFAULT_MODEL_TOOLS,
++    ProposalState,
++    ToolCatalog,
++    ToolDescriptor,
++    ToolExecutor,
++    ToolOrchestrator,
++    ToolProposal,
++)
+ 
+ 
+ class JsonSocket(Protocol):
+@@ -420,6 +430,8 @@
+     on_application_tool: ApplicationToolHandler | None = None,
+     tool_orchestrator: ToolOrchestrator | None = None,
+     legacy_shortcuts: bool = False,
++    runtime_profile: str = "legacy",
++    configuration_source: str = "injected",
+ ) -> FastAPI:
+     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
+     gateway_state = state or GatewayState()
+@@ -576,6 +588,29 @@
+             raise HTTPException(status_code=502, detail="speech synthesis failed") from error
+         media_type = "audio/wav" if audio.startswith(b"RIFF") else "audio/mpeg"
+         return Response(audio, media_type=media_type)
++
++    @app.get("/v1/runtime")
++    async def runtime_configuration(
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_token(authorization)
++        return {
++            "runtime_profile": runtime_profile,
++            "configuration_source": configuration_source,
++            "catalog_enabled": tool_orchestrator is not None
++            and tool_orchestrator.catalog is not None,
++            "json_settings_applied": False,
++            "authorization_mode": gateway_state.authorization_mode,
++            "kill_switches": {
++                k: gateway_state.kill_switches[k] for k in ("cloud", "tools", "microphone")
++            },
++            "routes": {
++                k: gateway_state.routes[k]
++                for k in ("model", "audio", "body", "tts")
++                if k in gateway_state.routes
++            },
++            "tools": tool_orchestrator.tool_status() if tool_orchestrator is not None else [],
++        }
+ 
+     @app.get("/v1/snapshot")
+     async def snapshot(authorization: str | None = Header(default=None)) -> dict[str, object]:
+@@ -1179,16 +1214,45 @@
+             "truncated": len(stdout) > output_limit or len(stderr) > output_limit,
+         }
+ 
++    handlers: dict[str, ToolExecutor] = {
++        "browser.navigate+read": execute_browser,
++        "process.start": execute_application,
++        "computer.execute": execute_computer,
++    }
++    definitions = {definition.name: definition for definition in DEFAULT_MODEL_TOOLS}
++
++    def readiness(name: str) -> bool:
++        if not state.kill_switches["tools"]:
++            return False
++        if name == "browser.navigate+read":
++            return bool(shutil.which("google-chrome") or shutil.which("chromium"))
++        return True  # argv/application target checks remain in their existing handlers
++
++    catalog = (
++        ToolCatalog(
++            tuple(
++                ToolDescriptor(
++                    name,
++                    definitions.get(name),
++                    handler,
++                    available=partial(readiness, name),
++                    backend="playwright" if name == "browser.navigate+read" else "python.argv",
++                    effect="read" if name == "browser.navigate+read" else "computer",
++                    contextual_executor=execute_computer if name == "computer.execute" else None,
++                )
++                for name, handler in handlers.items()
++            )
++        )
++        if runtime_profile == "candidate"
++        else None
++    )
+     tool_orchestrator = ToolOrchestrator(
+         SQLiteToolProposalRepository(shared_store),
+-        {
+-            "browser.navigate+read": execute_browser,
+-            "process.start": execute_application,
+-            "computer.execute": execute_computer,
+-        },
++        handlers,
+         contextual_executors={"computer.execute": execute_computer}
+         if runtime_profile == "candidate"
+         else None,
++        catalog=catalog,
+     )
+     controller = IntegratedCompanion(
+         data_dir,
+@@ -1234,6 +1298,8 @@
+         create_app(
+             state=state,
+             hub=hub,
++            runtime_profile=runtime_profile,
++            configuration_source="gateway_env_and_defaults",
+             body_transport=body_transport,
+             memory_service=memory_service,
+             speech_to_text=speech_to_text,
+--- /dev/null
++++ b/tests/integration/test_tool_catalog.py
+@@ -0,0 +1,395 @@
++from __future__ import annotations
++
++from pathlib import Path
++
++import pytest
++
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import ToolCall
++from siro.services.tools.orchestrator import (
++    DEFAULT_MODEL_TOOLS,
++    ProposalState,
++    SQLiteToolProposalRepository,
++    ToolCatalog,
++    ToolDescriptor,
++    ToolOrchestrator,
++    ToolUnavailableError,
++)
++
++
++@pytest.mark.asyncio
++async def test_catalog_is_dispatch_source_and_checks_revoked_readiness(tmp_path: Path) -> None:
++    enabled = True
++    calls: list[dict[str, object]] = []
++
++    async def execute(arguments: dict[str, object]) -> object:
++        calls.append(arguments)
++        return {"ok": True}
++
++    async def wrong(arguments: dict[str, object]) -> object:
++        raise AssertionError("candidate bypassed descriptor")
++
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "computer.execute",
++                DEFAULT_MODEL_TOOLS[1],
++                execute,
++                lambda: enabled,
++                "python.argv",
++                "computer",
++            ),
++        )
++    )
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    subject = ToolOrchestrator(
++        SQLiteToolProposalRepository(store), {"computer.execute": wrong}, catalog=catalog
++    )
++    assert [t.name for t in subject.model_tools()] == ["computer.execute"]
++    for index in range(2):
++        proposal = await subject.propose(
++            "s", ToolCall(str(index), "computer.execute", {"argv": ["synthetic"]}), risk="computer"
++        )
++        await subject.resolve(proposal.proposal_id, approved=True, arguments=proposal.arguments)
++        if index == 1:
++            enabled = False
++        result = await subject.execute(proposal.proposal_id)
++        assert result.state == (ProposalState.COMPLETED if index == 0 else ProposalState.FAILED)
++        if index == 1:
++            assert result.error == "ToolUnavailableError"
++    assert len(calls) == 1
++    assert subject.model_tools() == ()
++    with pytest.raises(ToolUnavailableError):
++        await subject.propose(
++            "s", ToolCall("3", "computer.execute", {"argv": ["synthetic"]}), risk="computer"
++        )
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "arguments",
++    [
++        {},
++        {"argv": []},
++        {"argv": [2]},
++        {"argv": "x"},
++        {"argv": ["x"], "detach": "yes"},
++        {"argv": ["x"], "timeout_seconds": True},
++        {"argv": ["x"], "timeout_seconds": 121},
++        {"argv": ["x"], "extra": "x"},
++    ],
++)
++async def test_catalog_rejects_wrong_schema_before_proposal(
++    tmp_path: Path, arguments: dict[str, object]
++) -> None:
++    async def execute(args: dict[str, object]) -> object:
++        raise AssertionError("invalid arguments dispatched")
++
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "computer.execute",
++                DEFAULT_MODEL_TOOLS[1],
++                execute,
++                lambda: True,
++                "python.argv",
++                "computer",
++            ),
++        )
++    )
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    subject = ToolOrchestrator(SQLiteToolProposalRepository(store), {}, catalog=catalog)
++    with pytest.raises(ValueError, match="invalid tool arguments"):
++        await subject.propose("s", ToolCall("bad", "computer.execute", arguments), risk="computer")
++
++
++def test_definition_snapshot_cannot_change_canonical_schema() -> None:
++    async def execute(arguments: dict[str, object]) -> object:
++        return arguments
++
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "computer.execute",
++                DEFAULT_MODEL_TOOLS[1],
++                execute,
++                lambda: True,
++                "python.argv",
++                "computer",
++            ),
++        )
++    )
++    catalog.definitions()[0].input_schema["required"] = []
++    with pytest.raises(ValueError):
++        catalog.require("computer.execute", {})
++
++
++@pytest.mark.parametrize("profile", ["legacy", "candidate"])
++def test_real_main_effective_config_and_live_switch(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str
++) -> None:
++    import os
++
++    import uvicorn
++    from fastapi import FastAPI
++    from fastapi.testclient import TestClient
++
++    from siro.services.presentation.gateway import main
++
++    for key in list(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
++    monkeypatch.setenv("SIRO_OLLAMA_MODEL", "local-test-model")
++    monkeypatch.setenv("SIRO_OPENAI_MODEL", "unused-cloud-model")
++    monkeypatch.setenv("SIRO_OPENAI_API_KEY", "test-private-canary")
++    # Current browser backend uses the same executable discovery.
++    monkeypatch.setattr("shutil.which", lambda name: None)
++
++    def run(app: FastAPI, **kwargs: object) -> None:
++        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "changed-after-startup")
++        with TestClient(app) as client:
++            assert client.get("/v1/runtime").status_code == 401
++            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
++                "token"
++            ]
++            headers = {"authorization": f"Bearer {token}"}
++            response = client.get("/v1/runtime", headers=headers)
++            assert response.status_code == 200
++            snapshot = response.json()
++            assert snapshot["runtime_profile"] == profile
++            assert snapshot["routes"]["model"] == "ollama:local-test-model"
++            assert snapshot["authorization_mode"] == "full"
++            assert snapshot["json_settings_applied"] is False
++            assert "test-private-canary" not in response.text
++            assert "API_KEY" not in response.text
++            assert "unused-cloud-model" not in response.text
++            tools = {item["name"]: item for item in snapshot["tools"]}
++            assert set(tools) == {"computer.execute", "browser.navigate+read", "process.start"}
++            assert tools["process.start"]["model_visible"] is False
++            if profile == "candidate":
++                assert tools["browser.navigate+read"]["available"] is False
++                assert tools["computer.execute"]["available"] is True
++            client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": False})
++            disabled = client.get("/v1/runtime", headers=headers).json()
++            assert disabled["kill_switches"]["tools"] is False
++            if profile == "candidate":
++                assert not any(item["available"] for item in disabled["tools"])
++
++    monkeypatch.setattr(uvicorn, "run", run)
++    main()
++
++
++@pytest.mark.asyncio
++async def test_real_controller_uses_catalog_each_model_round(tmp_path: Path) -> None:
++    from collections.abc import AsyncIterator
++
++    from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
++    from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, Privacy
++    from siro.services.presentation.gateway import GatewayHub
++    from siro.services.presentation.integrated import IntegratedCompanion
++
++    requests: list[ModelRequest] = []
++    enabled = True
++    calls = 0
++
++    class Model:
++        name = "synthetic-catalog"
++
++        async def stream(
++            self, request: ModelRequest, cancellation: CancellationToken
++        ) -> AsyncIterator[ModelChunk]:
++            requests.append(request)
++            if len(requests) == 1:
++                yield ModelChunk(
++                    "tool_request",
++                    tool_call=ToolCall("a", "computer.execute", {"argv": ["synthetic"]}),
++                )
++            else:
++                yield ModelChunk("text", "done")
++            yield ModelChunk("finished")
++
++    async def execute(arguments: dict[str, object]) -> object:
++        nonlocal enabled, calls
++        calls += 1
++        enabled = False
++        return {"ok": True}
++
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "computer.execute",
++                DEFAULT_MODEL_TOOLS[1],
++                execute,
++                lambda: enabled,
++                "python.argv",
++                "computer",
++            ),
++        )
++    )
++    orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {}, catalog=catalog)
++    hub = GatewayHub()
++    controller = IntegratedCompanion(
++        tmp_path,
++        Model(),
++        hub,
++        MinimalWebBodyAdapter(WebSocketBodyTransport()),
++        privacy=Privacy.LOCAL_ONLY,
++        tool_orchestrator=orchestrator,
++        runtime_profile="candidate",
++        auto_authorize=lambda: True,
++    )
++    await controller.respond("s", "synthetic goal")
++    assert calls == 1
++    assert [t.name for t in requests[0].tools] == ["computer.execute"]
++    assert requests[1].tools == ()
++    await hub.shutdown()
++
++
++@pytest.mark.parametrize("capability", ["computer.execute", "browser.navigate+read"])
++def test_main_model_catalog_routes_every_visible_tool(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capability: str
++) -> None:
++    import os
++    import sys
++    import time
++    from collections.abc import AsyncIterator
++
++    import uvicorn
++    from fastapi import FastAPI
++    from fastapi.testclient import TestClient
++
++    from siro.adapters.browser import BrowserObservation
++    from siro.ports.models import CancellationToken, ModelChunk, ModelRequest
++    from siro.services.presentation.gateway import main
++
++    requests: list[ModelRequest] = []
++    observations: list[str] = []
++
++    class Model:
++        name = "main-catalog-fixture"
++
++        def __init__(self, **kwargs: object) -> None:
++            pass
++
++        async def stream(
++            self, request: ModelRequest, cancellation: CancellationToken
++        ) -> AsyncIterator[ModelChunk]:
++            requests.append(request)
++            if len(requests) == 1:
++                args: dict[str, object] = (
++                    {"argv": [sys.executable, "-c", "print('catalog-route-ok')"]}
++                    if capability == "computer.execute"
++                    else {"url": "https://synthetic.example/"}
++                )
++                yield ModelChunk("tool_request", tool_call=ToolCall("route", capability, args))
++            else:
++                yield ModelChunk("text", "done")
++            yield ModelChunk("finished")
++
++    class Browser:
++        def __init__(self, origins: tuple[str, ...]) -> None:
++            pass
++
++        async def __aenter__(self) -> Browser:
++            return self
++
++        async def __aexit__(self, *args: object) -> None:
++            pass
++
++        async def navigate(self, url: str) -> BrowserObservation:
++            observations.append(url)
++            return BrowserObservation(url, "synthetic", "synthetic visible text", "v1")
++
++    for key in list(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
++    monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic")
++    monkeypatch.setattr("siro.adapters.models.ollama.OllamaAdapter", Model)
++    monkeypatch.setattr("siro.adapters.browser.ScopedBrowserDriver", Browser)
++    monkeypatch.setattr("shutil.which", lambda name: "/synthetic/browser")
++
++    def run(app: FastAPI, **kwargs: object) -> None:
++        with TestClient(app) as client:
++            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
++                "token"
++            ]
++            headers = {"authorization": f"Bearer {token}"}
++            status = client.get("/v1/runtime", headers=headers).json()
++            assert status["catalog_enabled"] is True
++            assert status["configuration_source"] == "gateway_env_and_defaults"
++            client.post(
++                "/v1/conversations/catalog/turns", headers=headers, json={"text": "synthetic goal"}
++            )
++            deadline = time.monotonic() + 10
++            while len(requests) < 2 and time.monotonic() < deadline:
++                time.sleep(0.01)
++            assert len(requests) == 2
++            assert {tool.name for tool in requests[0].tools} == {
++                "computer.execute",
++                "browser.navigate+read",
++            }
++            tool_message = next(m for m in requests[1].messages if m.role == "tool")
++            assert tool_message.tool_call_id == "route"
++            assert (
++                "catalog-route-ok" if capability == "computer.execute" else "synthetic visible text"
++            ) in tool_message.content
++
++    monkeypatch.setattr(uvicorn, "run", run)
++    main()
++    assert len(observations) == (1 if capability == "browser.navigate+read" else 0)
++
++
++@pytest.mark.asyncio
++async def test_contextual_dispatch_rechecks_after_scheduling(tmp_path: Path) -> None:
++    from siro.services.tools.execution import ExecutionContext
++
++    checks = 0
++    dispatched = False
++
++    def readiness() -> bool:
++        nonlocal checks
++        checks += 1
++        return checks < 3  # propose, outer execute, then scheduled invocation
++
++    async def execute(arguments: dict[str, object]) -> object:
++        raise AssertionError("legacy handler bypass")
++
++    async def contextual(arguments: dict[str, object], context: ExecutionContext) -> object:
++        nonlocal dispatched
++        dispatched = True
++        return {}
++
++    catalog = ToolCatalog(
++        (
++            ToolDescriptor(
++                "computer.execute",
++                DEFAULT_MODEL_TOOLS[1],
++                execute,
++                readiness,
++                "python.argv",
++                "computer",
++                contextual,
++            ),
++        )
++    )
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    subject = ToolOrchestrator(SQLiteToolProposalRepository(store), {}, catalog=catalog)
++    subject.start_run("r", "s")
++    proposal = await subject.propose(
++        "s", ToolCall("a", "computer.execute", {"argv": ["x"]}), risk="computer"
++    )
++    subject.bind_proposal("r", proposal)
++    await subject.resolve(proposal.proposal_id, approved=True, arguments=proposal.arguments)
++    result = await subject.execute(proposal.proposal_id)
++    assert result.state is ProposalState.FAILED
++    assert result.error == "ToolUnavailableError"
++    assert not dispatched

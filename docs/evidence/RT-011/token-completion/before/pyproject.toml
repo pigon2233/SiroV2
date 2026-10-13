@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling>=1.28,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "siro-core"
+version = "0.1.0.dev0"
+description = "Persistent digital companion core"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = { text = "Proprietary" }
+authors = [{ name = "SIRO contributors" }]
+dependencies = [
+  "aiomqtt>=2.5,<3",
+  "amqtt>=0.12,<0.13",
+  "edge-tts>=7.2.8",
+  "fastapi>=0.135,<1",
+  "httpx>=0.28,<1",
+  "kokoro-onnx>=0.6.1",
+  "misaki[zh]>=0.9.4",
+  "nats-py>=2.11,<3",
+  "pillow>=12.1,<13",
+  "playwright>=1.58,<2",
+  "pydantic>=2.13,<3",
+  "soundfile>=0.14.0",
+  "uvicorn[standard]>=0.41,<1",
+  "websockets>=15,<17",
+]
+
+[project.scripts]
+siro = "siro.cli:main"
+siro-gateway = "siro.services.presentation.gateway:main"
+siro-compute-worker = "siro.services.compute.worker:main"
+
+[dependency-groups]
+dev = [
+  "pytest-asyncio>=1.2,<2",
+  "detect-secrets>=1.5,<2",
+  "mypy>=2.3,<3",
+  "pytest>=9.1,<10",
+  "ruff>=0.16.8,<0.17",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/siro"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+markers = [
+  "real_provider: opt-in test that calls a configured external or local model backend",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["siro"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true

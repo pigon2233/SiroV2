@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-10",
+  "status": "DONE / VERIFIED within D40",
+  "commands": [
+    {
+      "command": "pytest test_skill_package_identity.py against exact pre-card3source projection",
+      "result": "42 failed /1 passed in 3.11s",
+      "log": "complete-tests-before.log",
+      "source_proof": "complete-tests-before.json"
+    },
+    {
+      "command": "pytest test_skill_package_identity.py test_skill_registry.py test_procedural_candidates.py test_tool_catalog.py",
+      "result": "66 passed /3 existing warnings in 5.99s",
+      "log": "tests-after.log"
+    },
+    {
+      "command": "pytest -q -m not real_provider",
+      "result": "906 passed /5 deselected /3 existing warnings in 113.93s",
+      "log": "full-suite.log"
+    },
+    {
+      "command": "ruff format --check src tests scripts",
+      "result": "223 files already formatted",
+      "log": "format.log"
+    },
+    {
+      "command": "ruff check src tests scripts",
+      "result": "All checks passed",
+      "log": "lint.log"
+    },
+    {
+      "command": "mypy",
+      "result": "Success in 213 source files",
+      "log": "mypy.log"
+    },
+    {
+      "command": "python scripts/export_schemas --check",
+      "exit_code": 0,
+      "log": "schemas.log"
+    }
+  ],
+  "additional_expected_failure_proofs": [
+    "cleanup-cancellation-before.log: stale success after cancel",
+    "snapshot-admission-before.log:9 copies vs8 bound",
+    "concurrency-identity-before.log:peak2 vs approved1"
+  ],
+  "intermediate_full_runs": "904 and905 PASS retained, superseded after concrete new scope checks; not final or summed",
+  "baseline_preservation": "227 existing files; only3production changed, original tests and previous cards intact",
+  "rollback": "exact4file temporary reverse/reapply SHA PASS",
+  "scoped_secret_findings": 0,
+  "not_run": [
+    "independent second agent post-review",
+    "real provider/GPU/human/hardware",
+    "runtime skill catalog/autogeneration integration",
+    "formal deployment/live data/registry change"
+  ]
+}

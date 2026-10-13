@@ -1,0 +1,21 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_staging_healthcheck_cannot_mutate_the_signed_rollback_source _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-64/test_staging_healthcheck_canno0')
+
+    def test_staging_healthcheck_cannot_mutate_the_signed_rollback_source(tmp_path: Path) -> None:
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8)
+        bundle = bundle_at(tmp_path, "candidate")
+        check = (sys.executable, "-c", "open('app.txt', 'w').write('changed by healthcheck')")
+        result = manager.stage_and_activate(bundle, signed(bundle, "1.0.0"), check)
+>       assert result.status == "invalid_manifest"
+E       AssertionError: assert 'activated' == 'invalid_manifest'
+E         
+E         - invalid_manifest
+E         + activated
+
+tests/integration/test_release_data_retention.py:364: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_release_data_retention.py::test_staging_healthcheck_cannot_mutate_the_signed_rollback_source
+1 failed, 42 deselected in 0.17s

@@ -1,0 +1,47 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+________________ test_cache_cannot_reuse_zero_sample_pcm_wav[] _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-152/test_cache_cannot_reuse_zero_s0')
+samples = b''
+
+    @pytest.mark.parametrize("samples", [b"", b"\x01\x00"])
+    def test_cache_cannot_reuse_zero_sample_pcm_wav(tmp_path: Path, samples: bytes) -> None:
+        worker_path = Path(__file__).parents[2] / "scripts/qwen_tts_worker.py"
+        worker = runpy.run_path(str(worker_path))
+        output = io.BytesIO()
+        with wave.open(output, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(24000)
+            wav.writeframes(samples)
+        audio = output.getvalue()
+        cached = tmp_path / "synthetic-cache.json"
+        cached.write_text(json.dumps({
+            "cache_version": worker["CACHE_VERSION"],
+            "fingerprint": "synthetic-fingerprint",
+            "text_sha256": "synthetic-text-digest",
+            "audio_sha256": hashlib.sha256(audio).hexdigest(),
+            "audio": base64.b64encode(audio).decode(),
+            "completion": COMPLETE,
+        }))
+        result = worker["read_cache"](cached, "synthetic-text-digest", "synthetic-fingerprint")
+        if not samples:
+            assert len(audio) == 44
+>           assert result is None
+E           AssertionError: assert (b'RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\xc0]\x00\x00\x80\xbb\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00', {'status': 'complete', 'eos_observed': True, 'cap_reached': False, 'generated_tokens': 3, ...}) is None
+
+tests/integration/test_speech_completion_edges.py:220: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_speech_completion_edges.py::test_cache_cannot_reuse_zero_sample_pcm_wav[]
+1 failed, 1 passed, 12 deselected, 2 warnings in 1.29s

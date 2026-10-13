@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-11",
+  "scope": "actual local trusted worker before D45; synthetic temporary packages only",
+  "source_snapshot": "before/src/siro/adapters/skill_worker.py",
+  "production_or_private_service_touched": false,
+  "probes": [
+    {
+      "name": "stdout_flood",
+      "bytes_attempted": 16777216,
+      "manifest_timeout_ms": 1500,
+      "manifest_output_bytes": 1024,
+      "outer_deadline_seconds": 5,
+      "result": "TimeoutError at outer deadline instead of bounded worker rejection",
+      "elapsed_seconds": 5.004
+    },
+    {
+      "name": "stderr_flood",
+      "bytes_attempted": 16777216,
+      "manifest_timeout_ms": 1500,
+      "manifest_output_bytes": 1024,
+      "outer_deadline_seconds": 5,
+      "result": "TimeoutError at outer deadline instead of bounded worker rejection",
+      "elapsed_seconds": 5.004
+    },
+    {
+      "name": "cpu_soft_limit_raise",
+      "result": "successfully raised soft RLIMIT_CPU from 1 to hard limit 2 seconds",
+      "before": [1, 2],
+      "after": [2, 2],
+      "classification": "trusted-profile limitation; not untrusted execution certification"
+    },
+    {
+      "name": "parent_proc_root_synthetic_canary_read",
+      "result": "PermissionError",
+      "classification": "no demonstrated host read escape on this host"
+    },
+    {
+      "name": "fork_child_setsid",
+      "result": "child successfully called setsid and exited with code 0",
+      "classification": "descendant can leave owner's PGID in old trusted profile"
+    },
+    {
+      "name": "delayed_spawn_return_cancel",
+      "result": "CancelledError returned while owned direct process and descendant still running",
+      "cancel_elapsed_seconds": 0.0,
+      "manual_synthetic_cleanup_running_pids": []
+    },
+    {
+      "name": "stdin_drain_cancel",
+      "request_text_bytes": 3145728,
+      "import_delay_seconds": 5,
+      "result": "CancelledError returned while owned direct process and descendant still running",
+      "cancel_elapsed_seconds": 0.0,
+      "manual_synthetic_cleanup_running_pids": []
+    },
+    {
+      "name": "valid_large_json_below_output_limit",
+      "output_text_characters": 100000,
+      "manifest_output_bytes": 131072,
+      "result": "SkillExecutionError: skill returned invalid JSON",
+      "small_control_outputs_passed_characters": [10000, 50000]
+    },
+    {
+      "name": "existing_bounded_helper_repeated_cancel_after_spawn_pipe_flood",
+      "result": "CancelledError after 0.251 seconds, direct process reaped",
+      "direct_process_returncode": -15,
+      "direct_proc_exists": false,
+      "classification": "control probe; no confirmed owned-child escape in existing RI003 helper"
+    }
+  ],
+  "existing_regression_checks": {
+    "files": [
+      "tests/integration/test_bounded_execution.py",
+      "tests/integration/test_execution_lifecycle.py",
+      "tests/integration/test_isolated_patch_verification.py",
+      "tests/integration/test_skill_registry.py"
+    ],
+    "passed": 77,
+    "warnings": 3,
+    "elapsed_seconds": 35.33,
+    "meaning": "existing cases passed but did not cover these worker defects"
+  },
+  "limitations": [
+    "No untrusted generated skill certification established.",
+    "CPU-limit raise is a trusted-profile limitation and not repaired by FIX-011.",
+    "No private chats, keys, databases, audio caches or service 8026 read or changed."
+  ]
+}

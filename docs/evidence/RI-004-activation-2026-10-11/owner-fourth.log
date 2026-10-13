@@ -1,0 +1,962 @@
+FFF.......FFFFFFFFFFFFFFFFFF                                             [100%]
+=================================== FAILURES ===================================
+_____ test_real_prepare_owner_approval_disabled_enable_normal_tool_revoke ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_real_prepare_owner_approv0')
+
+    @pytest.mark.asyncio
+    async def test_real_prepare_owner_approval_disabled_enable_normal_tool_revoke(
+        tmp_path: Path,
+    ) -> None:
+>       owner, store, registry, catalog, package_hash = await installed(tmp_path)
+                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+______ test_runtime_restart_restores_only_exact_approved_managed_package _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_runtime_restart_restores_0')
+
+    @pytest.mark.asyncio
+    async def test_runtime_restart_restores_only_exact_approved_managed_package(tmp_path: Path) -> None:
+>       owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+___________ test_changed_package_refuses_enable_but_can_still_revoke ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_changed_package_refuses_e0')
+
+    @pytest.mark.asyncio
+    async def test_changed_package_refuses_enable_but_can_still_revoke(tmp_path: Path) -> None:
+>       owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:121: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_________ test_single_review_expiry_stale_identity_and_client_mutation _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_single_review_expiry_stal0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb7b761f070>
+
+    @pytest.mark.asyncio
+    async def test_single_review_expiry_stale_identity_and_client_mutation(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner, _store, _registry, catalog = await owner_fixture(tmp_path)
+>       item = await review(owner, catalog)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_____________ test_revoke_drains_active_and_queued_jobs_before_ack _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_revoke_drains_active_and_0')
+
+    @pytest.mark.asyncio
+    async def test_revoke_drains_active_and_queued_jobs_before_ack(tmp_path: Path) -> None:
+>       owner, _, registry, catalog, package_hash = await installed(tmp_path)
+                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_______ test_foreground_cancellation_and_disable_join_owned_jobs[token] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_foreground_cancellation_a0')
+action = 'token'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+______ test_foreground_cancellation_and_disable_join_owned_jobs[deadline] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_foreground_cancellation_a1')
+action = 'deadline'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_______ test_foreground_cancellation_and_disable_join_owned_jobs[caller] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_foreground_cancellation_a2')
+action = 'caller'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+______ test_foreground_cancellation_and_disable_join_owned_jobs[suspend] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_foreground_cancellation_a3')
+action = 'suspend'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_______ test_foreground_cancellation_and_disable_join_owned_jobs[close] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_foreground_cancellation_a4')
+action = 'close'
+
+    @pytest.mark.parametrize("action", ["token", "deadline", "caller", "suspend", "close"])
+    @pytest.mark.asyncio
+    async def test_foreground_cancellation_and_disable_join_owned_jobs(
+        tmp_path: Path, action: str
+    ) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+__________ test_late_cancel_enable_transaction_is_joined_and_disabled __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_late_cancel_enable_transa0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb7b7ffad50>
+
+    @pytest.mark.asyncio
+    async def test_late_cancel_enable_transaction_is_joined_and_disabled(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+>       owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_______________ test_product_input_bounds_before_dispatch[args0] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_product_input_bounds_befo0')
+args = {'text': True}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:307: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_______________ test_product_input_bounds_before_dispatch[args1] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_product_input_bounds_befo1')
+args = {'text': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:307: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_______________ test_product_input_bounds_before_dispatch[args2] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_product_input_bounds_befo2')
+args = {'text': '界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界...界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界'}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:307: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_______________ test_product_input_bounds_before_dispatch[args3] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_product_input_bounds_befo3')
+args = {'text': '\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n...n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:307: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+_______________ test_product_input_bounds_before_dispatch[args4] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_product_input_bounds_befo4')
+args = {'text': '', 'path': '/private'}
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {"text": True},
+            {"text": "a" * 16385},
+            {"text": "界" * 5462},
+            {"text": "\n" * 257},
+            {"text": "", "path": "/private"},
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_product_input_bounds_before_dispatch(tmp_path: Path, args: dict[str, Any]) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:307: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+________ test_no_authority_from_argument_executor_or_unapproved_context ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_no_authority_from_argumen0')
+
+    @pytest.mark.asyncio
+    async def test_no_authority_from_argument_executor_or_unapproved_context(tmp_path: Path) -> None:
+>       owner, _, _, catalog, package_hash = await installed(tmp_path)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:316: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+__________ test_output_counts_are_exact_integer_and_consistent[True] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_output_counts_are_exact_i0')
+invalid = True
+
+    @pytest.mark.parametrize("invalid", [True, 2, -1, "1"])
+    @pytest.mark.asyncio
+    async def test_output_counts_are_exact_integer_and_consistent(
+        tmp_path: Path, invalid: object
+    ) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+____________ test_output_counts_are_exact_integer_and_consistent[2] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_output_counts_are_exact_i1')
+invalid = 2
+
+    @pytest.mark.parametrize("invalid", [True, 2, -1, "1"])
+    @pytest.mark.asyncio
+    async def test_output_counts_are_exact_integer_and_consistent(
+        tmp_path: Path, invalid: object
+    ) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+___________ test_output_counts_are_exact_integer_and_consistent[-1] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_output_counts_are_exact_i2')
+invalid = -1
+
+    @pytest.mark.parametrize("invalid", [True, 2, -1, "1"])
+    @pytest.mark.asyncio
+    async def test_output_counts_are_exact_integer_and_consistent(
+        tmp_path: Path, invalid: object
+    ) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+____________ test_output_counts_are_exact_integer_and_consistent[1] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-42/test_output_counts_are_exact_i3')
+invalid = '1'
+
+    @pytest.mark.parametrize("invalid", [True, 2, -1, "1"])
+    @pytest.mark.asyncio
+    async def test_output_counts_are_exact_integer_and_consistent(
+        tmp_path: Path, invalid: object
+    ) -> None:
+>       owner, _, _, _catalog, package_hash = await installed(tmp_path)
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_activation.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation.py:60: in installed
+    item = await review(owner, catalog)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_skill_activation.py:51: in review
+    result = await owner.remember(prepared)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:323: in remember
+    expected_hash = await self._control_hash()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/tools/skill_activation.py:335: in _control_hash
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _template_hash() -> str:
+>       with tempfile.TemporaryDirectory(prefix="siro-fixed-review-") as name:
+             ^^^^^^^^
+E       NameError: name 'tempfile' is not defined. Did you forget to import 'tempfile'?
+
+src/siro/services/tools/skill_activation.py:72: NameError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation.py::test_real_prepare_owner_approval_disabled_enable_normal_tool_revoke
+FAILED tests/integration/test_skill_activation.py::test_runtime_restart_restores_only_exact_approved_managed_package
+FAILED tests/integration/test_skill_activation.py::test_changed_package_refuses_enable_but_can_still_revoke
+FAILED tests/integration/test_skill_activation.py::test_single_review_expiry_stale_identity_and_client_mutation
+FAILED tests/integration/test_skill_activation.py::test_revoke_drains_active_and_queued_jobs_before_ack
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[token]
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[deadline]
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[caller]
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[suspend]
+FAILED tests/integration/test_skill_activation.py::test_foreground_cancellation_and_disable_join_owned_jobs[close]
+FAILED tests/integration/test_skill_activation.py::test_late_cancel_enable_transaction_is_joined_and_disabled
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args0]
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args1]
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args2]
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args3]
+FAILED tests/integration/test_skill_activation.py::test_product_input_bounds_before_dispatch[args4]
+FAILED tests/integration/test_skill_activation.py::test_no_authority_from_argument_executor_or_unapproved_context
+FAILED tests/integration/test_skill_activation.py::test_output_counts_are_exact_integer_and_consistent[True]
+FAILED tests/integration/test_skill_activation.py::test_output_counts_are_exact_integer_and_consistent[2]
+FAILED tests/integration/test_skill_activation.py::test_output_counts_are_exact_integer_and_consistent[-1]
+FAILED tests/integration/test_skill_activation.py::test_output_counts_are_exact_integer_and_consistent[1]
+21 failed, 7 passed in 4.28s

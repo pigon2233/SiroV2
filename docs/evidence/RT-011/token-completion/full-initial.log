@@ -1,0 +1,349 @@
+........................................................................ [ 17%]
+............................................F.F......................... [ 34%]
+........F............................................................... [ 52%]
+........................................................................ [ 69%]
+.............................................................sssss...... [ 86%]
+......................................................                   [100%]
+=================================== FAILURES ===================================
+_ test_production_main_routes_real_argv_and_preserves_result[False-candidate] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-66/test_production_main_routes_re1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7a8f75c1da90>
+profile = 'candidate', mutate_profile = False
+
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("mutate_profile", [False, True])
+    def test_production_main_routes_real_argv_and_preserves_result(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, mutate_profile: bool
+    ) -> None:
+        import json
+        from collections.abc import AsyncIterator
+        from unittest.mock import AsyncMock
+    
+        import uvicorn
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+    
+        from siro.adapters.models import ollama
+        from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, ToolCall
+        from siro.services.presentation.gateway import main
+    
+        class Model:
+            name = "synthetic-main-provider"
+    
+            def __init__(self) -> None:
+                self.requests: list[ModelRequest] = []
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                self.requests.append(request)
+                if len(self.requests) == 1:
+                    if mutate_profile:
+                        monkeypatch.setenv(
+                            "SIRO_RUNTIME_PROFILE", "legacy" if profile == "candidate" else "candidate"
+                        )
+                    yield ModelChunk(
+                        "tool_request",
+                        tool_call=ToolCall(
+                            "main-call",
+                            "computer.execute",
+                            {
+                                "argv": [
+                                    sys.executable,
+                                    "-c",
+                                    "import os; os.write(1,b'out'); os.write(2,b'err'); exit(7)",
+                                ],
+                                "cwd": str(tmp_path),
+                            },
+                        ),
+                    )
+                else:
+                    yield ModelChunk("text", "done")
+                yield ModelChunk("finished")
+    
+        from siro.services.tools import execution
+    
+        bounded = AsyncMock(wraps=execute_bounded_argv)
+        monkeypatch.setattr(execution, "execute_bounded_argv", bounded)
+        model = Model()
+        for name in tuple(os.environ):
+            if name.startswith("SIRO_") or name == "GROQ_API_KEY":
+                monkeypatch.delenv(name)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic")
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setattr(ollama, "OllamaAdapter", lambda **kwargs: model)
+    
+        def run(app: FastAPI, **kwargs: object) -> None:
+            with TestClient(app) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                response = client.post(
+                    "/v1/conversations/main/turns",
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={"text": "run synthetic check"},
+                )
+                assert response.status_code == 200
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+        main()
+>       assert len(model.requests) == 2
+E       assert 0 == 2
+E        +  where 0 = len([])
+E        +    where [] = <test_bounded_execution.test_production_main_routes_real_argv_and_preserves_result.<locals>.Model object at 0x7a8f76004440>.requests
+
+tests/integration/test_bounded_execution.py:184: AssertionError
+__ test_production_main_routes_real_argv_and_preserves_result[True-candidate] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-66/test_production_main_routes_re3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7a8f7659b070>
+profile = 'candidate', mutate_profile = True
+
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("mutate_profile", [False, True])
+    def test_production_main_routes_real_argv_and_preserves_result(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, mutate_profile: bool
+    ) -> None:
+        import json
+        from collections.abc import AsyncIterator
+        from unittest.mock import AsyncMock
+    
+        import uvicorn
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+    
+        from siro.adapters.models import ollama
+        from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, ToolCall
+        from siro.services.presentation.gateway import main
+    
+        class Model:
+            name = "synthetic-main-provider"
+    
+            def __init__(self) -> None:
+                self.requests: list[ModelRequest] = []
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                self.requests.append(request)
+                if len(self.requests) == 1:
+                    if mutate_profile:
+                        monkeypatch.setenv(
+                            "SIRO_RUNTIME_PROFILE", "legacy" if profile == "candidate" else "candidate"
+                        )
+                    yield ModelChunk(
+                        "tool_request",
+                        tool_call=ToolCall(
+                            "main-call",
+                            "computer.execute",
+                            {
+                                "argv": [
+                                    sys.executable,
+                                    "-c",
+                                    "import os; os.write(1,b'out'); os.write(2,b'err'); exit(7)",
+                                ],
+                                "cwd": str(tmp_path),
+                            },
+                        ),
+                    )
+                else:
+                    yield ModelChunk("text", "done")
+                yield ModelChunk("finished")
+    
+        from siro.services.tools import execution
+    
+        bounded = AsyncMock(wraps=execute_bounded_argv)
+        monkeypatch.setattr(execution, "execute_bounded_argv", bounded)
+        model = Model()
+        for name in tuple(os.environ):
+            if name.startswith("SIRO_") or name == "GROQ_API_KEY":
+                monkeypatch.delenv(name)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic")
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setattr(ollama, "OllamaAdapter", lambda **kwargs: model)
+    
+        def run(app: FastAPI, **kwargs: object) -> None:
+            with TestClient(app) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                response = client.post(
+                    "/v1/conversations/main/turns",
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={"text": "run synthetic check"},
+                )
+                assert response.status_code == 200
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+        main()
+>       assert len(model.requests) == 2
+E       assert 0 == 2
+E        +  where 0 = len([])
+E        +    where [] = <test_bounded_execution.test_production_main_routes_real_argv_and_preserves_result.<locals>.Model object at 0x7a8f7c133cb0>.requests
+
+tests/integration/test_bounded_execution.py:184: AssertionError
+_______________ test_main_http_cancel_targets_only_owned_session _______________
+
+path = PosixPath('/tmp/pytest-of-jasonliao/pytest-66/test_main_http_cancel_targets_0/pid.one')
+
+    async def wait_file(path: Path) -> None:
+        async with asyncio.timeout(3):
+            while not path.exists() or not path.read_text().strip():
+>               await asyncio.sleep(0.005)
+
+tests/integration/test_execution_lifecycle.py:31: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+delay = 0.005, result = None
+
+    async def sleep(delay, result=None):
+        """Coroutine that completes after a given time (in seconds)."""
+        if delay <= 0:
+            await __sleep0()
+            return result
+    
+        if math.isnan(delay):
+            raise ValueError("Invalid delay: NaN (not a number)")
+    
+        loop = events.get_running_loop()
+        future = loop.create_future()
+        h = loop.call_later(delay,
+                            futures._set_result_unless_cancelled,
+                            future, result)
+        try:
+>           return await future
+                   ^^^^^^^^^^^^
+E           asyncio.exceptions.CancelledError
+
+/usr/lib/python3.14/asyncio/tasks.py:702: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-66/test_main_http_cancel_targets_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7a8f7c5dcbb0>
+
+    @pytest.mark.asyncio
+    async def test_main_http_cancel_targets_only_owned_session(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import httpx
+        import uvicorn
+        from fastapi import FastAPI
+    
+        from siro.adapters.models import ollama
+        from siro.services.presentation import gateway
+    
+        class MainModel:
+            name = "main-lifecycle-synthetic"
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                if len(request.messages) == 2:
+                    session = request.messages[-1].content
+                    code = (
+                        f"import os,time; open('pid.{session}','w').write(str(os.getpid())); "
+                        "time.sleep(30)"
+                    )
+                    yield ModelChunk(
+                        "tool_request",
+                        tool_call=ToolCall(
+                            request.generation_id,
+                            "computer.execute",
+                            {"argv": [sys.executable, "-c", code], "cwd": str(tmp_path)},
+                        ),
+                    )
+                else:
+                    yield ModelChunk("text", "done")
+                yield ModelChunk("finished")
+    
+        for name in tuple(os.environ):
+            if name.startswith("SIRO_") or name == "GROQ_API_KEY":
+                monkeypatch.delenv(name)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic")
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setattr(ollama, "OllamaAdapter", lambda **kwargs: MainModel())
+        hub = Hub()
+        monkeypatch.setattr(gateway, "GatewayHub", lambda: hub)
+        apps: list[FastAPI] = []
+        monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: apps.append(app))
+        # main initializes SQLite synchronously; run composition outside this event loop.
+        await asyncio.to_thread(gateway.main)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=apps[0]), base_url="http://127.0.0.1:8000"
+        ) as client:
+            token = (
+                await client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"})
+            ).json()["token"]
+            headers = {"Authorization": f"Bearer {token}"}
+            turns = [
+                asyncio.create_task(
+                    client.post(f"/v1/conversations/{s}/turns", headers=headers, json={"text": s})
+                )
+                for s in ("one", "two")
+            ]
+            try:
+>               await wait_file(tmp_path / "pid.one")
+
+tests/integration/test_execution_lifecycle.py:371: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_execution_lifecycle.py:29: in wait_file
+    async with asyncio.timeout(3):
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Timeout [expired]>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+exc_val = CancelledError(), exc_tb = <traceback object at 0x7a8f75c15f40>
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() <= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+>                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+/usr/lib/python3.14/asyncio/timeouts.py:114: TimeoutError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/real/test_model_providers.py:41: set SIRO_RUN_REAL_PROVIDERS=1 to permit an external request
+SKIPPED [1] tests/real/test_model_providers.py:62: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+SKIPPED [1] tests/real/test_model_providers.py:80: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+SKIPPED [1] tests/real/test_speech_providers.py:18: set GROQ_API_KEY for the opt-in Groq speech test
+SKIPPED [1] tests/real/test_speech_providers.py:32: set GROQ_API_KEY for the opt-in Groq speech test
+FAILED tests/integration/test_bounded_execution.py::test_production_main_routes_real_argv_and_preserves_result[False-candidate]
+FAILED tests/integration/test_bounded_execution.py::test_production_main_routes_real_argv_and_preserves_result[True-candidate]
+FAILED tests/integration/test_execution_lifecycle.py::test_main_http_cancel_targets_only_owned_session
+3 failed, 406 passed, 5 skipped, 3 warnings in 134.20s (0:02:14)

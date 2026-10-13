@@ -1,0 +1,38 @@
+{
+  "method": "current source/AST and named call-path audit",
+  "fresh_MCP_query": "NOT_RUN: no Codebase Memory callable tools exposed in this chat; prior owner lease not bypassed",
+  "prior_graph": "RI-001 snapshot is older, not treated as current implementation proof",
+  "paths": [
+    "ToolCatalog.require -> propose -> argument_hash resolve -> execute -> BrowserSessions -> ScopedBrowserDriver -> existing observation JSON",
+    "BrowserScopeViolation -> trusted fixed error mapping -> ToolProposal.model_observation -> run_journal + paired native/legacy continuation",
+    "Gateway/Integrated existing tool_result -> UI renderToolResult/textContent"
+  ],
+  "imports": {
+    "src/siro/adapters/browser.py": [],
+    "src/siro/services/tools/browser_session.py": [
+      "from siro.adapters.browser import BrowserObservation, BrowserRole, BrowserTarget, ScopedBrowserDriver",
+      "from siro.services.tools.execution import ExecutionCancelled, ExecutionCleanupError, ExecutionContext"
+    ],
+    "src/siro/services/tools/orchestrator.py": [
+      "from siro.adapters.browser import BrowserScopeReason, BrowserScopeViolation",
+      "from siro.services.tools.execution import ExecutionCancelled, ExecutionCleanupError, ExecutionContext"
+    ],
+    "src/siro/services/presentation/integrated.py": [
+      "from siro.services.tools.execution import ExecutionCleanupError",
+      "from siro.services.tools.orchestrator import DEFAULT_MODEL_TOOLS, ProposalState, ToolOrchestrator, ToolProposal"
+    ],
+    "src/siro/services/presentation/gateway.py": [
+      "from siro.services.tools.execution import ExecutionContext",
+      "from siro.services.tools.orchestrator import DEFAULT_MODEL_TOOLS, AvailabilityReason, AvailabilityState, ProposalState, ToolAvailability, ToolCatalog, ToolDescriptor, ToolExecutor, ToolMetadata, ToolOrchestrator, ToolProposal",
+      "from siro.adapters.browser import ScopedBrowserDriver",
+      "from siro.services.tools.orchestrator import SQLiteToolProposalRepository",
+      "from siro.services.tools.browser_session import BrowserSessions",
+      "from siro.services.tools.orchestrator import BROWSER_SESSION_TOOLS",
+      "from siro.services.tools.execution import _protected_cleanup",
+      "from siro.services.tools.execution import execute_bounded_argv",
+      "from siro.services.tools.execution import _protected_cleanup"
+    ]
+  },
+  "Core_new_driver_imports": false,
+  "new_owner_or_registry_or_schema": false
+}

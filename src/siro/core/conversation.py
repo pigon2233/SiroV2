@@ -9,7 +9,15 @@ from enum import StrEnum
 from typing import Protocol
 from uuid import uuid4
 
-from siro.ports.models import CancellationToken, LanguageModel, ModelRequest, Privacy
+from siro.ports.models import (
+    CancellationToken,
+    LanguageModel,
+    ModelMessage,
+    ModelRequest,
+    Privacy,
+    ToolCall,
+    ToolDefinition,
+)
 
 
 class TurnState(StrEnum):
@@ -27,6 +35,7 @@ class TurnResult:
     text: str
     error: str | None = None
     trace_id: str = ""
+    tool_calls: tuple[ToolCall, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +95,8 @@ class ConversationEngine:
         *,
         privacy: Privacy = Privacy.LOCAL_ONLY,
         on_delta: DeltaHandler | None = None,
+        tools: tuple[ToolDefinition, ...] = (),
+        messages: tuple[ModelMessage, ...] = (),
     ) -> TurnResult:
         turn_id, generation_id, trace_id = str(uuid4()), str(uuid4()), str(uuid4())
         token = CancellationToken()
@@ -97,11 +108,14 @@ class ConversationEngine:
         await self._repository.start_turn(session_id, identity_id, turn_id, generation_id, prompt)
         await self._on_signal(ConversationSignal("started", trace_id, turn_id, generation_id))
         pieces: list[str] = []
+        tool_calls: list[ToolCall] = []
         state = TurnState.COMPLETED
         error: str | None = None
         try:
             async with asyncio.timeout(self._timeout):
-                request = ModelRequest(prompt, generation_id, privacy)
+                request = ModelRequest(
+                    prompt, generation_id, privacy, tools=tools, messages=messages
+                )
                 async for chunk in self._model.stream(request, token):
                     if token.cancelled or not await self._is_current(session_id, generation_id):
                         state = TurnState.CANCELLED
@@ -120,6 +134,8 @@ class ConversationEngine:
                         )
                         if on_delta is not None:
                             await on_delta(chunk.text)
+                    elif chunk.kind == "tool_request" and chunk.tool_call is not None:
+                        tool_calls.append(chunk.tool_call)
         except TimeoutError:
             token.cancel()
             state, error = TurnState.FAILED, "timeout"
@@ -127,7 +143,15 @@ class ConversationEngine:
             state, error = TurnState.FAILED, type(exception).__name__
         if token.cancelled and state is TurnState.COMPLETED:
             state = TurnState.CANCELLED
-        result = TurnResult(turn_id, generation_id, state, "".join(pieces), error, trace_id)
+        result = TurnResult(
+            turn_id,
+            generation_id,
+            state,
+            "".join(pieces),
+            error,
+            trace_id,
+            tuple(tool_calls),
+        )
         await self._repository.finish_turn(result)
         await self._on_signal(
             ConversationSignal("terminal", trace_id, turn_id, generation_id, state=state)

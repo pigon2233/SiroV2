@@ -1,0 +1,223 @@
+............................F.F.............F.F......................... [ 79%]
+...................                                                      [100%]
+=================================== FAILURES ===================================
+_ test_failed_generation_never_accepts_partial_tool_intent[False-deadline-False-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-19/test_failed_generation_never_a8')
+profile = 'legacy', continuation = False, failure = 'deadline'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "deadline", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        if failure == "deadline":
+            await controller.startup()
+>           assert controller._conversation is not None
+E           assert None is not None
+E            +  where None = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7c76da507250>._conversation
+
+tests/integration/test_agent_batches.py:385: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[False-deadline-True-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-19/test_failed_generation_never_a10')
+profile = 'legacy', continuation = True, failure = 'deadline'
+partial_text = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "deadline", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        if failure == "deadline":
+            await controller.startup()
+>           assert controller._conversation is not None
+E           assert None is not None
+E            +  where None = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7c76da5051d0>._conversation
+
+tests/integration/test_agent_batches.py:385: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-deadline-False-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-19/test_failed_generation_never_a24')
+profile = 'legacy', continuation = False, failure = 'deadline'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "deadline", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        if failure == "deadline":
+            await controller.startup()
+>           assert controller._conversation is not None
+E           assert None is not None
+E            +  where None = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7c76da504690>._conversation
+
+tests/integration/test_agent_batches.py:385: AssertionError
+_ test_failed_generation_never_accepts_partial_tool_intent[True-deadline-True-legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-19/test_failed_generation_never_a26')
+profile = 'legacy', continuation = True, failure = 'deadline'
+partial_text = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("profile", ["legacy", "candidate"])
+    @pytest.mark.parametrize("continuation", [False, True])
+    @pytest.mark.parametrize("failure", ["connection", "timeout", "deadline", "cancel"])
+    @pytest.mark.parametrize("partial_text", [False, True])
+    async def test_failed_generation_never_accepts_partial_tool_intent(
+        tmp_path: Path, profile: str, continuation: bool, failure: str, partial_text: bool
+    ) -> None:
+        import json
+        from typing import cast
+    
+        from siro.core.conversation import TurnState
+        from siro.ports.models import LanguageModel
+    
+        effects: list[object] = []
+    
+        async def execute(arguments: dict[str, object]) -> object:
+            effects.append(arguments)
+            return {"confirmed": True}
+    
+        model = InterruptedIntentModel(failure, continuation, partial_text)
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": execute}
+        )
+        hub = RecordingHub()
+        controller = IntegratedCompanion(
+            tmp_path,
+            model,
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile=profile,
+            auto_authorize=lambda: True,
+        )
+        if failure == "deadline":
+            await controller.startup()
+>           assert controller._conversation is not None
+E           assert None is not None
+E            +  where None = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7c76da0dd090>._conversation
+
+tests/integration/test_agent_batches.py:385: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-deadline-False-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[False-deadline-True-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-deadline-False-legacy]
+FAILED tests/integration/test_agent_batches.py::test_failed_generation_never_accepts_partial_tool_intent[True-deadline-True-legacy]
+4 failed, 87 passed, 3 warnings in 26.07s

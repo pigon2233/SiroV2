@@ -1,0 +1,1243 @@
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF                                          [100%]
+=================================== FAILURES ===================================
+___ test_explicit_owner_prepares_review_without_an_approval_or_enable_action ___
+
+    def test_explicit_owner_prepares_review_without_an_approval_or_enable_action() -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:83: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4608050>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+________ test_missing_or_legacy_service_is_unavailable[candidate-False] ________
+
+profile = 'candidate', inject = False
+
+    @pytest.mark.parametrize("profile,inject", [("candidate", False), ("legacy", False), ("legacy", True)])
+    def test_missing_or_legacy_service_is_unavailable(profile: str, inject: bool) -> None:
+        service = PreparedService()
+>       app = gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile=profile,
+            skill_candidates=service if inject else None,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:99: TypeError
+_________ test_missing_or_legacy_service_is_unavailable[legacy-False] __________
+
+profile = 'legacy', inject = False
+
+    @pytest.mark.parametrize("profile,inject", [("candidate", False), ("legacy", False), ("legacy", True)])
+    def test_missing_or_legacy_service_is_unavailable(profile: str, inject: bool) -> None:
+        service = PreparedService()
+>       app = gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile=profile,
+            skill_candidates=service if inject else None,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:99: TypeError
+__________ test_missing_or_legacy_service_is_unavailable[legacy-True] __________
+
+profile = 'legacy', inject = True
+
+    @pytest.mark.parametrize("profile,inject", [("candidate", False), ("legacy", False), ("legacy", True)])
+    def test_missing_or_legacy_service_is_unavailable(profile: str, inject: bool) -> None:
+        service = PreparedService()
+>       app = gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile=profile,
+            skill_candidates=service if inject else None,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:99: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body0] ________
+
+body = {}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f45182b0>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body1] ________
+
+body = {'capability': ''}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f47ab410>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body2] ________
+
+body = {'capability': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4639bf0>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body3] ________
+
+body = {'capability': 1}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f463a140>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body4] ________
+
+body = {'capability': True}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f469ae50>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body5] ________
+
+body = {'capability': None}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f469b950>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body6] ________
+
+body = {'capability': []}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4676990>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body7] ________
+
+body = {'capability': 'text.checklist.parse', 'code': 'private-source-canary'}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4677980>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body8] ________
+
+body = {'capability': 'text.checklist.parse', 'enabled': True}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4631630>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body9] ________
+
+body = {'capability': 'text.checklist.parse', 'profile': 'host'}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4632890>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_______ test_candidate_input_is_only_a_bounded_strict_capability[body10] _______
+
+body = {'capability': 'text.checklist.parse', 'path': '/private'}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {},
+            {"capability": ""},
+            {"capability": "x" * 129},
+            {"capability": 1},
+            {"capability": True},
+            {"capability": None},
+            {"capability": []},
+            {"capability": CAPABILITY, "code": "private-source-canary"},
+            {"capability": CAPABILITY, "enabled": True},
+            {"capability": CAPABILITY, "profile": "host"},
+            {"capability": CAPABILITY, "path": "/private"},
+        ],
+    )
+    def test_candidate_input_is_only_a_bounded_strict_capability(body: dict[str, object]) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4669160>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_ test_candidate_controls_require_session_and_same_origin[/v1/skills/candidates] _
+
+path = '/v1/skills/candidates'
+
+    @pytest.mark.parametrize("path", ["/v1/skills/candidates", "/v1/skills/candidates/cancel"])
+    def test_candidate_controls_require_session_and_same_origin(path: str) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4be3290>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_ test_candidate_controls_require_session_and_same_origin[/v1/skills/candidates/cancel] _
+
+path = '/v1/skills/candidates/cancel'
+
+    @pytest.mark.parametrize("path", ["/v1/skills/candidates", "/v1/skills/candidates/cancel"])
+    def test_candidate_controls_require_session_and_same_origin(path: str) -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4c40d10>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_____ test_runtime_metadata_is_read_only_and_tools_off_still_allows_cancel _____
+
+    def test_runtime_metadata_is_read_only_and_tools_off_still_allows_cancel() -> None:
+        service = PreparedService()
+        state = gateway.GatewayState()
+>       with TestClient(application(service, state=state)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f46612e0>
+kwargs = {'state': GatewayState(identity={'identity_id': 'siro', 'name': 'SIRO'}, active_turns={}, health={'core': 'healthy'}, ...', 'body': 'disabled'}, kill_switches={'cloud': False, 'tools': True, 'microphone': False}, authorization_mode='full')}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_ test_candidate_failures_have_fixed_public_details[SkillCandidateBusy-409-skill candidate preparation is busy] _
+
+error_name = 'SkillCandidateBusy', status = 409
+detail = 'skill candidate preparation is busy'
+
+    @pytest.mark.parametrize(
+        "error_name,status,detail",
+        [
+            ("SkillCandidateBusy", 409, "skill candidate preparation is busy"),
+            ("SkillCandidateClosed", 503, "skill candidates are unavailable"),
+            ("CancelledError", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCancelled", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCleanupError", 503, "skill candidate cleanup failed"),
+        ],
+    )
+    def test_candidate_failures_have_fixed_public_details(
+        error_name: str, status: int, detail: str
+    ) -> None:
+        service = PreparedService()
+        if error_name == "CancelledError":
+            service.error = asyncio.CancelledError("private-path-or-key-canary")
+        elif error_name == "ExecutionCancelled":
+            service.error = ExecutionCancelled("private-path-or-key-canary")
+        elif error_name == "ExecutionCleanupError":
+            service.error = ExecutionCleanupError("private-path-or-key-canary")
+        else:
+>           service.error = candidate_exception(error_name)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:213: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_candidate_product.py:76: in candidate_exception
+    module = importlib.import_module("siro.services.tools.skill_candidates")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.skill_candidates'
+import_ = <function _gcd_import at 0x75f828edbe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.skill_candidates'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_ test_candidate_failures_have_fixed_public_details[SkillCandidateClosed-503-skill candidates are unavailable] _
+
+error_name = 'SkillCandidateClosed', status = 503
+detail = 'skill candidates are unavailable'
+
+    @pytest.mark.parametrize(
+        "error_name,status,detail",
+        [
+            ("SkillCandidateBusy", 409, "skill candidate preparation is busy"),
+            ("SkillCandidateClosed", 503, "skill candidates are unavailable"),
+            ("CancelledError", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCancelled", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCleanupError", 503, "skill candidate cleanup failed"),
+        ],
+    )
+    def test_candidate_failures_have_fixed_public_details(
+        error_name: str, status: int, detail: str
+    ) -> None:
+        service = PreparedService()
+        if error_name == "CancelledError":
+            service.error = asyncio.CancelledError("private-path-or-key-canary")
+        elif error_name == "ExecutionCancelled":
+            service.error = ExecutionCancelled("private-path-or-key-canary")
+        elif error_name == "ExecutionCleanupError":
+            service.error = ExecutionCleanupError("private-path-or-key-canary")
+        else:
+>           service.error = candidate_exception(error_name)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:213: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_candidate_product.py:76: in candidate_exception
+    module = importlib.import_module("siro.services.tools.skill_candidates")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.skill_candidates'
+import_ = <function _gcd_import at 0x75f828edbe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.skill_candidates'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_ test_candidate_failures_have_fixed_public_details[CancelledError-409-skill candidate preparation was cancelled] _
+
+error_name = 'CancelledError', status = 409
+detail = 'skill candidate preparation was cancelled'
+
+    @pytest.mark.parametrize(
+        "error_name,status,detail",
+        [
+            ("SkillCandidateBusy", 409, "skill candidate preparation is busy"),
+            ("SkillCandidateClosed", 503, "skill candidates are unavailable"),
+            ("CancelledError", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCancelled", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCleanupError", 503, "skill candidate cleanup failed"),
+        ],
+    )
+    def test_candidate_failures_have_fixed_public_details(
+        error_name: str, status: int, detail: str
+    ) -> None:
+        service = PreparedService()
+        if error_name == "CancelledError":
+            service.error = asyncio.CancelledError("private-path-or-key-canary")
+        elif error_name == "ExecutionCancelled":
+            service.error = ExecutionCancelled("private-path-or-key-canary")
+        elif error_name == "ExecutionCleanupError":
+            service.error = ExecutionCleanupError("private-path-or-key-canary")
+        else:
+            service.error = candidate_exception(error_name)
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f4645f90>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_ test_candidate_failures_have_fixed_public_details[ExecutionCancelled-409-skill candidate preparation was cancelled] _
+
+error_name = 'ExecutionCancelled', status = 409
+detail = 'skill candidate preparation was cancelled'
+
+    @pytest.mark.parametrize(
+        "error_name,status,detail",
+        [
+            ("SkillCandidateBusy", 409, "skill candidate preparation is busy"),
+            ("SkillCandidateClosed", 503, "skill candidates are unavailable"),
+            ("CancelledError", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCancelled", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCleanupError", 503, "skill candidate cleanup failed"),
+        ],
+    )
+    def test_candidate_failures_have_fixed_public_details(
+        error_name: str, status: int, detail: str
+    ) -> None:
+        service = PreparedService()
+        if error_name == "CancelledError":
+            service.error = asyncio.CancelledError("private-path-or-key-canary")
+        elif error_name == "ExecutionCancelled":
+            service.error = ExecutionCancelled("private-path-or-key-canary")
+        elif error_name == "ExecutionCleanupError":
+            service.error = ExecutionCleanupError("private-path-or-key-canary")
+        else:
+            service.error = candidate_exception(error_name)
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f477ae70>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_ test_candidate_failures_have_fixed_public_details[ExecutionCleanupError-503-skill candidate cleanup failed] _
+
+error_name = 'ExecutionCleanupError', status = 503
+detail = 'skill candidate cleanup failed'
+
+    @pytest.mark.parametrize(
+        "error_name,status,detail",
+        [
+            ("SkillCandidateBusy", 409, "skill candidate preparation is busy"),
+            ("SkillCandidateClosed", 503, "skill candidates are unavailable"),
+            ("CancelledError", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCancelled", 409, "skill candidate preparation was cancelled"),
+            ("ExecutionCleanupError", 503, "skill candidate cleanup failed"),
+        ],
+    )
+    def test_candidate_failures_have_fixed_public_details(
+        error_name: str, status: int, detail: str
+    ) -> None:
+        service = PreparedService()
+        if error_name == "CancelledError":
+            service.error = asyncio.CancelledError("private-path-or-key-canary")
+        elif error_name == "ExecutionCancelled":
+            service.error = ExecutionCancelled("private-path-or-key-canary")
+        elif error_name == "ExecutionCleanupError":
+            service.error = ExecutionCleanupError("private-path-or-key-canary")
+        else:
+            service.error = candidate_exception(error_name)
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:214: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f477b0b0>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+____ test_tools_switch_cancels_only_candidate_work_and_keeps_other_switches ____
+
+    def test_tools_switch_cancels_only_candidate_work_and_keeps_other_switches() -> None:
+        service = PreparedService()
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f477b2f0>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+___ test_cancel_cleanup_failure_is_public_and_tools_remain_disabled[cancel] ____
+
+action = 'cancel'
+
+    @pytest.mark.parametrize("action", ["cancel", "kill"])
+    def test_cancel_cleanup_failure_is_public_and_tools_remain_disabled(action: str) -> None:
+        service = PreparedService()
+        service.cancel_error = ExecutionCleanupError("private-path-or-key-canary")
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:248: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f477b410>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+____ test_cancel_cleanup_failure_is_public_and_tools_remain_disabled[kill] _____
+
+action = 'kill'
+
+    @pytest.mark.parametrize("action", ["cancel", "kill"])
+    def test_cancel_cleanup_failure_is_public_and_tools_remain_disabled(action: str) -> None:
+        service = PreparedService()
+        service.cancel_error = ExecutionCleanupError("private-path-or-key-canary")
+>       with TestClient(application(service)) as client:
+                        ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:248: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f477b4a0>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+___ test_shutdown_closes_candidate_and_preserves_remaining_cleanup[service] ____
+
+failure = 'service'
+
+    @pytest.mark.parametrize("failure", ["service", "controller"])
+    def test_shutdown_closes_candidate_and_preserves_remaining_cleanup(failure: str) -> None:
+        service = PreparedService()
+        hub = gateway.GatewayHub()
+        cleaned: list[str] = []
+    
+        async def controller_close() -> None:
+            cleaned.append("controller")
+            if failure == "controller":
+                raise RuntimeError("synthetic controller close")
+    
+        async def hub_close() -> None:
+            cleaned.append("hub")
+    
+        hub.shutdown = hub_close  # type: ignore[method-assign]
+        if failure == "service":
+            service.close_error = ExecutionCleanupError("synthetic candidate cleanup")
+        with pytest.raises(ExecutionCleanupError if failure == "service" else RuntimeError):
+>           with TestClient(application(service, hub=hub, on_shutdown=controller_close)):
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:280: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f477b530>
+kwargs = {'hub': <siro.services.presentation.gateway.GatewayHub object at 0x75f7f4609940>, 'on_shutdown': <function test_shutdown_closes_candidate_and_preserves_remaining_cleanup.<locals>.controller_close at 0x75f7f46a8a90>}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+__ test_shutdown_closes_candidate_and_preserves_remaining_cleanup[controller] __
+
+failure = 'controller'
+
+    @pytest.mark.parametrize("failure", ["service", "controller"])
+    def test_shutdown_closes_candidate_and_preserves_remaining_cleanup(failure: str) -> None:
+        service = PreparedService()
+        hub = gateway.GatewayHub()
+        cleaned: list[str] = []
+    
+        async def controller_close() -> None:
+            cleaned.append("controller")
+            if failure == "controller":
+                raise RuntimeError("synthetic controller close")
+    
+        async def hub_close() -> None:
+            cleaned.append("hub")
+    
+        hub.shutdown = hub_close  # type: ignore[method-assign]
+        if failure == "service":
+            service.close_error = ExecutionCleanupError("synthetic candidate cleanup")
+        with pytest.raises(ExecutionCleanupError if failure == "service" else RuntimeError):
+>           with TestClient(application(service, hub=hub, on_shutdown=controller_close)):
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:280: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f477b5c0>
+kwargs = {'hub': <siro.services.presentation.gateway.GatewayHub object at 0x75f7f466d950>, 'on_shutdown': <function test_shutdown_closes_candidate_and_preserves_remaining_cleanup.<locals>.controller_close at 0x75f7f46a8ca0>}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+____ test_concurrent_request_busy_and_explicit_cancel_return_without_review ____
+
+    @pytest.mark.asyncio
+    async def test_concurrent_request_busy_and_explicit_cancel_return_without_review() -> None:
+        entered = asyncio.Event()
+        service = PreparedService()
+        active: asyncio.Task[dict[str, object]] | None = None
+    
+        async def prepare(capability: str) -> dict[str, object]:
+            nonlocal active
+            if service.busy:
+                raise candidate_exception("SkillCandidateBusy")
+            active = asyncio.current_task()
+            service.busy = True
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                service.busy = False
+            return dict(REVIEW)
+    
+        async def cancel() -> bool:
+            if active is None or active.done():
+                return False
+            active.cancel()
+            return True
+    
+        service.prepare = prepare  # type: ignore[method-assign]
+        service.cancel = cancel  # type: ignore[method-assign]
+>       app = application(service)
+              ^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:313: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+service = <test_skill_candidate_product.PreparedService object at 0x75f7f477b650>
+kwargs = {}
+
+    def application(service: PreparedService | None, **kwargs: Any) -> FastAPI:
+>       return gateway.create_app(
+            allowed_origins={ORIGIN},
+            runtime_profile="candidate",
+            skill_candidates=service,
+            **kwargs,
+        )
+E       TypeError: create_app() got an unexpected keyword argument 'skill_candidates'
+
+tests/integration/test_skill_candidate_product.py:61: TypeError
+_ test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects[candidate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_main_composes_one_live_ca0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75f7f46a08a0>
+profile = 'candidate'
+
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    def test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str
+    ) -> None:
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
+        monkeypatch.setenv("SIRO_CONTEXT_SUMMARY_ENABLED", "0")
+        monkeypatch.setenv("SIRO_RUNTIME_BINARY", str(tmp_path / "missing-runtime"))
+        monkeypatch.setattr("shutil.which", lambda name: None)
+        effects: list[str] = []
+    
+        async def forbid(*args: object, **kwargs: object) -> None:
+            effects.append("external execution")
+            raise AssertionError("candidate control invoked an external effect")
+    
+        monkeypatch.setattr("asyncio.create_subprocess_exec", forbid)
+        from siro.adapters.models.mock import OfflineDemoModel
+        from siro.persistence.skills import SQLiteSkillRegistry
+    
+        monkeypatch.setattr(OfflineDemoModel, "stream", forbid)
+        monkeypatch.setattr(SQLiteSkillRegistry, "install", forbid)
+        monkeypatch.setattr(SQLiteSkillRegistry, "set_enabled", forbid)
+        services: list[PreparedService] = []
+    
+        def preparer(catalog: object) -> PreparedService:
+            service = PreparedService(catalog)
+            services.append(service)
+            return service
+    
+>       module = importlib.import_module("siro.services.tools.skill_candidates")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:368: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.skill_candidates'
+import_ = <function _gcd_import at 0x75f828edbe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.skill_candidates'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+_ test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects[legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-114/test_main_composes_one_live_ca1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x75f7f4686f90>
+profile = 'legacy'
+
+    @pytest.mark.parametrize("profile", ["candidate", "legacy"])
+    def test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str
+    ) -> None:
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
+        monkeypatch.setenv("SIRO_CONTEXT_SUMMARY_ENABLED", "0")
+        monkeypatch.setenv("SIRO_RUNTIME_BINARY", str(tmp_path / "missing-runtime"))
+        monkeypatch.setattr("shutil.which", lambda name: None)
+        effects: list[str] = []
+    
+        async def forbid(*args: object, **kwargs: object) -> None:
+            effects.append("external execution")
+            raise AssertionError("candidate control invoked an external effect")
+    
+        monkeypatch.setattr("asyncio.create_subprocess_exec", forbid)
+        from siro.adapters.models.mock import OfflineDemoModel
+        from siro.persistence.skills import SQLiteSkillRegistry
+    
+        monkeypatch.setattr(OfflineDemoModel, "stream", forbid)
+        monkeypatch.setattr(SQLiteSkillRegistry, "install", forbid)
+        monkeypatch.setattr(SQLiteSkillRegistry, "set_enabled", forbid)
+        services: list[PreparedService] = []
+    
+        def preparer(catalog: object) -> PreparedService:
+            service = PreparedService(catalog)
+            services.append(service)
+            return service
+    
+>       module = importlib.import_module("siro.services.tools.skill_candidates")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_candidate_product.py:368: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap>:1406: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1371: in _find_and_load
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = 'siro.services.tools.skill_candidates'
+import_ = <function _gcd_import at 0x75f828edbe20>
+
+>   ???
+E   ModuleNotFoundError: No module named 'siro.services.tools.skill_candidates'
+
+<frozen importlib._bootstrap>:1335: ModuleNotFoundError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_candidate_product.py::test_explicit_owner_prepares_review_without_an_approval_or_enable_action
+FAILED tests/integration/test_skill_candidate_product.py::test_missing_or_legacy_service_is_unavailable[candidate-False]
+FAILED tests/integration/test_skill_candidate_product.py::test_missing_or_legacy_service_is_unavailable[legacy-False]
+FAILED tests/integration/test_skill_candidate_product.py::test_missing_or_legacy_service_is_unavailable[legacy-True]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body0]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body1]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body2]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body3]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body4]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body5]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body6]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body7]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body8]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body9]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_input_is_only_a_bounded_strict_capability[body10]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_controls_require_session_and_same_origin[/v1/skills/candidates]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_controls_require_session_and_same_origin[/v1/skills/candidates/cancel]
+FAILED tests/integration/test_skill_candidate_product.py::test_runtime_metadata_is_read_only_and_tools_off_still_allows_cancel
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_failures_have_fixed_public_details[SkillCandidateBusy-409-skill candidate preparation is busy]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_failures_have_fixed_public_details[SkillCandidateClosed-503-skill candidates are unavailable]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_failures_have_fixed_public_details[CancelledError-409-skill candidate preparation was cancelled]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_failures_have_fixed_public_details[ExecutionCancelled-409-skill candidate preparation was cancelled]
+FAILED tests/integration/test_skill_candidate_product.py::test_candidate_failures_have_fixed_public_details[ExecutionCleanupError-503-skill candidate cleanup failed]
+FAILED tests/integration/test_skill_candidate_product.py::test_tools_switch_cancels_only_candidate_work_and_keeps_other_switches
+FAILED tests/integration/test_skill_candidate_product.py::test_cancel_cleanup_failure_is_public_and_tools_remain_disabled[cancel]
+FAILED tests/integration/test_skill_candidate_product.py::test_cancel_cleanup_failure_is_public_and_tools_remain_disabled[kill]
+FAILED tests/integration/test_skill_candidate_product.py::test_shutdown_closes_candidate_and_preserves_remaining_cleanup[service]
+FAILED tests/integration/test_skill_candidate_product.py::test_shutdown_closes_candidate_and_preserves_remaining_cleanup[controller]
+FAILED tests/integration/test_skill_candidate_product.py::test_concurrent_request_busy_and_explicit_cancel_return_without_review
+FAILED tests/integration/test_skill_candidate_product.py::test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects[candidate]
+FAILED tests/integration/test_skill_candidate_product.py::test_main_composes_one_live_catalog_owner_without_model_tool_or_registry_effects[legacy]
+31 failed, 3 warnings in 0.96s
+Additional snapshot-only RED check; temporary in-process service types, no backend execution.
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_authenticated_control_snapshot_reports_current_candidate_metadata ____
+
+    def test_authenticated_control_snapshot_reports_current_candidate_metadata() -> None:
+        service = PreparedService()
+        service.busy = True
+        with TestClient(application(service)) as client:
+            headers = authenticated(client)
+            token = headers["authorization"].removeprefix("Bearer ")
+            view = client.get("/v1/snapshot", headers=headers).json()
+>           assert view["runtime_profile"] == "candidate"
+                   ^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'runtime_profile'
+
+tests/integration/test_skill_candidate_product.py:206: KeyError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_candidate_product.py::test_authenticated_control_snapshot_reports_current_candidate_metadata
+1 failed, 31 deselected, 3 warnings in 0.79s

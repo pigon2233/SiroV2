@@ -1,0 +1,717 @@
+--- a/src/siro/adapters/models/failover.py
++++ b/src/siro/adapters/models/failover.py
+@@ -1,40 +1,88 @@
+-"""Generation-safe model failover before any text becomes visible."""
++"""Bounded, privacy-aware provider attempts before any generation emission."""
+ 
+ from __future__ import annotations
+ 
++import asyncio
+ from collections.abc import AsyncIterator, Sequence
+ from dataclasses import replace
+ from uuid import uuid4
+ 
+-from siro.ports.models import CancellationToken, LanguageModel, ModelChunk, ModelRequest
++import httpx
++
++from siro.adapters.models.openai_compatible import _TOOL_INTENT_EMITTED, OpenAICompatibleAdapter
++from siro.ports.models import CancellationToken, LanguageModel, ModelChunk, ModelRequest, Privacy
++
++
++def _retryable(error: Exception) -> bool:
++    if _TOOL_INTENT_EMITTED in getattr(error, "__notes__", ()):
++        return False
++    if isinstance(error, httpx.HTTPStatusError):
++        return error.response.status_code in {429, 502, 503, 504}
++    return isinstance(error, (ConnectionError, TimeoutError, httpx.TransportError))
+ 
+ 
+ class FailoverModel:
+     name = "failover"
+ 
+-    def __init__(self, models: Sequence[LanguageModel]) -> None:
++    def __init__(
++        self,
++        models: Sequence[LanguageModel],
++        *,
++        backoff_seconds: float = 0.25,
++        cloud_indices: frozenset[int] = frozenset(),
++        cloud_request_budget: int = 0,
++    ) -> None:
+         if not models:
+             raise ValueError("at least one model is required")
++        if not 0 <= backoff_seconds <= 5 or cloud_request_budget not in {0, 1}:
++            raise ValueError("invalid bounded retry budget")
++        if any(i < 0 or i >= len(models) for i in cloud_indices):
++            raise ValueError("invalid cloud model index")
+         self._models = tuple(models)
++        self._backoff = backoff_seconds
++        self._cloud_indices = cloud_indices | frozenset(
++            i for i, model in enumerate(models) if isinstance(model, OpenAICompatibleAdapter)
++        )
++        self._cloud_budget = cloud_request_budget
+ 
+     async def stream(
+         self, request: ModelRequest, cancellation: CancellationToken
+     ) -> AsyncIterator[ModelChunk]:
+-        last_error: Exception | None = None
+-        for index, model in enumerate(self._models):
++        for attempt in range(2):
++            if cancellation.cancelled:
++                return
++            index = min(attempt, len(self._models) - 1)
++            if index in self._cloud_indices:
++                if request.privacy is not Privacy.CLOUD_ALLOWED:
++                    raise PermissionError("cloud egress requires cloud_allowed privacy")
++                if attempt and self._cloud_budget == 0:
++                    raise PermissionError("additional cloud attempt has no request budget")
++            provider_request = (
++                request if attempt == 0 else replace(request, generation_id=str(uuid4()))
++            )
+             emitted = False
+-            provider_request = request
+-            if index:
+-                provider_request = replace(request, generation_id=str(uuid4()))
+             try:
+-                async for chunk in model.stream(provider_request, cancellation):
+-                    if chunk.kind == "text" and chunk.text:
++                async for chunk in self._models[index].stream(provider_request, cancellation):
++                    if cancellation.cancelled:
++                        return
++                    if (chunk.kind == "text" and chunk.text) or chunk.kind in {
++                        "tool_request",
++                        "finished",
++                    }:
+                         emitted = True
+                     yield chunk
+                 return
+-            except Exception as exception:
+-                if emitted or cancellation.cancelled:
++            except Exception as error:
++                if emitted or cancellation.cancelled or attempt == 1 or not _retryable(error):
+                     raise
+-                last_error = exception
+-        if last_error is not None:
+-            raise last_error
++                next_index = min(1, len(self._models) - 1)
++                # Preserve the original provider failure when policy rules out another request.
++                if next_index in self._cloud_indices and (
++                    request.privacy is not Privacy.CLOUD_ALLOWED or self._cloud_budget == 0
++                ):
++                    raise
++                try:
++                    await asyncio.wait_for(cancellation.wait(), timeout=self._backoff)
++                    return
++                except TimeoutError:
++                    pass
+--- a/src/siro/adapters/models/openai_compatible.py
++++ b/src/siro/adapters/models/openai_compatible.py
+@@ -38,6 +38,9 @@
+     if message.tool_call_id is not None:
+         serialized["tool_call_id"] = message.tool_call_id
+     return serialized
++
++
++_TOOL_INTENT_EMITTED = "siro: provider tool intent emitted"
+ 
+ 
+ class OpenAICompatibleAdapter:
+@@ -141,51 +144,56 @@
+     ) -> AsyncIterator[ModelChunk]:
+         calls: dict[int, dict[str, str]] = {}
+         transport = cast(StreamingJsonTransport, self._transport)
+-        async for line in transport.stream_lines(
+-            self._url,
+-            payload,
+-            {"Authorization": f"Bearer {self._key}"},
+-            self._timeout,
+-            cancellation,
+-        ):
+-            if not line or not line.startswith("data:"):
+-                continue
+-            data = line.removeprefix("data:").strip()
+-            if data == "[DONE]":
+-                break
+-            event = json.loads(data)
+-            if not isinstance(event, dict):
+-                raise ValueError("provider stream event is not an object")
+-            usage = event.get("usage")
+-            if isinstance(usage, dict) and isinstance(usage.get("total_tokens"), int):
+-                yield ModelChunk("usage", usage_tokens=usage["total_tokens"])
+-            choices = event.get("choices", [])
+-            if not isinstance(choices, list):
+-                raise ValueError("provider stream choices is not a list")
+-            for choice in choices:
+-                if not isinstance(choice, dict):
++        try:
++            async for line in transport.stream_lines(
++                self._url,
++                payload,
++                {"Authorization": f"Bearer {self._key}"},
++                self._timeout,
++                cancellation,
++            ):
++                if not line or not line.startswith("data:"):
+                     continue
+-                delta = choice.get("delta")
+-                if not isinstance(delta, dict):
+-                    continue
+-                content = delta.get("content")
+-                if isinstance(content, str) and content:
+-                    yield ModelChunk("text", content)
+-                raw_calls = delta.get("tool_calls", [])
+-                if not isinstance(raw_calls, list):
+-                    raise ValueError("provider stream tool_calls is not a list")
+-                for raw in raw_calls:
+-                    if not isinstance(raw, dict) or not isinstance(raw.get("index"), int):
+-                        raise ValueError("provider stream tool call is malformed")
+-                    call = calls.setdefault(raw["index"], {"id": "", "name": "", "args": ""})
+-                    if isinstance(raw.get("id"), str):
+-                        call["id"] += raw["id"]
+-                    function = raw.get("function")
+-                    if isinstance(function, dict):
+-                        if isinstance(function.get("name"), str):
+-                            call["name"] += function["name"]
+-                        if isinstance(function.get("arguments"), str):
+-                            call["args"] += function["arguments"]
++                data = line.removeprefix("data:").strip()
++                if data == "[DONE]":
++                    break
++                event = json.loads(data)
++                if not isinstance(event, dict):
++                    raise ValueError("provider stream event is not an object")
++                usage = event.get("usage")
++                if isinstance(usage, dict) and isinstance(usage.get("total_tokens"), int):
++                    yield ModelChunk("usage", usage_tokens=usage["total_tokens"])
++                choices = event.get("choices", [])
++                if not isinstance(choices, list):
++                    raise ValueError("provider stream choices is not a list")
++                for choice in choices:
++                    if not isinstance(choice, dict):
++                        continue
++                    delta = choice.get("delta")
++                    if not isinstance(delta, dict):
++                        continue
++                    content = delta.get("content")
++                    if isinstance(content, str) and content:
++                        yield ModelChunk("text", content)
++                    raw_calls = delta.get("tool_calls", [])
++                    if not isinstance(raw_calls, list):
++                        raise ValueError("provider stream tool_calls is not a list")
++                    for raw in raw_calls:
++                        if not isinstance(raw, dict) or not isinstance(raw.get("index"), int):
++                            raise ValueError("provider stream tool call is malformed")
++                        call = calls.setdefault(raw["index"], {"id": "", "name": "", "args": ""})
++                        if isinstance(raw.get("id"), str):
++                            call["id"] += raw["id"]
++                        function = raw.get("function")
++                        if isinstance(function, dict):
++                            if isinstance(function.get("name"), str):
++                                call["name"] += function["name"]
++                            if isinstance(function.get("arguments"), str):
++                                call["args"] += function["arguments"]
++        except Exception as error:
++            if calls:
++                error.add_note(_TOOL_INTENT_EMITTED)
++            raise
+         if cancellation.cancelled:
+             return
+         for index, call in sorted(calls.items()):
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -1036,6 +1036,20 @@
+         privacy = ModelPrivacy.CLOUD_ALLOWED
+     else:
+         model = OfflineDemoModel()
++    if runtime_profile == "candidate":
++        from siro.adapters.models.failover import FailoverModel
++
++        retry_enabled = os.environ.get("SIRO_MODEL_RETRY_ENABLED", "1")
++        if retry_enabled not in {"0", "1"}:
++            raise ValueError("SIRO_MODEL_RETRY_ENABLED must be 0 or 1")
++        if retry_enabled == "1":
++            model = FailoverModel(
++                (model,),
++                cloud_indices=frozenset({0})
++                if privacy is ModelPrivacy.CLOUD_ALLOWED
++                else frozenset(),
++                cloud_request_budget=0,
++            )
+     data_dir = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
+     state = GatewayState()
+     state.routes["model"] = backend
+--- /dev/null
++++ b/tests/contract/test_failover_policy.py
+@@ -0,0 +1,311 @@
++from __future__ import annotations
++
++import asyncio
++from collections.abc import AsyncIterator
++
++import httpx
++import pytest
++
++from siro.adapters.models.failover import FailoverModel
++from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
++from siro.ports.models import (
++    CancellationToken,
++    ModelChunk,
++    ModelMessage,
++    ModelRequest,
++    Privacy,
++    ToolCall,
++)
++
++
++class ScriptModel:
++    name = "synthetic-policy"
++
++    def __init__(self, steps: tuple[ModelChunk | Exception, ...]) -> None:
++        self.steps = steps
++        self.requests: list[ModelRequest] = []
++        self.entered = asyncio.Event()
++
++    async def stream(
++        self, request: ModelRequest, cancellation: CancellationToken
++    ) -> AsyncIterator[ModelChunk]:
++        self.requests.append(request)
++        self.entered.set()
++        for step in self.steps:
++            if isinstance(step, Exception):
++                raise step
++            yield step
++
++
++def status_error(status: int) -> httpx.HTTPStatusError:
++    request = httpx.Request("POST", "http://synthetic.invalid")
++    response = httpx.Response(status, request=request)
++    return httpx.HTTPStatusError("synthetic status", request=request, response=response)
++
++
++async def consume(
++    model: FailoverModel, request: ModelRequest, token: CancellationToken | None = None
++) -> list[ModelChunk]:
++    return [chunk async for chunk in model.stream(request, token or CancellationToken())]
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "error",
++    [
++        ConnectionError(),
++        TimeoutError(),
++        status_error(429),
++        status_error(503),
++        httpx.ReadTimeout("synthetic"),
++    ],
++)
++async def test_max_two_attempts_and_request_preservation(error: Exception) -> None:
++    first = ScriptModel((error,))
++    second = ScriptModel((error,))
++    third = ScriptModel((ModelChunk("text", "must never run"),))
++    request = ModelRequest(
++        "goal", "original", messages=(ModelMessage("user", "raw goal"),), max_output_tokens=9
++    )
++    model = FailoverModel((first, second, third), backoff_seconds=0)
++    with pytest.raises(type(error)):
++        await consume(model, request)
++    assert len(first.requests) == len(second.requests) == 1 and not third.requests
++    assert first.requests[0] is request
++    assert second.requests[0].generation_id != "original"
++    assert second.requests[0].messages == request.messages
++    assert (
++        second.requests[0].privacy is request.privacy and second.requests[0].max_output_tokens == 9
++    )
++
++
++@pytest.mark.asyncio
++async def test_single_backend_retry_is_bounded() -> None:
++    model = ScriptModel((ConnectionError(),))
++    with pytest.raises(ConnectionError):
++        await consume(FailoverModel((model,), backoff_seconds=0), ModelRequest("goal", "g"))
++    assert (
++        len(model.requests) == 2
++        and model.requests[0].generation_id != model.requests[1].generation_id
++    )
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "chunk",
++    [
++        ModelChunk("text", "partial"),
++        ModelChunk("tool_request", tool_call=ToolCall("t", "computer.execute", {})),
++        ModelChunk("tool_request"),
++        ModelChunk("finished"),
++    ],
++)
++async def test_emission_prevents_fallback(chunk: ModelChunk) -> None:
++    primary = ScriptModel((chunk, ConnectionError()))
++    fallback = ScriptModel((ModelChunk("text", "wrong success"),))
++    with pytest.raises(ConnectionError):
++        await consume(
++            FailoverModel((primary, fallback), backoff_seconds=0), ModelRequest("goal", "g")
++        )
++    assert len(primary.requests) == 1 and not fallback.requests
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "error",
++    [ValueError(), PermissionError(), status_error(400), status_error(401), status_error(403)],
++)
++async def test_permanent_errors_do_not_retry(error: Exception) -> None:
++    primary = ScriptModel((error,))
++    fallback = ScriptModel((ModelChunk("text", "wrong success"),))
++    with pytest.raises(type(error)):
++        await consume(
++            FailoverModel((primary, fallback), backoff_seconds=0), ModelRequest("goal", "g")
++        )
++    assert len(primary.requests) == 1 and not fallback.requests
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize(
++    "privacy,budget,allowed",
++    [
++        (Privacy.LOCAL_ONLY, 1, False),
++        (Privacy.CLOUD_ALLOWED, 0, False),
++        (Privacy.CLOUD_ALLOWED, 1, True),
++    ],
++)
++async def test_cloud_fallback_privacy_and_explicit_budget(
++    privacy: Privacy, budget: int, allowed: bool
++) -> None:
++    primary = ScriptModel((ConnectionError(),))
++    cloud = ScriptModel((ModelChunk("text", "cloud answer"),))
++    wrapper = FailoverModel(
++        (primary, cloud),
++        backoff_seconds=0,
++        cloud_indices=frozenset({1}),
++        cloud_request_budget=budget,
++    )
++    if allowed:
++        chunks = await consume(wrapper, ModelRequest("goal", "g", privacy))
++        assert chunks[0].text == "cloud answer"
++    else:
++        with pytest.raises(ConnectionError):
++            await consume(wrapper, ModelRequest("goal", "g", privacy))
++    assert len(cloud.requests) == int(allowed)
++
++
++@pytest.mark.asyncio
++async def test_cloud_primary_no_unbudgeted_extra_request() -> None:
++    cloud = ScriptModel((status_error(429),))
++    wrapper = FailoverModel((cloud,), backoff_seconds=0, cloud_indices=frozenset({0}))
++    with pytest.raises(httpx.HTTPStatusError):
++        await consume(wrapper, ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED))
++    assert len(cloud.requests) == 1
++    with pytest.raises(PermissionError):
++        await consume(wrapper, ModelRequest("private", "g2"))
++    assert len(cloud.requests) == 1
++
++
++@pytest.mark.asyncio
++async def test_cancel_during_backoff_prevents_second_attempt() -> None:
++    primary = ScriptModel((ConnectionError(),))
++    fallback = ScriptModel((ModelChunk("text", "wrong"),))
++    token = CancellationToken()
++    task = asyncio.create_task(
++        consume(
++            FailoverModel((primary, fallback), backoff_seconds=5), ModelRequest("goal", "g"), token
++        )
++    )
++    await asyncio.wait_for(primary.entered.wait(), 1)
++    await asyncio.sleep(0)  # the provider error has entered cancellation-aware backoff
++    token.cancel()
++    assert await asyncio.wait_for(task, 0.5) == []
++    assert len(primary.requests) == 1 and not fallback.requests
++
++
++@pytest.mark.asyncio
++async def test_task_cancel_and_precancel_never_dispatch_later_backend() -> None:
++    primary = ScriptModel((ConnectionError(),))
++    fallback = ScriptModel((ModelChunk("text", "wrong"),))
++    model = FailoverModel((primary, fallback), backoff_seconds=5)
++    task = asyncio.create_task(consume(model, ModelRequest("goal", "g")))
++    await primary.entered.wait()
++    task.cancel()
++    with pytest.raises(asyncio.CancelledError):
++        await task
++    token = CancellationToken()
++    token.cancel()
++    assert await consume(model, ModelRequest("goal", "g"), token) == []
++    assert len(primary.requests) == 1 and not fallback.requests
++
++
++class ToolFragmentTransport:
++    async def stream_lines(
++        self,
++        url: str,
++        payload: dict[str, object],
++        headers: dict[str, str],
++        timeout: float,
++        cancellation: CancellationToken,
++    ) -> AsyncIterator[str]:
++        yield (
++            'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"x",'
++            '"function":{"name":"computer.execute","arguments":"{"}}]}}]}'
++        )
++        raise httpx.ReadError("interrupted after tool fragment")
++
++
++@pytest.mark.asyncio
++async def test_buffered_openai_tool_fragment_fences_fallback() -> None:
++    primary = OpenAICompatibleAdapter(
++        base_url="http://synthetic.invalid",
++        api_key="synthetic",
++        model="synthetic",
++        transport=ToolFragmentTransport(),
++    )
++    fallback = ScriptModel((ModelChunk("text", "wrong"),))
++    with pytest.raises(httpx.ReadError):
++        await consume(
++            FailoverModel((primary, fallback), backoff_seconds=0),
++            ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED),
++        )
++    assert not fallback.requests
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("mode", ["ollama429", "openai_fragment"])
++async def test_real_http_transport_retry_and_fragment_fence(mode: str) -> None:
++    from siro.adapters.models.ollama import OllamaAdapter
++
++    bodies: list[bytes] = []
++    handlers: set[asyncio.Task[None]] = set()
++
++    async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
++        task = asyncio.current_task()
++        assert task is not None
++        handlers.add(task)
++        try:
++            headers = await reader.readuntil(b"\r\n\r\n")
++            length = next(
++                int(line.split(b":", 1)[1])
++                for line in headers.split(b"\r\n")
++                if line.lower().startswith(b"content-length:")
++            )
++            bodies.append(await reader.readexactly(length))
++            if mode == "ollama429" and len(bodies) == 1:
++                body = b"{}"
++                writer.write(
++                    b"HTTP/1.1 429 Too Many Requests\r\n"
++                    b"Content-Length: 2\r\nConnection: close\r\n\r\n" + body
++                )
++            else:
++                if mode == "openai_fragment":
++                    body = (
++                        b'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
++                        b'"id":"t","function":{"name":"computer.execute","arguments":"{"}}]}}]}\n\n'
++                    )
++                    content_length = (
++                        len(body) + 100
++                    )  # force actual premature EOF after a tool delta
++                else:
++                    body = b'{"message":{"content":"local retry success"},"done":true}\n'
++                    content_length = len(body)
++                writer.write(
++                    b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
++                    + f"Content-Length: {content_length}\r\nConnection: close\r\n\r\n".encode()
++                    + body
++                )
++            await writer.drain()
++        finally:
++            writer.close()
++            await writer.wait_closed()
++            handlers.discard(task)
++
++    server = await asyncio.start_server(serve, "127.0.0.1", 0)
++    port = server.sockets[0].getsockname()[1]
++    fallback = ScriptModel((ModelChunk("text", "must not fallback"),))
++    try:
++        if mode == "ollama429":
++            wrapper = FailoverModel(
++                (OllamaAdapter(model="synthetic", base_url=f"http://127.0.0.1:{port}"),),
++                backoff_seconds=0,
++            )
++            chunks = await consume(wrapper, ModelRequest("synthetic", "g"))
++            assert any(c.text == "local retry success" for c in chunks) and len(bodies) == 2
++        else:
++            wrapper = FailoverModel(
++                (
++                    OpenAICompatibleAdapter(
++                        base_url=f"http://127.0.0.1:{port}", api_key="synthetic", model="synthetic"
++                    ),
++                    fallback,
++                ),
++                backoff_seconds=0,
++            )
++            with pytest.raises(httpx.RemoteProtocolError):
++                await consume(wrapper, ModelRequest("synthetic", "g", Privacy.CLOUD_ALLOWED))
++            assert len(bodies) == 1 and not fallback.requests
++    finally:
++        server.close()
++        await server.wait_closed()
++        await asyncio.gather(*tuple(handlers), return_exceptions=True)
+--- /dev/null
++++ b/tests/integration/test_provider_retry.py
+@@ -0,0 +1,158 @@
++from __future__ import annotations
++
++import os
++import sys
++from collections.abc import AsyncIterator
++from pathlib import Path
++from typing import cast
++
++import httpx
++import pytest
++import uvicorn
++from fastapi import FastAPI
++from fastapi.testclient import TestClient
++
++from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, Privacy, ToolCall
++
++
++@pytest.mark.parametrize(
++    "profile,mode,disabled,expected_requests,expected_effect,state",
++    [
++        ("candidate", "retry_then_tool", False, 3, True, "completed"),
++        ("candidate", "always_fail", False, 2, False, "failed"),
++        ("legacy", "always_fail", False, 1, False, "failed"),
++        ("candidate", "always_fail", True, 1, False, "failed"),
++        ("candidate", "tool_then_fail", False, 1, False, "failed"),
++        ("candidate", "text_then_fail", False, 1, False, "failed"),
++        ("candidate", "continuation_tool_failure", False, 2, True, "failed"),
++        ("candidate", "cloud_fail", False, 1, False, "failed"),
++    ],
++)
++def test_real_main_provider_policy_and_dispatch_gate(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    profile: str,
++    mode: str,
++    disabled: bool,
++    expected_requests: int,
++    expected_effect: bool,
++    state: str,
++) -> None:
++    import siro.adapters.models.ollama as ollama
++    import siro.adapters.models.openai_compatible as cloud
++    from siro.services.presentation.gateway import main
++
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
++    monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "0" if disabled else "1")
++    # Both are configured to ensure original local priority does not gain cloud fallback.
++    monkeypatch.setenv("SIRO_OPENAI_MODEL", "synthetic-cloud")
++    monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic-key-canary")
++    if mode != "cloud_fail":
++        monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-local")
++    marker = tmp_path / "effect.txt"
++    requests: list[ModelRequest] = []
++    cloud_created: list[bool] = []
++
++    class Local:
++        name = "synthetic-local"
++
++        def __init__(self, *, model: str) -> None:
++            pass
++
++        async def stream(
++            self, request: ModelRequest, cancellation: CancellationToken
++        ) -> AsyncIterator[ModelChunk]:
++            requests.append(request)
++            index = len(requests)
++            failure = mode in {"always_fail", "cloud_fail"} or (
++                mode == "retry_then_tool" and index == 1
++            )
++            if failure:
++                if mode == "cloud_fail":
++                    req = httpx.Request("POST", "http://synthetic.invalid")
++                    raise httpx.HTTPStatusError(
++                        "synthetic429", request=req, response=httpx.Response(429, request=req)
++                    )
++                raise ConnectionError("synthetic unavailable")
++            if mode == "text_then_fail":
++                yield ModelChunk("text", "partial")
++                raise ConnectionError("after text")
++            if (
++                mode == "tool_then_fail"
++                or (mode == "retry_then_tool" and index == 2)
++                or (mode == "continuation_tool_failure" and index in {1, 2})
++            ):
++                yield ModelChunk(
++                    "tool_request",
++                    tool_call=ToolCall(
++                        "repeatable-provider-id-" + str(index),
++                        "computer.execute",
++                        {
++                            "argv": [
++                                sys.executable,
++                                "-c",
++                                "from pathlib import Path; "
++                                f"Path({str(marker)!r}).write_text('one real effect')",
++                            ]
++                        },
++                    ),
++                )
++                if mode == "tool_then_fail" or (mode == "continuation_tool_failure" and index == 2):
++                    raise ConnectionError("after tool intent")
++            else:
++                yield ModelChunk("text", "confirmed")
++            yield ModelChunk("finished")
++
++    class Cloud(Local):
++        name = "synthetic-cloud"
++
++        def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
++            cloud_created.append(True)
++
++    monkeypatch.setattr(ollama, "OllamaAdapter", Local)
++    monkeypatch.setattr(cloud, "OpenAICompatibleAdapter", Cloud)
++
++    def run(app: object, **kwargs: object) -> None:
++        # Startup captures the choice; later environment changes cannot alter this generation.
++        monkeypatch.setenv("SIRO_MODEL_RETRY_ENABLED", "1" if disabled else "0")
++        with TestClient(cast(FastAPI, app)) as client:
++            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
++                "token"
++            ]
++            headers = {"authorization": f"Bearer {token}"}
++            response = client.post(
++                "/v1/conversations/retry/turns", headers=headers, json={"text": "synthetic goal"}
++            )
++            assert response.status_code == 200
++            readback = client.get("/v1/agent-runs/retry", headers=headers).json()
++            assert readback["state"] == state
++            runtime = client.get("/v1/runtime", headers=headers).json()
++            assert runtime["routes"]["model"] == (
++                "cloud:synthetic-cloud" if mode == "cloud_fail" else "ollama:synthetic-local"
++            )
++            assert "synthetic-key-canary" not in str(runtime)
++            if profile == "candidate":
++                assert readback["model_rounds"] == (2 if expected_effect else 1)
++                if mode == "continuation_tool_failure":
++                    assert readback["tool_calls"] == 1
++                    assert len([m for m in readback["messages"] if m["role"] == "tool"]) == 1
++                if mode in {"tool_then_fail", "text_then_fail", "always_fail", "cloud_fail"}:
++                    assert readback["tool_calls"] == 0
++
++    monkeypatch.setattr(uvicorn, "run", run)
++    main()
++    assert len(requests) == expected_requests
++    assert marker.exists() is expected_effect
++    assert len(cloud_created) == int(mode == "cloud_fail")
++    assert all(
++        r.privacy is (Privacy.CLOUD_ALLOWED if mode == "cloud_fail" else Privacy.LOCAL_ONLY)
++        for r in requests
++    )
++    if mode == "retry_then_tool":
++        assert requests[0].generation_id != requests[1].generation_id
++        assert requests[0].messages == requests[1].messages
++        assert requests[2].messages[-1].tool_call_id == "repeatable-provider-id-2"

@@ -1,0 +1,225 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_actual_revoke_joins_restricted_worker_and_admitted_queue_without_second_spawn _
+
+fut = <coroutine object Event.wait at 0x7d4dfc3ab840>, timeout = 2
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout <= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout <= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+>           return await fut
+                   ^^^^^^^^^
+
+/usr/lib/python3.14/asyncio/tasks.py:488: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <asyncio.locks.Event object at 0x7d4dfc3dd090 [unset]>
+
+    async def wait(self):
+        """Block until the internal flag is true.
+    
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another task calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+    
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+>           await fut
+E           asyncio.exceptions.CancelledError
+
+/usr/lib/python3.14/asyncio/locks.py:213: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-48/test_actual_revoke_joins_restr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d4dfc777490>
+
+    @pytest.mark.asyncio
+    @REAL
+    async def test_actual_revoke_joins_restricted_worker_and_admitted_queue_without_second_spawn(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
+        await owner.enable(package_hash)
+        original = skill_worker._prepare_strict
+        workspaces: list[Path] = []
+    
+        def controlled(workspace: Path, skill: InstalledSkill) -> InstalledSkill:
+            verified = original(workspace, skill)
+            workspaces.append(workspace)
+            runner = workspace / "trusted" / "runner.py"
+            source = runner.read_text()
+            source = source.replace("import sys\n", "import sys\nimport time\n", 1)
+            before_request = '    request = _read_object(Path("/trusted/request.json"), 65536)'
+            assert source.count(before_request) == 1
+            # Fixed template bytes remain unchanged. Only this fixture's trusted runner delays
+            # after irreversible restrictions and after the normal --probe early return.
+            runner.write_text(
+                source.replace(
+                    before_request,
+                    "    time.sleep(0.05)\n"
+                    '    sys.stderr.write("SIRO_ACTIVATION_CONTROLLED_STRICT_WAIT\\n")\n'
+                    "    sys.stderr.flush()\n"
+                    "    time.sleep(30)\n" + before_request,
+                    1,
+                )
+            )
+            return verified
+    
+        monkeypatch.setattr(skill_worker, "_prepare_strict", controlled)
+        tracked = _Processes(monkeypatch)
+        first = asyncio.create_task(
+            owner.execute(
+                {"text": "- [ ] first"}, ExecutionContext("first", "synthetic", "e", authorized=True)
+            )
+        )
+        tasks: list[asyncio.Task[Any]] = [first]
+        try:
+            try:
+>               await tracked.observe()
+
+tests/integration/test_skill_activation_lifecycle.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_skill_activation_lifecycle.py:56: in observe
+    await asyncio.wait_for(self.restricted_wait.wait(), 2)
+/usr/lib/python3.14/asyncio/tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Timeout [expired]>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+exc_val = CancelledError(), exc_tb = <traceback object at 0x7d4dfc3f2840>
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() <= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+>                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+/usr/lib/python3.14/asyncio/timeouts.py:114: TimeoutError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-48/test_actual_revoke_joins_restr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7d4dfc777490>
+
+    @pytest.mark.asyncio
+    @REAL
+    async def test_actual_revoke_joins_restricted_worker_and_admitted_queue_without_second_spawn(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        owner, _store, registry, _catalog, package_hash = await installed(tmp_path)
+        await owner.enable(package_hash)
+        original = skill_worker._prepare_strict
+        workspaces: list[Path] = []
+    
+        def controlled(workspace: Path, skill: InstalledSkill) -> InstalledSkill:
+            verified = original(workspace, skill)
+            workspaces.append(workspace)
+            runner = workspace / "trusted" / "runner.py"
+            source = runner.read_text()
+            source = source.replace("import sys\n", "import sys\nimport time\n", 1)
+            before_request = '    request = _read_object(Path("/trusted/request.json"), 65536)'
+            assert source.count(before_request) == 1
+            # Fixed template bytes remain unchanged. Only this fixture's trusted runner delays
+            # after irreversible restrictions and after the normal --probe early return.
+            runner.write_text(
+                source.replace(
+                    before_request,
+                    "    time.sleep(0.05)\n"
+                    '    sys.stderr.write("SIRO_ACTIVATION_CONTROLLED_STRICT_WAIT\\n")\n'
+                    "    sys.stderr.flush()\n"
+                    "    time.sleep(30)\n" + before_request,
+                    1,
+                )
+            )
+            return verified
+    
+        monkeypatch.setattr(skill_worker, "_prepare_strict", controlled)
+        tracked = _Processes(monkeypatch)
+        first = asyncio.create_task(
+            owner.execute(
+                {"text": "- [ ] first"}, ExecutionContext("first", "synthetic", "e", authorized=True)
+            )
+        )
+        tasks: list[asyncio.Task[Any]] = [first]
+        try:
+            try:
+                await tracked.observe()
+            except TimeoutError as error:
+>               raise AssertionError(
+                    f"controlled runner marker missing: {tracked.stderr!r}; "
+                    f"job error={first.exception() if first.done() else 'pending'}"
+                ) from error
+E               AssertionError: controlled runner marker missing: bytearray(b''); job error=[Errno 13] Permission denied: '/tmp/siro-skill-request-bs0fsfq_/trusted/runner.py'
+
+tests/integration/test_skill_activation_lifecycle.py:124: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation_lifecycle.py::test_actual_revoke_joins_restricted_worker_and_admitted_queue_without_second_spawn
+1 failed, 6 deselected in 2.41s

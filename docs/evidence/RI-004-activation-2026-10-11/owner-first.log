@@ -1,0 +1,153 @@
+.................F..........                                             [100%]
+=================================== FAILURES ===================================
+__________ test_late_cancel_enable_transaction_is_joined_and_disabled __________
+
+self = <siro.services.tools.skill_activation.SkillActivationOwner object at 0x70badb48ba10>
+operation = <function SkillActivationOwner.enable.<locals>.enable at 0x70bada206a30>
+
+    async def _control(
+        self, operation: Callable[[], Awaitable[dict[str, object]]]
+    ) -> dict[str, object]:
+        async def invoke() -> dict[str, object]:
+            async with self._lock:
+                return await operation()
+    
+        task = asyncio.create_task(invoke())
+        self._operations.add(task)
+        try:
+>           return await asyncio.shield(task)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           asyncio.exceptions.CancelledError
+
+src/siro/services/tools/skill_activation.py:231: CancelledError
+
+During handling of the above exception, another exception occurred:
+
+self = <siro.services.tools.skill_activation.SkillActivationOwner object at 0x70badb48ba10>
+operation = <function SkillActivationOwner.enable.<locals>.enable at 0x70bada206a30>
+
+    async def _control(
+        self, operation: Callable[[], Awaitable[dict[str, object]]]
+    ) -> dict[str, object]:
+        async def invoke() -> dict[str, object]:
+            async with self._lock:
+                return await operation()
+    
+        task = asyncio.create_task(invoke())
+        self._operations.add(task)
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            self._invalidate()
+            # Do not cancel a transaction already in to_thread: join and fence late enable.
+            try:
+>               await _join(task)
+
+src/siro/services/tools/skill_activation.py:236: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/tools/skill_activation.py:40: in _join
+    await asyncio.shield(task)
+src/siro/services/tools/skill_activation.py:226: in invoke
+    return await operation()
+           ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def enable() -> dict[str, object]:
+        skill = self._require(package_hash)
+        self._available = False
+        current = await asyncio.to_thread(_restored, self._root)
+        if (
+            current is None
+            or current.root != skill.root
+            or current.manifest_hash != skill.manifest_hash
+        ):
+            raise SkillActivationError("approved package changed")
+        if epoch != self._epoch:
+            raise SkillActivationError("activation was revoked")
+        try:
+            if not await self._registry.set_enabled(
+                skill.manifest.id, skill.manifest.version, enabled=True, identity=skill
+            ):
+                raise SkillActivationError("approved registry identity changed")
+        finally:
+            if epoch != self._epoch or self._closed:
+                await self._registry.set_enabled(
+                    skill.manifest.id, skill.manifest.version, enabled=False, identity=skill
+                )
+        if epoch != self._epoch or self._closed:
+>           raise SkillActivationError("activation was revoked")
+E           siro.services.tools.skill_activation.SkillActivationError: activation was revoked
+
+src/siro/services/tools/skill_activation.py:382: SkillActivationError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-36/test_late_cancel_enable_transa0')
+
+    @pytest.mark.asyncio
+    async def test_late_cancel_enable_transaction_is_joined_and_disabled(tmp_path: Path) -> None:
+        owner, store, registry, catalog, package_hash = await installed(tmp_path)
+        started = threading.Event()
+        release = threading.Event()
+        original = registry.set_enabled
+    
+        async def delayed(*args: Any, **kwargs: Any) -> bool:
+            if kwargs["enabled"]:
+                await asyncio.to_thread(lambda: (started.set(), release.wait(3)))
+            return await original(*args, **kwargs)
+    
+        registry.set_enabled = delayed
+        job = asyncio.create_task(owner.enable(package_hash))
+        assert await asyncio.to_thread(started.wait, 2)
+        job.cancel()
+        await asyncio.sleep(0.01)
+        job.cancel()
+        assert not job.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+>           await job
+
+tests/integration/test_skill_activation.py:282: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/tools/skill_activation.py:387: in enable
+    return await self._control(enable)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.services.tools.skill_activation.SkillActivationOwner object at 0x70badb48ba10>
+operation = <function SkillActivationOwner.enable.<locals>.enable at 0x70bada206a30>
+
+    async def _control(
+        self, operation: Callable[[], Awaitable[dict[str, object]]]
+    ) -> dict[str, object]:
+        async def invoke() -> dict[str, object]:
+            async with self._lock:
+                return await operation()
+    
+        task = asyncio.create_task(invoke())
+        self._operations.add(task)
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            self._invalidate()
+            # Do not cancel a transaction already in to_thread: join and fence late enable.
+            try:
+                await _join(task)
+>           except ExecutionCleanupError:
+                   ^^^^^^^^^^^^^^^^^^^^^
+E           NameError: name 'ExecutionCleanupError' is not defined
+
+src/siro/services/tools/skill_activation.py:237: NameError
+------------------------------ Captured log call -------------------------------
+ERROR    asyncio:base_events.py:1886 SkillActivationError exception in shielded future
+future: <Task finished name='Task-882' coro=<SkillActivationOwner._control.<locals>.invoke() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py:224> exception=SkillActivationError('activation was revoked')>
+Traceback (most recent call last):
+  File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 226, in invoke
+    return await operation()
+           ^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/src/siro/services/tools/skill_activation.py", line 382, in enable
+    raise SkillActivationError("activation was revoked")
+siro.services.tools.skill_activation.SkillActivationError: activation was revoked
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_activation.py::test_late_cancel_enable_transaction_is_joined_and_disabled
+1 failed, 27 passed in 4.30s

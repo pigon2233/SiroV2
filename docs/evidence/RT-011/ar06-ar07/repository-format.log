@@ -1,0 +1,1889 @@
+unformatted: File would be reformatted
+  --> .siro-data/models/qwen3-tts-0.6b-base/README.md:58:10
+   |
+57 | ref_audio = "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/clone.wav"
+   - ref_text  = "Okay. Yeah. I resent you. I love you. I respect you. But you know what? You blew it! And thanks to you."
+58 + ref_text = "Okay. Yeah. I resent you. I love you. I respect you. But you know what? You blew it! And thanks to you."
+59 |
+   |
+
+unformatted: File would be reformatted
+   --> docs/evidence/FIX-001/verify_http_rollback.py:2:1
+    |
+1   | """Separate HTTP behavior verification and isolated source rollback reader rehearsal."""
+2   +
+3   | import json
+--------------------------------------------------------------------------------
+29  |         yield ModelChunk("text", "partial")
+    -         yield ModelChunk("tool_request", tool_call=ToolCall(f"http-{self.rounds}", "computer.execute", {}))
+30  +         yield ModelChunk(
+31  +             "tool_request", tool_call=ToolCall(f"http-{self.rounds}", "computer.execute", {})
+32  +         )
+33  |         if self.continuation and self.rounds == 1:
+--------------------------------------------------------------------------------
+52  |
+    -             orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {"computer.execute": effect})
+    -             controller = IntegratedCompanion(data, model, GatewayHub(), MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOCAL_ONLY, runtime_profile=profile, tool_orchestrator=orchestrator, auto_authorize=lambda: True)
+    -             app = create_app(on_startup=controller.startup, on_turn=controller.respond, on_recovery=controller.recovery_readback)
+53  +             orchestrator = ToolOrchestrator(
+54  +                 SQLiteToolProposalRepository(store), {"computer.execute": effect}
+55  +             )
+56  +             controller = IntegratedCompanion(
+57  +                 data,
+58  +                 model,
+59  +                 GatewayHub(),
+60  +                 MinimalWebBodyAdapter(WebSocketBodyTransport()),
+61  +                 privacy=Privacy.LOCAL_ONLY,
+62  +                 runtime_profile=profile,
+63  +                 tool_orchestrator=orchestrator,
+64  +                 auto_authorize=lambda: True,
+65  +             )
+66  +             app = create_app(
+67  +                 on_startup=controller.startup,
+68  +                 on_turn=controller.respond,
+69  +                 on_recovery=controller.recovery_readback,
+70  +             )
+71  |             with TestClient(app) as client:
+    -                 token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()["token"]
+72  +                 token = client.post(
+73  +                     "/v1/session", headers={"origin": "http://127.0.0.1:8000"}
+74  +                 ).json()["token"]
+75  |                 headers = {"authorization": f"Bearer {token}"}
+    -                 response = client.post("/v1/conversations/http/turns", headers=headers, json={"text": "synthetic goal"})
+76  +                 response = client.post(
+77  +                     "/v1/conversations/http/turns", headers=headers, json={"text": "synthetic goal"}
+78  +                 )
+79  |                 assert response.status_code == 200, response.text
+--------------------------------------------------------------------------------
+84  |                 assert model.rounds == 1 + int(continuation)
+    -                 assert (marker.read_text() if marker.exists() else "") == ("confirmed\n" if continuation else "")
+85  +                 assert (marker.read_text() if marker.exists() else "") == (
+86  +                     "confirmed\n" if continuation else ""
+87  +                 )
+88  |             print(f"HTTP {profile} continuation={continuation}: PASS")
+--------------------------------------------------------------------------------
+93  |     shutil.copytree("src/siro", previous / "siro")
+    -     for relative, snapshot in [("services/presentation/integrated.py", "integrated.py"), ("core/companion.py", "companion.py")]:
+    -         shutil.copyfile(Path("docs/evidence/FIX-001/before") / snapshot, previous / "siro" / relative)
+94  +     for relative, snapshot in [
+95  +         ("services/presentation/integrated.py", "integrated.py"),
+96  +         ("core/companion.py", "companion.py"),
+97  +     ]:
+98  +         shutil.copyfile(
+99  +             Path("docs/evidence/FIX-001/before") / snapshot, previous / "siro" / relative
+100 +         )
+101 |     expected = root / "expected.json"
+102 |     expected.write_text(json.dumps(rollback_result))
+    -     script = '''
+103 +     script = """
+104 | import asyncio, json, sys
+--------------------------------------------------------------------------------
+122 | asyncio.run(main())
+    - '''
+    -     outcome = subprocess.run([sys.executable, "-c", script, str(rollback_data), str(expected)], env={**os.environ, "PYTHONPATH": str(previous)}, capture_output=True, text=True, timeout=20)
+123 + """
+124 +     outcome = subprocess.run(
+125 +         [sys.executable, "-c", script, str(rollback_data), str(expected)],
+126 +         env={**os.environ, "PYTHONPATH": str(previous)},
+127 +         capture_output=True,
+128 +         text=True,
+129 +         timeout=20,
+130 +     )
+131 |     assert outcome.returncode == 0, outcome.stderr
+132 |     print("Temporary prior-source legacy readback / text-only restart / unchanged effect: PASS")
+    -     print("Deployed rollback and re-enabling failed-intent tool dispatch: NOT VERIFIED / prohibited")
+133 +     print(
+134 +         "Deployed rollback and re-enabling failed-intent tool dispatch: NOT VERIFIED / prohibited"
+135 +     )
+    |
+
+unformatted: File would be reformatted
+  --> docs/evidence/RT-003-FIX-01/identity_crash.py:2:1
+   |
+1  | """Crash before/after atomic candidate proposal insert/binding; isolated synthetic data."""
+2  +
+3  | import asyncio
+--------------------------------------------------------------------------------
+14 |
+15 +
+16 | class Model:
+   -     name = 'identity-crash'
+17 +     name = "identity-crash"
+18 +
+19 |     async def stream(self, request, cancellation):
+   -         yield ModelChunk('tool_request', tool_call=ToolCall('call-0', 'computer.execute', {}))
+   -         yield ModelChunk('finished')
+20 +         yield ModelChunk("tool_request", tool_call=ToolCall("call-0", "computer.execute", {}))
+21 +         yield ModelChunk("finished")
+22 +
+23 |
+24 | async def main():
+25 |     path, phase = Path(sys.argv[1]), sys.argv[2]
+   -     store = SQLiteStore(path/'siro.db')
+26 +     store = SQLiteStore(path / "siro.db")
+27 |     await store.initialize()
+28 |     repository = SQLiteToolProposalRepository(store)
+29 |     original = repository.put
+30 +
+31 |     async def crashing_put(proposal, **kwargs):
+   -         if phase == 'before':
+32 +         if phase == "before":
+33 |             os._exit(42)
+34 |         await original(proposal, **kwargs)
+35 |         os._exit(42)
+36 +
+37 |     repository.put = crashing_put
+38 +
+39 |     async def forbidden(arguments):
+   -         raise AssertionError('effect before crash boundary')
+   -     orchestrator = ToolOrchestrator(repository, {'computer.execute': forbidden})
+   -     controller = IntegratedCompanion(path, Model(), GatewayHub(), MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator, runtime_profile='candidate', auto_authorize=lambda: True)
+   -     await controller.respond('identity-crash', 'synthetic goal')
+   -     raise AssertionError('did not crash')
+40 +         raise AssertionError("effect before crash boundary")
+41 +
+42 +     orchestrator = ToolOrchestrator(repository, {"computer.execute": forbidden})
+43 +     controller = IntegratedCompanion(
+44 +         path,
+45 +         Model(),
+46 +         GatewayHub(),
+47 +         MinimalWebBodyAdapter(WebSocketBodyTransport()),
+48 +         privacy=Privacy.LOCAL_ONLY,
+49 +         tool_orchestrator=orchestrator,
+50 +         runtime_profile="candidate",
+51 +         auto_authorize=lambda: True,
+52 +     )
+53 +     await controller.respond("identity-crash", "synthetic goal")
+54 +     raise AssertionError("did not crash")
+55 +
+56 +
+57 | asyncio.run(main())
+   |
+
+unformatted: File would be reformatted
+   --> docs/evidence/RT-003-FIX-01/verify_identity_rollback.py:2:1
+    |
+1   | """Independent production-path identity/no-replay verification and compatibility rollback rehearsal."""
+2   +
+3   | import asyncio
+--------------------------------------------------------------------------------
+18  |
+19  +
+20  | class Model:
+    -     name='identity-verification'
+21  +     name = "identity-verification"
+22  +
+23  |     async def stream(self, request, cancellation):
+    -         if request.messages[-1].role=='tool':
+    -             assert request.messages[-1].tool_call_id=='call-0'
+    -             yield ModelChunk('text','done')
+24  +         if request.messages[-1].role == "tool":
+25  +             assert request.messages[-1].tool_call_id == "call-0"
+26  +             yield ModelChunk("text", "done")
+27  |         else:
+    -             yield ModelChunk('tool_request',tool_call=ToolCall('call-0','computer.execute',{}))
+    -         yield ModelChunk('finished')
+28  +             yield ModelChunk("tool_request", tool_call=ToolCall("call-0", "computer.execute", {}))
+29  +         yield ModelChunk("finished")
+30  +
+31  |
+32  | async def verify(data):
+    -     store=SQLiteStore(data/'siro.db')
+33  +     store = SQLiteStore(data / "siro.db")
+34  |     await store.initialize()
+    -     marker=data/'effect.txt'
+35  +     marker = data / "effect.txt"
+36  +
+37  |     async def effect(arguments):
+    -         with marker.open('a') as f:
+    -             f.write('once\n')
+    -         return {'confirmed':True}
+38  +         with marker.open("a") as f:
+39  +             f.write("once\n")
+40  +         return {"confirmed": True}
+41  +
+42  |     def build():
+    -         repository=SQLiteToolProposalRepository(store)
+    -         orchestrator=ToolOrchestrator(repository,{'computer.execute':effect})
+    -         controller=IntegratedCompanion(data,Model(),GatewayHub(),MinimalWebBodyAdapter(WebSocketBodyTransport()),privacy=Privacy.LOCAL_ONLY,tool_orchestrator=orchestrator,runtime_profile='candidate',auto_authorize=lambda:True)
+    -         return controller,repository,orchestrator
+    -     controller,repository,orchestrator=build()
+43  +         repository = SQLiteToolProposalRepository(store)
+44  +         orchestrator = ToolOrchestrator(repository, {"computer.execute": effect})
+45  +         controller = IntegratedCompanion(
+46  +             data,
+47  +             Model(),
+48  +             GatewayHub(),
+49  +             MinimalWebBodyAdapter(WebSocketBodyTransport()),
+50  +             privacy=Privacy.LOCAL_ONLY,
+51  +             tool_orchestrator=orchestrator,
+52  +             runtime_profile="candidate",
+53  +             auto_authorize=lambda: True,
+54  +         )
+55  +         return controller, repository, orchestrator
+56  +
+57  +     controller, repository, orchestrator = build()
+58  |     for index in range(3):
+    -         if index==2:
+    -             controller,repository,orchestrator=build()
+    -         await controller.respond('same',f'goal-{index}')
+    -         result=await controller.recovery_readback('same')
+    -         assert result['state']=='completed' and result['calls'][0]['call_id']=='call-0'
+    -     assert marker.read_text()=='once\n'*3
+59  +         if index == 2:
+60  +             controller, repository, orchestrator = build()
+61  +         await controller.respond("same", f"goal-{index}")
+62  +         result = await controller.recovery_readback("same")
+63  +         assert result["state"] == "completed" and result["calls"][0]["call_id"] == "call-0"
+64  +     assert marker.read_text() == "once\n" * 3
+65  |     # Retain a new pending mapped row to prove post-rollback approval guard.
+    -     controller._auto_authorize=lambda:False
+    -     await controller.respond('same','pending')
+    -     pending=await controller.recovery_readback('same')
+    -     proposal_id=pending['calls'][0]['proposal_id']
+    -     proposal=await repository.get(proposal_id)
+    -     assert proposal.call_id=='call-0'
+    -     print('Three runs, one restart, original provider pairing, real file effects=3: PASS')
+    -     return pending,proposal_id
+66  +     controller._auto_authorize = lambda: False
+67  +     await controller.respond("same", "pending")
+68  +     pending = await controller.recovery_readback("same")
+69  +     proposal_id = pending["calls"][0]["proposal_id"]
+70  +     proposal = await repository.get(proposal_id)
+71  +     assert proposal.call_id == "call-0"
+72  +     print("Three runs, one restart, original provider pairing, real file effects=3: PASS")
+73  +     return pending, proposal_id
+74  |
+    - with tempfile.TemporaryDirectory(prefix='siro-identity-rollback-') as directory:
+    -     root=Path(directory)
+    -     pending,proposal_id=asyncio.run(verify(root/'data'))
+    -     expected=root/'expected.json'; expected.write_text(json.dumps(pending))
+    -     previous=root/'previous'
+    -     shutil.copytree('src/siro',previous/'siro')
+75  +
+76  + with tempfile.TemporaryDirectory(prefix="siro-identity-rollback-") as directory:
+77  +     root = Path(directory)
+78  +     pending, proposal_id = asyncio.run(verify(root / "data"))
+79  +     expected = root / "expected.json"
+80  +     expected.write_text(json.dumps(pending))
+81  +     previous = root / "previous"
+82  +     shutil.copytree("src/siro", previous / "siro")
+83  |     # Keep new identity reader/reconciliation/guard; revert caller only, tools disabled.
+    -     shutil.copyfile('docs/evidence/RT-003-FIX-01/before/src/siro/services/presentation/integrated.py',previous/'siro/services/presentation/integrated.py')
+    -     script='''
+84  +     shutil.copyfile(
+85  +         "docs/evidence/RT-003-FIX-01/before/src/siro/services/presentation/integrated.py",
+86  +         previous / "siro/services/presentation/integrated.py",
+87  +     )
+88  +     script = """
+89  | import asyncio,json,sys
+--------------------------------------------------------------------------------
+117 | asyncio.run(main())
+    - '''
+    -     outcome=subprocess.run([sys.executable,'-c',script,str(root/'data'),str(expected),proposal_id],env={**os.environ,'PYTHONPATH':str(previous)},capture_output=True,text=True,timeout=20)
+    -     assert outcome.returncode==0,outcome.stderr
+    -     print('Temporary caller rollback + retained reader/guard: original IDs/readback, fenced approval, text restart, zero replay: PASS')
+    -     print('Full old binary without compatibility reader/guard: NOT a safe rollback; deployed rollback NOT VERIFIED')
+118 + """
+119 +     outcome = subprocess.run(
+120 +         [sys.executable, "-c", script, str(root / "data"), str(expected), proposal_id],
+121 +         env={**os.environ, "PYTHONPATH": str(previous)},
+122 +         capture_output=True,
+123 +         text=True,
+124 +         timeout=20,
+125 +     )
+126 +     assert outcome.returncode == 0, outcome.stderr
+127 +     print(
+128 +         "Temporary caller rollback + retained reader/guard: original IDs/readback, fenced approval, text restart, zero replay: PASS"
+129 +     )
+130 +     print(
+131 +         "Full old binary without compatibility reader/guard: NOT a safe rollback; deployed rollback NOT VERIFIED"
+132 +     )
+    |
+
+unformatted: File would be reformatted
+  --> docs/evidence/RT-004/measure.py:1:16
+   |
+   - import asyncio,sys,os,json,tempfile,time,platform
+1  + import asyncio, sys, os, json, tempfile, time, platform
+2  | from pathlib import Path
+3  | from siro.services.tools.execution import execute_bounded_argv
+4  |
+5  +
+6  | def rss():
+   -  return next(int(x.split()[1])*1024 for x in Path('/proc/self/status').read_text().splitlines() if x.startswith('VmRSS:'))
+7  +     return next(
+8  +         int(x.split()[1]) * 1024
+9  +         for x in Path("/proc/self/status").read_text().splitlines()
+10 +         if x.startswith("VmRSS:")
+11 +     )
+12 +
+13 +
+14 | async def main():
+   -  base=rss(); samples=[base]; stopped=asyncio.Event()
+   -  async def monitor():
+   -   while not stopped.is_set():
+   -    samples.append(rss()); await asyncio.sleep(.001)
+   -  task=asyncio.create_task(monitor()); started=time.monotonic()
+   -  with tempfile.TemporaryDirectory() as d:
+   -   result=await execute_bounded_argv((sys.executable,'-c',"import os; b=b'x'*65536; [(os.write(1,b),os.write(2,b)) for _ in range(800)]"),cwd=Path(d),environment=os.environ.copy(),timeout=20)
+   -  stopped.set(); await task
+   -  report={'profile':'candidate','generated_bytes':100*1024*1024,'retained_bytes':len(result['stdout'].encode())+len(result['stderr'].encode()),'truncated':result['truncated'],'returncode':result['returncode'],'rss_baseline_bytes':base,'rss_peak_bytes':max(samples),'rss_delta_bytes':max(samples)-base,'sampling_interval_seconds':.001,'samples':len(samples),'elapsed_seconds':time.monotonic()-started,'python':platform.python_version(),'measurement_scope':'executor Python parent only; child RSS excluded'}
+   -  assert report['retained_bytes']<=65536 and report['rss_delta_bytes']<32*1024*1024
+   -  Path('docs/evidence/RT-004/measurement.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
+15 +     base = rss()
+16 +     samples = [base]
+17 +     stopped = asyncio.Event()
+18 +
+19 +     async def monitor():
+20 +         while not stopped.is_set():
+21 +             samples.append(rss())
+22 +             await asyncio.sleep(0.001)
+23 +
+24 +     task = asyncio.create_task(monitor())
+25 +     started = time.monotonic()
+26 +     with tempfile.TemporaryDirectory() as d:
+27 +         result = await execute_bounded_argv(
+28 +             (
+29 +                 sys.executable,
+30 +                 "-c",
+31 +                 "import os; b=b'x'*65536; [(os.write(1,b),os.write(2,b)) for _ in range(800)]",
+32 +             ),
+33 +             cwd=Path(d),
+34 +             environment=os.environ.copy(),
+35 +             timeout=20,
+36 +         )
+37 +     stopped.set()
+38 +     await task
+39 +     report = {
+40 +         "profile": "candidate",
+41 +         "generated_bytes": 100 * 1024 * 1024,
+42 +         "retained_bytes": len(result["stdout"].encode()) + len(result["stderr"].encode()),
+43 +         "truncated": result["truncated"],
+44 +         "returncode": result["returncode"],
+45 +         "rss_baseline_bytes": base,
+46 +         "rss_peak_bytes": max(samples),
+47 +         "rss_delta_bytes": max(samples) - base,
+48 +         "sampling_interval_seconds": 0.001,
+49 +         "samples": len(samples),
+50 +         "elapsed_seconds": time.monotonic() - started,
+51 +         "python": platform.python_version(),
+52 +         "measurement_scope": "executor Python parent only; child RSS excluded",
+53 +     }
+54 +     assert report["retained_bytes"] <= 65536 and report["rss_delta_bytes"] < 32 * 1024 * 1024
+55 +     Path("docs/evidence/RT-004/measurement.json").write_text(json.dumps(report, indent=2) + "\n")
+56 +     print(json.dumps(report))
+57 +
+58 +
+59 | asyncio.run(main())
+   |
+
+unformatted: File would be reformatted
+  --> docs/evidence/RT-004/verification/profile_probe.py:2:1
+   |
+1  | """Verification-only reproduction; production/test sources remain unchanged."""
+2  +
+3  | from pathlib import Path
+--------------------------------------------------------------------------------
+10 | s = (root / "tests/integration/test_bounded_execution.py").read_text()
+   - s = s[s.index('@pytest.mark.parametrize("profile"'):]
+11 + s = s[s.index('@pytest.mark.parametrize("profile"') :]
+12 | s = s.replace('["legacy", "candidate"]', '["candidate"]', 1)
+   - s = s.replace('self.requests.append(request)', 'self.requests.append(request)\n            os.environ["SIRO_RUNTIME_PROFILE"] = "legacy"', 1)
+   - s = s.replace('model = Model()', """model = Model()
+13 + s = s.replace(
+14 +     "self.requests.append(request)",
+15 +     'self.requests.append(request)\n            os.environ["SIRO_RUNTIME_PROFILE"] = "legacy"',
+16 +     1,
+17 + )
+18 + s = s.replace(
+19 +     "model = Model()",
+20 +     """model = Model()
+21 |     from siro.services.tools import execution
+--------------------------------------------------------------------------------
+26 |         return await original(*args, **kwargs)
+   -     monkeypatch.setattr(execution, "execute_bounded_argv", spy)""", 1)
+   - s = s.replace('assert len(model.requests) == 2', 'assert len(model.requests) == 2\n    assert bounded_calls == [], "environment mutation bypasses bounded executor"', 1)
+27 +     monkeypatch.setattr(execution, "execute_bounded_argv", spy)""",
+28 +     1,
+29 + )
+30 + s = s.replace(
+31 +     "assert len(model.requests) == 2",
+32 +     'assert len(model.requests) == 2\n    assert bounded_calls == [], "environment mutation bypasses bounded executor"',
+33 +     1,
+34 + )
+35 | with tempfile.TemporaryDirectory(prefix="siro-rt004-verification-") as td:
+36 |     target = Path(td) / "test_profile_probe.py"
+   -     target.write_text('from __future__ import annotations\nimport os,sys\nfrom pathlib import Path\nimport pytest\n' + s)
+37 +     target.write_text(
+38 +         "from __future__ import annotations\nimport os,sys\nfrom pathlib import Path\nimport pytest\n"
+39 +         + s
+40 +     )
+41 |     env = os.environ.copy()
+42 |     env["PYTHONPATH"] = str(root / "src")
+43 |     result = subprocess.run([sys.executable, "-m", "pytest", "-q", str(target)], cwd=root, env=env)
+44 |     if result.returncode == 0:
+   -         print("CONFIRMED: candidate controller completed with zero bounded executor calls after in-process profile mutation.")
+45 +         print(
+46 +             "CONFIRMED: candidate controller completed with zero bounded executor calls after in-process profile mutation."
+47 +         )
+48 |     raise SystemExit(result.returncode)
+   |
+
+unformatted: File would be reformatted
+   --> docs/evidence/RT-005-FIX-01/verify_cancel_rollback.py:2:1
+    |
+1   | """Separate real-file cancellation verification and isolated prior-source rollback rehearsal."""
+2   +
+3   | import asyncio
+--------------------------------------------------------------------------------
+18  |
+19  +
+20  | class Model:
+    -     name='cancel-verification'
+21  +     name = "cancel-verification"
+22  +
+23  |     async def stream(self, request, cancellation):
+    -         yield ModelChunk('tool_request',tool_call=ToolCall('call-0','computer.execute',{}))
+    -         yield ModelChunk('finished')
+24  +         yield ModelChunk("tool_request", tool_call=ToolCall("call-0", "computer.execute", {}))
+25  +         yield ModelChunk("finished")
+26  +
+27  |
+28  | async def verify(data):
+    -     store=SQLiteStore(data/'siro.db'); await store.initialize()
+    -     entered,release=asyncio.Event(),asyncio.Event()
+29  +     store = SQLiteStore(data / "siro.db")
+30  +     await store.initialize()
+31  +     entered, release = asyncio.Event(), asyncio.Event()
+32  +
+33  |     async def handler(arguments):
+34  |         entered.set()
+35  |         try:
+36  |             await release.wait()
+    -             (data/'effect.txt').write_text('unexpected effect')
+    -             return {'ok':True}
+37  +             (data / "effect.txt").write_text("unexpected effect")
+38  +             return {"ok": True}
+39  |         finally:
+    -             await asyncio.sleep(.02)
+    -             (data/'cleanup.txt').write_text('cleaned')
+    -     orchestrator=ToolOrchestrator(SQLiteToolProposalRepository(store),{'computer.execute':handler})
+    -     controller=IntegratedCompanion(data,Model(),GatewayHub(),MinimalWebBodyAdapter(WebSocketBodyTransport()),privacy=Privacy.LOCAL_ONLY,tool_orchestrator=orchestrator,runtime_profile='candidate',auto_authorize=lambda:True)
+    -     task=asyncio.create_task(controller.respond('cancel','synthetic goal'))
+    -     await asyncio.wait_for(entered.wait(),10)
+    -     start=asyncio.get_running_loop().time()
+    -     await controller.cancel('active','stop',session_id='cancel')
+    -     elapsed=asyncio.get_running_loop().time()-start
+    -     assert elapsed<5 and (data/'cleanup.txt').read_text()=='cleaned'
+    -     release.set();await task
+    -     assert not (data/'effect.txt').exists()
+    -     result=await controller.recovery_readback('cancel')
+    -     assert result['state']=='cancelled'
+40  +             await asyncio.sleep(0.02)
+41  +             (data / "cleanup.txt").write_text("cleaned")
+42  +
+43  +     orchestrator = ToolOrchestrator(
+44  +         SQLiteToolProposalRepository(store), {"computer.execute": handler}
+45  +     )
+46  +     controller = IntegratedCompanion(
+47  +         data,
+48  +         Model(),
+49  +         GatewayHub(),
+50  +         MinimalWebBodyAdapter(WebSocketBodyTransport()),
+51  +         privacy=Privacy.LOCAL_ONLY,
+52  +         tool_orchestrator=orchestrator,
+53  +         runtime_profile="candidate",
+54  +         auto_authorize=lambda: True,
+55  +     )
+56  +     task = asyncio.create_task(controller.respond("cancel", "synthetic goal"))
+57  +     await asyncio.wait_for(entered.wait(), 10)
+58  +     start = asyncio.get_running_loop().time()
+59  +     await controller.cancel("active", "stop", session_id="cancel")
+60  +     elapsed = asyncio.get_running_loop().time() - start
+61  +     assert elapsed < 5 and (data / "cleanup.txt").read_text() == "cleaned"
+62  +     release.set()
+63  +     await task
+64  +     assert not (data / "effect.txt").exists()
+65  +     result = await controller.recovery_readback("cancel")
+66  +     assert result["state"] == "cancelled"
+67  |     assert not any(orchestrator._active.values())
+    -     print(f'Real file cleanup precedes terminal; no effect/new dispatch, elapsed={elapsed:.3f}s: PASS')
+68  +     print(
+69  +         f"Real file cleanup precedes terminal; no effect/new dispatch, elapsed={elapsed:.3f}s: PASS"
+70  +     )
+71  |     return result
+72  |
+    - with tempfile.TemporaryDirectory(prefix='siro-cancel-rollback-') as directory:
+    -     root=Path(directory); result=asyncio.run(verify(root/'data'))
+    -     expected=root/'expected.json';expected.write_text(json.dumps(result))
+    -     previous=root/'previous';shutil.copytree('src/siro',previous/'siro')
+    -     for path in ['services/tools/orchestrator.py','services/presentation/gateway.py','adapters/browser.py']:
+    -         shutil.copyfile(Path('docs/evidence/RT-005-FIX-01/before/src/siro')/path,previous/'siro'/path)
+    -     script='''
+73  +
+74  + with tempfile.TemporaryDirectory(prefix="siro-cancel-rollback-") as directory:
+75  +     root = Path(directory)
+76  +     result = asyncio.run(verify(root / "data"))
+77  +     expected = root / "expected.json"
+78  +     expected.write_text(json.dumps(result))
+79  +     previous = root / "previous"
+80  +     shutil.copytree("src/siro", previous / "siro")
+81  +     for path in [
+82  +         "services/tools/orchestrator.py",
+83  +         "services/presentation/gateway.py",
+84  +         "adapters/browser.py",
+85  +     ]:
+86  +         shutil.copyfile(
+87  +             Path("docs/evidence/RT-005-FIX-01/before/src/siro") / path, previous / "siro" / path
+88  +         )
+89  +     script = """
+90  | import asyncio,json,sys
+--------------------------------------------------------------------------------
+109 | asyncio.run(main())
+    - '''
+    -     outcome=subprocess.run([sys.executable,'-c',script,str(root/'data'),str(expected)],env={**os.environ,'PYTHONPATH':str(previous)},capture_output=True,text=True,timeout=20)
+    -     assert outcome.returncode==0,outcome.stderr
+    -     print('Temporary exact pre-FIX source, legacy text-only restart, retained journal/unknown, zero replay: PASS')
+    -     print('Candidate arguments-only dispatch after reverting is unsafe; deployed rollback NOT VERIFIED')
+110 + """
+111 +     outcome = subprocess.run(
+112 +         [sys.executable, "-c", script, str(root / "data"), str(expected)],
+113 +         env={**os.environ, "PYTHONPATH": str(previous)},
+114 +         capture_output=True,
+115 +         text=True,
+116 +         timeout=20,
+117 +     )
+118 +     assert outcome.returncode == 0, outcome.stderr
+119 +     print(
+120 +         "Temporary exact pre-FIX source, legacy text-only restart, retained journal/unknown, zero replay: PASS"
+121 +     )
+122 +     print(
+123 +         "Candidate arguments-only dispatch after reverting is unsafe; deployed rollback NOT VERIFIED"
+124 +     )
+    |
+
+unformatted: File would be reformatted
+  --> docs/evidence/RT-006/measure_gpu.py:2:1
+   |
+1  | """Synthetic local GPU lifecycle acceptance; never save reference or rendered audio."""
+2  +
+3  | import asyncio
+--------------------------------------------------------------------------------
+17 |     root = Path.cwd()
+   -     reference = root / '.siro-data/qwen3-siro-anime-daughter-v1.wav'
+18 +     reference = root / ".siro-data/qwen3-siro-anime-daughter-v1.wav"
+19 |     digest = hashlib.sha256(reference.read_bytes()).hexdigest()
+   -     metrics = {'reference_before': digest, 'renders': []}
+   -     with tempfile.TemporaryDirectory(prefix='rt006-gpu-') as temporary:
+   -         tts = QwenReferenceTTS(root / '.siro-data/qwen-tts-venv/bin/python',
+   -             root / 'scripts/qwen_tts_worker.py',root / '.siro-data/models/qwen3-tts-0.6b-base',
+   -             reference,'爸爸，你回來啦？我等你好久了。今天有沒有發生什麼有趣的事？',
+   -             Path(temporary),lifecycle=True,startup_timeout=180,render_timeout=180)
+20 +     metrics = {"reference_before": digest, "renders": []}
+21 +     with tempfile.TemporaryDirectory(prefix="rt006-gpu-") as temporary:
+22 +         tts = QwenReferenceTTS(
+23 +             root / ".siro-data/qwen-tts-venv/bin/python",
+24 +             root / "scripts/qwen_tts_worker.py",
+25 +             root / ".siro-data/models/qwen3-tts-0.6b-base",
+26 +             reference,
+27 +             "爸爸，你回來啦？我等你好久了。今天有沒有發生什麼有趣的事？",
+28 +             Path(temporary),
+29 +             lifecycle=True,
+30 +             startup_timeout=180,
+31 +             render_timeout=180,
+32 +         )
+33 |         try:
+34 |             for _ in range(2):
+   -                 start=time.monotonic()
+   -                 audio=await tts.render('爸爸，我在這裡。')
+   -                 info=sf.info(io.BytesIO(audio))
+   -                 metrics['renders'].append({'seconds':time.monotonic()-start,
+   -                     'bytes':len(audio),'sha256':hashlib.sha256(audio).hexdigest(),
+   -                     'format':info.format,'subtype':info.subtype,'sample_rate':info.samplerate,
+   -                     'frames':info.frames,'pid':tts._process.pid})
+   -             old=tts._process
+   -             task=asyncio.create_task(tts.render('這是一段用來檢查取消的合成語句，今天的天空很美麗。'))
+   -             await asyncio.sleep(.5)
+   -             start=time.monotonic()
+35 +                 start = time.monotonic()
+36 +                 audio = await tts.render("爸爸，我在這裡。")
+37 +                 info = sf.info(io.BytesIO(audio))
+38 +                 metrics["renders"].append(
+39 +                     {
+40 +                         "seconds": time.monotonic() - start,
+41 +                         "bytes": len(audio),
+42 +                         "sha256": hashlib.sha256(audio).hexdigest(),
+43 +                         "format": info.format,
+44 +                         "subtype": info.subtype,
+45 +                         "sample_rate": info.samplerate,
+46 +                         "frames": info.frames,
+47 +                         "pid": tts._process.pid,
+48 +                     }
+49 +                 )
+50 +             old = tts._process
+51 +             task = asyncio.create_task(
+52 +                 tts.render("這是一段用來檢查取消的合成語句，今天的天空很美麗。")
+53 +             )
+54 +             await asyncio.sleep(0.5)
+55 +             start = time.monotonic()
+56 |             task.cancel()
+   -             try:await task
+   -             except asyncio.CancelledError:pass
+57 +             try:
+58 +                 await task
+59 +             except asyncio.CancelledError:
+60 +                 pass
+61 |             assert old.returncode is not None and tts._process is None
+   -             metrics['cancel_seconds']=time.monotonic()-start
+   -             metrics['old_reaped']=not Path('/proc',str(old.pid)).exists()
+   -             audio=await tts.render('爸爸，我在這裡。')
+   -             metrics['restart_pid']=tts._process.pid
+   -             assert metrics['restart_pid']!=old.pid
+   -             assert hashlib.sha256(audio).hexdigest()==metrics['renders'][0]['sha256']
+   -             last=tts._process
+   -         finally:await tts.close()
+   -         metrics['final_reaped']=not Path('/proc',str(last.pid)).exists()
+   -     metrics['reference_after']=hashlib.sha256(reference.read_bytes()).hexdigest()
+   -     assert metrics['reference_after']==digest
+   -     print(json.dumps(metrics,ensure_ascii=False,indent=2))
+62 +             metrics["cancel_seconds"] = time.monotonic() - start
+63 +             metrics["old_reaped"] = not Path("/proc", str(old.pid)).exists()
+64 +             audio = await tts.render("爸爸，我在這裡。")
+65 +             metrics["restart_pid"] = tts._process.pid
+66 +             assert metrics["restart_pid"] != old.pid
+67 +             assert hashlib.sha256(audio).hexdigest() == metrics["renders"][0]["sha256"]
+68 +             last = tts._process
+69 +         finally:
+70 +             await tts.close()
+71 +         metrics["final_reaped"] = not Path("/proc", str(last.pid)).exists()
+72 +     metrics["reference_after"] = hashlib.sha256(reference.read_bytes()).hexdigest()
+73 +     assert metrics["reference_after"] == digest
+74 +     print(json.dumps(metrics, ensure_ascii=False, indent=2))
+75 +
+76 |
+   |
+
+unformatted: File would be reformatted
+  --> docs/evidence/RT-007/main_smoke.py:2:1
+   |
+1  | """Isolated real network Gateway diagnostic smoke; no provider requests or tools."""
+2  +
+3  | import json
+--------------------------------------------------------------------------------
+12 |
+   - root=Path.cwd()
+13 + root = Path.cwd()
+14 | with socket.socket() as sock:
+   -     sock.bind(('127.0.0.1',0))
+   -     port=sock.getsockname()[1]
+   - with tempfile.TemporaryDirectory(prefix='rt007-main-') as directory:
+   -     env={k:v for k,v in os.environ.items() if not k.startswith('SIRO_') and k!='GROQ_API_KEY'}
+   -     env.update(SIRO_RUNTIME_PROFILE='candidate',SIRO_DATA_DIR=directory,SIRO_GATEWAY_PORT=str(port))
+   -     with (Path(directory)/'gateway.log').open('wb') as log:
+   -         child=subprocess.Popen([str(root/'.venv/bin/siro-gateway')],env=env,stdout=log,stderr=log)
+15 +     sock.bind(("127.0.0.1", 0))
+16 +     port = sock.getsockname()[1]
+17 + with tempfile.TemporaryDirectory(prefix="rt007-main-") as directory:
+18 +     env = {k: v for k, v in os.environ.items() if not k.startswith("SIRO_") and k != "GROQ_API_KEY"}
+19 +     env.update(
+20 +         SIRO_RUNTIME_PROFILE="candidate", SIRO_DATA_DIR=directory, SIRO_GATEWAY_PORT=str(port)
+21 +     )
+22 +     with (Path(directory) / "gateway.log").open("wb") as log:
+23 +         child = subprocess.Popen(
+24 +             [str(root / ".venv/bin/siro-gateway")], env=env, stdout=log, stderr=log
+25 +         )
+26 |         try:
+   -             base=f'http://127.0.0.1:{port}'
+   -             deadline=time.monotonic()+20
+27 +             base = f"http://127.0.0.1:{port}"
+28 +             deadline = time.monotonic() + 20
+29 |             while True:
+30 |                 assert child.poll() is None
+31 |                 try:
+   -                     with urllib.request.urlopen(base+'/health/live',timeout=1) as response:
+   -                         assert json.load(response)=={'state':'alive'}
+32 +                     with urllib.request.urlopen(base + "/health/live", timeout=1) as response:
+33 +                         assert json.load(response) == {"state": "alive"}
+34 |                     break
+   -                 except (urllib.error.URLError,TimeoutError):
+   -                     assert time.monotonic()<deadline
+   -                     time.sleep(.1)
+   -             session=urllib.request.Request(base+'/v1/session',data=b'',method='POST',
+   -                                            headers={'Origin':'http://127.0.0.1:8000'})
+35 +                 except (urllib.error.URLError, TimeoutError):
+36 +                     assert time.monotonic() < deadline
+37 +                     time.sleep(0.1)
+38 +             session = urllib.request.Request(
+39 +                 base + "/v1/session",
+40 +                 data=b"",
+41 +                 method="POST",
+42 +                 headers={"Origin": "http://127.0.0.1:8000"},
+43 +             )
+44 |             with urllib.request.urlopen(session) as response:
+   -                 token=json.load(response)['token']
+   -             headers={'Authorization':f'Bearer {token}'}
+   -             with urllib.request.urlopen(urllib.request.Request(base+'/v1/runtime',headers=headers)) as response:
+   -                 before=json.load(response)
+   -             assert before['runtime_profile']=='candidate' and before['catalog_enabled']
+   -             assert before['configuration_source']=='gateway_env_and_defaults'
+   -             assert before['routes']['model']=='offline'
+   -             request=urllib.request.Request(base+'/v1/kill-switches/tools',data=b'{"enabled":false}',
+   -                         headers={**headers,'Content-Type':'application/json'},method='PUT')
+45 +                 token = json.load(response)["token"]
+46 +             headers = {"Authorization": f"Bearer {token}"}
+47 +             with urllib.request.urlopen(
+48 +                 urllib.request.Request(base + "/v1/runtime", headers=headers)
+49 +             ) as response:
+50 +                 before = json.load(response)
+51 +             assert before["runtime_profile"] == "candidate" and before["catalog_enabled"]
+52 +             assert before["configuration_source"] == "gateway_env_and_defaults"
+53 +             assert before["routes"]["model"] == "offline"
+54 +             request = urllib.request.Request(
+55 +                 base + "/v1/kill-switches/tools",
+56 +                 data=b'{"enabled":false}',
+57 +                 headers={**headers, "Content-Type": "application/json"},
+58 +                 method="PUT",
+59 +             )
+60 |             with urllib.request.urlopen(request) as response:
+   -                 assert json.load(response)['enabled'] is False
+   -             with urllib.request.urlopen(urllib.request.Request(base+'/v1/runtime',headers=headers)) as response:
+   -                 after=json.load(response)
+   -             assert not any(t['available'] for t in after['tools'])
+   -             print(json.dumps({'network_startup':True,'profile':before['runtime_profile'],
+   -                 'catalog_enabled':before['catalog_enabled'],
+   -                 'tools':[t['name'] for t in before['tools']],
+   -                 'tools_off_all_unavailable':True}))
+61 +                 assert json.load(response)["enabled"] is False
+62 +             with urllib.request.urlopen(
+63 +                 urllib.request.Request(base + "/v1/runtime", headers=headers)
+64 +             ) as response:
+65 +                 after = json.load(response)
+66 +             assert not any(t["available"] for t in after["tools"])
+67 +             print(
+68 +                 json.dumps(
+69 +                     {
+70 +                         "network_startup": True,
+71 +                         "profile": before["runtime_profile"],
+72 +                         "catalog_enabled": before["catalog_enabled"],
+73 +                         "tools": [t["name"] for t in before["tools"]],
+74 +                         "tools_off_all_unavailable": True,
+75 +                     }
+76 +                 )
+77 +             )
+78 |         finally:
+   -             if child.poll() is None:child.terminate()
+79 +             if child.poll() is None:
+80 +                 child.terminate()
+81 |             child.wait(timeout=10)
+   -             print(json.dumps({'shutdown_exit':child.returncode}))
+82 +             print(json.dumps({"shutdown_exit": child.returncode}))
+   |
+
+unformatted: File would be reformatted
+  --> docs/evidence/RT-008/main_smoke.py:2:1
+   |
+1  | """Actual installed Gateway startup recovery with synthetic temporary data only."""
+2  +
+3  | import json
+--------------------------------------------------------------------------------
+15 | with socket.socket() as listener:
+   -     listener.bind(('127.0.0.1', 0))
+16 +     listener.bind(("127.0.0.1", 0))
+17 |     port = listener.getsockname()[1]
+   - with tempfile.TemporaryDirectory(prefix='rt008-main-') as directory:
+   -     environment = {k: v for k, v in os.environ.items() if not k.startswith('SIRO_') and k != 'GROQ_API_KEY'}
+   -     fixture = subprocess.run([sys.executable, 'tests/fixtures/run_journal_crash.py', directory,
+   -                               'before_observation'], env=environment, capture_output=True, timeout=20)
+18 + with tempfile.TemporaryDirectory(prefix="rt008-main-") as directory:
+19 +     environment = {
+20 +         k: v for k, v in os.environ.items() if not k.startswith("SIRO_") and k != "GROQ_API_KEY"
+21 +     }
+22 +     fixture = subprocess.run(
+23 +         [sys.executable, "tests/fixtures/run_journal_crash.py", directory, "before_observation"],
+24 +         env=environment,
+25 +         capture_output=True,
+26 +         timeout=20,
+27 +     )
+28 |     assert fixture.returncode == 42
+   -     marker = Path(directory) / 'effect.txt'
+29 +     marker = Path(directory) / "effect.txt"
+30 |     before = marker.read_text()
+   -     environment.update(SIRO_RUNTIME_PROFILE='candidate', SIRO_DATA_DIR=directory,
+   -                        SIRO_GATEWAY_PORT=str(port))
+   -     logfile = Path(directory) / 'gateway.log'
+   -     with logfile.open('wb') as log:
+   -         process = subprocess.Popen([str(root / '.venv/bin/siro-gateway')], env=environment,
+   -                                    stdout=log, stderr=log)
+31 +     environment.update(
+32 +         SIRO_RUNTIME_PROFILE="candidate", SIRO_DATA_DIR=directory, SIRO_GATEWAY_PORT=str(port)
+33 +     )
+34 +     logfile = Path(directory) / "gateway.log"
+35 +     with logfile.open("wb") as log:
+36 +         process = subprocess.Popen(
+37 +             [str(root / ".venv/bin/siro-gateway")], env=environment, stdout=log, stderr=log
+38 +         )
+39 |         try:
+   -             base = f'http://127.0.0.1:{port}'
+40 +             base = f"http://127.0.0.1:{port}"
+41 |             deadline = time.monotonic() + 20
+42 |             while True:
+43 |                 assert process.poll() is None, logfile.read_text()
+44 |                 try:
+   -                     with urllib.request.urlopen(base + '/health/live', timeout=1) as response:
+   -                         assert json.load(response) == {'state': 'alive'}
+45 +                     with urllib.request.urlopen(base + "/health/live", timeout=1) as response:
+46 +                         assert json.load(response) == {"state": "alive"}
+47 |                     break
+48 |                 except (urllib.error.URLError, TimeoutError):
+49 |                     assert time.monotonic() < deadline
+   -                     time.sleep(.1)
+   -             request = urllib.request.Request(base + '/v1/session', data=b'', method='POST',
+   -                                               headers={'Origin': 'http://127.0.0.1:8000'})
+50 +                     time.sleep(0.1)
+51 +             request = urllib.request.Request(
+52 +                 base + "/v1/session",
+53 +                 data=b"",
+54 +                 method="POST",
+55 +                 headers={"Origin": "http://127.0.0.1:8000"},
+56 +             )
+57 |             with urllib.request.urlopen(request) as response:
+   -                 token = json.load(response)['token']
+   -             request = urllib.request.Request(base + '/v1/agent-runs/crash-session',
+   -                                               headers={'Authorization': f'Bearer {token}'})
+58 +                 token = json.load(response)["token"]
+59 +             request = urllib.request.Request(
+60 +                 base + "/v1/agent-runs/crash-session", headers={"Authorization": f"Bearer {token}"}
+61 +             )
+62 |             with urllib.request.urlopen(request) as response:
+63 |                 readback = json.load(response)
+   -             assert readback['state'] == 'failed' and readback['error'] == 'outcome_unknown'
+   -             assert readback['model_rounds'] == 1 and readback['tool_calls'] == 1
+   -             assert [m['role'] for m in readback['messages']] == ['system', 'user', 'assistant', 'tool']
+64 +             assert readback["state"] == "failed" and readback["error"] == "outcome_unknown"
+65 +             assert readback["model_rounds"] == 1 and readback["tool_calls"] == 1
+66 +             assert [m["role"] for m in readback["messages"]] == [
+67 +                 "system",
+68 +                 "user",
+69 +                 "assistant",
+70 +                 "tool",
+71 +             ]
+72 |             assert marker.read_text() == before
+   -             with urllib.request.urlopen(base + '/') as response:
+73 +             with urllib.request.urlopen(base + "/") as response:
+74 |                 page = response.read().decode()
+   -                 assert '/v1/agent-runs/browser' in page and '結果未知' in page
+   -             print(json.dumps({'actual_main_startup_recovery': True, 'unknown_visible': True,
+   -                               'paired_messages': True, 'budgets_preserved': True,
+   -                               'side_effect_file_unchanged': True, 'recovery_ui_served': True}))
+75 +                 assert "/v1/agent-runs/browser" in page and "結果未知" in page
+76 +             print(
+77 +                 json.dumps(
+78 +                     {
+79 +                         "actual_main_startup_recovery": True,
+80 +                         "unknown_visible": True,
+81 +                         "paired_messages": True,
+82 +                         "budgets_preserved": True,
+83 +                         "side_effect_file_unchanged": True,
+84 +                         "recovery_ui_served": True,
+85 +                     }
+86 +                 )
+87 +             )
+88 |         finally:
+89 |             if process.poll() is None:
+90 |                 process.terminate()
+91 |             process.wait(timeout=10)
+   -             assert 'Application shutdown complete.' in logfile.read_text()
+   -             print(json.dumps({'graceful_shutdown_log': True, 'exit': process.returncode}))
+92 +             assert "Application shutdown complete." in logfile.read_text()
+93 +             print(json.dumps({"graceful_shutdown_log": True, "exit": process.returncode}))
+   |
+
+unformatted: File would be reformatted
+  --> docs/evidence/RT-011/ar06-ar07/deferred_probe.py:2:1
+   |
+1  | """Synthetic gate evidence; no provider, private data, or tool effects."""
+2  +
+3  | import asyncio
+--------------------------------------------------------------------------------
+11 |
+12 +
+13 | async def main():
+14 |     class Fake:
+15 |         async def run(self, *args, **kwargs):
+16 |             return None
+17 +
+18 |     scheduler = ConsolidationScheduler(Fake())
+19 |     for index in range(100):
+   -         await scheduler.schedule(str(index), 'synthetic', (), now=datetime.now(UTC), idle=True, resources_available=True)
+20 +         await scheduler.schedule(
+21 +             str(index), "synthetic", (), now=datetime.now(UTC), idle=True, resources_available=True
+22 +         )
+23 |     await asyncio.sleep(0)
+24 |     retained = len(scheduler._runs)
+25 |     active = sum(not item.task.done() for item in scheduler._runs.values())
+26 |     await scheduler.close()
+   -     adapter = OpenAICompatibleAdapter(base_url='https://api.groq.com/openai', api_key='synthetic', model='openai/gpt-oss-20b')
+   -     budget = GPTOSSBudget(Path('.siro-data/tokenizers/gpt-oss-20b'), adapter.request_payload)
+   -     messages = [ModelMessage('system', 'Synthetic goal and authorization preserved.')]
+27 +     adapter = OpenAICompatibleAdapter(
+28 +         base_url="https://api.groq.com/openai", api_key="synthetic", model="openai/gpt-oss-20b"
+29 +     )
+30 +     budget = GPTOSSBudget(Path(".siro-data/tokenizers/gpt-oss-20b"), adapter.request_payload)
+31 +     messages = [ModelMessage("system", "Synthetic goal and authorization preserved.")]
+32 |     for index in range(6):
+   -         messages.extend([ModelMessage('user', '合成日常對話。' * 100), ModelMessage('assistant', '合成回答。' * 100)])
+   -     request = ModelRequest('synthetic', 'goal', Privacy.CLOUD_ALLOWED, messages=tuple(messages), max_output_tokens=512)
+33 +         messages.extend(
+34 +             [
+35 +                 ModelMessage("user", "合成日常對話。" * 100),
+36 +                 ModelMessage("assistant", "合成回答。" * 100),
+37 +             ]
+38 +         )
+39 +     request = ModelRequest(
+40 +         "synthetic", "goal", Privacy.CLOUD_ALLOWED, messages=tuple(messages), max_output_tokens=512
+41 +     )
+42 |     count = budget.validate(request)
+   -     print(json.dumps({'scheduler_completed_retained': retained, 'scheduler_active': active, 'after_close': len(scheduler._runs), 'six_pairs_reference_tokens': count, 'summary_need_proven': False}, indent=2))
+43 +     print(
+44 +         json.dumps(
+45 +             {
+46 +                 "scheduler_completed_retained": retained,
+47 +                 "scheduler_active": active,
+48 +                 "after_close": len(scheduler._runs),
+49 +                 "six_pairs_reference_tokens": count,
+50 +                 "summary_need_proven": False,
+51 +             },
+52 +             indent=2,
+53 +         )
+54 +     )
+55 +
+56 |
+   |
+
+unformatted: File would be reformatted
+   --> docs/evidence/RT-011/token-completion/real_provider_probe.py:12:31
+    |
+11  | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+    - from siro.ports.models import CancellationToken, ModelMessage, ModelRequest, Privacy, ToolCall, ToolDefinition
+12  + from siro.ports.models import (
+13  +     CancellationToken,
+14  +     ModelMessage,
+15  +     ModelRequest,
+16  +     Privacy,
+17  +     ToolCall,
+18  +     ToolDefinition,
+19  + )
+20  | from siro.services.agent.context import ContextBudgetModel
+--------------------------------------------------------------------------------
+44  |             data = response.json()
+    -             usages.append({"prompt_tokens": data["usage"]["prompt_tokens"],
+    -                            "completion_tokens": data["usage"]["completion_tokens"]})
+45  +             usages.append(
+46  +                 {
+47  +                     "prompt_tokens": data["usage"]["prompt_tokens"],
+48  +                     "completion_tokens": data["usage"]["completion_tokens"],
+49  +                 }
+50  +             )
+51  |             return data
+52  |
+53  |     adapter = OpenAICompatibleAdapter(
+    -         base_url="https://api.groq.com/openai", api_key=key,
+    -         model="openai/gpt-oss-20b", transport=Transport(),
+54  +         base_url="https://api.groq.com/openai",
+55  +         api_key=key,
+56  +         model="openai/gpt-oss-20b",
+57  +         transport=Transport(),
+58  |     )
+--------------------------------------------------------------------------------
+62  |     for name, request in [
+    -         ("plain", ModelRequest("Synthetic token fixture: reply OK, do not use tools.", "synthetic", Privacy.CLOUD_ALLOWED, max_output_tokens=128)),
+    -         ("paired_tool", ModelRequest("synthetic", "synthetic", Privacy.CLOUD_ALLOWED, max_output_tokens=128,
+    -             tools=(ToolDefinition("fixture_inspect", "Synthetic fixture only; no execution.", {"type":"object", "properties":{"flag":{"type":"boolean"}}}),),
+    -             messages=(ModelMessage("system", "Synthetic tokenizer verification; do not call tools."),
+    -                       ModelMessage("user", "Please reply OK."),
+    -                       ModelMessage("assistant", "", (ToolCall("fixture", "fixture_inspect", {"flag":True}),)),
+    -                       ModelMessage("tool", '{"synthetic":true}', tool_call_id="fixture"))))
+63  +         (
+64  +             "plain",
+65  +             ModelRequest(
+66  +                 "Synthetic token fixture: reply OK, do not use tools.",
+67  +                 "synthetic",
+68  +                 Privacy.CLOUD_ALLOWED,
+69  +                 max_output_tokens=128,
+70  +             ),
+71  +         ),
+72  +         (
+73  +             "paired_tool",
+74  +             ModelRequest(
+75  +                 "synthetic",
+76  +                 "synthetic",
+77  +                 Privacy.CLOUD_ALLOWED,
+78  +                 max_output_tokens=128,
+79  +                 tools=(
+80  +                     ToolDefinition(
+81  +                         "fixture_inspect",
+82  +                         "Synthetic fixture only; no execution.",
+83  +                         {"type": "object", "properties": {"flag": {"type": "boolean"}}},
+84  +                     ),
+85  +                 ),
+86  +                 messages=(
+87  +                     ModelMessage("system", "Synthetic tokenizer verification; do not call tools."),
+88  +                     ModelMessage("user", "Please reply OK."),
+89  +                     ModelMessage(
+90  +                         "assistant", "", (ToolCall("fixture", "fixture_inspect", {"flag": True}),)
+91  +                     ),
+92  +                     ModelMessage("tool", '{"synthetic":true}', tool_call_id="fixture"),
+93  +                 ),
+94  +             ),
+95  +         ),
+96  |     ]:
+--------------------------------------------------------------------------------
+100 |         covered = usage["prompt_tokens"] <= reference + 256
+    -         row = {"case":name,"reference_input_tokens":reference,**usage,"safety_tokens":256,"server_count_covered":covered}
+101 +         row = {
+102 +             "case": name,
+103 +             "reference_input_tokens": reference,
+104 +             **usage,
+105 +             "safety_tokens": 256,
+106 +             "server_count_covered": covered,
+107 +         }
+108 |         rows.append(row)
+109 |         print(json.dumps(row))
+110 |         assert covered, "server framing exceeds configured safety allowance"
+    -     (Path(__file__).parent / "real-provider-counts.json").write_text(json.dumps(rows,indent=2)+"\n")
+111 +     (Path(__file__).parent / "real-provider-counts.json").write_text(
+112 +         json.dumps(rows, indent=2) + "\n"
+113 +     )
+114 |
+    |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/RT005_2026-10-01/test_independent.py:11:1
+   |
+10 |
+11 +
+12 | class Socket:
+--------------------------------------------------------------------------------
+16 |         self.messages = []
+17 +
+18 |     async def send_json(self, message):
+   -         if message['type'] == 'snapshot':
+19 +         if message["type"] == "snapshot":
+20 |             self.entered.set()
+21 |             await self.release.wait()
+22 |         self.messages.append(message)
+23 +
+24 |     async def close(self, **kwargs):
+25 |         pass
+26 |
+27 +
+28 | class Model:
+   -     name = 'independent-synthetic'
+29 +     name = "independent-synthetic"
+30 +
+31 |     async def stream(self, request, cancellation):
+32 |         for i in range(10):
+   -             yield ModelChunk('tool_request', tool_call=ToolCall(str(i), 'computer.execute', {'index': i}))
+   -         yield ModelChunk('finished')
+33 +             yield ModelChunk(
+34 +                 "tool_request", tool_call=ToolCall(str(i), "computer.execute", {"index": i})
+35 +             )
+36 +         yield ModelChunk("finished")
+37 +
+38 |
+39 | @pytest.mark.asyncio
+40 | async def test_actual_websocket_has_no_tool_output_after_terminal(tmp_path: Path):
+   -     store = SQLiteStore(tmp_path / 'siro.db')
+41 +     store = SQLiteStore(tmp_path / "siro.db")
+42 |     await store.initialize()
+43 |     entered = asyncio.Event()
+44 +
+45 |     async def old(arguments):
+   -         raise AssertionError('legacy bypass')
+46 +         raise AssertionError("legacy bypass")
+47 +
+48 |     async def execute(arguments, context):
+   -         if arguments['index'] == 9:
+49 +         if arguments["index"] == 9:
+50 |             entered.set()
+51 |             await context.cancellation.wait()
+52 |             context.check()
+   -         return {'index': arguments['index']}
+   -     orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {'computer.execute': old}, contextual_executors={'computer.execute': execute})
+53 +         return {"index": arguments["index"]}
+54 +
+55 +     orchestrator = ToolOrchestrator(
+56 +         SQLiteToolProposalRepository(store),
+57 +         {"computer.execute": old},
+58 +         contextual_executors={"computer.execute": execute},
+59 +     )
+60 |     hub = GatewayHub()
+61 |     socket = Socket()
+   -     await hub.connect(socket, {'type': 'snapshot'})
+62 +     await hub.connect(socket, {"type": "snapshot"})
+63 |     await socket.entered.wait()
+   -     controller = IntegratedCompanion(tmp_path, Model(), hub, MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator, runtime_profile='candidate', auto_authorize=lambda: True)
+   -     task = asyncio.create_task(controller.respond('session', 'synthetic goal'))
+64 +     controller = IntegratedCompanion(
+65 +         tmp_path,
+66 +         Model(),
+67 +         hub,
+68 +         MinimalWebBodyAdapter(WebSocketBodyTransport()),
+69 +         privacy=Privacy.LOCAL_ONLY,
+70 +         tool_orchestrator=orchestrator,
+71 +         runtime_profile="candidate",
+72 +         auto_authorize=lambda: True,
+73 +     )
+74 +     task = asyncio.create_task(controller.respond("session", "synthetic goal"))
+75 |     try:
+76 |         await asyncio.wait_for(entered.wait(), 3)
+   -         await controller.cancel('active', 'stop')
+77 +         await controller.cancel("active", "stop")
+78 |         await task
+79 |         socket.release.set()
+80 |         for _ in range(100):
+   -             await asyncio.sleep(.001)
+   -         types = [m['type'] for m in socket.messages]
+   -         terminal = types.index('assistant_terminal')
+   -         late = types[terminal + 1:]
+   -         print('ACTUAL_DELIVERY', types, 'LATE', late)
+   -         assert not any(t in {'tool_result', 'tool_started', 'assistant_delta'} for t in late)
+81 +             await asyncio.sleep(0.001)
+82 +         types = [m["type"] for m in socket.messages]
+83 +         terminal = types.index("assistant_terminal")
+84 +         late = types[terminal + 1 :]
+85 +         print("ACTUAL_DELIVERY", types, "LATE", late)
+86 +         assert not any(t in {"tool_result", "tool_started", "assistant_delta"} for t in late)
+87 |     finally:
+88 |         socket.release.set()
+89 |         await hub.shutdown()
+90 |         if not task.done():
+   -             await controller.cancel('active', 'cleanup')
+91 +             await controller.cancel("active", "cleanup")
+92 |             await task
+   |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/RT006_2026-10-01/verify_frontend_cancel.py:2:1
+   |
+1  | """Execute actual frontend functions with a pending synthetic fetch; no network/audio."""
+2  +
+3  | from pathlib import Path
+4  | import subprocess
+5  |
+   - html = Path('src/siro/services/presentation/static/index.html').read_text()
+   - play = html[html.index('async function playTts('):html.index('function wavFromBuffer(')]
+   - cancel = next(line.strip() for line in html.splitlines() if 'document.querySelector("#cancel").onclick =' in line)
+   - script = '''
+6  + html = Path("src/siro/services/presentation/static/index.html").read_text()
+7  + play = html[html.index("async function playTts(") : html.index("function wavFromBuffer(")]
+8  + cancel = next(
+9  +     line.strip()
+10 +     for line in html.splitlines()
+11 +     if 'document.querySelector("#cancel").onclick =' in line
+12 + )
+13 + script = (
+14 +     """
+15 | const assert = require('node:assert/strict');
+--------------------------------------------------------------------------------
+24 | };
+   - ''' + play + '\n' + cancel + '''
+25 + """
+26 +     + play
+27 +     + "\n"
+28 +     + cancel
+29 +     + """
+30 | (async () => {
+--------------------------------------------------------------------------------
+39 | })().catch(error => { console.error(error.message); process.exitCode = 1; });
+   - '''
+   - result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
+   - print(result.stdout, end='')
+   - print(result.stderr, end='')
+40 + """
+41 + )
+42 + result = subprocess.run(["node", "-e", script], capture_output=True, text=True)
+43 + print(result.stdout, end="")
+44 + print(result.stderr, end="")
+45 | raise SystemExit(result.returncode)
+   |
+
+unformatted: File would be reformatted
+   --> docs/runtime-evolution/verification/RT007_2026-10-02/test_independent_errors.py:12:1
+    |
+11  |
+12  +
+13  | class Hub(GatewayHub):
+14  |     def __init__(self):
+15  |         super().__init__()
+16  |         self.events = []
+17  +
+18  |     async def broadcast(self, message, *, urgent=False):
+19  |         self.events.append(message)
+20  |
+21  +
+22  | @pytest.mark.asyncio
+    - @pytest.mark.parametrize('cause', ['schema', 'revoked'])
+23  + @pytest.mark.parametrize("cause", ["schema", "revoked"])
+24  | async def test_rejected_model_tool_has_terminal_run(tmp_path: Path, cause: str):
+25  |     enabled = True
+26  |     requests = []
+27  |     executed = []
+28  +
+29  |     class Model:
+    -         name = 'independent-error-fixture'
+30  +         name = "independent-error-fixture"
+31  +
+32  |         async def stream(self, request, cancellation):
+33  |             nonlocal enabled
+34  |             requests.append(request)
+35  |             if len(requests) == 1:
+    -                 if cause == 'revoked':
+36  +                 if cause == "revoked":
+37  |                     enabled = False
+    -                 args = {'argv': []} if cause == 'schema' else {'argv': ['synthetic']}
+    -                 yield ModelChunk('tool_request', tool_call=ToolCall('call', 'computer.execute', args))
+38  +                 args = {"argv": []} if cause == "schema" else {"argv": ["synthetic"]}
+39  +                 yield ModelChunk(
+40  +                     "tool_request", tool_call=ToolCall("call", "computer.execute", args)
+41  +                 )
+42  |             else:
+    -                 yield ModelChunk('text', 'tool failure acknowledged')
+    -             yield ModelChunk('finished')
+43  +                 yield ModelChunk("text", "tool failure acknowledged")
+44  +             yield ModelChunk("finished")
+45  +
+46  |     async def execute(arguments):
+47  |         executed.append(arguments)
+    -         if not arguments.get('argv'):
+    -             raise ValueError('invalid argv rejected by existing handler')
+48  +         if not arguments.get("argv"):
+49  +             raise ValueError("invalid argv rejected by existing handler")
+50  |         return {}
+    -     store = SQLiteStore(tmp_path/'siro.db')
+51  +
+52  +     store = SQLiteStore(tmp_path / "siro.db")
+53  |     await store.initialize()
+54  |     extra = {}
+55  |     # Before RT-007: old handler rejects malformed argv inside execute, resulting
+56  |     # in a FAILED observation and normal continuation. After: real catalog path.
+    -     if hasattr(mod, 'ToolCatalog'):
+    -         extra['catalog'] = mod.ToolCatalog((mod.ToolDescriptor('computer.execute', mod.DEFAULT_MODEL_TOOLS[1], execute, lambda: enabled, 'python.argv', 'computer'),))
+    -     subject = mod.ToolOrchestrator(mod.SQLiteToolProposalRepository(store), {'computer.execute': execute}, **extra)
+57  +     if hasattr(mod, "ToolCatalog"):
+58  +         extra["catalog"] = mod.ToolCatalog(
+59  +             (
+60  +                 mod.ToolDescriptor(
+61  +                     "computer.execute",
+62  +                     mod.DEFAULT_MODEL_TOOLS[1],
+63  +                     execute,
+64  +                     lambda: enabled,
+65  +                     "python.argv",
+66  +                     "computer",
+67  +                 ),
+68  +             )
+69  +         )
+70  +     subject = mod.ToolOrchestrator(
+71  +         mod.SQLiteToolProposalRepository(store), {"computer.execute": execute}, **extra
+72  +     )
+73  |     hub = Hub()
+    -     controller = IntegratedCompanion(tmp_path, Model(), hub, MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOCAL_ONLY, tool_orchestrator=subject, runtime_profile='candidate', auto_authorize=lambda: True)
+74  +     controller = IntegratedCompanion(
+75  +         tmp_path,
+76  +         Model(),
+77  +         hub,
+78  +         MinimalWebBodyAdapter(WebSocketBodyTransport()),
+79  +         privacy=Privacy.LOCAL_ONLY,
+80  +         tool_orchestrator=subject,
+81  +         runtime_profile="candidate",
+82  +         auto_authorize=lambda: True,
+83  +     )
+84  |     error = None
+85  |     try:
+    -         await controller.respond('session', 'synthetic goal')
+86  +         await controller.respond("session", "synthetic goal")
+87  |     except Exception as exc:
+88  |         error = type(exc).__name__
+    -     row = await store.run_transaction(lambda c:c.execute('SELECT state,error FROM agent_runs').fetchone())
+    -     terminal = [e for e in hub.events if e['type'] == 'assistant_terminal']
+    -     print('ERROR_PATH', {'cause':cause, 'raised':error, 'run_state':row[0], 'terminal_count':len(terminal), 'handler_calls':len(executed), 'model_rounds':len(requests)})
+89  +     row = await store.run_transaction(
+90  +         lambda c: c.execute("SELECT state,error FROM agent_runs").fetchone()
+91  +     )
+92  +     terminal = [e for e in hub.events if e["type"] == "assistant_terminal"]
+93  +     print(
+94  +         "ERROR_PATH",
+95  +         {
+96  +             "cause": cause,
+97  +             "raised": error,
+98  +             "run_state": row[0],
+99  +             "terminal_count": len(terminal),
+100 +             "handler_calls": len(executed),
+101 +             "model_rounds": len(requests),
+102 +         },
+103 +     )
+104 |     await hub.shutdown()
+    -     assert len(terminal) == 1, 'Rejected model request left the run without terminal UI'
+    -     assert row[0] in {'failed','completed','cancelled'}, 'Rejected model request left persistent run active'
+105 +     assert len(terminal) == 1, "Rejected model request left the run without terminal UI"
+106 +     assert row[0] in {"failed", "completed", "cancelled"}, (
+107 +         "Rejected model request left persistent run active"
+108 +     )
+    |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/RT008_2026-10-03/test_independent.py:11:1
+   |
+10 |
+11 +
+12 | class ReusedCallModel:
+13 |     name = "independent-synthetic"
+14 +
+15 |     def __init__(self):
+16 |         self.count = 0
+   -     async def stream(self, request: ModelRequest, cancellation: CancellationToken) -> AsyncIterator[ModelChunk]:
+17 +
+18 +     async def stream(
+19 +         self, request: ModelRequest, cancellation: CancellationToken
+20 +     ) -> AsyncIterator[ModelChunk]:
+21 |         self.count += 1
+22 |         if self.count % 2:
+   -             yield ModelChunk("tool_request", tool_call=ToolCall("same-call", "computer.execute", {}))
+23 +             yield ModelChunk(
+24 +                 "tool_request", tool_call=ToolCall("same-call", "computer.execute", {})
+25 +             )
+26 |         else:
+27 |             yield ModelChunk("text", "done")
+28 |         yield ModelChunk("finished")
+29 |
+30 +
+31 | @pytest.mark.asyncio
+--------------------------------------------------------------------------------
+35 |     effects = []
+36 +
+37 |     async def effect(arguments):
+38 |         effects.append("once")
+39 |         return {"ok": True}
+   -     controller = IntegratedCompanion(tmp_path, ReusedCallModel(), GatewayHub(),
+   -         MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOCAL_ONLY,
+   -         runtime_profile="candidate", auto_authorize=lambda: True,
+   -         tool_orchestrator=ToolOrchestrator(SQLiteToolProposalRepository(store), {"computer.execute": effect}))
+40 +
+41 +     controller = IntegratedCompanion(
+42 +         tmp_path,
+43 +         ReusedCallModel(),
+44 +         GatewayHub(),
+45 +         MinimalWebBodyAdapter(WebSocketBodyTransport()),
+46 +         privacy=Privacy.LOCAL_ONLY,
+47 +         runtime_profile="candidate",
+48 +         auto_authorize=lambda: True,
+49 +         tool_orchestrator=ToolOrchestrator(
+50 +             SQLiteToolProposalRepository(store), {"computer.execute": effect}
+51 +         ),
+52 +     )
+53 |     await controller.respond("same-session", "first goal")
+   |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/RT009_2026-10-05/test_independent.py:2:1
+  |
+1 | """Independent verification; intentionally outside default test discovery."""
+2 +
+3 | import importlib.util
+4 | import sqlite3
+5 | from pathlib import Path
+  -
+6 |
+  |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/RT010_2026-10-05/process_fixture.py:2:1
+   |
+1  | """One fresh OS process per synthetic turn; real controller/Core/SQLite."""
+2  +
+3  | import asyncio
+--------------------------------------------------------------------------------
+13 |
+14 +
+15 | class Model:
+16 |     name = "independent-local"
+17 +
+18 |     async def stream(self, request, cancellation):
+   -         (Path(directory) / "request.json").write_text(json.dumps(
+   -             [{"role": m.role, "content": m.content} for m in request.messages]))
+19 +         (Path(directory) / "request.json").write_text(
+20 +             json.dumps([{"role": m.role, "content": m.content} for m in request.messages])
+21 +         )
+22 |         yield ModelChunk("text", answer)
+23 |         yield ModelChunk("finished")
+24 |
+25 +
+26 | async def main():
+   -     controller = IntegratedCompanion(Path(directory), Model(), GatewayHub(),
+27 +     controller = IntegratedCompanion(
+28 +         Path(directory),
+29 +         Model(),
+30 +         GatewayHub(),
+31 |         MinimalWebBodyAdapter(WebSocketBodyTransport()),
+   -         privacy=Privacy.LOCAL_ONLY, runtime_profile="candidate")
+32 +         privacy=Privacy.LOCAL_ONLY,
+33 +         runtime_profile="candidate",
+34 +     )
+35 |     await controller.startup()
+--------------------------------------------------------------------------------
+39 |
+40 +
+41 | asyncio.run(main())
+   |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/RT010_2026-10-05/test_independent.py:10:1
+   |
+9  |
+10 +
+11 | @pytest.mark.asyncio
+--------------------------------------------------------------------------------
+17 |     await repository.append(run.run_id, "final", {}, state=AgentRunState.COMPLETED)
+   -     await store.run_transaction(lambda c: c.execute(
+   -         "UPDATE run_journal SET status='terminal',messages_json='{}' WHERE run_id=?", (run.run_id,)))
+18 +     await store.run_transaction(
+19 +         lambda c: c.execute(
+20 +             "UPDATE run_journal SET status='terminal',messages_json='{}' WHERE run_id=?",
+21 +             (run.run_id,),
+22 +         )
+23 +     )
+24 |     calls = []
+25 +
+26 |     class Model:
+27 |         name = "forbidden-on-corruption"
+28 +
+29 |         async def stream(self, request, cancellation):
+30 |             calls.append(request)
+31 |             raise AssertionError("provider reached after corrupt hydration")
+32 |             yield ModelChunk("finished")
+   -     controller = IntegratedCompanion(tmp_path, Model(), GatewayHub(),
+33 +
+34 +     controller = IntegratedCompanion(
+35 +         tmp_path,
+36 +         Model(),
+37 +         GatewayHub(),
+38 |         MinimalWebBodyAdapter(WebSocketBodyTransport()),
+   -         privacy=Privacy.LOCAL_ONLY, runtime_profile="candidate")
+39 +         privacy=Privacy.LOCAL_ONLY,
+40 +         runtime_profile="candidate",
+41 +     )
+42 |     with pytest.raises(ValueError, match="invalid canonical session dialogue"):
+43 |         await controller.respond("A", "new goal")
+   -     count = await store.run_transaction(lambda c: c.execute("SELECT COUNT(*) FROM agent_runs").fetchone()[0])
+44 +     count = await store.run_transaction(
+45 +         lambda c: c.execute("SELECT COUNT(*) FROM agent_runs").fetchone()[0]
+46 +     )
+47 |     assert count == 1 and not calls
+   |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/RT011_2026-10-05/test_independent.py:2:1
+   |
+1  | """Independent composition check: native rejection precedes every retry backend."""
+2  +
+3  | from copy import deepcopy
+--------------------------------------------------------------------------------
+7  | from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+   - from siro.ports.models import CancellationToken, ModelChunk, ModelMessage, ModelRequest, Privacy, ToolCall
+8  + from siro.ports.models import (
+9  +     CancellationToken,
+10 +     ModelChunk,
+11 +     ModelMessage,
+12 +     ModelRequest,
+13 +     Privacy,
+14 +     ToolCall,
+15 + )
+16 | from siro.services.agent.context import ContextBudgetExceeded, ContextBudgetModel
+17 | from siro.services.agent.native_context import GPTOSSBudget
+18 |
+19 +
+20 | @pytest.mark.asyncio
+21 | async def test_native_rejection_fences_both_attempts_preserves_pending_pair():
+22 |     calls = []
+23 +
+24 |     class Model:
+25 |         name = "independent"
+26 +
+27 |         async def stream(self, request, cancellation):
+28 |             calls.append(request)
+29 |             raise ConnectionError("must never enter provider")
+30 |             yield ModelChunk("finished")
+   -     serializer = OpenAICompatibleAdapter(base_url="https://api.groq.com/openai",
+   -         api_key="synthetic", model="openai/gpt-oss-20b")
+   -     request = ModelRequest("immutable goal", "g", Privacy.CLOUD_ALLOWED, messages=(
+   -         ModelMessage("system", "authorization [source:policy]"),
+   -         ModelMessage("user", "immutable goal"),
+   -         ModelMessage("assistant", "", (ToolCall("pending", "inspect", {"path":"中文"}),)),
+   -         ModelMessage("tool", "retained observation", tool_call_id="pending")))
+31 +
+32 +     serializer = OpenAICompatibleAdapter(
+33 +         base_url="https://api.groq.com/openai", api_key="synthetic", model="openai/gpt-oss-20b"
+34 +     )
+35 +     request = ModelRequest(
+36 +         "immutable goal",
+37 +         "g",
+38 +         Privacy.CLOUD_ALLOWED,
+39 +         messages=(
+40 +             ModelMessage("system", "authorization [source:policy]"),
+41 +             ModelMessage("user", "immutable goal"),
+42 +             ModelMessage("assistant", "", (ToolCall("pending", "inspect", {"path": "中文"}),)),
+43 +             ModelMessage("tool", "retained observation", tool_call_id="pending"),
+44 +         ),
+45 +     )
+46 |     before = deepcopy(request)
+47 |     assets = Path(__file__).resolve().parents[4] / ".siro-data/tokenizers/gpt-oss-20b"
+48 |     guard = GPTOSSBudget(assets, serializer.request_payload, context_window=1)
+   -     wrapper = ContextBudgetModel(FailoverModel((Model(), Model()), backoff_seconds=0),
+   -         max_bytes=None, token_budget=guard)
+49 +     wrapper = ContextBudgetModel(
+50 +         FailoverModel((Model(), Model()), backoff_seconds=0), max_bytes=None, token_budget=guard
+51 +     )
+52 |     with pytest.raises(ContextBudgetExceeded):
+   |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/RT012_2026-10-05/test_independent.py:2:1
+   |
+1  | """Actual main/HTTP cancellation of idle browser retains other session ownership."""
+2  +
+3  | import importlib.util
+--------------------------------------------------------------------------------
+10 |
+11 +
+12 | def test_http_cancel_completed_turn_closes_only_its_idle_browser(tmp_path, monkeypatch):
+13 |     root = Path(__file__).resolve().parents[4]
+   -     spec = importlib.util.spec_from_file_location("rt012_fixture", root / "tests/integration/test_browser_sessions.py")
+14 +     spec = importlib.util.spec_from_file_location(
+15 +         "rt012_fixture", root / "tests/integration/test_browser_sessions.py"
+16 +     )
+17 |     module = importlib.util.module_from_spec(spec)
+--------------------------------------------------------------------------------
+27 |     original = gateway.create_app
+28 +
+29 |     def capture(**kwargs):
+30 |         captured.update(kwargs)
+31 |         return original(**kwargs)
+32 +
+33 |     monkeypatch.setattr(gateway, "create_app", capture)
+34 |     monkeypatch.setattr(uvicorn, "run", lambda *args, **kwargs: None)
+35 |     try:
+36 |         gateway.main()
+37 +
+38 |         class Model:
+39 |             name = "independent-local"
+40 +
+41 |             async def stream(self, request, cancellation):
+42 |                 if request.messages[-1].role == "user":
+   -                     yield ModelChunk("tool_request", tool_call=ToolCall("nav", "browser.navigate+read", {"url":origin}))
+43 +                     yield ModelChunk(
+44 +                         "tool_request",
+45 +                         tool_call=ToolCall("nav", "browser.navigate+read", {"url": origin}),
+46 +                     )
+47 |                 else:
+48 |                     yield ModelChunk("text", "complete")
+49 |                 yield ModelChunk("finished")
+50 +
+51 |         captured["on_turn"].__self__._model = Model()
+52 |         pool = captured["on_shutdown"].__self__
+53 |         with TestClient(original(**captured)) as client:
+   -             token = client.post("/v1/session", headers={"origin":"http://127.0.0.1:8000"}).json()["token"]
+   -             headers = {"authorization":f"Bearer {token}"}
+54 +             token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+55 +                 "token"
+56 +             ]
+57 +             headers = {"authorization": f"Bearer {token}"}
+58 |             turns = {}
+59 |             for session in ("A", "B"):
+   -                 response = client.post(f"/v1/conversations/{session}/turns", headers=headers, json={"text":f"navigate {session}"})
+60 +                 response = client.post(
+61 +                     f"/v1/conversations/{session}/turns",
+62 +                     headers=headers,
+63 +                     json={"text": f"navigate {session}"},
+64 +                 )
+65 |                 assert response.status_code == 200
+66 |                 turns[session] = response.json()["turn_id"]
+   -                 assert client.get(f"/v1/agent-runs/{session}", headers=headers).json()["state"] == "completed"
+   -             drivers = {k:e.driver for k,e in pool._sessions.items()}
+67 +                 assert (
+68 +                     client.get(f"/v1/agent-runs/{session}", headers=headers).json()["state"]
+69 +                     == "completed"
+70 +                 )
+71 +             drivers = {k: e.driver for k, e in pool._sessions.items()}
+72 |             assert set(drivers) == {"A", "B"}
+   -             response = client.post(f"/v1/turns/{turns['A']}/cancel", headers=headers, json={"reason":"owner stop"})
+73 +             response = client.post(
+74 +                 f"/v1/turns/{turns['A']}/cancel", headers=headers, json={"reason": "owner stop"}
+75 +             )
+76 |             assert response.status_code == 200
+   |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/RT014_2026-10-05/test_independent.py:4:47
+   |
+3  |
+   - spec = importlib.util.spec_from_file_location('rt014_fixture', Path(__file__).resolve().parents[4] / 'tests/integration/test_memory_ingress.py')
+4  + spec = importlib.util.spec_from_file_location(
+5  +     "rt014_fixture",
+6  +     Path(__file__).resolve().parents[4] / "tests/integration/test_memory_ingress.py",
+7  + )
+8  | fixture = importlib.util.module_from_spec(spec)
+9  | spec.loader.exec_module(fixture)
+10 |
+11 +
+12 | def test_deleted_memory_no_fresh_prompt_and_revision_sources(tmp_path, monkeypatch):
+13 |     client, model, _ = fixture.boot(tmp_path, monkeypatch)
+14 |     with client:
+15 |         headers = fixture.auth(client)
+   -         assert client.post('/v1/conversations/A/turns', headers=headers, json={'text':'請記住： synthetic violet original'}).status_code == 200
+   -         item = client.get('/v1/memories', headers=headers, params={'identity_id':'siro'}).json()['items'][0]
+   -         memory_id = item['memory_id']
+   -         original_source = item['source_event_ids'][0]
+   -         assert client.post(f'/v1/memories/{memory_id}/correct', headers=headers, json={'text':'synthetic violet corrected'}).status_code == 200
+   -         revisions = client.get(f'/v1/memories/{memory_id}/revisions', headers=headers).json()['items']
+   -         assert original_source in revisions[0]['source_event_ids']
+   -         assert original_source in revisions[1]['source_event_ids']
+   -         assert len(revisions[1]['source_event_ids']) == 2
+   -         assert client.delete(f'/v1/memories/{memory_id}', headers=headers).status_code == 200
+16 +         assert (
+17 +             client.post(
+18 +                 "/v1/conversations/A/turns",
+19 +                 headers=headers,
+20 +                 json={"text": "請記住： synthetic violet original"},
+21 +             ).status_code
+22 +             == 200
+23 +         )
+24 +         item = client.get("/v1/memories", headers=headers, params={"identity_id": "siro"}).json()[
+25 +             "items"
+26 +         ][0]
+27 +         memory_id = item["memory_id"]
+28 +         original_source = item["source_event_ids"][0]
+29 +         assert (
+30 +             client.post(
+31 +                 f"/v1/memories/{memory_id}/correct",
+32 +                 headers=headers,
+33 +                 json={"text": "synthetic violet corrected"},
+34 +             ).status_code
+35 +             == 200
+36 +         )
+37 +         revisions = client.get(f"/v1/memories/{memory_id}/revisions", headers=headers).json()[
+38 +             "items"
+39 +         ]
+40 +         assert original_source in revisions[0]["source_event_ids"]
+41 +         assert original_source in revisions[1]["source_event_ids"]
+42 +         assert len(revisions[1]["source_event_ids"]) == 2
+43 +         assert client.delete(f"/v1/memories/{memory_id}", headers=headers).status_code == 200
+44 |     client, model, _ = fixture.boot(tmp_path, monkeypatch)
+45 |     with client:
+46 |         headers = fixture.auth(client)
+   -         assert client.post('/v1/conversations/FRESH/turns', headers=headers, json={'text':'violet'}).status_code == 200
+47 +         assert (
+48 +             client.post(
+49 +                 "/v1/conversations/FRESH/turns", headers=headers, json={"text": "violet"}
+50 +             ).status_code
+51 +             == 200
+52 +         )
+53 |         assert model.requests
+54 |         request = model.requests[-1]
+   -         serialized = request.prompt + ' '.join(m.content for m in request.messages)
+   -         assert 'synthetic violet original' not in serialized
+   -         assert 'synthetic violet corrected' not in serialized
+   -         revisions = client.get(f'/v1/memories/{memory_id}/revisions', headers=headers).json()['items']
+55 +         serialized = request.prompt + " ".join(m.content for m in request.messages)
+56 +         assert "synthetic violet original" not in serialized
+57 +         assert "synthetic violet corrected" not in serialized
+58 +         revisions = client.get(f"/v1/memories/{memory_id}/revisions", headers=headers).json()[
+59 +             "items"
+60 +         ]
+61 |         assert len(revisions) == 3
+   -         assert revisions[2]['source_event_ids'] == revisions[1]['source_event_ids']
+62 +         assert revisions[2]["source_event_ids"] == revisions[1]["source_event_ids"]
+   |
+
+unformatted: File would be reformatted
+   --> docs/runtime-evolution/verification/architecture_review_2026-10-03/probe.py:2:1
+    |
+1   | """Isolated audit reproductions; exit 0 confirms defects, not acceptance success."""
+2   +
+3   | import asyncio
+--------------------------------------------------------------------------------
+35  |     await store.initialize()
+    -     orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {"computer.execute": executor})
+36  +     orchestrator = ToolOrchestrator(
+37  +         SQLiteToolProposalRepository(store), {"computer.execute": executor}
+38  +     )
+39  |     controller = IntegratedCompanion(
+    -         path, Model(fail), GatewayHub(), MinimalWebBodyAdapter(WebSocketBodyTransport()),
+    -         privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator,
+    -         runtime_profile="candidate", auto_authorize=lambda: True,
+40  +         path,
+41  +         Model(fail),
+42  +         GatewayHub(),
+43  +         MinimalWebBodyAdapter(WebSocketBodyTransport()),
+44  +         privacy=Privacy.LOCAL_ONLY,
+45  +         tool_orchestrator=orchestrator,
+46  +         runtime_profile="candidate",
+47  +         auto_authorize=lambda: True,
+48  |     )
+--------------------------------------------------------------------------------
+87  |         assert len(effects) == 1 and run["state"] == "completed"
+    -         results["provider_failure_after_tool_intent"] = {"effects": len(effects), "final_state": run["state"]}
+88  +         results["provider_failure_after_tool_intent"] = {
+89  +             "effects": len(effects),
+90  +             "final_state": run["state"],
+91  +         }
+92  |
+--------------------------------------------------------------------------------
+110 |         assert effects == ["after-cancel"]
+    -         results["arguments_only_executor_cancel"] = {"terminal_before_handler_finished": True, "effects": effects}
+111 +         results["arguments_only_executor_cancel"] = {
+112 +             "terminal_before_handler_finished": True,
+113 +             "effects": effects,
+114 +         }
+115 |     print(json.dumps(results, indent=2))
+    |
+
+unformatted: File would be reformatted
+  --> docs/runtime-evolution/verification/architecture_review_2026-10-05/probe.py:2:1
+   |
+1  | """Synthetic cross-task check; no provider network or private database access."""
+2  +
+3  | import asyncio
+--------------------------------------------------------------------------------
+16 |
+17 +
+18 | class Model:
+   -     name = 'synthetic-gpt-oss'
+19 +     name = "synthetic-gpt-oss"
+20 +
+21 |     def __init__(self):
+22 |         self.calls = 0
+23 +
+24 |     async def stream(self, request, cancellation):
+25 |         self.calls += 1
+26 |         if self.calls == 1:
+27 |             for n in range(2):
+   -                 yield ModelChunk('tool_request', tool_call=ToolCall(f'call-{n}', 'computer.execute', {}))
+28 +                 yield ModelChunk(
+29 +                     "tool_request", tool_call=ToolCall(f"call-{n}", "computer.execute", {})
+30 +                 )
+31 |         else:
+   -             yield ModelChunk('text', 'done')
+   -         yield ModelChunk('finished')
+32 +             yield ModelChunk("text", "done")
+33 +         yield ModelChunk("finished")
+34 +
+35 |
+36 | async def case(root, native):
+37 |     model = Model()
+   -     adapter = OpenAICompatibleAdapter(base_url='https://api.groq.com/openai', api_key='synthetic-unused', model='openai/gpt-oss-20b')
+   -     wrapped = ContextBudgetModel(model, max_bytes=65536, token_budget=GPTOSSBudget(Path('.siro-data/tokenizers/gpt-oss-20b'), adapter.request_payload) if native else None)
+38 +     adapter = OpenAICompatibleAdapter(
+39 +         base_url="https://api.groq.com/openai",
+40 +         api_key="synthetic-unused",
+41 +         model="openai/gpt-oss-20b",
+42 +     )
+43 +     wrapped = ContextBudgetModel(
+44 +         model,
+45 +         max_bytes=65536,
+46 +         token_budget=GPTOSSBudget(
+47 +             Path(".siro-data/tokenizers/gpt-oss-20b"), adapter.request_payload
+48 +         )
+49 +         if native
+50 +         else None,
+51 +     )
+52 |     effects = []
+53 +
+54 |     async def handler(arguments):
+   -         effects.append('synthetic-effect')
+   -         return {'ok': True}
+   -     store = SQLiteStore(root / 'siro.db')
+55 +         effects.append("synthetic-effect")
+56 +         return {"ok": True}
+57 +
+58 +     store = SQLiteStore(root / "siro.db")
+59 |     await store.initialize()
+   -     orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {'computer.execute': handler})
+   -     controller = IntegratedCompanion(root, wrapped, GatewayHub(), MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.CLOUD_ALLOWED, runtime_profile='candidate', tool_orchestrator=orchestrator, auto_authorize=lambda: True)
+   -     await controller.respond('audit', 'synthetic two-tool goal')
+   -     run = await controller.recovery_readback('audit')
+   -     return {'native': native, 'provider_calls': model.calls, 'effects': len(effects), 'state': run['state'], 'error': run['error']}
+60 +     orchestrator = ToolOrchestrator(
+61 +         SQLiteToolProposalRepository(store), {"computer.execute": handler}
+62 +     )
+63 +     controller = IntegratedCompanion(
+64 +         root,
+65 +         wrapped,
+66 +         GatewayHub(),
+67 +         MinimalWebBodyAdapter(WebSocketBodyTransport()),
+68 +         privacy=Privacy.CLOUD_ALLOWED,
+69 +         runtime_profile="candidate",
+70 +         tool_orchestrator=orchestrator,
+71 +         auto_authorize=lambda: True,
+72 +     )
+73 +     await controller.respond("audit", "synthetic two-tool goal")
+74 +     run = await controller.recovery_readback("audit")
+75 +     return {
+76 +         "native": native,
+77 +         "provider_calls": model.calls,
+78 +         "effects": len(effects),
+79 +         "state": run["state"],
+80 +         "error": run["error"],
+81 +     }
+82 +
+83 |
+84 | async def main():
+   -     with tempfile.TemporaryDirectory(prefix='siro-review-') as d:
+   -         results = [await case(Path(d)/str(native), native) for native in (False, True)]
+   -     assert results[0]['state'] == 'completed'
+   -     assert results[1]['effects'] == 2 and results[1]['error'] == 'ContextBudgetUnavailable'
+85 +     with tempfile.TemporaryDirectory(prefix="siro-review-") as d:
+86 +         results = [await case(Path(d) / str(native), native) for native in (False, True)]
+87 +     assert results[0]["state"] == "completed"
+88 +     assert results[1]["effects"] == 2 and results[1]["error"] == "ContextBudgetUnavailable"
+89 |     print(json.dumps(results, indent=2))
+90 +
+91 +
+92 | asyncio.run(main())
+   |
+
+unformatted: File would be reformatted
+   --> tests/integration/test_gateway.py:239:20
+    |
+238 |         assert calls == []
+    -         client.put(
+    -             "/v1/kill-switches/tools", headers=headers, json={"enabled": True}
+    -         )
+239 +         client.put("/v1/kill-switches/tools", headers=headers, json={"enabled": True})
+240 |         assert socket.receive_json()["type"] == "kill_switch"
+--------------------------------------------------------------------------------
+261 |
+    -     orchestrator = ToolOrchestrator(
+    -         SQLiteToolProposalRepository(store), {"process.start": execute}
+    -     )
+262 +     orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {"process.start": execute})
+263 |
+    |
+
+unformatted: File would be reformatted
+  --> tests/test_audio_pipeline.py:20:12
+   |
+19 | def test_display_text_becomes_a_pronounceable_performance_script() -> None:
+   -     assert prepare_spoken_text(
+   -         "**SIRO**：請看[說明](https://example.com)。\n- 第一件事\n- 第二件事"  # noqa: RUF001
+   -     ) == "希洛：請看說明。；第一件事；第二件事。"  # noqa: RUF001
+20 +     assert (
+21 +         prepare_spoken_text(
+22 +             "**SIRO**：請看[說明](https://example.com)。\n- 第一件事\n- 第二件事"  # noqa: RUF001
+23 +         )
+24 +         == "希洛：請看說明。；第一件事；第二件事。"
+25 +     )  # noqa: RUF001
+26 |
+   |
+
+26 files would be reformatted, 370 files already formatted
