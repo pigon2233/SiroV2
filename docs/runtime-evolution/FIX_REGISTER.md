@@ -1,5 +1,29 @@
 # Runtime Evolution Fix Register
 
+## FIX-016 — clean checkout CI bootstrap / public-pin verification
+
+- Classification: REQUIRED_FIX (broken CI gate); six public hashes are FALSE_POSITIVE.
+- Source types: MISSING_INTEGRATION / INCOMPLETE_TASK / TEST_GAP.
+- Source Task: latest push d1f5d07 / check run38356354040; T01/T21 check bootstrap, RT-011 pinned tokenizer provisioning. No evidence attributes this to one new RT task.
+- Severity: MEDIUM.
+- Problem: fresh runner lacks cargo-fmt/clippy; original final secret gate rejects audited public tokenizer hashes.
+- Evidence: ../evidence/FIX-016-2026-10-13/toolchain-probe.json (cold minimal failures, manifest-only fix success), scan-original-gate.log (exit1/six locations), scan-public-primary-pins.json (five official downloads match). Actual GitHub job115160055433 fails before regressions. No existing PR found; this is push-triggered Actions.
+- Expected Behavior: fresh checkout runs all existing checks; exact audited public fingerprints pass while any new/changed suspected secret fails.
+- Actual Behavior: initial remote exits1 at fmt; independently reproduced old secret gate exits1. Prior local suites did not certify CI.
+- Root Cause: CONFIRMED missing toolchain components declaration; final gate had no precise public-fingerprint review handling. Runtime behavior is not implicated.
+- Scope: one manifest line; build-only secret-report helper called from existing check; meaningful synthetic/actual-scanner tests and documentation/evidence.
+- Files expected to change: rust-toolchain.toml, scripts/check, new scripts/check_secrets.py and tests/integration/test_ci_secret_gate.py; docs only.
+- Files that MUST NOT change: all src, old tests, .github workflow, Python/Rust versions, Cargo.lock/uv.lock, schemas/migrations, providers/voice/UI/permissions/Memory, launcher/release/owner, private data/models/config/keys/live8026.
+- Compatibility requirements: no runtime/API/DB change; same scanner scope and check order; all unknown findings still exit1. Exact public profile changes require fresh explicit audit, not automatic extension.
+- Proposed repair: declare rustfmt/clippy in existing pinned minimal toolchain; allow six exact detector findings only when whole audited profile matches; validate JSON structure/finding binding, fixed diagnostics; tests precede helper.
+- Tests required: cold empty tool homes before/after; actual scanner positive, new synthetic credential in profile/other file, profile-byte change, altered fingerprint/path/type/line/verified flag, malformed reports; helper type/lint/format.
+- Regression tests: full scripts/check in clean public archive; all Rust checks and Python tests, schemas and secrets; exact new GitHub head run. No private workspace scan.
+- Acceptance criteria: required checks remain enabled; local full check and remote exact head succeed; all production/old tests/locks/pins byte-identical; exact source rollback; owned temporary children/files cleaned.
+- Rollback method: disposable exact four-file reverse/reapply; revert two build files/remove helper and newtest only. Preserve data, prior source/Git backup; rolling back reopens FAILED_VERIFICATION, cannot claim gate removed.
+- Risk: public pins change needs re-audit; strict malformed rejection can expose scanner format changes. Does not certify real providers/product quality/deployment.
+- Status: IN_PROGRESS / FAILED_VERIFICATION for overall CI until final full local and exact-head remote run. RI-005/006 subsequent implementation BLOCKED_BY_FIX: FIX-016; read-only planning remains allowed. Existing RT DONE history unchanged.
+
+
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 
 本卡是RI-005原remaining MISSING_INTEGRATION / INCOMPLETE_TASK / TEST_GAP的限定實作，未發現新正式runtime IMPLEMENTATION_BUG，不另造重複FIX或ARCHITECTURE_CORRECTION。D52selector/identity/ready VERIFIED；oldwriter/immutablehandoff仍BLOCKED_BY_RELEASE_INTEGRATION。

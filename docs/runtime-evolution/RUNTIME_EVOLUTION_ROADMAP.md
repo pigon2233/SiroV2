@@ -1,5 +1,10 @@
 # Runtime evolution roadmap
 
+## 2026-10-13 — FIX-016 clean CI repair IN_PROGRESS
+
+FIX-016 REQUIRED_FIX/MEDIUM；只修既有bootstrap與精確public-pin gate。RI-005/RI-006後續實作標 **BLOCKED_BY_FIX: FIX-016**，完整scripts/check與新head Actions通過前不往後擴張。原RT DONE/編號/產品與發布gates保持；不做ranking。Python預裝不一致為TECH_DEBT，本卡不改pin/lock。
+
+
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 
 **KEEP RI-005 / SPLIT remaining gates**：D52signedsource選擇、actualloadedversion與同schemaHTTPready切片VERIFIED。95新cases；最終相鄰335 PASS／3既有warnings／25.63s，完整 **1,673 PASS／5 real_provider未選／3既有warnings／199.58s**。Ruff315、mypy250（含launcher）、schema、source/tests/docs diff PASS。

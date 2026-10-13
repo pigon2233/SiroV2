@@ -43,17 +43,4 @@ secret_report="$(
   "$uv_command" run detect-secrets scan --all-files \
     --exclude-files '(^|/)(\.venv|\.mypy_cache|\.pytest_cache|\.ruff_cache|models|node_modules|target|uv\.lock|docs/evidence)/|(^|/)\.env\.local$'
 )"
-"$uv_command" run python -c '
-import json
-import sys
-
-results = json.load(sys.stdin)["results"]
-if results:
-    for path, findings in results.items():
-        for finding in findings:
-            print(
-                "{}:{}: {}".format(path, finding.get("line_number"), finding.get("type")),
-                file=sys.stderr,
-            )
-    raise SystemExit(1)
-' <<<"$secret_report"
+"$uv_command" run python scripts/check_secrets.py <<<"$secret_report"

@@ -1,5 +1,20 @@
 # SIRO V2 Architecture Review
 
+## 2026-10-13 — FIX-016 / D53 clean CI verification review
+
+Overall architecture health仍YELLOW：本卡是buildbootstrap／verification integration局部缺陷，不是productionarchitecture drift。Recent improvements：freshisolatedRust明確工具declared、secretreview只綁六個actualverifiedpublicpins；24meaningful新tests與exact4rollbackPASS。原責任/介面/依賴/DB/API全保留，沒有新runtimeglobalstate或繞過compatibilityboundary。
+
+Regression risk changes：舊本機預裝Rust遮住freshrunner缺components，已cold RED→PASS；原secretgate6公開digest誤報的blockingpath已重現→局部修復。完整clean scripts/check及exactheadActions尚待完成；不可用歷史1673PASS代稱本次CI。Wrong3.12harness的brokerhang為TEST_GAP/DEFER、rootcauseUNKNOWN；已stop/join，正確本機3.14.4重跑。
+
+Technical debt introduced：publicprofileblob改動需要再審；不自動扩allowlist。Python3.12預裝/actual3.14不一致是既有TECH_DEBT，此卡不動versions/locks。Rollback僅sourcebuildpatch，不動data或已安裝tools。
+
+Roadmap adjustments / New blockers：FIX-016 REQUIRED_FIX/MEDIUM IN_PROGRESS；RI-005/006後續實作BLOCKED_BY_FIX: FIX-016到完整local+remote驗收。KEEP原RTDONE；KEEP/SPLIT RI-005剩餘adoption/handoff；KEEP RI-006readonlyproposal。沒有重編/ranking或重做DONE。Hermes REJECT第二updater/owner/secretframework；不用新runtime抽象修CI。
+
+Freeze zone changes：CIbuild zone YELLOW直到完整驗收；tests/evidenceGREEN；runtime元件沿原YELLOW，liveDB/migrations/permissions/release仍RED。Recommended next3既有scope（非ranking）：RI-005old/unmanagedwriterabsence；RI-005immutableapprovedexacthandoff；RI-006source-boundreadonlyproposal。產品搜尋/voice/理解与正式releasegates不因本卡解除。
+
+[本次實際證據與限制](../evidence/FIX-016-2026-10-13/REPORT.md)。
+
+
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 
 **Overall architecture health — YELLOW。** D52沿已簽版本/單一owner方向演進，actualsourceidentity不再只靠pointer/env label；整卡仍PARTIAL。只改既有ReleaseManager/read-schema fact、productlauncher與Gateway composition/ready；新增4份tests。complete manifest/CLI stage-rollback、D49/D50/D51、Core人格/記憶/權限/模型/語音/UI/SQL/deps保留。

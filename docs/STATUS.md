@@ -1,5 +1,16 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-13 — FIX-016 / D53 clean CI repair LOCAL CHECK RUNNING
+
+回應push-triggered Actions失敗（repo查無PR），只修buildtooling：pinnedminimalRust明確宣告rustfmt/clippy；原secretgate只允許六個經官方download驗明、綁完整profileblob的publicpins。既有所有checks/production/oldtests/workflow/版本/locks保留。24新actualscanner/syntheticcredential/變更/錯誤JSON cases PASS，coldisolatedRust RED→PASS，focusedRuff/type/source-docdiff及exact4source-onlyrollback PASS。298baseline中296不改。
+
+完整乾淨公開source scripts/check仍在跑，remoteexact-head尚待驗：**FIX-016 IN_PROGRESS / FAILED_VERIFICATION**，RI-005/006後續實作暫BLOCKED_BY_FIX: FIX-016。前兩次中斷與wrongPython3.12harness不算PASS；環境已尊重原.python-version，actual本機3.14.4，GitHub版本另核對。錯誤harness的MQTT停滯rootcauseUNKNOWN，不改product或測試門檻。
+
+原RTscopedDONE與RI-005PARTIAL/gates不变；下一三既有範圍（非ranking）oldwriterabsence、exactapprovedimmutablehandoff、RI-006readonlyproposal。沒有live8026/privateDB/chat/WAV/key/config/model/GPU/deploy；CodebaseMemory工具不可呼叫/reindexNOT_RUN。
+
+[驗收報告](evidence/FIX-016-2026-10-13/REPORT.md)。
+
+
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 
 D52限定signed source launch／actualloadedidentity／ready切片 **VERIFIED**；RI-005不是DONE。只改既有ReleaseManager/read-schema fact、productlauncher與Gateway composition/ready；新增4份tests。complete manifest/CLI stage-rollback、D49/D50/D51、Core人格/記憶/權限/模型/語音/UI/SQL/deps保留。
