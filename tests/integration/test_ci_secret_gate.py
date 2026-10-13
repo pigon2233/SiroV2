@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -182,3 +183,42 @@ def test_invalid_or_duplicate_json_fails(tmp_path: Path, raw: str) -> None:
     )
     assert result.returncode == 1
     assert "Traceback" not in result.stderr
+
+
+def test_check_excludes_git_metadata_and_keeps_application_secret_checks(
+    public_checkout: Path,
+) -> None:
+    generated = public_checkout / ".git/FETCH_HEAD"
+    generated.parent.mkdir()
+    commit = hashlib.sha1(b"synthetic-public-commit").hexdigest()
+    # Checkout-by-commit includes the fetched identifier in its quoted descriptor.
+    generated.write_text(f"{commit}\t\t'{commit}' of https://github.com/pigon2233/SiroV2\n")
+    source_paths = ["new_provider.py", ".github/workflows/check.yml", ".gitignore"]
+    synthetic = hashlib.sha256(b"ci-boundary-test-credential-never-valid").hexdigest()
+    for path in source_paths:
+        target = public_checkout / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f'api_key = "{synthetic}"\n')
+    match = re.search(r"--exclude-files '([^']+)'", (REPOSITORY / "scripts/check").read_text())
+    assert match is not None
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "detect_secrets",
+            "scan",
+            "--all-files",
+            "--no-verify",
+            "--exclude-files",
+            match[1],
+        ],
+        cwd=public_checkout,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
+    )
+    report = json.loads(result.stdout)
+    assert generated.relative_to(public_checkout).as_posix() not in report["results"]
+    assert all(path in report["results"] for path in source_paths)
+    assert gate(public_checkout, report).returncode == 1

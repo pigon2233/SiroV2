@@ -1,5 +1,16 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-13 — supported full regression PASS / final Git-metadata CI gate
+
+FIX-017 D54 scopedDONE/VERIFIED：Kokoro optionalSDK延後既有offlooprender，5RED→PASS/34focused/exact2rollback；combinedlocal1702PASS/5opt-inSKIP/3warnings（200.57s；scripts/check全437.331s）。SupportedUbuntu26.04 actual56d0683 run38392435450也1702PASS/5opt-inSKIP/7warnings（189.07s），原102environment-skippedcases全執行，Rust/static/schemaPASS。
+
+整體CI尚FAILED_VERIFICATION：唯一最後.git/FETCH_HEAD publiccommit descriptor誤報。FIX-016只補exact.git administrative-directory排除，保application/.github/.gitignore檢查；realquotedfixture old1FAIL→new25PASS、原checks全留。新的truepublicGitcheckout/fetch-bycommit fullcheck和newheadActions仍PENDING；不能把fullpytestPASS當wholeCI。
+
+RI-005/006暫僅BLOCKED_BY_FIX: FIX-016；原RTDONE/RI-005releaseintegrationPARTIAL/搜尋voice理解品質gates不變。ArchitectureYELLOW，TTSleafgate已解除但voice產品品質不改；CIpendingYELLOW、synthetictestsGREEN、liveDB/permissions/releaseRED。Next3原scope（非ranking）：oldwriterabsence、approvedimmutablehandoff、readonlyproposal。不重編/不加抽象/不deploy。
+
+[CI報告](evidence/FIX-016-2026-10-13/REPORT.md)；[one-leaf repair](evidence/FIX-017-2026-10-13/REPORT.md)。
+
+
 ## 2026-10-13 — actual cloud CI / FIX-016 + FIX-017 final acceptance IN_PROGRESS
 
 GitHub確實是push Actions（查無PR）。原cargo-fmt缺工具與六publicpins gate已修；前一五檔clean full1697PASS/5opt-inSKIP/3warnings、whole419.283s已驗。但actual2324b35 cloud54FAIL揭露supportedLinux環境不足、SQLitefixture假設與busy前optionalSDK eagerimport，不能放行。

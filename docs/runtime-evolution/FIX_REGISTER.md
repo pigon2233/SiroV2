@@ -21,7 +21,7 @@
 - Acceptance criteria: importguard and existing exact Busy diagnostic invariant PASS; normal existing SDK path retained; precise TTS-only local diff, all other existing source untouched for this card; final source-bound checks.
 - Rollback method: disposable exact TTS/newtest reverse/reapply, preserve all data and prior FIX-016 source; source rollback reopens owner initialization gate and is not authorization to deploy unsafe state.
 - Risk: optional SDK errors appear at first owned render; propagate original errors, existing offloop cancellation still owns actual render. No promise to cancel third-party blocking imports beyond existing worker contract.
-- Status: IN_PROGRESS; FIX-016 overall CI BLOCKED_BY_FIX: FIX-017. RI-005/006 onward implementation remains gated; no RT history renumber/reopen.
+- Status: DONE / VERIFIED (D54 scoped owner/import leaf; 5RED→PASS/34focusedPASS/exact2rollback/localfull1702 and remote1702PASS). Removes only FIX-017 owner-import gate; FIX-016 overall CI still IN_PROGRESS for its generated Git-metadata false positive. RI-005/006 onward implementation remains BLOCKED_BY_FIX: FIX-016; no RT history renumber/reopen.
 
 
 ## FIX-016 — clean checkout CI bootstrap / public-pin verification
