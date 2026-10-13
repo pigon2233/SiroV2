@@ -57,7 +57,13 @@
       </section>
     </main>
     <div class="toolbox">
-      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><section id="skill-candidate-panel">
+      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><section id="improvement-proposal-panel">
+        <h3>改善建議</h3>
+        <p>查看這段對話最近的可追溯失敗，先整理需要調查與驗證的地方。來源不足時會明說；確認原因後才討論修復。</p>
+        <button id="improvement-proposal-refresh" type="button" disabled>查看這段對話的改善建議</button>
+        <p id="improvement-proposal-status" aria-live="polite">連線完成後可手動查詢；建議只供審閱。</p>
+        <pre id="improvement-proposal-review" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></pre>
+      </section><section id="skill-candidate-panel">
         <h3>學習新能力</h3>
         <p>解析貼上的 Markdown 待辦清單。先準備一份待審技能與隔離測試紀錄，再由你檢查；這一步不會安裝或啟用技能。</p>
         <div class="quick-actions"><button id="skill-candidate-prepare" type="button" disabled>準備待審技能</button><button id="skill-candidate-cancel" type="button" disabled>取消準備</button><button id="skill-candidate-export" type="button" disabled>匯出審查資料 JSON</button></div>
@@ -105,6 +111,7 @@
       let socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
       let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
       let submissionGeneration = 0, pendingSubmission;
+      let improvementEpoch = 0, improvementController, improvementTimeout;
       let recorder, recordedChunks = [], ttsAudio;
       let ttsController, ttsGeneration = 0, speechCancelled = false;
       let lastSpeech;
@@ -196,6 +203,7 @@
         }
       }
       function connectControl() {
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         if (pageClosing) return Promise.reject(new Error("頁面已關閉"));
         if (controlAuthenticated && socket?.readyState === 1) return Promise.resolve();
         if (controlAttempt) return controlAttempt;
@@ -209,16 +217,17 @@
           socket = owner; controlAuthenticated = false;
           let retired = false;
           const abandon = message => {
-            retired = true; clearTimeout(timeout); controlAuthenticated = false; ready.reject(new Error(message));
+            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); ready.reject(new Error(message));
           };
           controlDispose = abandon;
           const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
-          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; ready.resolve(); };
+          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#improvement-proposal-refresh").disabled = false; ready.resolve(); };
           socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
         socket.onmessage = event => {
           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
           const data = JSON.parse(event.data);
           if (!acceptRunEvent(data)) return;
+          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();
           log(data);
           if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }
           if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);
@@ -285,6 +294,7 @@
       };
       window.addEventListener("beforeunload", () => {
         pageClosing = true; controlDispose?.("頁面已關閉"); controlDispose = undefined; controlEpoch += 1;
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         submissionGeneration += 1; pendingSubmission?.abort();
         clearTimeout(reconnectTimer); sessionAccess.dispose(); stopTts(); socket?.close();
       });
@@ -519,6 +529,68 @@
         if (!response.ok) throw new Error(data.detail || "操作未完成");
         return data;
       }
+      function clearImprovementProposal(message = "快照已清除；請重新查詢最新來源。") {
+        improvementEpoch += 1; improvementController?.abort(); improvementController = undefined;
+        clearTimeout(improvementTimeout); improvementTimeout = undefined;
+        document.querySelector("#improvement-proposal-review").textContent = "";
+        document.querySelector("#improvement-proposal-status").textContent = message;
+        document.querySelector("#improvement-proposal-refresh").disabled = pageClosing || !controlAuthenticated;
+      }
+      function acceptedImprovementProposal(data) {
+        const exactKeys = (value, keys) => value && !Array.isArray(value) && typeof value === "object"
+          && Object.keys(value).sort().join("|") === keys.slice().sort().join("|");
+        if (!exactKeys(data, ["status", "proposal"])) return undefined;
+        if (data.status === "no_supported_evidence" && data.proposal === null) return null;
+        if (data.status !== "awaiting_investigation") return undefined;
+        const p = data.proposal;
+        const texts = ["problem", "expected_behavior", "actual_behavior", "scope", "compatibility_requirements", "proposed_repair", "rollback_method", "risk"];
+        const lists = ["files_must_not_change", "tests_required", "regression_tests", "acceptance_criteria"];
+        if (!exactKeys(p, ["schema_version", "proposal_id", "source_task", "classification", "evidence", "root_cause", "files_expected_to_change", "patch", "approval_required", "authorizes_execution", ...texts, ...lists])) return undefined;
+        if (new TextEncoder().encode(JSON.stringify(data)).length > 8192) return undefined;
+        const e = p.evidence;
+        if (!exactKeys(e, ["source_run_id", "state", "error_class", "tool_dispatch_recorded", "root_cause"])) return undefined;
+        if (typeof e.source_run_id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(e.source_run_id)
+          || e.state !== "failed" || e.error_class !== "HTTPStatusError" || e.root_cause !== "UNKNOWN" || typeof e.tool_dispatch_recorded !== "boolean") return undefined;
+        if (p.schema_version !== 1 || p.source_task !== "RI-006" || p.classification !== "DEFER"
+          || p.proposal_id !== `RI-006:${e.source_run_id}:http-status-v1`
+          || p.root_cause !== "UNKNOWN — NEEDS INVESTIGATION" || p.patch !== null
+          || p.approval_required !== true || p.authorizes_execution !== false
+          || !Array.isArray(p.files_expected_to_change) || p.files_expected_to_change.length !== 0) return undefined;
+        const validText = value => typeof value === "string" && value.trim().length > 0 && value.length <= 4096;
+        if (!texts.every(key => validText(p[key])) || !lists.every(key => Array.isArray(p[key]) && p[key].length > 0 && p[key].length <= 8 && p[key].every(validText))) return undefined;
+        return p;
+      }
+      document.querySelector("#improvement-proposal-refresh").onclick = async () => {
+        if (pageClosing || !controlAuthenticated) return;
+        clearImprovementProposal("正在查詢最新來源…");
+        const epoch = improvementEpoch, controller = new AbortController();
+        improvementController = controller;
+        const timeout = setTimeout(() => {
+          if (epoch === improvementEpoch) clearImprovementProposal("查詢逾時，請稍後重新查詢。沒有執行修復。")
+        }, 5000);
+        improvementTimeout = timeout;
+        try {
+          const data = await productRequest("/v1/conversations/browser/improvement-proposal", {method:"GET", cache:"no-store", signal:controller.signal});
+          if (pageClosing || epoch !== improvementEpoch || controller.signal.aborted) return;
+          const p = acceptedImprovementProposal(data);
+          if (p === undefined) throw new Error("invalid investigation view");
+          const time = new Date().toLocaleString();
+          document.querySelector("#improvement-proposal-status").textContent = p === null
+            ? `${time} 查詢快照：目前沒有符合的近期來源；重新查詢可確認最新狀態。`
+            : `${time} 查詢快照：待調查，根因未知。來源可能變更，請重新查詢；這份建議沒有執行修復。`;
+          if (p) {
+            const labels = {problem:"問題", expected_behavior:"預期行為", actual_behavior:"已知狀態", scope:"最小調查範圍", proposed_repair:"下一步", compatibility_requirements:"相容要求", files_must_not_change:"保持原樣", tests_required:"需要驗證", regression_tests:"回歸驗證", acceptance_criteria:"驗收條件", rollback_method:"回退方式", risk:"風險與限制"};
+            const lines = [`來源：${p.evidence.source_run_id}`, "根因：未知，需調查。"];
+            for (const [key, label] of Object.entries(labels)) lines.push(`${label}：${Array.isArray(p[key]) ? p[key].join("\n") : p[key]}`);
+            document.querySelector("#improvement-proposal-review").textContent = lines.join("\n\n");
+          }
+        } catch {
+          if (epoch === improvementEpoch && !pageClosing) document.querySelector("#improvement-proposal-status").textContent = "目前無法確認改善建議，請稍後重新查詢。沒有執行修復。";
+        } finally {
+          clearTimeout(timeout);
+          if (epoch === improvementEpoch) { improvementController = undefined; improvementTimeout = undefined; }
+        }
+      };
       function renderCapabilities(tools = []) {
         const root = document.querySelector("#capability-items"); root.textContent = "";
         const reasons = {tools_disabled:"你已暫停電腦操作", browser_executable_missing:"尚未找到可用的瀏覽器", workspace_unavailable:"工作目錄讀取服務尚未就緒", not_ready:"目前尚未就緒", availability_check_failed:"目前無法確認狀態"};
@@ -534,11 +606,13 @@
         }
       }
       async function refreshCapabilities() {
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         try { renderCapabilities((await productRequest("/v1/runtime")).tools); }
         catch { document.querySelector("#capability-items").textContent = "目前無法更新能力狀態，請稍後重試。"; }
       }
       document.querySelector("#capabilities-refresh").onclick = refreshCapabilities;
       async function refreshProduct() {
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         try {
           const runtime = await productRequest("/v1/runtime");
           renderCapabilities(runtime.tools);
@@ -703,6 +777,7 @@
         updateToolProposal(data.proposal_id, `完成：${JSON.stringify(result, null, 2)}`);
       }
       async function submitText(value, inputMode = "text") {
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         const submission = ++submissionGeneration;
         pendingSubmission?.abort(); pendingSubmission = undefined;
         stopTts(); speechCancelled = false;

@@ -1,5 +1,9 @@
 # Runtime Intelligence 整合設計
 
+## 2026-10-14 — D55 proposal caller limited VERIFIED
+
+RI-006 D55只到單一HTTPStatusError來源的唯讀調查view/caller，重用D41，無rootcause推論/假patch/自批/重試/部署。Corepure→已startup的Integratedrepo→authenticatedno-storeGET→手動UI，source失效與ownedcancel已驗。FIX018/019本candidate局部修復，1798PASS/5opt-inSKIP、全scripts/check EXIT0；actualmain/browser/來源更正/收尾/exact6rollback保持。RI006仍PARTIAL，RI005releasegates與原產品品質gate保持。請以STATUS最新front與[D55報告](../evidence/RI-006-2026-10-13/REPORT.md)為準，歷史sections不代表現狀。
+
 ## 2026-10-12 — RI-005 D50 owner / FIX-014 限定切片 VERIFIED
 
 受管Gateway與CLI demo/backup/restore/有DBrelease在實際操作前取得同一canonical data owner，持有到startup/server drain/owned SQLite IO完成；備份來源、explicit目的地、ZIP固定.tmp共同有序去重（最多3keys）、一份IOjoin fence。真正foreignowner/alias與連續SIGINT反例先RED→局部修復；禁止output/tmp覆寫sourceDB/inputsettings/archive或tmp指向final，不改Core/SQLite/operations/release/權限/voice/UI/launcher/deps。沒有第二套registry/restore/lockmanager或globalstate。FIX-014 **DONE/VERIFIED**。
@@ -173,7 +177,7 @@ ProceduralCandidateGenerator（`core/procedural.py:55`）只接受重複 trusted
 | Testing | 原 unit/contract/integration/regression、安全負面 tests；涉及效能才加 fixed hardware/sample workload；保存 source hash／commands/results | protected delete/rename、sandbox escape、signature tamper／DB rollback gate 沒解不得推進；未跑不寫PASS |
 | Review | 開發者審核最小 scope、capability/privacy變化、依賴、完整 diff | Agent 不能刪保護測試或自行修改通過門檻；靜態 dead-code 推斷不能刪動態註冊 caller |
 | Approval | 初期輸出 reviewable proposal 或 PR；人工批准綁 candidate/test/policy版本 | 模型、skill、全權 mode 均不能批准自身 policy/deploy |
-| Deployment | 暫維持既有人工啟動／維護流程；ReleaseManager 是 standalone CLI 元件 | active.json 尚不被 launcher 消費；D39完整schema簽章與D48 code-only retention已局部修復。D49/FIX-013 restore與D50/FIX-014 cooperating managed owner局部已VERIFIED；FIX-015 ZIP canceled-staging cleanup仍block。Firstadoption舊writer／人工批准／signedlauncher真正version/readiness/handoff仍block；不自動接線 |
+| Deployment | 暫維持既有人工啟動／維護流程；ReleaseManager 是 standalone CLI 元件 | D52 signed launcher已consume精確complete manifest選版並驗actualsource/same-schema ready；D39/D48 code-only retention、D49 restore、D50 managed owner與D51/FIX-015 cleanup局部VERIFIED。Firstadoption舊writer、verify/import immutablebytes與人工maintenance/runtimehandoff仍block；不自動deploy |
 | Monitoring | 同一 source版本的 health、error rate、cancel/no-replay、latency/resource；觀察窗口依該卡實測定義 | health 回200不能代表完整產品；先列 rollback trigger再部署 |
 | Rollback | 回退本次 source／config／技能固定版本；保留事件與新資料，關閉新能力 | source rollback 與 DB restore 分開；資料回退需停止 writer、獨立備份／完整性／schema相容與 owner批准 |
 

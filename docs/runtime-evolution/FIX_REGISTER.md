@@ -1,5 +1,51 @@
 # Runtime Evolution Fix Register
 
+## FIX-018 — RI-006 error responses retain no-store
+
+- Classification: MINOR_FIX.
+- Source types: MISSING_INTEGRATION / TEST_GAP（本輪未發布candidate）。
+- Source Task: RI-006 D55 independent review；不是舊RT regression。
+- Severity: LOW.
+- Problem: 新proposal GET在unexpected producer failure/錯method回應缺no-store。
+- Evidence: original ASGI probe GET500/POST405 header=None；`RI-006-2026-10-13/no-store-red.log`先1FAIL；final backend24PASS/full1798PASS。[Report](../evidence/RI-006-2026-10-13/REPORT.md)。
+- Expected Behavior: 該view的成功與error/auth/method回應均no-store，錯誤不echo診斷。
+- Actual Behavior: 修前只成功/HTTPException加header；修後matching endpoint ASGI送出header，producerexception安全503。
+- Root Cause: header設定範圍漏route-generated405與非HTTPException，已確認。
+- Scope: 只新endpoint的傳輸header/error邊界，其他HTTP/WS直通且不建task。
+- Files expected to change: `src/siro/services/presentation/gateway.py`、新`tests/integration/test_improvement_proposal.py`。
+- Files that MUST NOT change: D41 `runs.py`/SQL、Core policy/config、SQLite/migrations、TTS/providers、原測試、release/launcher。
+- Compatibility requirements: 原GET/WS/stream/認證語意、cancellation保留；不catchBaseException、不回假proposal成功。
+- Proposed repair: endpoint限定pure ASGI header；已知HTTPException保no-store，unexpected故障固定503，不讀raw recovery。
+- Tests required: 原無header反例，POST405 producercalls0；GETfailure503/no-store/privatecanary absent。
+- Regression tests: 原gateway/auth/WS及fullscripts/check；新D55source/UI取消、D41及TTS unchanged。
+- Acceptance criteria: 全上述PASS、無其他response/globalmiddleware task改動，精確sourcehash綁定。
+- Rollback method: 撤D55整個additive view/caller，不保留新view卻去掉header；保canonical資料/原介面。
+- Risk: LOW，header與safe failure projection；不證明任意部署/智能品質。
+- Status: DONE / LOCAL_VERIFIED（fullcheck EXIT0/499.591s）；new exact-head cloud另記。已解除本candidate BLOCKED_BY_FIX: FIX-018。
+
+## FIX-019 — RI-006 preserves standalone inventory and speech fragments
+
+- Classification: MINOR_FIX.
+- Source types: IMPLEMENTATION_BUG / REGRESSION（本輪未發布candidate）。
+- Source Task: RI-006 D55 first full clean check；old3fragment tests。
+- Severity: LOW.
+- Problem: 新activity clearing hook讓原inventory/speech片段開始依賴proposal module。
+- Evidence: `clean-check-first-failure.log`原3ReferenceError/1795PASS；只修newhook後`fragment-regression.log`142PASS，finalfull1798PASS。[Report](../evidence/RI-006-2026-10-13/REPORT.md)。
+- Expected Behavior: 原可獨立執行的inventory/speech保持獨立；fullpage新增proposal仍能清除stale卡。
+- Actual Behavior: 修前unconditional clear function未被片段載入；修後optionalhook guard、fullpage清除行為保持。
+- Root Cause: new direct dependency未沿optional feature boundary；已確認原片段截取與ReferenceError。
+- Scope: 只existing fragment的新optional清除hook，不改inventory/語音演算法或既有test harness。
+- Files expected to change: `src/siro/services/presentation/static/index.html`、新`tests/integration/test_frontend_improvement_proposal.py`。
+- Files that MUST NOT change: 原inventory/speech/control tests、provider/audio/core/runtime/DB/policy/release、D41/TTS。
+- Compatibility requirements: original fragment contracts保留；原完整頁面的新turn/refresh/disconnect/unload仍清除且取消late結果。
+- Proposed repair: 既有片段呼叫可選proposal hook前檢查存在；不stub、不skip、不減原asserts。
+- Tests required: 原3cases＋full real-page71新cancel/freshness/malformed/timeout-independent cases。
+- Regression tests: capability/speech cancel/queue/原control；fullscripts/check及actual main/browser來源更正→舊card撤除。
+- Acceptance criteria: 原132testfiles bytes全保持、95newcases通過、完整1798PASS且view hook真正被執行。
+- Rollback method: 撤D55 source6/caller/panel整體；不只移guard重啟已知壞candidate；保原journal/memory/data。
+- Risk: LOW，optional feature integration；還需原真voice品質/SLO個別驗收。
+- Status: DONE / LOCAL_VERIFIED（fullcheck EXIT0/499.591s）；new exact-head cloud另記。已解除本candidate BLOCKED_BY_FIX: FIX-019。
+
 ## FIX-017 — owner rejection must precede optional voice SDK initialization
 
 - Classification: REQUIRED_FIX.

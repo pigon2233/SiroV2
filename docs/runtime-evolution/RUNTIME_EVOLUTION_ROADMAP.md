@@ -1,5 +1,21 @@
 # Runtime evolution roadmap
 
+## 2026-10-14 — RI-006 / D55 唯讀改善提案切片 VERIFIED
+
+FIX-018（error no-store）與FIX-019（optional page hook）是本candidate驗收發現的MINOR_FIX/LOW，已同卡局部修復並fullcheck VERIFIED；不新增後续BLOCKED_BY_FIX、不重開舊RT DONE。詳細卡片在FIX_REGISTER，cloud狀態另驗。
+
+電腦協助新增「改善建議」手動入口：重用D41同session/route/latest/900s事實，failed + HTTPStatusError→有來源的調查/測試/相容/回退計畫。根因UNKNOWN、分類DEFER、patch=null，不能自批、重試、改碼或deploy。每GET重查canonical來源，無新cache/schema/scheduler/owner；unstarted/legacy/restoreoff不initialize/reconcile/read。no-store涵蓋auth/錯方法/安全503；UI owned取消/5s deadline/epoch撤除過時卡，textContent/完整closedshape驗證。
+
+最終truepublicGitcheckout含FETCH_HEAD的scripts/check **EXIT0 / 499.591s**；**1,798 PASS / 5原opt-in SKIP / 7既有warnings / 211.70s**；Rust6/fmt/build/clippy、Ruff320/mypy253、schema與原scanner/strictgate保持。原完整firstcandidate3FAIL（inventory/speech fragment新增依賴）先留證，僅optional新hook局部修→142focusedPASS，不改舊測試；95newcases，原132testfiles bytes全保持。獨立review的no-store1RED已修；reviewer最後turn/前端agent遇quota，不假稱independent final approval。
+
+真正main/D50 composition、自有SQLite/randomloopback/In-appbrowser：手動click顯示source/UNKNOWN/計畫，fixture更正來源→重查撤舊card；最終SIGTERM exit-15/actualshutdowncomplete/joined/temp/tabcleaned。第一harness143原因UNKNOWN、已人工清理，不列gracefulPASS；兩次隔離child session的重驗正常。exact6source-only reverse/reapply、D41/TTS保持。CodebaseMemory不可呼叫/graphreindex NOT_RUN。
+
+RI006整體 **PARTIAL**，D55 singleclass caller局部 **VERIFIED**；真rootcause定位/patch/自主執行另驗。RI005 **PARTIAL/BLOCKED_BY_RELEASE_INTEGRATION**；RT011/013/015 scopedDONE、FIX002/005/006產品gate保持。Architecture YELLOW：tests/evidence GREEN；proposal/Core/Gateway/UI YELLOW；liveDB/migration/permissions/release RED。沒有額外scopedblocker、RT重編/ranking或新全局abstraction。
+
+下一三既有scope（非ranking）：RI005 exact captured package/import window；RI005 approved maintenance→runtimehandoff/adoption；RI006 safe定位證據→最小真提案。無live8026/privateDB/chat/WAV/key/config/models/GPU/formaldeploy。Git發布與new exact-head CI結果另記，不把localPASS當remote。
+
+[完整驗收、限制、回退](../evidence/RI-006-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — FIX-016 / FIX-017 DONE / VERIFIED
 
 Exact source4811db2 [Actions38395186441 SUCCESS](https://github.com/pigon2233/SiroV2/actions/runs/38395186441)。Remote1703PASS/5原opt-inSKIP/7既有warnings/206.05s；原102environment-skippedcases全執行。Rust6/fmt/build/clippy、Ruff318/mypy251、schema、原scanner/strictgate全PASS。TruepublicGitcheckout/fetch含FETCH_HEAD：local1703PASS/5opt-inSKIP/7warnings/207.90s、scripts/check全EXIT0/492.046s。未mute、新增skip或放寬隔離。
@@ -263,16 +279,16 @@ FIX-002改為PARTIAL：typed reason／可讀主頁partial／關閉時pending-rou
 
 - Task ID: RI-006
 - Title: 基於可追溯失敗的唯讀改善提案
-- Current State: Planned Only
+- Current State: Partially Implemented（D55 singleclass source→唯讀調查提案caller VERIFIED；真根因/patch/自主執行未驗）
 - Objective: 依現有latency/run/tool outcomes提出可驗證最小修復，不在對話中修改Core。
-- Affected Modules: 現有AgentRun/journal/metrics、procedural candidates、開發期code graph。
+- Affected Modules: 原D41 AgentRun/journal fact、core/evolution純proposal、IntegratedCompanion/Gateway/static UI；不另建metrics DB/scheduler，procedural/code graph依實際caller另驗。
 - Dependencies: 可靠去識別觀測、RI-001；FIX-006自身已知／未知辨識；實作與發布分開。
 - Implementation Scope: 一個已測失敗類別→evidence→UNKNOWN或已確認root cause→最小proposal＋tests/rollback；只到reviewable patch提案。全鏈沿Analysis→Proposal→Isolated Implementation→Testing→Review→Approval→Deployment→Monitoring→Rollback。
 - Acceptance Criteria: 不讀secret／私聊作公開evidence、不因模型推測宣稱根因；無exec/deploy effect；proposal能對照原症狀與驗收。
 - Tests: evidence不足／錯誤分類／來源更正撤銷／私密欄位脫敏；原journal與權限回歸。
 - Risks: 無可靠觀測即盲目自改；不是再建一個Agent scheduler。
 - Rollback: 停用提案producer；刪可丟棄提案view，保留原journal與canonical memory。
-- Status: PLANNED；readonly proposal不必等release接線，但任何執行／部署仍受RI-003／005及人工gate。
+- Status: PARTIAL（D55單一HTTPStatusError調查view/caller VERIFIED）；可靠safe定位→真patch仍需自身驗收，任何執行／部署受RI-003／005及人工gate。
 
 授權軟體分析目前只保留P3研究入口：先有具體caller與使用者軟體授權，再依API→CLI→docs→MCP→source→GUI→authorized static/decompile選最小切片。不安裝Ghidra/LSP等全套，不聲稱可還原完整原始碼。ESP32/HA繼續沿原T27–29配對、observation／command／readback，真設備條件未到不直接開底層命令。
 

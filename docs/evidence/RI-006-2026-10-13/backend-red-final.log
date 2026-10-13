@@ -1,0 +1,569 @@
+FFFFFFFFFFFFFFFFFFFFFF                                                   [100%]
+=================================== FAILURES ===================================
+________ test_pure_proposal_is_bound_bounded_and_does_not_invent_patch _________
+
+    def test_pure_proposal_is_bound_bounded_and_does_not_invent_patch() -> None:
+        source = fact()
+>       proposal = evolution.propose_runtime_improvement(source)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:35: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes0] _________
+
+changes = {'state': 'cancelled'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes1] _________
+
+changes = {'state': 'completed'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes2] _________
+
+changes = {'error_class': 'UNKNOWN'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes3] _________
+
+changes = {'error_class': 'HTTPStatusError: SECRET'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes4] _________
+
+changes = {'error_class': 'HTTPStatusError\x00SECRET'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes5] _________
+
+changes = {'error_class': 'ReadTimeout'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes6] _________
+
+changes = {'root_cause': 'the model guessed an API key problem'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes7] _________
+
+changes = {'tool_dispatch_recorded': 1}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes8] _________
+
+changes = {'source_run_id': 'not-a-uuid'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes9] _________
+
+changes = {'source_run_id': '52A169AB-B40D-457B-8AD4-F017292EE492'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+________ test_unknown_or_malformed_facts_produce_no_proposal[changes10] ________
+
+changes = {'goal': 'SECRET-GOAL'}
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            {"state": "cancelled"},
+            {"state": "completed"},
+            {"error_class": "UNKNOWN"},
+            {"error_class": "HTTPStatusError: SECRET"},
+            {"error_class": "HTTPStatusError\0SECRET"},
+            {"error_class": "ReadTimeout"},
+            {"root_cause": "the model guessed an API key problem"},
+            {"tool_dispatch_recorded": 1},
+            {"source_run_id": "not-a-uuid"},
+            {"source_run_id": str(uuid4()).upper()},
+            {"goal": "SECRET-GOAL"},
+        ],
+    )
+    def test_unknown_or_malformed_facts_produce_no_proposal(changes: dict[str, object]) -> None:
+>       assert evolution.propose_runtime_improvement(fact(**changes)) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.core.evolution' has no attribute 'propose_runtime_improvement'
+
+tests/integration/test_improvement_proposal.py:67: AttributeError
+___________ test_db_to_authenticated_http_is_readonly_and_revocable ____________
+
+controller = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7fe113140590>
+
+    @pytest.mark.asyncio
+    async def test_db_to_authenticated_http_is_readonly_and_revocable(
+        controller: IntegratedCompanion,
+    ) -> None:
+        assert controller._agent_runs is not None and controller._store is not None
+        run_id = await failed_run(controller._agent_runs, session="browser", dispatched=True)
+        app = create_app(
+            allowed_origins={"http://testserver"},
+            runtime_profile="candidate",
+>           on_improvement_proposal=controller.improvement_proposal,
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: 'IntegratedCompanion' object has no attribute 'improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:96: AttributeError
+______ test_ineligible_canonical_source_cannot_reuse_old_proposal[newer] _______
+
+controller = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7fe11317bcb0>
+mutation = 'newer'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mutation", ["newer", "stale", "future", "deleted", "wrong_route"])
+    async def test_ineligible_canonical_source_cannot_reuse_old_proposal(
+        controller: IntegratedCompanion,
+        mutation: str,
+    ) -> None:
+        assert controller._agent_runs is not None and controller._store is not None
+        repo, store = controller._agent_runs, controller._store
+        run_id = await failed_run(repo)
+>       assert (await controller.improvement_proposal("A"))["proposal"] is not None
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'IntegratedCompanion' object has no attribute 'improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:140: AttributeError
+______ test_ineligible_canonical_source_cannot_reuse_old_proposal[stale] _______
+
+controller = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7fe11317be00>
+mutation = 'stale'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mutation", ["newer", "stale", "future", "deleted", "wrong_route"])
+    async def test_ineligible_canonical_source_cannot_reuse_old_proposal(
+        controller: IntegratedCompanion,
+        mutation: str,
+    ) -> None:
+        assert controller._agent_runs is not None and controller._store is not None
+        repo, store = controller._agent_runs, controller._store
+        run_id = await failed_run(repo)
+>       assert (await controller.improvement_proposal("A"))["proposal"] is not None
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'IntegratedCompanion' object has no attribute 'improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:140: AttributeError
+______ test_ineligible_canonical_source_cannot_reuse_old_proposal[future] ______
+
+controller = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7fe113141160>
+mutation = 'future'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mutation", ["newer", "stale", "future", "deleted", "wrong_route"])
+    async def test_ineligible_canonical_source_cannot_reuse_old_proposal(
+        controller: IntegratedCompanion,
+        mutation: str,
+    ) -> None:
+        assert controller._agent_runs is not None and controller._store is not None
+        repo, store = controller._agent_runs, controller._store
+        run_id = await failed_run(repo)
+>       assert (await controller.improvement_proposal("A"))["proposal"] is not None
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'IntegratedCompanion' object has no attribute 'improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:140: AttributeError
+_____ test_ineligible_canonical_source_cannot_reuse_old_proposal[deleted] ______
+
+controller = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7fe113140d70>
+mutation = 'deleted'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mutation", ["newer", "stale", "future", "deleted", "wrong_route"])
+    async def test_ineligible_canonical_source_cannot_reuse_old_proposal(
+        controller: IntegratedCompanion,
+        mutation: str,
+    ) -> None:
+        assert controller._agent_runs is not None and controller._store is not None
+        repo, store = controller._agent_runs, controller._store
+        run_id = await failed_run(repo)
+>       assert (await controller.improvement_proposal("A"))["proposal"] is not None
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'IntegratedCompanion' object has no attribute 'improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:140: AttributeError
+___ test_ineligible_canonical_source_cannot_reuse_old_proposal[wrong_route] ____
+
+controller = <siro.services.presentation.integrated.IntegratedCompanion object at 0x7fe113142120>
+mutation = 'wrong_route'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mutation", ["newer", "stale", "future", "deleted", "wrong_route"])
+    async def test_ineligible_canonical_source_cannot_reuse_old_proposal(
+        controller: IntegratedCompanion,
+        mutation: str,
+    ) -> None:
+        assert controller._agent_runs is not None and controller._store is not None
+        repo, store = controller._agent_runs, controller._store
+        run_id = await failed_run(repo)
+>       assert (await controller.improvement_proposal("A"))["proposal"] is not None
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'IntegratedCompanion' object has no attribute 'improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:140: AttributeError
+_____ test_unavailable_controller_does_not_initialize_or_read[legacy-True] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-47/test_unavailable_controller_do0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe1134bfad0>
+profile = 'legacy', restore = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "profile,restore", [("legacy", True), ("candidate", False), ("candidate", True)]
+    )
+    async def test_unavailable_controller_does_not_initialize_or_read(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        restore: bool,
+    ) -> None:
+        result = IntegratedCompanion(
+            tmp_path,
+            CaptureModel(),
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            runtime_profile=profile,
+            session_restore_enabled=restore,
+        )
+    
+        async def forbidden() -> None:
+            raise AssertionError("a read-only proposal must not initialize or reconcile storage")
+    
+        monkeypatch.setattr(result, "_ensure_core", forbidden)
+>       assert await result.improvement_proposal("A") == {"status": "unavailable", "proposal": None}
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'IntegratedCompanion' object has no attribute 'improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:201: AttributeError
+___ test_unavailable_controller_does_not_initialize_or_read[candidate-False] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-47/test_unavailable_controller_do1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe112fca830>
+profile = 'candidate', restore = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "profile,restore", [("legacy", True), ("candidate", False), ("candidate", True)]
+    )
+    async def test_unavailable_controller_does_not_initialize_or_read(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        restore: bool,
+    ) -> None:
+        result = IntegratedCompanion(
+            tmp_path,
+            CaptureModel(),
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            runtime_profile=profile,
+            session_restore_enabled=restore,
+        )
+    
+        async def forbidden() -> None:
+            raise AssertionError("a read-only proposal must not initialize or reconcile storage")
+    
+        monkeypatch.setattr(result, "_ensure_core", forbidden)
+>       assert await result.improvement_proposal("A") == {"status": "unavailable", "proposal": None}
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'IntegratedCompanion' object has no attribute 'improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:201: AttributeError
+___ test_unavailable_controller_does_not_initialize_or_read[candidate-True] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-47/test_unavailable_controller_do2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fe112fec190>
+profile = 'candidate', restore = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "profile,restore", [("legacy", True), ("candidate", False), ("candidate", True)]
+    )
+    async def test_unavailable_controller_does_not_initialize_or_read(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        restore: bool,
+    ) -> None:
+        result = IntegratedCompanion(
+            tmp_path,
+            CaptureModel(),
+            GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            runtime_profile=profile,
+            session_restore_enabled=restore,
+        )
+    
+        async def forbidden() -> None:
+            raise AssertionError("a read-only proposal must not initialize or reconcile storage")
+    
+        monkeypatch.setattr(result, "_ensure_core", forbidden)
+>       assert await result.improvement_proposal("A") == {"status": "unavailable", "proposal": None}
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'IntegratedCompanion' object has no attribute 'improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:201: AttributeError
+_________________ test_auth_and_profile_gate_precede_callback __________________
+
+    @pytest.mark.asyncio
+    async def test_auth_and_profile_gate_precede_callback() -> None:
+        calls: list[str] = []
+    
+        async def source(session: str) -> dict[str, object]:
+            calls.append(session)
+            return {"status": "no_supported_evidence", "proposal": None}
+    
+        for profile in ("candidate", "legacy"):
+>           app = create_app(
+                allowed_origins={"http://testserver"},
+                runtime_profile=profile,
+                on_improvement_proposal=source,
+            )
+E           TypeError: create_app() got an unexpected keyword argument 'on_improvement_proposal'
+
+tests/integration/test_improvement_proposal.py:214: TypeError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_improvement_proposal.py::test_pure_proposal_is_bound_bounded_and_does_not_invent_patch
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes0]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes1]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes2]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes3]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes4]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes5]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes6]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes7]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes8]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes9]
+FAILED tests/integration/test_improvement_proposal.py::test_unknown_or_malformed_facts_produce_no_proposal[changes10]
+FAILED tests/integration/test_improvement_proposal.py::test_db_to_authenticated_http_is_readonly_and_revocable
+FAILED tests/integration/test_improvement_proposal.py::test_ineligible_canonical_source_cannot_reuse_old_proposal[newer]
+FAILED tests/integration/test_improvement_proposal.py::test_ineligible_canonical_source_cannot_reuse_old_proposal[stale]
+FAILED tests/integration/test_improvement_proposal.py::test_ineligible_canonical_source_cannot_reuse_old_proposal[future]
+FAILED tests/integration/test_improvement_proposal.py::test_ineligible_canonical_source_cannot_reuse_old_proposal[deleted]
+FAILED tests/integration/test_improvement_proposal.py::test_ineligible_canonical_source_cannot_reuse_old_proposal[wrong_route]
+FAILED tests/integration/test_improvement_proposal.py::test_unavailable_controller_does_not_initialize_or_read[legacy-True]
+FAILED tests/integration/test_improvement_proposal.py::test_unavailable_controller_does_not_initialize_or_read[candidate-False]
+FAILED tests/integration/test_improvement_proposal.py::test_unavailable_controller_does_not_initialize_or_read[candidate-True]
+FAILED tests/integration/test_improvement_proposal.py::test_auth_and_profile_gate_precede_callback
+22 failed, 2 warnings in 0.96s

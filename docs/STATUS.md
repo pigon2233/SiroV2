@@ -1,5 +1,19 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-14 — RI-006 / D55 唯讀改善提案切片 VERIFIED
+
+電腦協助新增「改善建議」手動入口：重用D41同session/route/latest/900s事實，failed + HTTPStatusError→有來源的調查/測試/相容/回退計畫。根因UNKNOWN、分類DEFER、patch=null，不能自批、重試、改碼或deploy。每GET重查canonical來源，無新cache/schema/scheduler/owner；unstarted/legacy/restoreoff不initialize/reconcile/read。no-store涵蓋auth/錯方法/安全503；UI owned取消/5s deadline/epoch撤除過時卡，textContent/完整closedshape驗證。
+
+最終truepublicGitcheckout含FETCH_HEAD的scripts/check **EXIT0 / 499.591s**；**1,798 PASS / 5原opt-in SKIP / 7既有warnings / 211.70s**；Rust6/fmt/build/clippy、Ruff320/mypy253、schema與原scanner/strictgate保持。原完整firstcandidate3FAIL（inventory/speech fragment新增依賴）先留證，僅optional新hook局部修→142focusedPASS，不改舊測試；95newcases，原132testfiles bytes全保持。獨立review的no-store1RED已修；reviewer最後turn/前端agent遇quota，不假稱independent final approval。
+
+真正main/D50 composition、自有SQLite/randomloopback/In-appbrowser：手動click顯示source/UNKNOWN/計畫，fixture更正來源→重查撤舊card；最終SIGTERM exit-15/actualshutdowncomplete/joined/temp/tabcleaned。第一harness143原因UNKNOWN、已人工清理，不列gracefulPASS；兩次隔離child session的重驗正常。exact6source-only reverse/reapply、D41/TTS保持。CodebaseMemory不可呼叫/graphreindex NOT_RUN。
+
+RI006整體 **PARTIAL**，D55 singleclass caller局部 **VERIFIED**；真rootcause定位/patch/自主執行另驗。RI005 **PARTIAL/BLOCKED_BY_RELEASE_INTEGRATION**；RT011/013/015 scopedDONE、FIX002/005/006產品gate保持。Architecture YELLOW：tests/evidence GREEN；proposal/Core/Gateway/UI YELLOW；liveDB/migration/permissions/release RED。沒有額外scopedblocker、RT重編/ranking或新全局abstraction。
+
+下一三既有scope（非ranking）：RI005 exact captured package/import window；RI005 approved maintenance→runtimehandoff/adoption；RI006 safe定位證據→最小真提案。無live8026/privateDB/chat/WAV/key/config/models/GPU/formaldeploy。Git發布與new exact-head CI結果另記，不把localPASS當remote。
+
+[完整驗收、限制、回退](evidence/RI-006-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — FIX-016 / FIX-017 DONE / VERIFIED
 
 Exact source4811db2 [Actions38395186441 SUCCESS](https://github.com/pigon2233/SiroV2/actions/runs/38395186441)。Remote1703PASS/5原opt-inSKIP/7既有warnings/206.05s；原102environment-skippedcases全執行。Rust6/fmt/build/clippy、Ruff318/mypy251、schema、原scanner/strictgate全PASS。TruepublicGitcheckout/fetch含FETCH_HEAD：local1703PASS/5opt-inSKIP/7warnings/207.90s、scripts/check全EXIT0/492.046s。未mute、新增skip或放寬隔離。

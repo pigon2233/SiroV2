@@ -26,6 +26,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, W
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from siro.adapters.body.web import WebSocketBodyTransport
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
@@ -72,6 +73,35 @@ class JsonSocket(Protocol):
     async def send_json(self, data: object) -> None: ...
 
     async def close(self, code: int = 1000, reason: str | None = None) -> None: ...
+
+
+class _UncachedImprovementResponses:
+    """Add one endpoint's cache header without creating tasks or wrapping other traffic."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not re.fullmatch(
+            r"/v1/conversations/[^/]+/improvement-proposal", scope["path"]
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        async def uncached_send(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                message = {
+                    **message,
+                    "headers": [
+                        (key, value)
+                        for key, value in message.get("headers", [])
+                        if key.lower() != b"cache-control"
+                    ]
+                    + [(b"cache-control", b"no-store")],
+                }
+            await send(message)
+
+        await self.app(scope, receive, uncached_send)
 
 
 class SpeechSynthesizer(Protocol):
@@ -498,6 +528,7 @@ def create_app(
     on_startup: Callable[[], Awaitable[None]] | None = None,
     on_shutdown: Callable[[], Awaitable[None]] | None = None,
     on_recovery: Callable[[str], Awaitable[dict[str, object] | None]] | None = None,
+    on_improvement_proposal: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     feature_status: Callable[[], dict[str, object]] | None = None,
     memory_organizer: MemoryOrganizer | None = None,
     workspace_service: WorkspaceRuntime | None = None,
@@ -586,6 +617,8 @@ def create_app(
     app = FastAPI(title="SIRO Presentation Gateway", lifespan=lifespan)
     app.state.gateway_hub = gateway_hub
     app.state.body_transport = renderer_transport
+
+    app.add_middleware(_UncachedImprovementResponses)
 
     def require_origin(origin: str | None) -> None:
         if origin not in allowed:
@@ -1003,6 +1036,32 @@ def create_app(
         await on_turn(session_id, body.text, body.input_mode)
         gateway_state.active_turns[session_id]["state"] = "completed"
         return {"turn_id": turn_id}
+
+    @app.get("/v1/conversations/{session_id}/improvement-proposal")
+    async def read_improvement_proposal(
+        session_id: str, response: Response, authorization: str | None = Header(default=None)
+    ) -> dict[str, object]:
+        no_store = {"Cache-Control": "no-store"}
+        response.headers.update(no_store)
+        try:
+            require_token(authorization)
+            if len(session_id.encode("utf-8")) > 128 or any(
+                ord(char) < 32 or 127 <= ord(char) <= 159 for char in session_id
+            ):
+                raise HTTPException(status_code=400, detail="invalid conversation identity")
+            if runtime_profile != "candidate" or on_improvement_proposal is None:
+                raise HTTPException(status_code=503, detail="improvement proposals are unavailable")
+            result = await on_improvement_proposal(session_id)
+            if result["status"] == "unavailable":
+                raise HTTPException(status_code=503, detail="improvement proposals are unavailable")
+            return result
+        except HTTPException as error:
+            error.headers = {**(error.headers or {}), **no_store}
+            raise
+        except Exception as error:
+            raise HTTPException(
+                status_code=503, detail="improvement evidence is unavailable", headers=no_store
+            ) from error
 
     @app.get("/v1/agent-runs/{session_id}")
     async def agent_run_readback(
@@ -2021,6 +2080,7 @@ def _run_gateway(
             on_shutdown=stop_controller,
             feature_status=product_features,
             on_recovery=controller.recovery_readback,
+            on_improvement_proposal=controller.improvement_proposal,
             on_turn=controller.respond,
             memory_organizer=organizer,
             workspace_service=workspace,

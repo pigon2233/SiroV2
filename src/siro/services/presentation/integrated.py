@@ -1093,6 +1093,23 @@ class IntegratedCompanion:
         assert self._agent_runs is not None
         return await self._agent_runs.readback(session_id)
 
+    async def improvement_proposal(self, session_id: str) -> dict[str, object]:
+        # A read-only view must not initialize/migrate/reconcile the store on demand.
+        if (
+            self._runtime_profile != "candidate"
+            or not self._session_restore_enabled
+            or self._agent_runs is None
+        ):
+            return {"status": "unavailable", "proposal": None}
+        from siro.core.evolution import propose_runtime_improvement
+
+        fact = await self._agent_runs.recent_runtime_status(session_id, privacy=self._privacy.value)
+        proposal = propose_runtime_improvement(fact)
+        return {
+            "status": "awaiting_investigation" if proposal is not None else "no_supported_evidence",
+            "proposal": proposal,
+        }
+
     async def _journal_event(self, run_id: str, call_id: str, phase: str, value: object) -> None:
         assert self._agent_runs is not None
         if phase == "dispatch":

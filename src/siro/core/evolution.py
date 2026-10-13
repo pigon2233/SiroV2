@@ -23,6 +23,77 @@ class PatchProposal(BaseModel):
     created_at: datetime
 
 
+def propose_runtime_improvement(fact: dict[str, object] | None) -> dict[str, object] | None:
+    """Compose one investigation view from a D41 fact, without executing or writing."""
+    if fact is None or set(fact) != {
+        "source_run_id",
+        "state",
+        "error_class",
+        "tool_dispatch_recorded",
+        "root_cause",
+    }:
+        return None
+    source = fact["source_run_id"]
+    if (
+        not isinstance(source, str)
+        or fact["state"] != "failed"
+        or fact["error_class"] != "HTTPStatusError"
+        or fact["root_cause"] != "UNKNOWN"
+        or type(fact["tool_dispatch_recorded"]) is not bool
+    ):
+        return None
+    try:
+        if str(UUID(source)) != source:
+            return None
+    except ValueError:
+        return None
+    return {
+        "schema_version": 1,
+        "proposal_id": f"RI-006:{source}:http-status-v1",
+        "source_task": "RI-006",
+        "classification": "DEFER",
+        "evidence": dict(fact),
+        "root_cause": "UNKNOWN — NEEDS INVESTIGATION",
+        "problem": "最近一筆可追溯的對話執行失敗，記錄的錯誤類別是 HTTPStatusError。",  # noqa: RUF001
+        "expected_behavior": "請求失敗時清楚保留已知與未知，讓下一次互動仍可繼續。",  # noqa: RUF001
+        "actual_behavior": "紀錄只有失敗狀態與錯誤類別，尚無足夠證據確認 HTTP 狀態碼或出錯元件。",  # noqa: RUF001
+        "scope": "先以合成請求調查 HTTP 錯誤的來源邊界；確認根因後才定義最小局部修復。",  # noqa: RUF001
+        "files_expected_to_change": [],
+        "files_must_not_change": [
+            "src/siro/core/authorization.py",
+            "src/siro/config.py",
+            "src/siro/persistence/migrations/",
+        ],
+        "compatibility_requirements": (
+            "保留既有介面、取消、授權與結果未知語意；不重播工具或覆蓋記憶。"  # noqa: RUF001
+        ),
+        "proposed_repair": "目前只提出調查；未確認根因前不生成修改差異，也不建立立即修復任務。",  # noqa: RUF001
+        "tests_required": [
+            "以合成 HTTP 失敗確認實際呼叫邊界，記錄安全類別與關聯 run，不使用私人請求內容。",  # noqa: RUF001
+            "確認錯誤、取消與下一輪正常回覆；不自動重送可能已產生效果的動作。",  # noqa: RUF001
+            "重查來源：更正、刪除、過期或新執行紀錄使此建議失效。",  # noqa: RUF001
+        ],
+        "regression_tests": [
+            "A01：串流有序且只有一個結束事件。",  # noqa: RUF001
+            "A02：取消後舊輸出不能復活。",  # noqa: RUF001
+            "A14：權限檢查與審計保留。",  # noqa: RUF001
+        ],
+        "acceptance_criteria": [
+            "先建立可重現情境與實際根因證據；無證據時保持根因未知。",  # noqa: RUF001
+            "確認最小修復範圍、原行為與回退方式，才交人工審核。",  # noqa: RUF001
+        ],
+        "rollback_method": "可撤除此提案入口，保留原始 journal、對話、記憶與既有版本。",  # noqa: RUF001
+        "risk": (
+            "有工具派送紀錄，但不能據此確認效果；先回讀結果，不自動重做。"  # noqa: RUF001
+            if fact["tool_dispatch_recorded"]
+            else "本筆無工具派送紀錄；仍不能由此證明其他效果或診斷語音、網路與模型問題。"  # noqa: RUF001
+        ),
+        "patch": None,
+        "approval_required": True,
+        "authorizes_execution": False,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class VerificationReport:
     proposal_id: UUID
