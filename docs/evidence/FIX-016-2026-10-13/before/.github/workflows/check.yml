@@ -1,0 +1,26 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.18"
+          enable-cache: true
+      - run: uv python install 3.12
+      - name: Install pinned NATS server
+        run: |
+          curl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz -o /tmp/nats-server.tgz
+          tar -xzf /tmp/nats-server.tgz -C /tmp
+          mkdir -p "$HOME/.local/bin"
+          install -m 755 /tmp/nats-server-v2.15.0-linux-amd64/nats-server "$HOME/.local/bin/nats-server"
+      - run: scripts/check

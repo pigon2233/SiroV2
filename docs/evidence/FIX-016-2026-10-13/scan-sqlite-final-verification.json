@@ -1,0 +1,44 @@
+{
+  "status": "PASS",
+  "final_test_sha256": "f6d60dc7962993df673ca263bc84034e2db46ee30f523fbcf397a911818451c1",
+  "source_path": "tests/integration/test_unknown_effect_approval.py",
+  "scope": "one renamed quoted-numeric-key testcase and version-portable intermediate assertion only",
+  "production_sql_changed_by_this_task": false,
+  "cases": [
+    {
+      "sqlite": "3.46.1",
+      "exit_code": 0,
+      "log": "scan-sqlite-final-old.log"
+    },
+    {
+      "sqlite": "3.50.4",
+      "exit_code": 0,
+      "log": "scan-sqlite-final-modern.log"
+    }
+  ],
+  "static": [
+    {
+      "command": "ruff format --check tests/integration/test_unknown_effect_approval.py",
+      "exit_code": 0,
+      "stdout": "1 file already formatted\n",
+      "stderr": ""
+    },
+    {
+      "command": "ruff check tests/integration/test_unknown_effect_approval.py",
+      "exit_code": 0,
+      "stdout": "All checks passed!\n",
+      "stderr": ""
+    },
+    {
+      "command": "mypy tests/integration/test_unknown_effect_approval.py",
+      "exit_code": 0,
+      "stdout": "Success: no issues found in 1 source file\n",
+      "stderr": ""
+    }
+  ],
+  "all_owned_children_joined": true,
+  "temporary_source_library_and_probe_roots_removed": true,
+  "original_assert_automatic_hold_body_byte_identical": true,
+  "original_final_hold_call_and_following_tests_byte_identical": true,
+  "production_guard_sha256": "6f9323fcd7846c6a0257c34afca82a342e4233101f488d9466ed561bb426fecd"
+}

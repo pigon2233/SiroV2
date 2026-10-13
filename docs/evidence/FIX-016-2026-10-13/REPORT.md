@@ -1,6 +1,6 @@
 # FIX-016 — clean CI bootstrap / exact public-pin review
 
-Status: IN_PROGRESS until full local check and exact-head GitHub Actions are complete. Scope is build tooling only; production source and existing tests are byte-identical.
+Status: DONE / VERIFIED. Final source head4811db20f1b34c5abdb72640d6594580e070b499 and exact GitHub run38395186441 are SUCCESS. Scope is build tooling only; production source and existing tests are byte-identical.
 
 ## Problem and confirmed root cause
 
@@ -49,3 +49,13 @@ SupportedUbuntu26.04 run38392435450 at56d0683 passed all1702Pythoncases/5origina
 Prior nine-file local full scripts/check exit0/437.331s,1702PASS/5opt-inSKIP/3warnings/200.57s,318Ruff/251mypy/schema/originalsecretgatePASS. Latest only metadata exclusion plus one newCIboundarytest changes these two files. Final verification now uses a true owned shallow public Git checkout/fetch-by-commit (Git config/private home settings excluded and LFSweights not fetched), instead of archive-onlyharness; exact9source hashes and originalactualcheckrecord go to git-check-result.json/log. This latest fullrun and exactremotenewhead are stillPENDING.
 
 Combined303baseline297unchanged,6existingchanged and3new files; onlyproductionleafTTS changes. Exact9source-only reverse/reapply/sourcebinding in combined-preservation-rollback.json; separateFIX017exact2rollback remains. AlloldprivateGitbackup/data preserved. The earlier build-only sourceclaims concern FIX016 scopes, not separateFIX017. Artifactscan draft102files721precisefalsepositives/unresolved0; finalcutoffmust rerun afterthese documentation/results edits. No blanket entropy acknowledgement.
+
+## Final acceptance — authoritative result
+
+[Exact source Actions38395186441](https://github.com/pigon2233/SiroV2/actions/runs/38395186441), head4811db2, completedSUCCESS (allrequiredsteps). NativeUbuntu26.04 Python3.14.4, Rust1.97.1; all6Rusttests/fmt/build/clippy,318Rufffiles,251mypyfiles, schema and actual secretgatePASS. Python1703PASS/5originalopt-inSKIP/7existingwarnings/206.05s; all102priorunsupported-environment-skippedcases executed. No warning mute, newskip or runtimefallback. remote-source-final-pass.json/log bind actual head/conclusion.
+
+Final real public Git checkout/fetch-bycommit fullscripts/check EXIT0,1703PASS/5originalopt-inSKIP/7existingwarnings/207.90s;whole492.046s. .git/FETCH_HEAD physically existed; all9exactsource hashes retained, childrenjoined and temporaryrootsremoved. git-check-result.json/log is authoritative, superseding archive-only/misconfigured/interrupted iterations.
+
+Final9file source-only reverse/reapply/currenthash PASS;303oldbaseline297unchanged/6existingchanges/3newfiles, onlyproductionleafTTS. SeparateFIX017twofile rollback and fullsame-sourceacceptance verified. Source/components/scanner/parser/fixtures/environment changes stay bounded; no newdependencylock/schema/API/UI/permission/data migration. Sourceonlyrollbackwould reopenoriginalfailures anddoesnot authorizeunsafeproductionuse.
+
+FIX016/017 local blockers removed; CI buildzoneGREEN for testedLinuxprofile, architectureoverallYELLOW andTTSproductquality/performanceYELLOW. RI005remainingoldwriter/immutableapprovedhandoffBLOCKED_BY_RELEASE_INTEGRATION, RI006readonlyproposalKEEP; originalRTDONE and FIX002/005/006 product limitations remain. Noformaldeployment/live8026/privateDB/chat/WAV/key/config/model/GPUoperation. CodebaseMemorytoolsunavailable/reindexNOT_RUN. Finaldocumentation/evidencecheckpointmaycreate anotherActionsrun; actual sourceidentitymustremainthese9hashes and latestremotecheck isverified separately.

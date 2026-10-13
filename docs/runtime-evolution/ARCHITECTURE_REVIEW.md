@@ -1,5 +1,22 @@
 # SIRO V2 Architecture Review
 
+## 2026-10-13 — FIX-016 / FIX-017 DONE / VERIFIED
+
+Exact source4811db2 [Actions38395186441 SUCCESS](https://github.com/pigon2233/SiroV2/actions/runs/38395186441)。Remote1703PASS/5原opt-inSKIP/7既有warnings/206.05s；原102environment-skippedcases全執行。Rust6/fmt/build/clippy、Ruff318/mypy251、schema、原scanner/strictgate全PASS。TruepublicGitcheckout/fetch含FETCH_HEAD：local1703PASS/5opt-inSKIP/7warnings/207.90s、scripts/check全EXIT0/492.046s。未mute、新增skip或放寬隔離。
+
+FIX016只修existingtool声明、exact6publicpins、Rustcfgtest3literal、supportednativeCI環境、SQLitequoted-keyportable中間fixture與exact.git adminmetadata範圍。FIX017只修TTSoptionalKokoroSDK在owner前eagerimport：移既有offlooplazyrender，5RED→PASS/34related/exact2rollback；Gateway/owner/SQL/權限/其他production保持。
+
+303baseline297不改、6existing改/3new、onlyproductionTTSleaf；finalexact9source-onlyrollback/hashPASS、ownedchildren/temp全部清理。CodebaseMemory不可呼叫/graphreindexNOT_RUN，以source/actualtest/hash作證。Actual查無PR，本次修push Actions。
+
+OverallarchitecturehealthYELLOW；recentimprovements為CI可重現與原owner-before-provider不變量恢復，沒有新runtimeabstraction/cycle/globalowner。Regressionrisk原coldbootstrap、supportedprofile及Gitmetadata盲區已補；真voice/LLM品質不由CI代證。Technicaldebt仍publicpin變動需re-audit、extra3.12preinstall、general3.12matrix/nativehardcancel未驗。
+
+Freezezone：testedLinuxCI/tests/evidenceGREEN；TTS與其他runtimeYELLOW，liveDB/migrations/permissions/releaseRED。NewscopedblockersNONE。解除BLOCKED_BY_FIX: FIX016/FIX017；RI005仍PARTIAL/BLOCKED_BY_RELEASE_INTEGRATION，原RT011/013/015scopedDONE、FIX002/005/006產品gates保持。KEEP/SPLIT RI005remainingadoption/approvedhandoff，KEEP RI006readonlyproposal；REJECT duplicateSDKloader/owner/updater，無RT重編/ranking。
+
+Recommendednext3原scope（非ranking）：RI005old/unmanagedwriterabsence；RI005immutableapprovedexacthandoff；RI006source-boundreadonlyproposal。沒有formaldeploy或live8026/privateDB/chat/WAV/key/config/model/GPU操作。
+
+[CI證據](../evidence/FIX-016-2026-10-13/REPORT.md)／[TTSleaf](../evidence/FIX-017-2026-10-13/REPORT.md)。
+
+
 ## 2026-10-13 — supported full regression PASS / final Git-metadata CI gate
 
 FIX-017 D54 scopedDONE/VERIFIED：Kokoro optionalSDK延後既有offlooprender，5RED→PASS/34focused/exact2rollback；combinedlocal1702PASS/5opt-inSKIP/3warnings（200.57s；scripts/check全437.331s）。SupportedUbuntu26.04 actual56d0683 run38392435450也1702PASS/5opt-inSKIP/7warnings（189.07s），原102environment-skippedcases全執行，Rust/static/schemaPASS。

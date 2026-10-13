@@ -1,0 +1,704 @@
+diff --git a/.github/workflows/check.yml b/.github/workflows/check.yml
+index 09e8d72..7f81c52 100644
+--- a/.github/workflows/check.yml
++++ b/.github/workflows/check.yml
+@@ -9,7 +9,7 @@ permissions:
+ 
+ jobs:
+   python:
+-    runs-on: ubuntu-latest
++    runs-on: ubuntu-26.04
+     steps:
+       - uses: actions/checkout@v4
+       - uses: astral-sh/setup-uv@v7
+@@ -17,6 +17,13 @@ jobs:
+           version: "0.12.18"
+           enable-cache: true
+       - run: uv python install 3.12
++      - name: Install supported Linux sandbox prerequisites
++        run: |
++          sudo apt-get update
++          sudo apt-get install --yes --no-install-recommends python3.14 bubblewrap libseccomp2 apparmor
++          sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
++          /usr/bin/python3.14 -I -S -c 'import ctypes,sys; assert sys.version_info[:2] == (3,14); ctypes.CDLL("/usr/lib/x86_64-linux-gnu/libseccomp.so.2")'
++          bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev /bin/true
+       - name: Install pinned NATS server
+         run: |
+           curl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz -o /tmp/nats-server.tgz
+diff --git a/runtime/siro-runtime/src/linux.rs b/runtime/siro-runtime/src/linux.rs
+index 0d63388..286178f 100644
+--- a/runtime/siro-runtime/src/linux.rs
++++ b/runtime/siro-runtime/src/linux.rs
+@@ -315,7 +315,7 @@ mod tests {
+             .execute(
+                 "process.run",
+                 &json!({
+-                    "argv": ["/usr/bin/python3.14", "-c", "print('safe')"],
++                    "argv": ["/usr/bin/python3", "-c", "print('safe')"],
+                     "cwd": base,
+                     "timeout_ms": 1000
+                 }),
+@@ -333,7 +333,7 @@ mod tests {
+             driver.execute(
+                 "process.run",
+                 &json!({
+-                    "argv": ["/usr/bin/python3.14", "-c", "import time; time.sleep(2)"],
++                    "argv": ["/usr/bin/python3", "-c", "import time; time.sleep(2)"],
+                     "cwd": base,
+                     "timeout_ms": 20
+                 })
+@@ -344,7 +344,7 @@ mod tests {
+             .execute(
+                 "process.start",
+                 &json!({
+-                    "argv": ["/usr/bin/python3.14", "-c", "import time; time.sleep(2)"],
++                    "argv": ["/usr/bin/python3", "-c", "import time; time.sleep(2)"],
+                     "cwd": base
+                 }),
+             )
+diff --git a/rust-toolchain.toml b/rust-toolchain.toml
+index 7255511..010f002 100644
+--- a/rust-toolchain.toml
++++ b/rust-toolchain.toml
+@@ -1,3 +1,4 @@
+ [toolchain]
+ channel = "1.97.1"
+ profile = "minimal"
++components = ["rustfmt", "clippy"]
+diff --git a/scripts/check b/scripts/check
+index 17db1c0..0249a47 100755
+--- a/scripts/check
++++ b/scripts/check
+@@ -41,19 +41,6 @@ fi
+ 
+ secret_report="$(
+   "$uv_command" run detect-secrets scan --all-files \
+-    --exclude-files '(^|/)(\.venv|\.mypy_cache|\.pytest_cache|\.ruff_cache|models|node_modules|target|uv\.lock|docs/evidence)/|(^|/)\.env\.local$'
++    --exclude-files '(^|/)(\.git|\.venv|\.mypy_cache|\.pytest_cache|\.ruff_cache|models|node_modules|target|uv\.lock|docs/evidence)/|(^|/)\.env\.local$'
+ )"
+-"$uv_command" run python -c '
+-import json
+-import sys
+-
+-results = json.load(sys.stdin)["results"]
+-if results:
+-    for path, findings in results.items():
+-        for finding in findings:
+-            print(
+-                "{}:{}: {}".format(path, finding.get("line_number"), finding.get("type")),
+-                file=sys.stderr,
+-            )
+-    raise SystemExit(1)
+-' <<<"$secret_report"
++"$uv_command" run python scripts/check_secrets.py <<<"$secret_report"
+diff --git a/scripts/check_secrets.py b/scripts/check_secrets.py
+new file mode 100644
+index 0000000..2bf14f3
+--- /dev/null
++++ b/scripts/check_secrets.py
+@@ -0,0 +1,84 @@
++"""Fail CI on findings except the exact independently reviewed public tokenizer pins."""
++
++from __future__ import annotations
++
++import hashlib
++import json
++import sys
++from pathlib import Path
++
++PROFILE = "src/siro/services/agent/gpt_oss_profile.json"
++# Public blob and detector fingerprints: FIX-016/scan-public-fingerprint-binding.json.
++PROFILE_SHA256 = (
++    "3fbccde17033b8443aee5a26e1824c88955b8418c955b03ef003c712939a645e"  # pragma: allowlist secret
++)
++PUBLIC_PINS = {
++    (3, "1d403576bfa0919fac728d081b7d3730ab5274e1"),  # pragma: allowlist secret
++    (7, "000cca28ecda60515feca539cdf16adac987fa1a"),  # pragma: allowlist secret
++    (8, "a074e33a8b7597cf69d7a35d59a8e238cef430cf"),  # pragma: allowlist secret
++    (9, "8ebd7373145de425bee23fbd71343dd1db3e7627"),  # pragma: allowlist secret
++    (10, "3657a04a520af8371b7f923474b3b91e1040d516"),  # pragma: allowlist secret
++    (11, "9833b8adf7737438ef1bc5a313ca0f97e3b1992f"),  # pragma: allowlist secret
++}
++
++
++def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
++    result: dict[str, object] = {}
++    for key, value in pairs:
++        if key in result:
++            raise ValueError("duplicate report key")
++        result[key] = value
++    return result
++
++
++def unresolved(report: object) -> list[tuple[str, int, str]]:
++    if not isinstance(report, dict) or not isinstance(report.get("results"), dict):
++        raise ValueError("invalid report")
++    try:
++        profile_matches = hashlib.sha256(Path(PROFILE).read_bytes()).hexdigest() == PROFILE_SHA256
++    except OSError:
++        profile_matches = False
++    failures: list[tuple[str, int, str]] = []
++    for path, findings in report["results"].items():
++        if not isinstance(path, str) or not isinstance(findings, list) or not findings:
++            raise ValueError("invalid findings")
++        for finding in findings:
++            if not isinstance(finding, dict):
++                raise ValueError("invalid finding")
++            line = finding.get("line_number")
++            kind = finding.get("type")
++            fingerprint = finding.get("hashed_secret")
++            if (
++                type(line) is not int
++                or line < 1
++                or not isinstance(kind, str)
++                or not isinstance(fingerprint, str)
++                or finding.get("filename") != path
++                or type(finding.get("is_verified")) is not bool
++            ):
++                raise ValueError("invalid finding binding")
++            if (
++                path == PROFILE
++                and profile_matches
++                and kind == "Hex High Entropy String"
++                and finding["is_verified"] is False
++                and (line, fingerprint) in PUBLIC_PINS
++            ):
++                continue
++            failures.append((path, line, kind))
++    return failures
++
++
++def main() -> int:
++    try:
++        failures = unresolved(json.load(sys.stdin, object_pairs_hook=unique_object))
++    except (ValueError, TypeError):
++        print("Invalid secret scanner report; CI refused.", file=sys.stderr)
++        return 1
++    for path, line, kind in failures:
++        print(f"{path}:{line}: {kind}", file=sys.stderr)
++    return int(bool(failures))
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/src/siro/services/audio/tts.py b/src/siro/services/audio/tts.py
+index 25923dc..a8be47b 100644
+--- a/src/siro/services/audio/tts.py
++++ b/src/siro/services/audio/tts.py
+@@ -12,16 +12,18 @@ from collections.abc import AsyncIterator
+ from dataclasses import dataclass
+ from enum import StrEnum
+ from pathlib import Path
+-from typing import Protocol
++from typing import TYPE_CHECKING, Protocol
+ from uuid import uuid4
+ 
+ import edge_tts
+ import httpx
+ import numpy as np
+ import soundfile as sf  # type: ignore[import-untyped]
+-from kokoro_onnx import Kokoro
+ from misaki import zh  # type: ignore[import-untyped]
+ 
++if TYPE_CHECKING:
++    from kokoro_onnx import Kokoro
++
+ _BOUNDARY = re.compile(r"(?<=[.!?。！？])\s*")  # noqa: RUF001
+ _CODE_BLOCK = re.compile(r"```.*?```", re.DOTALL)
+ _MARKDOWN_LINK = re.compile(r"\[([^]]+)]\([^)]*\)")
+@@ -166,6 +168,8 @@ class KokoroLocalTTS:
+ 
+     def _render_sync(self, text: str, rate: float, energy: float) -> bytes:
+         if self._model is None:
++            from kokoro_onnx import Kokoro
++
+             self._model = Kokoro(self._model_path, self._voices_path)
+             self._g2p = zh.ZHG2P(version="1.0")
+             self._voice = sum(
+diff --git a/tests/integration/test_ci_secret_gate.py b/tests/integration/test_ci_secret_gate.py
+new file mode 100644
+index 0000000..41c6322
+--- /dev/null
++++ b/tests/integration/test_ci_secret_gate.py
+@@ -0,0 +1,224 @@
++from __future__ import annotations
++
++import copy
++import hashlib
++import json
++import re
++import shutil
++import subprocess
++import sys
++from pathlib import Path
++from typing import Any
++
++import pytest
++
++REPOSITORY = Path(__file__).resolve().parents[2]
++PROFILE = Path("src/siro/services/agent/gpt_oss_profile.json")
++HELPER = REPOSITORY / "scripts/check_secrets.py"
++
++
++def scan(directory: Path) -> dict[str, Any]:
++    result = subprocess.run(
++        [sys.executable, "-m", "detect_secrets", "scan", "--all-files", "--no-verify"],
++        cwd=directory,
++        capture_output=True,
++        text=True,
++        timeout=30,
++        check=True,
++    )
++    report: dict[str, Any] = json.loads(result.stdout)
++    return report
++
++
++@pytest.fixture
++def public_checkout(tmp_path: Path) -> Path:
++    target = tmp_path / PROFILE
++    target.parent.mkdir(parents=True)
++    shutil.copyfile(REPOSITORY / PROFILE, target)
++    return tmp_path
++
++
++@pytest.fixture(scope="module")
++def public_report(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
++    directory = tmp_path_factory.mktemp("public-pins")
++    target = directory / PROFILE
++    target.parent.mkdir(parents=True)
++    shutil.copyfile(REPOSITORY / PROFILE, target)
++    report = scan(directory)
++    assert set(report["results"]) == {PROFILE.as_posix()}
++    assert len(report["results"][PROFILE.as_posix()]) == 6
++    return report
++
++
++def gate(directory: Path, report: object) -> subprocess.CompletedProcess[str]:
++    return subprocess.run(
++        [sys.executable, str(HELPER)],
++        cwd=directory,
++        input=json.dumps(report),
++        capture_output=True,
++        text=True,
++        timeout=10,
++        check=False,
++    )
++
++
++def test_exact_public_scanner_findings_pass(
++    public_checkout: Path, public_report: dict[str, Any]
++) -> None:
++    result = gate(public_checkout, public_report)
++    assert result.returncode == 0, result.stderr
++    assert not result.stderr
++
++
++def test_no_findings_pass_without_public_profile(tmp_path: Path) -> None:
++    assert gate(tmp_path, {"results": {}}).returncode == 0
++
++
++@pytest.mark.parametrize("location", ["profile", "other-file"])
++def test_actual_scanner_new_synthetic_secret_fails(public_checkout: Path, location: str) -> None:
++    synthetic = hashlib.sha256(b"ci-test-only-credential-never-valid").hexdigest()
++    if location == "profile":
++        target = public_checkout / PROFILE
++        data = json.loads(target.read_text())
++        data["api_key"] = synthetic
++        target.write_text(json.dumps(data, indent=2) + "\n")
++    else:
++        (public_checkout / "new_provider.py").write_text(f'api_key = "{synthetic}"\n')
++    report = scan(public_checkout)
++    assert any(
++        finding["hashed_secret"] == hashlib.sha1(synthetic.encode()).hexdigest()
++        for findings in report["results"].values()
++        for finding in findings
++    )
++    result = gate(public_checkout, report)
++    assert result.returncode == 1
++    assert synthetic not in result.stdout + result.stderr
++    assert "Traceback" not in result.stderr
++
++
++def test_changed_profile_bytes_require_new_audit(
++    public_checkout: Path, public_report: dict[str, Any]
++) -> None:
++    with (public_checkout / PROFILE).open("a") as output:
++        output.write("\n")
++    assert gate(public_checkout, public_report).returncode == 1
++
++
++@pytest.mark.parametrize("state", ["missing", "directory"])
++def test_unreadable_profile_does_not_acknowledge_findings(
++    public_checkout: Path, public_report: dict[str, Any], state: str
++) -> None:
++    (public_checkout / PROFILE).unlink()
++    if state == "directory":
++        (public_checkout / PROFILE).mkdir()
++    result = gate(public_checkout, public_report)
++    assert result.returncode == 1
++    assert "Traceback" not in result.stderr
++
++
++@pytest.mark.parametrize(
++    ("field", "value"),
++    [
++        ("hashed_secret", hashlib.sha1(b"unreviewed").hexdigest()),
++        ("line_number", 4),
++        ("type", "Secret Keyword"),
++        ("filename", "another-profile.json"),
++        ("is_verified", True),
++    ],
++)
++def test_changed_finding_is_not_public_pin(
++    public_checkout: Path, public_report: dict[str, Any], field: str, value: object
++) -> None:
++    report = copy.deepcopy(public_report)
++    report["results"][PROFILE.as_posix()][0][field] = value
++    assert gate(public_checkout, report).returncode == 1
++
++
++def test_reviewed_fingerprint_in_other_path_still_fails(
++    public_checkout: Path, public_report: dict[str, Any]
++) -> None:
++    report = copy.deepcopy(public_report)
++    findings = report["results"].pop(PROFILE.as_posix())
++    for finding in findings:
++        finding["filename"] = "another-profile.json"
++    report["results"]["another-profile.json"] = findings
++    assert gate(public_checkout, report).returncode == 1
++
++
++@pytest.mark.parametrize(
++    "report",
++    [None, [], {}, {"results": None}, {"results": []}, {"results": {"p": {}}}],
++)
++def test_malformed_report_fails_without_traceback(tmp_path: Path, report: object) -> None:
++    result = gate(tmp_path, report)
++    assert result.returncode == 1
++    assert "Traceback" not in result.stderr
++
++
++@pytest.mark.parametrize(
++    ("field", "value"),
++    [("line_number", True), ("line_number", "3"), ("hashed_secret", None)],
++)
++def test_malformed_finding_fails(
++    public_checkout: Path, public_report: dict[str, Any], field: str, value: object
++) -> None:
++    report = copy.deepcopy(public_report)
++    report["results"][PROFILE.as_posix()][0][field] = value
++    assert gate(public_checkout, report).returncode == 1
++
++
++@pytest.mark.parametrize(
++    "raw",
++    ["{", '{"results":{"p":[]},"results":{}}'],
++)
++def test_invalid_or_duplicate_json_fails(tmp_path: Path, raw: str) -> None:
++    result = subprocess.run(
++        [sys.executable, str(HELPER)],
++        cwd=tmp_path,
++        input=raw,
++        capture_output=True,
++        text=True,
++        timeout=10,
++        check=False,
++    )
++    assert result.returncode == 1
++    assert "Traceback" not in result.stderr
++
++
++def test_check_excludes_git_metadata_and_keeps_application_secret_checks(
++    public_checkout: Path,
++) -> None:
++    generated = public_checkout / ".git/FETCH_HEAD"
++    generated.parent.mkdir()
++    commit = hashlib.sha1(b"synthetic-public-commit").hexdigest()
++    # Checkout-by-commit includes the fetched identifier in its quoted descriptor.
++    generated.write_text(f"{commit}\t\t'{commit}' of https://github.com/pigon2233/SiroV2\n")
++    source_paths = ["new_provider.py", ".github/workflows/check.yml", ".gitignore"]
++    synthetic = hashlib.sha256(b"ci-boundary-test-credential-never-valid").hexdigest()
++    for path in source_paths:
++        target = public_checkout / path
++        target.parent.mkdir(parents=True, exist_ok=True)
++        target.write_text(f'api_key = "{synthetic}"\n')
++    match = re.search(r"--exclude-files '([^']+)'", (REPOSITORY / "scripts/check").read_text())
++    assert match is not None
++    result = subprocess.run(
++        [
++            sys.executable,
++            "-m",
++            "detect_secrets",
++            "scan",
++            "--all-files",
++            "--no-verify",
++            "--exclude-files",
++            match[1],
++        ],
++        cwd=public_checkout,
++        capture_output=True,
++        text=True,
++        timeout=30,
++        check=True,
++    )
++    report = json.loads(result.stdout)
++    assert generated.relative_to(public_checkout).as_posix() not in report["results"]
++    assert all(path in report["results"] for path in source_paths)
++    assert gate(public_checkout, report).returncode == 1
+diff --git a/tests/integration/test_tts_import_boundary.py b/tests/integration/test_tts_import_boundary.py
+new file mode 100644
+index 0000000..83f8ef7
+--- /dev/null
++++ b/tests/integration/test_tts_import_boundary.py
+@@ -0,0 +1,225 @@
++from __future__ import annotations
++
++import json
++import os
++import subprocess
++import sys
++from pathlib import Path
++from typing import Any
++
++REPOSITORY = Path(__file__).resolve().parents[2]
++
++
++def probe(tmp_path: Path, code: str) -> dict[str, Any]:
++    result = subprocess.run(
++        [sys.executable, "-c", code],
++        cwd=tmp_path,
++        env={
++            "PATH": os.defpath,
++            "PYTHONPATH": str(REPOSITORY / "src"),
++            "PYTHONDONTWRITEBYTECODE": "1",
++            "SIRO_DATA_DIR": str(tmp_path / "unopened-data"),
++        },
++        capture_output=True,
++        text=True,
++        timeout=15,
++        check=False,
++    )
++    assert result.returncode == 0, result.stderr
++    assert not result.stderr, result.stderr
++    output: dict[str, Any] = json.loads(result.stdout)
++    assert not (tmp_path / "unopened-data").exists()
++    return output
++
++
++def test_busy_gateway_rejects_before_optional_kokoro_import(tmp_path: Path) -> None:
++    result = probe(
++        tmp_path,
++        """import importlib.abc, json, sys
++from siro.adapters import data_ownership as ownership
++imports, owners = [], []
++class ForbidSDK(importlib.abc.MetaPathFinder):
++    def find_spec(self, fullname, path, target=None):
++        if fullname in {'kokoro_onnx', 'onnxruntime'}:
++            imports.append(fullname)
++            raise ImportError('controlled optional SDK failure')
++        return None
++def busy(database):
++    owners.append('acquire')
++    raise ownership.DataOwnerBusyError()
++ownership.exclusive_data_owner = busy
++sys.meta_path.insert(0, ForbidSDK())
++try:
++    from siro.services.presentation.gateway import main
++    main()
++except (ImportError, SystemExit) as error:
++    print(json.dumps({'type':type(error).__name__, 'message':str(error),
++                      'imports':imports, 'owners':owners}))
++""",
++    )
++    assert result == {
++        "type": "SystemExit",
++        "message": "SIRO data is already in use",
++        "imports": [],
++        "owners": ["acquire"],
++    }
++
++
++STUB_SDK = """import asyncio, importlib.abc, importlib.util, json, sys, threading
++events = []
++main_thread = threading.get_ident()
++block_create = False
++entered, release, finished = threading.Event(), threading.Event(), threading.Event()
++class StubKokoro:
++    def __init__(self, model, voices):
++        events.append(['construct', threading.get_ident(), model, voices])
++    def get_voice_style(self, name):
++        import numpy as np
++        events.append(['voice', name])
++        return np.array([0.0, 1.0], dtype=np.float32)
++    def create(self, text, *, voice, speed, is_phonemes):
++        import numpy as np
++        events.append(['create', threading.get_ident(), text, voice.tolist(), speed, is_phonemes])
++        if block_create:
++            entered.set()
++            if not release.wait(3):
++                raise TimeoutError('controlled render was not released')
++        finished.set()
++        return np.array([0.25, -0.25], dtype=np.float32), 24000
++class StubLoader(importlib.abc.Loader):
++    def create_module(self, spec):
++        return None
++    def exec_module(self, module):
++        events.append(['import', threading.get_ident()])
++        module.Kokoro = StubKokoro
++class StubFinder(importlib.abc.MetaPathFinder):
++    def find_spec(self, fullname, path, target=None):
++        if fullname == 'kokoro_onnx':
++            return importlib.util.spec_from_loader(fullname, StubLoader())
++        if fullname == 'onnxruntime':
++            raise AssertionError('real inference SDK must never load in this synthetic test')
++        return None
++sys.meta_path.insert(0, StubFinder())
++from siro.services.audio import tts
++class StubG2P:
++    def __init__(self, *, version):
++        events.append(['g2p', version])
++    def __call__(self, text):
++        return 'synthetic-phonemes', None
++tts.zh.ZHG2P = StubG2P
++speaker = tts.KokoroLocalTTS('synthetic-model', 'synthetic-voices', {'synthetic-voice':1.0})
++"""
++
++
++def test_pure_audio_helpers_and_construction_do_not_import_sdk(tmp_path: Path) -> None:
++    result = probe(
++        tmp_path,
++        STUB_SDK
++        + """plan = tts.plan_speech('hello')
++print(json.dumps({'events':events, 'segments':plan['segments'],
++                  'model_loaded':speaker._model is not None,
++                  'onnx_loaded':'onnxruntime' in sys.modules}))
++""",
++    )
++    assert result == {
++        "events": [],
++        "segments": ["hello。"],
++        "model_loaded": False,
++        "onnx_loaded": False,
++    }
++
++
++def test_render_imports_sdk_on_worker_and_keeps_existing_cache_and_arguments(
++    tmp_path: Path,
++) -> None:
++    result = probe(
++        tmp_path,
++        STUB_SDK
++        + """async def render_twice():
++    first = await speaker.render('hello', rate=1.2, pitch=0.3, energy=0.5)
++    second = await speaker.render('again', rate=0.1, pitch=-0.3, energy=0.5)
++    return [first[:4].decode(), second[:4].decode()]
++headers = asyncio.run(render_twice())
++print(json.dumps({'events':events, 'headers':headers, 'main_thread':main_thread,
++                  'onnx_loaded':'onnxruntime' in sys.modules}))
++""",
++    )
++    assert result["headers"] == ["RIFF", "RIFF"]
++    assert result["onnx_loaded"] is False
++    imports = [event for event in result["events"] if event[0] == "import"]
++    constructors = [event for event in result["events"] if event[0] == "construct"]
++    calls = [event for event in result["events"] if event[0] == "create"]
++    assert len(imports) == len(constructors) == 1
++    assert constructors[0][2:] == ["synthetic-model", "synthetic-voices"]
++    assert [event for event in result["events"] if event[0] == "g2p"] == [["g2p", "1.0"]]
++    assert len(calls) == 2
++    assert calls[0][2:] == ["synthetic-phonemes", [0.0, 1.0], 1.2, True]
++    assert calls[1][2:] == ["synthetic-phonemes", [0.0, 1.0], 0.65, True]
++    assert all(event[1] != result["main_thread"] for event in imports + constructors + calls)
++
++
++def test_sdk_failure_retains_type_and_occurs_only_on_owned_render(tmp_path: Path) -> None:
++    result = probe(
++        tmp_path,
++        """import asyncio, importlib.abc, json, sys, threading
++phase, imports = 'module-import', []
++main_thread = threading.get_ident()
++class SyntheticSDKError(RuntimeError):
++    pass
++class FailingSDK(importlib.abc.MetaPathFinder):
++    def find_spec(self, fullname, path, target=None):
++        if fullname in {'kokoro_onnx', 'onnxruntime'}:
++            imports.append([fullname, threading.get_ident()])
++            raise SyntheticSDKError('controlled SDK unavailable')
++        return None
++sys.meta_path.insert(0, FailingSDK())
++try:
++    from siro.services.audio.tts import KokoroLocalTTS
++    phase = 'construction'
++    speaker = KokoroLocalTTS('synthetic-model', 'synthetic-voices')
++    phase = 'render'
++    asyncio.run(speaker.render('hello', rate=1.0, pitch=0.0, energy=0.5))
++except SyntheticSDKError as error:
++    print(json.dumps({'phase':phase, 'type':type(error).__name__, 'message':str(error),
++                      'imports':imports, 'main_thread':main_thread}))
++""",
++    )
++    assert result["phase"] == "render"
++    assert result["type"] == "SyntheticSDKError"
++    assert result["message"] == "controlled SDK unavailable"
++    assert len(result["imports"]) == 1
++    assert result["imports"][0][0] == "kokoro_onnx"
++    assert result["imports"][0][1] != result["main_thread"]
++
++
++def test_render_cancellation_keeps_original_task_semantics_and_worker_can_finish(
++    tmp_path: Path,
++) -> None:
++    result = probe(
++        tmp_path,
++        STUB_SDK
++        + """block_create = True
++async def cancel_render():
++    task = asyncio.create_task(speaker.render('hello', rate=1.0, pitch=0.0, energy=0.5))
++    try:
++        if not await asyncio.to_thread(entered.wait, 3):
++            raise TimeoutError('controlled render did not start')
++        task.cancel()
++        try:
++            await task
++        except asyncio.CancelledError:
++            return True
++        raise AssertionError('cancelled render returned audio')
++    finally:
++        release.set()
++cancelled = asyncio.run(cancel_render())
++print(json.dumps({'cancelled':cancelled, 'finished':finished.is_set(),
++                  'events':events, 'main_thread':main_thread}))
++""",
++    )
++    assert result["cancelled"] is True
++    assert result["finished"] is True
++    imports = [event for event in result["events"] if event[0] == "import"]
++    calls = [event for event in result["events"] if event[0] == "create"]
++    assert len(imports) == len(calls) == 1
++    assert all(event[1] != result["main_thread"] for event in imports + calls)
+diff --git a/tests/integration/test_unknown_effect_approval.py b/tests/integration/test_unknown_effect_approval.py
+index 2a71c27..ffddd73 100644
+--- a/tests/integration/test_unknown_effect_approval.py
++++ b/tests/integration/test_unknown_effect_approval.py
+@@ -306,7 +306,7 @@ async def test_sqlite_large_integer_atom_collision_does_not_validate_wrong_bindi
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_unextractable_numeric_key_does_not_validate_wrong_binding(tmp_path: Path) -> None:
++async def test_quoted_numeric_key_does_not_validate_wrong_binding(tmp_path: Path) -> None:
+     fixture = await fixture_at(tmp_path)
+     original: dict[str, object] = {"argv": ["synthetic-operation"], 'quote"key': 2**80}
+     run_id, old = await prior_call(fixture, arguments=original)
+@@ -332,7 +332,11 @@ async def test_unextractable_numeric_key_does_not_validate_wrong_binding(tmp_pat
+             (run_id,),
+         ).fetchone()
+     )
+-    assert row is not None and row["call_lexeme"] is None and row["proposal_lexeme"] is None
++    assert row is not None
++    # Quoted-key lookup may be unsupported or exact, depending on SQLite.
++    # Neither case permits treating the different numeric payloads as a valid binding.
++    assert row["call_lexeme"] in (None, str(2**80))
++    assert row["proposal_lexeme"] in (None, str(2**80 + 1))
+     await assert_automatic_hold(fixture, await fresh_proposal(fixture, arguments=original))
+ 
+ 

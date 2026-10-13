@@ -1,0 +1,53 @@
+[
+  {
+    "command": [
+      ".venv/bin/ruff",
+      "format",
+      "--check",
+      "scripts/check_secrets.py",
+      "tests/integration/test_ci_secret_gate.py"
+    ],
+    "exit_code": 0,
+    "stdout": "2 files already formatted\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      ".venv/bin/ruff",
+      "check",
+      "scripts/check_secrets.py",
+      "tests/integration/test_ci_secret_gate.py"
+    ],
+    "exit_code": 0,
+    "stdout": "All checks passed!\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      ".venv/bin/mypy",
+      "scripts/check_secrets.py",
+      "tests/integration/test_ci_secret_gate.py"
+    ],
+    "exit_code": 0,
+    "stdout": "Success: no issues found in 2 source files\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check",
+      "--",
+      "scripts",
+      "tests",
+      "rust-toolchain.toml",
+      "docs/CONTRACTS.md",
+      "docs/DECISIONS.md",
+      "docs/runtime-evolution/FIX_REGISTER.md",
+      "docs/runtime-evolution/RUNTIME_EVOLUTION_ROADMAP.md"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

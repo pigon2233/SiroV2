@@ -21,7 +21,7 @@
 - Acceptance criteria: importguard and existing exact Busy diagnostic invariant PASS; normal existing SDK path retained; precise TTS-only local diff, all other existing source untouched for this card; final source-bound checks.
 - Rollback method: disposable exact TTS/newtest reverse/reapply, preserve all data and prior FIX-016 source; source rollback reopens owner initialization gate and is not authorization to deploy unsafe state.
 - Risk: optional SDK errors appear at first owned render; propagate original errors, existing offloop cancellation still owns actual render. No promise to cancel third-party blocking imports beyond existing worker contract.
-- Status: DONE / VERIFIED (D54 scoped owner/import leaf; 5RED→PASS/34focusedPASS/exact2rollback/localfull1702 and remote1702PASS). Removes only FIX-017 owner-import gate; FIX-016 overall CI still IN_PROGRESS for its generated Git-metadata false positive. RI-005/006 onward implementation remains BLOCKED_BY_FIX: FIX-016; no RT history renumber/reopen.
+- Status: DONE / VERIFIED (D54 scoped owner/import leaf; 5RED→PASS/34focusedPASS/exact2rollback/localfull1702 and remote1702PASS). Removes only FIX-017 owner-import gate; FIX-016 CI now independently DONE / VERIFIED at exact4811db2 Actions38395186441; source/production gates remain scoped. RI-005/006 onward no longer BLOCKED_BY_FIX: FIX-016/FIX-017; original release-integration/product gates remain; no RT history renumber/reopen.
 
 
 ## FIX-016 — clean checkout CI bootstrap / public-pin verification
@@ -45,7 +45,7 @@
 - Acceptance criteria: required checks remain enabled; local full check and remote exact head succeed; all production/old tests/locks/pins byte-identical; exact source rollback; owned temporary children/files cleaned.
 - Rollback method: disposable exact four-file reverse/reapply; revert two build files/remove helper and newtest only. Preserve data, prior source/Git backup; rolling back reopens FAILED_VERIFICATION, cannot claim gate removed.
 - Risk: public pins change needs re-audit; strict malformed rejection can expose scanner format changes. Does not certify real providers/product quality/deployment.
-- Status: IN_PROGRESS / FAILED_VERIFICATION for overall CI until final full local and exact-head remote run. RI-005/006 subsequent implementation BLOCKED_BY_FIX: FIX-016; read-only planning remains allowed. Existing RT DONE history unchanged.
+- Status: DONE / VERIFIED (D53). Exact4811db2 Actions38395186441 SUCCESS; trueGitcheckout/fetch fullscripts/checkEXIT0/492.046s,1703PASS/5opt-inSKIP/7warnings. Original102extraenvironment-skips gone; all6Rust/static/schema/scanner gates pass. Removes only FIX-016 CI blocker; RI-005 releaseintegration and productquality gates remain. Exact9combinedrollback and finalsourcehashes verified; existingRTDONE history unchanged.
 
 
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED

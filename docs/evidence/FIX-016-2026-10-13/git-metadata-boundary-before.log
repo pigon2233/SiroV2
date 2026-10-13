@@ -1,0 +1,51 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_check_excludes_git_metadata_and_keeps_application_secret_checks _____
+
+public_checkout = PosixPath('/tmp/pytest-of-jasonliao/pytest-44/test_check_excludes_git_metada0')
+
+    def test_check_excludes_git_metadata_and_keeps_application_secret_checks(
+        public_checkout: Path,
+    ) -> None:
+        generated = public_checkout / ".git/FETCH_HEAD"
+        generated.parent.mkdir()
+        commit = hashlib.sha1(b"synthetic-public-commit").hexdigest()
+        # Checkout-by-commit includes the fetched identifier in its quoted descriptor.
+        generated.write_text(f"{commit}\t\t'{commit}' of https://github.com/pigon2233/SiroV2\n")
+        source_paths = ["new_provider.py", ".github/workflows/check.yml", ".gitignore"]
+        synthetic = hashlib.sha256(b"ci-boundary-test-credential-never-valid").hexdigest()
+        for path in source_paths:
+            target = public_checkout / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(f'api_key = "{synthetic}"\n')
+        match = re.search(r"--exclude-files '([^']+)'", (REPOSITORY / "scripts/check").read_text())
+        assert match is not None
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "detect_secrets",
+                "scan",
+                "--all-files",
+                "--no-verify",
+                "--exclude-files",
+                match[1],
+            ],
+            cwd=public_checkout,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
+        report = json.loads(result.stdout)
+>       assert generated.relative_to(public_checkout).as_posix() not in report["results"]
+E       AssertionError: assert '.git/FETCH_HEAD' not in {'.git/FETCH_HEAD': [{'type': 'Hex High Entropy String', 'filename': '.git/FETCH_HEAD', 'hashed_secret': 'b82d1b0f1420...ame': 'new_provider.py', 'hashed_secret': '0eca75d48bc6abac12dfdd8c10c71a837f84515a', 'is_verified': False, ...}], ...}
+E        +  where '.git/FETCH_HEAD' = as_posix()
+E        +    where as_posix = PosixPath('.git/FETCH_HEAD').as_posix
+E        +      where PosixPath('.git/FETCH_HEAD') = relative_to(PosixPath('/tmp/pytest-of-jasonliao/pytest-44/test_check_excludes_git_metada0'))
+E        +        where relative_to = PosixPath('/tmp/pytest-of-jasonliao/pytest-44/test_check_excludes_git_metada0/.git/FETCH_HEAD').relative_to
+
+tests/integration/test_ci_secret_gate.py:222: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_ci_secret_gate.py::test_check_excludes_git_metadata_and_keeps_application_secret_checks
+1 failed in 0.59s

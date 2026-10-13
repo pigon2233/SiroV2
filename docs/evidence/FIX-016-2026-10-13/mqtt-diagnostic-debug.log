@@ -1,0 +1,366 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /tmp/siro-fix016-pipeline-881skxo9/checkout/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /tmp/siro-fix016-pipeline-881skxo9/checkout
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.15.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 2 items
+
+tests/integration/test_mqtt_gateway.py::test_t27_ack_is_not_success_until_matching_state_readback PASSED
+tests/integration/test_mqtt_gateway.py::test_t27_authenticated_broker_lwt_retained_expired_and_duplicate_commands 
+-------------------------------- live log setup --------------------------------
+DEBUG    asyncio:selector_events.py:64 Using selector: EpollSelector
+-------------------------------- live log call ---------------------------------
+INFO     amqtt.broker.plugins:manager.py:211 Loading plugins from config
+DEBUG    amqtt.broker.plugins.FileAuthPlugin:authentication.py:162 Reading user database from /tmp/siro-fix016-pipeline-881skxo9/tmp/pytest-of-jasonliao/pytest-3/test_t27_authenticated_broker_0/passwords
+DEBUG    amqtt.broker.plugins.FileAuthPlugin:authentication.py:176 User 'siro-device' loaded
+INFO     amqtt.broker.plugins.FileAuthPlugin:authentication.py:179 1 user(s) loaded from /tmp/siro-fix016-pipeline-881skxo9/tmp/pytest-of-jasonliao/pytest-3/test_t27_authenticated_broker_0/passwords
+DEBUG    amqtt.broker.plugins:manager.py:260 Loading plugin amqtt.plugins.authentication.FileAuthPlugin
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state new to state starting...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    amqtt.broker:broker.py:244 State transition: new
+INFO     transitions.core:core.py:1176 Executed callback '<bound method Broker._log_state_change of <amqtt.broker.Broker object at 0x74deee323d10>>'
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state new. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state new exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state starting. Processing callbacks...
+INFO     transitions.core:core.py:131 Finished processing state starting enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.broker:broker.py:256 Broker starting
+INFO     amqtt.broker:broker.py:304 Listener 'default' bind to 127.0.0.1:40493 (max_connections=0)
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state starting to state started...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state starting. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state starting exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state started. Processing callbacks...
+INFO     transitions.core:core.py:131 Finished processing state started enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.broker:broker.py:270 Broker started
+INFO     amqtt.broker:broker.py:358 Starting session expiration monitor.
+INFO     amqtt.broker:broker.py:74 Listener 'default': 1/∞ connections acquired
+INFO     amqtt.broker:broker.py:462 Connection from 127.0.0.1:48537 on listener 'default'
+DEBUG    amqtt.broker:broker.py:917 Delete session : session amqtt/8wvS8IwSRjR9BMbH doesn't exist
+DEBUG    amqtt.broker:broker.py:538 Keep-alive timeout=60
+DEBUG    amqtt.broker.plugins.FileAuthPlugin:authentication.py:217 Authentication failure: password mismatch for user 'siro-device'
+DEBUG    amqtt.broker:broker.py:830 Authentication 'FileAuthPlugin' result: False
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state new to state connected...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state new. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state new exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state connected. Processing callbacks...
+INFO     transitions.core:core.py:1176 Executed callback '<bound method Session._on_enter_connected of Session(clientId=amqtt/8wvS8IwSRjR9BMbH, state=connected)>'
+INFO     transitions.core:core.py:131 Finished processing state connected enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.broker:broker.py:476 amqtt/8wvS8IwSRjR9BMbH Client disconnected
+INFO     amqtt.broker:broker.py:83 Listener 'default': 0/∞ connections acquired
+INFO     amqtt.broker:broker.py:74 Listener 'default': 1/∞ connections acquired
+INFO     amqtt.broker:broker.py:462 Connection from 127.0.0.1:57619 on listener 'default'
+DEBUG    amqtt.broker:broker.py:917 Delete session : session amqtt/GJqS8G0pjX3Xen1d doesn't exist
+DEBUG    amqtt.broker:broker.py:538 Keep-alive timeout=60
+DEBUG    amqtt.broker.plugins.FileAuthPlugin:authentication.py:214 Authentication success for user 'siro-device'
+DEBUG    amqtt.broker:broker.py:826 Authentication succeeded
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state new to state connected...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state new. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state new exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state connected. Processing callbacks...
+INFO     transitions.core:core.py:1176 Executed callback '<bound method Session._on_enter_connected of Session(clientId=amqtt/GJqS8G0pjX3Xen1d, state=connected)>'
+INFO     transitions.core:core.py:131 Finished processing state connected enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.broker:broker.py:592 amqtt/GJqS8G0pjX3Xen1d Start messages handling
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:451 amqtt/GJqS8G0pjX3Xen1d Starting reader coro
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:133 Handler tasks started
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:176 Begin messages delivery retries
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:193 End messages delivery retries
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:135 Handler ready
+DEBUG    amqtt.broker:broker.py:596 Retained messages queue size: 0
+DEBUG    amqtt.broker:broker.py:1117 Publishing 0 messages retained for session (client id=amqtt/GJqS8G0pjX3Xen1d)
+DEBUG    amqtt.broker:broker.py:600 Publish retained messages to a pre-existing session's subscriptions.
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:595 0 message(s) available for delivery
+DEBUG    amqtt.broker:broker.py:710 amqtt/GJqS8G0pjX3Xen1d handling subscription
+DEBUG    amqtt.broker:broker.py:1135 Begin broadcasting messages retained due to subscription on 'siro/devices/light-01/availability' from (client id=amqtt/GJqS8G0pjX3Xen1d)
+DEBUG    amqtt.broker:broker.py:1155 End broadcasting messages retained due to subscription on 'siro/devices/light-01/availability' from (client id=amqtt/GJqS8G0pjX3Xen1d)
+DEBUG    amqtt.broker:broker.py:1135 Begin broadcasting messages retained due to subscription on 'siro/devices/light-01/command' from (client id=amqtt/GJqS8G0pjX3Xen1d)
+DEBUG    amqtt.broker:broker.py:1155 End broadcasting messages retained due to subscription on 'siro/devices/light-01/command' from (client id=amqtt/GJqS8G0pjX3Xen1d)
+DEBUG    amqtt.broker:broker.py:637 {'siro/devices/light-01/availability': [(Session(clientId=amqtt/GJqS8G0pjX3Xen1d, state=connected), 1)], 'siro/devices/light-01/command': [(Session(clientId=amqtt/GJqS8G0pjX3Xen1d, state=connected), 1)]}
+INFO     amqtt.broker:broker.py:74 Listener 'default': 2/∞ connections acquired
+INFO     amqtt.broker:broker.py:462 Connection from 127.0.0.1:53415 on listener 'default'
+DEBUG    amqtt.broker:broker.py:917 Delete session : session amqtt/Djt7RtFSmEBrS22Z doesn't exist
+DEBUG    amqtt.broker:broker.py:538 Keep-alive timeout=2
+DEBUG    amqtt.broker.plugins.FileAuthPlugin:authentication.py:214 Authentication success for user 'siro-device'
+DEBUG    amqtt.broker:broker.py:826 Authentication succeeded
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state new to state connected...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state new. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state new exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state connected. Processing callbacks...
+INFO     transitions.core:core.py:1176 Executed callback '<bound method Session._on_enter_connected of Session(clientId=amqtt/Djt7RtFSmEBrS22Z, state=connected)>'
+INFO     transitions.core:core.py:131 Finished processing state connected enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.broker:broker.py:592 amqtt/Djt7RtFSmEBrS22Z Start messages handling
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:451 amqtt/Djt7RtFSmEBrS22Z Starting reader coro
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:133 Handler tasks started
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:176 Begin messages delivery retries
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:193 End messages delivery retries
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:135 Handler ready
+DEBUG    amqtt.broker:broker.py:596 Retained messages queue size: 0
+DEBUG    amqtt.broker:broker.py:1117 Publishing 0 messages retained for session (client id=amqtt/Djt7RtFSmEBrS22Z)
+DEBUG    amqtt.broker:broker.py:600 Publish retained messages to a pre-existing session's subscriptions.
+DEBUG    amqtt.broker:broker.py:1135 Begin broadcasting messages retained due to subscription on 'siro/devices/light-01/availability' from (client id=amqtt/Djt7RtFSmEBrS22Z)
+DEBUG    amqtt.broker:broker.py:1155 End broadcasting messages retained due to subscription on 'siro/devices/light-01/availability' from (client id=amqtt/Djt7RtFSmEBrS22Z)
+DEBUG    amqtt.broker:broker.py:1135 Begin broadcasting messages retained due to subscription on 'siro/devices/light-01/command' from (client id=amqtt/Djt7RtFSmEBrS22Z)
+DEBUG    amqtt.broker:broker.py:1155 End broadcasting messages retained due to subscription on 'siro/devices/light-01/command' from (client id=amqtt/Djt7RtFSmEBrS22Z)
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:595 0 message(s) available for delivery
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:468 amqtt/Djt7RtFSmEBrS22Z No more data (EOF received), stopping reader coro
+DEBUG    amqtt.mqtt.protocol.handler:broker_handler.py:91 Client disconnecting
+DEBUG    amqtt.mqtt.protocol.handler:broker_handler.py:93 Setting disconnect waiter result to None
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:549 Reader coro stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 0 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    amqtt.broker:broker.py:673 amqtt/Djt7RtFSmEBrS22Z Result from wait_disconnect: None
+DEBUG    amqtt.broker:broker.py:676 Will flag: True
+DEBUG    amqtt.broker:broker.py:678 Client (client id=amqtt/Djt7RtFSmEBrS22Z) disconnected abnormally, sending will message
+DEBUG    amqtt.broker:broker.py:843 Retaining message on topic siro/devices/light-01/availability
+DEBUG    amqtt.broker:broker.py:696 amqtt/Djt7RtFSmEBrS22Z Disconnecting session
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 0 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state connected to state disconnected...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state connected. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state connected exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state disconnected. Processing callbacks...
+DEBUG    amqtt.session:session.py:222 Session disconnected after 0 seconds.
+INFO     transitions.core:core.py:1176 Executed callback '<bound method Session._on_enter_disconnected of Session(clientId=amqtt/Djt7RtFSmEBrS22Z, state=disconnected)>'
+INFO     transitions.core:core.py:131 Finished processing state disconnected enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.broker:broker.py:1013 Processing broadcast message: {'session': Session(clientId=amqtt/Djt7RtFSmEBrS22Z, state=disconnected), 'topic': 'siro/devices/light-01/availability', 'data': b'offline', 'qos': 1}
+DEBUG    amqtt.broker:broker.py:1046 Broadcasting message from (client id=amqtt/Djt7RtFSmEBrS22Z) on topic 'siro/devices/light-01/availability' to (client id=amqtt/GJqS8G0pjX3Xen1d)
+DEBUG    amqtt.broker:broker.py:1019 Topic 'siro/devices/light-01/availability' does not match filter 'siro/devices/light-01/command'
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:602 Delivering message None
+DEBUG    amqtt.broker:broker.py:476 amqtt/Djt7RtFSmEBrS22Z Client disconnected
+INFO     amqtt.broker:broker.py:83 Listener 'default': 1/∞ connections acquired
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:331 Add message to delivery
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:734 Message queue size: 1
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:602 Delivering message <amqtt.session.IncomingApplicationMessage object at 0x74deed6a7f40>
+DEBUG    amqtt.broker:broker.py:749 amqtt/GJqS8G0pjX3Xen1d handling message delivery
+DEBUG    amqtt.broker:broker.py:843 Retaining message on topic siro/devices/light-01/command
+DEBUG    amqtt.broker:broker.py:1013 Processing broadcast message: {'session': Session(clientId=amqtt/GJqS8G0pjX3Xen1d, state=connected), 'topic': 'siro/devices/light-01/command', 'data': b'{"command_id":"command-1","action":"light.set","desired_state":{"power":true},"expires_at":"2026-09-25T12:00:03Z"}'}
+DEBUG    amqtt.broker:broker.py:1019 Topic 'siro/devices/light-01/command' does not match filter 'siro/devices/light-01/availability'
+DEBUG    amqtt.broker:broker.py:1046 Broadcasting message from (client id=amqtt/GJqS8G0pjX3Xen1d) on topic 'siro/devices/light-01/command' to (client id=amqtt/GJqS8G0pjX3Xen1d)
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:595 0 message(s) available for delivery
+DEBUG    amqtt.mqtt.protocol.handler:broker_handler.py:91 Client disconnecting
+DEBUG    amqtt.mqtt.protocol.handler:broker_handler.py:93 Setting disconnect waiter result to DisconnectPacket(ts=2026-10-13 11:04:47.057559+00:00, fixed=MQTTFixedHeader(packet_type=14, flags=0, length=0), variable=None, payload=None)
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:468 amqtt/GJqS8G0pjX3Xen1d No more data (EOF received), stopping reader coro
+DEBUG    amqtt.mqtt.protocol.handler:broker_handler.py:91 Client disconnecting
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:549 Reader coro stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 1 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:156 Writer close failed due to I/O error.
+Traceback (most recent call last):
+  File "/tmp/siro-fix016-pipeline-881skxo9/checkout/.venv/lib/python3.12/site-packages/amqtt/mqtt/protocol/handler.py", line 149, in stop
+    await self.writer.close()
+  File "/tmp/siro-fix016-pipeline-881skxo9/checkout/.venv/lib/python3.12/site-packages/amqtt/adapters.py", line 193, in close
+    self._writer.write_eof()
+  File "/home/jasonliao/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/asyncio/streams.py", line 352, in write_eof
+    return self._transport.write_eof()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/asyncio/selector_events.py", line 1172, in write_eof
+    self._sock.shutdown(socket.SHUT_WR)
+OSError: [Errno 107] Transport endpoint is not connected
+DEBUG    amqtt.broker:broker.py:673 amqtt/GJqS8G0pjX3Xen1d Result from wait_disconnect: DisconnectPacket(ts=2026-10-13 11:04:47.057559+00:00, fixed=MQTTFixedHeader(packet_type=14, flags=0, length=0), variable=None, payload=None)
+DEBUG    amqtt.broker:broker.py:696 amqtt/GJqS8G0pjX3Xen1d Disconnecting session
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 0 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state connected to state disconnected...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state connected. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state connected exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state disconnected. Processing callbacks...
+DEBUG    amqtt.session:session.py:222 Session disconnected after 1 seconds.
+INFO     transitions.core:core.py:1176 Executed callback '<bound method Session._on_enter_disconnected of Session(clientId=amqtt/GJqS8G0pjX3Xen1d, state=disconnected)>'
+INFO     transitions.core:core.py:131 Finished processing state disconnected enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:602 Delivering message None
+INFO     amqtt.broker:broker.py:74 Listener 'default': 2/∞ connections acquired
+INFO     amqtt.broker:broker.py:462 Connection from 127.0.0.1:53745 on listener 'default'
+DEBUG    amqtt.broker:broker.py:917 Delete session : session amqtt/pH2X17oOTl6qKXSi doesn't exist
+DEBUG    amqtt.broker:broker.py:538 Keep-alive timeout=60
+DEBUG    amqtt.broker:broker.py:476 amqtt/GJqS8G0pjX3Xen1d Client disconnected
+INFO     amqtt.broker:broker.py:83 Listener 'default': 1/∞ connections acquired
+DEBUG    amqtt.broker.plugins.FileAuthPlugin:authentication.py:214 Authentication success for user 'siro-device'
+DEBUG    amqtt.broker:broker.py:826 Authentication succeeded
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state new to state connected...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state new. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state new exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state connected. Processing callbacks...
+INFO     transitions.core:core.py:1176 Executed callback '<bound method Session._on_enter_connected of Session(clientId=amqtt/pH2X17oOTl6qKXSi, state=connected)>'
+INFO     transitions.core:core.py:131 Finished processing state connected enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.broker:broker.py:592 amqtt/pH2X17oOTl6qKXSi Start messages handling
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:451 amqtt/pH2X17oOTl6qKXSi Starting reader coro
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:133 Handler tasks started
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:176 Begin messages delivery retries
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:193 End messages delivery retries
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:135 Handler ready
+DEBUG    amqtt.broker:broker.py:596 Retained messages queue size: 0
+DEBUG    amqtt.broker:broker.py:1117 Publishing 0 messages retained for session (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.broker:broker.py:600 Publish retained messages to a pre-existing session's subscriptions.
+DEBUG    amqtt.broker:broker.py:1135 Begin broadcasting messages retained due to subscription on 'siro/devices/light-01/availability' from (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.broker:broker.py:1143 matching : siro/devices/light-01/availability siro/devices/light-01/availability
+DEBUG    amqtt.broker:broker.py:1145 siro/devices/light-01/availability and siro/devices/light-01/availability match
+DEBUG    amqtt.broker:broker.py:1143 matching : siro/devices/light-01/command siro/devices/light-01/availability
+DEBUG    amqtt.broker:broker.py:1155 End broadcasting messages retained due to subscription on 'siro/devices/light-01/availability' from (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.broker:broker.py:1135 Begin broadcasting messages retained due to subscription on 'siro/devices/light-01/command' from (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.broker:broker.py:1143 matching : siro/devices/light-01/availability siro/devices/light-01/command
+DEBUG    amqtt.broker:broker.py:1143 matching : siro/devices/light-01/command siro/devices/light-01/command
+DEBUG    amqtt.broker:broker.py:1145 siro/devices/light-01/command and siro/devices/light-01/command match
+DEBUG    amqtt.broker:broker.py:1155 End broadcasting messages retained due to subscription on 'siro/devices/light-01/command' from (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:595 0 message(s) available for delivery
+DEBUG    amqtt.broker:broker.py:710 amqtt/pH2X17oOTl6qKXSi handling subscription
+DEBUG    amqtt.broker:broker.py:1135 Begin broadcasting messages retained due to subscription on 'siro/devices/light-01/command' from (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.broker:broker.py:1143 matching : siro/devices/light-01/availability siro/devices/light-01/command
+DEBUG    amqtt.broker:broker.py:1143 matching : siro/devices/light-01/command siro/devices/light-01/command
+DEBUG    amqtt.broker:broker.py:1145 siro/devices/light-01/command and siro/devices/light-01/command match
+DEBUG    amqtt.broker:broker.py:1155 End broadcasting messages retained due to subscription on 'siro/devices/light-01/command' from (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.broker:broker.py:637 {'siro/devices/light-01/availability': [(Session(clientId=amqtt/GJqS8G0pjX3Xen1d, state=disconnected), 1)], 'siro/devices/light-01/command': [(Session(clientId=amqtt/GJqS8G0pjX3Xen1d, state=disconnected), 1), (Session(clientId=amqtt/pH2X17oOTl6qKXSi, state=connected), 1)]}
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:331 Add message to delivery
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:734 Message queue size: 1
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:602 Delivering message <amqtt.session.IncomingApplicationMessage object at 0x74deec4e10c0>
+DEBUG    amqtt.broker:broker.py:749 amqtt/pH2X17oOTl6qKXSi handling message delivery
+DEBUG    amqtt.broker:broker.py:852 Clearing retained messages for topic 'siro/devices/light-01/command'
+DEBUG    amqtt.broker:broker.py:1013 Processing broadcast message: {'session': Session(clientId=amqtt/pH2X17oOTl6qKXSi, state=connected), 'topic': 'siro/devices/light-01/command', 'data': b''}
+DEBUG    amqtt.broker:broker.py:1019 Topic 'siro/devices/light-01/command' does not match filter 'siro/devices/light-01/availability'
+DEBUG    amqtt.broker:broker.py:1046 Broadcasting message from (client id=amqtt/pH2X17oOTl6qKXSi) on topic 'siro/devices/light-01/command' to (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:595 0 message(s) available for delivery
+INFO     amqtt.broker:broker.py:970 Task has been cancelled: <Task cancelled name='Task-36' coro=<ProtocolHandler.mqtt_publish() done, defined at /tmp/siro-fix016-pipeline-881skxo9/checkout/.venv/lib/python3.12/site-packages/amqtt/mqtt/protocol/handler.py:195>>
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:331 Add message to delivery
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:734 Message queue size: 1
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:602 Delivering message <amqtt.session.IncomingApplicationMessage object at 0x74deed6a7ac0>
+DEBUG    amqtt.broker:broker.py:749 amqtt/pH2X17oOTl6qKXSi handling message delivery
+DEBUG    amqtt.broker:broker.py:1013 Processing broadcast message: {'session': Session(clientId=amqtt/pH2X17oOTl6qKXSi, state=connected), 'topic': 'siro/devices/light-01/command', 'data': b'{"command_id":"command-1","action":"light.set","desired_state":{"power":true},"expires_at":"2026-09-25T12:00:03Z"}'}
+DEBUG    amqtt.broker:broker.py:1019 Topic 'siro/devices/light-01/command' does not match filter 'siro/devices/light-01/availability'
+DEBUG    amqtt.broker:broker.py:1046 Broadcasting message from (client id=amqtt/pH2X17oOTl6qKXSi) on topic 'siro/devices/light-01/command' to (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:595 0 message(s) available for delivery
+INFO     amqtt.broker:broker.py:387 Shutting down broker...
+DEBUG    amqtt.broker:broker.py:426 Stopping handler for session amqtt/8wvS8IwSRjR9BMbH
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 0 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    amqtt.broker:broker.py:429 Clearing all subscriptions for session amqtt/8wvS8IwSRjR9BMbH
+DEBUG    amqtt.broker:broker.py:426 Stopping handler for session amqtt/GJqS8G0pjX3Xen1d
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 0 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    amqtt.broker:broker.py:429 Clearing all subscriptions for session amqtt/GJqS8G0pjX3Xen1d
+DEBUG    amqtt.broker:broker.py:948 Removing subscription on topic 'siro/devices/light-01/availability' for client (client id=amqtt/GJqS8G0pjX3Xen1d)
+DEBUG    amqtt.broker:broker.py:948 Removing subscription on topic 'siro/devices/light-01/command' for client (client id=amqtt/GJqS8G0pjX3Xen1d)
+DEBUG    amqtt.broker:broker.py:426 Stopping handler for session amqtt/Djt7RtFSmEBrS22Z
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 0 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    amqtt.broker:broker.py:429 Clearing all subscriptions for session amqtt/Djt7RtFSmEBrS22Z
+DEBUG    amqtt.broker:broker.py:426 Stopping handler for session amqtt/pH2X17oOTl6qKXSi
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 1 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:535 Task cancelled, reader loop ending
+DEBUG    amqtt.mqtt.protocol.handler:broker_handler.py:91 Client disconnecting
+DEBUG    amqtt.mqtt.protocol.handler:broker_handler.py:93 Setting disconnect waiter result to None
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:549 Reader coro stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 0 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    amqtt.broker:broker.py:429 Clearing all subscriptions for session amqtt/pH2X17oOTl6qKXSi
+DEBUG    amqtt.broker:broker.py:948 Removing subscription on topic 'siro/devices/light-01/command' for client (client id=amqtt/pH2X17oOTl6qKXSi)
+DEBUG    amqtt.broker:broker.py:396 Clearing 1 retained messages
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state started to state stopping...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state started. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state started exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state stopping. Processing callbacks...
+INFO     transitions.core:core.py:131 Finished processing state stopping enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.broker:broker.py:673 amqtt/pH2X17oOTl6qKXSi Result from wait_disconnect: None
+DEBUG    amqtt.broker:broker.py:676 Will flag: False
+DEBUG    amqtt.broker:broker.py:696 amqtt/pH2X17oOTl6qKXSi Disconnecting session
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:159 Stopping 0 puback waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:160 Stopping 0 pucomp waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:161 Stopping 0 purec waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:162 Stopping 0 purel waiters
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:142 Waiting for tasks to be stopped
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:146 Closing writer
+DEBUG    transitions.core:core.py:440 Executed machine preparation callbacks before conditions.
+DEBUG    transitions.core:core.py:265 Initiating transition from state connected to state disconnected...
+DEBUG    transitions.core:core.py:269 Executed callbacks before conditions.
+DEBUG    transitions.core:core.py:275 Executed callback before transition.
+DEBUG    transitions.core:core.py:135 Exiting state connected. Processing callbacks...
+INFO     transitions.core:core.py:137 Finished processing state connected exit callbacks.
+DEBUG    transitions.core:core.py:129 Entering state disconnected. Processing callbacks...
+DEBUG    amqtt.session:session.py:222 Session disconnected after 0 seconds.
+INFO     transitions.core:core.py:1176 Executed callback '<bound method Session._on_enter_disconnected of Session(clientId=amqtt/pH2X17oOTl6qKXSi, state=disconnected)>'
+INFO     transitions.core:core.py:131 Finished processing state disconnected enter callbacks.
+DEBUG    transitions.core:core.py:281 Executed callback after transition.
+DEBUG    transitions.core:core.py:430 Executed machine finalize callbacks
+DEBUG    amqtt.mqtt.protocol.handler:handler.py:602 Delivering message None
+DEBUG    amqtt.broker:broker.py:476 amqtt/pH2X17oOTl6qKXSi Client disconnected
+INFO     amqtt.broker:broker.py:83 Listener 'default': 0/∞ connections acquired
+INFO     amqtt.broker:broker.py:1002 Task has been cancelled: <Task cancelled name='Task-63' coro=<ProtocolHandler.mqtt_publish() done, defined at /tmp/siro-fix016-pipeline-881skxo9/checkout/.venv/lib/python3.12/site-packages/amqtt/mqtt/protocol/handler.py:195>>

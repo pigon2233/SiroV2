@@ -1,0 +1,52 @@
+{
+  "source_snapshot": "d1f5d07c6c9ab8e8f17b091fcf9ea387685803d5",
+  "clean_archive": true,
+  "main_private_tree_scan": false,
+  "main_index_changed": false,
+  "shared_tools_only": true,
+  "python": "3.14.4",
+  "detect-secrets": "1.5.0",
+  "ruff": "0.16.8",
+  "scripts/check_sha256": "c546b640aea140afa928e892d1cede455b42061cab09f6d2099a141d90f595fb",
+  "commands": [
+    {
+      "command": "detect-secrets scan --all-files --exclude-files original scripts/check regex",
+      "exit_code": 0,
+      "report": "scan-original-public.json"
+    },
+    {
+      "command": "original scripts/check JSON results failure gate",
+      "exit_code": 1,
+      "report": "scan-original-gate.log"
+    },
+    {
+      "command": "ruff format --check .",
+      "exit_code": 0,
+      "report": "scan-original-format.log"
+    },
+    {
+      "command": "ruff check .",
+      "exit_code": 0,
+      "report": "scan-original-lint.log"
+    },
+    {
+      "command": "python scripts/setup_context_tokenizer.py (PYTHONPATH=clean snapshot src)",
+      "exit_code": 0,
+      "report": "scan-public-tokenizer-setup.log"
+    }
+  ],
+  "full_scripts_check": "NOT_RUN by this subagent; Rust/bootstrap/full pytest owned by root",
+  "post_setup_secret_scan": {
+    "status": "COMPLETED",
+    "exit_code": 0,
+    "raw_findings": 6,
+    "report": "scan-with-public-tokenizer.json",
+    "same_original_scanner_options": true
+  },
+  "reviewed_false_positives": 6,
+  "diagnostic_no_verify_scan": {
+    "exit_code": 0,
+    "not_original_ci_gate": true,
+    "report": "scan-with-public-tokenizer-diagnostic-no-verify.json"
+  }
+}
