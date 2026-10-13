@@ -9,6 +9,7 @@ import sqlite3
 import tempfile
 from collections.abc import Sequence
 from contextlib import closing
+from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.resources import files
@@ -339,23 +340,82 @@ class SQLiteStore:
 
     async def backup_to(self, destination: Path) -> None:
         async with self._writer_lock:
-            await asyncio.to_thread(self._backup_sync, destination)
+            cancelled = ThreadEvent()
+            context = copy_context()
+            job = asyncio.get_running_loop().run_in_executor(
+                None, context.run, self._backup_sync, destination, cancelled
+            )
+            cancellation_requested = False
+            while not job.done():
+                try:
+                    await asyncio.wait((job,))
+                except asyncio.CancelledError:
+                    cancellation_requested = True
+                    cancelled.set()
+            job.result()
+            if cancellation_requested:
+                raise asyncio.CancelledError
 
-    def _backup_sync(self, destination: Path) -> None:
+    def _backup_sync(self, destination: Path, cancelled: ThreadEvent | None = None) -> None:
+        def check_cancelled() -> None:
+            if cancelled is not None and cancelled.is_set():
+                raise asyncio.CancelledError
+
+        def progress(status: int, _remaining: int, _total: int) -> None:
+            if status != sqlite3.SQLITE_DONE:
+                check_cancelled()
+
+        check_cancelled()
         destination.parent.mkdir(parents=True, exist_ok=True)
         handle, temporary_name = tempfile.mkstemp(
             prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
         )
-        os.close(handle)
         temporary = Path(temporary_name)
+        connections: list[sqlite3.Connection] = []
+
+        def close_connections(primary: BaseException | None = None) -> None:
+            failure: BaseException | None = None
+            while connections:
+                connection = connections.pop()
+                try:
+                    connection.close()
+                except BaseException as error:
+                    if primary is not None:
+                        primary.add_note(
+                            f"backup connection cleanup failed: {type(error).__name__}"
+                        )
+                    elif failure is None:
+                        failure = error
+                    else:
+                        failure.add_note(
+                            f"backup connection cleanup failed: {type(error).__name__}"
+                        )
+            if failure is not None:
+                raise failure
+
         try:
-            with self._connect() as source, self._connect(temporary) as target:
-                source.backup(target)
-                result = target.execute("PRAGMA integrity_check").fetchone()
-                if result is None or result[0] != "ok":
-                    raise sqlite3.DatabaseError("backup integrity check failed")
+            os.close(handle)
+            check_cancelled()
+            source = self._connect()
+            connections.append(source)
+            target = self._connect(temporary)
+            connections.append(target)
+            source.backup(target, pages=64, progress=progress)
+            check_cancelled()
+            result = target.execute("PRAGMA integrity_check").fetchone()
+            if result is None or result[0] != "ok":
+                raise sqlite3.DatabaseError("backup integrity check failed")
+            close_connections()
+            check_cancelled()
             os.replace(temporary, destination)
-        finally:
+        except BaseException as error:
+            close_connections(error)
+            try:
+                temporary.unlink(missing_ok=True)
+            except BaseException as cleanup_error:
+                error.add_note(f"backup temporary cleanup failed: {type(cleanup_error).__name__}")
+            raise
+        else:
             temporary.unlink(missing_ok=True)
 
     async def restore_from(self, source: Path) -> None:

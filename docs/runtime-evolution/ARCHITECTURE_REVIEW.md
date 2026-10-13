@@ -1,5 +1,31 @@
 # SIRO V2 Architecture Review
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+**Overall architecture health — YELLOW。** 單一owner與既有backup boundary方向成立；本輪修復已證local defect，不需推翻runtime設計。只改SQLiteStore既有backup方法與CLI `_backup` wrapper，新增兩份專項tests；operations、D49 restore body/SQL、D50 owner/Gateway/原tests、Core/權限/providers/voice/UI/launcher/deps不變。
+
+**Recent improvements。** retained executor Future＋copy_context＋backup-local cancel Event讓writer lock持有至真正IO／明確connection close／cleanup完成；ZIP沿原context順序清理。CLI單次backup在main thread把SIGINT轉成owned task.cancel並喚醒同loop，反覆中斷等待收尾，finally恢復原handler；primarytypederror優先，plainCancelledError不改，signal cancellation才轉KeyboardInterrupt/130。 真SIGINT先暴露selector盲區再局部修掉。
+
+**Architecture drift found。** 已修responsibility leakage：backup coroutine先退但thread仍寫，外層ZIP失去cleanup時間權威。未新增duplicated abstractions／Core lower dependency／global registry／circular coupling／compatibility bypass；CLI只composition-level signal lifetime。
+
+**Regression risk changes。** 新25 cases、相鄰240 PASS（17.60s）；完整 **1,578 PASS／5 real_provider 未選／3既有 warnings／198.40s**。Ruff311／mypy245／schema／diff PASS。 真8OS cancellation及25新cases成為新baseline；原D50 callers保持。actual blocking selector不能僅靠controlled task.cancel測試代替。
+
+**Technical debt introduced。** signalhandler lifetime和private optional cancel Event為最小operation-local obligation；D49restore與backup不硬抽共用manager。未知OS阻塞、cleanup refusal、備份retention與跨檔atomic仍DEFER/TECH_DEBT，無新立即重構依據。
+
+**Roadmap adjustments。** KEEP RI-005，SPLIT stopped-old-writer/actual approved launcher/handoff；FIX-015 DONE解除其局部block。KEEP RI-006唯讀proposal。CANCEL/REORDER/MERGE/額外DEFER numbered tasks無新增實證需求，不硬套動作、不重編RT。
+
+**New blockers。** 無剩餘confirmed FIX-015 scoped blocker；RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：first-adoption舊／非受管writer停止、真正signed launcher/version/readiness與人工批准handoff仍待各自驗收。FIX-002有用搜尋、FIX-005語音速度／人耳、FIX-006理解產品gate保持；RT-011/013/015原scopedDONE及編號不改。
+
+**Freeze zone changes。** backup取消staging由FAILED_VERIFICATION恢復限定VERIFIED，但module仍YELLOW；owner/Gateway YELLOW，合成tests/evidence GREEN，live DB/migration/權限/發布 RED。269/271既有baseline bytes保持，exact4 source-only temporary reverse/reapply PASS；保留所有資料與Git歷史，source rollback不授權再用舊危險取消路徑。
+
+**Hermes relevance。** REJECT重複backup/owner/executor/state-manager抽象；DEFER一般自改/自動發布及更多profiles至有caller、收益和獨立gate證据。已有局部行為已解決，不再重構。
+
+**Recommended next 3 RT task scopes（不排名、不換號）。** RI-005 first-adoption stopped-old-owner證明；RI-005 exact approved signed launcher/version/readiness/handoff；RI-006 sourced-failure→唯讀proposal，不自啟用/發布。產品FIX-002/005/006保持獨立品質驗收。
+
+沒有操作live8026、私人DB/chat/WAV/key/config/models/GPU或正式部署。所有DB/OS probes是自有合成資料；pause/fault injection明示，不能冒充真人產品或power-loss驗收。
+
+[驗收、分類、限制與回退](../evidence/FIX-015-2026-10-13/REPORT.md)。
+
 ## 2026-10-12 — RI-005 D50 owner / FIX-014 限定切片 VERIFIED
 
 受管Gateway與CLI demo/backup/restore/有DBrelease在實際操作前取得同一canonical data owner，持有到startup/server drain/owned SQLite IO完成；備份來源、explicit目的地、ZIP固定.tmp共同有序去重（最多3keys）、一份IOjoin fence。真正foreignowner/alias與連續SIGINT反例先RED→局部修復；禁止output/tmp覆寫sourceDB/inputsettings/archive或tmp指向final，不改Core/SQLite/operations/release/權限/voice/UI/launcher/deps。沒有第二套registry/restore/lockmanager或globalstate。FIX-014 **DONE/VERIFIED**。

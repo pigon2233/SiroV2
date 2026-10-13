@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import current_thread, main_thread
 from types import FrameType
 
 from siro import __version__
@@ -241,9 +242,39 @@ async def _restore_data(arguments: argparse.Namespace) -> int:
 
 
 def _backup(arguments: argparse.Namespace) -> int:
-    return asyncio.run(
-        _backup_data(arguments), loop_factory=getattr(arguments, "_data_loop_factory", None)
-    )
+    interrupted = False
+
+    async def run_backup() -> int:
+        if current_thread() is not main_thread():
+            return await _backup_data(arguments)
+        task = asyncio.current_task()
+        assert task is not None
+        loop = asyncio.get_running_loop()
+        previous = signal.getsignal(signal.SIGINT)
+
+        def request_cancel(signum: int, frame: FrameType | None) -> None:
+            nonlocal interrupted
+            interrupted = True
+            task.cancel()
+            loop.call_soon_threadsafe(lambda: None)
+
+        signal.signal(signal.SIGINT, request_cancel)
+        try:
+            return await _backup_data(arguments)
+        finally:
+            signal.signal(signal.SIGINT, previous)
+
+    try:
+        result = asyncio.run(
+            run_backup(), loop_factory=getattr(arguments, "_data_loop_factory", None)
+        )
+    except asyncio.CancelledError:
+        if interrupted:
+            raise KeyboardInterrupt from None
+        raise
+    if interrupted:
+        raise KeyboardInterrupt
+    return result
 
 
 def _restore(arguments: argparse.Namespace) -> int:

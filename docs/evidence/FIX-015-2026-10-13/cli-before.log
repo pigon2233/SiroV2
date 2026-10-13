@@ -1,0 +1,261 @@
+FFFF.                                                                    [100%]
+=================================== FAILURES ===================================
+_ test_backup_restores_existing_handler_and_preserves_primary_result[success] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b7c6b472fd0>
+outcome = 'success'
+
+    @pytest.mark.parametrize("outcome", ["success", "cancelled", "primary_error"])
+    def test_backup_restores_existing_handler_and_preserves_primary_result(
+        monkeypatch: pytest.MonkeyPatch, outcome: str
+    ) -> None:
+        original = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, _previous_handler)
+        problem = sqlite3.DatabaseError("synthetic backup failure")
+        loops: list[asyncio.AbstractEventLoop] = []
+    
+        def loop_factory() -> asyncio.AbstractEventLoop:
+            loop = asyncio.new_event_loop()
+            loops.append(loop)
+            return loop
+    
+        async def backup(arguments: argparse.Namespace) -> int:
+            handler = signal.getsignal(signal.SIGINT)
+            assert callable(handler) and handler is not _previous_handler
+            if outcome == "cancelled":
+                raise asyncio.CancelledError
+            if outcome == "primary_error":
+                handler(signal.SIGINT, None)
+                try:
+                    await asyncio.sleep(0)
+                except asyncio.CancelledError:
+                    raise problem from None
+            return 7
+    
+        monkeypatch.setattr(cli, "_backup_data", backup)
+        arguments = argparse.Namespace(_data_loop_factory=loop_factory)
+        try:
+            if outcome == "cancelled":
+                with pytest.raises(asyncio.CancelledError):
+                    cli._backup(arguments)
+            elif outcome == "primary_error":
+                with pytest.raises(sqlite3.DatabaseError) as error:
+                    cli._backup(arguments)
+                assert error.value is problem
+            else:
+>               assert cli._backup(arguments) == 7
+                       ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_backup_cli_cancellation.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/cli.py:244: in _backup
+    return asyncio.run(
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arguments = Namespace(_data_loop_factory=<function test_backup_restores_existing_handler_and_preserves_primary_result.<locals>.loop_factory at 0x7b7c6b3b90c0>)
+
+    async def backup(arguments: argparse.Namespace) -> int:
+        handler = signal.getsignal(signal.SIGINT)
+>       assert callable(handler) and handler is not _previous_handler
+E       assert (True and <function _previous_handler at 0x7b7c6be2d7a0> is not _previous_handler)
+E        +  where True = callable(<function _previous_handler at 0x7b7c6be2d7a0>)
+
+tests/integration/test_backup_cli_cancellation.py:36: AssertionError
+_ test_backup_restores_existing_handler_and_preserves_primary_result[cancelled] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b7c6b3e0050>
+outcome = 'cancelled'
+
+    @pytest.mark.parametrize("outcome", ["success", "cancelled", "primary_error"])
+    def test_backup_restores_existing_handler_and_preserves_primary_result(
+        monkeypatch: pytest.MonkeyPatch, outcome: str
+    ) -> None:
+        original = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, _previous_handler)
+        problem = sqlite3.DatabaseError("synthetic backup failure")
+        loops: list[asyncio.AbstractEventLoop] = []
+    
+        def loop_factory() -> asyncio.AbstractEventLoop:
+            loop = asyncio.new_event_loop()
+            loops.append(loop)
+            return loop
+    
+        async def backup(arguments: argparse.Namespace) -> int:
+            handler = signal.getsignal(signal.SIGINT)
+            assert callable(handler) and handler is not _previous_handler
+            if outcome == "cancelled":
+                raise asyncio.CancelledError
+            if outcome == "primary_error":
+                handler(signal.SIGINT, None)
+                try:
+                    await asyncio.sleep(0)
+                except asyncio.CancelledError:
+                    raise problem from None
+            return 7
+    
+        monkeypatch.setattr(cli, "_backup_data", backup)
+        arguments = argparse.Namespace(_data_loop_factory=loop_factory)
+        try:
+            if outcome == "cancelled":
+                with pytest.raises(asyncio.CancelledError):
+>                   cli._backup(arguments)
+
+tests/integration/test_backup_cli_cancellation.py:52: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/cli.py:244: in _backup
+    return asyncio.run(
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arguments = Namespace(_data_loop_factory=<function test_backup_restores_existing_handler_and_preserves_primary_result.<locals>.loop_factory at 0x7b7c6b3b8e00>)
+
+    async def backup(arguments: argparse.Namespace) -> int:
+        handler = signal.getsignal(signal.SIGINT)
+>       assert callable(handler) and handler is not _previous_handler
+E       assert (True and <function _previous_handler at 0x7b7c6be2d7a0> is not _previous_handler)
+E        +  where True = callable(<function _previous_handler at 0x7b7c6be2d7a0>)
+
+tests/integration/test_backup_cli_cancellation.py:36: AssertionError
+_ test_backup_restores_existing_handler_and_preserves_primary_result[primary_error] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b7c6b398dd0>
+outcome = 'primary_error'
+
+    @pytest.mark.parametrize("outcome", ["success", "cancelled", "primary_error"])
+    def test_backup_restores_existing_handler_and_preserves_primary_result(
+        monkeypatch: pytest.MonkeyPatch, outcome: str
+    ) -> None:
+        original = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, _previous_handler)
+        problem = sqlite3.DatabaseError("synthetic backup failure")
+        loops: list[asyncio.AbstractEventLoop] = []
+    
+        def loop_factory() -> asyncio.AbstractEventLoop:
+            loop = asyncio.new_event_loop()
+            loops.append(loop)
+            return loop
+    
+        async def backup(arguments: argparse.Namespace) -> int:
+            handler = signal.getsignal(signal.SIGINT)
+            assert callable(handler) and handler is not _previous_handler
+            if outcome == "cancelled":
+                raise asyncio.CancelledError
+            if outcome == "primary_error":
+                handler(signal.SIGINT, None)
+                try:
+                    await asyncio.sleep(0)
+                except asyncio.CancelledError:
+                    raise problem from None
+            return 7
+    
+        monkeypatch.setattr(cli, "_backup_data", backup)
+        arguments = argparse.Namespace(_data_loop_factory=loop_factory)
+        try:
+            if outcome == "cancelled":
+                with pytest.raises(asyncio.CancelledError):
+                    cli._backup(arguments)
+            elif outcome == "primary_error":
+                with pytest.raises(sqlite3.DatabaseError) as error:
+>                   cli._backup(arguments)
+
+tests/integration/test_backup_cli_cancellation.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/cli.py:244: in _backup
+    return asyncio.run(
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arguments = Namespace(_data_loop_factory=<function test_backup_restores_existing_handler_and_preserves_primary_result.<locals>.loop_factory at 0x7b7c6b3b8720>)
+
+    async def backup(arguments: argparse.Namespace) -> int:
+        handler = signal.getsignal(signal.SIGINT)
+>       assert callable(handler) and handler is not _previous_handler
+E       assert (True and <function _previous_handler at 0x7b7c6be2d7a0> is not _previous_handler)
+E        +  where True = callable(<function _previous_handler at 0x7b7c6be2d7a0>)
+
+tests/integration/test_backup_cli_cancellation.py:36: AssertionError
+__ test_repeated_backup_interrupts_wait_for_cleanup_before_keyboard_interrupt __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b7c6b396140>
+
+    def test_repeated_backup_interrupts_wait_for_cleanup_before_keyboard_interrupt(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        original = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, _previous_handler)
+        cancellations: list[int] = []
+        completed: list[str] = []
+    
+        async def backup(arguments: argparse.Namespace) -> int:
+            handler = signal.getsignal(signal.SIGINT)
+            assert callable(handler) and handler is not _previous_handler
+            for number in range(3):
+                handler(signal.SIGINT, None)
+                try:
+                    await asyncio.sleep(0)
+                except asyncio.CancelledError:
+                    cancellations.append(number)
+            await asyncio.sleep(0)
+            completed.append("owned cleanup resolved")
+            raise asyncio.CancelledError
+    
+        monkeypatch.setattr(cli, "_backup_data", backup)
+        try:
+            with pytest.raises(KeyboardInterrupt):
+>               cli._backup(argparse.Namespace())
+
+tests/integration/test_backup_cli_cancellation.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/cli.py:244: in _backup
+    return asyncio.run(
+/usr/lib/python3.14/asyncio/runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arguments = Namespace()
+
+    async def backup(arguments: argparse.Namespace) -> int:
+        handler = signal.getsignal(signal.SIGINT)
+>       assert callable(handler) and handler is not _previous_handler
+E       assert (True and <function _previous_handler at 0x7b7c6be2d7a0> is not _previous_handler)
+E        +  where True = callable(<function _previous_handler at 0x7b7c6be2d7a0>)
+
+tests/integration/test_backup_cli_cancellation.py:75: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_backup_cli_cancellation.py::test_backup_restores_existing_handler_and_preserves_primary_result[success]
+FAILED tests/integration/test_backup_cli_cancellation.py::test_backup_restores_existing_handler_and_preserves_primary_result[cancelled]
+FAILED tests/integration/test_backup_cli_cancellation.py::test_backup_restores_existing_handler_and_preserves_primary_result[primary_error]
+FAILED tests/integration/test_backup_cli_cancellation.py::test_repeated_backup_interrupts_wait_for_cleanup_before_keyboard_interrupt
+4 failed, 1 passed in 0.38s

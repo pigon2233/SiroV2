@@ -1,5 +1,17 @@
 # SIRO Runtime Evolution 規格
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+補強原取消invariant：backup writer lock與外層ZIP staging生命周期涵蓋actualIO、explicitconnectionclose、cleanup；不能把asynccaller cancelled或Future cancelled當作thread完成。Backup-local retainedFuture/copy_context/cancelEvent只實現既有責任，不新增runtime service。
+
+Composition entry SIGINT必须取消owned coroutine並喚醒其blockedloop；repeated SIGINT等實際backup resolve後恢復exacthandler/原interrupt。Cleanupsecondary保typedprimary＋type-onlynote，無primary失敗仍可見；publish後取消honestcommit/readback、不自retry。
+
+只改SQLiteStore既有backup方法與CLI `_backup` wrapper，新增兩份專項tests；operations、D49 restore body/SQL、D50 owner/Gateway/原tests、Core/權限/providers/voice/UI/launcher/deps不變。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：first-adoption舊／非受管writer停止、真正signed launcher/version/readiness與人工批准handoff仍待各自驗收。FIX-002有用搜尋、FIX-005語音速度／人耳、FIX-006理解產品gate保持；RT-011/013/015原scopedDONE及編號不改。
+
+[驗收、分類、限制與回退](../evidence/FIX-015-2026-10-13/REPORT.md)。
+
 > 2026-10-01 狀態說明：下列「尚未實作／僅設計」為 Phase 2 原始設計時點。當前逐卡完成與修正狀態以 RUNTIME_EVOLUTION_ROADMAP.md 及對應 evidence 為準。
 2026-09-30；狀態：設計完成、尚未實作。依使用者授權進入 Phase 2。依據為本目錄 Phase 1 稽核及固定 Hermes snapshot；不把未驗證的能力當成完成。
 

@@ -1,0 +1,671 @@
+FFFF.FFFFFFFFFF.FF                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_cancelled_backup_keeps_writer_owner_until_real_copy_finishes[1] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_cancelled_backup_keeps_wr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea102b0>
+cancellations = 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("cancellations", [1, 3])
+    async def test_cancelled_backup_keeps_writer_owner_until_real_copy_finishes(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancellations: int
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        pause = _BackupPause(store, monkeypatch)
+        backup = asyncio.create_task(store.backup_to(destination))
+        writes: list[str] = []
+    
+        def write(connection: sqlite3.Connection) -> None:
+            writes.append("queued")
+            connection.execute("UPDATE backup_fixture SET value='queued-write'")
+    
+        queued: asyncio.Task[None] | None = None
+        try:
+            await _wait(pause.entered)
+            assert len(pause.thread_ids) == 1, "a canceled copy must not be implicitly retried"
+            assert pause.thread_ids[0] != threading.get_ident(), "SQLite work must remain off-loop"
+            queued = asyncio.create_task(store.run_transaction(write))
+            await asyncio.sleep(0.01)
+            assert not queued.done()
+            for _ in range(cancellations):
+                backup.cancel()
+                await asyncio.sleep(0.01)
+>           assert not backup.done(), "cancelled caller must wait for its actual backup work"
+E           AssertionError: cancelled caller must wait for its actual backup work
+E           assert not True
+E            +  where True = <built-in method done of _asyncio.Task object at 0x7456cf40dc70>()
+E            +    where <built-in method done of _asyncio.Task object at 0x7456cf40dc70> = <Task cancelled name='Task-2' coro=<SQLiteStore.backup_to() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/persistence/sqlite.py:340>>.done
+
+tests/integration/test_sqlite_backup_lifecycle.py:109: AssertionError
+_____ test_cancelled_backup_keeps_writer_owner_until_real_copy_finishes[3] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_cancelled_backup_keeps_wr1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea40170>
+cancellations = 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("cancellations", [1, 3])
+    async def test_cancelled_backup_keeps_writer_owner_until_real_copy_finishes(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancellations: int
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        pause = _BackupPause(store, monkeypatch)
+        backup = asyncio.create_task(store.backup_to(destination))
+        writes: list[str] = []
+    
+        def write(connection: sqlite3.Connection) -> None:
+            writes.append("queued")
+            connection.execute("UPDATE backup_fixture SET value='queued-write'")
+    
+        queued: asyncio.Task[None] | None = None
+        try:
+            await _wait(pause.entered)
+            assert len(pause.thread_ids) == 1, "a canceled copy must not be implicitly retried"
+            assert pause.thread_ids[0] != threading.get_ident(), "SQLite work must remain off-loop"
+            queued = asyncio.create_task(store.run_transaction(write))
+            await asyncio.sleep(0.01)
+            assert not queued.done()
+            for _ in range(cancellations):
+                backup.cancel()
+                await asyncio.sleep(0.01)
+>           assert not backup.done(), "cancelled caller must wait for its actual backup work"
+E           AssertionError: cancelled caller must wait for its actual backup work
+E           assert not True
+E            +  where True = <built-in method done of _asyncio.Task object at 0x7456cf4adeb0>()
+E            +    where <built-in method done of _asyncio.Task object at 0x7456cf4adeb0> = <Task cancelled name='Task-7' coro=<SQLiteStore.backup_to() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/persistence/sqlite.py:340>>.done
+
+tests/integration/test_sqlite_backup_lifecycle.py:109: AssertionError
+____ test_cancelled_zip_backup_keeps_staging_until_join_then_removes_it[1] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_cancelled_zip_backup_keep0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cebfb680>
+cancellations = 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("cancellations", [1, 3])
+    async def test_cancelled_zip_backup_keeps_staging_until_join_then_removes_it(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancellations: int
+    ) -> None:
+        store = _database(tmp_path)
+        staging_root = tmp_path / "staging"
+        staging_root.mkdir()
+        monkeypatch.setattr(tempfile, "tempdir", str(staging_root))
+        config = tmp_path / "settings.json"
+        config.write_text(SiroSettings().model_dump_json(), encoding="utf-8")
+        config_before = config.read_bytes()
+        source_before = _value(store.path)
+        source_bytes = store.path.read_bytes()
+        destination = tmp_path / "archive.zip"
+        temporary_output = destination.with_suffix(".zip.tmp")
+        destination.write_bytes(b"synthetic-previous-archive")
+        temporary_output.write_bytes(b"synthetic-previous-archive-temporary")
+        pause = _BackupPause(store, monkeypatch)
+        backup = asyncio.create_task(create_backup_bundle(store, destination, config=config))
+        try:
+            await _wait(pause.entered)
+            snapshot = pause.paths[0]
+            assert snapshot.parent.is_dir() and snapshot.parent.parent == staging_root
+            for _ in range(cancellations):
+                backup.cancel()
+                await asyncio.sleep(0.01)
+>           assert not backup.done(), "ZIP context must await the actual owned snapshot"
+E           AssertionError: ZIP context must await the actual owned snapshot
+E           assert not True
+E            +  where True = <built-in method done of _asyncio.Task object at 0x7456cf482d50>()
+E            +    where <built-in method done of _asyncio.Task object at 0x7456cf482d50> = <Task cancelled name='Task-12' coro=<create_backup_bundle() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/operations.py:119>>.done
+
+tests/integration/test_sqlite_backup_lifecycle.py:155: AssertionError
+____ test_cancelled_zip_backup_keeps_staging_until_join_then_removes_it[3] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_cancelled_zip_backup_keep1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea36d50>
+cancellations = 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("cancellations", [1, 3])
+    async def test_cancelled_zip_backup_keeps_staging_until_join_then_removes_it(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancellations: int
+    ) -> None:
+        store = _database(tmp_path)
+        staging_root = tmp_path / "staging"
+        staging_root.mkdir()
+        monkeypatch.setattr(tempfile, "tempdir", str(staging_root))
+        config = tmp_path / "settings.json"
+        config.write_text(SiroSettings().model_dump_json(), encoding="utf-8")
+        config_before = config.read_bytes()
+        source_before = _value(store.path)
+        source_bytes = store.path.read_bytes()
+        destination = tmp_path / "archive.zip"
+        temporary_output = destination.with_suffix(".zip.tmp")
+        destination.write_bytes(b"synthetic-previous-archive")
+        temporary_output.write_bytes(b"synthetic-previous-archive-temporary")
+        pause = _BackupPause(store, monkeypatch)
+        backup = asyncio.create_task(create_backup_bundle(store, destination, config=config))
+        try:
+            await _wait(pause.entered)
+            snapshot = pause.paths[0]
+            assert snapshot.parent.is_dir() and snapshot.parent.parent == staging_root
+            for _ in range(cancellations):
+                backup.cancel()
+                await asyncio.sleep(0.01)
+>           assert not backup.done(), "ZIP context must await the actual owned snapshot"
+E           AssertionError: ZIP context must await the actual owned snapshot
+E           assert not True
+E            +  where True = <built-in method done of _asyncio.Task object at 0x7456cea01230>()
+E            +    where <built-in method done of _asyncio.Task object at 0x7456cea01230> = <Task cancelled name='Task-16' coro=<create_backup_bundle() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/operations.py:119>>.done
+
+tests/integration/test_sqlite_backup_lifecycle.py:155: AssertionError
+_________ test_raw_backup_cancel_after_commit_preserves_actual_output __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_raw_backup_cancel_after_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea06dd0>
+
+    @pytest.mark.asyncio
+    async def test_raw_backup_cancel_after_commit_preserves_actual_output(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        pause = _BackupPause(store, monkeypatch, after_copy=True)
+        task = asyncio.create_task(store.backup_to(destination))
+        try:
+            await _wait(pause.entered)
+            assert _value(destination) == "source-snapshot", "cancel must be after actual commit"
+            task.cancel()
+            await asyncio.sleep(0.01)
+            task.cancel()
+            await asyncio.sleep(0.01)
+>           assert not task.done() and store._writer_lock.locked()
+E           AssertionError: assert (not True)
+E            +  where True = <built-in method done of _asyncio.Task object at 0x7456cea646b0>()
+E            +    where <built-in method done of _asyncio.Task object at 0x7456cea646b0> = <Task cancelled name='Task-24' coro=<SQLiteStore.backup_to() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/persistence/sqlite.py:340>>.done
+
+tests/integration/test_sqlite_backup_lifecycle.py:221: AssertionError
+_ test_backup_primary_error_survives_repeated_cancel_without_unobserved_error __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_primary_error_surv0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea94050>
+
+    @pytest.mark.asyncio
+    async def test_backup_primary_error_survives_repeated_cancel_without_unobserved_error(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        failure = sqlite3.OperationalError("synthetic copy failure")
+        pause = _BackupPause(store, monkeypatch, failure=failure)
+        task = asyncio.create_task(store.backup_to(destination))
+        loop = asyncio.get_running_loop()
+        previous_handler = loop.get_exception_handler()
+        unobserved: list[dict[str, Any]] = []
+        loop.set_exception_handler(lambda _loop, context: unobserved.append(context))
+        try:
+            await _wait(pause.entered)
+            task.cancel()
+            await asyncio.sleep(0.01)
+            task.cancel()
+            await asyncio.sleep(0.01)
+>           assert not task.done()
+E           AssertionError: assert not True
+E            +  where True = <built-in method done of _asyncio.Task object at 0x7456ceac1220>()
+E            +    where <built-in method done of _asyncio.Task object at 0x7456ceac1220> = <Task cancelled name='Task-28' coro=<SQLiteStore.backup_to() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/persistence/sqlite.py:340>>.done
+
+tests/integration/test_sqlite_backup_lifecycle.py:253: AssertionError
+_________ test_backup_explicitly_closes_both_actual_connections[False] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_explicitly_closes_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456ceac87e0>
+copy_fails = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("copy_fails", [False, True])
+    async def test_backup_explicitly_closes_both_actual_connections(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, copy_fails: bool
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        failure = sqlite3.OperationalError("synthetic copy failure") if copy_fails else None
+        connections = _Connections(store, monkeypatch, failure=failure)
+        try:
+            if failure is None:
+                await store.backup_to(destination)
+                assert _value(destination) == "source-snapshot"
+            else:
+                with pytest.raises(sqlite3.OperationalError) as caught:
+                    await store.backup_to(destination)
+                assert caught.value is failure and not destination.exists()
+            assert len(connections.opened) == 2
+>           assert set(connections.close_attempts) == set(connections.opened)
+E           assert set() == {<test_sqlite...7456c02b14e0>}
+E             
+E             Extra items in the right set:
+E             <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c02ba020>
+E             <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c02b14e0>
+E             Use -v to get more diff
+
+tests/integration/test_sqlite_backup_lifecycle.py:352: AssertionError
+_________ test_backup_explicitly_closes_both_actual_connections[True] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_explicitly_closes_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea684b0>
+copy_fails = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("copy_fails", [False, True])
+    async def test_backup_explicitly_closes_both_actual_connections(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, copy_fails: bool
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        failure = sqlite3.OperationalError("synthetic copy failure") if copy_fails else None
+        connections = _Connections(store, monkeypatch, failure=failure)
+        try:
+            if failure is None:
+                await store.backup_to(destination)
+                assert _value(destination) == "source-snapshot"
+            else:
+                with pytest.raises(sqlite3.OperationalError) as caught:
+                    await store.backup_to(destination)
+                assert caught.value is failure and not destination.exists()
+            assert len(connections.opened) == 2
+>           assert set(connections.close_attempts) == set(connections.opened)
+E           assert set() == {<test_sqlite...7456c42ee4c0>}
+E             
+E             Extra items in the right set:
+E             <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c425cba0>
+E             <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c42ee4c0>
+E             Use -v to get more diff
+
+tests/integration/test_sqlite_backup_lifecycle.py:352: AssertionError
+__________ test_backup_target_open_failure_closes_already_open_source __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_target_open_failur0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cf68d880>
+
+    @pytest.mark.asyncio
+    async def test_backup_target_open_failure_closes_already_open_source(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        failure = sqlite3.OperationalError("synthetic target open failure")
+        connections = _Connections(store, monkeypatch, failure=failure, target_open_failure=True)
+        try:
+            with pytest.raises(sqlite3.OperationalError) as caught:
+                await store.backup_to(destination)
+            assert caught.value is failure and len(connections.opened) == 1
+>           assert connections.close_attempts == connections.opened
+E           assert [] == [<test_sqlite...7456c02b3840>]
+E             
+E             Right contains one more item: <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c02b3840>
+E             Use -v to get more diff
+
+tests/integration/test_sqlite_backup_lifecycle.py:373: AssertionError
+____ test_backup_primary_error_survives_connection_cleanup_refusal[source] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_primary_error_surv1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456ceac5850>
+close_failure = 'source'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("close_failure", ["source", "target"])
+    async def test_backup_primary_error_survives_connection_cleanup_refusal(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, close_failure: str
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        failure = sqlite3.OperationalError("synthetic primary copy failure")
+        connections = _Connections(store, monkeypatch, failure=failure, close_failure=close_failure)
+        try:
+            with pytest.raises(sqlite3.OperationalError) as caught:
+                await store.backup_to(destination)
+            assert caught.value is failure
+            assert len(connections.opened) == 2
+>           assert set(connections.close_attempts) == set(connections.opened)
+E           assert set() == {<test_sqlite...7456c4276ac0>}
+E             
+E             Extra items in the right set:
+E             <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c42ee280>
+E             <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c4276ac0>
+E             Use -v to get more diff
+
+tests/integration/test_sqlite_backup_lifecycle.py:393: AssertionError
+____ test_backup_primary_error_survives_connection_cleanup_refusal[target] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_primary_error_surv2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea56120>
+close_failure = 'target'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("close_failure", ["source", "target"])
+    async def test_backup_primary_error_survives_connection_cleanup_refusal(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, close_failure: str
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        failure = sqlite3.OperationalError("synthetic primary copy failure")
+        connections = _Connections(store, monkeypatch, failure=failure, close_failure=close_failure)
+        try:
+            with pytest.raises(sqlite3.OperationalError) as caught:
+                await store.backup_to(destination)
+            assert caught.value is failure
+            assert len(connections.opened) == 2
+>           assert set(connections.close_attempts) == set(connections.opened)
+E           assert set() == {<test_sqlite...7456c02b9de0>}
+E             
+E             Extra items in the right set:
+E             <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c02b9de0>
+E             <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c02c06e0>
+E             Use -v to get more diff
+
+tests/integration/test_sqlite_backup_lifecycle.py:393: AssertionError
+_ test_backup_reports_connection_cleanup_refusal_after_successful_copy[source] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_reports_connection0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea57af0>
+close_failure = 'source'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("close_failure", ["source", "target"])
+    async def test_backup_reports_connection_cleanup_refusal_after_successful_copy(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, close_failure: str
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        connections = _Connections(store, monkeypatch, close_failure=close_failure)
+        try:
+>           with pytest.raises(OSError, match="synthetic-private-close-detail"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE OSError
+
+tests/integration/test_sqlite_backup_lifecycle.py:411: Failed
+_ test_backup_reports_connection_cleanup_refusal_after_successful_copy[target] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_reports_connection1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea56ba0>
+close_failure = 'target'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("close_failure", ["source", "target"])
+    async def test_backup_reports_connection_cleanup_refusal_after_successful_copy(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, close_failure: str
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        connections = _Connections(store, monkeypatch, close_failure=close_failure)
+        try:
+>           with pytest.raises(OSError, match="synthetic-private-close-detail"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE OSError
+
+tests/integration/test_sqlite_backup_lifecycle.py:411: Failed
+_________ test_backup_primary_error_survives_temporary_cleanup_refusal _________
+
+self = <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c427d1b0>
+target = <test_sqlite_backup_lifecycle._Connections.__init__.<locals>.Connection object at 0x7456c42795f0>
+pages = -1, progress = None, name = 'main', sleep = 0.25
+
+    def backup(
+        self,
+        target: sqlite3.Connection,
+        *,
+        pages: int = -1,
+        progress: Callable[[int, int, int], object] | None = None,
+        name: str = "main",
+        sleep: float = 0.25,
+    ) -> None:
+        if failure is not None:
+>           raise failure
+E           sqlite3.OperationalError: synthetic primary copy failure
+
+tests/integration/test_sqlite_backup_lifecycle.py:297: OperationalError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_primary_error_surv3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea57cb0>
+
+    @pytest.mark.asyncio
+    async def test_backup_primary_error_survives_temporary_cleanup_refusal(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store = _database(tmp_path)
+        destination = tmp_path / "snapshot.db"
+        failure = sqlite3.OperationalError("synthetic primary copy failure")
+        connections = _Connections(store, monkeypatch, failure=failure)
+        native_unlink = Path.unlink
+        refused: list[Path] = []
+    
+        def unlink(path: Path, missing_ok: bool = False) -> None:
+            if path.parent == tmp_path and path.name.startswith(".snapshot.db."):
+                refused.append(path)
+                raise OSError("synthetic-private-cleanup-detail-must-not-enter-notes")
+            native_unlink(path, missing_ok=missing_ok)
+    
+        monkeypatch.setattr(Path, "unlink", unlink)
+        try:
+            with pytest.raises(sqlite3.OperationalError) as caught:
+>               await store.backup_to(destination)
+
+tests/integration/test_sqlite_backup_lifecycle.py:440: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/persistence/sqlite.py:342: in backup_to
+    await asyncio.to_thread(self._backup_sync, destination)
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:359: in _backup_sync
+    temporary.unlink(missing_ok=True)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_backup_primary_error_surv3/.snapshot.db.ac3nzgxx.tmp')
+missing_ok = True
+
+    def unlink(path: Path, missing_ok: bool = False) -> None:
+        if path.parent == tmp_path and path.name.startswith(".snapshot.db."):
+            refused.append(path)
+>           raise OSError("synthetic-private-cleanup-detail-must-not-enter-notes")
+E           OSError: synthetic-private-cleanup-detail-must-not-enter-notes
+
+tests/integration/test_sqlite_backup_lifecycle.py:434: OSError
+_ test_real_copy_cancellation_before_final_publication_preserves_prior_backup[copying] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_real_copy_cancellation_be0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea57bd0>
+pause_at = 'copying'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("pause_at", ["copying", "copy_done"])
+    async def test_real_copy_cancellation_before_final_publication_preserves_prior_backup(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pause_at: str
+    ) -> None:
+        """DONE commits the owned temporary copy; publication remains a separate boundary."""
+    
+        store = _database(tmp_path)
+        with closing(sqlite3.connect(store.path)) as connection, connection:
+            connection.execute("CREATE TABLE backup_payload(value BLOB)")
+            connection.executemany("INSERT INTO backup_payload VALUES (zeroblob(8192))", [()] * 128)
+        source_before = store.path.read_bytes()
+        destination = tmp_path / "snapshot.db"
+        with closing(sqlite3.connect(destination)) as connection, connection:
+            connection.execute("CREATE TABLE backup_fixture(value TEXT NOT NULL)")
+            connection.execute("INSERT INTO backup_fixture VALUES ('prior-backup')")
+        destination_before = destination.read_bytes()
+        entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+        statuses: list[int] = []
+        opened: list[sqlite3.Connection] = []
+        native_connect = sqlite3.connect
+        original_backup = store._backup_sync
+    
+        class Connection(sqlite3.Connection):
+            def backup(
+                self,
+                target: sqlite3.Connection,
+                *,
+                pages: int = -1,
+                progress: Callable[[int, int, int], object] | None = None,
+                name: str = "main",
+                sleep: float = 0.25,
+            ) -> None:
+                def observe(status: int, remaining: int, total: int) -> None:
+                    statuses.append(status)
+                    at_boundary = (
+                        status == sqlite3.SQLITE_DONE
+                        if pause_at == "copy_done"
+                        else status != sqlite3.SQLITE_DONE
+                    )
+                    if at_boundary and not entered.is_set():
+                        entered.set()
+                        assert release.wait(4), "synthetic real-copy progress release missing"
+                    if progress is not None:
+                        progress(status, remaining, total)
+    
+                # Force several genuine copy steps; only the pause timing is controlled.
+                super().backup(target, pages=1, progress=observe, name=name, sleep=sleep)
+    
+        def connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+            kwargs["factory"] = Connection
+            kwargs["check_same_thread"] = False  # Owner can clean refused/old-source fixture handles.
+            connection = native_connect(*args, **kwargs)
+            opened.append(connection)
+            return connection
+    
+        def backup(path: Path, cancelled: threading.Event | None = None) -> None:
+            try:
+                if cancelled is None:
+                    original_backup(path)
+                else:
+                    original_backup(path, cancelled)
+            finally:
+                finished.set()
+    
+        monkeypatch.setattr(sqlite3, "connect", connect)
+        monkeypatch.setattr(store, "_backup_sync", backup)
+        task = asyncio.create_task(store.backup_to(destination))
+        try:
+            await _wait(entered)
+            assert destination.read_bytes() == destination_before
+            assert _value(destination) == "prior-backup"
+            for _ in range(3):
+                task.cancel()
+                await asyncio.sleep(0.01)
+>           assert not task.done() and store._writer_lock.locked()
+E           AssertionError: assert (not True)
+E            +  where True = <built-in method done of _asyncio.Task object at 0x7456cea3da90>()
+E            +    where <built-in method done of _asyncio.Task object at 0x7456cea3da90> = <Task cancelled name='Task-59' coro=<SQLiteStore.backup_to() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/persistence/sqlite.py:340>>.done
+
+tests/integration/test_sqlite_backup_lifecycle.py:547: AssertionError
+_ test_real_copy_cancellation_before_final_publication_preserves_prior_backup[copy_done] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-4/test_real_copy_cancellation_be1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7456cea57540>
+pause_at = 'copy_done'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("pause_at", ["copying", "copy_done"])
+    async def test_real_copy_cancellation_before_final_publication_preserves_prior_backup(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pause_at: str
+    ) -> None:
+        """DONE commits the owned temporary copy; publication remains a separate boundary."""
+    
+        store = _database(tmp_path)
+        with closing(sqlite3.connect(store.path)) as connection, connection:
+            connection.execute("CREATE TABLE backup_payload(value BLOB)")
+            connection.executemany("INSERT INTO backup_payload VALUES (zeroblob(8192))", [()] * 128)
+        source_before = store.path.read_bytes()
+        destination = tmp_path / "snapshot.db"
+        with closing(sqlite3.connect(destination)) as connection, connection:
+            connection.execute("CREATE TABLE backup_fixture(value TEXT NOT NULL)")
+            connection.execute("INSERT INTO backup_fixture VALUES ('prior-backup')")
+        destination_before = destination.read_bytes()
+        entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+        statuses: list[int] = []
+        opened: list[sqlite3.Connection] = []
+        native_connect = sqlite3.connect
+        original_backup = store._backup_sync
+    
+        class Connection(sqlite3.Connection):
+            def backup(
+                self,
+                target: sqlite3.Connection,
+                *,
+                pages: int = -1,
+                progress: Callable[[int, int, int], object] | None = None,
+                name: str = "main",
+                sleep: float = 0.25,
+            ) -> None:
+                def observe(status: int, remaining: int, total: int) -> None:
+                    statuses.append(status)
+                    at_boundary = (
+                        status == sqlite3.SQLITE_DONE
+                        if pause_at == "copy_done"
+                        else status != sqlite3.SQLITE_DONE
+                    )
+                    if at_boundary and not entered.is_set():
+                        entered.set()
+                        assert release.wait(4), "synthetic real-copy progress release missing"
+                    if progress is not None:
+                        progress(status, remaining, total)
+    
+                # Force several genuine copy steps; only the pause timing is controlled.
+                super().backup(target, pages=1, progress=observe, name=name, sleep=sleep)
+    
+        def connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+            kwargs["factory"] = Connection
+            kwargs["check_same_thread"] = False  # Owner can clean refused/old-source fixture handles.
+            connection = native_connect(*args, **kwargs)
+            opened.append(connection)
+            return connection
+    
+        def backup(path: Path, cancelled: threading.Event | None = None) -> None:
+            try:
+                if cancelled is None:
+                    original_backup(path)
+                else:
+                    original_backup(path, cancelled)
+            finally:
+                finished.set()
+    
+        monkeypatch.setattr(sqlite3, "connect", connect)
+        monkeypatch.setattr(store, "_backup_sync", backup)
+        task = asyncio.create_task(store.backup_to(destination))
+        try:
+            await _wait(entered)
+            assert destination.read_bytes() == destination_before
+            assert _value(destination) == "prior-backup"
+            for _ in range(3):
+                task.cancel()
+                await asyncio.sleep(0.01)
+>           assert not task.done() and store._writer_lock.locked()
+E           AssertionError: assert (not True)
+E            +  where True = <built-in method done of _asyncio.Task object at 0x7456cea3f3f0>()
+E            +    where <built-in method done of _asyncio.Task object at 0x7456cea3f3f0> = <Task cancelled name='Task-63' coro=<SQLiteStore.backup_to() done, defined at /home/jasonliao/文件/Siro/SiroV2/src/siro/persistence/sqlite.py:340>>.done
+
+tests/integration/test_sqlite_backup_lifecycle.py:547: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_cancelled_backup_keeps_writer_owner_until_real_copy_finishes[1]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_cancelled_backup_keeps_writer_owner_until_real_copy_finishes[3]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_cancelled_zip_backup_keeps_staging_until_join_then_removes_it[1]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_cancelled_zip_backup_keeps_staging_until_join_then_removes_it[3]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_raw_backup_cancel_after_commit_preserves_actual_output
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_backup_primary_error_survives_repeated_cancel_without_unobserved_error
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_backup_explicitly_closes_both_actual_connections[False]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_backup_explicitly_closes_both_actual_connections[True]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_backup_target_open_failure_closes_already_open_source
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_backup_primary_error_survives_connection_cleanup_refusal[source]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_backup_primary_error_survives_connection_cleanup_refusal[target]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_backup_reports_connection_cleanup_refusal_after_successful_copy[source]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_backup_reports_connection_cleanup_refusal_after_successful_copy[target]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_backup_primary_error_survives_temporary_cleanup_refusal
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_real_copy_cancellation_before_final_publication_preserves_prior_backup[copying]
+FAILED tests/integration/test_sqlite_backup_lifecycle.py::test_real_copy_cancellation_before_final_publication_preserves_prior_backup[copy_done]
+16 failed, 2 passed in 0.86s

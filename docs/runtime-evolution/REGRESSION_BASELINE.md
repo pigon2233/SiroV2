@@ -1,5 +1,19 @@
 # Regression baseline
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+新25 cases、相鄰240 PASS（17.60s）；完整 **1,578 PASS／5 real_provider 未選／3既有 warnings／198.40s**。Ruff311／mypy245／schema／diff PASS。
+
+新baseline：SQLite19（raw/ZIP repeated task cancellation、queued writer、真正multi-page non-DONE/DONE-before-publication、actual publication後取消、explicit close、typed primary/cleanup refusal、ContextVar隔離）＋CLI6（normal/plaincancel/typederror/late-success/repeatedcancel/非mainthread）。真8SIGINTfixture與source5path綁定，8stderr零；原D50 initialization-stage SIGINT tests保持。
+
+曾失敗的controlled handler缺wakeup版本留在full-before-wakeup.log（2FAIL/1575PASS/5未選/3warnings），不能當final；首次24 controlled PASS也不算trueOS驗收。原SQLite16/18-case RED是階段test版本，不冒充最終25case全RED。
+
+269/271既有baseline bytes保持，exact4 source-only temporary reverse/reapply PASS；保留所有資料與Git歷史，source rollback不授權再用舊危險取消路徑。
+
+real_provider、真人語音/理解、運行8026與powerloss NOT_RUN；沒有降低gate或改mock取代真整合。
+
+[驗收、分類、限制與回退](../evidence/FIX-015-2026-10-13/REPORT.md)。
+
 ## 2026-10-12 — RI-005 D50 owner / FIX-014 限定切片 VERIFIED
 
 受管Gateway與CLI demo/backup/restore/有DBrelease在實際操作前取得同一canonical data owner，持有到startup/server drain/owned SQLite IO完成；備份來源、explicit目的地、ZIP固定.tmp共同有序去重（最多3keys）、一份IOjoin fence。真正foreignowner/alias與連續SIGINT反例先RED→局部修復；禁止output/tmp覆寫sourceDB/inputsettings/archive或tmp指向final，不改Core/SQLite/operations/release/權限/voice/UI/launcher/deps。沒有第二套registry/restore/lockmanager或globalstate。FIX-014 **DONE/VERIFIED**。

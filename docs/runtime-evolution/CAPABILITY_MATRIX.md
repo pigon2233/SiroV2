@@ -1,5 +1,17 @@
 # Capability matrix
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+| 能力 | 已驗範圍 | 限制 |
+|---|---|---|
+| backup取消完整收尾 | SQLite19＋CLI6、真OS8SIGINT，raw/ZIP staged data與connections cleanup、3keys持至join | 合成資料/controlled timing；OS拒絕或無界阻塞不能假稱已清理 |
+| committed raw backup outcome | final publication後取消仍保有成果/readback，exit130不是rollback | 不新增retry或data rollback |
+| GitHub Desktop Git認證／public push | repository-local OS-vault helper；public7892已push/remoteverified，local backup history保留 | Git推送不等於正式runtime部署 |
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：first-adoption舊／非受管writer停止、真正signed launcher/version/readiness與人工批准handoff仍待各自驗收。FIX-002有用搜尋、FIX-005語音速度／人耳、FIX-006理解產品gate保持；RT-011/013/015原scopedDONE及編號不改。
+
+[驗收、分類、限制與回退](../evidence/FIX-015-2026-10-13/REPORT.md)。
+
 ## 2026-10-12 — RI-005 D50 owner / FIX-014 限定切片 VERIFIED
 
 受管Gateway與CLI demo/backup/restore/有DBrelease在實際操作前取得同一canonical data owner，持有到startup/server drain/owned SQLite IO完成；備份來源、explicit目的地、ZIP固定.tmp共同有序去重（最多3keys）、一份IOjoin fence。真正foreignowner/alias與連續SIGINT反例先RED→局部修復；禁止output/tmp覆寫sourceDB/inputsettings/archive或tmp指向final，不改Core/SQLite/operations/release/權限/voice/UI/launcher/deps。沒有第二套registry/restore/lockmanager或globalstate。FIX-014 **DONE/VERIFIED**。

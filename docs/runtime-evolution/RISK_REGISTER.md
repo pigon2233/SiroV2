@@ -1,5 +1,19 @@
 # Risk register
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+FIX-015 REQUIRED_FIX / MEDIUM / IMPLEMENTATION_BUG＋MISSING_INTEGRATION＋TEST_GAP已DONE：late IO staging重建／sidecars遺留風險在已驗profile下降。MINOR_FIX / LOW初版selector／coroutine teardown問題已局部修；沒有private正式data-loss或其他UID可讀證據。
+
+剩餘風險：無界OS阻塞須保持pending/owner，不承諾新cancel SLO；close/unlink refusal可見但不能假稱cleanup完成；final os.replace後取消可能已提交，readback再決定，零自動重送。ZIP DB/config跨檔atomic、powerloss、old/nonmanagedwriter、hostile sameUID races與真正launcher仍未證。
+
+新25 cases、相鄰240 PASS（17.60s）；完整 **1,578 PASS／5 real_provider 未選／3既有 warnings／198.40s**。Ruff311／mypy245／schema／diff PASS。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：first-adoption舊／非受管writer停止、真正signed launcher/version/readiness與人工批准handoff仍待各自驗收。FIX-002有用搜尋、FIX-005語音速度／人耳、FIX-006理解產品gate保持；RT-011/013/015原scopedDONE及編號不改。
+
+backup/owner/Gateway YELLOW；tests GREEN；live DB/migration/grants/release RED。沒有操作live8026、私人DB/chat/WAV/key/config/models/GPU或正式部署。所有DB/OS probes是自有合成資料；pause/fault injection明示，不能冒充真人產品或power-loss驗收。
+
+[驗收、分類、限制與回退](../evidence/FIX-015-2026-10-13/REPORT.md)。
+
 ## 2026-10-12 — RI-005 D50 owner / FIX-014 限定切片 VERIFIED
 
 受管Gateway與CLI demo/backup/restore/有DBrelease在實際操作前取得同一canonical data owner，持有到startup/server drain/owned SQLite IO完成；備份來源、explicit目的地、ZIP固定.tmp共同有序去重（最多3keys）、一份IOjoin fence。真正foreignowner/alias與連續SIGINT反例先RED→局部修復；禁止output/tmp覆寫sourceDB/inputsettings/archive或tmp指向final，不改Core/SQLite/operations/release/權限/voice/UI/launcher/deps。沒有第二套registry/restore/lockmanager或globalstate。FIX-014 **DONE/VERIFIED**。

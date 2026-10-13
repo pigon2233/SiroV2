@@ -1,5 +1,25 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+FIX-015 **DONE / VERIFIED**，解除ZIP取消後staging遺留的局部BLOCKED_BY_FIX；D50/FIX-014 scopedVERIFIED保持。
+
+只改SQLiteStore既有backup方法與CLI `_backup` wrapper，新增兩份專項tests；operations、D49 restore body/SQL、D50 owner/Gateway/原tests、Core/權限/providers/voice/UI/launcher/deps不變。retained executor Future＋copy_context＋backup-local cancel Event讓writer lock持有至真正IO／明確connection close／cleanup完成；ZIP沿原context順序清理。CLI單次backup在main thread把SIGINT轉成owned task.cancel並喚醒同loop，反覆中斷等待收尾，finally恢復原handler；primarytypederror優先，plainCancelledError不改，signal cancellation才轉KeyboardInterrupt/130。
+
+新25 cases、相鄰240 PASS（17.60s）；完整 **1,578 PASS／5 real_provider 未選／3既有 warnings／198.40s**。Ruff311／mypy245／schema／diff PASS。 真8程序SIGINT（含三次中斷／64-of-124-page複製中／真正發布後）全部130、stderr零、handler恢復、IOjoined、staging無遺留、3keys持到join、next-owner成果保留。
+
+初版CLI controlled24PASS漏selector喚醒，真8 timing FAIL與原D50 backup init2 FAIL先留RED；只補stdlib既有threadsafewakeup，不改舊tests或門檻。269/271既有baseline bytes保持，exact4 source-only temporary reverse/reapply PASS；保留所有資料與Git歷史，source rollback不授權再用舊危險取消路徑。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：first-adoption舊／非受管writer停止、真正signed launcher/version/readiness與人工批准handoff仍待各自驗收。FIX-002有用搜尋、FIX-005語音速度／人耳、FIX-006理解產品gate保持；RT-011/013/015原scopedDONE及編號不改。
+
+Architecture YELLOW；backup/owner/Gateway YELLOW、合成tests/evidence GREEN；running DB/migration/權限/發布 RED。KEEP RI-005並SPLIT剩餘adoption/handoff，KEEP RI-006只到唯讀提案；REJECT第二backup/owner/executor manager，不因抽象美觀重做DONE。
+
+GitHub Desktop OS-vault認證已接到repository-local Git helper；LFS用既有Desktop binary，hooks保留。public checkpoint `7892ecc`已推送／remote核對；原unpublished歷史留在local-backup/pre-public-push-2026-10-13，私有models/audio/cache未上傳。D51發布若執行，另核對其commit，不把7892稱為包含本修復。
+
+沒有操作live8026、私人DB/chat/WAV/key/config/models/GPU或正式部署。所有DB/OS probes是自有合成資料；pause/fault injection明示，不能冒充真人產品或power-loss驗收。
+
+[完整本輪驗收與回退](evidence/FIX-015-2026-10-13/REPORT.md)。
+
 ## 2026-10-12 — RI-005 D50 owner / FIX-014 限定切片 VERIFIED
 
 受管Gateway與CLI demo/backup/restore/有DBrelease在實際操作前取得同一canonical data owner，持有到startup/server drain/owned SQLite IO完成；備份來源、explicit目的地、ZIP固定.tmp共同有序去重（最多3keys）、一份IOjoin fence。真正foreignowner/alias與連續SIGINT反例先RED→局部修復；禁止output/tmp覆寫sourceDB/inputsettings/archive或tmp指向final，不改Core/SQLite/operations/release/權限/voice/UI/launcher/deps。沒有第二套registry/restore/lockmanager或globalstate。FIX-014 **DONE/VERIFIED**。

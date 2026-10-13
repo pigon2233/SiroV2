@@ -1,5 +1,19 @@
 # Migration plan
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+本輪是兩個既有production方法區域的incremental修復，無DB/schema/config/grant migration。只改SQLiteStore既有backup方法與CLI `_backup` wrapper，新增兩份專項tests；operations、D49 restore body/SQL、D50 owner/Gateway/原tests、Core/權限/providers/voice/UI/launcher/deps不變。
+
+每次backup只有一份ownedexecutorFuture/context/cancel flag；原ZIP TemporaryDirectory在await真正完成後cleanup，不新增adapter或永久fallback。成功既有API保持，舊不安全cancel行為明確撤銷。
+
+269/271既有baseline bytes保持，exact4 source-only temporary reverse/reapply PASS；保留所有資料與Git歷史，source rollback不授權再用舊危險取消路徑。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：first-adoption舊／非受管writer停止、真正signed launcher/version/readiness與人工批准handoff仍待各自驗收。FIX-002有用搜尋、FIX-005語音速度／人耳、FIX-006理解產品gate保持；RT-011/013/015原scopedDONE及編號不改。
+
+沒有操作live8026、私人DB/chat/WAV/key/config/models/GPU或正式部署。所有DB/OS probes是自有合成資料；pause/fault injection明示，不能冒充真人產品或power-loss驗收。
+
+[驗收、分類、限制與回退](../evidence/FIX-015-2026-10-13/REPORT.md)。
+
 > 2026-10-01 狀態說明：下列「尚未實作／僅設計」為 Phase 2 原始設計時點。當前逐卡完成與修正狀態以 RUNTIME_EVOLUTION_ROADMAP.md 及對應 evidence 為準。
 僅設計；使用者本輪授權 Phase 2，尚未執行任何 RT task。
 

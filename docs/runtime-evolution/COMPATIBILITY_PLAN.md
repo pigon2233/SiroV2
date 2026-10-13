@@ -1,5 +1,15 @@
 # Compatibility plan
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+Public backup_to(destination)、成功raw/ZIP格式、原CLI參數/result與既有ownedloopfactory保持；private _backup_sync(destination, cancelled=None)仍相容single-argument caller。ThreadEvent不新增permission/schema或provider/device耦合。
+
+CLI temporary main-thread SIGINT只包此backup，exactprevioushandler於finally恢復；plainCancelledError及primarytypederror保持，signal cancellation/late flag→原KeyboardInterrupt/130。Backgroundthread不改OShandler； 其他 commands和D50 main不變。
+
+raw final publication後取消仍保成果，不能將130解讀為rollback；原D49 restore全部bytes保持。269/271既有baseline bytes保持，exact4 source-only temporary reverse/reapply PASS；保留所有資料與Git歷史，source rollback不授權再用舊危險取消路徑。
+
+[驗收、分類、限制與回退](../evidence/FIX-015-2026-10-13/REPORT.md)。
+
 > 2026-10-01 狀態說明：下列「尚未實作／僅設計」為 Phase 2 原始設計時點。當前逐卡完成與修正狀態以 RUNTIME_EVOLUTION_ROADMAP.md 及對應 evidence 為準。
 設計，不代表已實作。原 T00–T40、既有未提交修改及 Phase 1 snapshot 保留。
 

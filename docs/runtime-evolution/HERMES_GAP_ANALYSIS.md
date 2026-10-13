@@ -1,5 +1,13 @@
 # Hermes gap analysis
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+**REJECT** 為backup cancellation再造manager、executor service、第二owner registry或全域state abstraction。實測已由原SQLiteStore／CLI composition局部修復，不為完成Hermes概念清單繼續擴張。
+
+**KEEP** 來源、bounded ownership、失敗可見與驗收導向原則；**DEFER** 任意code generation／自動發布／cross-platform和multiprocess profiles到具體caller、實際收益與各自安全gate成立。RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：first-adoption舊／非受管writer停止、真正signed launcher/version/readiness與人工批准handoff仍待各自驗收。FIX-002有用搜尋、FIX-005語音速度／人耳、FIX-006理解產品gate保持；RT-011/013/015原scopedDONE及編號不改。
+
+[驗收、分類、限制與回退](../evidence/FIX-015-2026-10-13/REPORT.md)。
+
 只參考官方 NousResearch/hermes-agent，鎖定 commit `f42f579cf8bac4918ac9599bece71618afadd846`（2026-09-30 取得）。閱讀 source，不執行 Hermes，也不新增依賴。下列是設計比較，不保證 Hermes 在 SIRO 環境可用；本次未跑 Hermes tests。Provider/Memory 的深入子模組覆蓋有限，保持比較範圍。
 
 | Hermes concept | SIRO equivalent | Current status | Gap / actual problem | Concept class | Recommendation | Priority / risk | Primary source |

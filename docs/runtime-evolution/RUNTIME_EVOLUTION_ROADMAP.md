@@ -1,5 +1,23 @@
 # Runtime evolution roadmap
 
+## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
+
+**FIX-015 DONE / VERIFIED**：backup cancellation staging/connection/CLI teardown的最小修復已驗；原D50/FIX-014 DONE保留。新25 cases、相鄰240 PASS（17.60s）；完整 **1,578 PASS／5 real_provider 未選／3既有 warnings／198.40s**。Ruff311／mypy245／schema／diff PASS。
+
+| 既有卡／範圍 | 決定 | 依賴與現況 |
+|---|---|---|
+| FIX-015 | DONE / VERIFIED | 解除ZIP取消cleanup局部BLOCKED_BY_FIX |
+| RI-005 | KEEP / SPLIT / PARTIAL | first-adoption停止舊writer；actual signed launcher/version/readiness/批准handoff仍BLOCKED_BY_RELEASE_INTEGRATION |
+| RI-006 | KEEP | 已有來源失敗到唯讀proposal；不能自批執行／部署 |
+| RT-011 / RT-013 / RT-015 | 原scopedDONE保持 | 已實現能力不重做、不修改編號歷史 |
+| FIX-002 / FIX-005 / FIX-006 | PARTIAL保持 | 有用搜尋、語音速度／人耳、理解各自產品gate |
+
+Recommended next 3既有續作範圍（不是ranking）：RI-005舊writer停止證據；RI-005批准的exact版本launcher/readiness/handoff；RI-006唯讀proposal。沒有實證支援硬CANCEL、MERGE或額外抽象擴張。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：first-adoption舊／非受管writer停止、真正signed launcher/version/readiness與人工批准handoff仍待各自驗收。FIX-002有用搜尋、FIX-005語音速度／人耳、FIX-006理解產品gate保持；RT-011/013/015原scopedDONE及編號不改。
+
+[驗收、分類、限制與回退](../evidence/FIX-015-2026-10-13/REPORT.md)。
+
 ## 2026-10-12 — RI-005 D50 owner / FIX-014 限定切片 VERIFIED
 
 受管Gateway與CLI demo/backup/restore/有DBrelease在實際操作前取得同一canonical data owner，持有到startup/server drain/owned SQLite IO完成；備份來源、explicit目的地、ZIP固定.tmp共同有序去重（最多3keys）、一份IOjoin fence。真正foreignowner/alias與連續SIGINT反例先RED→局部修復；禁止output/tmp覆寫sourceDB/inputsettings/archive或tmp指向final，不改Core/SQLite/operations/release/權限/voice/UI/launcher/deps。沒有第二套registry/restore/lockmanager或globalstate。FIX-014 **DONE/VERIFIED**。
@@ -177,13 +195,13 @@ FIX-002改為PARTIAL：typed reason／可讀主頁partial／關閉時pending-rou
 - Current State: Partially Implemented（ReleaseManager／CLI與專用launcher已有）
 - Objective: 區分active pointer、真正執行版本與資料恢復；不因code rollback覆蓋後來的對話／記憶。
 - Affected Modules: 既有ReleaseManager、operations／companion launcher；不重做update framework。
-- Dependencies: FIX-009/013/014各自局部VERIFIED；T34產品readiness；BLOCKED_BY_FIX: FIX-015（ZIP canceled backup cleanup）；BLOCKED_BY_RELEASE_INTEGRATION：人工maintenance窗口／firstadoption舊writer／signedlauncher／schema相容與資料保留政策。
+- Dependencies: FIX-009/013/014/015各自局部VERIFIED；T34產品readiness；BLOCKED_BY_RELEASE_INTEGRATION：人工maintenance窗口／firstadoption舊writer／signedlauncher／schema相容與資料保留政策。
 - Implementation Scope: 先設計code rollback保持live data的測試；單一stopped-writer gate；驗launcher實際consume版本／last-known-good readiness。schema不兼容就拒自動回退；資料還原為獨立明確操作。
 - Acceptance Criteria: 兩版啟動source identity可讀；新寫入在code rollback後仍在；中斷/migration失敗無雙writer；已完成效果不重播；未批准不deploy。
 - Tests: 暫存DB晚寫、WAL/active writer、schema incompat、activation crash、launcher實際版本與health；不使用私人DB。
 - Risks: migration與資料生命週期屬RED；沒有證據不可降低gate。
 - Rollback: 撤新發布接入／保持舊可信launcher及最新DB；人工復原不能靜默restore舊backup。
-- Status: PARTIAL（D48 code-only retention、D49 explicit restore、D50 managed source/write/fixed-temp owner均局部VERIFIED；D50 final1,553full/exact5）；FIX-013/014各自gate解除。BLOCKED_BY_FIX: FIX-015（ZIP canceled staging cleanup FAILED_VERIFICATION），及BLOCKED_BY_RELEASE_INTEGRATION：firstadoption舊writer／真正signedlauncher consume/version/readiness／批准handoff未驗，非deployment。[D50證據](../evidence/RI-005-owner-2026-10-12/REPORT.md)。
+- Status: PARTIAL（D48 code-only retention、D49 explicit restore、D50 managed source/write/fixed-temp owner、D51 backup cancellation均局部VERIFIED）；FIX-013/014/015各自gate解除。BLOCKED_BY_RELEASE_INTEGRATION：firstadoption舊writer／真正signedlauncher consume/version/readiness／批准handoff未驗，非deployment。[D50證據](../evidence/RI-005-owner-2026-10-12/REPORT.md)、[D51證據](../evidence/FIX-015-2026-10-13/REPORT.md)。
 
 ### RI-006
 
