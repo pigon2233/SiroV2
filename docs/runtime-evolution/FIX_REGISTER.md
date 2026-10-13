@@ -1,5 +1,29 @@
 # Runtime Evolution Fix Register
 
+## FIX-017 — owner rejection must precede optional voice SDK initialization
+
+- Classification: REQUIRED_FIX.
+- Source types: IMPLEMENTATION_BUG / MISSING_INTEGRATION / TEST_GAP (existing eager import, not attributed to new RT).
+- Source Task: FIX-016 actual GitHub2324b35 run38389536976; D50 owner invariant verification.
+- Severity: MEDIUM.
+- Problem: importing Gateway requests ONNX via optional Kokoro before acquiring data owner; Busy path can emit hardware discovery or fail on broken SDK.
+- Evidence: actual job115269605525 busy contender has exact desired exit/message plus ONNXwarning; fresh-process guard reports requested kokoro_onnx and zero owner acquisitions. call presentation/__init__.py→gateway.py43→audio/tts.py22→kokoro_onnx.__init__→onnxruntime. All diagnostics synthetic/public CI.
+- Expected Behavior: import and Busy rejection do not initialize optional inference SDK; when authorized owned render occurs, same Kokoro SDK/model runs offloop with existing args and caching.
+- Actual Behavior: SDK/device discovery occurs during module import, before main takes owner; ImportError can bypass fixed Busy result.
+- Root Cause: CONFIRMED module-top Kokoro import in leaf TTS eagerly imports ONNX. No source/tests/scripts caller relies on public tts.Kokoro alias.
+- Scope: defer only existing Kokoro import to existing lazy rendering branch; annotation TYPE_CHECKING; new meaningful contract tests.
+- Files expected to change: src/siro/services/audio/tts.py; new tests/integration/test_tts_import_boundary.py; contracts/docs/evidence.
+- Files that MUST NOT change: Gateway/owner/Core/SQLite/permissions/oldtests, rendering/TTS config/output/cancel semantics, Qwen/Live2D, other audio/providers, dependency/pin/locks, private data/models/config/keys/live8026.
+- Compatibility requirements: same Kokoro constructor/create/voice args and cached model; same exceptions and worker ownership; no silent fallback, new APIs or warning suppression.
+- Proposed repair: TYPE_CHECKING annotation plus local runtime import inside existing _render_sync if _model is None; preserve rest verbatim.
+- Tests required: before fresh-process importguard RED/no-owner; after import no optional SDK, Busy zero initialization; synthetic SDK positive render inside worker thread/cache/typedfailure, existing timeout/cancellation unchanged.
+- Regression tests: audio/native speech/owner caller/launcher integrations and complete offline gate; remote supported-environment actual checks. No real voice efficacy claim.
+- Acceptance criteria: importguard and existing exact Busy diagnostic invariant PASS; normal existing SDK path retained; precise TTS-only local diff, all other existing source untouched for this card; final source-bound checks.
+- Rollback method: disposable exact TTS/newtest reverse/reapply, preserve all data and prior FIX-016 source; source rollback reopens owner initialization gate and is not authorization to deploy unsafe state.
+- Risk: optional SDK errors appear at first owned render; propagate original errors, existing offloop cancellation still owns actual render. No promise to cancel third-party blocking imports beyond existing worker contract.
+- Status: IN_PROGRESS; FIX-016 overall CI BLOCKED_BY_FIX: FIX-017. RI-005/006 onward implementation remains gated; no RT history renumber/reopen.
+
+
 ## FIX-016 — clean checkout CI bootstrap / public-pin verification
 
 - Classification: REQUIRED_FIX (broken CI gate); six public hashes are FALSE_POSITIVE.
@@ -12,8 +36,8 @@
 - Actual Behavior: initial remote exits1 at fmt; independently reproduced old secret gate exits1. Prior local suites did not certify CI.
 - Root Cause: CONFIRMED missing toolchain components declaration; final gate had no precise public-fingerprint review handling; old Rust unit fixture required a distro-specific interpreter location absent on the actual Ubuntu runner. Runtime behavior is not implicated.
 - Scope: one manifest line; build-only secret-report helper called from existing check; meaningful synthetic/actual-scanner tests and documentation/evidence.
-- Files expected to change: rust-toolchain.toml, scripts/check, new scripts/check_secrets.py and tests/integration/test_ci_secret_gate.py; docs. Remote refinement additionally allows only three Python executable literals in runtime/siro-runtime/src/linux.rs cfg(test) fixture (production prefix and all assertions unchanged).
-- Files that MUST NOT change: all production source, old tests except the three exact cfg(test) fixture literals above, .github workflow, Python/Rust versions, Cargo.lock/uv.lock, schemas/migrations, providers/voice/UI/permissions/Memory, launcher/release/owner, private data/models/config/keys/live8026.
+- Files expected to change: rust-toolchain.toml, scripts/check, new scripts/check_secrets.py and tests/integration/test_ci_secret_gate.py; docs. Remote refinement additionally allows only three Python executable literals in runtime/siro-runtime/src/linux.rs cfg(test) fixture (production prefix and all assertions unchanged). Further actual-cloud evidence permits .github/workflows/check.yml supported native Ubuntu26.04 prerequisites only, and the quoted-numeric-key intermediate fixture expectations in tests/integration/test_unknown_effect_approval.py; all policy/effect assertions unchanged.
+- Files that MUST NOT change: all production source for FIX-016 (separate FIX-017 TTS leaf correction tracked independently), old tests except the three cfg(test) literals and quoted-key intermediate expectation above, workflow except supported runner prerequisites, Python/Rust versions, Cargo.lock/uv.lock, schemas/migrations, providers/voice/UI/permissions/Memory, launcher/release/owner, private data/models/config/keys/live8026.
 - Compatibility requirements: no runtime/API/DB change; same scanner scope and check order; all unknown findings still exit1. Exact public profile changes require fresh explicit audit, not automatic extension.
 - Proposed repair: declare rustfmt/clippy in existing pinned minimal toolchain; allow six exact detector findings only when whole audited profile matches; validate JSON structure/finding binding, fixed diagnostics; tests precede helper.
 - Tests required: cold empty tool homes before/after; actual scanner positive, new synthetic credential in profile/other file, profile-byte change, altered fingerprint/path/type/line/verified flag, malformed reports; helper type/lint/format.

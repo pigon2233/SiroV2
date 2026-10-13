@@ -1,5 +1,20 @@
 # SIRO V2 Architecture Review
 
+## 2026-10-13 — actual cloud follow-up / FIX-017 owner boundary
+
+Overall architecture health YELLOW。Recent improvements：既有checks coldboot已修；真SQLite兩版manualguard保持，fixture只移除version-specific假設；TTS的optionalSDK改既有offlooplazy載入，5RED→PASS/34related/exact2rollback。
+
+Architecture drift found：existingpresentation→TTS→Kokoro→ONNX module-top import在owner前做device discovery；brokenSDK可阻止Busy回報，違反D50。FIX-017 REQUIRED_FIX/MEDIUM是局部implementation/integration leakage，原owner設計有效；不需原design重設或新provider loader。Gateway/owner/SQL/權限/其他runtime保留。
+
+Regression risk changes：本機tool/profile遮住freshCI環境缺失，cloud54FAIL如實保留；supportedUbuntu26.04+nativesandboxpreflight將真正跑原102environment-skippedcases，不能新增skip或mutewarning放行。final9filelocal/remote尚待驗，原五檔1697PASS不是本輪全部驗收。Technicaldebt：publicblob變更需re-audit、extraPython3.12預裝保持；nativehardcancel/voicequality/otherOS/powerloss不因本卡完成。
+
+Roadmap adjustments / New blockers：FIX-016/FIX-017 IN_PROGRESS；RI-005/006後續BLOCKED_BY_FIX到actualfullacceptance。KEEP原RTDONE，KEEP/SPLIT RI-005adoption/approvedhandoff，KEEP RI-006readonlyproposal。Hermes REJECT duplicateSDKloader/owner/updater抽象，不為新功能重構主架構。
+
+Freeze zone changes：CI與TTS本卡YELLOW pendingfull；tests/evidenceGREEN；liveDB/permission/releaseRED，其他runtime原YELLOW。Recommendednext3既有scope（非ranking）：old/unmanagedwriterabsence；immutableapprovedexacthandoff；source-boundreadonlyproposal。
+
+[CI](../evidence/FIX-016-2026-10-13/REPORT.md)／[one-leaf boundary repair](../evidence/FIX-017-2026-10-13/REPORT.md)。
+
+
 ## 2026-10-13 — FIX-016 / D53 clean CI verification review
 
 Overall architecture health仍YELLOW：本卡是buildbootstrap／verification integration局部缺陷，不是productionarchitecture drift。Recent improvements：freshisolatedRust明確工具declared、secretreview只綁六個actualverifiedpublicpins；24meaningful新tests與exact5rollbackPASS。原責任/介面/依賴/DB/API全保留，沒有新runtimeglobalstate或繞過compatibilityboundary。

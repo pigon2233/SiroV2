@@ -12,15 +12,17 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from uuid import uuid4
 
 import edge_tts
 import httpx
 import numpy as np
 import soundfile as sf  # type: ignore[import-untyped]
-from kokoro_onnx import Kokoro
 from misaki import zh  # type: ignore[import-untyped]
+
+if TYPE_CHECKING:
+    from kokoro_onnx import Kokoro
 
 _BOUNDARY = re.compile(r"(?<=[.!?。！？])\s*")  # noqa: RUF001
 _CODE_BLOCK = re.compile(r"```.*?```", re.DOTALL)
@@ -166,6 +168,8 @@ class KokoroLocalTTS:
 
     def _render_sync(self, text: str, rate: float, energy: float) -> bytes:
         if self._model is None:
+            from kokoro_onnx import Kokoro
+
             self._model = Kokoro(self._model_path, self._voices_path)
             self._g2p = zh.ZHG2P(version="1.0")
             self._voice = sum(

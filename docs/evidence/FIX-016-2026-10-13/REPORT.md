@@ -22,6 +22,14 @@ Initial full pipeline was interrupted by the reviewer execution limit; owned chi
 
 The first corrected-version full suite reported1697PASS/5opt-inSKIP/3warnings but an overly long harness TMPDIR caused three earlier socket failures; short owned scratch proved those3PASS/0.09s. This was another harness defect, not a production patch. A mistakenly overlapping rerun was stopped/joined; its shared log overwrite is recorded and cannot certify final source. Only the current sequential five-file full pass is authoritative. All Rust fmt/build/6tests/clippy pass after the cfg(test) refinement.
 
+## Supported CI / independent owner-import follow-up
+
+Actual2324b35 cloud run38389536976 progressed through all Rust/static checks, then54FAIL/1541PASS/107SKIP/7warnings:52 unsupported native-sandbox failures, one eager ONNXimport owner violation and one old-SQLite fixture assumption. Do not certify this as success. OfficialUbuntu26.04 x64/native3.14 plus signed-apt bwrap/seccomp/AppArmor and realnamespace preflight now supply the unchanged supported profile; no global-defense disable/root tests/skip/fallback. Existing workflow3.12 extra-install is left as documented debt.
+
+Quoted numeric-key fixture has been made portable without SQL changes: real old3.46.1 vs official-source-verified3.50.4 extraction isNULL vs exact numericstring, and original policyguard holds in both. Only rename/intermediate assertion changes; wrongbindingPENDING/effects0/fullDBdumpunchanged remain. Full44cases PASS in each version, Ruff/type PASS. New official source proof/cleanup recorded in scan-sqlite-* evidence.
+
+Separate FIX-017/D54 owns one confirmed production leaf correction: eager optional Kokoro SDK import delayed to existing owned offloop render. Its5RED→5PASS,34focusedPASS/exact2rollback are in ../FIX-017-2026-10-13/REPORT.md. FIX-016 remains build/test only; combined nine-file final full local and supported exact-head remote are PENDING. Oldsource-only five-file proof is historical and cannot certify the latest combined runtime scope.
+
 ## Preservation / rollback / cleanup
 
 303 existing source/test/build/pin/lock/Rust files captured before changes;300 unchanged, two existing build files plus only the three Rust unit-fixture literals changed, two new helper/test files. All production and old test assertions retained. preservation-and-rollback.json verifies exact five-file source-only reverse/reapply in disposable directory, including executable check mode; data/Git history untouched. A rollback would reopen CI FAILED_VERIFICATION, not restore passing status. Temporary archive contains only public git source and generated public tokenizer/runtime binaries; no private main workspace scan.

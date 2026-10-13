@@ -1,5 +1,10 @@
 # Runtime evolution roadmap
 
+## 2026-10-13 — actual cloud verification follow-up
+
+FIX-016 local final five-file scripts/checkPASS（1697PASS/5opt-inSKIP/3warnings；419.283s）但remote54FAIL暴露supportedrunner不足、SQLite反例不portable與FIX-017 eager optional SDK import。整体FAILED_VERIFICATION；不是以skip/mute放行。先完成窄FIX-017 owner invariant、沿官方supportedrunner补齐验证环境及正确SQLite反例；RI-005/006继续BLOCKED_BY_FIX，不重做RT DONE、不重編/ranking。
+
+
 ## 2026-10-13 — FIX-016 clean CI repair IN_PROGRESS
 
 FIX-016 REQUIRED_FIX/MEDIUM；只修既有bootstrap與精確public-pin gate。RI-005/RI-006後續實作標 **BLOCKED_BY_FIX: FIX-016**，完整scripts/check與新head Actions通過前不往後擴張。原RT DONE/編號/產品與發布gates保持；不做ranking。Python預裝不一致為TECH_DEBT，本卡不改pin/lock。

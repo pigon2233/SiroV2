@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   python:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v7
@@ -17,6 +17,13 @@ jobs:
           version: "0.12.18"
           enable-cache: true
       - run: uv python install 3.12
+      - name: Install supported Linux sandbox prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends python3.14 bubblewrap libseccomp2 apparmor
+          sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+          /usr/bin/python3.14 -I -S -c 'import ctypes,sys; assert sys.version_info[:2] == (3,14); ctypes.CDLL("/usr/lib/x86_64-linux-gnu/libseccomp.so.2")'
+          bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev /bin/true
       - name: Install pinned NATS server
         run: |
           curl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz -o /tmp/nats-server.tgz

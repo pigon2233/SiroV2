@@ -1,5 +1,18 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-13 — actual cloud CI / FIX-016 + FIX-017 final acceptance IN_PROGRESS
+
+GitHub確實是push Actions（查無PR）。原cargo-fmt缺工具與六publicpins gate已修；前一五檔clean full1697PASS/5opt-inSKIP/3warnings、whole419.283s已驗。但actual2324b35 cloud54FAIL揭露supportedLinux環境不足、SQLitefixture假設與busy前optionalSDK eagerimport，不能放行。
+
+FIX-016最小補nativeUbuntu26.04官方CI環境/realnamespacepreflight；不關全局AppArmor/不rootpytest/不新增skip。quoted-key中間assert只接受None或correctexactvalue；原productionSQL/manualhold/effects/DBdump保持，两真SQLite版本各44PASS。FIX-017單一TTSleaf延後Kokoro import到原offlooprender，不改Gateway/owner/logging；5fresh RED→PASS、34relatedPASS、exact2rollback。
+
+兩卡最終合併9source/build/test的完整clean scripts/check正在跑；newexactheadcloud待驗。原RTDONE/RI-005PARTIAL/搜尋voice理解發布gates不變。架構YELLOW；CI及TTS本卡YELLOW到完整驗收，合成testsGREEN，liveDB/migrations/permissions/releaseRED。RI-005/006後續暫BLOCKED_BY_FIX: FIX-016/FIX-017；不排名/不重編。
+
+下一三既有scope：RI-005oldwriterabsence、immutableapprovedhandoff、RI-006readonlyproposal。CodebaseMemory不可呼叫/reindexNOT_RUN；無live8026/privateDB/chat/WAV/key/config/model/GPU/deploy。
+
+[CI evidence](evidence/FIX-016-2026-10-13/REPORT.md)；[owner/import repair](evidence/FIX-017-2026-10-13/REPORT.md)。
+
+
 ## 2026-10-13 — FIX-016 / D53 clean CI repair LOCAL CHECK RUNNING
 
 回應push-triggered Actions失敗（repo查無PR），只修buildtooling：pinnedminimalRust明確宣告rustfmt/clippy；原secretgate只允許六個經官方download驗明、綁完整profileblob的publicpins。既有所有checks/production/oldtests/workflow/版本/locks保留。24新actualscanner/syntheticcredential/變更/錯誤JSON cases PASS，coldisolatedRust RED→PASS，focusedRuff/type/source-docdiff及exact5source-onlyrollback PASS。303baseline中300不改。

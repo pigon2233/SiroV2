@@ -306,7 +306,7 @@ async def test_sqlite_large_integer_atom_collision_does_not_validate_wrong_bindi
 
 
 @pytest.mark.asyncio
-async def test_unextractable_numeric_key_does_not_validate_wrong_binding(tmp_path: Path) -> None:
+async def test_quoted_numeric_key_does_not_validate_wrong_binding(tmp_path: Path) -> None:
     fixture = await fixture_at(tmp_path)
     original: dict[str, object] = {"argv": ["synthetic-operation"], 'quote"key': 2**80}
     run_id, old = await prior_call(fixture, arguments=original)
@@ -332,7 +332,11 @@ async def test_unextractable_numeric_key_does_not_validate_wrong_binding(tmp_pat
             (run_id,),
         ).fetchone()
     )
-    assert row is not None and row["call_lexeme"] is None and row["proposal_lexeme"] is None
+    assert row is not None
+    # Quoted-key lookup may be unsupported or exact, depending on SQLite.
+    # Neither case permits treating the different numeric payloads as a valid binding.
+    assert row["call_lexeme"] in (None, str(2**80))
+    assert row["proposal_lexeme"] in (None, str(2**80 + 1))
     await assert_automatic_hold(fixture, await fresh_proposal(fixture, arguments=original))
 
 
