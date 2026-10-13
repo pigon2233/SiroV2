@@ -1,5 +1,17 @@
 # Compatibility plan
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+Defaultproductlauncher execv/model/resource流程、defaultGateway main/create_app/healthready{state}、existingCLI stage/rollback、complete manifest wire保留。Opt-in才有typedVerifiedRelease與healthready release version/digest；startup/drain不回readyidentity。
+
+Originalcwd、absolutecaptureddata、relativeassets仍同一root；fresh-I/-B selectedsrc、execenvcopy剔signingkey，wrongsource/ABI/tamper無installedfallback。D52sameactualschema only；candidate migration count不同/DBschema選後變動先拒，不依簽署range猜可以migrate。
+
+273baseline中270不改；exact7 source-only disposable reverse/reapply PASS，保所有資料與Git歷史。D48 schema helper抽出前後AST相同；D51 backup/CLI四檔與D50 owner/operations source保持。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：舊／非受管writer停止、parent驗簽後sameUID換包、maintenance→exec CLOEXEC空窗與人工批准handoff未解除。D52只證同schema／D52-compatible src package，任意deps/ABI/migration/其他OS/powerloss/正式deployment未證。FIX-002/005/006產品gates、RT-011/013/015原scopedDONE不變。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 Public backup_to(destination)、成功raw/ZIP格式、原CLI參數/result與既有ownedloopfactory保持；private _backup_sync(destination, cancelled=None)仍相容single-argument caller。ThreadEvent不新增permission/schema或provider/device耦合。

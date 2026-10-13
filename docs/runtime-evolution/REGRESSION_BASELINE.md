@@ -1,5 +1,19 @@
 # Regression baseline
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+95新cases；最終相鄰335 PASS／3既有warnings／25.63s，完整 **1,673 PASS／5 real_provider未選／3既有warnings／199.58s**。Ruff315、mypy250（含launcher）、schema、source/tests/docs diff PASS。
+
+新95cases=selector70＋launcher7＋ready/DTO/owner15＋actualprocess3。Original source: selector70FAIL因缺API（不是70舊漏洞）；initialcaller12為10FAIL/2PASS。現有可用negative behavior保持，不重構；actualprocess原fixturejson/hashlib import錯誤另留歷史FAIL，修fixture再凍最終source/test，不當productionbug或finalPASS。
+
+True3cases包含5actualchildren：1→2→rollback1＋unsupportedABI/tamper。三批actualconversation/memory/completedledger保留，所有childjoined/rootsremoved，childsigningkeyboolean=false/無值紀錄；normalSIGTERMexit-15與shutdowncomplete明示。clone內namespace/loaded-origin telemetry是controlled instrumentation，不取代真HTTP/SQLite/sourceimport。
+
+273baseline中270不改；exact7 source-only disposable reverse/reapply PASS，保所有資料與Git歷史。D48 schema helper抽出前後AST相同；D51 backup/CLI四檔與D50 owner/operations source保持。
+
+全repo aggregate scripts/check、Rust重建/依賴sync/nativeprivate模型、real_provider/真人產品/8026/正式deployment未跑，不冒稱aggregateCI或whole-evidence whitespace PASS；格式/diff gate針對code/tests/docs，原始pytestlog/patch保verbatim。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 新25 cases、相鄰240 PASS（17.60s）；完整 **1,578 PASS／5 real_provider 未選／3既有 warnings／198.40s**。Ruff311／mypy245／schema／diff PASS。

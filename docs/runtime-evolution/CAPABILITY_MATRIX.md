@@ -1,5 +1,18 @@
 # Capability matrix
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+| 能力 | 實際已驗 | 尚未證明 |
+|---|---|---|
+| 明確signedsource啟動 | operatoropt-in／完整receipt/source/actualschema，freshselectedimport，3origins確認 | arbitraryABI/deps/verify後換包／formalapproval |
+| 實際版本ready | trueHTTP1.0.0→2.0.0→rollback1.0.0，startup後version/digest | generalproduct模型/語音/renderer品質 |
+| 同schema code rollback保latestdata | 三批actualconversation/memory/completedledger仍在，零效果重播 | schema migration／powerloss／維護交接 |
+| firstadoption停止保證 | 新lease拒managed contender；自有舊child已close/join才可接入 | unknown/unmanaged writer absence，PIDfile/TERM/SQLiteBEGIN不足 |
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：舊／非受管writer停止、parent驗簽後sameUID換包、maintenance→exec CLOEXEC空窗與人工批准handoff未解除。D52只證同schema／D52-compatible src package，任意deps/ABI/migration/其他OS/powerloss/正式deployment未證。FIX-002/005/006產品gates、RT-011/013/015原scopedDONE不變。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 | 能力 | 已驗範圍 | 限制 |

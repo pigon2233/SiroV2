@@ -1,0 +1,70 @@
+F{"case": "unsupported-abi", "status": "PASS", "exit_code": 1, "joined": true, "database_bytes_unchanged": true, "no_host_fallback": true}
+.{"case": "tampered-package", "status": "PASS", "exit_code": 1, "joined": true, "database_bytes_unchanged": true, "no_host_fallback": true}
+.
+=================================== FAILURES ===================================
+__ test_actual_signed_source_versions_and_code_rollback_preserve_latest_data ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_actual_signed_source_vers0')
+
+    def test_actual_signed_source_versions_and_code_rollback_preserve_latest_data(
+        tmp_path: Path,
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="signed-source-owned-", dir=tmp_path) as temporary:
+            root = Path(temporary)
+            launcher = prepared_project(root)
+            database = root / "data/siro.db"
+            asyncio.run(SQLiteStore(database).initialize())
+            seed(database, "before-first")
+            manager = ReleaseManager(
+                root / "manager", KEY, current_schema=len(load_migrations()), database=database
+            )
+            observed: list[dict[str, Any]] = []
+            manifests: dict[str, ReleaseManifest] = {}
+            for version, phase in (("1.0.0", "after-first"), ("2.0.0", "after-second")):
+                bundle = source_bundle(root, version)
+                manifest = signed(bundle, version)
+                manifests[version] = manifest
+                assert manager.stage_and_activate(bundle, manifest, HEALTH).status == "activated"
+>               observed.append(actual_gateway(root, launcher, manifest))
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_source_process.py:275: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_actual_signed_source_vers0/signed-source-owned-wtx9s6q_')
+launcher = PosixPath('/tmp/pytest-of-jasonliao/pytest-24/test_actual_signed_source_vers0/signed-source-owned-wtx9s6q_/project/scripts/launch_companion.py')
+manifest = ReleaseManifest(version='1.0.0', source_sha256='f51ed41c14cab93114de5daf832789de25b0f2f980609d25573ca2d002ff1954', sig...50433cae3c49ca58e2753f1d09f0569107b3682fb4de', min_schema=13, max_schema=13, signing_format='siro-release-manifest-v1')
+
+    def actual_gateway(root: Path, launcher: Path, manifest: ReleaseManifest) -> dict[str, Any]:
+        port = port_at()
+        log_path = root / f"gateway-{manifest.version}-{time.monotonic_ns()}.log"
+        observation = root / "observed-source.json"
+        observation.unlink(missing_ok=True)
+        with log_path.open("w") as log:
+            process = subprocess.Popen(
+                [sys.executable, "-B", str(launcher)],
+                env=environment(root, port),
+                stdout=log,
+                stderr=log,
+            )
+            try:
+                deadline = time.monotonic() + 20
+                while True:
+>                   assert process.poll() is None, log_path.read_text()
+E                   AssertionError: Traceback (most recent call last):
+E                       File "<string>", line 7, in <module>
+E                         main(verified_release=VerifiedRelease(version, digest, Path(directory), int(schema)))
+E                         ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                       File "/tmp/pytest-of-jasonliao/pytest-24/test_actual_signed_source_vers0/signed-source-owned-wtx9s6q_/manager/releases/1.0.0/src/siro/services/presentation/gateway.py", line 2054, in main
+E                         Path(os.environ['SIRO_TEST_OBSERVATION']).write_text(json.dumps({
+E                                                                              ^^^^
+E                     NameError: name 'json' is not defined. Did you forget to import 'json'?
+E                     
+E                   assert 1 is None
+E                    +  where 1 = poll()
+E                    +    where poll = <Popen: returncode: 1 args: ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/pytho...>.poll
+
+tests/integration/test_release_source_process.py:199: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_release_source_process.py::test_actual_signed_source_versions_and_code_rollback_preserve_latest_data
+1 failed, 2 passed in 4.85s

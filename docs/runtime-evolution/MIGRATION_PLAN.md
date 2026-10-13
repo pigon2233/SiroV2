@@ -1,5 +1,19 @@
 # Migration plan
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+D52沒有DB/schema/config/grant migration；明確operator opt-in可逆，同schema source接線是增量。只改既有ReleaseManager/read-schema fact、productlauncher與Gateway composition/ready；新增4份tests。complete manifest/CLI stage-rollback、D49/D50/D51、Core人格/記憶/權限/模型/語音/UI/SQL/deps保留。
+
+必要migration由schema_migration_required拒；origin/schemaepoch在existingD50owner內beforeprovider/initialize重查。Rollback仍D48code-only保持最新資料，不隱含restore；true1→2→1已驗同schema資料保留。
+
+273baseline中270不改；exact7 source-only disposable reverse/reapply PASS，保所有資料與Git歷史。D48 schema helper抽出前後AST相同；D51 backup/CLI四檔與D50 owner/operations source保持。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：舊／非受管writer停止、parent驗簽後sameUID換包、maintenance→exec CLOEXEC空窗與人工批准handoff未解除。D52只證同schema／D52-compatible src package，任意deps/ABI/migration/其他OS/powerloss/正式deployment未證。FIX-002/005/006產品gates、RT-011/013/015原scopedDONE不變。
+
+沒有重啟live8026／讀privateDB/chat/WAV/key/config/models/GPU或正式deploy；全部程序/DB/HTTP為self-owned合成fixture，只讀health，無provider/TTS請求或效果重播。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 本輪是兩個既有production方法區域的incremental修復，無DB/schema/config/grant migration。只改SQLiteStore既有backup方法與CLI `_backup` wrapper，新增兩份專項tests；operations、D49 restore body/SQL、D50 owner/Gateway/原tests、Core/權限/providers/voice/UI/launcher/deps不變。

@@ -1,5 +1,25 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+D52限定signed source launch／actualloadedidentity／ready切片 **VERIFIED**；RI-005不是DONE。只改既有ReleaseManager/read-schema fact、productlauncher與Gateway composition/ready；新增4份tests。complete manifest/CLI stage-rollback、D49/D50/D51、Core人格/記憶/權限/模型/語音/UI/SQL/deps保留。
+
+operator明確SIRO_RELEASE_ROOT＋原signing-key opt-in；bounded complete signed active package與actualreadonlyschema→fresh-I/-B selectedsrc→existing D50 owner內實際SIRO/Core/Gateway來源及schemaepoch重驗→startup完成後HTTPready version/digest。簽署key不進childenv；originalcwd/data/assets保持，signedmode不provision、不fallback，不隱含migrate。
+
+95新cases；最終相鄰335 PASS／3既有warnings／25.63s，完整 **1,673 PASS／5 real_provider未選／3既有warnings／199.58s**。Ruff315、mypy250（含launcher）、schema、source/tests/docs diff PASS。 真HTTP1.0.0→2.0.0→code rollback1.0.0共3正常child（SIGTERM exit-15、actualshutdowncomplete/joined），每次loaded3origins/childkeyabsent/readyexactdigest、packageunchanged/零pycache；三批conversation/memory/completedledger保留。unsupportedABI／tamper2負向child exit1、零DBeffects/nohostfallback；5childrenjoined/temporaryrootsremoved。
+
+另真oldWALwriter9checks證明新advisorylease與SQLiteBEGIN成功仍不能證旧writer停；managedcontender拒絕、明確close/join才可接入。這是gate證據，不是假停機批准。273baseline中270不改；exact7 source-only disposable reverse/reapply PASS，保所有資料與Git歷史。D48 schema helper抽出前後AST相同；D51 backup/CLI四檔與D50 owner/operations source保持。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：舊／非受管writer停止、parent驗簽後sameUID換包、maintenance→exec CLOEXEC空窗與人工批准handoff未解除。D52只證同schema／D52-compatible src package，任意deps/ABI/migration/其他OS/powerloss/正式deployment未證。FIX-002/005/006產品gates、RT-011/013/015原scopedDONE不變。
+
+Architecture YELLOW；release selector/launcher/Gateway YELLOW、合成tests/evidence GREEN；liveDB/migration/permission/release RED。KEEP RI-005並SPLIT stopped-old-owner/immutable approvedhandoff；KEEP RI-006唯讀proposal；REJECT第二updater/owner/globalstate abstraction。不排名/不重編/不重做DONE。
+
+Git前輪e1bea33已remoteverified；本輪source發布若執行另核對精確commit，Gitpush不等於runtime更新。CodebaseMemory MCP本輪無可呼叫工具，graph/reindex NOT_RUN，原source/真測試/精確hash作證。
+
+沒有重啟live8026／讀privateDB/chat/WAV/key/config/models/GPU或正式deploy；全部程序/DB/HTTP為self-owned合成fixture，只讀health，無provider/TTS請求或效果重播。
+
+[D52報告](evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 FIX-015 **DONE / VERIFIED**，解除ZIP取消後staging遺留的局部BLOCKED_BY_FIX；D50/FIX-014 scopedVERIFIED保持。

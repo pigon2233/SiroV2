@@ -1,5 +1,17 @@
 # SIRO Runtime Evolution 規格
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+D52沿原manual signedrelease contract，publicread-onlytarget＋immutable composition identity，model或環境version label無批准權。Parent驗complete receipt與actualschema；child existingowner下actualorigins/schemaepoch拒mixedsource或implicitmigrate。
+
+Launchsamecwd/data/preparedassets、fresh-I/-B、childenv無signingkey；onlyD52compatible/same-schema source支持。Gateway optional projection只startup完成後ready，defaultwire/API不改。Sourceorigin是實際import位置，不是runtime cryptographicattestation；因此原immutability/oldwriter/approvalhandoffgate保持。
+
+只改既有ReleaseManager/read-schema fact、productlauncher與Gateway composition/ready；新增4份tests。complete manifest/CLI stage-rollback、D49/D50/D51、Core人格/記憶/權限/模型/語音/UI/SQL/deps保留。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：舊／非受管writer停止、parent驗簽後sameUID換包、maintenance→exec CLOEXEC空窗與人工批准handoff未解除。D52只證同schema／D52-compatible src package，任意deps/ABI/migration/其他OS/powerloss/正式deployment未證。FIX-002/005/006產品gates、RT-011/013/015原scopedDONE不變。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 補強原取消invariant：backup writer lock與外層ZIP staging生命周期涵蓋actualIO、explicitconnectionclose、cleanup；不能把asynccaller cancelled或Future cancelled當作thread完成。Backup-local retainedFuture/copy_context/cancelEvent只實現既有責任，不新增runtime service。

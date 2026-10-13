@@ -1,5 +1,17 @@
 # Risk register
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+Pointer≠actualversion的MISSING_INTEGRATION风险在D52限定profile下降：真sourceorigin與startupready綁version/digest，新95及true5child驗。無剩餘confirmed本卡productiondefect。
+
+仍HIGH/RED發布gate：驗簽後sameUID mutablepackage/TOCTOU、CLOEXEC maintenance→exec gap與舊／非受管writer。真oldWALwriter仍能於新lease後commit；不能以SQLiteBEGIN/ready/PIDfile/TERM成功當stoppedproof。D52未自動停止現用process或增強授權。
+
+Sharedpinnedinterpreter/deps、source-onlycompatibleABI與same-schema限制明示；sourcehash不等於livebyteattestation，無整機sandbox或自動發布證明。RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：舊／非受管writer停止、parent驗簽後sameUID換包、maintenance→exec CLOEXEC空窗與人工批准handoff未解除。D52只證同schema／D52-compatible src package，任意deps/ABI/migration/其他OS/powerloss/正式deployment未證。FIX-002/005/006產品gates、RT-011/013/015原scopedDONE不變。
+
+95新cases；最終相鄰335 PASS／3既有warnings／25.63s，完整 **1,673 PASS／5 real_provider未選／3既有warnings／199.58s**。Ruff315、mypy250（含launcher）、schema、source/tests/docs diff PASS。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 FIX-015 REQUIRED_FIX / MEDIUM / IMPLEMENTATION_BUG＋MISSING_INTEGRATION＋TEST_GAP已DONE：late IO staging重建／sidecars遺留風險在已驗profile下降。MINOR_FIX / LOW初版selector／coroutine teardown問題已局部修；沒有private正式data-loss或其他UID可讀證據。

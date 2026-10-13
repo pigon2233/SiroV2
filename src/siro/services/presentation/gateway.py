@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from siro.adapters.body.web import WebSocketBodyTransport
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.memory import Memory, MemoryService
+from siro.core.releases import ReleaseLaunchError, VerifiedRelease
 from siro.ports.models import ToolCall
 from siro.services.agent.organization import MemoryOrganizer
 from siro.services.audio.protocol import (
@@ -503,6 +504,7 @@ def create_app(
     on_memory_invalidated: Callable[[], Awaitable[None]] | None = None,
     skill_candidates: SkillCandidatePreparer | None = None,
     skill_activation: SkillActivationOwner | None = None,
+    verified_release: VerifiedRelease | None = None,
 ) -> FastAPI:
     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
     gateway_state = state or GatewayState()
@@ -512,6 +514,7 @@ def create_app(
     audio_owners = playback_ownership or PlaybackOwnership()
     candidate_owner = skill_candidates if runtime_profile == "candidate" else None
     activation_owner = skill_activation if runtime_profile == "candidate" else None
+    release_started = False
 
     def candidate_metadata() -> dict[str, object]:
         return {
@@ -545,6 +548,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        nonlocal release_started
         try:
             if on_startup is not None:
                 await on_startup()
@@ -552,8 +556,10 @@ def create_app(
                 await activation_owner.initialize()
                 if not gateway_state.kill_switches["tools"]:
                     await activation_owner.suspend()
+            release_started = True
             yield
         finally:
+            release_started = False
             gateway_state.health["core"] = "draining"
             for turn in gateway_state.active_turns.values():
                 turn["state"] = "interrupted_shutdown"
@@ -623,8 +629,19 @@ def create_app(
         return {"state": "alive"}
 
     @app.get("/health/ready")
-    async def ready() -> dict[str, str]:
-        return {"state": gateway_state.health.get("core", "unavailable")}
+    async def ready() -> dict[str, object]:
+        health = gateway_state.health.get("core", "unavailable")
+        if verified_release is None:
+            return {"state": health}
+        if not release_started:
+            return {"state": "starting" if health == "healthy" else health}
+        return {
+            "state": health,
+            "release": {
+                "version": verified_release.version,
+                "source_sha256": verified_release.source_sha256,
+            },
+        }
 
     @app.post("/v1/session")
     async def issue_session(request: Request) -> dict[str, object]:
@@ -1330,7 +1347,7 @@ def create_app(
     return app
 
 
-def main() -> None:
+def main(*, verified_release: VerifiedRelease | None = None) -> None:
     from siro.adapters.data_ownership import (
         DataOwnerBusyError,
         DataOwnerUnavailableError,
@@ -1340,12 +1357,31 @@ def main() -> None:
     data_dir = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
     try:
         with exclusive_data_owner(data_dir / "siro.db") as owner:
-            _run_gateway(data_dir, owner.loop_factory)
-    except (DataOwnerBusyError, DataOwnerUnavailableError) as error:
+            if verified_release is None:
+                _run_gateway(data_dir, owner.loop_factory)
+            else:
+                import siro
+                import siro.core.releases as release_module
+                from siro.persistence.sqlite import load_migrations
+
+                verified_release.validate_runtime(
+                    data_dir / "siro.db",
+                    package_file=Path(siro.__file__),
+                    gateway_file=Path(__file__),
+                    release_file=Path(release_module.__file__),
+                    current_schema=len(load_migrations()),
+                )
+                _run_gateway(data_dir, owner.loop_factory, verified_release=verified_release)
+    except (DataOwnerBusyError, DataOwnerUnavailableError, ReleaseLaunchError) as error:
         raise SystemExit(str(error)) from None
 
 
-def _run_gateway(data_dir: Path, loop_factory: Callable[[], asyncio.AbstractEventLoop]) -> None:
+def _run_gateway(
+    data_dir: Path,
+    loop_factory: Callable[[], asyncio.AbstractEventLoop],
+    *,
+    verified_release: VerifiedRelease | None = None,
+) -> None:
     import uvicorn
 
     from siro.adapters.body.web import MinimalWebBodyAdapter
@@ -1972,6 +2008,7 @@ def _run_gateway(data_dir: Path, loop_factory: Callable[[], asyncio.AbstractEven
         create_app(
             state=state,
             hub=hub,
+            verified_release=verified_release,
             runtime_profile=runtime_profile,
             configuration_source="gateway_env_and_defaults",
             allowed_origins={f"http://127.0.0.1:{port}", f"http://localhost:{port}"},

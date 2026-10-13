@@ -1,5 +1,31 @@
 # SIRO V2 Architecture Review
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+**Overall architecture health — YELLOW。** D52沿已簽版本/單一owner方向演進，actualsourceidentity不再只靠pointer/env label；整卡仍PARTIAL。只改既有ReleaseManager/read-schema fact、productlauncher與Gateway composition/ready；新增4份tests。complete manifest/CLI stage-rollback、D49/D50/D51、Core人格/記憶/權限/模型/語音/UI/SQL/deps保留。
+
+**Recent improvements。** operator明確SIRO_RELEASE_ROOT＋原signing-key opt-in；bounded complete signed active package與actualreadonlyschema→fresh-I/-B selectedsrc→existing D50 owner內實際SIRO/Core/Gateway來源及schemaepoch重驗→startup完成後HTTPready version/digest。簽署key不進childenv；originalcwd/data/assets保持，signedmode不provision、不fallback，不隱含migrate。
+
+**Architecture drift found。** confirmed missing integration（MISSING_INTEGRATION/INCOMPLETE_TASK/TEST_GAP）限定切片已接；Core只公開read-only verifiedtarget，沒有引用Gateway/UI；Gateway只composition guard/readback。無第二updater/registry/owner、hiddenglobalstate或provider/device bypass。schema fact局部重用且D48AST語意相同。
+
+**Regression risk changes。** 95新cases；最終相鄰335 PASS／3既有warnings／25.63s，完整 **1,673 PASS／5 real_provider未選／3既有warnings／199.58s**。Ruff315、mypy250（含launcher）、schema、source/tests/docs diff PASS。 新origin/schemaepoch/readiness/原defaultshape與true2version/rollback作baseline，不能只用mock exec或activepointer當作actualversion。
+
+**Technical debt introduced。** D52-compatible bootstrap ABI、shared pinned interpreter/deps與同schema限制明示；不擴成通用更新framework。不讀childkey、不讓codeversion切换換DB或造bytecode；未知/unsupported拒而不hostfallback。
+
+**Roadmap adjustments。** KEEP RI-005/SPLIT remainingfirstadoption與immutable approvedhandoff；D52resolver/loadedidentity/同schemaready scopedVERIFIED。KEEP RI-006唯讀提案。沒有實證支持額外CANCEL/MERGE/REORDER numberedtask，不改原RT歷史。
+
+**New blockers。** 無剩餘confirmedD52局部blocker；RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：舊／非受管writer停止、parent驗簽後sameUID換包、maintenance→exec CLOEXEC空窗與人工批准handoff未解除。D52只證同schema／D52-compatible src package，任意deps/ABI/migration/其他OS/powerloss/正式deployment未證。FIX-002/005/006產品gates、RT-011/013/015原scopedDONE不變。
+
+**Freeze zone changes。** selector/launcher/Gateway YELLOW；合成tests/evidence GREEN；運行DB/migration/permission/發布 RED。273baseline中270不改；exact7 source-only disposable reverse/reapply PASS，保所有資料與Git歷史。D48 schema helper抽出前後AST相同；D51 backup/CLI四檔與D50 owner/operations source保持。
+
+**Hermes relevance。** REJECT第二updater/owner/schemaengine；DEFER任意自改/自動發布/deps/跨平台到具體caller與獨立批准安全gate。既有source切片解決即停止重構。
+
+**Recommended next 3 existing task scopes（不排名）。** RI-005 knownoldwriter gracefuljoin/adoption；RI-005immutable exactapprovedpackage＋maintenance/runtimehandoff；RI-006source-backed failure→唯讀proposal。FIX-002/005/006品質驗收各自保持。
+
+沒有重啟live8026／讀privateDB/chat/WAV/key/config/models/GPU或正式deploy；全部程序/DB/HTTP為self-owned合成fixture，只讀health，無provider/TTS請求或效果重播。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 **Overall architecture health — YELLOW。** 單一owner與既有backup boundary方向成立；本輪修復已證local defect，不需推翻runtime設計。只改SQLiteStore既有backup方法與CLI `_backup` wrapper，新增兩份專項tests；operations、D49 restore body/SQL、D50 owner/Gateway/原tests、Core/權限/providers/voice/UI/launcher/deps不變。

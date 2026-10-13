@@ -1,0 +1,128 @@
+FFF
+=================================== FAILURES ===================================
+__ test_actual_signed_source_versions_and_code_rollback_preserve_latest_data ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-27/test_actual_signed_source_vers0')
+
+    def test_actual_signed_source_versions_and_code_rollback_preserve_latest_data(
+        tmp_path: Path,
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="signed-source-owned-", dir=tmp_path) as temporary:
+            root = Path(temporary)
+            launcher = prepared_project(root)
+            database = root / "data/siro.db"
+            asyncio.run(SQLiteStore(database).initialize())
+            seed(database, "before-first")
+            manager = ReleaseManager(
+                root / "manager", KEY, current_schema=len(load_migrations()), database=database
+            )
+            observed: list[dict[str, Any]] = []
+            manifests: dict[str, ReleaseManifest] = {}
+            for version, phase in (("1.0.0", "after-first"), ("2.0.0", "after-second")):
+                bundle = source_bundle(root, version)
+>               manifest = signed(bundle, version)
+                           ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_source_process.py:278: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+bundle = PosixPath('/tmp/pytest-of-jasonliao/pytest-27/test_actual_signed_source_vers0/signed-source-owned-g6puk5no/bundle-1.0.0')
+version = '1.0.0'
+
+    def signed(bundle: Path, version: str) -> ReleaseManifest:
+        values: dict[str, Any] = {
+            "version": version,
+            "source_sha256": ReleaseManager._digest(bundle),
+            "min_schema": len(load_migrations()),
+            "max_schema": len(load_migrations()),
+            "signing_format": "siro-release-manifest-v1",
+        }
+        payload = json.dumps(values, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+>       values["signature"] = hmac.new(KEY, payload, hashlib.sha256).hexdigest()
+                                                     ^^^^^^^
+E       NameError: name 'hashlib' is not defined. Did you forget to import 'hashlib'?
+
+tests/integration/test_release_source_process.py:127: NameError
+_ test_actual_invalid_signed_source_never_falls_back_or_mutates_database[unsupported-abi] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-27/test_actual_invalid_signed_sou0')
+invalid = 'unsupported-abi'
+
+    @pytest.mark.parametrize("invalid", ["unsupported-abi", "tampered-package"])
+    def test_actual_invalid_signed_source_never_falls_back_or_mutates_database(
+        tmp_path: Path, invalid: str
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="signed-refusal-owned-", dir=tmp_path) as temporary:
+            root = Path(temporary)
+            launcher = prepared_project(root)
+            database = root / "data/siro.db"
+            asyncio.run(SQLiteStore(database).initialize())
+            seed(database, "before-refusal")
+            bundle = source_bundle(root, "1.0.0", unsupported_abi=invalid == "unsupported-abi")
+>           manifest = signed(bundle, "1.0.0")
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_source_process.py:316: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+bundle = PosixPath('/tmp/pytest-of-jasonliao/pytest-27/test_actual_invalid_signed_sou0/signed-refusal-owned-vaklnzmn/bundle-1.0.0')
+version = '1.0.0'
+
+    def signed(bundle: Path, version: str) -> ReleaseManifest:
+        values: dict[str, Any] = {
+            "version": version,
+            "source_sha256": ReleaseManager._digest(bundle),
+            "min_schema": len(load_migrations()),
+            "max_schema": len(load_migrations()),
+            "signing_format": "siro-release-manifest-v1",
+        }
+        payload = json.dumps(values, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+>       values["signature"] = hmac.new(KEY, payload, hashlib.sha256).hexdigest()
+                                                     ^^^^^^^
+E       NameError: name 'hashlib' is not defined. Did you forget to import 'hashlib'?
+
+tests/integration/test_release_source_process.py:127: NameError
+_ test_actual_invalid_signed_source_never_falls_back_or_mutates_database[tampered-package] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-27/test_actual_invalid_signed_sou1')
+invalid = 'tampered-package'
+
+    @pytest.mark.parametrize("invalid", ["unsupported-abi", "tampered-package"])
+    def test_actual_invalid_signed_source_never_falls_back_or_mutates_database(
+        tmp_path: Path, invalid: str
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="signed-refusal-owned-", dir=tmp_path) as temporary:
+            root = Path(temporary)
+            launcher = prepared_project(root)
+            database = root / "data/siro.db"
+            asyncio.run(SQLiteStore(database).initialize())
+            seed(database, "before-refusal")
+            bundle = source_bundle(root, "1.0.0", unsupported_abi=invalid == "unsupported-abi")
+>           manifest = signed(bundle, "1.0.0")
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_source_process.py:316: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+bundle = PosixPath('/tmp/pytest-of-jasonliao/pytest-27/test_actual_invalid_signed_sou1/signed-refusal-owned-lkiwh5v4/bundle-1.0.0')
+version = '1.0.0'
+
+    def signed(bundle: Path, version: str) -> ReleaseManifest:
+        values: dict[str, Any] = {
+            "version": version,
+            "source_sha256": ReleaseManager._digest(bundle),
+            "min_schema": len(load_migrations()),
+            "max_schema": len(load_migrations()),
+            "signing_format": "siro-release-manifest-v1",
+        }
+        payload = json.dumps(values, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+>       values["signature"] = hmac.new(KEY, payload, hashlib.sha256).hexdigest()
+                                                     ^^^^^^^
+E       NameError: name 'hashlib' is not defined. Did you forget to import 'hashlib'?
+
+tests/integration/test_release_source_process.py:127: NameError
+=========================== short test summary info ============================
+FAILED tests/integration/test_release_source_process.py::test_actual_signed_source_versions_and_code_rollback_preserve_latest_data
+FAILED tests/integration/test_release_source_process.py::test_actual_invalid_signed_source_never_falls_back_or_mutates_database[unsupported-abi]
+FAILED tests/integration/test_release_source_process.py::test_actual_invalid_signed_source_never_falls_back_or_mutates_database[tampered-package]
+3 failed in 0.34s

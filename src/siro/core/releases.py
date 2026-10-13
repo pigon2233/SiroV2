@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import shutil
 import sqlite3
 import stat
@@ -51,6 +52,68 @@ class ReleaseResult:
     active_version: str | None
 
 
+class ReleaseLaunchError(RuntimeError):
+    def __init__(self, status: str) -> None:
+        self.status = status
+        super().__init__(f"SIRO release launch refused: {status}")
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedRelease:
+    version: str
+    source_sha256: str
+    directory: Path
+    schema_version: int
+
+    def validate_runtime(
+        self,
+        database: Path,
+        *,
+        package_file: Path,
+        gateway_file: Path,
+        release_file: Path,
+        current_schema: int,
+    ) -> None:
+        expected = self.directory / "src/siro"
+        origins = (
+            (package_file, expected / "__init__.py"),
+            (gateway_file, expected / "services/presentation/gateway.py"),
+            (release_file, expected / "core/releases.py"),
+        )
+        if any(actual.resolve() != selected for actual, selected in origins):
+            raise ReleaseLaunchError("wrong_loaded_source")
+        if current_schema != self.schema_version:
+            raise ReleaseLaunchError("schema_migration_required")
+        if _read_data_schema(database, current_schema) != self.schema_version:
+            raise ReleaseLaunchError("data_schema_changed")
+
+
+def _read_data_schema(database: Path | None, maximum: int) -> int | None:
+    if type(maximum) is not int or maximum < 1:
+        return None
+    if database is None:
+        return maximum
+    try:
+        if not stat.S_ISREG(database.lstat().st_mode):
+            return None
+        connection = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=1)
+        try:
+            connection.execute("PRAGMA query_only=ON")
+            records = connection.execute(
+                "SELECT CASE WHEN typeof(version) = 'integer' THEN version ELSE NULL END "
+                "FROM schema_migrations ORDER BY version LIMIT 4097"
+            ).fetchall()
+        finally:
+            connection.close()
+    except (OSError, sqlite3.Error):
+        return None
+    if not records or len(records) > 4096:
+        return None
+    if [record[0] for record in records] != list(range(1, len(records) + 1)):
+        return None
+    return len(records)
+
+
 class ReleaseManager:
     def __init__(
         self, root: Path, signing_key: bytes, *, current_schema: int, database: Path | None = None
@@ -59,6 +122,55 @@ class ReleaseManager:
         self._key = signing_key
         self._schema = current_schema
         self._database = database
+
+    def resolve_launch_target(self) -> VerifiedRelease:
+        if self._root.is_symlink():
+            raise ReleaseLaunchError("invalid_release_target")
+        active = self._root / "active.json"
+        if not active.exists() and not active.is_symlink():
+            raise ReleaseLaunchError("no_active_release")
+        try:
+            pointer = self._json_record(active)
+            version = pointer.get("version")
+            if (
+                set(pointer) != {"version"}
+                or not isinstance(version, str)
+                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+            ):
+                raise ValueError("invalid active version")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_active_release") from error
+        target = self._root / "releases" / version
+        try:
+            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
+                raise ValueError("invalid release directory")
+            for path in target.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode) or (
+                    not stat.S_ISDIR(info.st_mode)
+                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
+                ):
+                    raise ValueError("aliased release source")
+            for relative in (
+                "src/siro/__init__.py",
+                "src/siro/core/releases.py",
+                "src/siro/services/presentation/gateway.py",
+            ):
+                if not (target / relative).is_file():
+                    raise ValueError("missing release entrypoint")
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            if manifest.version != version or not self._verified(target, manifest):
+                raise ValueError("unverified release source")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_release_target") from error
+        schema = None if self._database is None else self._rollback_schema()
+        if schema is None:
+            raise ReleaseLaunchError("schema_unknown")
+        if schema > self._schema or not manifest.min_schema <= schema <= manifest.max_schema:
+            raise ReleaseLaunchError("incompatible_schema")
+        return VerifiedRelease(version, manifest.source_sha256, target.resolve(), schema)
 
     def stage_and_activate(
         self, bundle: Path, manifest: ReleaseManifest, healthcheck: tuple[str, ...]
@@ -193,31 +305,7 @@ class ReleaseManager:
         return value
 
     def _rollback_schema(self) -> int | None:
-        if type(self._schema) is not int or self._schema < 1:
-            return None
-        if self._database is None:
-            return self._schema
-        try:
-            if not stat.S_ISREG(self._database.lstat().st_mode):
-                return None
-            connection = sqlite3.connect(
-                self._database.resolve().as_uri() + "?mode=ro", uri=True, timeout=1
-            )
-            try:
-                connection.execute("PRAGMA query_only=ON")
-                records = connection.execute(
-                    "SELECT CASE WHEN typeof(version) = 'integer' THEN version ELSE NULL END "
-                    "FROM schema_migrations ORDER BY version LIMIT 4097"
-                ).fetchall()
-            finally:
-                connection.close()
-        except (OSError, sqlite3.Error):
-            return None
-        if not records or len(records) > 4096:
-            return None
-        if [record[0] for record in records] != list(range(1, len(records) + 1)):
-            return None
-        return len(records)
+        return _read_data_schema(self._database, self._schema)
 
     def _verified(self, bundle: Path, manifest: ReleaseManifest) -> bool:
         try:

@@ -1,0 +1,376 @@
+FFFFFF..FFFF                                                             [100%]
+=================================== FAILURES ===================================
+_ test_signed_launcher_executes_only_selected_source_without_key_or_provisioning _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_signed_launcher_executes_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ec4a04e7490>
+
+    def test_signed_launcher_executes_only_selected_source_without_key_or_provisioning(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        module, root, data = launcher_fixture(tmp_path, monkeypatch)
+        executions: list[tuple[Any, ...]] = []
+        monkeypatch.setattr(module.os, "execve", lambda *a: executions.append(a))
+        monkeypatch.setattr(
+            module.os, "execv", lambda *a: pytest.fail("signed mode must not fall back")
+        )
+        monkeypatch.setattr(
+            module.subprocess, "run", lambda *a, **kw: pytest.fail("signed mode must not provision")
+        )
+        before = (data / "siro.db").read_bytes()
+>       module.main()
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_signed_companion_launcher.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/jasonliao/文件/Siro/SiroV2/scripts/launch_companion.py:81: in main
+    os.execv(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = ('/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python', ['/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python', '-c', 'from siro.services.presentation.gateway import main; main()'])
+
+>       module.os, "execv", lambda *a: pytest.fail("signed mode must not fall back")
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+E   Failed: signed mode must not fall back
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_signed_companion_launcher.py:90: Failed
+__ test_selected_launcher_failure_never_falls_back_or_provisions[missing_key] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_selected_launcher_failure0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ec4a04e7230>
+defect = 'missing_key'
+
+    @pytest.mark.parametrize(
+        "defect",
+        [
+            "missing_key",
+            "bad_signature",
+            "bad_pointer",
+            "missing_database",
+            "missing_runtime",
+            "missing_renderer",
+        ],
+    )
+    def test_selected_launcher_failure_never_falls_back_or_provisions(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, defect: str
+    ) -> None:
+        module, root, data = launcher_fixture(tmp_path, monkeypatch)
+        if defect == "missing_key":
+            monkeypatch.delenv("SIRO_RELEASE_SIGNING_KEY")
+        elif defect == "bad_signature":
+            p = root / "manifests/2.0.0.json"
+            value = json.loads(p.read_text())
+            value["signature"] = "0" * 64
+            p.write_text(json.dumps(value))
+        elif defect == "bad_pointer":
+            (root / "active.json").write_text('{"version":"../../foreign"}')
+        elif defect == "missing_database":
+            (data / "siro.db").unlink()
+        elif defect == "missing_runtime":
+            (tmp_path / "project/target/debug/siro-runtime").unlink()
+        else:
+            (tmp_path / "project/renderer/index.html").unlink()
+        calls: list[Any] = []
+        monkeypatch.setattr(module.os, "execve", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.os, "execv", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw: calls.append(a))
+        pointer = (root / "active.json").read_bytes()
+>       with pytest.raises(SystemExit):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SystemExit
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_signed_companion_launcher.py:143: Failed
+_ test_selected_launcher_failure_never_falls_back_or_provisions[bad_signature] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_selected_launcher_failure1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ec4a03da0f0>
+defect = 'bad_signature'
+
+    @pytest.mark.parametrize(
+        "defect",
+        [
+            "missing_key",
+            "bad_signature",
+            "bad_pointer",
+            "missing_database",
+            "missing_runtime",
+            "missing_renderer",
+        ],
+    )
+    def test_selected_launcher_failure_never_falls_back_or_provisions(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, defect: str
+    ) -> None:
+        module, root, data = launcher_fixture(tmp_path, monkeypatch)
+        if defect == "missing_key":
+            monkeypatch.delenv("SIRO_RELEASE_SIGNING_KEY")
+        elif defect == "bad_signature":
+            p = root / "manifests/2.0.0.json"
+            value = json.loads(p.read_text())
+            value["signature"] = "0" * 64
+            p.write_text(json.dumps(value))
+        elif defect == "bad_pointer":
+            (root / "active.json").write_text('{"version":"../../foreign"}')
+        elif defect == "missing_database":
+            (data / "siro.db").unlink()
+        elif defect == "missing_runtime":
+            (tmp_path / "project/target/debug/siro-runtime").unlink()
+        else:
+            (tmp_path / "project/renderer/index.html").unlink()
+        calls: list[Any] = []
+        monkeypatch.setattr(module.os, "execve", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.os, "execv", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw: calls.append(a))
+        pointer = (root / "active.json").read_bytes()
+>       with pytest.raises(SystemExit):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SystemExit
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_signed_companion_launcher.py:143: Failed
+__ test_selected_launcher_failure_never_falls_back_or_provisions[bad_pointer] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_selected_launcher_failure2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ec4a0279480>
+defect = 'bad_pointer'
+
+    @pytest.mark.parametrize(
+        "defect",
+        [
+            "missing_key",
+            "bad_signature",
+            "bad_pointer",
+            "missing_database",
+            "missing_runtime",
+            "missing_renderer",
+        ],
+    )
+    def test_selected_launcher_failure_never_falls_back_or_provisions(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, defect: str
+    ) -> None:
+        module, root, data = launcher_fixture(tmp_path, monkeypatch)
+        if defect == "missing_key":
+            monkeypatch.delenv("SIRO_RELEASE_SIGNING_KEY")
+        elif defect == "bad_signature":
+            p = root / "manifests/2.0.0.json"
+            value = json.loads(p.read_text())
+            value["signature"] = "0" * 64
+            p.write_text(json.dumps(value))
+        elif defect == "bad_pointer":
+            (root / "active.json").write_text('{"version":"../../foreign"}')
+        elif defect == "missing_database":
+            (data / "siro.db").unlink()
+        elif defect == "missing_runtime":
+            (tmp_path / "project/target/debug/siro-runtime").unlink()
+        else:
+            (tmp_path / "project/renderer/index.html").unlink()
+        calls: list[Any] = []
+        monkeypatch.setattr(module.os, "execve", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.os, "execv", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw: calls.append(a))
+        pointer = (root / "active.json").read_bytes()
+>       with pytest.raises(SystemExit):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SystemExit
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_signed_companion_launcher.py:143: Failed
+_ test_selected_launcher_failure_never_falls_back_or_provisions[missing_database] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_selected_launcher_failure3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ec4a02799d0>
+defect = 'missing_database'
+
+    @pytest.mark.parametrize(
+        "defect",
+        [
+            "missing_key",
+            "bad_signature",
+            "bad_pointer",
+            "missing_database",
+            "missing_runtime",
+            "missing_renderer",
+        ],
+    )
+    def test_selected_launcher_failure_never_falls_back_or_provisions(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, defect: str
+    ) -> None:
+        module, root, data = launcher_fixture(tmp_path, monkeypatch)
+        if defect == "missing_key":
+            monkeypatch.delenv("SIRO_RELEASE_SIGNING_KEY")
+        elif defect == "bad_signature":
+            p = root / "manifests/2.0.0.json"
+            value = json.loads(p.read_text())
+            value["signature"] = "0" * 64
+            p.write_text(json.dumps(value))
+        elif defect == "bad_pointer":
+            (root / "active.json").write_text('{"version":"../../foreign"}')
+        elif defect == "missing_database":
+            (data / "siro.db").unlink()
+        elif defect == "missing_runtime":
+            (tmp_path / "project/target/debug/siro-runtime").unlink()
+        else:
+            (tmp_path / "project/renderer/index.html").unlink()
+        calls: list[Any] = []
+        monkeypatch.setattr(module.os, "execve", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.os, "execv", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw: calls.append(a))
+        pointer = (root / "active.json").read_bytes()
+>       with pytest.raises(SystemExit):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SystemExit
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_signed_companion_launcher.py:143: Failed
+_ test_selected_launcher_failure_never_falls_back_or_provisions[missing_runtime] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_selected_launcher_failure4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ec4a027ec50>
+defect = 'missing_runtime'
+
+    @pytest.mark.parametrize(
+        "defect",
+        [
+            "missing_key",
+            "bad_signature",
+            "bad_pointer",
+            "missing_database",
+            "missing_runtime",
+            "missing_renderer",
+        ],
+    )
+    def test_selected_launcher_failure_never_falls_back_or_provisions(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, defect: str
+    ) -> None:
+        module, root, data = launcher_fixture(tmp_path, monkeypatch)
+        if defect == "missing_key":
+            monkeypatch.delenv("SIRO_RELEASE_SIGNING_KEY")
+        elif defect == "bad_signature":
+            p = root / "manifests/2.0.0.json"
+            value = json.loads(p.read_text())
+            value["signature"] = "0" * 64
+            p.write_text(json.dumps(value))
+        elif defect == "bad_pointer":
+            (root / "active.json").write_text('{"version":"../../foreign"}')
+        elif defect == "missing_database":
+            (data / "siro.db").unlink()
+        elif defect == "missing_runtime":
+            (tmp_path / "project/target/debug/siro-runtime").unlink()
+        else:
+            (tmp_path / "project/renderer/index.html").unlink()
+        calls: list[Any] = []
+        monkeypatch.setattr(module.os, "execve", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.os, "execv", lambda *a: calls.append(a))
+        monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw: calls.append(a))
+        pointer = (root / "active.json").read_bytes()
+>       with pytest.raises(SystemExit):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SystemExit
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_signed_companion_launcher.py:143: Failed
+_______ test_release_ready_identity_exists_only_after_completed_startup ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_release_ready_identity_ex0')
+
+    def test_release_ready_identity_exists_only_after_completed_startup(tmp_path: Path) -> None:
+>       app = create_app(verified_release=identity(tmp_path))
+                                          ^^^^^^^^^^^^^^^^^^
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_release_ready_identity.py:25: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_release_ready_identity_ex0')
+
+    def identity(tmp_path: Path) -> Any:
+        cls = getattr(releases, "VerifiedRelease", None)
+>       assert cls is not None, "signed readiness needs explicit verified launch identity"
+E       AssertionError: signed readiness needs explicit verified launch identity
+E       assert None is not None
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_release_ready_identity.py:15: AssertionError
+___________ test_release_ready_without_lifespan_cannot_claim_healthy ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_release_ready_without_lif0')
+
+    def test_release_ready_without_lifespan_cannot_claim_healthy(tmp_path: Path) -> None:
+>       app = create_app(verified_release=identity(tmp_path))
+                                          ^^^^^^^^^^^^^^^^^^
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_release_ready_identity.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_release_ready_without_lif0')
+
+    def identity(tmp_path: Path) -> Any:
+        cls = getattr(releases, "VerifiedRelease", None)
+>       assert cls is not None, "signed readiness needs explicit verified launch identity"
+E       AssertionError: signed readiness needs explicit verified launch identity
+E       assert None is not None
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_release_ready_identity.py:15: AssertionError
+_________ test_failed_release_startup_does_not_publish_ready_identity __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_failed_release_startup_do0')
+
+    def test_failed_release_startup_does_not_publish_ready_identity(tmp_path: Path) -> None:
+        async def startup() -> None:
+            raise RuntimeError("synthetic startup failure")
+    
+>       app = create_app(verified_release=identity(tmp_path), on_startup=startup)
+                                          ^^^^^^^^^^^^^^^^^^
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_release_ready_identity.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_failed_release_startup_do0')
+
+    def identity(tmp_path: Path) -> Any:
+        cls = getattr(releases, "VerifiedRelease", None)
+>       assert cls is not None, "signed readiness needs explicit verified launch identity"
+E       AssertionError: signed readiness needs explicit verified launch identity
+E       assert None is not None
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_release_ready_identity.py:15: AssertionError
+_________ test_release_drain_removes_identity_and_reports_real_health __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_release_drain_removes_ide0')
+
+    def test_release_drain_removes_identity_and_reports_real_health(tmp_path: Path) -> None:
+        state = GatewayState()
+>       app = create_app(verified_release=identity(tmp_path), state=state)
+                                          ^^^^^^^^^^^^^^^^^^
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_release_ready_identity.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-18/test_release_drain_removes_ide0')
+
+    def identity(tmp_path: Path) -> Any:
+        cls = getattr(releases, "VerifiedRelease", None)
+>       assert cls is not None, "signed readiness needs explicit verified launch identity"
+E       AssertionError: signed readiness needs explicit verified launch identity
+E       assert None is not None
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_release_ready_identity.py:15: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_signed_companion_launcher.py::test_signed_launcher_executes_only_selected_source_without_key_or_provisioning
+FAILED tests/integration/test_signed_companion_launcher.py::test_selected_launcher_failure_never_falls_back_or_provisions[missing_key]
+FAILED tests/integration/test_signed_companion_launcher.py::test_selected_launcher_failure_never_falls_back_or_provisions[bad_signature]
+FAILED tests/integration/test_signed_companion_launcher.py::test_selected_launcher_failure_never_falls_back_or_provisions[bad_pointer]
+FAILED tests/integration/test_signed_companion_launcher.py::test_selected_launcher_failure_never_falls_back_or_provisions[missing_database]
+FAILED tests/integration/test_signed_companion_launcher.py::test_selected_launcher_failure_never_falls_back_or_provisions[missing_runtime]
+FAILED tests/integration/test_release_ready_identity.py::test_release_ready_identity_exists_only_after_completed_startup
+FAILED tests/integration/test_release_ready_identity.py::test_release_ready_without_lifespan_cannot_claim_healthy
+FAILED tests/integration/test_release_ready_identity.py::test_failed_release_startup_does_not_publish_ready_identity
+FAILED tests/integration/test_release_ready_identity.py::test_release_drain_removes_identity_and_reports_real_health
+10 failed, 2 passed, 3 warnings in 0.98s

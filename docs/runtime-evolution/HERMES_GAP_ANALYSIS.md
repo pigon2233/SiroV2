@@ -1,5 +1,13 @@
 # Hermes gap analysis
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+**REJECT** 第二updater/owner/registry/schemaengine、global state abstraction。原ReleaseManager+launcher/Gateway已提供此sourceidentity價值，不為概念完整擴框架。
+
+**KEEP** 實際caller、來源identity、取消/ownership與可回退驗收；**DEFER** arbitraryselfmodify/autopublish、新deps/ABI/跨平台untilconcretecaller與批准/隔離/handoff證据。RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：舊／非受管writer停止、parent驗簽後sameUID換包、maintenance→exec CLOEXEC空窗與人工批准handoff未解除。D52只證同schema／D52-compatible src package，任意deps/ABI/migration/其他OS/powerloss/正式deployment未證。FIX-002/005/006產品gates、RT-011/013/015原scopedDONE不變。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 **REJECT** 為backup cancellation再造manager、executor service、第二owner registry或全域state abstraction。實測已由原SQLiteStore／CLI composition局部修復，不為完成Hermes概念清單繼續擴張。

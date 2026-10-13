@@ -7,10 +7,45 @@ import subprocess
 import sys
 from pathlib import Path
 
+from siro.core.releases import ReleaseLaunchError, ReleaseManager, VerifiedRelease
+from siro.persistence.sqlite import load_migrations
+
+_SIGNED_BOOTSTRAP = """import sys
+from pathlib import Path
+directory, version, digest, schema = sys.argv[1:5]
+sys.path.insert(0, str(Path(directory) / 'src'))
+from siro.core.releases import VerifiedRelease
+from siro.services.presentation.gateway import main
+main(verified_release=VerifiedRelease(version, digest, Path(directory), int(schema)))
+"""
+
+
+def _selected_release(root: Path) -> VerifiedRelease | None:
+    selected = os.environ.get("SIRO_RELEASE_ROOT")
+    if selected is None:
+        return None
+    key = os.environ.get("SIRO_RELEASE_SIGNING_KEY")
+    if not selected or not key:
+        raise SystemExit("SIRO release launch refused: missing_release_configuration")
+    data = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
+    if not data.is_absolute():
+        data = root / data
+    manager = ReleaseManager(
+        Path(selected),
+        key.encode(),
+        current_schema=len(load_migrations()),
+        database=data / "siro.db",
+    )
+    try:
+        return manager.resolve_launch_target()
+    except ReleaseLaunchError as error:
+        raise SystemExit(str(error)) from None
+
 
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
     os.chdir(root)
+    selected = _selected_release(root)
     settings = root / ".env.local"
     allowed = {
         "SIRO_OPENAI_BASE_URL",
@@ -51,9 +86,13 @@ def main() -> None:
     binary = root / "target/debug/siro-runtime"
     os.environ.setdefault("SIRO_RUNTIME_BINARY", str(binary))
     if not Path(os.environ["SIRO_RUNTIME_BINARY"]).is_file():
+        if selected is not None:
+            raise SystemExit("SIRO release launch refused: runtime_asset_missing")
         subprocess.run(["cargo", "build", "--locked", "-p", "siro-runtime"], check=True)
     demo = root / "models/live2d-sdk-5-r.5/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo"
     if not os.environ.get("SIRO_LIVE2D_DIST") and (demo / "src/main.ts").is_file():
+        if selected is not None:
+            raise SystemExit("SIRO release launch refused: renderer_asset_missing")
         subprocess.run(
             [sys.executable, str(root / "scripts/repair_companion_renderer.py"), str(demo)],
             check=True,
@@ -65,6 +104,7 @@ def main() -> None:
     if (
         os.environ.get("SIRO_OPENAI_MODEL") == "openai/gpt-oss-20b"
         and os.environ.get("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "1") == "1"
+        and selected is None
     ):
         directory = os.environ.get(
             "SIRO_CONTEXT_TOKENIZER_DIR", str(root / ".siro-data/tokenizers/gpt-oss-20b")
@@ -78,6 +118,28 @@ def main() -> None:
             ],
             check=True,
         )
+    if selected is not None:
+        environment = dict(os.environ)
+        environment.pop("SIRO_RELEASE_SIGNING_KEY", None)
+        environment["SIRO_DATA_DIR"] = str(
+            Path(os.environ.get("SIRO_DATA_DIR", ".siro-data")).resolve()
+        )
+        os.execve(
+            sys.executable,
+            [
+                sys.executable,
+                "-I",
+                "-B",
+                "-c",
+                _SIGNED_BOOTSTRAP,
+                str(selected.directory),
+                selected.version,
+                selected.source_sha256,
+                str(selected.schema_version),
+            ],
+            environment,
+        )
+        return
     os.execv(
         sys.executable,
         [sys.executable, "-c", "from siro.services.presentation.gateway import main; main()"],

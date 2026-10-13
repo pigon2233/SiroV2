@@ -1,5 +1,23 @@
 # Runtime evolution roadmap
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+**KEEP RI-005 / SPLIT remaining gates**：D52signedsource選擇、actualloadedversion與同schemaHTTPready切片VERIFIED。95新cases；最終相鄰335 PASS／3既有warnings／25.63s，完整 **1,673 PASS／5 real_provider未選／3既有warnings／199.58s**。Ruff315、mypy250（含launcher）、schema、source/tests/docs diff PASS。
+
+| 既有scope | 決定 | 現況 |
+|---|---|---|
+| RI-005 D52 source launch | VERIFIED限定切片 | 真1→2→rollback1、保最新data、wrongABI/tamper拒、無hostfallback |
+| RI-005 full adoption/handoff | KEEP / SPLIT / PARTIAL | old/unmanagedwriter、immutable exactpackage/verify gap、approved maintenance→runtimehandoff保留BLOCKED_BY_RELEASE_INTEGRATION |
+| RI-006 | KEEP | 下一唯讀來源失敗提案，不自批或執行 |
+| RT-011/013/015 | 原scopedDONE保持 | 不重做、不重編號 |
+| FIX-002/005/006 | PARTIAL保持 | 搜尋／語音速度人耳／理解產品gate |
+
+下一三既有範圍（非ranking）：RI-005oldwriter/adoption；RI-005exact immutable approvedhandoff；RI-006唯讀proposal。沒有新增重編/硬CANCEL抽象任務理由。
+
+RI-005整體仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**：舊／非受管writer停止、parent驗簽後sameUID換包、maintenance→exec CLOEXEC空窗與人工批准handoff未解除。D52只證同schema／D52-compatible src package，任意deps/ABI/migration/其他OS/powerloss/正式deployment未證。FIX-002/005/006產品gates、RT-011/013/015原scopedDONE不變。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## 2026-10-13 — D51 / FIX-015 backup cancellation VERIFIED
 
 **FIX-015 DONE / VERIFIED**：backup cancellation staging/connection/CLI teardown的最小修復已驗；原D50/FIX-014 DONE保留。新25 cases、相鄰240 PASS（17.60s）；完整 **1,578 PASS／5 real_provider 未選／3既有 warnings／198.40s**。Ruff311／mypy245／schema／diff PASS。
@@ -192,16 +210,16 @@ FIX-002改為PARTIAL：typed reason／可讀主頁partial／關閉時pending-rou
 
 - Task ID: RI-005
 - Title: 可辨識啟動版本與保留最新資料的人工發布回退
-- Current State: Partially Implemented（ReleaseManager／CLI與專用launcher已有）
+- Current State: Partially Implemented（D52 complete-signed source選版、actual loaded identity及same-schema ready已VERIFIED；full adoption/handoff未完成）
 - Objective: 區分active pointer、真正執行版本與資料恢復；不因code rollback覆蓋後來的對話／記憶。
 - Affected Modules: 既有ReleaseManager、operations／companion launcher；不重做update framework。
-- Dependencies: FIX-009/013/014/015各自局部VERIFIED；T34產品readiness；BLOCKED_BY_RELEASE_INTEGRATION：人工maintenance窗口／firstadoption舊writer／signedlauncher／schema相容與資料保留政策。
+- Dependencies: FIX-009/013/014/015與D52sourceidentity/同schemaready局部VERIFIED；T34產品readiness；BLOCKED_BY_RELEASE_INTEGRATION：人工maintenance窗口／firstadoption舊writer／immutable exact package驗簽到import／維護到runtime交接與獨立migration政策。
 - Implementation Scope: 先設計code rollback保持live data的測試；單一stopped-writer gate；驗launcher實際consume版本／last-known-good readiness。schema不兼容就拒自動回退；資料還原為獨立明確操作。
 - Acceptance Criteria: 兩版啟動source identity可讀；新寫入在code rollback後仍在；中斷/migration失敗無雙writer；已完成效果不重播；未批准不deploy。
 - Tests: 暫存DB晚寫、WAL/active writer、schema incompat、activation crash、launcher實際版本與health；不使用私人DB。
 - Risks: migration與資料生命週期屬RED；沒有證據不可降低gate。
 - Rollback: 撤新發布接入／保持舊可信launcher及最新DB；人工復原不能靜默restore舊backup。
-- Status: PARTIAL（D48 code-only retention、D49 explicit restore、D50 managed source/write/fixed-temp owner、D51 backup cancellation均局部VERIFIED）；FIX-013/014/015各自gate解除。BLOCKED_BY_RELEASE_INTEGRATION：firstadoption舊writer／真正signedlauncher consume/version/readiness／批准handoff未驗，非deployment。[D50證據](../evidence/RI-005-owner-2026-10-12/REPORT.md)、[D51證據](../evidence/FIX-015-2026-10-13/REPORT.md)。
+- Status: PARTIAL（D48 data retention、D49 restore、D50 namedowner、D51 backup、D52 signedsource/actualversion/same-schema ready均局部VERIFIED）。BLOCKED_BY_RELEASE_INTEGRATION：firstadoption舊／非受管writer、exactimmutablepackage verify/import gap、人工maintenance→runtimehandoff與formaldeployment未驗。[D52證據](../evidence/RI-005-launcher-2026-10-13/REPORT.md)；原D48–D51歷史保持。
 
 ### RI-006
 

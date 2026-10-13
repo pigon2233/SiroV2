@@ -1,5 +1,17 @@
 # Runtime Evolution Fix Register
 
+## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
+
+本卡是RI-005原remaining MISSING_INTEGRATION / INCOMPLETE_TASK / TEST_GAP的限定實作，未發現新正式runtime IMPLEMENTATION_BUG，不另造重複FIX或ARCHITECTURE_CORRECTION。D52selector/identity/ready VERIFIED；oldwriter/immutablehandoff仍BLOCKED_BY_RELEASE_INTEGRATION。
+
+新增DTO永久negativecases補TEST_GAP；processjson/hashlib import與rollbackevidence欄位錯誤皆fixture-only已修並重跑，不能要求production重構。FIX-012–015原scopedDONE保持。
+
+95新cases；最終相鄰335 PASS／3既有warnings／25.63s，完整 **1,673 PASS／5 real_provider未選／3既有warnings／199.58s**。Ruff315、mypy250（含launcher）、schema、source/tests/docs diff PASS。
+
+273baseline中270不改；exact7 source-only disposable reverse/reapply PASS，保所有資料與Git歷史。D48 schema helper抽出前後AST相同；D51 backup/CLI四檔與D50 owner/operations source保持。
+
+[實際驗收、限制與回退](../evidence/RI-005-launcher-2026-10-13/REPORT.md)。
+
 ## FIX-015 — ZIP backup cancellation must not recreate cleaned staging
 
 - Classification: REQUIRED_FIX; same-card CLI teardown/selector corrections MINOR_FIX.

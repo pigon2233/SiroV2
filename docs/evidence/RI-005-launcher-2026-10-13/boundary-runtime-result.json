@@ -1,0 +1,63 @@
+{
+  "scope": "direct public DTO + real temp SQLite; no service/model/private data",
+  "source_hashes": {
+    "src/siro/core/releases.py": "0937b3b11b816e16fd7fa9876efc353e0cd64e91bc361bc9f3c71555920ce98b",
+    "scripts/launch_companion.py": "fcfcf6072cb2078fbf9529644c7ee0a4937e81afd648b6499198cbb271b49790",
+    "src/siro/services/presentation/gateway.py": "5d4de5e5ac458a0cde7ed1252eef99d352a6c8f8c681977bd2bf371a62b4d4d3"
+  },
+  "source_stable": true,
+  "prior_D48_schema_body_ast_equivalent": true,
+  "passed_cases": 9,
+  "cases": [
+    {
+      "case": "exact_origins_and_real_matching_schema",
+      "expected_status": null,
+      "pass": true
+    },
+    {
+      "case": "wrong_package_file",
+      "expected_status": "wrong_loaded_source",
+      "pass": true
+    },
+    {
+      "case": "wrong_gateway_file",
+      "expected_status": "wrong_loaded_source",
+      "pass": true
+    },
+    {
+      "case": "wrong_release_file",
+      "expected_status": "wrong_loaded_source",
+      "pass": true
+    },
+    {
+      "case": "candidate_requires_additive_migration",
+      "expected_status": "schema_migration_required",
+      "pass": true
+    },
+    {
+      "case": "candidate_does_not_support_current_count",
+      "expected_status": "schema_migration_required",
+      "pass": true
+    },
+    {
+      "case": "actual_schema_changed_after_selection",
+      "expected_status": "data_schema_changed",
+      "pass": true
+    },
+    {
+      "case": "actual_schema_is_not_a_prefix",
+      "expected_status": "data_schema_changed",
+      "pass": true
+    },
+    {
+      "case": "actual_schema_is_unknown",
+      "expected_status": "data_schema_changed",
+      "pass": true
+    }
+  ],
+  "database_bytes_preserved": true,
+  "temporary_root_removed": true,
+  "actual_child_launch": "NOT_RUN",
+  "same_uid_package_mutation": "NOT_VERIFIED",
+  "maintenance_exec_handoff": "NOT_VERIFIED"
+}

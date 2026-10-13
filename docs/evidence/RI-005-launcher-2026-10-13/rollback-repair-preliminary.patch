@@ -1,0 +1,1564 @@
+diff --git a/src/siro/core/releases.py b/src/siro/core/releases.py
+--- a/src/siro/core/releases.py
++++ b/src/siro/core/releases.py
+@@ -5,6 +5,7 @@
+ import hashlib
+ import hmac
+ import json
++import re
+ import shutil
+ import sqlite3
+ import stat
+@@ -51,6 +52,68 @@
+     active_version: str | None
+ 
+ 
++class ReleaseLaunchError(RuntimeError):
++    def __init__(self, status: str) -> None:
++        self.status = status
++        super().__init__(f"SIRO release launch refused: {status}")
++
++
++@dataclass(frozen=True, slots=True)
++class VerifiedRelease:
++    version: str
++    source_sha256: str
++    directory: Path
++    schema_version: int
++
++    def validate_runtime(
++        self,
++        database: Path,
++        *,
++        package_file: Path,
++        gateway_file: Path,
++        release_file: Path,
++        current_schema: int,
++    ) -> None:
++        expected = self.directory / "src/siro"
++        origins = (
++            (package_file, expected / "__init__.py"),
++            (gateway_file, expected / "services/presentation/gateway.py"),
++            (release_file, expected / "core/releases.py"),
++        )
++        if any(actual.resolve() != selected for actual, selected in origins):
++            raise ReleaseLaunchError("wrong_loaded_source")
++        if current_schema != self.schema_version:
++            raise ReleaseLaunchError("schema_migration_required")
++        if _read_data_schema(database, current_schema) != self.schema_version:
++            raise ReleaseLaunchError("data_schema_changed")
++
++
++def _read_data_schema(database: Path | None, maximum: int) -> int | None:
++    if type(maximum) is not int or maximum < 1:
++        return None
++    if database is None:
++        return maximum
++    try:
++        if not stat.S_ISREG(database.lstat().st_mode):
++            return None
++        connection = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=1)
++        try:
++            connection.execute("PRAGMA query_only=ON")
++            records = connection.execute(
++                "SELECT CASE WHEN typeof(version) = 'integer' THEN version ELSE NULL END "
++                "FROM schema_migrations ORDER BY version LIMIT 4097"
++            ).fetchall()
++        finally:
++            connection.close()
++    except (OSError, sqlite3.Error):
++        return None
++    if not records or len(records) > 4096:
++        return None
++    if [record[0] for record in records] != list(range(1, len(records) + 1)):
++        return None
++    return len(records)
++
++
+ class ReleaseManager:
+     def __init__(
+         self, root: Path, signing_key: bytes, *, current_schema: int, database: Path | None = None
+@@ -59,6 +122,55 @@
+         self._key = signing_key
+         self._schema = current_schema
+         self._database = database
++
++    def resolve_launch_target(self) -> VerifiedRelease:
++        if self._root.is_symlink():
++            raise ReleaseLaunchError("invalid_release_target")
++        active = self._root / "active.json"
++        if not active.exists() and not active.is_symlink():
++            raise ReleaseLaunchError("no_active_release")
++        try:
++            pointer = self._json_record(active)
++            version = pointer.get("version")
++            if (
++                set(pointer) != {"version"}
++                or not isinstance(version, str)
++                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
++            ):
++                raise ValueError("invalid active version")
++        except (OSError, ValueError, RecursionError) as error:
++            raise ReleaseLaunchError("invalid_active_release") from error
++        target = self._root / "releases" / version
++        try:
++            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
++                raise ValueError("invalid release directory")
++            for path in target.rglob("*"):
++                info = path.lstat()
++                if stat.S_ISLNK(info.st_mode) or (
++                    not stat.S_ISDIR(info.st_mode)
++                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
++                ):
++                    raise ValueError("aliased release source")
++            for relative in (
++                "src/siro/__init__.py",
++                "src/siro/core/releases.py",
++                "src/siro/services/presentation/gateway.py",
++            ):
++                if not (target / relative).is_file():
++                    raise ValueError("missing release entrypoint")
++            manifest = ReleaseManifest.model_validate(
++                self._json_record(self._root / "manifests" / f"{version}.json")
++            )
++            if manifest.version != version or not self._verified(target, manifest):
++                raise ValueError("unverified release source")
++        except (OSError, ValueError, RecursionError) as error:
++            raise ReleaseLaunchError("invalid_release_target") from error
++        schema = None if self._database is None else self._rollback_schema()
++        if schema is None:
++            raise ReleaseLaunchError("schema_unknown")
++        if schema > self._schema or not manifest.min_schema <= schema <= manifest.max_schema:
++            raise ReleaseLaunchError("incompatible_schema")
++        return VerifiedRelease(version, manifest.source_sha256, target.resolve(), schema)
+ 
+     def stage_and_activate(
+         self, bundle: Path, manifest: ReleaseManifest, healthcheck: tuple[str, ...]
+@@ -193,31 +305,7 @@
+         return value
+ 
+     def _rollback_schema(self) -> int | None:
+-        if type(self._schema) is not int or self._schema < 1:
+-            return None
+-        if self._database is None:
+-            return self._schema
+-        try:
+-            if not stat.S_ISREG(self._database.lstat().st_mode):
+-                return None
+-            connection = sqlite3.connect(
+-                self._database.resolve().as_uri() + "?mode=ro", uri=True, timeout=1
+-            )
+-            try:
+-                connection.execute("PRAGMA query_only=ON")
+-                records = connection.execute(
+-                    "SELECT CASE WHEN typeof(version) = 'integer' THEN version ELSE NULL END "
+-                    "FROM schema_migrations ORDER BY version LIMIT 4097"
+-                ).fetchall()
+-            finally:
+-                connection.close()
+-        except (OSError, sqlite3.Error):
+-            return None
+-        if not records or len(records) > 4096:
+-            return None
+-        if [record[0] for record in records] != list(range(1, len(records) + 1)):
+-            return None
+-        return len(records)
++        return _read_data_schema(self._database, self._schema)
+ 
+     def _verified(self, bundle: Path, manifest: ReleaseManifest) -> bool:
+         try:
+diff --git a/scripts/launch_companion.py b/scripts/launch_companion.py
+--- a/scripts/launch_companion.py
++++ b/scripts/launch_companion.py
+@@ -7,10 +7,45 @@
+ import sys
+ from pathlib import Path
+ 
++from siro.core.releases import ReleaseLaunchError, ReleaseManager, VerifiedRelease
++from siro.persistence.sqlite import load_migrations
++
++_SIGNED_BOOTSTRAP = """import sys
++from pathlib import Path
++directory, version, digest, schema = sys.argv[1:5]
++sys.path.insert(0, str(Path(directory) / 'src'))
++from siro.core.releases import VerifiedRelease
++from siro.services.presentation.gateway import main
++main(verified_release=VerifiedRelease(version, digest, Path(directory), int(schema)))
++"""
++
++
++def _selected_release(root: Path) -> VerifiedRelease | None:
++    selected = os.environ.get("SIRO_RELEASE_ROOT")
++    if selected is None:
++        return None
++    key = os.environ.get("SIRO_RELEASE_SIGNING_KEY")
++    if not selected or not key:
++        raise SystemExit("SIRO release launch refused: missing_release_configuration")
++    data = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
++    if not data.is_absolute():
++        data = root / data
++    manager = ReleaseManager(
++        Path(selected),
++        key.encode(),
++        current_schema=len(load_migrations()),
++        database=data / "siro.db",
++    )
++    try:
++        return manager.resolve_launch_target()
++    except ReleaseLaunchError as error:
++        raise SystemExit(str(error)) from None
++
+ 
+ def main() -> None:
+     root = Path(__file__).resolve().parents[1]
+     os.chdir(root)
++    selected = _selected_release(root)
+     settings = root / ".env.local"
+     allowed = {
+         "SIRO_OPENAI_BASE_URL",
+@@ -51,9 +86,13 @@
+     binary = root / "target/debug/siro-runtime"
+     os.environ.setdefault("SIRO_RUNTIME_BINARY", str(binary))
+     if not Path(os.environ["SIRO_RUNTIME_BINARY"]).is_file():
++        if selected is not None:
++            raise SystemExit("SIRO release launch refused: runtime_asset_missing")
+         subprocess.run(["cargo", "build", "--locked", "-p", "siro-runtime"], check=True)
+     demo = root / "models/live2d-sdk-5-r.5/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo"
+     if not os.environ.get("SIRO_LIVE2D_DIST") and (demo / "src/main.ts").is_file():
++        if selected is not None:
++            raise SystemExit("SIRO release launch refused: renderer_asset_missing")
+         subprocess.run(
+             [sys.executable, str(root / "scripts/repair_companion_renderer.py"), str(demo)],
+             check=True,
+@@ -65,6 +104,7 @@
+     if (
+         os.environ.get("SIRO_OPENAI_MODEL") == "openai/gpt-oss-20b"
+         and os.environ.get("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "1") == "1"
++        and selected is None
+     ):
+         directory = os.environ.get(
+             "SIRO_CONTEXT_TOKENIZER_DIR", str(root / ".siro-data/tokenizers/gpt-oss-20b")
+@@ -78,6 +118,28 @@
+             ],
+             check=True,
+         )
++    if selected is not None:
++        environment = dict(os.environ)
++        environment.pop("SIRO_RELEASE_SIGNING_KEY", None)
++        environment["SIRO_DATA_DIR"] = str(
++            Path(os.environ.get("SIRO_DATA_DIR", ".siro-data")).resolve()
++        )
++        os.execve(
++            sys.executable,
++            [
++                sys.executable,
++                "-I",
++                "-B",
++                "-c",
++                _SIGNED_BOOTSTRAP,
++                str(selected.directory),
++                selected.version,
++                selected.source_sha256,
++                str(selected.schema_version),
++            ],
++            environment,
++        )
++        return
+     os.execv(
+         sys.executable,
+         [sys.executable, "-c", "from siro.services.presentation.gateway import main; main()"],
+diff --git a/src/siro/services/presentation/gateway.py b/src/siro/services/presentation/gateway.py
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -30,6 +30,7 @@
+ from siro.adapters.body.web import WebSocketBodyTransport
+ from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
+ from siro.core.memory import Memory, MemoryService
++from siro.core.releases import ReleaseLaunchError, VerifiedRelease
+ from siro.ports.models import ToolCall
+ from siro.services.agent.organization import MemoryOrganizer
+ from siro.services.audio.protocol import (
+@@ -503,6 +504,7 @@
+     on_memory_invalidated: Callable[[], Awaitable[None]] | None = None,
+     skill_candidates: SkillCandidatePreparer | None = None,
+     skill_activation: SkillActivationOwner | None = None,
++    verified_release: VerifiedRelease | None = None,
+ ) -> FastAPI:
+     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
+     gateway_state = state or GatewayState()
+@@ -512,6 +514,7 @@
+     audio_owners = playback_ownership or PlaybackOwnership()
+     candidate_owner = skill_candidates if runtime_profile == "candidate" else None
+     activation_owner = skill_activation if runtime_profile == "candidate" else None
++    release_started = False
+ 
+     def candidate_metadata() -> dict[str, object]:
+         return {
+@@ -545,6 +548,7 @@
+ 
+     @asynccontextmanager
+     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
++        nonlocal release_started
+         try:
+             if on_startup is not None:
+                 await on_startup()
+@@ -552,8 +556,10 @@
+                 await activation_owner.initialize()
+                 if not gateway_state.kill_switches["tools"]:
+                     await activation_owner.suspend()
++            release_started = True
+             yield
+         finally:
++            release_started = False
+             gateway_state.health["core"] = "draining"
+             for turn in gateway_state.active_turns.values():
+                 turn["state"] = "interrupted_shutdown"
+@@ -623,8 +629,19 @@
+         return {"state": "alive"}
+ 
+     @app.get("/health/ready")
+-    async def ready() -> dict[str, str]:
+-        return {"state": gateway_state.health.get("core", "unavailable")}
++    async def ready() -> dict[str, object]:
++        health = gateway_state.health.get("core", "unavailable")
++        if verified_release is None:
++            return {"state": health}
++        if not release_started:
++            return {"state": "starting" if health == "healthy" else health}
++        return {
++            "state": health,
++            "release": {
++                "version": verified_release.version,
++                "source_sha256": verified_release.source_sha256,
++            },
++        }
+ 
+     @app.post("/v1/session")
+     async def issue_session(request: Request) -> dict[str, object]:
+@@ -1330,7 +1347,7 @@
+     return app
+ 
+ 
+-def main() -> None:
++def main(*, verified_release: VerifiedRelease | None = None) -> None:
+     from siro.adapters.data_ownership import (
+         DataOwnerBusyError,
+         DataOwnerUnavailableError,
+@@ -1340,12 +1357,31 @@
+     data_dir = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
+     try:
+         with exclusive_data_owner(data_dir / "siro.db") as owner:
+-            _run_gateway(data_dir, owner.loop_factory)
+-    except (DataOwnerBusyError, DataOwnerUnavailableError) as error:
++            if verified_release is None:
++                _run_gateway(data_dir, owner.loop_factory)
++            else:
++                import siro
++                import siro.core.releases as release_module
++                from siro.persistence.sqlite import load_migrations
++
++                verified_release.validate_runtime(
++                    data_dir / "siro.db",
++                    package_file=Path(siro.__file__),
++                    gateway_file=Path(__file__),
++                    release_file=Path(release_module.__file__),
++                    current_schema=len(load_migrations()),
++                )
++                _run_gateway(data_dir, owner.loop_factory, verified_release=verified_release)
++    except (DataOwnerBusyError, DataOwnerUnavailableError, ReleaseLaunchError) as error:
+         raise SystemExit(str(error)) from None
+ 
+ 
+-def _run_gateway(data_dir: Path, loop_factory: Callable[[], asyncio.AbstractEventLoop]) -> None:
++def _run_gateway(
++    data_dir: Path,
++    loop_factory: Callable[[], asyncio.AbstractEventLoop],
++    *,
++    verified_release: VerifiedRelease | None = None,
++) -> None:
+     import uvicorn
+ 
+     from siro.adapters.body.web import MinimalWebBodyAdapter
+@@ -1972,6 +2008,7 @@
+         create_app(
+             state=state,
+             hub=hub,
++            verified_release=verified_release,
+             runtime_profile=runtime_profile,
+             configuration_source="gateway_env_and_defaults",
+             allowed_origins={f"http://127.0.0.1:{port}", f"http://localhost:{port}"},
+diff --git a/tests/integration/test_release_launch_selection.py b/tests/integration/test_release_launch_selection.py
+new file mode 100644
+--- /dev/null
++++ b/tests/integration/test_release_launch_selection.py
+@@ -0,0 +1,448 @@
++from __future__ import annotations
++
++import hashlib
++import hmac
++import json
++import os
++import shutil
++import sqlite3
++import stat
++import subprocess
++from collections.abc import Callable
++from contextlib import closing
++from dataclasses import FrozenInstanceError, dataclass
++from pathlib import Path
++from typing import cast
++
++import pytest
++
++import siro.core.releases as release_module
++from siro.core.releases import ReleaseManager
++
++KEY = b"synthetic-d52-selection-key"  # pragma: allowlist secret
++REQUIRED_FILES = (
++    "src/siro/__init__.py",
++    "src/siro/core/releases.py",
++    "src/siro/services/presentation/gateway.py",
++)
++
++
++@dataclass(frozen=True)
++class SelectionFixture:
++    manager: ReleaseManager
++    root: Path
++    database: Path
++    configuration: Path
++
++
++def source_digest(directory: Path) -> str:
++    """Independent implementation of the existing signed tree byte format."""
++    digest = hashlib.sha256()
++    for path in sorted(directory.rglob("*")):
++        if path.is_file():
++            digest.update(str(path.relative_to(directory)).encode())
++            digest.update(path.read_bytes())
++    return digest.hexdigest()
++
++
++def set_schema(database: Path, versions: list[object]) -> None:
++    with closing(sqlite3.connect(database)) as connection, connection:
++        connection.execute("DROP TABLE IF EXISTS schema_migrations")
++        connection.execute("CREATE TABLE schema_migrations(version)")
++        connection.executemany("INSERT INTO schema_migrations VALUES (?)", [(n,) for n in versions])
++
++
++def write_receipt(
++    root: Path,
++    version: str,
++    *,
++    minimum: int = 1,
++    maximum: int = 8,
++    values: dict[str, object] | None = None,
++) -> dict[str, object]:
++    unsigned: dict[str, object] = {
++        "version": version,
++        "source_sha256": source_digest(root / "releases" / version),
++        "min_schema": minimum,
++        "max_schema": maximum,
++        "signing_format": "siro-release-manifest-v1",
++    }
++    if values is not None:
++        unsigned.update(values)
++    unsigned.pop("signature", None)
++    payload = json.dumps(
++        unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=True
++    ).encode()
++    signed = {**unsigned, "signature": hmac.new(KEY, payload, hashlib.sha256).hexdigest()}
++    path = root / "manifests" / f"{version}.json"
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(json.dumps(signed), encoding="utf-8")
++    return signed
++
++
++@pytest.fixture
++def selection(tmp_path: Path) -> SelectionFixture:
++    root = tmp_path / "synthetic-releases"
++    root.mkdir()
++    for version in ("1.0.0", "2.0.0"):
++        target = root / "releases" / version
++        for relative in REQUIRED_FILES:
++            path = target / relative
++            path.parent.mkdir(parents=True, exist_ok=True)
++            path.write_text(f"# synthetic signed source for {version}: {relative}\n")
++        (target / "ordinary-data.txt").write_text(f"signed extra bytes for {version}")
++        write_receipt(root, version)
++    (root / "active.json").write_text('{"version":"2.0.0"}')
++    (root / "last-known-good.json").write_text('{"version":"1.0.0"}')
++    backup = root / "backups" / "before-2.0.0.sqlite3"
++    backup.parent.mkdir()
++    backup.write_bytes(b"historical backup must never be opened by launch selection")
++    database = tmp_path / "synthetic.sqlite3"
++    with closing(sqlite3.connect(database)) as connection, connection:
++        for table in ("conversation", "memory", "ledger"):
++            connection.execute(f"CREATE TABLE {table}(value TEXT)")
++            connection.execute(f"INSERT INTO {table} VALUES (?)", ("latest completed data",))
++    set_schema(database, list(range(1, 9)))
++    configuration = tmp_path / "synthetic-config.json"
++    configuration.write_text('{"synthetic": "preserve this configuration"}')
++    manager = ReleaseManager(root, KEY, current_schema=8, database=database)
++    return SelectionFixture(manager, root, database, configuration)
++
++
++def tree_snapshot(root: Path) -> dict[str, tuple[int, bytes | str | None]]:
++    result: dict[str, tuple[int, bytes | str | None]] = {}
++    for path in root.rglob("*"):
++        mode = path.lstat().st_mode
++        content: bytes | str | None = None
++        if stat.S_ISLNK(mode):
++            content = os.readlink(path)
++        elif stat.S_ISREG(mode):
++            content = path.read_bytes()
++        result[str(path.relative_to(root))] = (stat.S_IFMT(mode), content)
++    return result
++
++
++def resolve_without_effects(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch) -> object:
++    resolver = getattr(selection.manager, "resolve_launch_target", None)
++    assert callable(resolver), "D52 requires ReleaseManager.resolve_launch_target"
++    before_tree = tree_snapshot(selection.root)
++    before_database = selection.database.read_bytes() if selection.database.exists() else None
++    before_configuration = selection.configuration.read_bytes()
++    calls: list[str] = []
++
++    def forbidden(*args: object, **kwargs: object) -> object:
++        calls.append("release effect")
++        raise AssertionError("read-only launch selection reached a release effect")
++
++    with monkeypatch.context() as controlled:
++        controlled.setattr(selection.manager, "_atomic_json", forbidden)
++        controlled.setattr(selection.manager, "_backup_database", forbidden)
++        controlled.setattr(selection.manager, "stage_and_activate", forbidden)
++        controlled.setattr(selection.manager, "rollback", forbidden)
++        controlled.setattr(shutil, "copytree", forbidden)
++        controlled.setattr(subprocess, "run", forbidden)
++        try:
++            return cast(Callable[[], object], resolver)()
++        finally:
++            assert calls == []
++            assert tree_snapshot(selection.root) == before_tree
++            assert selection.configuration.read_bytes() == before_configuration
++            if before_database is None:
++                assert not selection.database.exists()
++            else:
++                assert selection.database.read_bytes() == before_database
++
++
++def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
++    error_type = getattr(release_module, "ReleaseLaunchError", None)
++    assert isinstance(error_type, type) and issubclass(error_type, Exception), (
++        "D52 requires a typed ReleaseLaunchError"
++    )
++    with pytest.raises(error_type) as captured:
++        resolve_without_effects(selection, monkeypatch)
++    assert getattr(captured.value, "status", None) == status
++    assert str(selection.root) not in str(captured.value)
++    assert str(selection.database) not in str(captured.value)
++    assert KEY.decode() not in str(captured.value)
++
++
++@pytest.mark.parametrize("version", ["1.0.0", "2.0.0"])
++def test_resolves_exact_signed_active_version_with_immutable_canonical_identity(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, version: str
++) -> None:
++    (selection.root / "active.json").write_text(json.dumps({"version": version}))
++    result = resolve_without_effects(selection, monkeypatch)
++    target = selection.root / "releases" / version
++    assert getattr(result, "version", None) == version
++    assert getattr(result, "source_sha256", None) == source_digest(target)
++    assert getattr(result, "directory", None) == target.resolve()
++    assert getattr(result, "schema_version", None) == 8
++    verified_type = getattr(release_module, "VerifiedRelease", None)
++    assert isinstance(verified_type, type) and isinstance(result, verified_type)
++    attribute = "version"
++    with pytest.raises((FrozenInstanceError, AttributeError, TypeError)):
++        setattr(result, attribute, "9.9.9")
++
++
++def test_selecting_signed_code_keeps_latest_wal_data_and_existing_writer(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    writer = sqlite3.connect(selection.database)
++    try:
++        assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
++        writer.execute("PRAGMA wal_autocheckpoint=0")
++        writer.execute("INSERT INTO conversation VALUES ('latest WAL conversation')")
++        writer.execute("INSERT INTO memory VALUES ('latest WAL memory')")
++        writer.execute("INSERT INTO ledger VALUES ('latest completed WAL action')")
++        writer.commit()
++        wal = selection.database.with_name(selection.database.name + "-wal")
++        wal_before = wal.read_bytes()
++        resolve_without_effects(selection, monkeypatch)
++        assert wal.read_bytes() == wal_before
++        for table in ("conversation", "memory", "ledger"):
++            assert writer.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 2
++        writer.execute("INSERT INTO memory VALUES ('original writer remains usable')")
++        writer.commit()
++        assert writer.execute("SELECT count(*) FROM memory").fetchone()[0] == 3
++    finally:
++        writer.close()
++
++
++def test_no_pointer_does_not_fallback_to_last_known_good_or_workspace(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    (selection.root / "active.json").unlink()
++    expect_error(selection, monkeypatch, "no_active_release")
++
++
++@pytest.mark.parametrize(
++    "raw",
++    [
++        "not json",
++        "[]",
++        "null",
++        "{}",
++        '{"version":null}',
++        '{"version":true}',
++        '{"version":2}',
++        '{"version":""}',
++        '{"version":"v2.0.0"}',
++        '{"version":"2.0"}',
++        '{"version":"../2.0.0"}',
++        '{"version":"/tmp/synthetic-target"}',
++        '{"version":"2.0.0/.."}',
++        '{"version":"2.0.0","extra":1}',
++        '{"version":"1.0.0","version":"2.0.0"}',
++        '{"version":"2.0.0"}' + " " * 65536,
++    ],
++)
++def test_malformed_active_record_is_rejected_without_fallback(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, raw: str
++) -> None:
++    (selection.root / "active.json").write_text(raw)
++    expect_error(selection, monkeypatch, "invalid_active_release")
++
++
++@pytest.mark.parametrize("alias", ["symlink", "hardlink", "directory"])
++def test_active_record_must_be_a_bounded_ordinary_unaliased_file(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, alias: str
++) -> None:
++    active = selection.root / "active.json"
++    original = selection.root / "synthetic-pointer-target.json"
++    active.rename(original)
++    if alias == "symlink":
++        active.symlink_to(original)
++    elif alias == "hardlink":
++        os.link(original, active)
++    else:
++        active.mkdir()
++    expect_error(selection, monkeypatch, "invalid_active_release")
++
++
++@pytest.mark.parametrize("missing", ["release", "receipt", *REQUIRED_FILES])
++def test_missing_signed_target_or_required_runtime_file_is_rejected(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, missing: str
++) -> None:
++    target = selection.root / "releases" / "2.0.0"
++    if missing == "release":
++        shutil.rmtree(target)
++    elif missing == "receipt":
++        (selection.root / "manifests" / "2.0.0.json").unlink()
++    else:
++        (target / missing).unlink()
++        write_receipt(selection.root, "2.0.0")
++    expect_error(selection, monkeypatch, "invalid_release_target")
++
++
++@pytest.mark.parametrize(
++    "change",
++    [
++        "source",
++        "digest",
++        "signature",
++        "version",
++        "unsigned-range",
++        "legacy",
++        "null-format",
++        "extra",
++    ],
++)
++def test_full_signed_receipt_and_actual_source_bytes_are_required(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, change: str
++) -> None:
++    receipt = selection.root / "manifests" / "2.0.0.json"
++    values = json.loads(receipt.read_text())
++    if change == "source":
++        (selection.root / "releases" / "2.0.0" / "ordinary-data.txt").write_text("tampered bytes")
++    elif change == "digest":
++        values["source_sha256"] = "0" * 64
++    elif change == "signature":
++        values["signature"] = "0" * 64
++    elif change == "version":
++        write_receipt(selection.root, "2.0.0", values={"version": "1.0.0"})
++    elif change == "unsigned-range":
++        values["max_schema"] = 4096
++    elif change == "legacy":
++        values.pop("signing_format")
++    elif change == "null-format":
++        values["signing_format"] = None
++    else:
++        values["unexpected"] = "not part of the signed contract"
++    if change not in {"source", "version"}:
++        receipt.write_text(json.dumps(values))
++    expect_error(selection, monkeypatch, "invalid_release_target")
++
++
++@pytest.mark.parametrize("record", ["duplicate", "array", "oversized", "symlink", "hardlink"])
++def test_receipt_records_are_strict_bounded_and_unaliased(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, record: str
++) -> None:
++    receipt = selection.root / "manifests" / "2.0.0.json"
++    if record == "duplicate":
++        raw = receipt.read_text()
++        receipt.write_text(raw[:-1] + ',"version":"2.0.0"}')
++    elif record == "array":
++        receipt.write_text("[]")
++    elif record == "oversized":
++        receipt.write_text(receipt.read_text() + " " * 65536)
++    else:
++        original = selection.root / "synthetic-receipt-target.json"
++        receipt.rename(original)
++        if record == "symlink":
++            receipt.symlink_to(original)
++        else:
++            os.link(original, receipt)
++    expect_error(selection, monkeypatch, "invalid_release_target")
++
++
++@pytest.mark.parametrize("alias", ["release", "releases-parent", "source-file", "source-directory"])
++def test_signed_source_symlink_aliases_are_rejected_even_with_matching_digest(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, alias: str
++) -> None:
++    target = selection.root / "releases" / "2.0.0"
++    if alias == "release":
++        actual = selection.root / "synthetic-release-alias"
++        target.rename(actual)
++        target.symlink_to(actual, target_is_directory=True)
++    elif alias == "releases-parent":
++        actual = selection.root / "synthetic-releases-alias"
++        target.parent.rename(actual)
++        target.parent.symlink_to(actual, target_is_directory=True)
++    elif alias == "source-file":
++        path = target / "ordinary-data.txt"
++        actual = selection.root / "synthetic-source-alias.txt"
++        path.rename(actual)
++        path.symlink_to(actual)
++    else:
++        path = target / "src" / "siro" / "core"
++        actual = selection.root / "synthetic-core-alias"
++        path.rename(actual)
++        path.symlink_to(actual, target_is_directory=True)
++        write_receipt(selection.root, "2.0.0")
++    expect_error(selection, monkeypatch, "invalid_release_target")
++
++
++def test_constructor_root_symlink_is_rejected_instead_of_selecting_an_alias(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    alias = selection.root.parent / "synthetic-manager-alias"
++    alias.symlink_to(selection.root, target_is_directory=True)
++    manager = ReleaseManager(alias, KEY, current_schema=8, database=selection.database)
++    aliased = SelectionFixture(manager, selection.root, selection.database, selection.configuration)
++    expect_error(aliased, monkeypatch, "invalid_release_target")
++
++
++@pytest.mark.parametrize("node", ["hardlink", "fifo"])
++def test_source_special_or_multiply_linked_files_are_rejected(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, node: str
++) -> None:
++    target = selection.root / "releases" / "2.0.0"
++    path = target / "ordinary-data.txt"
++    if node == "hardlink":
++        os.link(path, selection.root / "synthetic-hardlinked-source.txt")
++    else:
++        os.mkfifo(target / "synthetic-special-node")
++    expect_error(selection, monkeypatch, "invalid_release_target")
++
++
++@pytest.mark.parametrize(
++    "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
++)
++def test_actual_schema_must_be_a_known_bounded_integer_prefix(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
++) -> None:
++    set_schema(selection.database, versions)
++    expect_error(selection, monkeypatch, "schema_unknown")
++
++
++@pytest.mark.parametrize("state", ["missing", "corrupt", "no-ledger", "no-database", "symlink"])
++def test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, state: str
++) -> None:
++    if state == "missing":
++        selection.database.unlink()
++    elif state == "corrupt":
++        selection.database.write_bytes(b"synthetic bytes that are not sqlite")
++    elif state == "no-ledger":
++        with closing(sqlite3.connect(selection.database)) as connection, connection:
++            connection.execute("DROP TABLE schema_migrations")
++    elif state == "symlink":
++        actual = selection.database.with_name("synthetic-database-alias.sqlite3")
++        selection.database.rename(actual)
++        selection.database.symlink_to(actual)
++    else:
++        manager = ReleaseManager(selection.root, KEY, current_schema=8)
++        selection = SelectionFixture(
++            manager, selection.root, selection.database, selection.configuration
++        )
++    expect_error(selection, monkeypatch, "schema_unknown")
++
++
++@pytest.mark.parametrize("schema", [0, -1, True, "8", None])
++def test_invalid_supported_schema_configuration_is_unknown(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, schema: object
++) -> None:
++    manager = ReleaseManager(
++        selection.root, KEY, current_schema=cast(int, schema), database=selection.database
++    )
++    invalid = SelectionFixture(manager, selection.root, selection.database, selection.configuration)
++    expect_error(invalid, monkeypatch, "schema_unknown")
++
++
++@pytest.mark.parametrize("actual_schema", [3, 9])
++def test_known_actual_schema_requires_signed_bounds_and_supported_runtime(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, actual_schema: int
++) -> None:
++    set_schema(selection.database, list(range(1, actual_schema + 1)))
++    write_receipt(selection.root, "2.0.0", minimum=4, maximum=9)
++    expect_error(selection, monkeypatch, "incompatible_schema")
++
++
++def test_actual_schema_compatibility_is_not_replaced_by_constructor_guess(
++    selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    set_schema(selection.database, [1, 2, 3])
++    write_receipt(selection.root, "2.0.0", minimum=2, maximum=3)
++    result = resolve_without_effects(selection, monkeypatch)
++    assert getattr(result, "schema_version", None) == 3
++    assert getattr(result, "version", None) == "2.0.0"
+diff --git a/tests/integration/test_release_ready_identity.py b/tests/integration/test_release_ready_identity.py
+new file mode 100644
+--- /dev/null
++++ b/tests/integration/test_release_ready_identity.py
+@@ -0,0 +1,173 @@
++from __future__ import annotations
++
++import sqlite3
++from contextlib import closing
++from pathlib import Path
++from types import SimpleNamespace
++from typing import Any
++
++import pytest
++from fastapi.testclient import TestClient
++
++import siro.core.releases as releases
++import siro.services.presentation.gateway as gateway
++from siro.adapters.data_ownership import exclusive_data_owner
++from siro.persistence.sqlite import load_migrations
++from siro.services.presentation.gateway import GatewayState, create_app
++
++
++def identity(tmp_path: Path) -> Any:
++    cls = getattr(releases, "VerifiedRelease", None)
++    assert cls is not None, "signed readiness needs explicit verified launch identity"
++    return cls("2.0.0", "0" * 64, tmp_path, 1)
++
++
++def test_default_ready_wire_shape_remains_unchanged() -> None:
++    with TestClient(create_app()) as client:
++        assert client.get("/health/ready").json() == {"state": "healthy"}
++
++
++def test_release_ready_identity_exists_only_after_completed_startup(tmp_path: Path) -> None:
++    app = create_app(verified_release=identity(tmp_path))
++    with TestClient(app) as client:
++        assert client.get("/health/ready").json() == {
++            "state": "healthy",
++            "release": {"version": "2.0.0", "source_sha256": "0" * 64},
++        }
++    with TestClient(app, raise_server_exceptions=True) as client:
++        # Re-entering lifespan is a new startup, not an old ready snapshot.
++        assert client.get("/health/ready").json()["release"]["version"] == "2.0.0"
++
++
++def test_release_ready_without_lifespan_cannot_claim_healthy(tmp_path: Path) -> None:
++    app = create_app(verified_release=identity(tmp_path))
++    client = TestClient(app)
++    try:
++        assert client.get("/health/ready").json() == {"state": "starting"}
++    finally:
++        client.close()
++
++
++def test_failed_release_startup_does_not_publish_ready_identity(tmp_path: Path) -> None:
++    async def startup() -> None:
++        raise RuntimeError("synthetic startup failure")
++
++    app = create_app(verified_release=identity(tmp_path), on_startup=startup)
++    with pytest.raises(RuntimeError, match="synthetic startup failure"), TestClient(app):
++        pass
++    client = TestClient(app)
++    try:
++        assert client.get("/health/ready").json() == {"state": "draining"}
++    finally:
++        client.close()
++
++
++def test_release_drain_removes_identity_and_reports_real_health(tmp_path: Path) -> None:
++    state = GatewayState()
++    app = create_app(verified_release=identity(tmp_path), state=state)
++    with TestClient(app) as client:
++        assert "release" in client.get("/health/ready").json()
++    client = TestClient(app)
++    try:
++        assert client.get("/health/ready").json() == {"state": "draining"}
++    finally:
++        client.close()
++
++
++def runtime_fixture(tmp_path: Path) -> tuple[Any, Path, dict[str, Path]]:
++    directory = tmp_path / "selected"
++    origins = {
++        "package_file": directory / "src/siro/__init__.py",
++        "gateway_file": directory / "src/siro/services/presentation/gateway.py",
++        "release_file": directory / "src/siro/core/releases.py",
++    }
++    for p in origins.values():
++        p.parent.mkdir(parents=True, exist_ok=True)
++        p.write_text("# synthetic loaded-origin fixture\n")
++    database = tmp_path / "data.db"
++    with closing(sqlite3.connect(database)) as db, db:
++        db.execute("CREATE TABLE schema_migrations(version INTEGER)")
++        db.execute("INSERT INTO schema_migrations VALUES(1)")
++        db.execute("CREATE TABLE retained(value TEXT)")
++        db.execute("INSERT INTO retained VALUES('latest-completed')")
++    return releases.VerifiedRelease("2.0.0", "0" * 64, directory, 1), database, origins
++
++
++def test_runtime_identity_accepts_exact_origins_without_database_writes(tmp_path: Path) -> None:
++    selected, database, origins = runtime_fixture(tmp_path)
++    before = database.read_bytes()
++    selected.validate_runtime(database, **origins, current_schema=1)
++    assert database.read_bytes() == before
++
++
++@pytest.mark.parametrize("origin", ["package_file", "gateway_file", "release_file"])
++def test_runtime_identity_refuses_mixed_loaded_sources(tmp_path: Path, origin: str) -> None:
++    selected, database, origins = runtime_fixture(tmp_path)
++    origins[origin] = tmp_path / "foreign-source.py"
++    before = database.read_bytes()
++    with pytest.raises(releases.ReleaseLaunchError) as error:
++        selected.validate_runtime(database, **origins, current_schema=1)
++    assert error.value.status == "wrong_loaded_source"
++    assert database.read_bytes() == before
++
++
++@pytest.mark.parametrize("target_schema", [0, 2])
++def test_source_selection_never_performs_implicit_schema_migration(
++    tmp_path: Path, target_schema: int
++) -> None:
++    selected, database, origins = runtime_fixture(tmp_path)
++    before = database.read_bytes()
++    with pytest.raises(releases.ReleaseLaunchError) as error:
++        selected.validate_runtime(database, **origins, current_schema=target_schema)
++    assert error.value.status == "schema_migration_required"
++    assert database.read_bytes() == before
++
++
++@pytest.mark.parametrize("defect", ["missing", "empty", "advanced"])
++def test_data_schema_changed_after_selection_refuses_before_startup(
++    tmp_path: Path, defect: str
++) -> None:
++    selected, database, origins = runtime_fixture(tmp_path)
++    if defect == "missing":
++        database.unlink()
++        before = None
++    else:
++        with closing(sqlite3.connect(database)) as db, db:
++            if defect == "empty":
++                db.execute("DELETE FROM schema_migrations")
++            else:
++                db.execute("INSERT INTO schema_migrations VALUES(2)")
++        before = database.read_bytes()
++    with pytest.raises(releases.ReleaseLaunchError) as error:
++        selected.validate_runtime(database, **origins, current_schema=1)
++    assert error.value.status == "data_schema_changed"
++    assert (database.read_bytes() if database.exists() else None) == before
++
++
++def test_selected_gateway_rechecks_schema_under_real_owner_before_composition(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    import pwd
++
++    monkeypatch.setattr(pwd, "getpwuid", lambda uid: SimpleNamespace(pw_dir=str(tmp_path)))
++    data = tmp_path / "data"
++    data.mkdir()
++    database = data / "siro.db"
++    schema = len(load_migrations())
++    with closing(sqlite3.connect(database)) as db, db:
++        db.execute("CREATE TABLE schema_migrations(version INTEGER)")
++        db.executemany(
++            "INSERT INTO schema_migrations VALUES(?)", [(n,) for n in range(1, schema + 2)]
++        )
++    selected = releases.VerifiedRelease(
++        "2.0.0", "0" * 64, Path(__file__).resolve().parents[2], schema
++    )
++    calls: list[Any] = []
++    monkeypatch.setenv("SIRO_DATA_DIR", str(data))
++    monkeypatch.setattr(gateway, "_run_gateway", lambda *a, **kw: calls.append(a))
++    before = database.read_bytes()
++    with pytest.raises(SystemExit, match="data_schema_changed"):
++        gateway.main(verified_release=selected)
++    assert calls == [] and database.read_bytes() == before
++    with exclusive_data_owner(database):
++        pass
+diff --git a/tests/integration/test_signed_companion_launcher.py b/tests/integration/test_signed_companion_launcher.py
+new file mode 100644
+--- /dev/null
++++ b/tests/integration/test_signed_companion_launcher.py
+@@ -0,0 +1,147 @@
++from __future__ import annotations
++
++import hashlib
++import hmac
++import importlib.util
++import json
++import os
++import sqlite3
++from contextlib import closing
++from pathlib import Path
++from typing import Any
++
++import pytest
++
++from siro.core.releases import ReleaseManager
++from siro.persistence.sqlite import load_migrations
++
++KEY = b"synthetic-d52-fixture-key"
++
++
++def launcher_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Path, Path]:
++    source = Path(__file__).resolve().parents[2] / "scripts/launch_companion.py"
++    spec = importlib.util.spec_from_file_location("signed_companion_launcher", source)
++    assert spec is not None and spec.loader is not None
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    project = tmp_path / "project"
++    project.mkdir()
++    monkeypatch.chdir(tmp_path)
++    monkeypatch.setattr(module, "__file__", str(project / "scripts/launch_companion.py"))
++    for key in tuple(os.environ):
++        if key.startswith("SIRO_"):
++            monkeypatch.delenv(key)
++    monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-local")
++    monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
++    binary = project / "target/debug/siro-runtime"
++    binary.parent.mkdir(parents=True)
++    binary.touch()
++    renderer = project / "renderer"
++    renderer.mkdir()
++    (renderer / "index.html").write_text("synthetic renderer, not a real character")
++    monkeypatch.setenv("SIRO_LIVE2D_DIST", "renderer")
++    data = project / "existing-data"
++    data.mkdir()
++    with closing(sqlite3.connect(data / "siro.db")) as db, db:
++        db.execute("CREATE TABLE schema_migrations(version INTEGER)")
++        db.executemany(
++            "INSERT INTO schema_migrations VALUES(?)", [(m.version,) for m in load_migrations()]
++        )
++        db.execute("CREATE TABLE fixture(value TEXT)")
++        db.execute("INSERT INTO fixture VALUES ('latest-completed')")
++    monkeypatch.setenv("SIRO_DATA_DIR", "existing-data")
++    root = tmp_path / "manager"
++    bundle = root / "releases/2.0.0"
++    for relative in (
++        "src/siro/__init__.py",
++        "src/siro/core/releases.py",
++        "src/siro/services/presentation/gateway.py",
++    ):
++        p = bundle / relative
++        p.parent.mkdir(parents=True, exist_ok=True)
++        p.write_text("# synthetic prepared source fixture\n")
++    manifest = {
++        "version": "2.0.0",
++        "source_sha256": ReleaseManager._digest(bundle),
++        "min_schema": len(load_migrations()),
++        "max_schema": len(load_migrations()),
++        "signing_format": "siro-release-manifest-v1",
++    }
++    signature = hmac.new(
++        KEY,
++        json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(),
++        hashlib.sha256,
++    ).hexdigest()
++    receipt = root / "manifests/2.0.0.json"
++    receipt.parent.mkdir()
++    receipt.write_text(json.dumps({**manifest, "signature": signature}))
++    (root / "active.json").write_text(json.dumps({"version": "2.0.0"}))
++    monkeypatch.setenv("SIRO_RELEASE_ROOT", str(root))
++    monkeypatch.setenv("SIRO_RELEASE_SIGNING_KEY", KEY.decode())
++    return module, root, data
++
++
++def test_signed_launcher_executes_only_selected_source_without_key_or_provisioning(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    module, root, data = launcher_fixture(tmp_path, monkeypatch)
++    executions: list[tuple[Any, ...]] = []
++    monkeypatch.setattr(module.os, "execve", lambda *a: executions.append(a))
++    monkeypatch.setattr(
++        module.os, "execv", lambda *a: pytest.fail("signed mode must not fall back")
++    )
++    monkeypatch.setattr(
++        module.subprocess, "run", lambda *a, **kw: pytest.fail("signed mode must not provision")
++    )
++    before = (data / "siro.db").read_bytes()
++    module.main()
++    assert len(executions) == 1
++    _, argv, environment = executions[0]
++    assert "-I" in argv and "-B" in argv
++    assert str(root / "releases/2.0.0") in argv
++    assert "SIRO_RELEASE_SIGNING_KEY" not in environment
++    assert os.environ["SIRO_RELEASE_SIGNING_KEY"] == KEY.decode()
++    assert environment["SIRO_DATA_DIR"] == str(data)
++    assert Path.cwd() == tmp_path / "project"
++    assert (data / "siro.db").read_bytes() == before
++
++
++@pytest.mark.parametrize(
++    "defect",
++    [
++        "missing_key",
++        "bad_signature",
++        "bad_pointer",
++        "missing_database",
++        "missing_runtime",
++        "missing_renderer",
++    ],
++)
++def test_selected_launcher_failure_never_falls_back_or_provisions(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, defect: str
++) -> None:
++    module, root, data = launcher_fixture(tmp_path, monkeypatch)
++    if defect == "missing_key":
++        monkeypatch.delenv("SIRO_RELEASE_SIGNING_KEY")
++    elif defect == "bad_signature":
++        p = root / "manifests/2.0.0.json"
++        value = json.loads(p.read_text())
++        value["signature"] = "0" * 64
++        p.write_text(json.dumps(value))
++    elif defect == "bad_pointer":
++        (root / "active.json").write_text('{"version":"../../foreign"}')
++    elif defect == "missing_database":
++        (data / "siro.db").unlink()
++    elif defect == "missing_runtime":
++        (tmp_path / "project/target/debug/siro-runtime").unlink()
++    else:
++        (tmp_path / "project/renderer/index.html").unlink()
++    calls: list[Any] = []
++    monkeypatch.setattr(module.os, "execve", lambda *a: calls.append(a))
++    monkeypatch.setattr(module.os, "execv", lambda *a: calls.append(a))
++    monkeypatch.setattr(module.subprocess, "run", lambda *a, **kw: calls.append(a))
++    pointer = (root / "active.json").read_bytes()
++    with pytest.raises(SystemExit):
++        module.main()
++    assert calls == [] and (root / "active.json").read_bytes() == pointer
++    assert not (root / "backups").exists()
+diff --git a/tests/integration/test_release_source_process.py b/tests/integration/test_release_source_process.py
+new file mode 100644
+--- /dev/null
++++ b/tests/integration/test_release_source_process.py
+@@ -0,0 +1,387 @@
++"""Actual isolated HTTP/source identity; synthetic fixture interposition is signed."""
++
++from __future__ import annotations
++
++import asyncio
++import hashlib
++import hmac
++import json
++import os
++import shutil
++import signal
++import socket
++import sqlite3
++import subprocess
++import sys
++import tempfile
++import time
++import urllib.error
++import urllib.request
++from contextlib import closing
++from pathlib import Path
++from typing import Any
++
++import pytest
++
++from siro.core.releases import ReleaseManager, ReleaseManifest
++from siro.persistence.sqlite import SQLiteStore, load_migrations
++
++ROOT = Path(__file__).resolve().parents[2]
++KEY = b"synthetic-d52-source-process-key"  # pragma: allowlist secret
++HEALTH = (sys.executable, "-I", "-B", "-c", "pass")
++
++
++def source_hashes() -> dict[str, str]:
++    return {
++        relative: hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
++        for relative in (
++            "scripts/launch_companion.py",
++            "src/siro/core/releases.py",
++            "src/siro/services/presentation/gateway.py",
++            "tests/integration/test_release_source_process.py",
++        )
++    }
++
++
++def environment(root: Path, port: int) -> dict[str, str]:
++    result = {
++        key: value
++        for key, value in os.environ.items()
++        if not key.startswith("SIRO_")
++        and key not in {"GROQ_API_KEY", "PYTHONPATH", "PYTHONHOME"}
++        and key.upper() not in {"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"}
++    }
++    result.update(
++        SIRO_RELEASE_ROOT=str(root / "manager"),
++        SIRO_RELEASE_SIGNING_KEY=KEY.decode(),  # pragma: allowlist secret
++        SIRO_DATA_DIR=str(root / "data"),
++        SIRO_GATEWAY_PORT=str(port),
++        SIRO_OLLAMA_MODEL="synthetic-not-called",
++        SIRO_CONTEXT_TOKEN_BUDGET_ENABLED="0",
++        SIRO_WORKSPACE_ENABLED="0",
++        SIRO_MEMORY_ORGANIZATION_ENABLED="0",
++        SIRO_MEMORY_INGRESS_ENABLED="0",
++        SIRO_CONTEXT_SUMMARY_ENABLED="0",
++        SIRO_BROWSER_SESSION_ENABLED="0",
++        SIRO_MODEL_RETRY_ENABLED="0",
++        SIRO_RUNTIME_BINARY=str(root / "prepared-runtime"),
++        SIRO_LIVE2D_DIST=str(root / "prepared-renderer"),
++        SIRO_TEST_ACCOUNT=str(root / "synthetic-account"),
++        SIRO_TEST_OBSERVATION=str(root / "observed-source.json"),
++        PYTHONDONTWRITEBYTECODE="1",
++    )
++    return result
++
++
++def prepared_project(root: Path) -> Path:
++    project = root / "project"
++    (project / "scripts").mkdir(parents=True)
++    launcher = project / "scripts/launch_companion.py"
++    shutil.copyfile(ROOT / "scripts/launch_companion.py", launcher)
++    # Assets are explicit public fixtures; neither runtime nor renderer is executed.
++    (root / "prepared-runtime").write_text("synthetic asset; must not execute\n")
++    renderer = root / "prepared-renderer"
++    renderer.mkdir()
++    (renderer / "index.html").write_text("synthetic public prepared renderer")
++    assert not (project / ".env.local").exists()
++    return launcher
++
++
++def source_bundle(root: Path, version: str, *, unsupported_abi: bool = False) -> Path:
++    bundle = root / f"bundle-{version}"
++    shutil.copytree(
++        ROOT / "src", bundle / "src", ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
++    )
++    gateway = bundle / "src/siro/services/presentation/gateway.py"
++    # All fixture modifications are part of the complete actual signed digest.
++    # No mocked main/IO/HTTP result: only account locator and observable origins.
++    gateway.write_text(
++        gateway.read_text()
++        + "\n# Signed synthetic integration instrumentation, absent from production.\n"
++        + "import json as _fixture_json\n"
++        + "import pwd as _fixture_pwd\n"
++        + "from types import SimpleNamespace as _FixtureAccount\n"
++        + "_fixture_pwd.getpwuid = lambda uid: _FixtureAccount(\n"
++        + "    pw_dir=os.environ['SIRO_TEST_ACCOUNT'])\n"
++        + "_fixture_main = main\n"
++        + "def main(*, verified_release=None):\n"
++        + "    import siro\n"
++        + "    import siro.core.releases as _fixture_releases\n"
++        + "    Path(os.environ['SIRO_TEST_OBSERVATION']).write_text(_fixture_json.dumps({\n"
++        + "        'package_file': siro.__file__, 'gateway_file': __file__,\n"
++        + "        'release_file': _fixture_releases.__file__,\n"
++        + "        'signing_key_present': 'SIRO_RELEASE_SIGNING_KEY' in os.environ,\n"
++        + f"        'fixture_version': {version!r},\n"
++        + "    }))\n"
++        + "    _fixture_main(verified_release=verified_release)\n"
++    )
++    if unsupported_abi:
++        release = bundle / "src/siro/core/releases.py"
++        release.write_text(
++            release.read_text()
++            + "\n# Deliberately unsupported selected DTO ABI; no host fallback allowed.\n"
++            + "class VerifiedRelease:\n"
++            + "    def __init__(self):\n"
++            + "        pass\n"
++        )
++    assert not list(bundle.rglob("*.pyc")) and not list(bundle.rglob("__pycache__"))
++    return bundle
++
++
++def signed(bundle: Path, version: str) -> ReleaseManifest:
++    values: dict[str, Any] = {
++        "version": version,
++        "source_sha256": ReleaseManager._digest(bundle),
++        "min_schema": len(load_migrations()),
++        "max_schema": len(load_migrations()),
++        "signing_format": "siro-release-manifest-v1",
++    }
++    payload = json.dumps(values, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
++    values["signature"] = hmac.new(KEY, payload, hashlib.sha256).hexdigest()
++    return ReleaseManifest.model_validate(values)
++
++
++def seed(database: Path, phase: str) -> None:
++    with closing(sqlite3.connect(database)) as connection, connection:
++        connection.execute("PRAGMA foreign_keys=ON")
++        connection.execute(
++            "INSERT OR IGNORE INTO identities VALUES ('process-fixture','{}',1,'synthetic')"
++        )
++        connection.execute(
++            "INSERT INTO conversations VALUES (?,'process-fixture','synthetic','closed')", (phase,)
++        )
++        connection.execute(
++            "INSERT INTO turns VALUES (?,?,?,'completed',1,'synthetic')", (phase,) * 3
++        )
++        connection.execute(
++            "INSERT INTO messages(turn_id,role,text,sequence) VALUES (?,'user',?,0)",
++            (phase, f"synthetic conversation {phase}"),
++        )
++        connection.execute(
++            "INSERT INTO memories(memory_id,identity_id,kind,text,status,confidence,revision) "
++            "VALUES (?,'process-fixture','episodic',?,'committed',1,1)",
++            (phase, f"synthetic memory {phase}"),
++        )
++        connection.execute(
++            "INSERT INTO actions(action_id,idempotency_key,state,skill_id,args_hash) "
++            "VALUES (?,?,'completed','synthetic-read-only','synthetic')",
++            (phase,) * 2,
++        )
++        connection.execute("CREATE TABLE IF NOT EXISTS source_process_fixture(marker TEXT)")
++        connection.execute("INSERT INTO source_process_fixture VALUES (?)", (phase,))
++
++
++def retained(database: Path) -> dict[str, list[str]]:
++    queries = {
++        "conversation": "SELECT text FROM messages WHERE turn_id IN "
++        "(SELECT turn_id FROM turns WHERE session_id IN "
++        "(SELECT session_id FROM conversations WHERE identity_id='process-fixture')) ORDER BY text",
++        "memory": "SELECT text FROM memories WHERE identity_id='process-fixture' ORDER BY text",
++        "completed_ledger": "SELECT action_id FROM actions WHERE state='completed' "
++        "ORDER BY action_id",
++        "fixture": "SELECT marker FROM source_process_fixture ORDER BY marker",
++    }
++    with closing(sqlite3.connect(database)) as connection:
++        return {
++            key: [str(row[0]) for row in connection.execute(query)]
++            for key, query in queries.items()
++        }
++
++
++def port_at() -> int:
++    with socket.socket() as listener:
++        listener.bind(("127.0.0.1", 0))
++        port = int(listener.getsockname()[1])
++    assert port != 8026
++    return port
++
++
++def actual_gateway(root: Path, launcher: Path, manifest: ReleaseManifest) -> dict[str, Any]:
++    source_before = source_hashes()
++    selected = root / "manager/releases" / manifest.version / "src/siro"
++    digest_before = ReleaseManager._digest(selected.parents[1])
++    assert digest_before == manifest.source_sha256
++    port = port_at()
++    log_path = root / f"gateway-{manifest.version}-{time.monotonic_ns()}.log"
++    observation = root / "observed-source.json"
++    observation.unlink(missing_ok=True)
++    with log_path.open("w") as log:
++        process = subprocess.Popen(
++            [sys.executable, "-B", str(launcher)],
++            env=environment(root, port),
++            stdout=log,
++            stderr=log,
++        )
++        try:
++            deadline = time.monotonic() + 20
++            while True:
++                assert process.poll() is None, log_path.read_text()
++                try:
++                    with urllib.request.urlopen(
++                        f"http://127.0.0.1:{port}/health/ready", timeout=0.3
++                    ) as response:
++                        ready = json.load(response)
++                    if ready.get("state") == "healthy":
++                        break
++                except (urllib.error.URLError, TimeoutError):
++                    pass
++                assert time.monotonic() < deadline, log_path.read_text()
++                time.sleep(0.02)
++            assert ready == {
++                "state": "healthy",
++                "release": {"version": manifest.version, "source_sha256": manifest.source_sha256},
++            }
++            loaded = json.loads(observation.read_text())
++            assert loaded == {
++                "package_file": str(selected / "__init__.py"),
++                "gateway_file": str(selected / "services/presentation/gateway.py"),
++                "release_file": str(selected / "core/releases.py"),
++                "signing_key_present": False,
++                "fixture_version": manifest.version,
++            }
++            process.terminate()
++            returncode = process.wait(timeout=10)
++            text = log_path.read_text()
++            assert returncode in (0, -signal.SIGTERM), text
++            assert "Application shutdown complete." in text, text
++            assert "Task was destroyed" not in text and "Traceback" not in text, text
++            assert not list(selected.parent.rglob("*.pyc"))
++            assert not list(selected.parent.rglob("__pycache__"))
++            digest_after = ReleaseManager._digest(selected.parents[1])
++            assert digest_after == manifest.source_sha256
++            assert source_hashes() == source_before
++            return {
++                "version": manifest.version,
++                "source_sha256": manifest.source_sha256,
++                "origins_selected": True,
++                "loaded_files": {
++                    name: str(Path(loaded[name]).relative_to(root))
++                    for name in ("package_file", "gateway_file", "release_file")
++                },
++                "signing_key_absent": True,
++                "ready": ready,
++                "exit_code": returncode,
++                "joined": True,
++                "shutdown_complete": True,
++                "package_unchanged": True,
++                "digest_before": digest_before,
++                "digest_after": digest_after,
++                "host_source_hashes": source_before,
++            }
++        finally:
++            if process.poll() is None:
++                process.terminate()
++                try:
++                    process.wait(timeout=10)
++                except subprocess.TimeoutExpired:
++                    # Only a child created here can be killed; a forced cleanup
++                    # never satisfies the normal graceful-shutdown assertion.
++                    process.kill()
++                    process.wait(timeout=3)
++
++
++def test_actual_signed_source_versions_and_code_rollback_preserve_latest_data(
++    tmp_path: Path,
++) -> None:
++    with tempfile.TemporaryDirectory(prefix="signed-source-owned-", dir=tmp_path) as temporary:
++        root = Path(temporary)
++        launcher = prepared_project(root)
++        database = root / "data/siro.db"
++        asyncio.run(SQLiteStore(database).initialize())
++        seed(database, "before-first")
++        manager = ReleaseManager(
++            root / "manager", KEY, current_schema=len(load_migrations()), database=database
++        )
++        observed: list[dict[str, Any]] = []
++        manifests: dict[str, ReleaseManifest] = {}
++        for version, phase in (("1.0.0", "after-first"), ("2.0.0", "after-second")):
++            bundle = source_bundle(root, version)
++            manifest = signed(bundle, version)
++            manifests[version] = manifest
++            assert manager.stage_and_activate(bundle, manifest, HEALTH).status == "activated"
++            observed.append(actual_gateway(root, launcher, manifest))
++            # New late writes occur only AFTER the actual child has joined.
++            seed(database, phase)
++        expected = retained(database)
++        assert manager.rollback().status == "rolled_back"
++        assert retained(database) == expected
++        observed.append(actual_gateway(root, launcher, manifests["1.0.0"]))
++        assert retained(database) == expected
++        assert all(len(values) == 3 for values in expected.values())
++    assert not root.exists()
++    print(
++        json.dumps(
++            {
++                "case": "signed-two-version-code-rollback",
++                "status": "PASS",
++                "processes": observed,
++                "retained_counts": {key: len(value) for key, value in expected.items()},
++                "schema_migrations": len(load_migrations()),
++                "temporary_root_removed": True,
++            }
++        )
++    )
++
++
++@pytest.mark.parametrize("invalid", ["unsupported-abi", "tampered-package"])
++def test_actual_invalid_signed_source_never_falls_back_or_mutates_database(
++    tmp_path: Path, invalid: str
++) -> None:
++    with tempfile.TemporaryDirectory(prefix="signed-refusal-owned-", dir=tmp_path) as temporary:
++        root = Path(temporary)
++        launcher = prepared_project(root)
++        database = root / "data/siro.db"
++        asyncio.run(SQLiteStore(database).initialize())
++        seed(database, "before-refusal")
++        bundle = source_bundle(root, "1.0.0", unsupported_abi=invalid == "unsupported-abi")
++        manifest = signed(bundle, "1.0.0")
++        manager = ReleaseManager(
++            root / "manager", KEY, current_schema=len(load_migrations()), database=database
++        )
++        assert manager.stage_and_activate(bundle, manifest, HEALTH).status == "activated"
++        if invalid == "tampered-package":
++            (root / "manager/releases/1.0.0/src/siro/__init__.py").write_text(
++                "raise AssertionError('tampered selected source must never import')\n"
++            )
++        before = database.read_bytes()
++        expected = retained(database)
++        source_before = source_hashes()
++        selected = root / "manager/releases/1.0.0"
++        package_before = ReleaseManager._digest(selected)
++        port = port_at()
++        completed = subprocess.run(
++            [sys.executable, "-B", str(launcher)],
++            env=environment(root, port),
++            capture_output=True,
++            text=True,
++            timeout=15,
++        )
++        assert completed.returncode != 0
++        if invalid == "unsupported-abi":
++            assert "TypeError" in completed.stderr and "VerifiedRelease" in completed.stderr
++        else:
++            assert "invalid_release_target" in completed.stderr
++            assert "tampered selected source" not in completed.stderr
++        assert not (root / "observed-source.json").exists()
++        assert database.read_bytes() == before and retained(database) == expected
++        assert source_hashes() == source_before
++        assert ReleaseManager._digest(selected) == package_before
++        assert not list(selected.rglob("*.pyc")) and not list(selected.rglob("__pycache__"))
++        with pytest.raises(urllib.error.URLError):
++            urllib.request.urlopen(f"http://127.0.0.1:{port}/health/ready", timeout=0.3)
++    assert not root.exists()
++    print(
++        json.dumps(
++            {
++                "case": invalid,
++                "status": "PASS",
++                "exit_code": completed.returncode,
++                "joined": True,
++                "database_bytes_unchanged": True,
++                "no_host_fallback": True,
++                "temporary_root_removed": True,
++                "package_unchanged": True,
++                "host_source_hashes": source_before,
++            }
++        )
++    )
