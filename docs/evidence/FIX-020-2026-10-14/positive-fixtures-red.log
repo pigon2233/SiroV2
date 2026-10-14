@@ -1,0 +1,3306 @@
+FFFFFF............................EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE [ 35%]
+EEFF.EEEEEEEEFFF.............................................FFFFFFFFFFF [ 71%]
+FFFFFFFFFFFFF.........F.....................F.FFFFF......                [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_code_rollback_keeps_late_conversation_memory_and_completed_ledger[False] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_code_rollback_keeps_late_0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_code_rollback_keeps_late_conversation_memory_and_completed_ledger[True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_code_rollback_keeps_late_1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_code_rollback_never_needs_or_dereferences_an_old_data_backup[missing] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_code_rollback_never_needs0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_code_rollback_never_needs_or_dereferences_an_old_data_backup[corrupt] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_code_rollback_never_needs1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_code_rollback_never_needs_or_dereferences_an_old_data_backup[untrusted-path] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_code_rollback_never_needs2')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_actual_schema_snapshot_not_constructor_guess_decides_compatibility[versions0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_snapshot_no0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_actual_schema_snapshot_not_constructor_guess_decides_compatibility[versions1] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_snapshot_no1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[missing] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_unknown_actual_schema_fai0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[empty] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_unknown_actual_schema_fai1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[gap] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_unknown_actual_schema_fai2')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[text] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_unknown_actual_schema_fai3')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[duplicate] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_unknown_actual_schema_fai4')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[zero] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_unknown_actual_schema_fai5')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[float] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_unknown_actual_schema_fai6')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[overflow] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_unknown_actual_schema_fai7')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[corrupt] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_unknown_actual_schema_fai8')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+___ ERROR at setup of test_missing_database_is_not_created_by_code_rollback ____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_database_is_not_c0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[missing] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[malformed] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[legacy] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap2')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[bad-signature] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap3')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[schema-tamper] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap4')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[wrong-version] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap5')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[extra] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap6')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[symlink] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap7')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[hardlink] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap8')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_stored_complete_target_approval_is_required_not_a_history_claim[oversized] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_stored_complete_target_ap9')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[bytes] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_target_bytes_and_source_a0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[symlink] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_target_bytes_and_source_a1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[hardlink] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_target_bytes_and_source_a2')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_malformed_history_has_no_path_or_data_authority[value0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_malformed_history_has_no_0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_malformed_history_has_no_path_or_data_authority[None] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_malformed_history_has_no_1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_malformed_history_has_no_path_or_data_authority[value2] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_malformed_history_has_no_2')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_malformed_history_has_no_path_or_data_authority[value3] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_malformed_history_has_no_3')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_malformed_history_has_no_path_or_data_authority[value4] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_malformed_history_has_no_4')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_interrupted_code_pointer_write_retains_current_pointer_and_latest_data _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_interrupted_code_pointer_0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_rollback_runs_no_healthcheck_backup_restore_or_effect_replay _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_rollback_runs_no_healthch0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_published_version_cannot_be_overwritten_and_has_zero_release_effects[release] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_published_version_cannot_0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_published_version_cannot_be_overwritten_and_has_zero_release_effects[manifest] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_published_version_cannot_1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_manifest_save_failure_never_publishes_an_unverifiable_release _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_manifest_save_failure_nev0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_target_record_and_parent_aliases_do_not_gain_rollback_authority[directory-symlink] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_target_record_and_parent_0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_target_record_and_parent_aliases_do_not_gain_rollback_authority[manifest-parent-symlink] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_target_record_and_parent_1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_target_record_and_parent_aliases_do_not_gain_rollback_authority[duplicate-json] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_target_record_and_parent_2')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_actual_schema_connection_is_readonly_and_explicitly_closed _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_connection_0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[0] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_trusted_caller_sc0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[-1] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_trusted_caller_sc1')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_trusted_caller_sc2')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+_ ERROR at setup of test_database_symlink_is_not_followed_by_the_schema_snapshot _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_database_symlink_is_not_f0')
+
+    @pytest.fixture
+    def releases(tmp_path: Path) -> tuple[ReleaseManager, Path]:
+        database = tmp_path / "synthetic.sqlite3"
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE conversation(value TEXT)")
+            connection.execute("CREATE TABLE memory(value TEXT)")
+            connection.execute("CREATE TABLE ledger(value TEXT)")
+            for name in ("conversation", "memory", "ledger"):
+                connection.execute(f"INSERT INTO {name} VALUES (?)", ("before",))
+        set_schema(database, list(range(1, 9)))
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8, database=database)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:63: AssertionError
+=================================== FAILURES ===================================
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[demo] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d0')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d0/synthetic-home')
+command = 'demo'
+capsys = <_pytest.capture.CaptureFixture object at 0x7fc668d84ad0>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+>           assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_data_owner_callers.py:113: AssertionError
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[backup] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d1')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d1/synthetic-home')
+command = 'backup'
+capsys = <_pytest.capture.CaptureFixture object at 0x7fc668c07390>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+>           assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_data_owner_callers.py:113: AssertionError
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[raw-restore] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d2')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d2/synthetic-home')
+command = 'raw-restore'
+capsys = <_pytest.capture.CaptureFixture object at 0x7fc668c07ed0>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+>           assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_data_owner_callers.py:113: AssertionError
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[zip-restore] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d3')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d3/synthetic-home')
+command = 'zip-restore'
+capsys = <_pytest.capture.CaptureFixture object at 0x7fc668c1b230>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+>           assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_data_owner_callers.py:113: AssertionError
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[stage] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d4')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d4/synthetic-home')
+command = 'stage'
+capsys = <_pytest.capture.CaptureFixture object at 0x7fc668a102b0>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+>           assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_data_owner_callers.py:113: AssertionError
+_ test_managed_cli_busy_has_no_database_config_release_or_health_effects[rollback] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d5')
+account = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_managed_cli_busy_has_no_d5/synthetic-home')
+command = 'rollback'
+capsys = <_pytest.capture.CaptureFixture object at 0x7fc668df7d10>
+
+    @pytest.mark.parametrize(
+        "command", ["demo", "backup", "raw-restore", "zip-restore", "stage", "rollback"]
+    )
+    def test_managed_cli_busy_has_no_database_config_release_or_health_effects(
+        tmp_path: Path, account: Path, command: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        data = tmp_path / "data"
+        data.mkdir()
+        database, source = data / "siro.db", tmp_path / "backup.db"
+        seed(database, "latest-completed")
+        seed(source, "old-snapshot")
+        config = tmp_path / "config.json"
+        config.write_text(SiroSettings().model_dump_json())
+        release_root = tmp_path / "releases"
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("synthetic approved application")
+        manager = ReleaseManager(
+            release_root, KEY, current_schema=len(load_migrations()), database=database
+        )
+        for version in ("1.0.0", "2.0.0"):
+>           assert (
+                manager.stage_and_activate(
+                    bundle, signed(bundle, version), (sys.executable, "-c", "pass")
+                ).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_data_owner_callers.py:113: AssertionError
+_ test_actual_cli_code_rollback_preserves_new_rows_in_real_migrated_temp_database _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_cli_code_rollback_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638736ac0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7fc63872a5d0>
+
+    def test_actual_cli_code_rollback_preserves_new_rows_in_real_migrated_temp_database(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        database = tmp_path / "actual.sqlite3"
+        store = SQLiteStore(database)
+        asyncio.run(store.initialize())
+        with closing(sqlite3.connect(database)) as connection, connection:
+            connection.execute("CREATE TABLE acceptance(value TEXT)")
+            connection.execute("INSERT INTO acceptance VALUES ('original')")
+        manager_root = tmp_path / "cli-manager"
+        monkeypatch.setenv("SIRO_TEST_D48_RELEASE_KEY", KEY.decode())
+        prefix = [
+            "release",
+            "--release-root",
+            str(manager_root),
+            "--database",
+            str(database),
+            "--key-env",
+            "SIRO_TEST_D48_RELEASE_KEY",
+        ]
+        for name, version in (("cli-first", "1.0.0"), ("cli-second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+            manifest_path = tmp_path / f"{name}.json"
+            manifest_path.write_text(
+                signed(bundle, version, maximum=len(load_migrations())).model_dump_json()
+            )
+>           assert (
+                main(
+                    [
+                        *prefix,
+                        "stage",
+                        "--bundle",
+                        str(bundle),
+                        "--manifest",
+                        str(manifest_path),
+                        "--healthcheck",
+                        json.dumps(HEALTH),
+                    ]
+                )
+                == 0
+            )
+E           AssertionError: assert 1 == 0
+E            +  where 1 = main(['release', '--release-root', '/tmp/pytest-of-jasonliao/pytest-57/test_actual_cli_code_rollback_0/cli-manager', '--database', '/tmp/pytest-of-jasonliao/pytest-57/test_actual_cli_code_rollback_0/actual.sqlite3', '--key-env', ...])
+
+tests/integration/test_release_data_retention.py:397: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "invalid_manifest", "active_version": null}
+__ test_no_database_code_rollback_retains_trusted_caller_schema_compatibility __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_no_database_code_rollback0')
+
+    def test_no_database_code_rollback_retains_trusted_caller_schema_compatibility(
+        tmp_path: Path,
+    ) -> None:
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=8)
+        for name, version in (("first", "1.0.0"), ("second", "2.0.0")):
+            bundle = bundle_at(tmp_path, name)
+>           assert (
+                manager.stage_and_activate(bundle, signed(bundle, version), HEALTH).status
+                == "activated"
+            )
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_data_retention.py:434: AssertionError
+_ test_resolves_exact_signed_active_version_with_immutable_canonical_identity[1.0.0] _
+
+self = <siro.core.releases.ReleaseManager object at 0x7fc638736270>
+
+    def resolve_launch_target(self) -> VerifiedRelease:
+        if self._root.is_symlink():
+            raise ReleaseLaunchError("invalid_release_target")
+        active = self._root / "active.json"
+        if not active.exists() and not active.is_symlink():
+            raise ReleaseLaunchError("no_active_release")
+        try:
+            pointer = self._json_record(active)
+            version = pointer.get("version")
+            if (
+                set(pointer) != {"version"}
+                or not isinstance(version, str)
+                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+            ):
+                raise ValueError("invalid active version")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_active_release") from error
+        target = self._root / "releases" / version
+        try:
+            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
+                raise ValueError("invalid release directory")
+            for path in target.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode) or (
+                    not stat.S_ISDIR(info.st_mode)
+                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
+                ):
+                    raise ValueError("aliased release source")
+            for relative in (
+                "src/siro/__init__.py",
+                "src/siro/core/releases.py",
+                "src/siro/services/presentation/gateway.py",
+            ):
+                if not (target / relative).is_file():
+                    raise ValueError("missing release entrypoint")
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            if manifest.version != version or not self._verified(target, manifest):
+>               raise ValueError("unverified release source")
+E               ValueError: unverified release source
+
+src/siro/core/releases.py:165: ValueError
+
+The above exception was the direct cause of the following exception:
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638736270>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_resolves_exact_signed_act0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638736510>
+version = '1.0.0'
+
+    @pytest.mark.parametrize("version", ["1.0.0", "2.0.0"])
+    def test_resolves_exact_signed_active_version_with_immutable_canonical_identity(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, version: str
+    ) -> None:
+        (selection.root / "active.json").write_text(json.dumps({"version": version}))
+>       result = resolve_without_effects(selection, monkeypatch)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_launch_selection.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_release_launch_selection.py:145: in resolve_without_effects
+    return cast(Callable[[], object], resolver)()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.core.releases.ReleaseManager object at 0x7fc638736270>
+
+    def resolve_launch_target(self) -> VerifiedRelease:
+        if self._root.is_symlink():
+            raise ReleaseLaunchError("invalid_release_target")
+        active = self._root / "active.json"
+        if not active.exists() and not active.is_symlink():
+            raise ReleaseLaunchError("no_active_release")
+        try:
+            pointer = self._json_record(active)
+            version = pointer.get("version")
+            if (
+                set(pointer) != {"version"}
+                or not isinstance(version, str)
+                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+            ):
+                raise ValueError("invalid active version")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_active_release") from error
+        target = self._root / "releases" / version
+        try:
+            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
+                raise ValueError("invalid release directory")
+            for path in target.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode) or (
+                    not stat.S_ISDIR(info.st_mode)
+                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
+                ):
+                    raise ValueError("aliased release source")
+            for relative in (
+                "src/siro/__init__.py",
+                "src/siro/core/releases.py",
+                "src/siro/services/presentation/gateway.py",
+            ):
+                if not (target / relative).is_file():
+                    raise ValueError("missing release entrypoint")
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            if manifest.version != version or not self._verified(target, manifest):
+                raise ValueError("unverified release source")
+        except (OSError, ValueError, RecursionError) as error:
+>           raise ReleaseLaunchError("invalid_release_target") from error
+E           siro.core.releases.ReleaseLaunchError: SIRO release launch refused: invalid_release_target
+
+src/siro/core/releases.py:167: ReleaseLaunchError
+_ test_resolves_exact_signed_active_version_with_immutable_canonical_identity[2.0.0] _
+
+self = <siro.core.releases.ReleaseManager object at 0x7fc638836120>
+
+    def resolve_launch_target(self) -> VerifiedRelease:
+        if self._root.is_symlink():
+            raise ReleaseLaunchError("invalid_release_target")
+        active = self._root / "active.json"
+        if not active.exists() and not active.is_symlink():
+            raise ReleaseLaunchError("no_active_release")
+        try:
+            pointer = self._json_record(active)
+            version = pointer.get("version")
+            if (
+                set(pointer) != {"version"}
+                or not isinstance(version, str)
+                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+            ):
+                raise ValueError("invalid active version")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_active_release") from error
+        target = self._root / "releases" / version
+        try:
+            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
+                raise ValueError("invalid release directory")
+            for path in target.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode) or (
+                    not stat.S_ISDIR(info.st_mode)
+                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
+                ):
+                    raise ValueError("aliased release source")
+            for relative in (
+                "src/siro/__init__.py",
+                "src/siro/core/releases.py",
+                "src/siro/services/presentation/gateway.py",
+            ):
+                if not (target / relative).is_file():
+                    raise ValueError("missing release entrypoint")
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            if manifest.version != version or not self._verified(target, manifest):
+>               raise ValueError("unverified release source")
+E               ValueError: unverified release source
+
+src/siro/core/releases.py:165: ValueError
+
+The above exception was the direct cause of the following exception:
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638836120>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_resolves_exact_signed_act1/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638835fd0>
+version = '2.0.0'
+
+    @pytest.mark.parametrize("version", ["1.0.0", "2.0.0"])
+    def test_resolves_exact_signed_active_version_with_immutable_canonical_identity(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, version: str
+    ) -> None:
+        (selection.root / "active.json").write_text(json.dumps({"version": version}))
+>       result = resolve_without_effects(selection, monkeypatch)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_launch_selection.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_release_launch_selection.py:145: in resolve_without_effects
+    return cast(Callable[[], object], resolver)()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.core.releases.ReleaseManager object at 0x7fc638836120>
+
+    def resolve_launch_target(self) -> VerifiedRelease:
+        if self._root.is_symlink():
+            raise ReleaseLaunchError("invalid_release_target")
+        active = self._root / "active.json"
+        if not active.exists() and not active.is_symlink():
+            raise ReleaseLaunchError("no_active_release")
+        try:
+            pointer = self._json_record(active)
+            version = pointer.get("version")
+            if (
+                set(pointer) != {"version"}
+                or not isinstance(version, str)
+                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+            ):
+                raise ValueError("invalid active version")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_active_release") from error
+        target = self._root / "releases" / version
+        try:
+            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
+                raise ValueError("invalid release directory")
+            for path in target.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode) or (
+                    not stat.S_ISDIR(info.st_mode)
+                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
+                ):
+                    raise ValueError("aliased release source")
+            for relative in (
+                "src/siro/__init__.py",
+                "src/siro/core/releases.py",
+                "src/siro/services/presentation/gateway.py",
+            ):
+                if not (target / relative).is_file():
+                    raise ValueError("missing release entrypoint")
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            if manifest.version != version or not self._verified(target, manifest):
+                raise ValueError("unverified release source")
+        except (OSError, ValueError, RecursionError) as error:
+>           raise ReleaseLaunchError("invalid_release_target") from error
+E           siro.core.releases.ReleaseLaunchError: SIRO release launch refused: invalid_release_target
+
+src/siro/core/releases.py:167: ReleaseLaunchError
+_____ test_selecting_signed_code_keeps_latest_wal_data_and_existing_writer _____
+
+self = <siro.core.releases.ReleaseManager object at 0x7fc63881b310>
+
+    def resolve_launch_target(self) -> VerifiedRelease:
+        if self._root.is_symlink():
+            raise ReleaseLaunchError("invalid_release_target")
+        active = self._root / "active.json"
+        if not active.exists() and not active.is_symlink():
+            raise ReleaseLaunchError("no_active_release")
+        try:
+            pointer = self._json_record(active)
+            version = pointer.get("version")
+            if (
+                set(pointer) != {"version"}
+                or not isinstance(version, str)
+                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+            ):
+                raise ValueError("invalid active version")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_active_release") from error
+        target = self._root / "releases" / version
+        try:
+            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
+                raise ValueError("invalid release directory")
+            for path in target.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode) or (
+                    not stat.S_ISDIR(info.st_mode)
+                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
+                ):
+                    raise ValueError("aliased release source")
+            for relative in (
+                "src/siro/__init__.py",
+                "src/siro/core/releases.py",
+                "src/siro/services/presentation/gateway.py",
+            ):
+                if not (target / relative).is_file():
+                    raise ValueError("missing release entrypoint")
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            if manifest.version != version or not self._verified(target, manifest):
+>               raise ValueError("unverified release source")
+E               ValueError: unverified release source
+
+src/siro/core/releases.py:165: ValueError
+
+The above exception was the direct cause of the following exception:
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc63881b310>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_selecting_signed_code_kee0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63881a9e0>
+
+    def test_selecting_signed_code_keeps_latest_wal_data_and_existing_writer(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        writer = sqlite3.connect(selection.database)
+        try:
+            assert writer.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+            writer.execute("PRAGMA wal_autocheckpoint=0")
+            writer.execute("INSERT INTO conversation VALUES ('latest WAL conversation')")
+            writer.execute("INSERT INTO memory VALUES ('latest WAL memory')")
+            writer.execute("INSERT INTO ledger VALUES ('latest completed WAL action')")
+            writer.commit()
+            wal = selection.database.with_name(selection.database.name + "-wal")
+            wal_before = wal.read_bytes()
+>           resolve_without_effects(selection, monkeypatch)
+
+tests/integration/test_release_launch_selection.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_release_launch_selection.py:145: in resolve_without_effects
+    return cast(Callable[[], object], resolver)()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.core.releases.ReleaseManager object at 0x7fc63881b310>
+
+    def resolve_launch_target(self) -> VerifiedRelease:
+        if self._root.is_symlink():
+            raise ReleaseLaunchError("invalid_release_target")
+        active = self._root / "active.json"
+        if not active.exists() and not active.is_symlink():
+            raise ReleaseLaunchError("no_active_release")
+        try:
+            pointer = self._json_record(active)
+            version = pointer.get("version")
+            if (
+                set(pointer) != {"version"}
+                or not isinstance(version, str)
+                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+            ):
+                raise ValueError("invalid active version")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_active_release") from error
+        target = self._root / "releases" / version
+        try:
+            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
+                raise ValueError("invalid release directory")
+            for path in target.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode) or (
+                    not stat.S_ISDIR(info.st_mode)
+                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
+                ):
+                    raise ValueError("aliased release source")
+            for relative in (
+                "src/siro/__init__.py",
+                "src/siro/core/releases.py",
+                "src/siro/services/presentation/gateway.py",
+            ):
+                if not (target / relative).is_file():
+                    raise ValueError("missing release entrypoint")
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            if manifest.version != version or not self._verified(target, manifest):
+                raise ValueError("unverified release source")
+        except (OSError, ValueError, RecursionError) as error:
+>           raise ReleaseLaunchError("invalid_release_target") from error
+E           siro.core.releases.ReleaseLaunchError: SIRO release launch refused: invalid_release_target
+
+src/siro/core/releases.py:167: ReleaseLaunchError
+_____ test_actual_schema_must_be_a_known_bounded_integer_prefix[versions0] _____
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6387374d0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638736e40>
+versions = []
+
+    @pytest.mark.parametrize(
+        "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
+    )
+    def test_actual_schema_must_be_a_known_bounded_integer_prefix(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
+    ) -> None:
+        set_schema(selection.database, versions)
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6387374d0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638736e40>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_____ test_actual_schema_must_be_a_known_bounded_integer_prefix[versions1] _____
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc63880a0b0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k1/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63880bd90>
+versions = [1, 3]
+
+    @pytest.mark.parametrize(
+        "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
+    )
+    def test_actual_schema_must_be_a_known_bounded_integer_prefix(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
+    ) -> None:
+        set_schema(selection.database, versions)
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc63880a0b0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k1/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63880bd90>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_____ test_actual_schema_must_be_a_known_bounded_integer_prefix[versions2] _____
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638797e70>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k2/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638797a80>
+versions = [1, 1]
+
+    @pytest.mark.parametrize(
+        "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
+    )
+    def test_actual_schema_must_be_a_known_bounded_integer_prefix(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
+    ) -> None:
+        set_schema(selection.database, versions)
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638797e70>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k2/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638797a80>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_____ test_actual_schema_must_be_a_known_bounded_integer_prefix[versions3] _____
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389f5630>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k3/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389f6430>
+versions = [0, 1]
+
+    @pytest.mark.parametrize(
+        "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
+    )
+    def test_actual_schema_must_be_a_known_bounded_integer_prefix(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
+    ) -> None:
+        set_schema(selection.database, versions)
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389f5630>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k3/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389f6430>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_____ test_actual_schema_must_be_a_known_bounded_integer_prefix[versions4] _____
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389f7b60>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k4/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389f6f20>
+versions = [1, -1]
+
+    @pytest.mark.parametrize(
+        "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
+    )
+    def test_actual_schema_must_be_a_known_bounded_integer_prefix(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
+    ) -> None:
+        set_schema(selection.database, versions)
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389f7b60>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k4/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389f6f20>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_____ test_actual_schema_must_be_a_known_bounded_integer_prefix[versions5] _____
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389f5a90>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k5/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389f5010>
+versions = ['1']
+
+    @pytest.mark.parametrize(
+        "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
+    )
+    def test_actual_schema_must_be_a_known_bounded_integer_prefix(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
+    ) -> None:
+        set_schema(selection.database, versions)
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389f5a90>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k5/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389f5010>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_____ test_actual_schema_must_be_a_known_bounded_integer_prefix[versions6] _____
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc63895f3f0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k6/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63895f150>
+versions = [1.0]
+
+    @pytest.mark.parametrize(
+        "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
+    )
+    def test_actual_schema_must_be_a_known_bounded_integer_prefix(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
+    ) -> None:
+        set_schema(selection.database, versions)
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc63895f3f0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k6/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63895f150>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_____ test_actual_schema_must_be_a_known_bounded_integer_prefix[versions7] _____
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc63895e200>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k7/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63895c0c0>
+versions = [None]
+
+    @pytest.mark.parametrize(
+        "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
+    )
+    def test_actual_schema_must_be_a_known_bounded_integer_prefix(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
+    ) -> None:
+        set_schema(selection.database, versions)
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc63895e200>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k7/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63895c0c0>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_____ test_actual_schema_must_be_a_known_bounded_integer_prefix[versions8] _____
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc63895e9e0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k8/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63895f8c0>
+versions = [1, 2, 3, 4, 5, 6, ...]
+
+    @pytest.mark.parametrize(
+        "versions", [[], [1, 3], [1, 1], [0, 1], [1, -1], ["1"], [1.0], [None], list(range(1, 4098))]
+    )
+    def test_actual_schema_must_be_a_known_bounded_integer_prefix(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, versions: list[object]
+    ) -> None:
+        set_schema(selection.database, versions)
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:395: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc63895e9e0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_must_be_a_k8/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63895f8c0>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_ test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[missing] _
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638ab1160>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638ab1780>
+state = 'missing'
+
+    @pytest.mark.parametrize("state", ["missing", "corrupt", "no-ledger", "no-database", "symlink"])
+    def test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, state: str
+    ) -> None:
+        if state == "missing":
+            selection.database.unlink()
+        elif state == "corrupt":
+            selection.database.write_bytes(b"synthetic bytes that are not sqlite")
+        elif state == "no-ledger":
+            with closing(sqlite3.connect(selection.database)) as connection, connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif state == "symlink":
+            actual = selection.database.with_name("synthetic-database-alias.sqlite3")
+            selection.database.rename(actual)
+            selection.database.symlink_to(actual)
+        else:
+            manager = ReleaseManager(selection.root, KEY, current_schema=8)
+            selection = SelectionFixture(
+                manager, selection.root, selection.database, selection.configuration
+            )
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:418: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638ab1160>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638ab1780>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_ test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[corrupt] _
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638871940>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual1/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638872a50>
+state = 'corrupt'
+
+    @pytest.mark.parametrize("state", ["missing", "corrupt", "no-ledger", "no-database", "symlink"])
+    def test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, state: str
+    ) -> None:
+        if state == "missing":
+            selection.database.unlink()
+        elif state == "corrupt":
+            selection.database.write_bytes(b"synthetic bytes that are not sqlite")
+        elif state == "no-ledger":
+            with closing(sqlite3.connect(selection.database)) as connection, connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif state == "symlink":
+            actual = selection.database.with_name("synthetic-database-alias.sqlite3")
+            selection.database.rename(actual)
+            selection.database.symlink_to(actual)
+        else:
+            manager = ReleaseManager(selection.root, KEY, current_schema=8)
+            selection = SelectionFixture(
+                manager, selection.root, selection.database, selection.configuration
+            )
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:418: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638871940>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual1/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638872a50>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_ test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[no-ledger] _
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638871240>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual2/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638871010>
+state = 'no-ledger'
+
+    @pytest.mark.parametrize("state", ["missing", "corrupt", "no-ledger", "no-database", "symlink"])
+    def test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, state: str
+    ) -> None:
+        if state == "missing":
+            selection.database.unlink()
+        elif state == "corrupt":
+            selection.database.write_bytes(b"synthetic bytes that are not sqlite")
+        elif state == "no-ledger":
+            with closing(sqlite3.connect(selection.database)) as connection, connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif state == "symlink":
+            actual = selection.database.with_name("synthetic-database-alias.sqlite3")
+            selection.database.rename(actual)
+            selection.database.symlink_to(actual)
+        else:
+            manager = ReleaseManager(selection.root, KEY, current_schema=8)
+            selection = SelectionFixture(
+                manager, selection.root, selection.database, selection.configuration
+            )
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:418: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638871240>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual2/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638871010>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_ test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[no-database] _
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638872270>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual3/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6388724a0>
+state = 'no-database'
+
+    @pytest.mark.parametrize("state", ["missing", "corrupt", "no-ledger", "no-database", "symlink"])
+    def test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, state: str
+    ) -> None:
+        if state == "missing":
+            selection.database.unlink()
+        elif state == "corrupt":
+            selection.database.write_bytes(b"synthetic bytes that are not sqlite")
+        elif state == "no-ledger":
+            with closing(sqlite3.connect(selection.database)) as connection, connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif state == "symlink":
+            actual = selection.database.with_name("synthetic-database-alias.sqlite3")
+            selection.database.rename(actual)
+            selection.database.symlink_to(actual)
+        else:
+            manager = ReleaseManager(selection.root, KEY, current_schema=8)
+            selection = SelectionFixture(
+                manager, selection.root, selection.database, selection.configuration
+            )
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:418: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638872270>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual3/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6388724a0>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_ test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[symlink] _
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638873bd0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual4/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638873af0>
+state = 'symlink'
+
+    @pytest.mark.parametrize("state", ["missing", "corrupt", "no-ledger", "no-database", "symlink"])
+    def test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, state: str
+    ) -> None:
+        if state == "missing":
+            selection.database.unlink()
+        elif state == "corrupt":
+            selection.database.write_bytes(b"synthetic bytes that are not sqlite")
+        elif state == "no-ledger":
+            with closing(sqlite3.connect(selection.database)) as connection, connection:
+                connection.execute("DROP TABLE schema_migrations")
+        elif state == "symlink":
+            actual = selection.database.with_name("synthetic-database-alias.sqlite3")
+            selection.database.rename(actual)
+            selection.database.symlink_to(actual)
+        else:
+            manager = ReleaseManager(selection.root, KEY, current_schema=8)
+            selection = SelectionFixture(
+                manager, selection.root, selection.database, selection.configuration
+            )
+>       expect_error(selection, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:418: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638873bd0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_missing_or_unknown_actual4/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638873af0>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+__________ test_invalid_supported_schema_configuration_is_unknown[0] ___________
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638a384b0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a382f0>
+schema = 0
+
+    @pytest.mark.parametrize("schema", [0, -1, True, "8", None])
+    def test_invalid_supported_schema_configuration_is_unknown(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, schema: object
+    ) -> None:
+        manager = ReleaseManager(
+            selection.root, KEY, current_schema=cast(int, schema), database=selection.database
+        )
+        invalid = SelectionFixture(manager, selection.root, selection.database, selection.configuration)
+>       expect_error(invalid, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:429: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638a3a7b0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a382f0>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+__________ test_invalid_supported_schema_configuration_is_unknown[-1] __________
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638a38e50>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_1/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a38f30>
+schema = -1
+
+    @pytest.mark.parametrize("schema", [0, -1, True, "8", None])
+    def test_invalid_supported_schema_configuration_is_unknown(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, schema: object
+    ) -> None:
+        manager = ReleaseManager(
+            selection.root, KEY, current_schema=cast(int, schema), database=selection.database
+        )
+        invalid = SelectionFixture(manager, selection.root, selection.database, selection.configuration)
+>       expect_error(invalid, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:429: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638a3b5b0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_1/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a38f30>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_________ test_invalid_supported_schema_configuration_is_unknown[True] _________
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638a399b0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_2/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a39a90>
+schema = True
+
+    @pytest.mark.parametrize("schema", [0, -1, True, "8", None])
+    def test_invalid_supported_schema_configuration_is_unknown(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, schema: object
+    ) -> None:
+        manager = ReleaseManager(
+            selection.root, KEY, current_schema=cast(int, schema), database=selection.database
+        )
+        invalid = SelectionFixture(manager, selection.root, selection.database, selection.configuration)
+>       expect_error(invalid, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:429: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638a39710>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_2/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a39a90>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+__________ test_invalid_supported_schema_configuration_is_unknown[8] ___________
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638a3aa50>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_3/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a3ac10>
+schema = '8'
+
+    @pytest.mark.parametrize("schema", [0, -1, True, "8", None])
+    def test_invalid_supported_schema_configuration_is_unknown(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, schema: object
+    ) -> None:
+        manager = ReleaseManager(
+            selection.root, KEY, current_schema=cast(int, schema), database=selection.database
+        )
+        invalid = SelectionFixture(manager, selection.root, selection.database, selection.configuration)
+>       expect_error(invalid, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:429: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638a3a9e0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_3/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a3ac10>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+_________ test_invalid_supported_schema_configuration_is_unknown[None] _________
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389b02f0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_4/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a3bee0>
+schema = None
+
+    @pytest.mark.parametrize("schema", [0, -1, True, "8", None])
+    def test_invalid_supported_schema_configuration_is_unknown(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, schema: object
+    ) -> None:
+        manager = ReleaseManager(
+            selection.root, KEY, current_schema=cast(int, schema), database=selection.database
+        )
+        invalid = SelectionFixture(manager, selection.root, selection.database, selection.configuration)
+>       expect_error(invalid, monkeypatch, "schema_unknown")
+
+tests/integration/test_release_launch_selection.py:429: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc638a3baf0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_supported_schema_4/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638a3bee0>
+status = 'schema_unknown'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'schema_unknown'
+E         
+E         - schema_unknown
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+___ test_known_actual_schema_requires_signed_bounds_and_supported_runtime[3] ___
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389b0910>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_known_actual_schema_requi0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389b09f0>
+actual_schema = 3
+
+    @pytest.mark.parametrize("actual_schema", [3, 9])
+    def test_known_actual_schema_requires_signed_bounds_and_supported_runtime(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, actual_schema: int
+    ) -> None:
+        set_schema(selection.database, list(range(1, actual_schema + 1)))
+        write_receipt(selection.root, "2.0.0", minimum=4, maximum=9)
+>       expect_error(selection, monkeypatch, "incompatible_schema")
+
+tests/integration/test_release_launch_selection.py:438: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389b0910>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_known_actual_schema_requi0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389b09f0>
+status = 'incompatible_schema'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'incompatible_schema'
+E         
+E         - incompatible_schema
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+___ test_known_actual_schema_requires_signed_bounds_and_supported_runtime[9] ___
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389b1160>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_known_actual_schema_requi1/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389b0f30>
+actual_schema = 9
+
+    @pytest.mark.parametrize("actual_schema", [3, 9])
+    def test_known_actual_schema_requires_signed_bounds_and_supported_runtime(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, actual_schema: int
+    ) -> None:
+        set_schema(selection.database, list(range(1, actual_schema + 1)))
+        write_receipt(selection.root, "2.0.0", minimum=4, maximum=9)
+>       expect_error(selection, monkeypatch, "incompatible_schema")
+
+tests/integration/test_release_launch_selection.py:438: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389b1160>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_known_actual_schema_requi1/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389b0f30>
+status = 'incompatible_schema'
+
+    def expect_error(selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch, status: str) -> None:
+        error_type = getattr(release_module, "ReleaseLaunchError", None)
+        assert isinstance(error_type, type) and issubclass(error_type, Exception), (
+            "D52 requires a typed ReleaseLaunchError"
+        )
+        with pytest.raises(error_type) as captured:
+            resolve_without_effects(selection, monkeypatch)
+>       assert getattr(captured.value, "status", None) == status
+E       AssertionError: assert 'invalid_release_target' == 'incompatible_schema'
+E         
+E         - incompatible_schema
+E         + invalid_release_target
+
+tests/integration/test_release_launch_selection.py:163: AssertionError
+____ test_actual_schema_compatibility_is_not_replaced_by_constructor_guess _____
+
+self = <siro.core.releases.ReleaseManager object at 0x7fc6389b1cc0>
+
+    def resolve_launch_target(self) -> VerifiedRelease:
+        if self._root.is_symlink():
+            raise ReleaseLaunchError("invalid_release_target")
+        active = self._root / "active.json"
+        if not active.exists() and not active.is_symlink():
+            raise ReleaseLaunchError("no_active_release")
+        try:
+            pointer = self._json_record(active)
+            version = pointer.get("version")
+            if (
+                set(pointer) != {"version"}
+                or not isinstance(version, str)
+                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+            ):
+                raise ValueError("invalid active version")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_active_release") from error
+        target = self._root / "releases" / version
+        try:
+            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
+                raise ValueError("invalid release directory")
+            for path in target.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode) or (
+                    not stat.S_ISDIR(info.st_mode)
+                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
+                ):
+                    raise ValueError("aliased release source")
+            for relative in (
+                "src/siro/__init__.py",
+                "src/siro/core/releases.py",
+                "src/siro/services/presentation/gateway.py",
+            ):
+                if not (target / relative).is_file():
+                    raise ValueError("missing release entrypoint")
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            if manifest.version != version or not self._verified(target, manifest):
+>               raise ValueError("unverified release source")
+E               ValueError: unverified release source
+
+src/siro/core/releases.py:165: ValueError
+
+The above exception was the direct cause of the following exception:
+
+selection = SelectionFixture(manager=<siro.core.releases.ReleaseManager object at 0x7fc6389b1cc0>, root=PosixPath('/tmp/pytest-of-...), configuration=PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_schema_compatibili0/synthetic-config.json'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc6389b1da0>
+
+    def test_actual_schema_compatibility_is_not_replaced_by_constructor_guess(
+        selection: SelectionFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        set_schema(selection.database, [1, 2, 3])
+        write_receipt(selection.root, "2.0.0", minimum=2, maximum=3)
+>       result = resolve_without_effects(selection, monkeypatch)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_launch_selection.py:446: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_release_launch_selection.py:145: in resolve_without_effects
+    return cast(Callable[[], object], resolver)()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.core.releases.ReleaseManager object at 0x7fc6389b1cc0>
+
+    def resolve_launch_target(self) -> VerifiedRelease:
+        if self._root.is_symlink():
+            raise ReleaseLaunchError("invalid_release_target")
+        active = self._root / "active.json"
+        if not active.exists() and not active.is_symlink():
+            raise ReleaseLaunchError("no_active_release")
+        try:
+            pointer = self._json_record(active)
+            version = pointer.get("version")
+            if (
+                set(pointer) != {"version"}
+                or not isinstance(version, str)
+                or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None
+            ):
+                raise ValueError("invalid active version")
+        except (OSError, ValueError, RecursionError) as error:
+            raise ReleaseLaunchError("invalid_active_release") from error
+        target = self._root / "releases" / version
+        try:
+            if target.is_symlink() or target.parent.is_symlink() or not target.is_dir():
+                raise ValueError("invalid release directory")
+            for path in target.rglob("*"):
+                info = path.lstat()
+                if stat.S_ISLNK(info.st_mode) or (
+                    not stat.S_ISDIR(info.st_mode)
+                    and (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1)
+                ):
+                    raise ValueError("aliased release source")
+            for relative in (
+                "src/siro/__init__.py",
+                "src/siro/core/releases.py",
+                "src/siro/services/presentation/gateway.py",
+            ):
+                if not (target / relative).is_file():
+                    raise ValueError("missing release entrypoint")
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            if manifest.version != version or not self._verified(target, manifest):
+                raise ValueError("unverified release source")
+        except (OSError, ValueError, RecursionError) as error:
+>           raise ReleaseLaunchError("invalid_release_target") from error
+E           siro.core.releases.ReleaseLaunchError: SIRO release launch refused: invalid_release_target
+
+src/siro/core/releases.py:167: ReleaseLaunchError
+_________ test_t32_staging_healthcheck_atomic_activation_and_rollback __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_t32_staging_healthcheck_a0')
+
+    def test_t32_staging_healthcheck_atomic_activation_and_rollback(tmp_path: Path) -> None:
+        database = tmp_path / "data.sqlite3"
+        with sqlite3.connect(database) as connection:
+            connection.execute("CREATE TABLE state(value TEXT)")
+            connection.execute("INSERT INTO state VALUES ('before-release')")
+            connection.execute("CREATE TABLE schema_migrations(version INTEGER)")
+            connection.executemany(
+                "INSERT INTO schema_migrations VALUES (?)", [(n,) for n in range(1, 9)]
+            )
+        manager = ReleaseManager(
+            tmp_path / "manager", b"release-test-key", current_schema=8, database=database
+        )
+        good = tmp_path / "good"
+        good.mkdir()
+        (good / "app.txt").write_text("v1", encoding="utf-8")
+        result = manager.stage_and_activate(
+            good, manifest(manager, good, "1.0.0"), (sys.executable, "-c", "pass")
+        )
+>       assert result.status == "activated" and manager.active_version() == "1.0.0"
+E       AssertionError: assert ('invalid_manifest' == 'activated'
+E         
+E         - activated
+E         + invalid_manifest)
+
+tests/integration/test_release_manager.py:50: AssertionError
+____________ test_t32_interrupted_activation_keeps_previous_release ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_t32_interrupted_activatio0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63880c1a0>
+
+    def test_t32_interrupted_activation_keeps_previous_release(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        manager = ReleaseManager(tmp_path / "manager", b"release-test-key", current_schema=8)
+        first = tmp_path / "first"
+        first.mkdir()
+        (first / "app.txt").write_text("v1", encoding="utf-8")
+        manager.stage_and_activate(
+            first, manifest(manager, first, "1.0.0"), (sys.executable, "-c", "pass")
+        )
+        second = tmp_path / "second"
+        second.mkdir()
+        (second / "app.txt").write_text("v2", encoding="utf-8")
+        original = manager._atomic_json
+    
+        def interrupt_active(path: Path, value: dict[str, str]) -> None:
+            if path.name == "active.json":
+                raise OSError("simulated activation interruption")
+            original(path, value)
+    
+        monkeypatch.setattr(manager, "_atomic_json", interrupt_active)
+>       with pytest.raises(OSError, match="interruption"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OSError
+
+tests/integration/test_release_manager.py:98: Failed
+_ test_invalid_wire_format_range_and_types_are_rejected[signing_format-siro-release-manifest-v2] _
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x7fc63880d7f0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_inva...mat_range0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_invalid_wire_format_range0/synthetic.sqlite3'))
+field = 'signing_format', value = 'siro-release-manifest-v2'
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("signing_format", "siro-release-manifest-v2"),
+            ("signing_format", ""),
+            ("signing_format", True),
+            ("signing_format", 1),
+            ("signing_format", 1.0),
+            ("unrecognized_field", "not signed"),
+            ("min_schema", 0),
+            ("max_schema", 0),
+            ("min_schema", 9),
+            ("min_schema", True),
+            ("max_schema", False),
+            ("min_schema", "1"),
+            ("max_schema", "8"),
+            ("min_schema", 1.0),
+            ("max_schema", 8.5),
+        ],
+    )
+    def test_invalid_wire_format_range_and_types_are_rejected(
+        release_fixture: tuple[ReleaseManager, Path, Path], field: str, value: Any
+    ) -> None:
+        manager, bundle, database = release_fixture
+        before = tree_bytes(manager._root)
+        database_before = database.read_bytes()
+        values = signed_values(bundle)
+        values[field] = value
+>       with pytest.raises(ValidationError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValidationError
+
+tests/integration/test_release_manifest_signing.py:217: Failed
+_____ test_valid_canonical_manifest_uses_original_staging_and_backup_flow ______
+
+release_fixture = (<siro.core.releases.ReleaseManager object at 0x7fc63880f4d0>, PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_vali...manifest_0/bundle'), PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_valid_canonical_manifest_0/synthetic.sqlite3'))
+
+    def test_valid_canonical_manifest_uses_original_staging_and_backup_flow(
+        release_fixture: tuple[ReleaseManager, Path, Path],
+    ) -> None:
+        manager, bundle, database = release_fixture
+        values = signed_values(bundle)
+        artifact = ReleaseManifest.model_validate_json(json.dumps(dict(reversed(list(values.items())))))
+        result = manager.stage_and_activate(bundle, artifact, (sys.executable, "-c", "pass"))
+>       assert result.status == "activated" and result.active_version == "2.0.0"
+E       AssertionError: assert ('invalid_manifest' == 'activated'
+E         
+E         - activated
+E         + invalid_manifest)
+
+tests/integration/test_release_manifest_signing.py:272: AssertionError
+__ test_actual_cli_stage_rejects_legacy_and_accepts_complete_signatures[True] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_cli_stage_rejects_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc63880fd90>
+current_format = True
+
+    @pytest.mark.parametrize("current_format", [False, True])
+    def test_actual_cli_stage_rejects_legacy_and_accepts_complete_signatures(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, current_format: bool
+    ) -> None:
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        (bundle / "app.txt").write_text("CLI synthetic bundle")
+        values = signed_values(bundle, maximum=100)
+        if not current_format:
+            del values["signing_format"]
+            values["signature"] = hmac.new(
+                KEY, f"2.0.0:{values['source_sha256']}".encode(), hashlib.sha256
+            ).hexdigest()
+        artifact = tmp_path / "manifest.json"
+        artifact.write_text(json.dumps(values))
+        root = tmp_path / "release-root"
+        marker = tmp_path / "healthcheck-ran"
+        monkeypatch.setenv("SIRO_TEST_FIX009_RELEASE_KEY", KEY.decode())
+        result = main(
+            [
+                "release",
+                "--release-root",
+                str(root),
+                "--key-env",
+                "SIRO_TEST_FIX009_RELEASE_KEY",
+                "stage",
+                "--bundle",
+                str(bundle),
+                "--manifest",
+                str(artifact),
+                "--healthcheck",
+                json.dumps([sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"]),
+            ]
+        )
+>       assert result == (0 if current_format else 1)
+E       assert 1 == 0
+
+tests/integration/test_release_manifest_signing.py:315: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"status": "invalid_manifest", "active_version": null}
+__ test_actual_signed_source_versions_and_code_rollback_preserve_latest_data ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_signed_source_vers0')
+
+    def test_actual_signed_source_versions_and_code_rollback_preserve_latest_data(
+        tmp_path: Path,
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="signed-source-owned-", dir=tmp_path) as temporary:
+            root = Path(temporary)
+            launcher = prepared_project(root)
+            database = root / "data/siro.db"
+            asyncio.run(SQLiteStore(database).initialize())
+            seed(database, "before-first")
+            manager = ReleaseManager(
+                root / "manager", KEY, current_schema=len(load_migrations()), database=database
+            )
+            observed: list[dict[str, Any]] = []
+            manifests: dict[str, ReleaseManifest] = {}
+            for version, phase in (("1.0.0", "after-first"), ("2.0.0", "after-second")):
+                bundle = source_bundle(root, version)
+                manifest = signed(bundle, version)
+                manifests[version] = manifest
+>               assert manager.stage_and_activate(bundle, manifest, HEALTH).status == "activated"
+E               AssertionError: assert 'invalid_manifest' == 'activated'
+E                 
+E                 - activated
+E                 + invalid_manifest
+
+tests/integration/test_release_source_process.py:301: AssertionError
+_ test_actual_invalid_signed_source_never_falls_back_or_mutates_database[unsupported-abi] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_invalid_signed_sou0')
+invalid = 'unsupported-abi'
+
+    @pytest.mark.parametrize("invalid", ["unsupported-abi", "tampered-package"])
+    def test_actual_invalid_signed_source_never_falls_back_or_mutates_database(
+        tmp_path: Path, invalid: str
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="signed-refusal-owned-", dir=tmp_path) as temporary:
+            root = Path(temporary)
+            launcher = prepared_project(root)
+            database = root / "data/siro.db"
+            asyncio.run(SQLiteStore(database).initialize())
+            seed(database, "before-refusal")
+            bundle = source_bundle(root, "1.0.0", unsupported_abi=invalid == "unsupported-abi")
+            manifest = signed(bundle, "1.0.0")
+            manager = ReleaseManager(
+                root / "manager", KEY, current_schema=len(load_migrations()), database=database
+            )
+>           assert manager.stage_and_activate(bundle, manifest, HEALTH).status == "activated"
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_source_process.py:341: AssertionError
+_ test_actual_invalid_signed_source_never_falls_back_or_mutates_database[tampered-package] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_actual_invalid_signed_sou1')
+invalid = 'tampered-package'
+
+    @pytest.mark.parametrize("invalid", ["unsupported-abi", "tampered-package"])
+    def test_actual_invalid_signed_source_never_falls_back_or_mutates_database(
+        tmp_path: Path, invalid: str
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="signed-refusal-owned-", dir=tmp_path) as temporary:
+            root = Path(temporary)
+            launcher = prepared_project(root)
+            database = root / "data/siro.db"
+            asyncio.run(SQLiteStore(database).initialize())
+            seed(database, "before-refusal")
+            bundle = source_bundle(root, "1.0.0", unsupported_abi=invalid == "unsupported-abi")
+            manifest = signed(bundle, "1.0.0")
+            manager = ReleaseManager(
+                root / "manager", KEY, current_schema=len(load_migrations()), database=database
+            )
+>           assert manager.stage_and_activate(bundle, manifest, HEALTH).status == "activated"
+E           AssertionError: assert 'invalid_manifest' == 'activated'
+E             
+E             - activated
+E             + invalid_manifest
+
+tests/integration/test_release_source_process.py:341: AssertionError
+_ test_signed_launcher_executes_only_selected_source_without_key_or_provisioning _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_signed_launcher_executes_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc638806740>
+
+    def test_signed_launcher_executes_only_selected_source_without_key_or_provisioning(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        module, root, data = launcher_fixture(tmp_path, monkeypatch)
+        executions: list[tuple[Any, ...]] = []
+        monkeypatch.setattr(module.os, "execve", lambda *a: executions.append(a))
+        monkeypatch.setattr(
+            module.os, "execv", lambda *a: pytest.fail("signed mode must not fall back")
+        )
+        monkeypatch.setattr(
+            module.subprocess, "run", lambda *a, **kw: pytest.fail("signed mode must not provision")
+        )
+        before = (data / "siro.db").read_bytes()
+>       module.main()
+
+/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_signed_companion_launcher.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/jasonliao/文件/Siro/SiroV2/scripts/launch_companion.py:48: in main
+    selected = _selected_release(root)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-57/test_signed_launcher_executes_0/project')
+
+    def _selected_release(root: Path) -> VerifiedRelease | None:
+        selected = os.environ.get("SIRO_RELEASE_ROOT")
+        if selected is None:
+            return None
+        key = os.environ.get("SIRO_RELEASE_SIGNING_KEY")
+        if not selected or not key:
+            raise SystemExit("SIRO release launch refused: missing_release_configuration")
+        data = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
+        if not data.is_absolute():
+            data = root / data
+        manager = ReleaseManager(
+            Path(selected),
+            key.encode(),
+            current_schema=len(load_migrations()),
+            database=data / "siro.db",
+        )
+        try:
+            return manager.resolve_launch_target()
+        except ReleaseLaunchError as error:
+>           raise SystemExit(str(error)) from None
+E           SystemExit: SIRO release launch refused: invalid_release_target
+
+/home/jasonliao/文件/Siro/SiroV2/scripts/launch_companion.py:42: SystemExit
+=============================== warnings summary ===============================
+tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+tests/integration/test_data_owner_callers.py::test_gateway_refuses_owner_before_sqlite_initialization_or_server[legacy]
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/integration/test_release_data_retention.py::test_code_rollback_keeps_late_conversation_memory_and_completed_ledger[False]
+ERROR tests/integration/test_release_data_retention.py::test_code_rollback_keeps_late_conversation_memory_and_completed_ledger[True]
+ERROR tests/integration/test_release_data_retention.py::test_code_rollback_never_needs_or_dereferences_an_old_data_backup[missing]
+ERROR tests/integration/test_release_data_retention.py::test_code_rollback_never_needs_or_dereferences_an_old_data_backup[corrupt]
+ERROR tests/integration/test_release_data_retention.py::test_code_rollback_never_needs_or_dereferences_an_old_data_backup[untrusted-path]
+ERROR tests/integration/test_release_data_retention.py::test_actual_schema_snapshot_not_constructor_guess_decides_compatibility[versions0]
+ERROR tests/integration/test_release_data_retention.py::test_actual_schema_snapshot_not_constructor_guess_decides_compatibility[versions1]
+ERROR tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[missing]
+ERROR tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[empty]
+ERROR tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[gap]
+ERROR tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[text]
+ERROR tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[duplicate]
+ERROR tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[zero]
+ERROR tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[float]
+ERROR tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[overflow]
+ERROR tests/integration/test_release_data_retention.py::test_unknown_actual_schema_fails_closed_without_pointer_or_data_effects[corrupt]
+ERROR tests/integration/test_release_data_retention.py::test_missing_database_is_not_created_by_code_rollback
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[missing]
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[malformed]
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[legacy]
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[bad-signature]
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[schema-tamper]
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[wrong-version]
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[extra]
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[symlink]
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[hardlink]
+ERROR tests/integration/test_release_data_retention.py::test_stored_complete_target_approval_is_required_not_a_history_claim[oversized]
+ERROR tests/integration/test_release_data_retention.py::test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[bytes]
+ERROR tests/integration/test_release_data_retention.py::test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[symlink]
+ERROR tests/integration/test_release_data_retention.py::test_target_bytes_and_source_aliases_cannot_bypass_stored_approval[hardlink]
+ERROR tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[value0]
+ERROR tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[None]
+ERROR tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[value2]
+ERROR tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[value3]
+ERROR tests/integration/test_release_data_retention.py::test_malformed_history_has_no_path_or_data_authority[value4]
+ERROR tests/integration/test_release_data_retention.py::test_interrupted_code_pointer_write_retains_current_pointer_and_latest_data
+ERROR tests/integration/test_release_data_retention.py::test_rollback_runs_no_healthcheck_backup_restore_or_effect_replay
+ERROR tests/integration/test_release_data_retention.py::test_published_version_cannot_be_overwritten_and_has_zero_release_effects[release]
+ERROR tests/integration/test_release_data_retention.py::test_published_version_cannot_be_overwritten_and_has_zero_release_effects[manifest]
+ERROR tests/integration/test_release_data_retention.py::test_manifest_save_failure_never_publishes_an_unverifiable_release
+ERROR tests/integration/test_release_data_retention.py::test_target_record_and_parent_aliases_do_not_gain_rollback_authority[directory-symlink]
+ERROR tests/integration/test_release_data_retention.py::test_target_record_and_parent_aliases_do_not_gain_rollback_authority[manifest-parent-symlink]
+ERROR tests/integration/test_release_data_retention.py::test_target_record_and_parent_aliases_do_not_gain_rollback_authority[duplicate-json]
+ERROR tests/integration/test_release_data_retention.py::test_actual_schema_connection_is_readonly_and_explicitly_closed
+ERROR tests/integration/test_release_data_retention.py::test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[0]
+ERROR tests/integration/test_release_data_retention.py::test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[-1]
+ERROR tests/integration/test_release_data_retention.py::test_invalid_trusted_caller_schema_does_not_authorize_code_rollback[True]
+ERROR tests/integration/test_release_data_retention.py::test_database_symlink_is_not_followed_by_the_schema_snapshot
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[demo]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[backup]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[raw-restore]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[zip-restore]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[stage]
+FAILED tests/integration/test_data_owner_callers.py::test_managed_cli_busy_has_no_database_config_release_or_health_effects[rollback]
+FAILED tests/integration/test_release_data_retention.py::test_actual_cli_code_rollback_preserves_new_rows_in_real_migrated_temp_database
+FAILED tests/integration/test_release_data_retention.py::test_no_database_code_rollback_retains_trusted_caller_schema_compatibility
+FAILED tests/integration/test_release_launch_selection.py::test_resolves_exact_signed_active_version_with_immutable_canonical_identity[1.0.0]
+FAILED tests/integration/test_release_launch_selection.py::test_resolves_exact_signed_active_version_with_immutable_canonical_identity[2.0.0]
+FAILED tests/integration/test_release_launch_selection.py::test_selecting_signed_code_keeps_latest_wal_data_and_existing_writer
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_must_be_a_known_bounded_integer_prefix[versions0]
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_must_be_a_known_bounded_integer_prefix[versions1]
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_must_be_a_known_bounded_integer_prefix[versions2]
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_must_be_a_known_bounded_integer_prefix[versions3]
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_must_be_a_known_bounded_integer_prefix[versions4]
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_must_be_a_known_bounded_integer_prefix[versions5]
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_must_be_a_known_bounded_integer_prefix[versions6]
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_must_be_a_known_bounded_integer_prefix[versions7]
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_must_be_a_known_bounded_integer_prefix[versions8]
+FAILED tests/integration/test_release_launch_selection.py::test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[missing]
+FAILED tests/integration/test_release_launch_selection.py::test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[corrupt]
+FAILED tests/integration/test_release_launch_selection.py::test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[no-ledger]
+FAILED tests/integration/test_release_launch_selection.py::test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[no-database]
+FAILED tests/integration/test_release_launch_selection.py::test_missing_or_unknown_actual_database_never_uses_constructor_schema_guess[symlink]
+FAILED tests/integration/test_release_launch_selection.py::test_invalid_supported_schema_configuration_is_unknown[0]
+FAILED tests/integration/test_release_launch_selection.py::test_invalid_supported_schema_configuration_is_unknown[-1]
+FAILED tests/integration/test_release_launch_selection.py::test_invalid_supported_schema_configuration_is_unknown[True]
+FAILED tests/integration/test_release_launch_selection.py::test_invalid_supported_schema_configuration_is_unknown[8]
+FAILED tests/integration/test_release_launch_selection.py::test_invalid_supported_schema_configuration_is_unknown[None]
+FAILED tests/integration/test_release_launch_selection.py::test_known_actual_schema_requires_signed_bounds_and_supported_runtime[3]
+FAILED tests/integration/test_release_launch_selection.py::test_known_actual_schema_requires_signed_bounds_and_supported_runtime[9]
+FAILED tests/integration/test_release_launch_selection.py::test_actual_schema_compatibility_is_not_replaced_by_constructor_guess
+FAILED tests/integration/test_release_manager.py::test_t32_staging_healthcheck_atomic_activation_and_rollback
+FAILED tests/integration/test_release_manager.py::test_t32_interrupted_activation_keeps_previous_release
+FAILED tests/integration/test_release_manifest_signing.py::test_invalid_wire_format_range_and_types_are_rejected[signing_format-siro-release-manifest-v2]
+FAILED tests/integration/test_release_manifest_signing.py::test_valid_canonical_manifest_uses_original_staging_and_backup_flow
+FAILED tests/integration/test_release_manifest_signing.py::test_actual_cli_stage_rejects_legacy_and_accepts_complete_signatures[True]
+FAILED tests/integration/test_release_source_process.py::test_actual_signed_source_versions_and_code_rollback_preserve_latest_data
+FAILED tests/integration/test_release_source_process.py::test_actual_invalid_signed_source_never_falls_back_or_mutates_database[unsupported-abi]
+FAILED tests/integration/test_release_source_process.py::test_actual_invalid_signed_source_never_falls_back_or_mutates_database[tampered-package]
+FAILED tests/integration/test_signed_companion_launcher.py::test_signed_launcher_executes_only_selected_source_without_key_or_provisioning
+42 failed, 111 passed, 2 warnings, 48 errors in 11.24s

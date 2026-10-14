@@ -1,0 +1,76 @@
+{
+  "prototype_only": true,
+  "production_or_private_data_used": false,
+  "bwrap_version": "bubblewrap 0.11.1",
+  "checks": {
+    "source_and_late_import_frozen": true,
+    "resource_frozen": true,
+    "whole_tree_hides_host_injection": true,
+    "snapshot_readonly": true,
+    "cwd_data_asset_semantics": true,
+    "parent_fds_closed_before_child_reads": true,
+    "only_allowed_dependency_without_site_hooks": true,
+    "key_env_and_unrelated_fd_absent": true,
+    "fd_seals_write_grow_shrink_fixed": true,
+    "main_pid_term_preserves_graceful_shutdown": false,
+    "owned_actual_child_term_joins_graceful_shutdown": true
+  },
+  "runs": [
+    {
+      "kind": "frozen-byte-data-assets-compatibility",
+      "exit_code": 0,
+      "stderr_empty": true,
+      "before": {
+        "pid": 319003,
+        "cwd": "/tmp/siro-sealed-source-probe-0fns4gs_",
+        "signing_key_present": false,
+        "unrelated_key_fd_present": false,
+        "value": "approved-before",
+        "source": "/tmp/siro-sealed-source-probe-0fns4gs_/approved/src/siro/__init__.py",
+        "site_imported": false,
+        "sitecustomize_imported": false
+      },
+      "after": {
+        "pid": 319003,
+        "cwd": "/tmp/siro-sealed-source-probe-0fns4gs_",
+        "signing_key_present": false,
+        "unrelated_key_fd_present": false,
+        "value": "approved-before",
+        "source": "/tmp/siro-sealed-source-probe-0fns4gs_/approved/src/siro/__init__.py",
+        "site_imported": false,
+        "sitecustomize_imported": false,
+        "late_value": "approved-late",
+        "dependency": "synthetic-allowed-dependency",
+        "resource": "approved-resource\n",
+        "host_injected_module": false,
+        "source_write_errno": 30,
+        "asset": "public-prepared-asset",
+        "data_write": "new-latest",
+        "pth_executed": false,
+        "sitecustomize_executed": false
+      },
+      "actual_child_gone": true
+    },
+    {
+      "kind": "main-pid-term",
+      "exit_code": -15,
+      "stdout_after_term": "",
+      "stderr_empty": false,
+      "actual_child_gone": true,
+      "graceful_marker": false
+    },
+    {
+      "kind": "owned-actual-child-term",
+      "exit_code": 0,
+      "termination_ack": {
+        "termination_handler": 15
+      },
+      "stderr_empty": true,
+      "actual_child_gone": true,
+      "graceful_marker": true
+    }
+  ],
+  "captured_complete_v1_digest": "c991293f6fcd91976589f1c1115856f2b83a7174c005ebbe6c083d0af1f69a9d",
+  "children_joined": true,
+  "temporary_root_removed": true
+}

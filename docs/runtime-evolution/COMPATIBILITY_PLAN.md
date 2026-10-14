@@ -1,5 +1,9 @@
 # Compatibility plan
 
+## 2026-10-14 — FIX-020 / D56 release approval boundary
+
+原 v1 source encoding 已證有歧義，不能保留其 execution authority。歷史 v1／None manifest 仍可 parse/read/serialize，v1 canonical payload/hash 固定語意不改；stage/launch/rollback 必須明確 v2 新批准，既有拒絕 status、CLI shape、schema/owner/data retention 保持。沒有自動 receipt 改寫、重新簽署或演算法猜測；新批准使用新 immutable version，不能同版覆寫。這是明示最小安全相容更正，不影響 default 非 signed launcher、Gateway、DB、provider 或 UI。[證據與限制](../evidence/FIX-020-2026-10-14/REPORT.md)。
+
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 
 Defaultproductlauncher execv/model/resource流程、defaultGateway main/create_app/healthready{state}、existingCLI stage/rollback、complete manifest wire保留。Opt-in才有typedVerifiedRelease與healthready release version/digest；startup/drain不回readyidentity。

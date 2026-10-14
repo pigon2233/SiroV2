@@ -1,5 +1,9 @@
 # Migration plan
 
+## 2026-10-14 — FIX-020 / D56 explicit v2 approval
+
+不執行 DB/schema/config/grant migration，不掃描或改寫既有 approval。v1／None 只能歷史檢視；operator 對實際 v2 framed source 明確簽署為新 release version，再沿既有 stage/health/owner/schema 接入。禁止同版覆寫、silent resign 或把舊 digest 解釋為 v2。回退先撤 release execution，再 source-only reverse；保最新 DB/receipt/history，不重新授權弱 v1 execution。immutable capture、old-writer absence、maintenance handoff 仍須後續獨立驗收。[最小更正](ARCHITECTURE_CORRECTION.md)。
+
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 
 D52沒有DB/schema/config/grant migration；明確operator opt-in可逆，同schema source接線是增量。只改既有ReleaseManager/read-schema fact、productlauncher與Gateway composition/ready；新增4份tests。complete manifest/CLI stage-rollback、D49/D50/D51、Core人格/記憶/權限/模型/語音/UI/SQL/deps保留。

@@ -62,10 +62,10 @@ def launcher_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[A
         p.write_text("# synthetic prepared source fixture\n")
     manifest = {
         "version": "2.0.0",
-        "source_sha256": ReleaseManager._digest(bundle),
+        "source_sha256": ReleaseManager._digest_v2(bundle),
         "min_schema": len(load_migrations()),
         "max_schema": len(load_migrations()),
-        "signing_format": "siro-release-manifest-v1",
+        "signing_format": "siro-release-manifest-v2",
     }
     signature = hmac.new(
         KEY,

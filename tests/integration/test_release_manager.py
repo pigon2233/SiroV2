@@ -14,14 +14,14 @@ from siro.core.releases import ReleaseManager, ReleaseManifest
 def manifest(
     manager: ReleaseManager, bundle: Path, version: str, *, minimum: int = 1
 ) -> ReleaseManifest:
-    digest = manager._digest(bundle)
+    digest = manager._digest_v2(bundle)
     artifact = ReleaseManifest(
         version=version,
         source_sha256=digest,
         signature="0" * 64,
         min_schema=minimum,
         max_schema=max(8, minimum),
-        signing_format="siro-release-manifest-v1",
+        signing_format="siro-release-manifest-v2",
     )
     signature = hmac.new(
         b"release-test-key", artifact.signing_payload(), hashlib.sha256

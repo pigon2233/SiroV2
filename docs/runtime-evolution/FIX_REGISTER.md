@@ -1,5 +1,28 @@
 # Runtime Evolution Fix Register
 
+## FIX-020 — unambiguous signed release source tree
+
+- Classification: REQUIRED_FIX.
+- Source types: ORIGINAL_DESIGN_ERROR / BAD_INTERFACE / TEST_GAP.
+- Source Task: original T32, D39/D52 verification during RI005 immutable-source research.
+- Severity: HIGH.
+- Problem: Different file contents can share the unframed source digest and therefore the same complete signed manifest.
+- Evidence: `src/siro/core/releases.py` `_digest`→`_verified`→stage/rollback/launch；true two-tree [probe](../evidence/FIX-020-2026-10-14/collision-proof.json)，15 RED→PASS、216 focused、full1813 PASS、actual five child/source/data acceptance。[Report](../evidence/FIX-020-2026-10-14/REPORT.md)。
+- Expected Behavior: A release approval binds exact source file count, paths and contents.
+- Actual Behavior: Legacy filename/content concatenation lacks boundaries, so equality does not establish per-file equality.
+- Root Cause: Confirmed ambiguous original serialization; not a SHA256 collision attack.
+- Scope: One local release identity algorithm/tag and existing execution authorization boundary.
+- Files expected to change: releases.py; seven existing release/owner positive fixture files (preparation only); one new identity test; relevant contracts/correction/evidence.
+- Files that MUST NOT change: Gateway/launcher, SQLite/migrations/owner/operations, policy/config, providers/TTS/UI/skills, dependency pins, original assertions or test gates.
+- Compatibility requirements: Historical v1 bytes remain inspectable; explicit v2 reapproval, no silent reinterpretation or auto-resigning; old safe rejection/result shapes and data retention.
+- Proposed repair: Domain/count/length-framed v2, tag bound in canonical full HMAC; deny legacy v1/None before source read/effects at `_verified`.
+- Tests required: v1 equal-hash proof/bypass RED, independent v2 vectors, wrong digest/tag/HMAC, count/name/content/empty/resource/order sensitivity, legacy zero-effect stage/rollback/launch refusal.
+- Regression tests: Original signing/schema/owner/CLI/source version/readiness/data-retention assertions; full clean scripts/check and exact-head CI.
+- Acceptance criteria: Required negative/positive cases and regressions PASS, exact changes/fixture audit/source-only rollback, no data/receipt migration.
+- Rollback method: Disable release execution entrypoints, reverse only this source/fixture repair; preserve data/history and never re-enable weak v1 approvals.
+- Risk: HIGH trust boundary; source/import mutation and dependencies still separate unverified gates.
+- Status: DONE / LOCAL_VERIFIED（full scripts/check EXIT0/637.507s）；解除 BLOCKED_BY_FIX: FIX-020，v2 identity scoped VERIFIED。exact-head cloud 另驗；RI005 仍 PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION，不改其他 numbered task 歷史。
+
 ## FIX-018 — RI-006 error responses retain no-store
 
 - Classification: MINOR_FIX.

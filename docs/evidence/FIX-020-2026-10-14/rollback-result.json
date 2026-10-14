@@ -1,0 +1,84 @@
+{
+  "mode": "owned disposable source copy; real git reverse/reapply and synthetic tests",
+  "production_rollback_executed": false,
+  "baseline_sha256": "0937b3b11b816e16fd7fa9876efc353e0cd64e91bc361bc9f3c71555920ce98b",
+  "final_sha256": "c959036b436e817d96db14a971b430c02b2b8c096dee00586e3cdf98de36003e",
+  "steps": [
+    {
+      "name": "reverse-check",
+      "arguments": [
+        "git",
+        "apply",
+        "--reverse",
+        "--check",
+        "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/FIX-020-2026-10-14/production-repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "reverse-apply",
+      "arguments": [
+        "git",
+        "apply",
+        "--reverse",
+        "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/FIX-020-2026-10-14/production-repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "identity-reversed",
+      "arguments": [
+        "/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_release_tree_identity.py"
+      ],
+      "exit_code": 1
+    },
+    {
+      "name": "reapply-check",
+      "arguments": [
+        "git",
+        "apply",
+        "--check",
+        "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/FIX-020-2026-10-14/production-repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "reapply-apply",
+      "arguments": [
+        "git",
+        "apply",
+        "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/FIX-020-2026-10-14/production-repair.patch"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "identity-reapplied",
+      "arguments": [
+        "/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_release_tree_identity.py"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "rollback_policy": "Withdraw release execution first. Source reversal is not approval to execute v1, resign receipts, restore DB backups, or deploy.",
+  "reverse_changed_paths": [
+    "src/siro/core/releases.py"
+  ],
+  "reversed_sha256": "0937b3b11b816e16fd7fa9876efc353e0cd64e91bc361bc9f3c71555920ce98b",
+  "reapplied_sha256": "c959036b436e817d96db14a971b430c02b2b8c096dee00586e3cdf98de36003e",
+  "source_files_preserved": 136,
+  "new_identity_tests": {
+    "reversed": "15 FAIL",
+    "reapplied": "15 PASS"
+  },
+  "status": "PASS",
+  "owned_temporary_root_removed": true,
+  "workspace_source_unchanged": true
+}

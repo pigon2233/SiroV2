@@ -1,5 +1,25 @@
 # SIRO V2 Architecture Review
 
+## 2026-10-14 — FIX-020 / D56 source identity correction locally VERIFIED
+
+**Overall architecture health：YELLOW。** immutable-source研究發現原T32 source encoding並非一對一，D39完整HMAC無法補足。這是 ORIGINAL_DESIGN_ERROR / BAD_INTERFACE / TEST_GAP、REQUIRED_FIX/HIGH；唯一production releases.py局部更正，不重設runtime。
+
+**Recent improvements。** 明確v2 domain/count/path/content length framing、completeHMAC綁format。歷史v1 parse/payload/hash保持，execution authority撤除；無auto-resign、receipt/DB migration或implicitfallback。原source版本選擇、同schema ready、latest-data rollback已用真v2 fixtures重驗。
+
+**Architecture drift found。** 原source identity invariant被含糊序列化破壞，先標D52 identity FAILED_VERIFICATION再局部修復。沒有新Core→OSdriver/provider/UI依賴、globalowner/cycle/updater；既有skills framing不共享此缺陷，FALSE_POSITIVE保持。新legacyhash僅歷史檢視，不成為runtime fallback。測試candidate曾改為直接callproductiondigest，已恢復獨立oracle，未弱化196原assertions。
+
+**Regression risk changes。** 15漏洞RED→PASS、216focusedPASS；真五個HTTP/source/data子程序1→2→1及兩拒絕通過，最新三批資料保留、正常drain/join。exactsource reverse15FAIL→reapply15PASS；134原Python test/helper檔127不變。finalpublicGitcheckout完整scripts/check EXIT0/637.507s：1,813PASS/5原opt-inSKIP/7既有warnings/303.43s，Rust6/fmt/build/clippy、Ruff321/mypy254、schema、原scanner/strictgate保持。exact-head cloud另驗；不把CI代替真人產品品質。
+
+**Technical debt introduced。** 舊hash/payload保留作歷史檢視，無自動信任升級；operator須以新immutableversion重新批准v2。v2仍是既有source-fileidentity，不綁emptydirectories/permissions/native dependencies，未新增boundedcapture，不能宣稱凍結runtimebytes。
+
+**Roadmap adjustments。** FIX-020 DONE/LOCAL_VERIFIED，解除source-format BLOCKED_BY_FIX；RI-005仍PARTIAL/BLOCKED_BY_RELEASE_INTEGRATION。KEEP/SPLIT capture/import与approvedhandoff/adoption；KEEP RI-006 safe定位→真提案。CANCEL弱v1 identity授權執行的舊決策。RT-011/013/015 scopedDONE與其他限定成果保持，不ranking/重編/硬重構已解問題。
+
+**New blockers。** 真kernel研究證明directbwrap monitor TERM不能正常drain、mutable destination alias不能由snapshotFD修好。只作下一caller integration gate，不把九primitivePASS當fullGateway/hostcapability驗收。原old/unmanagedwriter、CLOEXEC handoff、mutableimport/dependencies與formaladoption仍待證；未知writer不存在不能靠PID/newlease/BEGIN偽證。
+
+**Freeze zone changes。** 已驗v2 identity/tests/evidence GREEN；release元件/Core/Gateway/UI YELLOW；live data/migration/permissions/formalrelease RED。**Hermes relevance。** REJECT重複updater/owner/自批與未使用snapshot abstraction；能力擴張須有caller、收益與可驗rollback，原格式問題先以localrepair處理。
+
+**Recommended next 3 existing scopes（非ranking）。** RI-005 exactcapturedsource/importwindow；RI-005 approvedmaintenancehandoff/adoption；RI-006 safe定位證據→最小真修復提案。沒有live8026/privateDB/chat/WAV/key/config/models/GPU/deploy；CodebaseMemory不可呼叫/reindexNOT_RUN。[完整證據](../evidence/FIX-020-2026-10-14/REPORT.md)。
+
 ## 2026-10-14 — RI-006 / D55 唯讀改善提案切片 VERIFIED
 
 電腦協助新增「改善建議」手動入口：重用D41同session/route/latest/900s事實，failed + HTTPStatusError→有來源的調查/測試/相容/回退計畫。根因UNKNOWN、分類DEFER、patch=null，不能自批、重試、改碼或deploy。每GET重查canonical來源，無新cache/schema/scheduler/owner；unstarted/legacy/restoreoff不initialize/reconcile/read。no-store涵蓋auth/錯方法/安全503；UI owned取消/5s deadline/epoch撤除過時卡，textContent/完整closedshape驗證。

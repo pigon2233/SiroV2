@@ -426,3 +426,7 @@ D53 final VCS-metadata scope refinement（2026-10-13）：Actual56d0683 run38392
 ## D55 / 2026-10-13 / accepted / RI-006 read-only proposal
 
 One existing D41 fact supports a useful investigation view without another scheduler, storage schema, model route or updater. Start with HTTPStatusError only; the recorded class cannot identify a component, status code or root cause. Therefore the output remains DEFER / needs investigation, without an invented diff, immediate FIX or auto retry. Re-fetch canonical evidence for every authenticated GET and clear transient UI on new activity/disconnect; no private payload or automatic export. Real patches continue through existing PatchProposal → D43 isolated verification → human review and separate RI-005 release gates. Scope, gates, acceptance and source-only rollback are in D55; no changes to D41 SQL or old test thresholds.
+
+## D56 / 2026-10-14 / accepted / FIX-020 release digest framing
+
+A true two-tree probe invalidated the original source digest identity; seal/copy would freeze different bytes sharing the same v1 signature. Local repair precedes new launch abstraction: explicit v2 framed source digest and manifest tag, with v1 inspection unchanged and v1 execution denied. Reapproval is explicit/new version; no silent hash or trust migration. CONTRACTS D56 and ARCHITECTURE_CORRECTION record scope, compatibility, fixture-only updates and acceptance. RI005 remains blocked until this repair; immutable namespace/graceful lifecycle/adoption/handoff still need their own evidence.

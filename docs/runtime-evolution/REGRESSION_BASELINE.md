@@ -1,5 +1,11 @@
 # Regression baseline
 
+## 2026-10-14 — FIX-020 / D56 identity baseline
+
+新增 `test_release_tree_identity.py` 15 cases：真 v1 equal-hash ambiguity、獨立 framed-v2 wire/Path.parts vector、算法/tag 錯配、file count/name/content/empty/resource/Unicode 敏感性、legacy stage/selector/rollback 零效果與 v2 正向 staging/tamper。原 7 release/owner fixture 只更新新 approval 準備到 v2，canonical v1 固定 payload/HMAC 與原 assertions 保留；source-selection digest 保持獨立實作，不呼叫 production。
+
+原漏洞 15 RED→15 PASS；final 216 focused PASS，真 source/HTTP/data 3 cases／5 joined child PASS，精確 source reverse 15 FAIL→reapply 15 PASS。真 public Git checkout 完整 scripts/check EXIT0／637.507s：**1,813 PASS／5 原 opt-in SKIP／7 既有 warnings／303.43s**；Rust6/fmt/build/clippy、Ruff321/mypy254、schema、原 scanner/strict gate保持。134 原 Python test/helper 檔中127不改，7 fixtures 的196 assertions保持。exact-head cloud另驗；[報告](../evidence/FIX-020-2026-10-14/REPORT.md)。無新增 skip、弱化門檻或私人產品驗收。
+
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 
 95新cases；最終相鄰335 PASS／3既有warnings／25.63s，完整 **1,673 PASS／5 real_provider未選／3既有warnings／199.58s**。Ruff315、mypy250（含launcher）、schema、source/tests/docs diff PASS。

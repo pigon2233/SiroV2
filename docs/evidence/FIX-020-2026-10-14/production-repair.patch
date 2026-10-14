@@ -1,0 +1,52 @@
+diff --git a/src/siro/core/releases.py b/src/siro/core/releases.py
+index 9ec33ec..fb95c43 100644
+--- a/src/siro/core/releases.py
++++ b/src/siro/core/releases.py
+@@ -26,7 +26,7 @@ class ReleaseManifest(BaseModel):
+     signature: str = Field(pattern=r"^[0-9a-f]{64}$")
+     min_schema: int = Field(ge=1, strict=True)
+     max_schema: int = Field(ge=1, strict=True)
+-    signing_format: Literal["siro-release-manifest-v1"] | None = None
++    signing_format: Literal["siro-release-manifest-v1", "siro-release-manifest-v2"] | None = None
+ 
+     @model_validator(mode="after")
+     def _valid_schema_range(self) -> Self:
+@@ -308,11 +308,15 @@ class ReleaseManager:
+         return _read_data_schema(self._database, self._schema)
+ 
+     def _verified(self, bundle: Path, manifest: ReleaseManifest) -> bool:
++        # Historical v1 signatures remain inspectable, but their ambiguous source
++        # encoding cannot authorize execution or be silently upgraded.
++        if manifest.signing_format != "siro-release-manifest-v2":
++            return False
+         try:
+             payload = manifest.signing_payload()
+         except ValueError:
+             return False
+-        digest = self._digest(bundle)
++        digest = self._digest_v2(bundle)
+         expected = hmac.new(self._key, payload, hashlib.sha256).hexdigest()
+         return hmac.compare_digest(digest, manifest.source_sha256) and hmac.compare_digest(
+             expected, manifest.signature
+@@ -330,6 +334,21 @@ class ReleaseManager:
+                 digest.update(path.read_bytes())
+         return digest.hexdigest()
+ 
++    @staticmethod
++    def _digest_v2(directory: Path) -> str:
++        """Frame each file's identity; preserve Path.parts order from the legacy format."""
++        paths = sorted(path for path in directory.rglob("*") if path.is_file())
++        digest = hashlib.sha256(b"siro-release-source-v2\0")
++        digest.update(len(paths).to_bytes(8, "big"))
++        for path in paths:
++            name = path.relative_to(directory).as_posix().encode("utf-8")
++            data = path.read_bytes()
++            digest.update(len(name).to_bytes(8, "big"))
++            digest.update(name)
++            digest.update(len(data).to_bytes(8, "big"))
++            digest.update(data)
++        return digest.hexdigest()
++
+     def _atomic_json(self, path: Path, value: Mapping[str, object]) -> None:
+         path.parent.mkdir(parents=True, exist_ok=True)
+         temporary = path.with_suffix(".tmp")

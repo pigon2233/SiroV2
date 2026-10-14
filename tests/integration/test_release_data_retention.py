@@ -23,10 +23,10 @@ HEALTH = (sys.executable, "-c", "pass")
 def signed(bundle: Path, version: str, *, minimum: int = 1, maximum: int = 8) -> ReleaseManifest:
     values: dict[str, Any] = {
         "version": version,
-        "source_sha256": ReleaseManager._digest(bundle),
+        "source_sha256": ReleaseManager._digest_v2(bundle),
         "min_schema": minimum,
         "max_schema": maximum,
-        "signing_format": "siro-release-manifest-v1",
+        "signing_format": "siro-release-manifest-v2",
     }
     wire = json.dumps(values, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
     values["signature"] = hmac.new(KEY, wire, hashlib.sha256).hexdigest()

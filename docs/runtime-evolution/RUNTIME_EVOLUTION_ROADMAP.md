@@ -1,5 +1,11 @@
 # Runtime evolution roadmap
 
+## 2026-10-14 — FIX-020 / D56 source identity locally VERIFIED
+
+True two-tree probe invalidated original unframed source identity；D52 identity was FAILED_VERIFICATION / BLOCKED_BY_FIX: FIX-020。最小 D56 framed-v2 repair 已 full local scripts/check EXIT0（1,813 PASS / 5 原 opt-in SKIP / 7 既有 warnings），216 focused、真五個 source/HTTP/data 子程序及精確 source 回退通過。FIX-020 DONE / LOCAL_VERIFIED，解除此 format blocker；v1 歷史檢視保留，execution 需明確新 v2 approval，無自動重新簽署。exact-head cloud 另驗。[最小更正](ARCHITECTURE_CORRECTION.md)／[修復卡](FIX_REGISTER.md)／[驗收](../evidence/FIX-020-2026-10-14/REPORT.md)。
+
+KEEP/SPLIT RI-005 immutable capture/import、approved maintenance handoff/adoption；RI-005 仍 PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION。direct bwrap exec 的 monitor TERM 與 mutable destination alias 反例尚待 caller 修正，不能接入本卡或冒充完成。KEEP RI-006 safe 定位→最小真提案；下一三既有 scope 即上述三項，非 ranking。CANCEL v1 source identity 的 execution authority；REJECT 重複 updater/owner/未使用 abstraction。D39 schema signing/D48–D55 其他限定成果、RT-011/013/015 scoped DONE 與原編號保持。
+
 ## 2026-10-14 — RI-006 / D55 唯讀改善提案切片 VERIFIED
 
 FIX-018（error no-store）與FIX-019（optional page hook）是本candidate驗收發現的MINOR_FIX/LOW，已同卡局部修復並fullcheck VERIFIED；不新增後续BLOCKED_BY_FIX、不重開舊RT DONE。詳細卡片在FIX_REGISTER，cloud狀態另驗。

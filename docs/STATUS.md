@@ -1,5 +1,19 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-14 — FIX-020 / D56 release source identity DONE / LOCAL_VERIFIED
+
+RI-005 immutable-source 研究證明原 source digest 的檔名/內容串接有歧義：不同檔案能共享同一批准摘要。分類 REQUIRED_FIX/HIGH、ORIGINAL_DESIGN_ERROR，不是 SHA256 密碼學碰撞。先修唯一 production `core/releases.py`：明確 v2 domain/count/path/content length framing，完整 HMAC 綁新 tag。v1 payload/hash 歷史語意保留，但不能授權 stage/launch/rollback；無自動重新簽署、receipt 改寫或 DB migration。新批准需新 immutable version。
+
+原漏洞15 RED→PASS；final216相鄰PASS、196原assertions保留、v1固定向量與獨立source-selection oracle保持。真五個自有子程序驗 1→2→1、HTTP readiness/source origins/key不進child、正常TERM/drain/join、保三批最新conversation/memory/ledger；wrongABI/tamper拒、零DB改動。精確source-only reverse→15FAIL、reapply→15PASS，原source其他136檔保持，無production回退。
+
+最終真正publicGitcheckout完整 `scripts/check` **EXIT0 / 637.507s**，**1,813 PASS / 5原opt-in SKIP / 7既有warnings / 303.43s**。Rust6/fmt/build/clippy、Ruff321/mypy254、schema與原scanner/strictgate通過；9個source/test hash保持、childrenjoined/tempremoved。171原source/build/schema檔170不變，134原Python test/helper檔127不變。first clean run為修復oracle獨立性先中止並清理，列NOTPASS，不混入final。
+
+FIX-020解除其source-format blocker；RI-005仍 **PARTIAL / BLOCKED_BY_RELEASE_INTEGRATION**。tiny kernel projection已驗，但directbwrap monitor TERM不graceful及mutable destination alias仍需caller接入修正；沒有在本卡擴loader/owner/SDK/權限/DB/UI。Architecture YELLOW；identity tests/evidence GREEN，runtime元件YELLOW，live data/migration/permissions/formalrelease RED。
+
+下一三既有scope（非ranking）：RI-005 exact captured source/import window；RI-005 approved maintenance handoff/adoption；RI-006 safe定位證據→最小真修復提案。RT-011/013/015 scopedDONE、D39/D48–D55其他結果與FIX002/005/006產品品質gates保持，不重編/重做已解問題。
+
+CodebaseMemory工具不可呼叫、graph/reindex NOT_RUN；所有probe使用公開/合成、自有temporary資料，無live8026/privateDB/chat/WAV/key/config/models/GPU/formaldeploy。Git推送與exact-head cloud另驗，不把localPASS等同remote。[完整驗收、限制與回退](evidence/FIX-020-2026-10-14/REPORT.md)。
+
 ## 2026-10-14 — RI-006 / D55 唯讀改善提案切片 VERIFIED
 
 電腦協助新增「改善建議」手動入口：重用D41同session/route/latest/900s事實，failed + HTTPStatusError→有來源的調查/測試/相容/回退計畫。根因UNKNOWN、分類DEFER、patch=null，不能自批、重試、改碼或deploy。每GET重查canonical來源，無新cache/schema/scheduler/owner；unstarted/legacy/restoreoff不initialize/reconcile/read。no-store涵蓋auth/錯方法/安全503；UI owned取消/5s deadline/epoch撤除過時卡，textContent/完整closedshape驗證。

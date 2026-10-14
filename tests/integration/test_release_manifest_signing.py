@@ -16,7 +16,7 @@ from pydantic import ValidationError
 from siro.cli import main
 from siro.core.releases import ReleaseManager, ReleaseManifest
 
-FORMAT = "siro-release-manifest-v1"
+FORMAT = "siro-release-manifest-v2"
 KEY = b"synthetic-release-key"  # Synthetic fixtures only.
 
 
@@ -24,7 +24,7 @@ def signed_values(bundle: Path, *, minimum: int = 1, maximum: int = 8) -> dict[s
     values: dict[str, Any] = {
         "signing_format": FORMAT,
         "version": "2.0.0",
-        "source_sha256": ReleaseManager._digest(bundle),
+        "source_sha256": ReleaseManager._digest_v2(bundle),
         "min_schema": minimum,
         "max_schema": maximum,
     }
@@ -113,7 +113,7 @@ def test_canonical_payload_has_independent_fixed_bytes_and_signature() -> None:
         "source_sha256": "0" * 64,
         "min_schema": 1,
         "max_schema": 8,
-        "signing_format": FORMAT,
+        "signing_format": "siro-release-manifest-v1",
         "signature": "f" * 64,
     }
     expected = (
@@ -189,7 +189,7 @@ def test_current_format_cannot_use_old_hmac_message(
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("signing_format", "siro-release-manifest-v2"),
+        ("signing_format", "siro-release-manifest-v3"),
         ("signing_format", ""),
         ("signing_format", True),
         ("signing_format", 1),

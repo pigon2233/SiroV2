@@ -36,13 +36,18 @@ class SelectionFixture:
 
 
 def source_digest(directory: Path) -> str:
-    """Independent implementation of the existing signed tree byte format."""
-    digest = hashlib.sha256()
-    for path in sorted(directory.rglob("*")):
-        if path.is_file():
-            digest.update(str(path.relative_to(directory)).encode())
-            digest.update(path.read_bytes())
-    return digest.hexdigest()
+    """Independent implementation of the framed v2 source tree byte format."""
+    files = sorted(path for path in directory.rglob("*") if path.is_file())
+    wire = bytearray(b"siro-release-source-v2\0")
+    wire.extend(len(files).to_bytes(8, "big"))
+    for path in files:
+        relative = path.relative_to(directory).as_posix().encode("utf-8")
+        content = path.read_bytes()
+        wire.extend(len(relative).to_bytes(8, "big"))
+        wire.extend(relative)
+        wire.extend(len(content).to_bytes(8, "big"))
+        wire.extend(content)
+    return hashlib.sha256(wire).hexdigest()
 
 
 def set_schema(database: Path, versions: list[object]) -> None:
@@ -65,7 +70,7 @@ def write_receipt(
         "source_sha256": source_digest(root / "releases" / version),
         "min_schema": minimum,
         "max_schema": maximum,
-        "signing_format": "siro-release-manifest-v1",
+        "signing_format": "siro-release-manifest-v2",
     }
     if values is not None:
         unsigned.update(values)

@@ -1,0 +1,129 @@
+E501 Line too long (101 > 100)
+  --> tests/integration/test_release_tree_identity.py:34:101
+   |
+32 |         "version": "2.0.0", "min_schema": 1, "max_schema": 1,
+33 |         "signing_format": LEGACY if legacy else CURRENT,
+34 |         "source_sha256": ReleaseManager._digest(root) if legacy else ReleaseManager._digest_v2(root),
+   |                                                                                                     ^
+35 |     }
+36 |     payload = json.dumps(values, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+   |
+
+E501 Line too long (101 > 100)
+  --> tests/integration/test_release_tree_identity.py:77:101
+   |
+76 | @pytest.mark.parametrize("change", ["name", "count", "content", "empty", "resource", "unicode"])
+77 | def test_every_source_file_identity_change_invalidates_approval(tmp_path: Path, change: str) -> None:
+   |                                                                                                     ^
+78 |     root = tree(tmp_path / "source", {"a.py": b"pass\n", "settings.json": b'{"value":1}'})
+79 |     artifact = signed(root)
+   |
+
+E701 Multiple statements on one line (colon)
+  --> tests/integration/test_release_tree_identity.py:80:24
+   |
+78 |     root = tree(tmp_path / "source", {"a.py": b"pass\n", "settings.json": b'{"value":1}'})
+79 |     artifact = signed(root)
+80 |     if change == "name": (root / "a.py").rename(root / "b.py")
+   |                        ^
+81 |     elif change == "count": (root / "extra.py").write_bytes(b"pass\n")
+82 |     elif change == "content": (root / "a.py").write_bytes(b"raise RuntimeError()\n")
+   |
+
+E701 Multiple statements on one line (colon)
+  --> tests/integration/test_release_tree_identity.py:81:27
+   |
+79 |     artifact = signed(root)
+80 |     if change == "name": (root / "a.py").rename(root / "b.py")
+81 |     elif change == "count": (root / "extra.py").write_bytes(b"pass\n")
+   |                           ^
+82 |     elif change == "content": (root / "a.py").write_bytes(b"raise RuntimeError()\n")
+83 |     elif change == "empty": (root / "empty").touch()
+   |
+
+E701 Multiple statements on one line (colon)
+  --> tests/integration/test_release_tree_identity.py:82:29
+   |
+80 |     if change == "name": (root / "a.py").rename(root / "b.py")
+81 |     elif change == "count": (root / "extra.py").write_bytes(b"pass\n")
+82 |     elif change == "content": (root / "a.py").write_bytes(b"raise RuntimeError()\n")
+   |                             ^
+83 |     elif change == "empty": (root / "empty").touch()
+84 |     elif change == "resource": (root / "settings.json").write_bytes(b'{"value":2}')
+   |
+
+E701 Multiple statements on one line (colon)
+  --> tests/integration/test_release_tree_identity.py:83:27
+   |
+81 |     elif change == "count": (root / "extra.py").write_bytes(b"pass\n")
+82 |     elif change == "content": (root / "a.py").write_bytes(b"raise RuntimeError()\n")
+83 |     elif change == "empty": (root / "empty").touch()
+   |                           ^
+84 |     elif change == "resource": (root / "settings.json").write_bytes(b'{"value":2}')
+85 |     else: (root / "資料.txt").write_bytes("測試".encode())
+   |
+
+E701 Multiple statements on one line (colon)
+  --> tests/integration/test_release_tree_identity.py:84:30
+   |
+82 |     elif change == "content": (root / "a.py").write_bytes(b"raise RuntimeError()\n")
+83 |     elif change == "empty": (root / "empty").touch()
+84 |     elif change == "resource": (root / "settings.json").write_bytes(b'{"value":2}')
+   |                              ^
+85 |     else: (root / "資料.txt").write_bytes("測試".encode())
+86 |     manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=1)
+   |
+
+E701 Multiple statements on one line (colon)
+  --> tests/integration/test_release_tree_identity.py:85:9
+   |
+83 |     elif change == "empty": (root / "empty").touch()
+84 |     elif change == "resource": (root / "settings.json").write_bytes(b'{"value":2}')
+85 |     else: (root / "資料.txt").write_bytes("測試".encode())
+   |         ^
+86 |     manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=1)
+87 |     assert not manager._verified(root, artifact)
+   |
+
+E702 Multiple statements on one line (semicolon)
+   --> tests/integration/test_release_tree_identity.py:148:39
+    |
+146 |     artifact = signed(target, legacy=True)
+147 |     release = manager_root / "releases/2.0.0"
+148 |     release.parent.mkdir(parents=True); target.rename(release)
+    |                                       ^
+149 |     receipt = manager_root / "manifests/2.0.0.json"; receipt.parent.mkdir()
+150 |     receipt.write_text(artifact.model_dump_json())
+    |
+
+E702 Multiple statements on one line (semicolon)
+   --> tests/integration/test_release_tree_identity.py:149:52
+    |
+147 |     release = manager_root / "releases/2.0.0"
+148 |     release.parent.mkdir(parents=True); target.rename(release)
+149 |     receipt = manager_root / "manifests/2.0.0.json"; receipt.parent.mkdir()
+    |                                                    ^
+150 |     receipt.write_text(artifact.model_dump_json())
+151 |     (manager_root / "active.json").write_text('{"version":"2.0.0"}')
+    |
+
+E501 Line too long (102 > 100)
+   --> tests/integration/test_release_tree_identity.py:160:101
+    |
+158 |         db.execute("INSERT INTO latest VALUES('committed-after-release')")
+159 |     manager = ReleaseManager(manager_root, KEY, current_schema=1, database=database)
+160 |     before = {str(p.relative_to(tmp_path)):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    |                                                                                                     ^^
+161 |     with pytest.raises(ReleaseLaunchError, match="invalid_release_target"):
+162 |         manager.resolve_launch_target()
+    |
+
+E501 Line too long (110 > 100)
+   --> tests/integration/test_release_tree_identity.py:164:101
+    |
+162 |         manager.resolve_launch_target()
+163 |     assert manager.rollback().status == "invalid_rollback_target"
+164 |     assert {str(p.relative_to(tmp_path)):p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before
+    |                                                                                                     ^^^^^^^^^^
+
+Found 12 errors.

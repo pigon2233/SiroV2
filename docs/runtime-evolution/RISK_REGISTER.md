@@ -1,5 +1,11 @@
 # Risk register
 
+## 2026-10-14 — FIX-020 / D56 original source-identity error
+
+**HIGH / REQUIRED_FIX，已局部修復**：原 path/content 無界線的摘要允許不同檔案共享同一 approval。根因是原序列化格式，非 SHA256 密碼學碰撞；D39 complete HMAC 不能補足 source encoding。D56 新 v2 count/path/content length framing、明確 format/HMAC 綁定、legacy 零 execution authority；full local scripts/check EXIT0／1,813 PASS、真 source/data regression 與精確 rollback 通過。FIX-020 **DONE / LOCAL_VERIFIED**，解除其 source-format blocker；exact-head cloud 另驗。
+
+其餘發布仍 **RED**：capture/import mutation、mutable dependencies、old/unmanaged writer absence、CLOEXEC maintenance handoff 和正式 adoption。真 kernel prototype 另證 direct bwrap monitor TERM 不 graceful、mutable destination alias 未解；沒有接入 production 或新增權限。skills digest 已有 length framing，屬此相同疑慮的 FALSE_POSITIVE，保持不改。[Evidence／驗收範圍](../evidence/FIX-020-2026-10-14/REPORT.md)。
+
 ## 2026-10-13 — RI-005 D52 signed source launch / readiness VERIFIED
 
 Pointer≠actualversion的MISSING_INTEGRATION风险在D52限定profile下降：真sourceorigin與startupready綁version/digest，新95及true5child驗。無剩餘confirmed本卡productiondefect。

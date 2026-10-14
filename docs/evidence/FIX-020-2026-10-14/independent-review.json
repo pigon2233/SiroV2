@@ -1,0 +1,89 @@
+{
+  "review_date": "2026-10-14",
+  "timezone": "Asia/Taipei",
+  "scope": "FIX-020 final production source identity repair; independent read-only review",
+  "result": "NO_CONFIRMED_SCOPED_BLOCKER",
+  "production_or_tests_modified_by_reviewer": false,
+  "public_baseline_commit": "f3f94c12e690e80ccc945a0bea16b4e91054875e",
+  "source_bindings": {
+    "src/siro/core/releases.py": {
+      "before_sha256": "c959036b436e817d96db14a971b430c02b2b8c096dee00586e3cdf98de36003e",
+      "after_sha256": "c959036b436e817d96db14a971b430c02b2b8c096dee00586e3cdf98de36003e"
+    },
+    "tests/integration/test_release_tree_identity.py": {
+      "before_sha256": "386ade71c60ce2b80cca3de444a8311d807a6ab4e3d7ebb331e79896e8703c72",
+      "after_sha256": "386ade71c60ce2b80cca3de444a8311d807a6ab4e3d7ebb331e79896e8703c72"
+    }
+  },
+  "actual_test_runs": [
+    {
+      "command": ".venv/bin/pytest -q tests/integration/test_release_tree_identity.py",
+      "exit_code": 0,
+      "passed": 15,
+      "elapsed_seconds": 0.33
+    },
+    {
+      "command": ".venv/bin/pytest -q tests/integration/test_release_manifest_signing.py::test_canonical_payload_has_independent_fixed_bytes_and_signature tests/integration/test_release_manifest_signing.py::test_unvalidated_model_copy_cannot_bypass_entry_validation",
+      "exit_code": 0,
+      "passed": 5,
+      "elapsed_seconds": 0.46
+    },
+    {
+      "command": ".venv/bin/pytest -q tests/integration/test_release_manifest_signing.py::test_readable_legacy_manifest_is_not_a_signature_fallback",
+      "exit_code": 0,
+      "passed": 2,
+      "elapsed_seconds": 0.49
+    }
+  ],
+  "total_actual_scoped_cases_passed": 22,
+  "tests_repeated_for_documentation": false,
+  "ast_preservation_vs_public_baseline": {
+    "legacy_digest_identical": true,
+    "canonical_signing_payload_identical": true,
+    "unchanged_release_manager_methods": [
+      "__init__",
+      "resolve_launch_target",
+      "stage_and_activate",
+      "active_version",
+      "rollback",
+      "_json_record",
+      "_rollback_schema",
+      "_compatible",
+      "_digest",
+      "_atomic_json",
+      "_backup_database"
+    ],
+    "changed_release_manager_methods": ["_verified"],
+    "new_release_manager_methods": ["_digest_v2"]
+  },
+  "findings": {
+    "v2_encoding_frames_domain_count_path_bytes_and_content_bytes": true,
+    "hmac_binds_explicit_v2_format_tag": true,
+    "legacy_none_unknown_or_wrong_algorithm_authorize_no_execution": true,
+    "copied_invalid_models_revalidated_before_effects": true,
+    "legacy_canonical_payload_and_hash_remain_inspectable": true,
+    "receipt_rewrite_or_auto_resign_added": false,
+    "legacy_execution_refusal_is_intended_compatibility_correction": true
+  },
+  "additional_fixture_source_review": {
+    "path": "tests/integration/test_release_launch_selection.py",
+    "sha256": "b58abb536a5156661ec42c77d911672a9233b4971c1288653f7cb85785958e86",
+    "source_digest_helper_calls_production_digest": false,
+    "algorithm": "independent bytearray framing then hashlib.sha256; same D56 domain/count/length wire",
+    "all_original_assertions_ast_identical": true,
+    "original_assertion_count": 22,
+    "only_fixture_digest_helper_and_explicit_format_tag_changed": true,
+    "tests_executed_for_this_additional_fixture_review": false
+  },
+  "not_verified_by_this_review": [
+    "whole-repository regression and remote CI",
+    "complete signed runtime or loader acceptance",
+    "immutable captured import source and destination alias races",
+    "mutable interpreter or dependency identity",
+    "old or unmanaged writer absence",
+    "approved maintenance-to-runtime lease handoff",
+    "bwrap monitor and Gateway graceful lifecycle integration",
+    "other operating systems, power loss or formal deployment",
+    "FIX-002, FIX-005 and FIX-006 product quality gates"
+  ]
+}

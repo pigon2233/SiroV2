@@ -1,0 +1,463 @@
+FFFFFFFFFFFFFFF                                                          [100%]
+=================================== FAILURES ===================================
+_____________ test_legacy_ambiguous_trees_never_authorize_release ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_legacy_ambiguous_trees_ne0')
+
+    def test_legacy_ambiguous_trees_never_authorize_release(tmp_path: Path) -> None:
+        left = tree(tmp_path / "left", {"a": b"ALPHAb", "b": b"BRAVO"})
+        right = tree(tmp_path / "right", {"a": b"ALPHA", "b": b"bBRAVO"})
+        assert ReleaseManager._digest(left) == ReleaseManager._digest(right)
+        approval = signed(left, legacy=True)
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=1)
+>       assert not manager._verified(left, approval)
+E       AssertionError: assert not True
+E        +  where True = _verified(PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_legacy_ambiguous_trees_ne0/left'), ReleaseManifest(version='2.0.0', source_sha256='3f7ed6f8453e044e0ddab6d7cdd42f00124335380b2fa06b5233c1e7e5c2a447', sig...0db90dab34cff8f1fc6211ad4fb41845b9932b845ab370', min_schema=1, max_schema=1, signing_format='siro-release-manifest-v1'))
+E        +    where _verified = <siro.core.releases.ReleaseManager object at 0x7f65084df4d0>._verified
+
+tests/integration/test_release_tree_identity.py:55: AssertionError
+________________ test_v2_independent_framed_wire_and_path_order ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_v2_independent_framed_wir0')
+
+    def test_v2_independent_framed_wire_and_path_order(tmp_path: Path) -> None:
+        source = tree(tmp_path / "source", {"a.py": b"", "a/file": b"X"})
+        # Existing Path.parts order puts a/file before a.py, unlike raw string sorting.
+        wire = (
+            b"siro-release-source-v2\0"
+            b"\0\0\0\0\0\0\0\2"
+            b"\0\0\0\0\0\0\0\6a/file"
+            b"\0\0\0\0\0\0\0\1X"
+            b"\0\0\0\0\0\0\0\4a.py"
+            b"\0\0\0\0\0\0\0\0"
+        )
+>       assert ReleaseManager._digest_v2(source) == hashlib.sha256(wire).hexdigest()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:70: AttributeError
+__________ test_v2_distinguishes_the_actual_legacy_boundary_collision __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_v2_distinguishes_the_actu0')
+
+    def test_v2_distinguishes_the_actual_legacy_boundary_collision(tmp_path: Path) -> None:
+        left = tree(tmp_path / "left", {"a": b"ALPHAb", "b": b"BRAVO"})
+        right = tree(tmp_path / "right", {"a": b"ALPHA", "b": b"bBRAVO"})
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=1)
+>       artifact = signed(left)
+                   ^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:78: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_v2_distinguishes_the_actu0/left')
+legacy = False
+
+    def signed(root: Path, *, legacy: bool = False) -> ReleaseManifest:
+        values = {
+            "version": "2.0.0",
+            "min_schema": 1,
+            "max_schema": 1,
+            "signing_format": LEGACY if legacy else CURRENT,
+            "source_sha256": ReleaseManager._digest(root)
+            if legacy
+>           else ReleaseManager._digest_v2(root),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:38: AttributeError
+______ test_every_source_file_identity_change_invalidates_approval[name] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit0')
+change = 'name'
+
+    @pytest.mark.parametrize("change", ["name", "count", "content", "empty", "resource", "unicode"])
+    def test_every_source_file_identity_change_invalidates_approval(
+        tmp_path: Path, change: str
+    ) -> None:
+        root = tree(tmp_path / "source", {"a.py": b"pass\n", "settings.json": b'{"value":1}'})
+>       artifact = signed(root)
+                   ^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit0/source')
+legacy = False
+
+    def signed(root: Path, *, legacy: bool = False) -> ReleaseManifest:
+        values = {
+            "version": "2.0.0",
+            "min_schema": 1,
+            "max_schema": 1,
+            "signing_format": LEGACY if legacy else CURRENT,
+            "source_sha256": ReleaseManager._digest(root)
+            if legacy
+>           else ReleaseManager._digest_v2(root),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:38: AttributeError
+______ test_every_source_file_identity_change_invalidates_approval[count] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit1')
+change = 'count'
+
+    @pytest.mark.parametrize("change", ["name", "count", "content", "empty", "resource", "unicode"])
+    def test_every_source_file_identity_change_invalidates_approval(
+        tmp_path: Path, change: str
+    ) -> None:
+        root = tree(tmp_path / "source", {"a.py": b"pass\n", "settings.json": b'{"value":1}'})
+>       artifact = signed(root)
+                   ^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit1/source')
+legacy = False
+
+    def signed(root: Path, *, legacy: bool = False) -> ReleaseManifest:
+        values = {
+            "version": "2.0.0",
+            "min_schema": 1,
+            "max_schema": 1,
+            "signing_format": LEGACY if legacy else CURRENT,
+            "source_sha256": ReleaseManager._digest(root)
+            if legacy
+>           else ReleaseManager._digest_v2(root),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:38: AttributeError
+_____ test_every_source_file_identity_change_invalidates_approval[content] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit2')
+change = 'content'
+
+    @pytest.mark.parametrize("change", ["name", "count", "content", "empty", "resource", "unicode"])
+    def test_every_source_file_identity_change_invalidates_approval(
+        tmp_path: Path, change: str
+    ) -> None:
+        root = tree(tmp_path / "source", {"a.py": b"pass\n", "settings.json": b'{"value":1}'})
+>       artifact = signed(root)
+                   ^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit2/source')
+legacy = False
+
+    def signed(root: Path, *, legacy: bool = False) -> ReleaseManifest:
+        values = {
+            "version": "2.0.0",
+            "min_schema": 1,
+            "max_schema": 1,
+            "signing_format": LEGACY if legacy else CURRENT,
+            "source_sha256": ReleaseManager._digest(root)
+            if legacy
+>           else ReleaseManager._digest_v2(root),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:38: AttributeError
+______ test_every_source_file_identity_change_invalidates_approval[empty] ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit3')
+change = 'empty'
+
+    @pytest.mark.parametrize("change", ["name", "count", "content", "empty", "resource", "unicode"])
+    def test_every_source_file_identity_change_invalidates_approval(
+        tmp_path: Path, change: str
+    ) -> None:
+        root = tree(tmp_path / "source", {"a.py": b"pass\n", "settings.json": b'{"value":1}'})
+>       artifact = signed(root)
+                   ^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit3/source')
+legacy = False
+
+    def signed(root: Path, *, legacy: bool = False) -> ReleaseManifest:
+        values = {
+            "version": "2.0.0",
+            "min_schema": 1,
+            "max_schema": 1,
+            "signing_format": LEGACY if legacy else CURRENT,
+            "source_sha256": ReleaseManager._digest(root)
+            if legacy
+>           else ReleaseManager._digest_v2(root),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:38: AttributeError
+____ test_every_source_file_identity_change_invalidates_approval[resource] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit4')
+change = 'resource'
+
+    @pytest.mark.parametrize("change", ["name", "count", "content", "empty", "resource", "unicode"])
+    def test_every_source_file_identity_change_invalidates_approval(
+        tmp_path: Path, change: str
+    ) -> None:
+        root = tree(tmp_path / "source", {"a.py": b"pass\n", "settings.json": b'{"value":1}'})
+>       artifact = signed(root)
+                   ^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit4/source')
+legacy = False
+
+    def signed(root: Path, *, legacy: bool = False) -> ReleaseManifest:
+        values = {
+            "version": "2.0.0",
+            "min_schema": 1,
+            "max_schema": 1,
+            "signing_format": LEGACY if legacy else CURRENT,
+            "source_sha256": ReleaseManager._digest(root)
+            if legacy
+>           else ReleaseManager._digest_v2(root),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:38: AttributeError
+_____ test_every_source_file_identity_change_invalidates_approval[unicode] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit5')
+change = 'unicode'
+
+    @pytest.mark.parametrize("change", ["name", "count", "content", "empty", "resource", "unicode"])
+    def test_every_source_file_identity_change_invalidates_approval(
+        tmp_path: Path, change: str
+    ) -> None:
+        root = tree(tmp_path / "source", {"a.py": b"pass\n", "settings.json": b'{"value":1}'})
+>       artifact = signed(root)
+                   ^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_every_source_file_identit5/source')
+legacy = False
+
+    def signed(root: Path, *, legacy: bool = False) -> ReleaseManifest:
+        values = {
+            "version": "2.0.0",
+            "min_schema": 1,
+            "max_schema": 1,
+            "signing_format": LEGACY if legacy else CURRENT,
+            "source_sha256": ReleaseManager._digest(root)
+            if legacy
+>           else ReleaseManager._digest_v2(root),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:38: AttributeError
+__________ test_wrong_digest_algorithm_or_tag_cannot_authorize[True] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_wrong_digest_algorithm_or0')
+legacy = True
+
+    @pytest.mark.parametrize("legacy", [True, False])
+    def test_wrong_digest_algorithm_or_tag_cannot_authorize(tmp_path: Path, legacy: bool) -> None:
+        root = tree(tmp_path / "source", {"a": b"X"})
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=1)
+        artifact = signed(root, legacy=legacy)
+        values = artifact.model_dump()
+        values["source_sha256"] = (
+>           ReleaseManager._digest_v2(root) if legacy else ReleaseManager._digest(root)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:112: AttributeError
+__________ test_wrong_digest_algorithm_or_tag_cannot_authorize[False] __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_wrong_digest_algorithm_or1')
+legacy = False
+
+    @pytest.mark.parametrize("legacy", [True, False])
+    def test_wrong_digest_algorithm_or_tag_cannot_authorize(tmp_path: Path, legacy: bool) -> None:
+        root = tree(tmp_path / "source", {"a": b"X"})
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=1)
+>       artifact = signed(root, legacy=legacy)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:109: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_wrong_digest_algorithm_or1/source')
+legacy = False
+
+    def signed(root: Path, *, legacy: bool = False) -> ReleaseManifest:
+        values = {
+            "version": "2.0.0",
+            "min_schema": 1,
+            "max_schema": 1,
+            "signing_format": LEGACY if legacy else CURRENT,
+            "source_sha256": ReleaseManager._digest(root)
+            if legacy
+>           else ReleaseManager._digest_v2(root),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:38: AttributeError
+_________ test_legacy_stage_is_zero_effect_before_even_reading_source __________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_legacy_stage_is_zero_effe0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f65083dc770>
+
+    def test_legacy_stage_is_zero_effect_before_even_reading_source(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = tree(tmp_path / "source", {"a": b"X"})
+        approval = signed(source, legacy=True)
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=1)
+        effects: list[object] = []
+    
+        def health(*args: Any, **kwargs: Any) -> SimpleNamespace:
+            effects.append("healthcheck")
+            return SimpleNamespace(returncode=0)
+    
+        monkeypatch.setattr(subprocess, "run", health)
+        outcome = manager.stage_and_activate(source, approval, ("never-execute",))
+>       assert outcome.status == "invalid_manifest" and not effects
+E       AssertionError: assert ('activated' == 'invalid_manifest'
+E         
+E         - invalid_manifest
+E         + activated)
+
+tests/integration/test_release_tree_identity.py:142: AssertionError
+____________ test_legacy_refusal_does_not_hash_or_reapprove_source _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_legacy_refusal_does_not_h0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f65083dcc30>
+
+    def test_legacy_refusal_does_not_hash_or_reapprove_source(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        source = tree(tmp_path / "source", {"a": b"X"})
+        approval = signed(source, legacy=True)
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=1)
+    
+        def forbidden(path: Path) -> str:
+            raise AssertionError("legacy execution must refuse before source read")
+    
+        monkeypatch.setattr(manager, "_digest", forbidden)
+>       assert not manager._verified(source, approval)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/releases.py:315: in _verified
+    digest = self._digest(bundle)
+             ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_legacy_refusal_does_not_h0/source')
+
+    def forbidden(path: Path) -> str:
+>       raise AssertionError("legacy execution must refuse before source read")
+E       AssertionError: legacy execution must refuse before source read
+
+tests/integration/test_release_tree_identity.py:155: AssertionError
+______ test_legacy_selector_and_rollback_keep_receipts_pointers_and_data _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_legacy_selector_and_rollb0')
+
+    def test_legacy_selector_and_rollback_keep_receipts_pointers_and_data(tmp_path: Path) -> None:
+        manager_root = tmp_path / "manager"
+        target = tree(
+            tmp_path / "source",
+            {
+                "src/siro/__init__.py": b"# fixture\n",
+                "src/siro/core/releases.py": b"# fixture\n",
+                "src/siro/services/presentation/gateway.py": b"# fixture\n",
+            },
+        )
+        artifact = signed(target, legacy=True)
+        release = manager_root / "releases/2.0.0"
+        release.parent.mkdir(parents=True)
+        target.rename(release)
+        receipt = manager_root / "manifests/2.0.0.json"
+        receipt.parent.mkdir()
+        receipt.write_text(artifact.model_dump_json())
+        (manager_root / "active.json").write_text('{"version":"2.0.0"}')
+        (manager_root / "last-known-good.json").write_text('{"version":"2.0.0"}')
+        database = tmp_path / "siro.db"
+        with sqlite3.connect(database) as db:
+            db.execute("CREATE TABLE schema_migrations(version INTEGER)")
+            db.execute("INSERT INTO schema_migrations VALUES(1)")
+            db.execute("CREATE TABLE latest(value TEXT)")
+            db.execute("INSERT INTO latest VALUES('committed-after-release')")
+        manager = ReleaseManager(manager_root, KEY, current_schema=1, database=database)
+        before = {
+            str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+        }
+>       with pytest.raises(ReleaseLaunchError, match="invalid_release_target"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ReleaseLaunchError
+
+tests/integration/test_release_tree_identity.py:190: Failed
+________________ test_v2_stages_and_rejects_later_source_tamper ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_v2_stages_and_rejects_lat0')
+
+    def test_v2_stages_and_rejects_later_source_tamper(tmp_path: Path) -> None:
+        root = tree(tmp_path / "source", {"a": b"X", "b": b"Y"})
+        manager = ReleaseManager(tmp_path / "manager", KEY, current_schema=1)
+>       artifact = signed(root)
+                   ^^^^^^^^^^^^
+
+tests/integration/test_release_tree_identity.py:201: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+root = PosixPath('/tmp/pytest-of-jasonliao/pytest-63/test_v2_stages_and_rejects_lat0/source')
+legacy = False
+
+    def signed(root: Path, *, legacy: bool = False) -> ReleaseManifest:
+        values = {
+            "version": "2.0.0",
+            "min_schema": 1,
+            "max_schema": 1,
+            "signing_format": LEGACY if legacy else CURRENT,
+            "source_sha256": ReleaseManager._digest(root)
+            if legacy
+>           else ReleaseManager._digest_v2(root),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+        }
+E       AttributeError: type object 'ReleaseManager' has no attribute '_digest_v2'. Did you mean: '_digest'?
+
+tests/integration/test_release_tree_identity.py:38: AttributeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_release_tree_identity.py::test_legacy_ambiguous_trees_never_authorize_release
+FAILED tests/integration/test_release_tree_identity.py::test_v2_independent_framed_wire_and_path_order
+FAILED tests/integration/test_release_tree_identity.py::test_v2_distinguishes_the_actual_legacy_boundary_collision
+FAILED tests/integration/test_release_tree_identity.py::test_every_source_file_identity_change_invalidates_approval[name]
+FAILED tests/integration/test_release_tree_identity.py::test_every_source_file_identity_change_invalidates_approval[count]
+FAILED tests/integration/test_release_tree_identity.py::test_every_source_file_identity_change_invalidates_approval[content]
+FAILED tests/integration/test_release_tree_identity.py::test_every_source_file_identity_change_invalidates_approval[empty]
+FAILED tests/integration/test_release_tree_identity.py::test_every_source_file_identity_change_invalidates_approval[resource]
+FAILED tests/integration/test_release_tree_identity.py::test_every_source_file_identity_change_invalidates_approval[unicode]
+FAILED tests/integration/test_release_tree_identity.py::test_wrong_digest_algorithm_or_tag_cannot_authorize[True]
+FAILED tests/integration/test_release_tree_identity.py::test_wrong_digest_algorithm_or_tag_cannot_authorize[False]
+FAILED tests/integration/test_release_tree_identity.py::test_legacy_stage_is_zero_effect_before_even_reading_source
+FAILED tests/integration/test_release_tree_identity.py::test_legacy_refusal_does_not_hash_or_reapprove_source
+FAILED tests/integration/test_release_tree_identity.py::test_legacy_selector_and_rollback_keep_receipts_pointers_and_data
+FAILED tests/integration/test_release_tree_identity.py::test_v2_stages_and_rejects_later_source_tamper
+15 failed in 0.34s

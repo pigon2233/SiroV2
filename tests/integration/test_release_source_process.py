@@ -131,10 +131,10 @@ def source_bundle(root: Path, version: str, *, unsupported_abi: bool = False) ->
 def signed(bundle: Path, version: str) -> ReleaseManifest:
     values: dict[str, Any] = {
         "version": version,
-        "source_sha256": ReleaseManager._digest(bundle),
+        "source_sha256": ReleaseManager._digest_v2(bundle),
         "min_schema": len(load_migrations()),
         "max_schema": len(load_migrations()),
-        "signing_format": "siro-release-manifest-v1",
+        "signing_format": "siro-release-manifest-v2",
     }
     payload = json.dumps(values, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
     values["signature"] = hmac.new(KEY, payload, hashlib.sha256).hexdigest()
@@ -199,7 +199,7 @@ def port_at() -> int:
 def actual_gateway(root: Path, launcher: Path, manifest: ReleaseManifest) -> dict[str, Any]:
     source_before = source_hashes()
     selected = root / "manager/releases" / manifest.version / "src/siro"
-    digest_before = ReleaseManager._digest(selected.parents[1])
+    digest_before = ReleaseManager._digest_v2(selected.parents[1])
     assert digest_before == manifest.source_sha256
     port = port_at()
     log_path = root / f"gateway-{manifest.version}-{time.monotonic_ns()}.log"
@@ -247,7 +247,7 @@ def actual_gateway(root: Path, launcher: Path, manifest: ReleaseManifest) -> dic
             assert "Task was destroyed" not in text and "Traceback" not in text, text
             assert not list(selected.parent.rglob("*.pyc"))
             assert not list(selected.parent.rglob("__pycache__"))
-            digest_after = ReleaseManager._digest(selected.parents[1])
+            digest_after = ReleaseManager._digest_v2(selected.parents[1])
             assert digest_after == manifest.source_sha256
             assert source_hashes() == source_before
             return {
@@ -347,7 +347,7 @@ def test_actual_invalid_signed_source_never_falls_back_or_mutates_database(
         expected = retained(database)
         source_before = source_hashes()
         selected = root / "manager/releases/1.0.0"
-        package_before = ReleaseManager._digest(selected)
+        package_before = ReleaseManager._digest_v2(selected)
         port = port_at()
         completed = subprocess.run(
             [sys.executable, "-B", str(launcher)],
@@ -365,7 +365,7 @@ def test_actual_invalid_signed_source_never_falls_back_or_mutates_database(
         assert not (root / "observed-source.json").exists()
         assert database.read_bytes() == before and retained(database) == expected
         assert source_hashes() == source_before
-        assert ReleaseManager._digest(selected) == package_before
+        assert ReleaseManager._digest_v2(selected) == package_before
         assert not list(selected.rglob("*.pyc")) and not list(selected.rglob("__pycache__"))
         with pytest.raises(urllib.error.URLError):
             urllib.request.urlopen(f"http://127.0.0.1:{port}/health/ready", timeout=0.3)

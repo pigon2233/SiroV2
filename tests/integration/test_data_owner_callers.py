@@ -79,10 +79,10 @@ def account(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def signed(bundle: Path, version: str) -> ReleaseManifest:
     values: dict[str, Any] = {
         "version": version,
-        "source_sha256": ReleaseManager._digest(bundle),
+        "source_sha256": ReleaseManager._digest_v2(bundle),
         "min_schema": 1,
         "max_schema": len(load_migrations()),
-        "signing_format": "siro-release-manifest-v1",
+        "signing_format": "siro-release-manifest-v2",
     }
     wire = json.dumps(values, sort_keys=True, separators=(",", ":")).encode()
     values["signature"] = hmac.new(KEY, wire, hashlib.sha256).hexdigest()
