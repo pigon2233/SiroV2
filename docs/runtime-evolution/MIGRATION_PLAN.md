@@ -1,5 +1,13 @@
 # Migration plan
 
+## 2026-10-15 — D57 nullable task metadata / D58 local reserve VERIFIED
+
+新增014_goal_tasks.sql nullable/json-valid task_json；舊13SQL bytes不改、不backfill、不刪oldgoal。原受管main store作migration，GET不初始化；restart僅supportedprofile READY/RUNNING保intent/source/budget改WAITING_EXTERNAL，零autoexecute。D58只是timeoutbudget leaf，无額外SQL/config/grantmigration。全用自有合成DB，不改live資料。
+
+回退先SIRO_GOAL_TASKS_ENABLED=0/drain/join，再source-only撤caller。真8pathreverse/reapply保schema14/taskcolumn/latestdata，3SQLdump相同；舊13source能讀legacyfields不等於signed13approval可對14授權，actualschemagate照常拒。另D58leaf source-onlyreverse重現5s反例→reapply新2PASS，保activeownership/unknown與latestjournal。禁止DROPcolumn/downmigration/restoreoldDB/silentresign，既有RI005handoff門檻保留。
+
+完整clean publicGit scripts/check EXIT0/578.090s（1994PASS/5oldoptinSKIP/7warnings）和真3cycle產品PASS，exactheadcloud另驗。這是增量caller与localrepair，不重構整個SIRO或正式deploy。[Evidence](../evidence/T19-goal-loop-2026-10-14/REPORT.md)。
+
 ## 2026-10-14 — FIX-020 / D56 explicit v2 approval
 
 不執行 DB/schema/config/grant migration，不掃描或改寫既有 approval。v1／None 只能歷史檢視；operator 對實際 v2 framed source 明確簽署為新 release version，再沿既有 stage/health/owner/schema 接入。禁止同版覆寫、silent resign 或把舊 digest 解釋為 v2。回退先撤 release execution，再 source-only reverse；保最新 DB/receipt/history，不重新授權弱 v1 execution。immutable capture、old-writer absence、maintenance handoff 仍須後續獨立驗收。[最小更正](ARCHITECTURE_CORRECTION.md)。

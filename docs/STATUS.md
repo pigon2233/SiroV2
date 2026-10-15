@@ -1,5 +1,17 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-15 — D57 / FIX-021 + RT-005-FIX-02 DONE / LOCAL_VERIFIED
+
+「電腦協助 → 交給 SIRO 的任務」已接通既有GoalService/Planner：選1–5exact文字檔，建立待審不讀取，明確批准後有界盤點TODO/未勾選待辦，保存檔案/行/實際SHA/time。可停/取消，前景與tools-off優先，重開保進度/未知意圖而零autoexecute。讀取完成不代表待辦已執行，未稱自主產生目標或學習策略。
+
+完整clean public fetchedGit `scripts/check` **EXIT0 /578.090s**：**1,994PASS /5原opt-inSKIP /7既有warnings /259.88s**（collected1,999）；Rust13/fmt/build/clippy、Ruff328、mypy261、schema、原scanner/strictgate全部實際完成。15source/testhash保持，134原Python與13SQL不變，唯一journalfixture固定13slot/name、其餘原assert保留；495observedownedprocess全gone、rootsremoved。
+
+真正main/HTTP/Rust/SQLite/IAB三次啟動PASS：原結果/待審0steps保留，correctedsource新舊觀測分開，crosssession404/錯revision409零extra reads；三組parent/Rust正常TERM/drain/join、temp/tab清。D57exact8source-onlyrollback保schema14/latestTask/legacydata與3SQLdump；RT005timeoutleaf另reverse真RED→reapplyGREEN。
+
+完整第3次4FAIL留原證據：schemafixture最新13假設最小改固定journal13identity；cancel5.090748s違反原5s。受控baseline/candidateterminaldelay均重現既有budget缺陷，D58只soleallargumentswait4.0留1s，contextual/mixed4.75和backend4.5保持，原25cases與新2/精確leafrollback通過。額外fullwalltime來源仍未定位，不怪goal/schema邏輯、不放寬SLO/skip。
+
+Architecture YELLOW/CONDITIONAL；FIX021/RT013FIX01/RT005FIX02限定localVERIFIED，解除本localBLOCKED_BY_FIX。exactnewheadcloud/公開範圍另驗，RI005正式發布與FIX002/005/006智慧/語音/搜尋gates保持；T19/T20原L1不冒稱整體自主DONE。下一三原scope（非ranking）：T19/T20結果完成判定；FIX002/005/006可核對品質；T21/T32/RI005擴權/發布交接。CodebaseMemory不可呼叫/reindexNOT_RUN。沒有live8026/privateDB/chat/WAV/key/config/models/GPU/deploy。[報告](evidence/T19-goal-loop-2026-10-14/REPORT.md)。
+
 ## 2026-10-14 — FIX-020 / D56 release source identity DONE / LOCAL_VERIFIED
 
 RI-005 immutable-source 研究證明原 source digest 的檔名/內容串接有歧義：不同檔案能共享同一批准摘要。分類 REQUIRED_FIX/HIGH、ORIGINAL_DESIGN_ERROR，不是 SHA256 密碼學碰撞。先修唯一 production `core/releases.py`：明確 v2 domain/count/path/content length framing，完整 HMAC 綁新 tag。v1 payload/hash 歷史語意保留，但不能授權 stage/launch/rollback；無自動重新簽署、receipt 改寫或 DB migration。新批准需新 immutable version。

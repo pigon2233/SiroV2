@@ -634,7 +634,9 @@ class ToolOrchestrator:
                 task.cancel()
         if active:
             try:
-                async with asyncio.timeout(4.75):
+                # Arguments-only refusal must leave time for the caller's terminal journal.
+                cleanup_wait = 4.0 if len(argument_tasks) == len(active) else 4.75
+                async with asyncio.timeout(cleanup_wait):
                     outcomes = await asyncio.shield(asyncio.gather(*active, return_exceptions=True))
             except TimeoutError as error:
                 raise ExecutionCleanupError("run cleanup exceeded its deadline") from error

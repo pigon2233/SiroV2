@@ -1,5 +1,13 @@
 # Compatibility plan
 
+## 2026-10-15 — D57/D58 additive boundaries LOCAL_VERIFIED
+
+原Goal constructor/state/budget/CAS与legacy task=null保持；只加typed nullable task_json/migration014。原HTTP/WS/model/voice/skill/owner/release介面不變；新goal接口auth/Origin/no-store，unsupported/legacy/unstarted安全503不初始化DB，fullmode不能代taskapproval。Foreground在broadcast/shortcut前fence/join，failed/completed只寫same-turn；corruptmetadata只停用新caller，保原chatstatus。
+
+真schema13→14保legacygoal/13migration/checksumrows；舊maxschema13v2receipt對14回incompatible_schema且SQLdump/pointer不變，不自動resign。Rust只existingreadleaf有界，原root/output/UTF8/list/其他driver保持。D58soleargumentswait4.0留1s terminalwork，contextual/mixed4.75和native4.5保持，原5s門檻不放寬/不重送/晚ownedtask不丟。
+
+134/135原Python與13SQL原bytes，唯一journalfixture維持固定13身份及所有其他assert。完整fetchedGit scripts/check EXIT0/578.090s：1994PASS/5oldoptinSKIP/7warnings；三次actualproduct/readback與保資料8source/另leafrollbackPASS。exactheadcloud另驗；整體發布/廣泛自主权未由此授權。[Evidence](../evidence/T19-goal-loop-2026-10-14/REPORT.md)。
+
 ## 2026-10-14 — FIX-020 / D56 release approval boundary
 
 原 v1 source encoding 已證有歧義，不能保留其 execution authority。歷史 v1／None manifest 仍可 parse/read/serialize，v1 canonical payload/hash 固定語意不改；stage/launch/rollback 必須明確 v2 新批准，既有拒絕 status、CLI shape、schema/owner/data retention 保持。沒有自動 receipt 改寫、重新簽署或演算法猜測；新批准使用新 immutable version，不能同版覆寫。這是明示最小安全相容更正，不影響 default 非 signed launcher、Gateway、DB、provider 或 UI。[證據與限制](../evidence/FIX-020-2026-10-14/REPORT.md)。

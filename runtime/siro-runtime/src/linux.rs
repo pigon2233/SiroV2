@@ -3,6 +3,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Read, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -188,7 +189,23 @@ impl OsDriver for LinuxDriver {
         match capability {
             "filesystem.read" => {
                 let path = self.existing(&Self::path(arguments, "path")?)?;
-                let bytes = fs::read(path).map_err(|error| error.to_string())?;
+                let file = fs::OpenOptions::new()
+                    .read(true)
+                    .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW)
+                    .open(path)
+                    .map_err(|error| error.to_string())?;
+                let metadata = file.metadata().map_err(|error| error.to_string())?;
+                if !metadata.is_file() {
+                    return Err("non_regular_file".into());
+                }
+                let limit = u64::try_from(self.output_limit).map_err(|_| "invalid_output_limit")?;
+                if metadata.len() > limit {
+                    return Err("output_limit".into());
+                }
+                let mut bytes = Vec::new();
+                file.take(limit.saturating_add(1))
+                    .read_to_end(&mut bytes)
+                    .map_err(|error| error.to_string())?;
                 if bytes.len() > self.output_limit {
                     return Err("output_limit".into());
                 }
@@ -285,6 +302,184 @@ impl OsDriver for LinuxDriver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    struct ReadFixture(PathBuf);
+
+    impl ReadFixture {
+        fn new() -> Self {
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos();
+            let root =
+                std::env::temp_dir().join(format!("siro-read-leaf-{}-{nonce}", std::process::id()));
+            fs::create_dir(&root).expect("root");
+            Self(root)
+        }
+
+        fn read(&self, name: &str, limit: usize) -> Result<Value, String> {
+            let mut driver = LinuxDriver::new(vec![self.0.clone()], limit).expect("driver");
+            driver.execute("filesystem.read", &json!({"path": self.0.join(name)}))
+        }
+    }
+
+    impl Drop for ReadFixture {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.0).expect("fixture cleanup");
+        }
+    }
+
+    fn run_read_probe(test_name: &str, path: &Path) -> std::process::Output {
+        let mut command = Command::new(std::env::current_exe().expect("test executable"));
+        command
+            .args(["--exact", test_name, "--nocapture", "--test-threads=1"])
+            .env("SIRO_READ_LEAF_PROBE", path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        // SAFETY: this owned test child invokes only async-signal-safe setrlimit before exec.
+        unsafe {
+            command.pre_exec(|| {
+                let limit = libc::rlimit {
+                    rlim_cur: 128 * 1024 * 1024,
+                    rlim_max: 128 * 1024 * 1024,
+                };
+                if libc::setrlimit(libc::RLIMIT_AS, &limit) != 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let mut child = command.spawn().expect("owned test child");
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while child.try_wait().expect("test child status").is_none() {
+            if Instant::now() >= deadline {
+                child.kill().expect("stop blocked test child");
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        child.wait_with_output().expect("join test child")
+    }
+
+    fn probe_path() -> Option<PathBuf> {
+        std::env::var_os("SIRO_READ_LEAF_PROBE").map(PathBuf::from)
+    }
+
+    fn read_probe(path: &Path) -> Result<Value, String> {
+        let root = path.parent().expect("probe root");
+        let mut driver = LinuxDriver::new(vec![root.to_path_buf()], 8192).expect("driver");
+        driver.execute("filesystem.read", &json!({"path": path}))
+    }
+
+    #[test]
+    fn filesystem_read_preserves_empty_exact_limit_and_utf8_result_shape() {
+        let fixture = ReadFixture::new();
+        fs::write(fixture.0.join("empty.txt"), "").expect("empty");
+        fs::write(fixture.0.join("text.txt"), "希洛\n").expect("text");
+        assert_eq!(fixture.read("empty.txt", 0), Ok(json!({"text": ""})));
+        assert_eq!(fixture.read("text.txt", 7), Ok(json!({"text": "希洛\n"})));
+    }
+
+    #[test]
+    fn filesystem_read_rejects_oversize_without_truncating() {
+        let fixture = ReadFixture::new();
+        fs::write(fixture.0.join("text.txt"), "123456789").expect("text");
+        assert_eq!(fixture.read("text.txt", 8), Err("output_limit".into()));
+    }
+
+    #[test]
+    fn filesystem_read_rejects_invalid_utf8() {
+        let fixture = ReadFixture::new();
+        fs::write(fixture.0.join("invalid.txt"), [0xff]).expect("invalid text");
+        assert_eq!(
+            fixture.read("invalid.txt", 8192),
+            Err("invalid_utf8".into())
+        );
+    }
+
+    #[test]
+    fn filesystem_read_rejects_large_sparse_file_before_allocation() {
+        if let Some(path) = probe_path() {
+            assert_eq!(read_probe(&path), Err("output_limit".into()));
+            return;
+        }
+        let fixture = ReadFixture::new();
+        let path = fixture.0.join("sparse.txt");
+        fs::File::create(&path)
+            .expect("sparse file")
+            .set_len(4 * 1024 * 1024 * 1024)
+            .expect("sparse length");
+        let output = run_read_probe(
+            "linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation",
+            &path,
+        );
+        assert!(
+            output.status.success(),
+            "bounded sparse read failed: {} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn filesystem_read_rejects_fifo_without_waiting_for_a_writer() {
+        if let Some(path) = probe_path() {
+            assert_eq!(read_probe(&path), Err("non_regular_file".into()));
+            return;
+        }
+        let fixture = ReadFixture::new();
+        let path = fixture.0.join("pipe");
+        let encoded = CString::new(path.as_os_str().as_bytes()).expect("FIFO path");
+        // SAFETY: encoded is a live NUL-terminated path in this test's owned directory.
+        assert_eq!(unsafe { libc::mkfifo(encoded.as_ptr(), 0o600) }, 0);
+        let output = run_read_probe(
+            "linux::tests::filesystem_read_rejects_fifo_without_waiting_for_a_writer",
+            &path,
+        );
+        assert!(
+            output.status.success(),
+            "FIFO read blocked or was accepted: {} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn filesystem_read_rejects_nonregular_directory() {
+        let fixture = ReadFixture::new();
+        fs::create_dir(fixture.0.join("directory")).expect("directory");
+        assert_eq!(
+            fixture.read("directory", 8192),
+            Err("non_regular_file".into())
+        );
+    }
+
+    #[test]
+    fn filesystem_read_preserves_scope_refusal_and_in_scope_symlink() {
+        let fixture = ReadFixture::new();
+        let outside = ReadFixture::new();
+        fs::write(fixture.0.join("text.txt"), "safe").expect("text");
+        fs::write(outside.0.join("secret.txt"), "synthetic canary").expect("canary");
+        std::os::unix::fs::symlink(fixture.0.join("text.txt"), fixture.0.join("alias"))
+            .expect("in-scope symlink");
+        std::os::unix::fs::symlink(&outside.0, fixture.0.join("escape")).expect("outside symlink");
+        assert_eq!(fixture.read("alias", 8192), Ok(json!({"text": "safe"})));
+        assert_eq!(
+            fixture.read("escape/secret.txt", 8192),
+            Err("scope_denied".into())
+        );
+        let mut driver = LinuxDriver::new(vec![fixture.0.clone()], 8192).expect("driver");
+        assert_eq!(
+            driver.execute(
+                "filesystem.read",
+                &json!({"path": outside.0.join("secret.txt")})
+            ),
+            Err("scope_denied".into())
+        );
+    }
 
     #[test]
     fn scoped_file_driver_rejects_symlink_escape() {

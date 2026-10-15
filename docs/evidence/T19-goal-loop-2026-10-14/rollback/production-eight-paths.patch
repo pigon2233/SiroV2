@@ -1,0 +1,1604 @@
+diff --git a/runtime/siro-runtime/src/linux.rs b/runtime/siro-runtime/src/linux.rs
+index 286178f..a008719 100644
+--- a/runtime/siro-runtime/src/linux.rs
++++ b/runtime/siro-runtime/src/linux.rs
+@@ -3,6 +3,7 @@ use serde_json::{Value, json};
+ use std::collections::BTreeMap;
+ use std::fs;
+ use std::io::{self, Read, Write};
++use std::os::unix::fs::OpenOptionsExt;
+ use std::os::unix::process::CommandExt;
+ use std::path::{Path, PathBuf};
+ use std::process::{Child, Command, Stdio};
+@@ -188,7 +189,23 @@ impl OsDriver for LinuxDriver {
+         match capability {
+             "filesystem.read" => {
+                 let path = self.existing(&Self::path(arguments, "path")?)?;
+-                let bytes = fs::read(path).map_err(|error| error.to_string())?;
++                let file = fs::OpenOptions::new()
++                    .read(true)
++                    .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW)
++                    .open(path)
++                    .map_err(|error| error.to_string())?;
++                let metadata = file.metadata().map_err(|error| error.to_string())?;
++                if !metadata.is_file() {
++                    return Err("non_regular_file".into());
++                }
++                let limit = u64::try_from(self.output_limit).map_err(|_| "invalid_output_limit")?;
++                if metadata.len() > limit {
++                    return Err("output_limit".into());
++                }
++                let mut bytes = Vec::new();
++                file.take(limit.saturating_add(1))
++                    .read_to_end(&mut bytes)
++                    .map_err(|error| error.to_string())?;
+                 if bytes.len() > self.output_limit {
+                     return Err("output_limit".into());
+                 }
+@@ -285,6 +302,184 @@ impl OsDriver for LinuxDriver {
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use std::ffi::CString;
++    use std::os::unix::ffi::OsStrExt;
++
++    struct ReadFixture(PathBuf);
++
++    impl ReadFixture {
++        fn new() -> Self {
++            let nonce = SystemTime::now()
++                .duration_since(UNIX_EPOCH)
++                .expect("clock")
++                .as_nanos();
++            let root =
++                std::env::temp_dir().join(format!("siro-read-leaf-{}-{nonce}", std::process::id()));
++            fs::create_dir(&root).expect("root");
++            Self(root)
++        }
++
++        fn read(&self, name: &str, limit: usize) -> Result<Value, String> {
++            let mut driver = LinuxDriver::new(vec![self.0.clone()], limit).expect("driver");
++            driver.execute("filesystem.read", &json!({"path": self.0.join(name)}))
++        }
++    }
++
++    impl Drop for ReadFixture {
++        fn drop(&mut self) {
++            fs::remove_dir_all(&self.0).expect("fixture cleanup");
++        }
++    }
++
++    fn run_read_probe(test_name: &str, path: &Path) -> std::process::Output {
++        let mut command = Command::new(std::env::current_exe().expect("test executable"));
++        command
++            .args(["--exact", test_name, "--nocapture", "--test-threads=1"])
++            .env("SIRO_READ_LEAF_PROBE", path)
++            .stdin(Stdio::null())
++            .stdout(Stdio::piped())
++            .stderr(Stdio::piped());
++        // SAFETY: this owned test child invokes only async-signal-safe setrlimit before exec.
++        unsafe {
++            command.pre_exec(|| {
++                let limit = libc::rlimit {
++                    rlim_cur: 128 * 1024 * 1024,
++                    rlim_max: 128 * 1024 * 1024,
++                };
++                if libc::setrlimit(libc::RLIMIT_AS, &limit) != 0 {
++                    return Err(io::Error::last_os_error());
++                }
++                Ok(())
++            });
++        }
++        let mut child = command.spawn().expect("owned test child");
++        let deadline = Instant::now() + Duration::from_secs(3);
++        while child.try_wait().expect("test child status").is_none() {
++            if Instant::now() >= deadline {
++                child.kill().expect("stop blocked test child");
++                break;
++            }
++            thread::sleep(Duration::from_millis(10));
++        }
++        child.wait_with_output().expect("join test child")
++    }
++
++    fn probe_path() -> Option<PathBuf> {
++        std::env::var_os("SIRO_READ_LEAF_PROBE").map(PathBuf::from)
++    }
++
++    fn read_probe(path: &Path) -> Result<Value, String> {
++        let root = path.parent().expect("probe root");
++        let mut driver = LinuxDriver::new(vec![root.to_path_buf()], 8192).expect("driver");
++        driver.execute("filesystem.read", &json!({"path": path}))
++    }
++
++    #[test]
++    fn filesystem_read_preserves_empty_exact_limit_and_utf8_result_shape() {
++        let fixture = ReadFixture::new();
++        fs::write(fixture.0.join("empty.txt"), "").expect("empty");
++        fs::write(fixture.0.join("text.txt"), "希洛\n").expect("text");
++        assert_eq!(fixture.read("empty.txt", 0), Ok(json!({"text": ""})));
++        assert_eq!(fixture.read("text.txt", 7), Ok(json!({"text": "希洛\n"})));
++    }
++
++    #[test]
++    fn filesystem_read_rejects_oversize_without_truncating() {
++        let fixture = ReadFixture::new();
++        fs::write(fixture.0.join("text.txt"), "123456789").expect("text");
++        assert_eq!(fixture.read("text.txt", 8), Err("output_limit".into()));
++    }
++
++    #[test]
++    fn filesystem_read_rejects_invalid_utf8() {
++        let fixture = ReadFixture::new();
++        fs::write(fixture.0.join("invalid.txt"), [0xff]).expect("invalid text");
++        assert_eq!(
++            fixture.read("invalid.txt", 8192),
++            Err("invalid_utf8".into())
++        );
++    }
++
++    #[test]
++    fn filesystem_read_rejects_large_sparse_file_before_allocation() {
++        if let Some(path) = probe_path() {
++            assert_eq!(read_probe(&path), Err("output_limit".into()));
++            return;
++        }
++        let fixture = ReadFixture::new();
++        let path = fixture.0.join("sparse.txt");
++        fs::File::create(&path)
++            .expect("sparse file")
++            .set_len(4 * 1024 * 1024 * 1024)
++            .expect("sparse length");
++        let output = run_read_probe(
++            "linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation",
++            &path,
++        );
++        assert!(
++            output.status.success(),
++            "bounded sparse read failed: {} {}",
++            String::from_utf8_lossy(&output.stdout),
++            String::from_utf8_lossy(&output.stderr)
++        );
++    }
++
++    #[test]
++    fn filesystem_read_rejects_fifo_without_waiting_for_a_writer() {
++        if let Some(path) = probe_path() {
++            assert_eq!(read_probe(&path), Err("non_regular_file".into()));
++            return;
++        }
++        let fixture = ReadFixture::new();
++        let path = fixture.0.join("pipe");
++        let encoded = CString::new(path.as_os_str().as_bytes()).expect("FIFO path");
++        // SAFETY: encoded is a live NUL-terminated path in this test's owned directory.
++        assert_eq!(unsafe { libc::mkfifo(encoded.as_ptr(), 0o600) }, 0);
++        let output = run_read_probe(
++            "linux::tests::filesystem_read_rejects_fifo_without_waiting_for_a_writer",
++            &path,
++        );
++        assert!(
++            output.status.success(),
++            "FIFO read blocked or was accepted: {} {}",
++            String::from_utf8_lossy(&output.stdout),
++            String::from_utf8_lossy(&output.stderr)
++        );
++    }
++
++    #[test]
++    fn filesystem_read_rejects_nonregular_directory() {
++        let fixture = ReadFixture::new();
++        fs::create_dir(fixture.0.join("directory")).expect("directory");
++        assert_eq!(
++            fixture.read("directory", 8192),
++            Err("non_regular_file".into())
++        );
++    }
++
++    #[test]
++    fn filesystem_read_preserves_scope_refusal_and_in_scope_symlink() {
++        let fixture = ReadFixture::new();
++        let outside = ReadFixture::new();
++        fs::write(fixture.0.join("text.txt"), "safe").expect("text");
++        fs::write(outside.0.join("secret.txt"), "synthetic canary").expect("canary");
++        std::os::unix::fs::symlink(fixture.0.join("text.txt"), fixture.0.join("alias"))
++            .expect("in-scope symlink");
++        std::os::unix::fs::symlink(&outside.0, fixture.0.join("escape")).expect("outside symlink");
++        assert_eq!(fixture.read("alias", 8192), Ok(json!({"text": "safe"})));
++        assert_eq!(
++            fixture.read("escape/secret.txt", 8192),
++            Err("scope_denied".into())
++        );
++        let mut driver = LinuxDriver::new(vec![fixture.0.clone()], 8192).expect("driver");
++        assert_eq!(
++            driver.execute(
++                "filesystem.read",
++                &json!({"path": outside.0.join("secret.txt")})
++            ),
++            Err("scope_denied".into())
++        );
++    }
+ 
+     #[test]
+     fn scoped_file_driver_rejects_symlink_escape() {
+diff --git a/src/siro/core/cognition.py b/src/siro/core/cognition.py
+index 34f3237..3c711b5 100644
+--- a/src/siro/core/cognition.py
++++ b/src/siro/core/cognition.py
+@@ -2,13 +2,14 @@
+ 
+ from __future__ import annotations
+ 
+-from dataclasses import dataclass
++from dataclasses import dataclass, replace
+ from datetime import datetime
+ from enum import StrEnum
+ from typing import Protocol
+ from uuid import uuid4
+ 
+ from siro.core.affect import CopingStrategy, DriveState, MoodState
++from siro.core.goal_tasks import GoalTask
+ 
+ 
+ class Clock(Protocol):
+@@ -277,6 +278,7 @@ class Goal:
+     cost_used: float = 0
+     max_cost: float = 0
+     revision: int = 1
++    task: GoalTask | None = None
+ 
+     @property
+     def budget_available(self) -> bool:
+@@ -325,17 +327,7 @@ class GoalService:
+         goal = await self._required(goal_id)
+         if state not in _GOAL_TRANSITIONS[goal.state]:
+             raise ValueError(f"invalid goal transition: {goal.state} -> {state}")
+-        updated = Goal(
+-            goal.goal_id,
+-            state,
+-            goal.next_step,
+-            goal.deadline,
+-            goal.steps_used,
+-            goal.max_steps,
+-            goal.cost_used,
+-            goal.max_cost,
+-            goal.revision + 1,
+-        )
++        updated = replace(goal, state=state, revision=goal.revision + 1)
+         if not await self._repository.replace(updated, expected_revision=goal.revision):
+             raise RuntimeError("goal revision conflict")
+         return updated
+@@ -350,21 +342,43 @@ class GoalService:
+             return await self.transition(goal_id, GoalState.FAILED)
+         if not goal.budget_available or (goal.max_cost and goal.cost_used + cost > goal.max_cost):
+             return await self.transition(goal_id, GoalState.FAILED)
+-        updated = Goal(
+-            goal.goal_id,
+-            goal.state,
+-            goal.next_step,
+-            goal.deadline,
+-            goal.steps_used + 1,
+-            goal.max_steps,
+-            goal.cost_used + cost,
+-            goal.max_cost,
+-            goal.revision + 1,
++        updated = replace(
++            goal,
++            steps_used=goal.steps_used + 1,
++            cost_used=goal.cost_used + cost,
++            revision=goal.revision + 1,
+         )
+         if not await self._repository.replace(updated, expected_revision=goal.revision):
+             raise RuntimeError("goal revision conflict")
+         return updated
+ 
++    async def approve_task(self, goal_id: str, *, expected_revision: int) -> Goal:
++        goal = await self._required(goal_id)
++        if goal.state is not GoalState.PROPOSED or goal.task is None:
++            raise ValueError("task is not awaiting approval")
++        if goal.revision != expected_revision:
++            raise RuntimeError("goal revision conflict")
++        task = goal.task.model_copy(update={"approved_at": self._clock.now()})
++        updated = replace(goal, state=GoalState.READY, task=task, revision=goal.revision + 1)
++        if not await self._repository.replace(updated, expected_revision=goal.revision):
++            raise RuntimeError("goal revision conflict")
++        return updated
++
++    async def checkpoint_task(self, goal_id: str, task: GoalTask, *, next_step: str | None) -> Goal:
++        goal = await self._required(goal_id)
++        if goal.task is None or goal.state not in {GoalState.RUNNING, GoalState.WAITING_EXTERNAL}:
++            raise ValueError("task cannot be checkpointed")
++        task = GoalTask.model_validate_json(task.model_dump_json())
++        binding = ("profile", "owner_session_id", "workspace", "paths", "approved_at")
++        if any(getattr(task, name) != getattr(goal.task, name) for name in binding):
++            raise ValueError("approved task scope cannot change")
++        if task.observations[: len(goal.task.observations)] != goal.task.observations:
++            raise ValueError("task observations cannot be replaced")
++        updated = replace(goal, task=task, next_step=next_step, revision=goal.revision + 1)
++        if not await self._repository.replace(updated, expected_revision=goal.revision):
++            raise RuntimeError("goal revision conflict")
++        return updated
++
+     async def _required(self, goal_id: str) -> Goal:
+         goal = await self._repository.get(goal_id)
+         if goal is None:
+diff --git a/src/siro/persistence/goals.py b/src/siro/persistence/goals.py
+index 956ee40..cc0bec3 100644
+--- a/src/siro/persistence/goals.py
++++ b/src/siro/persistence/goals.py
+@@ -7,6 +7,7 @@ import sqlite3
+ from datetime import datetime
+ 
+ from siro.core.cognition import Goal, GoalState
++from siro.core.goal_tasks import GoalTask
+ from siro.persistence.sqlite import SQLiteStore
+ 
+ 
+@@ -15,31 +16,28 @@ class SQLiteGoalRepository:
+         self._store = store
+ 
+     async def add(self, goal: Goal) -> None:
+-        await self._store.run_transaction(
+-            lambda connection: connection.execute(
+-                "INSERT INTO goals(goal_id, state, next_step, deadline, budget_json, revision) "
+-                "VALUES (?, ?, ?, ?, ?, ?)",
++        def write(connection: sqlite3.Connection) -> None:
++            if goal.task is not None:
++                count = connection.execute(
++                    "SELECT count(*) FROM goals WHERE task_json IS NOT NULL "
++                    "AND json_extract(task_json, '$.profile') = 'document-checklist-v1'"
++                ).fetchone()[0]
++                if count >= 20:
++                    raise OverflowError("task history capacity reached")
++            connection.execute(
++                "INSERT INTO goals(goal_id, state, next_step, deadline, budget_json, revision, "
++                "task_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                 self._values(goal),
+             )
+-        )
++
++        await self._store.run_transaction(write)
+ 
+     async def get(self, goal_id: str) -> Goal | None:
+         def read(connection: sqlite3.Connection) -> Goal | None:
+             row = connection.execute("SELECT * FROM goals WHERE goal_id = ?", (goal_id,)).fetchone()
+             if row is None:
+                 return None
+-            budget = json.loads(str(row["budget_json"]))
+-            return Goal(
+-                goal_id=str(row["goal_id"]),
+-                state=GoalState(str(row["state"])),
+-                next_step=row["next_step"],
+-                deadline=datetime.fromisoformat(str(row["deadline"])) if row["deadline"] else None,
+-                steps_used=int(budget["steps_used"]),
+-                max_steps=int(budget["max_steps"]),
+-                cost_used=float(budget["cost_used"]),
+-                max_cost=float(budget["max_cost"]),
+-                revision=int(row["revision"]),
+-            )
++            return self._goal(row)
+ 
+         return await self._store.run_transaction(read)
+ 
+@@ -48,13 +46,14 @@ class SQLiteGoalRepository:
+             return bool(
+                 connection.execute(
+                     "UPDATE goals SET state = ?, next_step = ?, deadline = ?, budget_json = ?, "
+-                    "revision = ? WHERE goal_id = ? AND revision = ?",
++                    "revision = ?, task_json = ? WHERE goal_id = ? AND revision = ?",
+                     (
+                         goal.state,
+                         goal.next_step,
+                         goal.deadline.isoformat() if goal.deadline else None,
+                         self._budget(goal),
+                         goal.revision,
++                        self._task(goal),
+                         goal.goal_id,
+                         expected_revision,
+                     ),
+@@ -63,6 +62,61 @@ class SQLiteGoalRepository:
+ 
+         return await self._store.run_transaction(write)
+ 
++    async def tasks(self, owner_session_id: str | None = None) -> tuple[Goal, ...]:
++        def read(connection: sqlite3.Connection) -> tuple[Goal, ...]:
++            rows = connection.execute(
++                "SELECT * FROM goals WHERE task_json IS NOT NULL "
++                "AND json_extract(task_json, '$.profile') = 'document-checklist-v1' "
++                "AND (? IS NULL OR json_extract(task_json, '$.owner_session_id') = ?) "
++                "ORDER BY rowid DESC LIMIT 21",
++                (owner_session_id, owner_session_id),
++            ).fetchall()
++            if len(rows) > 20:
++                raise ValueError("task history exceeds its capacity")
++            return tuple(self._goal(row) for row in rows)
++
++        return await self._store.run_transaction(read)
++
++    async def remove_task(self, goal_id: str, owner: str, revision: int) -> bool:
++        def remove(connection: sqlite3.Connection) -> bool:
++            deleted = connection.execute(
++                "DELETE FROM goals WHERE goal_id = ? AND revision = ? "
++                "AND state IN ('completed', 'failed', 'cancelled') "
++                "AND json_extract(task_json, '$.profile') = 'document-checklist-v1' "
++                "AND json_extract(task_json, '$.owner_session_id') = ?",
++                (goal_id, revision, owner),
++            ).rowcount
++            if deleted:
++                connection.execute("DELETE FROM planning_decisions WHERE trace_id = ?", (goal_id,))
++            return bool(deleted)
++
++        return await self._store.run_transaction(remove)
++
++    @staticmethod
++    def _goal(row: sqlite3.Row) -> Goal:
++        budget = json.loads(str(row["budget_json"]))
++        return Goal(
++            goal_id=str(row["goal_id"]),
++            state=GoalState(str(row["state"])),
++            next_step=row["next_step"],
++            deadline=datetime.fromisoformat(str(row["deadline"])) if row["deadline"] else None,
++            steps_used=int(budget["steps_used"]),
++            max_steps=int(budget["max_steps"]),
++            cost_used=float(budget["cost_used"]),
++            max_cost=float(budget["max_cost"]),
++            revision=int(row["revision"]),
++            task=GoalTask.model_validate_json(str(row["task_json"])) if row["task_json"] else None,
++        )
++
++    @staticmethod
++    def _task(goal: Goal) -> str | None:
++        if goal.task is None:
++            return None
++        encoded = GoalTask.model_validate_json(goal.task.model_dump_json()).model_dump_json()
++        if len(encoded.encode()) > 65536:
++            raise ValueError("task metadata exceeds limit")
++        return encoded
++
+     @classmethod
+     def _values(cls, goal: Goal) -> tuple[object, ...]:
+         return (
+@@ -72,6 +126,7 @@ class SQLiteGoalRepository:
+             goal.deadline.isoformat() if goal.deadline else None,
+             cls._budget(goal),
+             goal.revision,
++            cls._task(goal),
+         )
+ 
+     @staticmethod
+diff --git a/src/siro/services/presentation/gateway.py b/src/siro/services/presentation/gateway.py
+index 1f9d226..4713535 100644
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -33,6 +33,7 @@ from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayl
+ from siro.core.memory import Memory, MemoryService
+ from siro.core.releases import ReleaseLaunchError, VerifiedRelease
+ from siro.ports.models import ToolCall
++from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
+ from siro.services.agent.organization import MemoryOrganizer
+ from siro.services.audio.protocol import (
+     AudioFrame,
+@@ -76,14 +77,15 @@ class JsonSocket(Protocol):
+ 
+ 
+ class _UncachedImprovementResponses:
+-    """Add one endpoint's cache header without creating tasks or wrapping other traffic."""
++    """Keep the explicit source-derived views uncached without owning work."""
+ 
+     def __init__(self, app: ASGIApp) -> None:
+         self.app = app
+ 
+     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+-        if scope["type"] != "http" or not re.fullmatch(
+-            r"/v1/conversations/[^/]+/improvement-proposal", scope["path"]
++        if scope["type"] != "http" or not (
++            re.fullmatch(r"/v1/conversations/[^/]+/improvement-proposal", scope["path"])
++            or scope["path"].startswith("/v1/goal-tasks/")
+         ):
+             await self.app(scope, receive, send)
+             return
+@@ -361,6 +363,16 @@ class TurnInput(BaseModel):
+     input_mode: Literal["text", "speech"] = "text"
+ 
+ 
++class GoalPathsInput(BaseModel):
++    model_config = ConfigDict(extra="forbid")
++    paths: tuple[str, ...] = Field(min_length=1, max_length=5)
++
++
++class GoalRevisionInput(BaseModel):
++    model_config = ConfigDict(extra="forbid")
++    revision: int = Field(ge=1, strict=True)
++
++
+ class CancelInput(BaseModel):
+     model_config = ConfigDict(extra="forbid")
+     reason: str = Field(default="user", min_length=1, max_length=512)
+@@ -536,6 +548,7 @@ def create_app(
+     skill_candidates: SkillCandidatePreparer | None = None,
+     skill_activation: SkillActivationOwner | None = None,
+     verified_release: VerifiedRelease | None = None,
++    read_task_owner: ReadTaskOwner | None = None,
+ ) -> FastAPI:
+     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
+     gateway_state = state or GatewayState()
+@@ -546,6 +559,7 @@ def create_app(
+     candidate_owner = skill_candidates if runtime_profile == "candidate" else None
+     activation_owner = skill_activation if runtime_profile == "candidate" else None
+     release_started = False
++    goal_owner = read_task_owner if runtime_profile == "candidate" else None
+ 
+     def candidate_metadata() -> dict[str, object]:
+         return {
+@@ -583,6 +597,8 @@ def create_app(
+         try:
+             if on_startup is not None:
+                 await on_startup()
++            if goal_owner is not None:
++                await goal_owner.start()
+             if activation_owner is not None:
+                 await activation_owner.initialize()
+                 if not gateway_state.kill_switches["tools"]:
+@@ -597,8 +613,12 @@ def create_app(
+                 with contextlib.suppress(Exception):
+                     await on_cancel(turn["turn_id"], "service shutdown")
+             try:
+-                if candidate_owner is not None:
+-                    await candidate_owner.close()
++                try:
++                    if goal_owner is not None:
++                        await goal_owner.close()
++                finally:
++                    if candidate_owner is not None:
++                        await candidate_owner.close()
+             finally:
+                 try:
+                     if activation_owner is not None:
+@@ -939,6 +959,8 @@ def create_app(
+             raise HTTPException(status_code=503, detail="workspace is unavailable")
+         # This is an explicit authenticated owner read, not model-supplied approval.
+         context = ExecutionContext(str(uuid4()), "owner-workspace", str(uuid4()), authorized=True)
++        if goal_owner is not None:
++            await goal_owner.foreground()
+         if memory_organizer is not None:
+             await memory_organizer.foreground()
+         try:
+@@ -953,6 +975,77 @@ def create_app(
+             raise HTTPException(status_code=502, detail="workspace read failed") from error
+         return {"path": path, "result": result, "backend": "rust.scoped"}
+ 
++    def task_access(
++        session_id: str, authorization: str | None, origin: str | None = None
++    ) -> ReadTaskOwner:
++        require_token(authorization)
++        if origin is not None:
++            require_origin(origin)
++        if (
++            not session_id
++            or len(session_id.encode()) > 128
++            or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in session_id)
++        ):
++            raise HTTPException(status_code=400, detail={"code": "invalid_task"})
++        if goal_owner is None:
++            raise HTTPException(status_code=503, detail={"code": "unavailable"})
++        return goal_owner
++
++    async def task_result(operation: Awaitable[Any]) -> Any:
++        try:
++            return await operation
++        except GoalTaskError as error:
++            raise HTTPException(status_code=error.status, detail={"code": error.code}) from error
++        except Exception as error:
++            raise HTTPException(status_code=503, detail={"code": "unavailable"}) from error
++
++    @app.get("/v1/goal-tasks/{session_id}")
++    async def goal_tasks_read(
++        session_id: str, authorization: str | None = Header(default=None)
++    ) -> dict[str, object]:
++        owner = task_access(session_id, authorization)
++        result: dict[str, object] = await task_result(owner.snapshot(session_id))
++        return result
++
++    @app.post("/v1/goal-tasks/{session_id}")
++    async def goal_task_propose(
++        session_id: str,
++        body: GoalPathsInput,
++        request: Request,
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_origin(request.headers.get("origin"))
++        owner = task_access(session_id, authorization)
++        return {"goal": await task_result(owner.propose(session_id, body.paths))}
++
++    @app.post("/v1/goal-tasks/{session_id}/{goal_id}/{action}")
++    async def goal_task_control(
++        session_id: str,
++        goal_id: str,
++        action: Literal["approve", "resume", "pause", "cancel"],
++        body: GoalRevisionInput,
++        request: Request,
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_origin(request.headers.get("origin"))
++        owner = task_access(session_id, authorization)
++        if action in {"approve", "resume"} and not gateway_state.kill_switches["tools"]:
++            raise HTTPException(status_code=403, detail={"code": "tools_disabled"})
++        operation = getattr(owner, action)
++        return {"goal": await task_result(operation(session_id, goal_id, body.revision))}
++
++    @app.delete("/v1/goal-tasks/{session_id}/{goal_id}")
++    async def goal_task_remove(
++        session_id: str,
++        goal_id: str,
++        body: GoalRevisionInput,
++        request: Request,
++        authorization: str | None = Header(default=None),
++    ) -> dict[str, object]:
++        require_origin(request.headers.get("origin"))
++        owner = task_access(session_id, authorization)
++        return {"removed": await task_result(owner.remove(session_id, goal_id, body.revision))}
++
+     @app.get("/v1/memory-organization")
+     async def organization_status(
+         authorization: str | None = Header(default=None),
+@@ -995,9 +1088,13 @@ def create_app(
+             raise HTTPException(status_code=403, detail="cloud conversation is disabled")
+         turn_id = str(uuid4())
+         gateway_state.active_turns[session_id] = {"turn_id": turn_id, "state": "responding"}
++        if goal_owner is not None:
++            await goal_owner.foreground()
+         await gateway_hub.broadcast(
+             {"type": "turn_started", "session_id": session_id, "turn_id": turn_id}
+         )
++        if memory_organizer is not None:
++            await memory_organizer.foreground()
+         browser_url = _browser_request(body.text) if legacy_shortcuts else None
+         application = _application_request(body.text) if legacy_shortcuts else None
+         if browser_url is not None or application is not None:
+@@ -1031,10 +1128,14 @@ def create_app(
+             )
+             gateway_state.active_turns[session_id]["state"] = "awaiting_approval"
+             return {"turn_id": turn_id}
+-        if memory_organizer is not None:
+-            await memory_organizer.foreground()
+-        await on_turn(session_id, body.text, body.input_mode)
+-        gateway_state.active_turns[session_id]["state"] = "completed"
++        try:
++            await on_turn(session_id, body.text, body.input_mode)
++        except Exception:
++            if gateway_state.active_turns[session_id]["turn_id"] == turn_id:
++                gateway_state.active_turns[session_id]["state"] = "failed"
++            raise
++        if gateway_state.active_turns[session_id]["turn_id"] == turn_id:
++            gateway_state.active_turns[session_id]["state"] = "completed"
+         return {"turn_id": turn_id}
+ 
+     @app.get("/v1/conversations/{session_id}/improvement-proposal")
+@@ -1141,6 +1242,8 @@ def create_app(
+         gateway_state.kill_switches[name] = body.enabled
+         if name == "tools" and not body.enabled:
+             try:
++                if goal_owner is not None:
++                    await goal_owner.foreground("tools_disabled")
+                 if activation_owner is not None:
+                     await activation_result(suspend_skill_activation)
+             finally:
+@@ -1982,10 +2085,30 @@ def _run_gateway(
+         auto_authorize=lambda: state.authorization_mode == "full" and state.kill_switches["tools"],
+     )
+ 
++    task_setting = os.environ.get("SIRO_GOAL_TASKS_ENABLED", "1")
++    if task_setting not in {"0", "1"}:
++        raise ValueError("SIRO_GOAL_TASKS_ENABLED must be 0 or 1")
++    read_tasks = (
++        ReadTaskOwner(
++            shared_store,
++            workspace,
++            busy=lambda: (
++                controller.foreground_active
++                or any(
++                    turn["state"] in {"responding", "awaiting_approval"}
++                    for turn in state.active_turns.values()
++                )
++            ),
++            allowed=lambda: state.kill_switches["tools"],
++        )
++        if runtime_profile == "candidate" and workspace is not None and task_setting == "1"
++        else None
++    )
++
+     organizer = (
+         MemoryOrganizer(
+             memory_service,
+-            lambda: controller.foreground_active,
++            lambda: controller.foreground_active or (read_tasks is not None and read_tasks.busy),
+             enabled=os.environ.get("SIRO_MEMORY_ORGANIZATION_ENABLED", "1") == "1",
+         )
+         if runtime_profile == "candidate"
+@@ -2028,6 +2151,7 @@ def _run_gateway(
+                 "directory": str(workspace.root) if workspace is not None else None,
+                 "error": workspace.error if workspace is not None else None,
+             },
++            "goal_tasks": {"enabled": read_tasks is not None, "profile": "document-checklist-v1"},
+         }
+ 
+     async def cancel_controller(turn_id: str, reason: str) -> None:
+@@ -2068,6 +2192,7 @@ def _run_gateway(
+             state=state,
+             hub=hub,
+             verified_release=verified_release,
++            read_task_owner=read_tasks,
+             runtime_profile=runtime_profile,
+             configuration_source="gateway_env_and_defaults",
+             allowed_origins={f"http://127.0.0.1:{port}", f"http://localhost:{port}"},
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+index f40893b..ef9c215 100644
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -57,7 +57,14 @@
+       </section>
+     </main>
+     <div class="toolbox">
+-      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><section id="improvement-proposal-panel">
++      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><section id="goal-task-panel">
++        <h3>交給 SIRO 的任務</h3>
++        <p>指定工作目錄內 1–5 份文字檔，每行一個相對路徑。我會唯讀整理尚未勾選的待辦與 TODO／FIXME，保留來源、行數與時間。先建立待審任務，再明確批准；讀取完成不表示待辦已執行。</p>
++        <textarea id="goal-task-paths" rows="3" maxlength="2560" placeholder="notes.md&#10;project/tasks.txt" aria-label="任務要讀取的工作目錄內相對路徑"></textarea>
++        <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button><button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button></div>
++        <p id="goal-task-status" aria-live="polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>
++        <div id="goal-task-items" aria-live="polite"></div>
++      </section><section id="improvement-proposal-panel">
+         <h3>改善建議</h3>
+         <p>查看這段對話最近的可追溯失敗，先整理需要調查與驗證的地方。來源不足時會明說；確認原因後才討論修復。</p>
+         <button id="improvement-proposal-refresh" type="button" disabled>查看這段對話的改善建議</button>
+@@ -112,6 +119,9 @@
+       let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
+       let submissionGeneration = 0, pendingSubmission;
+       let improvementEpoch = 0, improvementController, improvementTimeout;
++      let goalTaskEpoch = 0, goalTaskController, goalTaskTimeout, goalTaskPollTimer, goalTaskPolls = 0;
++      let goalTaskViews = [], goalTaskBusy = false, goalTaskAvailable = true, goalTaskNeedsReadback = false;
++      const goalTaskSessionId = "browser", goalTaskProfile = "document-checklist-v1";
+       let recorder, recordedChunks = [], ttsAudio;
+       let ttsController, ttsGeneration = 0, speechCancelled = false;
+       let lastSpeech;
+@@ -204,6 +214,7 @@
+       }
+       function connectControl() {
+         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
++        if (typeof clearGoalTasks === "function") clearGoalTasks();
+         if (pageClosing) return Promise.reject(new Error("頁面已關閉"));
+         if (controlAuthenticated && socket?.readyState === 1) return Promise.resolve();
+         if (controlAttempt) return controlAttempt;
+@@ -217,20 +228,22 @@
+           socket = owner; controlAuthenticated = false;
+           let retired = false;
+           const abandon = message => {
+-            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); ready.reject(new Error(message));
++            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); ready.reject(new Error(message));
+           };
+           controlDispose = abandon;
+           const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
+-          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#improvement-proposal-refresh").disabled = false; ready.resolve(); };
++          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); ready.resolve(); };
+           socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
+         socket.onmessage = event => {
+           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
+           const data = JSON.parse(event.data);
+           if (!acceptRunEvent(data)) return;
+           if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();
++          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
+           log(data);
+           if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }
+           if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);
++          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean" && typeof applyGoalTaskTools === "function") applyGoalTaskTools(data.enabled);
+           if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
+           if (data.type === "affect_state") { renderAffect(data); }
+           if (data.type === "assistant_started") {
+@@ -295,6 +308,7 @@
+       window.addEventListener("beforeunload", () => {
+         pageClosing = true; controlDispose?.("頁面已關閉"); controlDispose = undefined; controlEpoch += 1;
+         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
++        if (typeof clearGoalTasks === "function") clearGoalTasks("頁面已關閉。", true);
+         submissionGeneration += 1; pendingSubmission?.abort();
+         clearTimeout(reconnectTimer); sessionAccess.dispose(); stopTts(); socket?.close();
+       });
+@@ -529,6 +543,225 @@
+         if (!response.ok) throw new Error(data.detail || "操作未完成");
+         return data;
+       }
++      function goalTaskExactKeys(value, keys) {
++        return value && !Array.isArray(value) && typeof value === "object"
++          && Object.keys(value).sort().join("|") === keys.slice().sort().join("|");
++      }
++      function validGoalTaskPath(value) {
++        return typeof value === "string" && value.length > 0 && new TextEncoder().encode(value).length <= 512
++          && !/[\\\u0000-\u001f\u007f-\u009f]/u.test(value) && !value.startsWith("/")
++          && value.split("/").every(part => part && part !== "." && part !== "..");
++      }
++      function acceptedGoalTask(goal) {
++        const keys = ["goal_id", "state", "next_step", "revision", "steps_used", "max_steps", "deadline", "task"];
++        const states = ["proposed", "ready", "running", "waiting_external", "completed", "failed", "cancelled"];
++        const timestamp = value => typeof value === "string" && value.length <= 64
++          && /^\d{4}-\d{2}-\d{2}T/.test(value) && /(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
++        if (!goalTaskExactKeys(goal, keys) || typeof goal.goal_id !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(goal.goal_id)
++          || !states.includes(goal.state) || !Number.isSafeInteger(goal.revision) || goal.revision < 1
++          || !Number.isSafeInteger(goal.steps_used) || goal.steps_used < 0 || goal.steps_used > 8
++          || goal.max_steps !== 8 || !timestamp(goal.deadline)
++          || !(goal.next_step === null || (typeof goal.next_step === "string" && goal.next_step.length <= 512))) return false;
++        const task = goal.task;
++        if (!goalTaskExactKeys(task, ["profile", "paths", "approved_at", "pause_reason", "intent_path", "observations"])
++          || task.profile !== goalTaskProfile || !Array.isArray(task.paths) || task.paths.length < 1 || task.paths.length > 5
++          || !task.paths.every(validGoalTaskPath) || new Set(task.paths).size !== task.paths.length
++          || !(goal.next_step === null || task.paths.includes(goal.next_step))
++          || !(task.approved_at === null || timestamp(task.approved_at))
++          || ![null, "foreground", "tools_disabled", "shutdown", "interrupted_restart", "paused"].includes(task.pause_reason)
++          || !(task.intent_path === null || task.paths.includes(task.intent_path))
++          || !Array.isArray(task.observations) || task.observations.length > task.paths.length) return false;
++        const observed = new Set();
++        for (const item of task.observations) {
++          if (!goalTaskExactKeys(item, ["path", "status", "sha256", "read_at", "matches", "truncated", "error"])
++            || !task.paths.includes(item.path) || observed.has(item.path) || !timestamp(item.read_at)
++            || !["completed", "failed"].includes(item.status) || typeof item.truncated !== "boolean"
++            || !Array.isArray(item.matches) || item.matches.length > 20
++            || !item.matches.every(match => goalTaskExactKeys(match, ["line", "text"])
++              && Number.isSafeInteger(match.line) && match.line > 0 && typeof match.text === "string"
++              && Array.from(match.text).length <= 256)) return false;
++          if (item.status === "completed" && (typeof item.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(item.sha256) || item.error !== null)) return false;
++          if (item.status === "failed" && (item.sha256 !== null || !["read_failed", "path_denied", "invalid_result", "timeout"].includes(item.error) || item.matches.length !== 0)) return false;
++          observed.add(item.path);
++        }
++        return true;
++      }
++      function acceptedGoalTaskList(data) {
++        if (!goalTaskExactKeys(data, ["available", "profile", "max_tasks", "active_goal_id", "goals"])
++          || typeof data.available !== "boolean" || data.profile !== goalTaskProfile || data.max_tasks !== 20
++          || !Array.isArray(data.goals) || data.goals.length > 20 || !data.goals.every(acceptedGoalTask)
++          || new Set(data.goals.map(goal => goal.goal_id)).size !== data.goals.length
++          || !(data.active_goal_id === null || data.goals.some(goal => goal.goal_id === data.active_goal_id))) return false;
++        return true;
++      }
++      function updateGoalTaskControls() {
++        const ready = !pageClosing && controlAuthenticated && !goalTaskBusy;
++        document.querySelector("#goal-task-refresh").disabled = !ready;
++        document.querySelector("#goal-task-create").disabled = !ready || !goalTaskAvailable || goalTaskNeedsReadback || goalTaskViews.length >= 20;
++        document.querySelector("#goal-task-paths").disabled = !ready;
++        for (const goal of goalTaskViews) {
++          for (const action of ["approve", "resume", "pause", "cancel", "remove"]) {
++            const button = document.getElementById(`goal-${goal.goal_id}-${action}`);
++            if (button) button.disabled = !ready || goalTaskNeedsReadback || (["approve", "resume"].includes(action) && !goalTaskAvailable);
++          }
++        }
++      }
++      function clearGoalTasks(message = "狀態快照已清除；請重新查詢保存狀態。", requireReadback = goalTaskNeedsReadback) {
++        goalTaskEpoch += 1; goalTaskController?.abort(); goalTaskController = undefined;
++        clearTimeout(goalTaskTimeout); goalTaskTimeout = undefined;
++        clearTimeout(goalTaskPollTimer); goalTaskPollTimer = undefined;
++        goalTaskBusy = false; goalTaskViews = []; goalTaskNeedsReadback = requireReadback;
++        document.querySelector("#goal-task-items").textContent = "";
++        document.querySelector("#goal-task-status").textContent = message;
++        updateGoalTaskControls();
++      }
++      function applyGoalTaskTools(enabled) {
++        goalTaskAvailable = enabled;
++        clearGoalTasks(enabled ? "電腦操作已開啟；請重新查詢任務，再明確繼續。" : "電腦操作已暫停；請重新查詢保存紀錄。", true);
++      }
++      function renderGoalTasks() {
++        const root = document.querySelector("#goal-task-items"); root.textContent = "";
++        const labels = {proposed:"待批准（尚未執行）", ready:"已批准，等待讀取", running:"讀取中", waiting_external:"已暫停，等待你繼續", completed:"閱讀完成", failed:"任務未完成", cancelled:"已取消"};
++        const pauses = {foreground:"先回應你", tools_disabled:"電腦操作已暫停", shutdown:"服務停止", interrupted_restart:"重新啟動後沒有自動重讀", paused:"你已暫停"};
++        const errors = {read_failed:"讀取失敗", path_denied:"路徑不符合批准範圍", invalid_result:"無法確認讀取結果", timeout:"讀取逾時"};
++        for (const goal of goalTaskViews) {
++          const card = document.createElement("div"); card.className = "proposal";
++          const title = document.createElement("strong"); title.textContent = `${labels[goal.state]} · 版本 ${goal.revision}`;
++          const scope = document.createElement("p"); scope.textContent = `唯讀範圍：${goal.task.paths.join("、")}。待辦尚未執行。`;
++          const budget = document.createElement("small"); budget.textContent = `保存任務 ${goal.goal_id} · 已使用 ${goal.steps_used}/${goal.max_steps} 次讀取 · 期限 ${goal.deadline}`;
++          card.append(title, scope, budget);
++          const approval = document.createElement("p"); approval.textContent = goal.task.approved_at ? `批准時間：${goal.task.approved_at}` : "尚未批准；建立待審任務沒有開始讀取。"; card.appendChild(approval);
++          if (goal.task.pause_reason) { const reason = document.createElement("p"); reason.textContent = pauses[goal.task.pause_reason]; card.appendChild(reason); }
++          const details = document.createElement("pre"); details.style = "white-space:pre-wrap;overflow-wrap:anywhere";
++          const lines = [];
++          for (const path of goal.task.paths) {
++            const item = goal.task.observations.find(value => value.path === path);
++            if (!item) { lines.push(`${path}：${goal.task.intent_path === path ? "讀取結果未知（曾開始，尚無保存結果）" : "尚未讀取"}`); continue; }
++            if (item.status === "failed") { lines.push(`${path}：${errors[item.error]} · ${item.read_at}`); continue; }
++            lines.push(`${path}：已讀取 · ${item.read_at}`, `SHA256：${item.sha256}`);
++            for (const match of item.matches) lines.push(`第 ${match.line} 行：${match.text}`);
++            if (!item.matches.length) lines.push("這次讀取未找到未勾選待辦／TODO／FIXME。");
++            if (item.truncated) lines.push("清單有截短；不是完整待辦內容。");
++          }
++          details.textContent = lines.join("\n"); card.appendChild(details);
++          const actions = ["completed", "failed", "cancelled"].includes(goal.state) ? ["remove"]
++            : goal.state === "proposed" ? ["approve", "cancel"]
++            : goal.state === "waiting_external" ? ["resume", "cancel"] : ["pause", "cancel"];
++          const names = {approve:"批准這些檔案的唯讀任務", resume:"明確繼續保存任務", pause:"暫停任務", cancel:"取消任務", remove:"清除這項任務紀錄"};
++          const controls = document.createElement("div"); controls.className = "quick-actions";
++          for (const action of actions) {
++            const button = document.createElement("button"); button.type = "button";
++            button.id = `goal-${goal.goal_id}-${action}`; button.textContent = names[action];
++            button.onclick = () => changeGoalTask(action, goal.goal_id, goal.revision);
++            controls.appendChild(button);
++          }
++          card.appendChild(controls); root.appendChild(card);
++        }
++        updateGoalTaskControls();
++      }
++      async function goalTaskRequest(url, options, epoch, connection, session) {
++        const current = () => !pageClosing && controlAuthenticated && epoch === goalTaskEpoch
++          && connection === controlEpoch && session === goalTaskSessionId && !options.signal.aborted;
++        let response;
++        if (options.method === "GET") response = await authorizedFetch(url, {...options, headers:headers()});
++        else {
++          const token = await sessionAccess.getToken();
++          if (!current()) throw new Error("retired task request");
++          const requestHeaders = new Headers(headers()); requestHeaders.set("Authorization", `Bearer ${token}`);
++          response = await fetch(url, {...options, headers:requestHeaders, redirect:"error"});
++        }
++        if (!current()) throw new Error("retired task request");
++        if (!response.ok || (response.url && new URL(response.url, location.origin).origin !== location.origin)) throw new Error("unconfirmed task request");
++        const data = await response.json();
++        if (!current() || new TextEncoder().encode(JSON.stringify(data)).length > 2 * 1024 * 1024) throw new Error("invalid task response");
++        return data;
++      }
++      function scheduleGoalTaskPoll() {
++        if (!goalTaskViews.some(goal => ["ready", "running"].includes(goal.state))) return;
++        if (goalTaskPolls >= 30) { document.querySelector("#goal-task-status").textContent = "自動查詢已達上限；請手動重新查詢保存狀態。沒有重送操作。"; return; }
++        const epoch = goalTaskEpoch, connection = controlEpoch, session = goalTaskSessionId;
++        goalTaskPollTimer = setTimeout(() => {
++          goalTaskPollTimer = undefined;
++          if (pageClosing || !controlAuthenticated || epoch !== goalTaskEpoch || connection !== controlEpoch || session !== goalTaskSessionId) return;
++          goalTaskPolls += 1; refreshGoalTasks(true);
++        }, 1000);
++      }
++      async function performGoalTaskRequest(method, suffix, body, accept) {
++        if (pageClosing || !controlAuthenticated || (method !== "GET" && (goalTaskBusy || goalTaskNeedsReadback))) return;
++        const previous = goalTaskViews.slice();
++        clearGoalTasks(method === "GET" ? "正在查詢保存狀態…" : "正在提交；連線中斷時請先重新查詢結果。", goalTaskNeedsReadback);
++        goalTaskBusy = true; updateGoalTaskControls();
++        const epoch = goalTaskEpoch, connection = controlEpoch, session = goalTaskSessionId, controller = new AbortController();
++        goalTaskController = controller;
++        const unknown = method === "GET" ? "目前無法確認任務，請手動重新查詢。" : "提交結果未確認；沒有自動重送。請先重新查詢保存狀態。";
++        const timeout = setTimeout(() => { if (epoch === goalTaskEpoch) clearGoalTasks(unknown, true); }, 5000);
++        goalTaskTimeout = timeout;
++        let valid = false;
++        try {
++          const data = await goalTaskRequest(`/v1/goal-tasks/${encodeURIComponent(session)}${suffix}`, {
++            method, cache:"no-store", signal:controller.signal, ...(body === undefined ? {} : {body:JSON.stringify(body)})
++          }, epoch, connection, session);
++          if (pageClosing || epoch !== goalTaskEpoch || connection !== controlEpoch || controller.signal.aborted) return;
++          if (!accept(data, previous)) throw new Error("invalid task view");
++          goalTaskNeedsReadback = false; valid = true;
++          document.querySelector("#goal-task-status").textContent = goalTaskAvailable
++            ? `${new Date().toLocaleString()} 保存狀態快照；批准與繼續需要你明確按一次。`
++            : "已讀取保存紀錄；目前不能開工，可取消或清除已結束任務。";
++          renderGoalTasks();
++        } catch {
++          if (epoch === goalTaskEpoch && !pageClosing) clearGoalTasks(unknown, true);
++        } finally {
++          clearTimeout(timeout);
++          if (epoch === goalTaskEpoch) { goalTaskController = undefined; goalTaskTimeout = undefined; goalTaskBusy = false; updateGoalTaskControls(); }
++        }
++        if (valid && epoch === goalTaskEpoch) scheduleGoalTaskPoll();
++      }
++      async function refreshGoalTasks(poll = false) {
++        if (!poll) goalTaskPolls = 0;
++        await performGoalTaskRequest("GET", "", undefined, data => {
++          if (!acceptedGoalTaskList(data)) return false;
++          goalTaskViews = data.goals; goalTaskAvailable = data.available; return true;
++        });
++      }
++      async function changeGoalTask(action, goalId, revision) {
++        const old = goalTaskViews.find(goal => goal.goal_id === goalId && goal.revision === revision);
++        if (!old || goalTaskBusy || goalTaskNeedsReadback || !controlAuthenticated || pageClosing) return;
++        const allowed = ["completed", "failed", "cancelled"].includes(old.state) ? ["remove"]
++          : old.state === "proposed" ? ["approve", "cancel"]
++          : old.state === "waiting_external" ? ["resume", "cancel"] : ["pause", "cancel"];
++        if (!allowed.includes(action) || (["approve", "resume"].includes(action) && !goalTaskAvailable)) return;
++        goalTaskPolls = 0;
++        await performGoalTaskRequest(action === "remove" ? "DELETE" : "POST", `/${encodeURIComponent(goalId)}${action === "remove" ? "" : `/${action}`}`, {revision}, (data, previous) => {
++          if (action === "remove") {
++            if (!goalTaskExactKeys(data, ["removed"]) || data.removed !== true) return false;
++            goalTaskViews = previous.filter(goal => goal.goal_id !== goalId); return true;
++          }
++          if (!goalTaskExactKeys(data, ["goal"]) || !acceptedGoalTask(data.goal) || data.goal.goal_id !== goalId
++            || data.goal.revision < revision || (["approve", "resume"].includes(action) && data.goal.revision === revision)
++            || JSON.stringify(data.goal.task.paths) !== JSON.stringify(old.task.paths)
++            || (action !== "approve" && data.goal.task.approved_at !== old.task.approved_at)
++            || (action === "approve" && (data.goal.task.approved_at === null || data.goal.state === "proposed"))
++            || (action === "cancel" && !["completed", "failed", "cancelled"].includes(data.goal.state))
++            || (action === "pause" && !["waiting_external", "completed", "failed", "cancelled"].includes(data.goal.state))) return false;
++          goalTaskViews = previous.map(goal => goal.goal_id === goalId ? data.goal : goal); return true;
++        });
++      }
++      document.querySelector("#goal-task-refresh").onclick = () => refreshGoalTasks();
++      document.querySelector("#goal-task-create").onclick = async () => {
++        if (pageClosing || !controlAuthenticated || goalTaskBusy || goalTaskNeedsReadback || !goalTaskAvailable || goalTaskViews.length >= 20) return;
++        const paths = document.querySelector("#goal-task-paths").value.split(/\r?\n/);
++        if (paths.length < 1 || paths.length > 5 || !paths.every(path => validGoalTaskPath(path) && path === path.trim()) || new Set(paths).size !== paths.length) {
++          document.querySelector("#goal-task-status").textContent = "請填 1–5 個不同的工作目錄內相對路徑，每行一個；不要加入首尾空白、上層路徑或完整電腦路徑。"; return;
++        }
++        goalTaskPolls = 0;
++        await performGoalTaskRequest("POST", "", {paths}, (data, previous) => {
++          if (!goalTaskExactKeys(data, ["goal"]) || !acceptedGoalTask(data.goal) || data.goal.state !== "proposed"
++            || data.goal.task.approved_at !== null || data.goal.steps_used !== 0 || data.goal.task.intent_path !== null
++            || data.goal.task.observations.length !== 0 || JSON.stringify(data.goal.task.paths) !== JSON.stringify(paths)
++            || previous.some(goal => goal.goal_id === data.goal.goal_id) || previous.length >= 20) return false;
++          goalTaskViews = [data.goal, ...previous]; return true;
++        });
++      };
+       function clearImprovementProposal(message = "快照已清除；請重新查詢最新來源。") {
+         improvementEpoch += 1; improvementController?.abort(); improvementController = undefined;
+         clearTimeout(improvementTimeout); improvementTimeout = undefined;
+@@ -778,6 +1011,7 @@
+       }
+       async function submitText(value, inputMode = "text") {
+         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
++        if (typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
+         const submission = ++submissionGeneration;
+         pendingSubmission?.abort(); pendingSubmission = undefined;
+         stopTts(); speechCancelled = false;
+diff --git a/src/siro/core/goal_tasks.py b/src/siro/core/goal_tasks.py
+new file mode 100644
+index 0000000..0ccc5bd
+--- /dev/null
++++ b/src/siro/core/goal_tasks.py
+@@ -0,0 +1,117 @@
++"""Closed data and source evaluation for the first approved document-reading goal."""
++
++from __future__ import annotations
++
++import hashlib
++import re
++from datetime import datetime
++from pathlib import PurePosixPath
++from typing import Literal
++
++from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
++
++
++def relative_document(path: str) -> str:
++    parsed = PurePosixPath(path)
++    if (
++        not path
++        or len(path.encode("utf-8")) > 512
++        or parsed.is_absolute()
++        or ".." in parsed.parts
++        or not parsed.parts
++        or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in path)
++        or "\\" in path
++    ):
++        raise ValueError("select a relative document inside the workspace")
++    return parsed.as_posix()
++
++
++class SourceLine(BaseModel):
++    model_config = ConfigDict(extra="forbid", frozen=True)
++    line: int = Field(ge=1, strict=True)
++    text: str = Field(max_length=256, strict=True)
++
++
++class DocumentObservation(BaseModel):
++    model_config = ConfigDict(extra="forbid", frozen=True)
++    path: str
++    status: Literal["completed", "failed"]
++    sha256: str | None = Field(default=None, pattern="^[0-9a-f]{64}$")
++    read_at: datetime
++    matches: tuple[SourceLine, ...] = Field(default=(), max_length=20)
++    truncated: bool = False
++    error: Literal["read_failed", "path_denied", "invalid_result", "timeout"] | None = None
++
++    @model_validator(mode="after")
++    def verified_shape(self) -> DocumentObservation:
++        if relative_document(self.path) != self.path or self.read_at.tzinfo is None:
++            raise ValueError("observation requires exact path and aware time")
++        if self.status == "completed":
++            if self.sha256 is None or self.error is not None:
++                raise ValueError("completed observation requires source identity")
++        elif self.error is None or self.sha256 is not None or self.matches or self.truncated:
++            raise ValueError("failed observation cannot claim source results")
++        return self
++
++
++class GoalTask(BaseModel):
++    model_config = ConfigDict(extra="forbid", frozen=True)
++    profile: Literal["document-checklist-v1"] = "document-checklist-v1"
++    owner_session_id: str = Field(min_length=1, max_length=128, strict=True)
++    workspace: str = Field(min_length=1, max_length=4096, strict=True)
++    paths: tuple[str, ...] = Field(min_length=1, max_length=5)
++    approved_at: datetime | None = None
++    intent_path: str | None = None
++    pause_reason: (
++        Literal["foreground", "tools_disabled", "shutdown", "interrupted_restart", "paused"] | None
++    ) = None
++    observations: tuple[DocumentObservation, ...] = Field(default=(), max_length=5)
++
++    @field_validator("owner_session_id")
++    @classmethod
++    def printable_owner(cls, value: str) -> str:
++        if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in value):
++            raise ValueError("invalid task owner")
++        return value
++
++    @field_validator("paths")
++    @classmethod
++    def exact_paths(cls, values: tuple[str, ...]) -> tuple[str, ...]:
++        normalized = tuple(relative_document(path) for path in values)
++        if len(set(normalized)) != len(normalized):
++            raise ValueError("select each document once")
++        return normalized
++
++    @model_validator(mode="after")
++    def source_binding(self) -> GoalTask:
++        observed = tuple(item.path for item in self.observations)
++        if (
++            len(set(observed)) != len(observed)
++            or any(path not in self.paths for path in observed)
++            or (self.intent_path is not None and self.intent_path not in self.paths)
++        ):
++            raise ValueError("task evidence must belong to approved paths")
++        if self.approved_at is not None and self.approved_at.tzinfo is None:
++            raise ValueError("approval requires an aware time")
++        if self.approved_at is None and (self.intent_path is not None or self.observations):
++            raise ValueError("unapproved task cannot carry execution evidence")
++        return self
++
++
++def observe_document(path: str, text: str, now: datetime) -> DocumentObservation:
++    encoded = text.encode("utf-8")
++    if len(encoded) > 8192:
++        raise ValueError("document exceeds the approved text limit")
++    found = [
++        (index, line.strip())
++        for index, line in enumerate(text.splitlines(), 1)
++        if re.match(r"^\s*[-*+]\s+\[ \]\s+", line) or re.search(r"\b(?:TODO|FIXME)\b", line)
++    ]
++    return DocumentObservation(
++        path=path,
++        status="completed",
++        sha256=hashlib.sha256(encoded).hexdigest(),
++        read_at=now,
++        matches=tuple(SourceLine(line=index, text=text[:256]) for index, text in found[:20]),
++        truncated=len(found) > 20 or any(len(text) > 256 for _, text in found),
++    )
+diff --git a/src/siro/persistence/migrations/014_goal_tasks.sql b/src/siro/persistence/migrations/014_goal_tasks.sql
+new file mode 100644
+index 0000000..fcdc4e2
+--- /dev/null
++++ b/src/siro/persistence/migrations/014_goal_tasks.sql
+@@ -0,0 +1,2 @@
++ALTER TABLE goals ADD COLUMN task_json TEXT
++CHECK (task_json IS NULL OR json_valid(task_json));
+diff --git a/src/siro/services/agent/goal_tasks.py b/src/siro/services/agent/goal_tasks.py
+new file mode 100644
+index 0000000..3170eef
+--- /dev/null
++++ b/src/siro/services/agent/goal_tasks.py
+@@ -0,0 +1,430 @@
++"""One owned, explicitly approved durable document task; no generic agent scheduler."""
++
++from __future__ import annotations
++
++import asyncio
++from collections.abc import Awaitable, Callable
++from contextlib import suppress
++from dataclasses import replace
++from datetime import UTC, datetime, timedelta
++from pathlib import Path
++from typing import Literal, Protocol
++from uuid import uuid4
++
++from siro.core.cognition import ActionCandidate, Clock, Goal, GoalService, GoalState, Planner
++from siro.core.goal_tasks import DocumentObservation, GoalTask, observe_document
++from siro.persistence.goals import SQLiteGoalRepository
++from siro.persistence.planning import SQLitePlanningRepository
++from siro.persistence.sqlite import SQLiteStore
++from siro.services.tools.execution import ExecutionCancelled, ExecutionContext
++
++READ_TIMEOUT_SECONDS = 10.0
++TERMINAL = frozenset({GoalState.COMPLETED, GoalState.FAILED, GoalState.CANCELLED})
++
++
++class ReadWorkspace(Protocol):
++    root: Path
++
++    @property
++    def available(self) -> bool: ...
++    async def execute(
++        self, capability: str, arguments: dict[str, object], context: ExecutionContext
++    ) -> object: ...
++
++
++class SystemClock:
++    def now(self) -> datetime:
++        return datetime.now(UTC)
++
++
++class GoalTaskError(RuntimeError):
++    def __init__(self, code: str, status: int = 409) -> None:
++        self.code, self.status = code, status
++        super().__init__(code)
++
++
++async def _joined[T](operation: Awaitable[T]) -> T:
++    """Keep this caller's SQLite transaction/lock alive until its real IO finishes."""
++    owned = asyncio.ensure_future(operation)
++    cancelled = False
++    while not owned.done():
++        try:
++            await asyncio.shield(owned)
++        except asyncio.CancelledError:
++            cancelled = True
++    result = owned.result()
++    if cancelled:
++        raise asyncio.CancelledError
++    return result
++
++
++def _view(goal: Goal) -> dict[str, object]:
++    assert goal.task is not None
++    return {
++        "goal_id": goal.goal_id,
++        "state": goal.state.value,
++        "next_step": goal.next_step,
++        "revision": goal.revision,
++        "steps_used": goal.steps_used,
++        "max_steps": goal.max_steps,
++        "deadline": goal.deadline.isoformat() if goal.deadline is not None else None,
++        "task": goal.task.model_dump(mode="json", exclude={"owner_session_id", "workspace"}),
++    }
++
++
++class ReadTaskOwner:
++    def __init__(
++        self,
++        store: SQLiteStore,
++        workspace: ReadWorkspace,
++        *,
++        busy: Callable[[], bool],
++        allowed: Callable[[], bool],
++        clock: Clock | None = None,
++    ) -> None:
++        self._workspace, self._busy, self._allowed = workspace, busy, allowed
++        self._clock = clock or SystemClock()
++        self._repository = SQLiteGoalRepository(store)
++        self._goals = GoalService(self._repository, self._clock)
++        self._planner = Planner(SQLitePlanningRepository(store), self._clock)
++        self._control = asyncio.Lock()
++        self._work: asyncio.Task[None] | None = None
++        self._context: ExecutionContext | None = None
++        self._active: str | None = None
++        self._reason = "paused"
++        self._started = False
++        self._epoch = 0
++
++    @property
++    def busy(self) -> bool:
++        return self._work is not None and not self._work.done()
++
++    @property
++    def available(self) -> bool:
++        return self._started and self._allowed() and self._workspace.available
++
++    def _ready(self) -> None:
++        if not self._started:
++            raise GoalTaskError("unavailable", 503)
++
++    async def start(self) -> None:
++        if self._started:
++            return
++        # Composition initializes the existing store; GET never migrates it.
++        try:
++            for goal in await _joined(self._repository.tasks()):
++                if goal.state in {GoalState.RUNNING, GoalState.READY}:
++                    await self._paused(goal.goal_id, "interrupted_restart")
++        except ValueError:
++            # Invalid optional task metadata disables this caller, preserving existing chat.
++            return
++        self._started = True
++
++    async def _required(self, owner: str, goal_id: str, revision: int | None = None) -> Goal:
++        self._ready()
++        goal = await _joined(self._repository.get(goal_id))
++        if goal is None or goal.task is None or goal.task.owner_session_id != owner:
++            raise GoalTaskError("not_found", 404)
++        if revision is not None and (type(revision) is not int or goal.revision != revision):
++            raise GoalTaskError("conflict")
++        return goal
++
++    def _scope(self, goal: Goal) -> None:
++        if not self.available:
++            raise GoalTaskError("unavailable", 503)
++        assert goal.task is not None
++        if goal.task.workspace != str(self._workspace.root):
++            raise GoalTaskError("scope_changed")
++
++    async def propose(self, owner: str, paths: tuple[str, ...]) -> dict[str, object]:
++        async with self._control:
++            self._ready()
++            if not self.available:
++                raise GoalTaskError("unavailable", 503)
++            try:
++                task = GoalTask(
++                    owner_session_id=owner, workspace=str(self._workspace.root), paths=paths
++                )
++            except ValueError as error:
++                raise GoalTaskError("invalid_task", 422) from error
++            goal = Goal(
++                str(uuid4()),
++                GoalState.PROPOSED,
++                task.paths[0],
++                self._clock.now() + timedelta(hours=24),
++                max_steps=8,
++                task=task,
++            )
++            try:
++                await _joined(self._goals.propose(goal))
++            except OverflowError as error:
++                raise GoalTaskError("history_full", 429) from error
++            return _view(goal)
++
++    async def approve(self, owner: str, goal_id: str, revision: int) -> dict[str, object]:
++        async with self._control:
++            goal = await self._required(owner, goal_id, revision)
++            self._scope(goal)
++            if self.busy:
++                raise GoalTaskError("busy")
++            if goal.state is not GoalState.PROPOSED:
++                raise GoalTaskError("conflict")
++            epoch = self._epoch
++            updated = await _joined(self._goals.approve_task(goal_id, expected_revision=revision))
++            if epoch != self._epoch:
++                await self._paused(goal_id, self._reason)
++                return _view(await self._required(owner, goal_id))
++            self._scope(updated)
++            self._launch(updated)
++            return _view(updated)
++
++    async def resume(self, owner: str, goal_id: str, revision: int) -> dict[str, object]:
++        async with self._control:
++            goal = await self._required(owner, goal_id, revision)
++            self._scope(goal)
++            if self.busy:
++                raise GoalTaskError("busy")
++            if goal.state is not GoalState.WAITING_EXTERNAL:
++                raise GoalTaskError("terminal" if goal.state in TERMINAL else "conflict")
++            if goal.task is None or goal.task.approved_at is None:
++                raise GoalTaskError("not_approved")
++            epoch = self._epoch
++            updated = await _joined(self._goals.transition(goal_id, GoalState.READY))
++            if epoch != self._epoch:
++                await self._paused(goal_id, self._reason)
++                return _view(await self._required(owner, goal_id))
++            self._scope(updated)
++            self._launch(updated)
++            return _view(updated)
++
++    def _launch(self, goal: Goal) -> None:
++        assert goal.task is not None
++        self._active, self._reason = goal.goal_id, "paused"
++        self._context = ExecutionContext(
++            goal.goal_id, goal.task.owner_session_id, str(uuid4()), authorized=True
++        )
++        self._work = asyncio.create_task(self._run(goal.goal_id), name="siro-approved-read-task")
++        self._work.add_done_callback(lambda work: None if work.cancelled() else work.exception())
++
++    async def _paused(self, goal_id: str, reason: str) -> None:
++        goal = await _joined(self._repository.get(goal_id))
++        if goal is None or goal.task is None or goal.state in TERMINAL:
++            return
++        if goal.state is GoalState.READY:
++            goal = await _joined(self._goals.transition(goal_id, GoalState.RUNNING))
++        if goal.state is GoalState.RUNNING:
++            assert goal.task is not None
++            task = GoalTask.model_validate_json(
++                goal.task.model_copy(update={"pause_reason": reason}).model_dump_json()
++            )
++            await _joined(self._goals.checkpoint_task(goal_id, task, next_step=goal.next_step))
++            await _joined(self._goals.transition(goal_id, GoalState.WAITING_EXTERNAL))
++
++    async def _stop(self, reason: str) -> None:
++        self._reason = reason
++        if self._context is not None:
++            self._context.cancellation.cancel()
++        work = self._work
++        if work is not None and not work.done():
++            if not work.cancelling():
++                work.cancel()
++            # The owned job catches cancellation, joins started DB work and persists pause.
++            await _joined(asyncio.gather(work, return_exceptions=True))
++        self._work, self._context, self._active = None, None, None
++
++    async def foreground(self, reason: str = "foreground") -> None:
++        self._epoch += 1
++        self._reason = reason
++        if self._context is not None:
++            self._context.cancellation.cancel()
++        if self._work is not None and not self._work.done() and not self._work.cancelling():
++            self._work.cancel()
++        async with self._control:
++            await self._stop(reason)
++
++    async def pause(
++        self, owner: str, goal_id: str, revision: int | None = None
++    ) -> dict[str, object]:
++        async with self._control:
++            goal = await self._required(owner, goal_id)
++            if goal.state in TERMINAL:
++                return _view(goal)
++            if self._active == goal_id:
++                await self._stop("paused")
++            elif goal.state is not GoalState.PROPOSED:
++                await self._paused(goal_id, "paused")
++            return _view(await self._required(owner, goal_id))
++
++    async def cancel(
++        self, owner: str, goal_id: str, revision: int | None = None
++    ) -> dict[str, object]:
++        async with self._control:
++            goal = await self._required(owner, goal_id)
++            if self._active == goal_id:
++                await self._stop("paused")
++                goal = await self._required(owner, goal_id)
++            if goal.state not in TERMINAL:
++                goal = await _joined(self._goals.transition(goal_id, GoalState.CANCELLED))
++            return _view(goal)
++
++    async def remove(self, owner: str, goal_id: str, revision: int) -> bool:
++        async with self._control:
++            goal = await self._required(owner, goal_id, revision)
++            if goal.state not in TERMINAL or (self._active == goal_id and self.busy):
++                raise GoalTaskError("conflict")
++            return await _joined(self._repository.remove_task(goal_id, owner, revision))
++
++    async def snapshot(self, owner: str) -> dict[str, object]:
++        self._ready()
++        goals = await _joined(self._repository.tasks(owner))
++        return {
++            "available": self.available,
++            "profile": "document-checklist-v1",
++            "max_tasks": 20,
++            "active_goal_id": self._active
++            if self.busy and any(goal.goal_id == self._active for goal in goals)
++            else None,
++            "goals": [_view(goal) for goal in goals],
++        }
++
++    async def close(self) -> None:
++        self._started = False
++        self._epoch += 1
++        self._reason = "shutdown"
++        if self._context is not None:
++            self._context.cancellation.cancel()
++        if self._work is not None and not self._work.done() and not self._work.cancelling():
++            self._work.cancel()
++        async with self._control:
++            await self._stop("shutdown")
++
++    async def _run(self, goal_id: str) -> None:
++        context = self._context
++        assert context is not None
++        try:
++            goal = await _joined(self._goals.transition(goal_id, GoalState.RUNNING))
++            assert goal.task is not None
++            for path in goal.task.paths:
++                loaded = await _joined(self._repository.get(goal_id))
++                assert loaded is not None and loaded.task is not None
++                goal = loaded
++                assert goal.task is not None
++                if any(item.path == path for item in goal.task.observations):
++                    continue
++                context.check()
++                if not self._allowed():
++                    await self._paused(goal_id, "tools_disabled")
++                    return
++                self._scope(goal)
++                candidate = ActionCandidate(
++                    "read:" + path,
++                    "filesystem.read",
++                    {"path": path},
++                    "actual UTF-8 readback and source lines",
++                    0,
++                    goal.deadline,
++                    1,
++                    ("owner-approved exact document",),
++                    permission_allowed=goal.task.approved_at is not None,
++                    busy_allowed=not self._busy(),
++                )
++                none = ActionCandidate(
++                    "none", "none", {}, "keep pending", 0, None, 0, ("foreground first",)
++                )
++                decision = await _joined(self._planner.plan(goal_id, (candidate,), none))
++                if decision.selected_candidate_id == "none":
++                    await self._paused(goal_id, "foreground")
++                    return
++                goal = await _joined(self._goals.spend(goal_id, cost=0))
++                if goal.state is GoalState.FAILED:
++                    return
++                assert goal.task is not None
++                task = goal.task.model_copy(update={"intent_path": path, "pause_reason": None})
++                goal = await _joined(self._goals.checkpoint_task(goal_id, task, next_step=path))
++                context.check()
++                if not self._allowed():
++                    await self._paused(goal_id, "tools_disabled")
++                    return
++                self._scope(goal)
++                try:
++                    attempt_context = replace(
++                        context, deadline=asyncio.get_running_loop().time() + READ_TIMEOUT_SECONDS
++                    )
++                    async with asyncio.timeout(READ_TIMEOUT_SECONDS):
++                        result = await self._workspace.execute(
++                            "filesystem.read", {"path": path}, attempt_context
++                        )
++                    attempt_context.check()
++                    if (
++                        not isinstance(result, dict)
++                        or set(result) != {"text"}
++                        or not isinstance(result["text"], str)
++                    ):
++                        raise ValueError("invalid_result")
++                    observation = observe_document(path, result["text"], self._clock.now())
++                except ExecutionCancelled as error:
++                    raise asyncio.CancelledError from error
++                except (OSError, ValueError, PermissionError, TimeoutError, RuntimeError) as error:
++                    code: Literal["path_denied", "timeout", "invalid_result", "read_failed"] = (
++                        "path_denied"
++                        if isinstance(error, PermissionError)
++                        else "timeout"
++                        if isinstance(error, TimeoutError)
++                        else "invalid_result"
++                        if isinstance(error, ValueError)
++                        else "read_failed"
++                    )
++                    observation = DocumentObservation(
++                        path=path, status="failed", read_at=self._clock.now(), error=code
++                    )
++                assert goal.task is not None
++                updated = goal.task.model_copy(
++                    update={
++                        "intent_path": None,
++                        "observations": (*goal.task.observations, observation),
++                    }
++                )
++                following = next(
++                    (
++                        name
++                        for name in goal.task.paths
++                        if name != path
++                        and not any(item.path == name for item in goal.task.observations)
++                    ),
++                    None,
++                )
++                goal = await _joined(
++                    self._goals.checkpoint_task(goal_id, updated, next_step=following)
++                )
++                context.check()
++                if observation.status == "failed":
++                    await _joined(self._goals.transition(goal_id, GoalState.FAILED))
++                    return
++            context.check()
++            final = await _joined(self._repository.get(goal_id))
++            assert final is not None and final.task is not None
++            verified = len(final.task.observations) == len(final.task.paths) and all(
++                item.status == "completed" for item in final.task.observations
++            )
++            await _joined(
++                self._goals.transition(
++                    goal_id, GoalState.COMPLETED if verified else GoalState.FAILED
++                )
++            )
++        except asyncio.CancelledError:
++            await self._paused(goal_id, self._reason)
++        except ExecutionCancelled:
++            await self._paused(goal_id, self._reason)
++        except GoalTaskError as error:
++            if error.code == "unavailable":
++                await self._paused(
++                    goal_id, "tools_disabled" if not self._allowed() else self._reason
++                )
++            else:
++                await _joined(self._goals.transition(goal_id, GoalState.FAILED))
++        except Exception:
++            # Corrupt/unknown metadata stays unavailable; never expose raw validation data.
++            with suppress(Exception):
++                failed_goal = await _joined(self._repository.get(goal_id))
++                if failed_goal is not None and failed_goal.state is GoalState.RUNNING:
++                    await _joined(self._goals.transition(goal_id, GoalState.FAILED))

@@ -1,0 +1,104 @@
+...............F..............                                           [100%]
+=================================== FAILURES ===================================
+___________ test_tools_disabled_between_files_prevents_next_dispatch ___________
+
+r = Rig(store=<siro.persistence.sqlite.SQLiteStore object at 0x72b036dae810>, owner=<siro.services.agent.goal_tasks.ReadTa..., enabled=False), clock=Clock(value=datetime.datetime(2026, 10, 14, 10, 54, 13, 603085, tzinfo=datetime.timezone.utc)))
+goal_id = '19c195db-463c-4759-987b-62e1bc91e1c3'
+state = <GoalState.WAITING_EXTERNAL: 'waiting_external'>, timeout = 2
+
+    async def settled(r: Rig, goal_id: str, state: GoalState, *, timeout: float = 2) -> Goal:
+        async with asyncio.timeout(timeout):
+            while True:
+>               value = await goal(r, goal_id)
+                        ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_goal_task_loop.py:130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_goal_task_loop.py:122: in goal
+    result = await SQLiteGoalRepository(r.store).get(goal_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/goals.py:42: in get
+    return await self._store.run_transaction(read)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/persistence/sqlite.py:155: in run_transaction
+    return await asyncio.to_thread(self._run_transaction_sync, work)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+func = <bound method SQLiteStore._run_transaction_sync of <siro.persistence.sqlite.SQLiteStore object at 0x72b036dae810>>
+args = (<function SQLiteGoalRepository.get.<locals>.read at 0x72b03630c9e0>,)
+kwargs = {}
+
+    async def to_thread(func, /, *args, **kwargs):
+        """Asynchronously run function *func* in a separate thread.
+    
+        Any *args and **kwargs supplied for this function are directly passed
+        to *func*. Also, the current :class:`contextvars.Context` is propagated,
+        allowing context variables from the main thread to be accessed in the
+        separate thread.
+    
+        Return a coroutine that can be awaited to get the eventual result of *func*.
+        """
+        loop = events.get_running_loop()
+        ctx = contextvars.copy_context()
+        func_call = functools.partial(ctx.run, func, *args, **kwargs)
+>       return await loop.run_in_executor(None, func_call)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       asyncio.exceptions.CancelledError
+
+/usr/lib/python3.14/asyncio/threads.py:25: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/siro-d57-service-red-_5hna11a/test_tools_disabled_between_fi0')
+
+    async def test_tools_disabled_between_files_prevents_next_dispatch(tmp_path: Path) -> None:
+        async with rig(tmp_path) as r:
+            for name in ("first.md", "second.md"):
+                (r.workspace.root / name).write_text("TODO owner-approved")
+            r.workspace.gated_path = "first.md"
+            proposed = await r.owner.propose("owner", ("first.md", "second.md"))
+            await r.owner.approve("owner", proposed["goal_id"], proposed["revision"])
+            await asyncio.wait_for(r.workspace.started.wait(), 2)
+            r.policy.enabled = False
+            r.workspace.release.set()
+>           paused = await settled(r, proposed["goal_id"], GoalState.WAITING_EXTERNAL)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_goal_task_loop.py:333: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_goal_task_loop.py:128: in settled
+    async with asyncio.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Timeout [expired]>
+exc_type = <class 'asyncio.exceptions.CancelledError'>
+exc_val = CancelledError(), exc_tb = <traceback object at 0x72b0351de700>
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() <= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+>                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+/usr/lib/python3.14/asyncio/timeouts.py:114: TimeoutError
+=========================== short test summary info ============================
+FAILED tests/integration/test_goal_task_loop.py::test_tools_disabled_between_files_prevents_next_dispatch
+1 failed, 29 passed in 3.37s

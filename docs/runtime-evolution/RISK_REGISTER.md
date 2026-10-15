@@ -1,5 +1,13 @@
 # Risk register
 
+## 2026-10-15 — D57/D58 local integration gates resolved; wider gates retained
+
+F1 missingintegration REQUIRED_FIX/HIGH以FIX021第一固定readprofile收斂；RT013FIX01 allocation/FIFO defect、RT005FIX02 原D22budget設計缺陷均最小leaf修後localVERIFIED。前full4FAIL保原證：schemafixturelatest13假設改固定journal13slot/name；cancel實際5.090748s，受控baseline/candidate300ms terminaldelay重現budget敏感性。actualfull多出的IO/timer位置仍UNKNOWN，不宣稱新schema邏輯根因。D58只soleargumentwait4.0留1s，contextual/mixed4.75/backend4.5和原5s驗收不改。
+
+最終fetchedpublicGit scripts/check EXIT0/578.090s（1994PASS/5oldoptinSKIP/7warnings），actual3main/Rust/IABcycles和8source/另timeoutleaf保data rollbackPASS。解除本localBLOCKED_BY_FIX；exactheadcloud/publishscope分別驗，無已知private損害證據。
+
+YELLOW：typedmetadata/CAS/foregroundcancel、schema14compatible rollback、時間點來源、20goalrows清理與existingappendjournalretentionTECH_DEBT。RED：ownerargv不是不可信sandbox，任意自主tools/selfchange/deploy；RI005immutableimport/oldwriter/handoff、真provider智慧/語音、24h與真硬體未認證。固定profile無interpreter/browser/cloud/skillfallback，content不能授權，不以此泛稱整機sandbox。[Evidence](../evidence/T19-goal-loop-2026-10-14/REPORT.md)。
+
 ## 2026-10-14 — FIX-020 / D56 original source-identity error
 
 **HIGH / REQUIRED_FIX，已局部修復**：原 path/content 無界線的摘要允許不同檔案共享同一 approval。根因是原序列化格式，非 SHA256 密碼學碰撞；D39 complete HMAC 不能補足 source encoding。D56 新 v2 count/path/content length framing、明確 format/HMAC 綁定、legacy 零 execution authority；full local scripts/check EXIT0／1,813 PASS、真 source/data regression 與精確 rollback 通過。FIX-020 **DONE / LOCAL_VERIFIED**，解除其 source-format blocker；exact-head cloud 另驗。

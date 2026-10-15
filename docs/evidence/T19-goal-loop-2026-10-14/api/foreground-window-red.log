@@ -1,0 +1,238 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_actual_main_composition_owner_feature_flag_and_real_rust[candidate-1-True] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-78/test_actual_main_composition_o0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78f9d362f820>
+profile = 'candidate', enabled = '1', foreground_window = True
+
+    @pytest.mark.parametrize(
+        ("profile", "enabled", "foreground_window"),
+        [
+            ("candidate", "1", False),
+            ("candidate", "0", False),
+            ("legacy", "1", False),
+            ("candidate", "1", True),
+        ],
+    )
+    def test_actual_main_composition_owner_feature_flag_and_real_rust(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        profile: str,
+        enabled: str,
+        foreground_window: bool,
+    ) -> None:
+        import uvicorn
+    
+        from siro.services.presentation import gateway
+    
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        documents = tmp_path / "documents"
+        documents.mkdir()
+        text = "# Owner-approved synthetic task\n- [ ] verify actual source\nTODO still pending\n"
+        (documents / "notes.md").write_text(text)
+        binary = Path(__file__).parents[2] / "target/debug/siro-runtime"
+        assert binary.is_file(), "build the existing Rust runtime before this integration gate"
+        origin = "http://127.0.0.1:38131"
+        for key, value in {
+            "SIRO_DATA_DIR": str(tmp_path / "data"),
+            "SIRO_WORKSPACE_DIR": str(documents),
+            "SIRO_RUNTIME_BINARY": str(binary),
+            "SIRO_RUNTIME_PROFILE": profile,
+            "SIRO_GOAL_TASKS_ENABLED": enabled,
+            "SIRO_GATEWAY_PORT": "38131",
+        }.items():
+            monkeypatch.setenv(key, value)
+        captured: dict[str, Any] = {}
+        original_factory = gateway.create_app
+    
+        def factory(**kwargs: Any) -> Any:
+            captured.update(kwargs)
+            return original_factory(**kwargs)
+    
+        def serve(app: Any, **kwargs: Any) -> None:
+            with TestClient(app, base_url=origin) as client:
+                headers = token_headers(client, origin)
+                assert client.get("/v1/snapshot", headers=headers).status_code == 200
+                owner = captured["read_task_owner"]
+                if profile != "candidate" or enabled == "0":
+                    assert owner is None
+                    uncached(client.get(TASK_ROUTE, headers=headers), 503)
+                    return
+                assert isinstance(owner, ReadTaskOwner)
+                assert owner.available and not owner.busy
+                proposed = uncached(
+                    client.post(TASK_ROUTE, headers=headers, json={"paths": ["notes.md"]}), 200
+                )["goal"]
+                assert proposed["state"] == "proposed" and not owner.busy
+    
+                def approve() -> None:
+                    uncached(
+                        client.post(
+                            f"{TASK_ROUTE}/{proposed['goal_id']}/approve",
+                            headers=headers,
+                            json={"revision": proposed["revision"]},
+                        ),
+                        200,
+                    )
+    
+                if foreground_window:
+                    controller = captured["on_turn"].__self__
+                    repository = controller._agent_runs
+                    original_recent = repository.recent_session_messages
+                    entered, release = Event(), asyncio.Event()
+    
+                    async def held_recent(*args: Any, **kwargs: Any) -> Any:
+                        entered.set()
+                        await release.wait()
+                        return await original_recent(*args, **kwargs)
+    
+                    monkeypatch.setattr(repository, "recent_session_messages", held_recent)
+                    with ThreadPoolExecutor(max_workers=1) as pool:
+                        foreground = pool.submit(
+                            client.post,
+                            "/v1/conversations/browser/turns",
+                            headers=headers,
+                            json={"text": "hello synthetic foreground"},
+                        )
+                        try:
+                            assert entered.wait(2)
+                            assert not controller.foreground_active
+                            assert captured["state"].active_turns["browser"]["state"] == "responding"
+                            approve()
+                            deadline = time.monotonic() + 3
+                            while True:
+                                paused = uncached(client.get(TASK_ROUTE, headers=headers), 200)[
+                                    "goals"
+                                ][0]
+                                if paused["state"] in {"waiting_external", "completed", "failed"}:
+                                    break
+                                assert time.monotonic() < deadline, paused
+                                time.sleep(0.01)
+                            assert paused["state"] == "waiting_external", paused
+                            assert paused["task"]["pause_reason"] == "foreground"
+                            assert paused["steps_used"] == 0 and paused["task"]["observations"] == []
+                        finally:
+                            assert client.portal is not None
+                            client.portal.call(release.set)
+                            assert foreground.result(timeout=3).status_code == 200
+                    return
+                approve()
+                deadline = time.monotonic() + 3
+                while True:
+                    complete = uncached(client.get(TASK_ROUTE, headers=headers), 200)["goals"][0]
+                    if complete["state"] == "completed":
+                        break
+                    assert time.monotonic() < deadline, complete
+                    time.sleep(0.01)
+                observation = complete["task"]["observations"][0]
+                assert observation["sha256"] == hashlib.sha256(text.encode()).hexdigest()
+                assert [line["line"] for line in observation["matches"]] == [2, 3]
+                assert complete["steps_used"] == 1
+            if captured["read_task_owner"] is not None:
+                assert not captured["read_task_owner"]._started and not captured["read_task_owner"].busy
+            workspace = captured["workspace_service"]
+            if workspace is not None:
+                assert workspace._process is None and workspace._temporary is None
+    
+        monkeypatch.setattr(gateway, "create_app", factory)
+        monkeypatch.setattr(uvicorn, "run", serve)
+>       gateway.main()
+
+tests/integration/test_goal_task_api.py:602: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/presentation/gateway.py:1517: in main
+    _run_gateway(data_dir, owner.loop_factory)
+src/siro/services/presentation/gateway.py:2178: in _run_gateway
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+app = <fastapi.applications.FastAPI object at 0x78f9d30c6f90>
+kwargs = {'host': '127.0.0.1', 'port': 38131, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fal...tderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}, ...}
+
+    def serve(app: Any, **kwargs: Any) -> None:
+        with TestClient(app, base_url=origin) as client:
+            headers = token_headers(client, origin)
+            assert client.get("/v1/snapshot", headers=headers).status_code == 200
+            owner = captured["read_task_owner"]
+            if profile != "candidate" or enabled == "0":
+                assert owner is None
+                uncached(client.get(TASK_ROUTE, headers=headers), 503)
+                return
+            assert isinstance(owner, ReadTaskOwner)
+            assert owner.available and not owner.busy
+            proposed = uncached(
+                client.post(TASK_ROUTE, headers=headers, json={"paths": ["notes.md"]}), 200
+            )["goal"]
+            assert proposed["state"] == "proposed" and not owner.busy
+    
+            def approve() -> None:
+                uncached(
+                    client.post(
+                        f"{TASK_ROUTE}/{proposed['goal_id']}/approve",
+                        headers=headers,
+                        json={"revision": proposed["revision"]},
+                    ),
+                    200,
+                )
+    
+            if foreground_window:
+                controller = captured["on_turn"].__self__
+                repository = controller._agent_runs
+                original_recent = repository.recent_session_messages
+                entered, release = Event(), asyncio.Event()
+    
+                async def held_recent(*args: Any, **kwargs: Any) -> Any:
+                    entered.set()
+                    await release.wait()
+                    return await original_recent(*args, **kwargs)
+    
+                monkeypatch.setattr(repository, "recent_session_messages", held_recent)
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    foreground = pool.submit(
+                        client.post,
+                        "/v1/conversations/browser/turns",
+                        headers=headers,
+                        json={"text": "hello synthetic foreground"},
+                    )
+                    try:
+                        assert entered.wait(2)
+                        assert not controller.foreground_active
+                        assert captured["state"].active_turns["browser"]["state"] == "responding"
+                        approve()
+                        deadline = time.monotonic() + 3
+                        while True:
+                            paused = uncached(client.get(TASK_ROUTE, headers=headers), 200)[
+                                "goals"
+                            ][0]
+                            if paused["state"] in {"waiting_external", "completed", "failed"}:
+                                break
+                            assert time.monotonic() < deadline, paused
+                            time.sleep(0.01)
+>                       assert paused["state"] == "waiting_external", paused
+E                       AssertionError: {'goal_id': '743fc91e-8b6d-44bb-adf4-bed37298e6ee', 'state': 'completed', 'next_step': None, 'revision': 7, ...}
+E                       assert 'completed' == 'waiting_external'
+E                         
+E                         - waiting_external
+E                         + completed
+
+tests/integration/test_goal_task_api.py:574: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_goal_task_api.py::test_actual_main_composition_owner_feature_flag_and_real_rust[candidate-1-True]
+1 failed, 61 deselected, 3 warnings in 1.16s

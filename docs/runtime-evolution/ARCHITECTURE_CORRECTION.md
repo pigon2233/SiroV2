@@ -59,3 +59,33 @@ No DB/schema/config/data migration or pointer/receipt rewrite. Existing releases
 
 ## Correction verification
 D56 local correction VERIFIED：15 identity RED→PASS、216 focused PASS、actual five source/readiness/data children、exact source reverse/reapply，以及 clean full scripts/check EXIT0／1,813 PASS。解除 FIX-020 source-format blocker，RI005仍PARTIAL/BLOCKED_BY_RELEASE_INTEGRATION；exact-head cloud另驗。[Acceptance](../evidence/FIX-020-2026-10-14/REPORT.md)。
+
+
+# Architecture correction — D58 / RT-005-FIX-02
+
+## Original decision
+D22/RT-005-FIX-01 gives arguments-only owned task cleanup the same4.75s wait as contextual tasks, while requiring controller-visible failure/unknown in<5s. Terminal proposal/journal/body bookkeeping occurs after that wait.
+
+## Evidence that invalidates it
+D57 exact full check reports cancellation5.090748s at unchanged lifecycle assertion799. Source review confirms four awaited terminal transactions after cleanup; a300ms controlled transaction delay fails the unchanged original case on both original schema13 (5.061867s) and candidate14 (5.062738s), while withoutdelay bothpass. Extra duration's precise source in the real full run is UNKNOWN; this does not establish a goal/schema logic regression. The old wait budget leaves only250ms for work that is part of the public gate.
+
+## Impact
+A correctly fenced but uncooperative arguments-only handler can miss the public cancellation deadline, although the individual cleanup timeout is obeyed. Original unknown/ownership semantics remain necessary; allowing a longer test deadline would hide this violation.
+
+## Smallest design correction
+Only all-active-arguments-only cancellation uses4.0s existing shielded gather, reserving1s for terminal bookkeeping. Contextual/mixed retain4.75s and native backend4.5s. No new cancellation framework, detached finalization or hardkill/OS redesign.
+
+## Affected RT tasks
+RT-005-FIX-01 internal wait-budget decision is superseded for arguments-only-only runs by RT-005-FIX-02. D57 fullgate BLOCKED_BY_FIX until scoped/full verification. Keep original RT IDs and history.
+
+## Tasks that remain valid
+RT005 process ownership/contextual cleanup/detach, D16 delivery fence, RT003 result loop, D41 journal, D50 owner, D57 typed approved readonly tasks and all other scoped RT results.
+
+## Tasks to cancel / modify
+CANCEL the assumption that4.75s wait is sufficient for every5s end-to-end cancellation caller. MODIFY only all-arguments wait choice. KEEP5s acceptance, late owned task/unknown journal and contextual4.5s allowance. No task renumbering or expanded planner.
+
+## Compatibility impact
+Same API/signatures/states/errors/policy/data; arguments-only noncooperation is truthfully reported up to750ms sooner. A still-running handler remains owned and latefenced. Contextual and mixed waiting remains byte-level equivalent aside from local timeout selection.
+
+## Migration impact
+No additionalSQL/config/release/grant migration. D57's separate additive schema14 remains. Source-only rollback preserves all latest data and reopens this budget verification gate; it does not authorize release/adoption.

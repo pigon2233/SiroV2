@@ -181,7 +181,8 @@ async def test_durable_budget_and_finished_crash_window(tmp_path: Path) -> None:
 def test_additive_upgrade_and_old_reader_rollback(tmp_path: Path, old_version: int) -> None:
     path = tmp_path / "upgrade.db"
     migrations = load_migrations()
-    assert migrations[-1].version == 13
+    assert migrations[12].version == 13
+    assert migrations[12].name == "run_journal"
     with sqlite3.connect(path) as c:
         apply_migrations(c, migrations[:old_version])
         if old_version:

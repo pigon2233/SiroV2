@@ -1,0 +1,53 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0 -- /tmp/g57j-neshi8u9/checkout/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /tmp/g57j-neshi8u9/checkout
+configfile: pyproject.toml
+plugins: anyio-4.15.1, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 16 items
+
+tests/integration/test_run_journal.py::test_abrupt_process_crash_readback_never_replays[before_dispatch] PASSED [  6%]
+tests/integration/test_run_journal.py::test_abrupt_process_crash_readback_never_replays[after_dispatch] PASSED [ 12%]
+tests/integration/test_run_journal.py::test_abrupt_process_crash_readback_never_replays[before_observation] PASSED [ 18%]
+tests/integration/test_run_journal.py::test_abrupt_process_crash_readback_never_replays[after_observation] PASSED [ 25%]
+tests/integration/test_run_journal.py::test_partial_batch_pending_approval_fenced_and_pairs_ordered PASSED [ 31%]
+tests/integration/test_run_journal.py::test_durable_budget_and_finished_crash_window PASSED [ 37%]
+tests/integration/test_run_journal.py::test_additive_upgrade_and_old_reader_rollback[0] PASSED [ 43%]
+tests/integration/test_run_journal.py::test_additive_upgrade_and_old_reader_rollback[10] PASSED [ 50%]
+tests/integration/test_run_journal.py::test_additive_upgrade_and_old_reader_rollback[12] PASSED [ 56%]
+tests/integration/test_run_journal.py::test_readback_auth_startup_and_legacy_unrestorable PASSED [ 62%]
+tests/integration/test_run_journal.py::test_http_approval_uses_dispatch_and_observation_journal PASSED [ 68%]
+tests/integration/test_run_journal.py::test_actual_frontend_recovery_notice PASSED [ 75%]
+tests/integration/test_run_journal.py::test_atomic_candidate_proposal_crash_never_replays[before] PASSED [ 81%]
+tests/integration/test_run_journal.py::test_atomic_candidate_proposal_crash_never_replays[after] PASSED [ 87%]
+tests/integration/test_run_journal.py::test_http_reused_provider_id_manual_approval_and_denial PASSED [ 93%]
+tests/integration/test_run_journal.py::test_mixed_legacy_and_mapped_rows_reconcile_exact_owners PASSED [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /tmp/g57j-neshi8u9/checkout/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /tmp/g57j-neshi8u9/checkout/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /tmp/g57j-neshi8u9/checkout/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/jieba/__init__.py:44
+  /tmp/g57j-neshi8u9/checkout/.venv/lib/python3.14/site-packages/jieba/__init__.py:44: SyntaxWarning: "\." is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\."? A raw string is also an option.
+    re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)
+
+.venv/lib/python3.14/site-packages/jieba/__init__.py:46
+  /tmp/g57j-neshi8u9/checkout/.venv/lib/python3.14/site-packages/jieba/__init__.py:46: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+    re_skip_default = re.compile("(\r\n|\s)", re.U)
+
+.venv/lib/python3.14/site-packages/jieba/finalseg/__init__.py:78
+  /tmp/g57j-neshi8u9/checkout/.venv/lib/python3.14/site-packages/jieba/finalseg/__init__.py:78: SyntaxWarning: "\." is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\."? A raw string is also an option.
+    re_skip = re.compile("([a-zA-Z0-9]+(?:\.\d+)?%?)")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 16 passed, 6 warnings in 8.59s ========================

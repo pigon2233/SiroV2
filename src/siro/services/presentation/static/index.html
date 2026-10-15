@@ -57,7 +57,14 @@
       </section>
     </main>
     <div class="toolbox">
-      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><section id="improvement-proposal-panel">
+      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><section id="goal-task-panel">
+        <h3>交給 SIRO 的任務</h3>
+        <p>指定工作目錄內 1–5 份文字檔，每行一個相對路徑。我會唯讀整理尚未勾選的待辦與 TODO／FIXME，保留來源、行數與時間。先建立待審任務，再明確批准；讀取完成不表示待辦已執行。</p>
+        <textarea id="goal-task-paths" rows="3" maxlength="2560" placeholder="notes.md&#10;project/tasks.txt" aria-label="任務要讀取的工作目錄內相對路徑"></textarea>
+        <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button><button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button></div>
+        <p id="goal-task-status" aria-live="polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>
+        <div id="goal-task-items" aria-live="polite"></div>
+      </section><section id="improvement-proposal-panel">
         <h3>改善建議</h3>
         <p>查看這段對話最近的可追溯失敗，先整理需要調查與驗證的地方。來源不足時會明說；確認原因後才討論修復。</p>
         <button id="improvement-proposal-refresh" type="button" disabled>查看這段對話的改善建議</button>
@@ -112,6 +119,9 @@
       let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
       let submissionGeneration = 0, pendingSubmission;
       let improvementEpoch = 0, improvementController, improvementTimeout;
+      let goalTaskEpoch = 0, goalTaskController, goalTaskTimeout, goalTaskPollTimer, goalTaskPolls = 0;
+      let goalTaskViews = [], goalTaskBusy = false, goalTaskAvailable = true, goalTaskNeedsReadback = false;
+      const goalTaskSessionId = "browser", goalTaskProfile = "document-checklist-v1";
       let recorder, recordedChunks = [], ttsAudio;
       let ttsController, ttsGeneration = 0, speechCancelled = false;
       let lastSpeech;
@@ -204,6 +214,7 @@
       }
       function connectControl() {
         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
+        if (typeof clearGoalTasks === "function") clearGoalTasks();
         if (pageClosing) return Promise.reject(new Error("頁面已關閉"));
         if (controlAuthenticated && socket?.readyState === 1) return Promise.resolve();
         if (controlAttempt) return controlAttempt;
@@ -217,20 +228,22 @@
           socket = owner; controlAuthenticated = false;
           let retired = false;
           const abandon = message => {
-            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); ready.reject(new Error(message));
+            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); ready.reject(new Error(message));
           };
           controlDispose = abandon;
           const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
-          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#improvement-proposal-refresh").disabled = false; ready.resolve(); };
+          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); ready.resolve(); };
           socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
         socket.onmessage = event => {
           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
           const data = JSON.parse(event.data);
           if (!acceptRunEvent(data)) return;
           if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();
+          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
           log(data);
           if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }
           if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);
+          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean" && typeof applyGoalTaskTools === "function") applyGoalTaskTools(data.enabled);
           if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
           if (data.type === "affect_state") { renderAffect(data); }
           if (data.type === "assistant_started") {
@@ -295,6 +308,7 @@
       window.addEventListener("beforeunload", () => {
         pageClosing = true; controlDispose?.("頁面已關閉"); controlDispose = undefined; controlEpoch += 1;
         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
+        if (typeof clearGoalTasks === "function") clearGoalTasks("頁面已關閉。", true);
         submissionGeneration += 1; pendingSubmission?.abort();
         clearTimeout(reconnectTimer); sessionAccess.dispose(); stopTts(); socket?.close();
       });
@@ -529,6 +543,225 @@
         if (!response.ok) throw new Error(data.detail || "操作未完成");
         return data;
       }
+      function goalTaskExactKeys(value, keys) {
+        return value && !Array.isArray(value) && typeof value === "object"
+          && Object.keys(value).sort().join("|") === keys.slice().sort().join("|");
+      }
+      function validGoalTaskPath(value) {
+        return typeof value === "string" && value.length > 0 && new TextEncoder().encode(value).length <= 512
+          && !/[\\\u0000-\u001f\u007f-\u009f]/u.test(value) && !value.startsWith("/")
+          && value.split("/").every(part => part && part !== "." && part !== "..");
+      }
+      function acceptedGoalTask(goal) {
+        const keys = ["goal_id", "state", "next_step", "revision", "steps_used", "max_steps", "deadline", "task"];
+        const states = ["proposed", "ready", "running", "waiting_external", "completed", "failed", "cancelled"];
+        const timestamp = value => typeof value === "string" && value.length <= 64
+          && /^\d{4}-\d{2}-\d{2}T/.test(value) && /(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+        if (!goalTaskExactKeys(goal, keys) || typeof goal.goal_id !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(goal.goal_id)
+          || !states.includes(goal.state) || !Number.isSafeInteger(goal.revision) || goal.revision < 1
+          || !Number.isSafeInteger(goal.steps_used) || goal.steps_used < 0 || goal.steps_used > 8
+          || goal.max_steps !== 8 || !timestamp(goal.deadline)
+          || !(goal.next_step === null || (typeof goal.next_step === "string" && goal.next_step.length <= 512))) return false;
+        const task = goal.task;
+        if (!goalTaskExactKeys(task, ["profile", "paths", "approved_at", "pause_reason", "intent_path", "observations"])
+          || task.profile !== goalTaskProfile || !Array.isArray(task.paths) || task.paths.length < 1 || task.paths.length > 5
+          || !task.paths.every(validGoalTaskPath) || new Set(task.paths).size !== task.paths.length
+          || !(goal.next_step === null || task.paths.includes(goal.next_step))
+          || !(task.approved_at === null || timestamp(task.approved_at))
+          || ![null, "foreground", "tools_disabled", "shutdown", "interrupted_restart", "paused"].includes(task.pause_reason)
+          || !(task.intent_path === null || task.paths.includes(task.intent_path))
+          || !Array.isArray(task.observations) || task.observations.length > task.paths.length) return false;
+        const observed = new Set();
+        for (const item of task.observations) {
+          if (!goalTaskExactKeys(item, ["path", "status", "sha256", "read_at", "matches", "truncated", "error"])
+            || !task.paths.includes(item.path) || observed.has(item.path) || !timestamp(item.read_at)
+            || !["completed", "failed"].includes(item.status) || typeof item.truncated !== "boolean"
+            || !Array.isArray(item.matches) || item.matches.length > 20
+            || !item.matches.every(match => goalTaskExactKeys(match, ["line", "text"])
+              && Number.isSafeInteger(match.line) && match.line > 0 && typeof match.text === "string"
+              && Array.from(match.text).length <= 256)) return false;
+          if (item.status === "completed" && (typeof item.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(item.sha256) || item.error !== null)) return false;
+          if (item.status === "failed" && (item.sha256 !== null || !["read_failed", "path_denied", "invalid_result", "timeout"].includes(item.error) || item.matches.length !== 0)) return false;
+          observed.add(item.path);
+        }
+        return true;
+      }
+      function acceptedGoalTaskList(data) {
+        if (!goalTaskExactKeys(data, ["available", "profile", "max_tasks", "active_goal_id", "goals"])
+          || typeof data.available !== "boolean" || data.profile !== goalTaskProfile || data.max_tasks !== 20
+          || !Array.isArray(data.goals) || data.goals.length > 20 || !data.goals.every(acceptedGoalTask)
+          || new Set(data.goals.map(goal => goal.goal_id)).size !== data.goals.length
+          || !(data.active_goal_id === null || data.goals.some(goal => goal.goal_id === data.active_goal_id))) return false;
+        return true;
+      }
+      function updateGoalTaskControls() {
+        const ready = !pageClosing && controlAuthenticated && !goalTaskBusy;
+        document.querySelector("#goal-task-refresh").disabled = !ready;
+        document.querySelector("#goal-task-create").disabled = !ready || !goalTaskAvailable || goalTaskNeedsReadback || goalTaskViews.length >= 20;
+        document.querySelector("#goal-task-paths").disabled = !ready;
+        for (const goal of goalTaskViews) {
+          for (const action of ["approve", "resume", "pause", "cancel", "remove"]) {
+            const button = document.getElementById(`goal-${goal.goal_id}-${action}`);
+            if (button) button.disabled = !ready || goalTaskNeedsReadback || (["approve", "resume"].includes(action) && !goalTaskAvailable);
+          }
+        }
+      }
+      function clearGoalTasks(message = "狀態快照已清除；請重新查詢保存狀態。", requireReadback = goalTaskNeedsReadback) {
+        goalTaskEpoch += 1; goalTaskController?.abort(); goalTaskController = undefined;
+        clearTimeout(goalTaskTimeout); goalTaskTimeout = undefined;
+        clearTimeout(goalTaskPollTimer); goalTaskPollTimer = undefined;
+        goalTaskBusy = false; goalTaskViews = []; goalTaskNeedsReadback = requireReadback;
+        document.querySelector("#goal-task-items").textContent = "";
+        document.querySelector("#goal-task-status").textContent = message;
+        updateGoalTaskControls();
+      }
+      function applyGoalTaskTools(enabled) {
+        goalTaskAvailable = enabled;
+        clearGoalTasks(enabled ? "電腦操作已開啟；請重新查詢任務，再明確繼續。" : "電腦操作已暫停；請重新查詢保存紀錄。", true);
+      }
+      function renderGoalTasks() {
+        const root = document.querySelector("#goal-task-items"); root.textContent = "";
+        const labels = {proposed:"待批准（尚未執行）", ready:"已批准，等待讀取", running:"讀取中", waiting_external:"已暫停，等待你繼續", completed:"閱讀完成", failed:"任務未完成", cancelled:"已取消"};
+        const pauses = {foreground:"先回應你", tools_disabled:"電腦操作已暫停", shutdown:"服務停止", interrupted_restart:"重新啟動後沒有自動重讀", paused:"你已暫停"};
+        const errors = {read_failed:"讀取失敗", path_denied:"路徑不符合批准範圍", invalid_result:"無法確認讀取結果", timeout:"讀取逾時"};
+        for (const goal of goalTaskViews) {
+          const card = document.createElement("div"); card.className = "proposal";
+          const title = document.createElement("strong"); title.textContent = `${labels[goal.state]} · 版本 ${goal.revision}`;
+          const scope = document.createElement("p"); scope.textContent = `唯讀範圍：${goal.task.paths.join("、")}。待辦尚未執行。`;
+          const budget = document.createElement("small"); budget.textContent = `保存任務 ${goal.goal_id} · 已使用 ${goal.steps_used}/${goal.max_steps} 次讀取 · 期限 ${goal.deadline}`;
+          card.append(title, scope, budget);
+          const approval = document.createElement("p"); approval.textContent = goal.task.approved_at ? `批准時間：${goal.task.approved_at}` : "尚未批准；建立待審任務沒有開始讀取。"; card.appendChild(approval);
+          if (goal.task.pause_reason) { const reason = document.createElement("p"); reason.textContent = pauses[goal.task.pause_reason]; card.appendChild(reason); }
+          const details = document.createElement("pre"); details.style = "white-space:pre-wrap;overflow-wrap:anywhere";
+          const lines = [];
+          for (const path of goal.task.paths) {
+            const item = goal.task.observations.find(value => value.path === path);
+            if (!item) { lines.push(`${path}：${goal.task.intent_path === path ? "讀取結果未知（曾開始，尚無保存結果）" : "尚未讀取"}`); continue; }
+            if (item.status === "failed") { lines.push(`${path}：${errors[item.error]} · ${item.read_at}`); continue; }
+            lines.push(`${path}：已讀取 · ${item.read_at}`, `SHA256：${item.sha256}`);
+            for (const match of item.matches) lines.push(`第 ${match.line} 行：${match.text}`);
+            if (!item.matches.length) lines.push("這次讀取未找到未勾選待辦／TODO／FIXME。");
+            if (item.truncated) lines.push("清單有截短；不是完整待辦內容。");
+          }
+          details.textContent = lines.join("\n"); card.appendChild(details);
+          const actions = ["completed", "failed", "cancelled"].includes(goal.state) ? ["remove"]
+            : goal.state === "proposed" ? ["approve", "cancel"]
+            : goal.state === "waiting_external" ? ["resume", "cancel"] : ["pause", "cancel"];
+          const names = {approve:"批准這些檔案的唯讀任務", resume:"明確繼續保存任務", pause:"暫停任務", cancel:"取消任務", remove:"清除這項任務紀錄"};
+          const controls = document.createElement("div"); controls.className = "quick-actions";
+          for (const action of actions) {
+            const button = document.createElement("button"); button.type = "button";
+            button.id = `goal-${goal.goal_id}-${action}`; button.textContent = names[action];
+            button.onclick = () => changeGoalTask(action, goal.goal_id, goal.revision);
+            controls.appendChild(button);
+          }
+          card.appendChild(controls); root.appendChild(card);
+        }
+        updateGoalTaskControls();
+      }
+      async function goalTaskRequest(url, options, epoch, connection, session) {
+        const current = () => !pageClosing && controlAuthenticated && epoch === goalTaskEpoch
+          && connection === controlEpoch && session === goalTaskSessionId && !options.signal.aborted;
+        let response;
+        if (options.method === "GET") response = await authorizedFetch(url, {...options, headers:headers()});
+        else {
+          const token = await sessionAccess.getToken();
+          if (!current()) throw new Error("retired task request");
+          const requestHeaders = new Headers(headers()); requestHeaders.set("Authorization", `Bearer ${token}`);
+          response = await fetch(url, {...options, headers:requestHeaders, redirect:"error"});
+        }
+        if (!current()) throw new Error("retired task request");
+        if (!response.ok || (response.url && new URL(response.url, location.origin).origin !== location.origin)) throw new Error("unconfirmed task request");
+        const data = await response.json();
+        if (!current() || new TextEncoder().encode(JSON.stringify(data)).length > 2 * 1024 * 1024) throw new Error("invalid task response");
+        return data;
+      }
+      function scheduleGoalTaskPoll() {
+        if (!goalTaskViews.some(goal => ["ready", "running"].includes(goal.state))) return;
+        if (goalTaskPolls >= 30) { document.querySelector("#goal-task-status").textContent = "自動查詢已達上限；請手動重新查詢保存狀態。沒有重送操作。"; return; }
+        const epoch = goalTaskEpoch, connection = controlEpoch, session = goalTaskSessionId;
+        goalTaskPollTimer = setTimeout(() => {
+          goalTaskPollTimer = undefined;
+          if (pageClosing || !controlAuthenticated || epoch !== goalTaskEpoch || connection !== controlEpoch || session !== goalTaskSessionId) return;
+          goalTaskPolls += 1; refreshGoalTasks(true);
+        }, 1000);
+      }
+      async function performGoalTaskRequest(method, suffix, body, accept) {
+        if (pageClosing || !controlAuthenticated || (method !== "GET" && (goalTaskBusy || goalTaskNeedsReadback))) return;
+        const previous = goalTaskViews.slice();
+        clearGoalTasks(method === "GET" ? "正在查詢保存狀態…" : "正在提交；連線中斷時請先重新查詢結果。", goalTaskNeedsReadback);
+        goalTaskBusy = true; updateGoalTaskControls();
+        const epoch = goalTaskEpoch, connection = controlEpoch, session = goalTaskSessionId, controller = new AbortController();
+        goalTaskController = controller;
+        const unknown = method === "GET" ? "目前無法確認任務，請手動重新查詢。" : "提交結果未確認；沒有自動重送。請先重新查詢保存狀態。";
+        const timeout = setTimeout(() => { if (epoch === goalTaskEpoch) clearGoalTasks(unknown, true); }, 5000);
+        goalTaskTimeout = timeout;
+        let valid = false;
+        try {
+          const data = await goalTaskRequest(`/v1/goal-tasks/${encodeURIComponent(session)}${suffix}`, {
+            method, cache:"no-store", signal:controller.signal, ...(body === undefined ? {} : {body:JSON.stringify(body)})
+          }, epoch, connection, session);
+          if (pageClosing || epoch !== goalTaskEpoch || connection !== controlEpoch || controller.signal.aborted) return;
+          if (!accept(data, previous)) throw new Error("invalid task view");
+          goalTaskNeedsReadback = false; valid = true;
+          document.querySelector("#goal-task-status").textContent = goalTaskAvailable
+            ? `${new Date().toLocaleString()} 保存狀態快照；批准與繼續需要你明確按一次。`
+            : "已讀取保存紀錄；目前不能開工，可取消或清除已結束任務。";
+          renderGoalTasks();
+        } catch {
+          if (epoch === goalTaskEpoch && !pageClosing) clearGoalTasks(unknown, true);
+        } finally {
+          clearTimeout(timeout);
+          if (epoch === goalTaskEpoch) { goalTaskController = undefined; goalTaskTimeout = undefined; goalTaskBusy = false; updateGoalTaskControls(); }
+        }
+        if (valid && epoch === goalTaskEpoch) scheduleGoalTaskPoll();
+      }
+      async function refreshGoalTasks(poll = false) {
+        if (!poll) goalTaskPolls = 0;
+        await performGoalTaskRequest("GET", "", undefined, data => {
+          if (!acceptedGoalTaskList(data)) return false;
+          goalTaskViews = data.goals; goalTaskAvailable = data.available; return true;
+        });
+      }
+      async function changeGoalTask(action, goalId, revision) {
+        const old = goalTaskViews.find(goal => goal.goal_id === goalId && goal.revision === revision);
+        if (!old || goalTaskBusy || goalTaskNeedsReadback || !controlAuthenticated || pageClosing) return;
+        const allowed = ["completed", "failed", "cancelled"].includes(old.state) ? ["remove"]
+          : old.state === "proposed" ? ["approve", "cancel"]
+          : old.state === "waiting_external" ? ["resume", "cancel"] : ["pause", "cancel"];
+        if (!allowed.includes(action) || (["approve", "resume"].includes(action) && !goalTaskAvailable)) return;
+        goalTaskPolls = 0;
+        await performGoalTaskRequest(action === "remove" ? "DELETE" : "POST", `/${encodeURIComponent(goalId)}${action === "remove" ? "" : `/${action}`}`, {revision}, (data, previous) => {
+          if (action === "remove") {
+            if (!goalTaskExactKeys(data, ["removed"]) || data.removed !== true) return false;
+            goalTaskViews = previous.filter(goal => goal.goal_id !== goalId); return true;
+          }
+          if (!goalTaskExactKeys(data, ["goal"]) || !acceptedGoalTask(data.goal) || data.goal.goal_id !== goalId
+            || data.goal.revision < revision || (["approve", "resume"].includes(action) && data.goal.revision === revision)
+            || JSON.stringify(data.goal.task.paths) !== JSON.stringify(old.task.paths)
+            || (action !== "approve" && data.goal.task.approved_at !== old.task.approved_at)
+            || (action === "approve" && (data.goal.task.approved_at === null || data.goal.state === "proposed"))
+            || (action === "cancel" && !["completed", "failed", "cancelled"].includes(data.goal.state))
+            || (action === "pause" && !["waiting_external", "completed", "failed", "cancelled"].includes(data.goal.state))) return false;
+          goalTaskViews = previous.map(goal => goal.goal_id === goalId ? data.goal : goal); return true;
+        });
+      }
+      document.querySelector("#goal-task-refresh").onclick = () => refreshGoalTasks();
+      document.querySelector("#goal-task-create").onclick = async () => {
+        if (pageClosing || !controlAuthenticated || goalTaskBusy || goalTaskNeedsReadback || !goalTaskAvailable || goalTaskViews.length >= 20) return;
+        const paths = document.querySelector("#goal-task-paths").value.split(/\r?\n/);
+        if (paths.length < 1 || paths.length > 5 || !paths.every(path => validGoalTaskPath(path) && path === path.trim()) || new Set(paths).size !== paths.length) {
+          document.querySelector("#goal-task-status").textContent = "請填 1–5 個不同的工作目錄內相對路徑，每行一個；不要加入首尾空白、上層路徑或完整電腦路徑。"; return;
+        }
+        goalTaskPolls = 0;
+        await performGoalTaskRequest("POST", "", {paths}, (data, previous) => {
+          if (!goalTaskExactKeys(data, ["goal"]) || !acceptedGoalTask(data.goal) || data.goal.state !== "proposed"
+            || data.goal.task.approved_at !== null || data.goal.steps_used !== 0 || data.goal.task.intent_path !== null
+            || data.goal.task.observations.length !== 0 || JSON.stringify(data.goal.task.paths) !== JSON.stringify(paths)
+            || previous.some(goal => goal.goal_id === data.goal.goal_id) || previous.length >= 20) return false;
+          goalTaskViews = [data.goal, ...previous]; return true;
+        });
+      };
       function clearImprovementProposal(message = "快照已清除；請重新查詢最新來源。") {
         improvementEpoch += 1; improvementController?.abort(); improvementController = undefined;
         clearTimeout(improvementTimeout); improvementTimeout = undefined;
@@ -778,6 +1011,7 @@
       }
       async function submitText(value, inputMode = "text") {
         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
+        if (typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
         const submission = ++submissionGeneration;
         pendingSubmission?.abort(); pendingSubmission = undefined;
         stopTts(); speechCancelled = false;

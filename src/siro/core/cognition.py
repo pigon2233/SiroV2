@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 from uuid import uuid4
 
 from siro.core.affect import CopingStrategy, DriveState, MoodState
+from siro.core.goal_tasks import GoalTask
 
 
 class Clock(Protocol):
@@ -277,6 +278,7 @@ class Goal:
     cost_used: float = 0
     max_cost: float = 0
     revision: int = 1
+    task: GoalTask | None = None
 
     @property
     def budget_available(self) -> bool:
@@ -325,17 +327,7 @@ class GoalService:
         goal = await self._required(goal_id)
         if state not in _GOAL_TRANSITIONS[goal.state]:
             raise ValueError(f"invalid goal transition: {goal.state} -> {state}")
-        updated = Goal(
-            goal.goal_id,
-            state,
-            goal.next_step,
-            goal.deadline,
-            goal.steps_used,
-            goal.max_steps,
-            goal.cost_used,
-            goal.max_cost,
-            goal.revision + 1,
-        )
+        updated = replace(goal, state=state, revision=goal.revision + 1)
         if not await self._repository.replace(updated, expected_revision=goal.revision):
             raise RuntimeError("goal revision conflict")
         return updated
@@ -350,17 +342,39 @@ class GoalService:
             return await self.transition(goal_id, GoalState.FAILED)
         if not goal.budget_available or (goal.max_cost and goal.cost_used + cost > goal.max_cost):
             return await self.transition(goal_id, GoalState.FAILED)
-        updated = Goal(
-            goal.goal_id,
-            goal.state,
-            goal.next_step,
-            goal.deadline,
-            goal.steps_used + 1,
-            goal.max_steps,
-            goal.cost_used + cost,
-            goal.max_cost,
-            goal.revision + 1,
+        updated = replace(
+            goal,
+            steps_used=goal.steps_used + 1,
+            cost_used=goal.cost_used + cost,
+            revision=goal.revision + 1,
         )
+        if not await self._repository.replace(updated, expected_revision=goal.revision):
+            raise RuntimeError("goal revision conflict")
+        return updated
+
+    async def approve_task(self, goal_id: str, *, expected_revision: int) -> Goal:
+        goal = await self._required(goal_id)
+        if goal.state is not GoalState.PROPOSED or goal.task is None:
+            raise ValueError("task is not awaiting approval")
+        if goal.revision != expected_revision:
+            raise RuntimeError("goal revision conflict")
+        task = goal.task.model_copy(update={"approved_at": self._clock.now()})
+        updated = replace(goal, state=GoalState.READY, task=task, revision=goal.revision + 1)
+        if not await self._repository.replace(updated, expected_revision=goal.revision):
+            raise RuntimeError("goal revision conflict")
+        return updated
+
+    async def checkpoint_task(self, goal_id: str, task: GoalTask, *, next_step: str | None) -> Goal:
+        goal = await self._required(goal_id)
+        if goal.task is None or goal.state not in {GoalState.RUNNING, GoalState.WAITING_EXTERNAL}:
+            raise ValueError("task cannot be checkpointed")
+        task = GoalTask.model_validate_json(task.model_dump_json())
+        binding = ("profile", "owner_session_id", "workspace", "paths", "approved_at")
+        if any(getattr(task, name) != getattr(goal.task, name) for name in binding):
+            raise ValueError("approved task scope cannot change")
+        if task.observations[: len(goal.task.observations)] != goal.task.observations:
+            raise ValueError("task observations cannot be replaced")
+        updated = replace(goal, task=task, next_step=next_step, revision=goal.revision + 1)
         if not await self._repository.replace(updated, expected_revision=goal.revision):
             raise RuntimeError("goal revision conflict")
         return updated

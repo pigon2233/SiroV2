@@ -150,12 +150,16 @@
 
 ### T19 Attention、Drives、Workspace、Goals
 
+D57 產品接入子切片／FIX-021：已批准的固定文件唯讀任務，沿現有GoalService/Planner/goals→Rust→來源結果。契約D57、修復卡/證據見runtime-evolution/FIX_REGISTER.md與evidence/T19-goal-loop-2026-10-14/REPORT.md。原L1成果保留；完整自主goal不以此子切片宣告DONE。
+
 - 依賴：T17、T05、T06。輸入：PLAN §6。
 - 步驟：注入 clock、固定初始 scorer、hard gates、有限 context、goal 狀態、步數/費用預算、候選 action 及原因記錄。
 - 產出：認知模組、planner structured schema、replayable fixtures。
 - 驗收：相同事件/clock 得同一選擇；噪音 flood 不觸發大量 LLM；user input/cancel 不被背景驅動蓋過。
 
 ### T20 主動陪伴與使用者控制
+
+D57 跨任務控制沿本卡：owner明確批准後離開可繼續有界讀取，foreground/tools-off/shutdown取消join；重開只保留待續，不能自批/自動執行。這不是新增自發問候或通用排程框架。
 
 - 依賴：T18、T19、T16。輸入：quiet/busy/cooldown 配置。
 - 步驟：加入回家、久未完成任務、環境變化候選；do_nothing、每日上限、靜音、勿擾、理由可查。

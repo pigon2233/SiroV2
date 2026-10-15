@@ -430,3 +430,12 @@ One existing D41 fact supports a useful investigation view without another sched
 ## D56 / 2026-10-14 / accepted / FIX-020 release digest framing
 
 A true two-tree probe invalidated the original source digest identity; seal/copy would freeze different bytes sharing the same v1 signature. Local repair precedes new launch abstraction: explicit v2 framed source digest and manifest tag, with v1 inspection unchanged and v1 execution denied. Reapproval is explicit/new version; no silent hash or trust migration. CONTRACTS D56 and ARCHITECTURE_CORRECTION record scope, compatibility, fixture-only updates and acceptance. RI005 remains blocked until this repair; immutable namespace/graceful lifecycle/adoption/handoff still need their own evidence.
+
+
+## D57 / 2026-10-14 / accepted / T19-T20 product goal loop
+
+Accept the owner's architecture audit F1: retain the existing foundation but shift investment to a visible durable goal loop. First profile reads 1–5 explicitly selected workspace text files and inventories sourced TODOs. Reuse GoalService/Planner/goals, add nullable typed metadata and one fixed caller; no second store/planner, generic scheduler or model-driven full execution. Keep release/autonomy/quality gates separate. Limited file reads require a local Rust leaf repair before background use; no directory scan. CONTRACTS D57 fixes approval, CAS, lifecycle, restart, limits and actual product acceptance before implementation.
+
+## D58 / 2026-10-15 / accepted / RT-005-FIX-02 cancellation reserve
+
+True full cancellation5.090748s and controlled baseline/candidate300ms journal-delay RED invalidate the old D22 assumption that4.75s handler waiting leaves adequate room in a5s controller gate. Locally reserve1s only for all-arguments-only cancellation; keep contextual/mixed4.75s and argv4.5s unchanged. Retain unknown/fence/late ownership, original user deadline and original tests. No change to Integrated/SQLite/backend architecture. Separately, D57's old latest-schema13 fixture moves to the fixed journal13 slot/name, preserving all compatibility assertions; no SQL/release-bound changes. CONTRACTS D58 and ARCHITECTURE_CORRECTION define proof and scope before repair.

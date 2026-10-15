@@ -1,0 +1,252 @@
+{
+  "status": "PASS",
+  "phase": "green",
+  "baseline_public_commit": "5c67c6f78f36833e526626b2d3481654bd823165",
+  "new_test": "tests/integration/test_cancel_budget_reserve.py",
+  "source_before": {
+    "runtime/siro-runtime/src/linux.rs": "336d34244c4adf3f2252dc7283f9540018de689a10de3f0b38220da878609520",
+    "src/siro/core/cognition.py": "aff1987df45ccc50a549712d639d03c88452a8a584035978d134fe43a8839234",
+    "src/siro/core/goal_tasks.py": "af4af86e7233d7f2314ccc9ff9ff86e87dd096bce52be1668f5f5bfa572c2ead",
+    "src/siro/persistence/goals.py": "d5e6f067cff5190a9389ef3c431eb55a2b24a7749d9d8b3c7251b291dfeb326a",
+    "src/siro/persistence/migrations/014_goal_tasks.sql": "e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34",
+    "src/siro/services/agent/goal_tasks.py": "0b0ecfc2099e1538068e15925b5eaad1ce0b0c05a91046b5849687876779bc3a",
+    "src/siro/services/presentation/gateway.py": "9e52cd7c7e4ec392d80901619310eedeaa76d2ad1d82701602f6eed55c4f812b",
+    "src/siro/services/presentation/static/index.html": "feac42bb3b64855b1f00ae60a920ac7b49d69804e5fb4218f7ac446d7b6d0bf3",
+    "src/siro/services/tools/orchestrator.py": "2451350a4c6884c00cc1a646cd6f869f98e750d8b7562550eb8933f98830f8f0",
+    "tests/integration/test_cancel_budget_reserve.py": "c2622ab1341282f6b3c42c642a4763e2ad1d962966f2a26ae0c5fbd9b83ea251",
+    "tests/integration/test_execution_lifecycle.py": "5671db4f6dc7b4eacf45393c44b999e273d8df238e641b0a4bd4ef54a66edf61",
+    "src/siro/services/presentation/integrated.py": "06c6b510b2905408b4734b2a9aa0eb685d267e954c10a5923c6e0b09e9c66698",
+    "src/siro/services/tools/execution.py": "f8bcf7e3021c83d7e6c761803a9039f7141ec439be71131b5e1c0dad5c5b6025",
+    "src/siro/adapters/process_execution.py": "340dfc09933d804e7b25395f5a8a1a19f5a93c40d50012931b24614755cf19a8",
+    "src/siro/services/agent/runs.py": "785a9d8bd4c89e9f92a948d4ff9b53e0cf18c82b8ea4ceaddc70380f166a7d47",
+    "src/siro/core/conversation.py": "520821243bffc40010bf979872dd2cccee9f72e74b25b3922dc4de7f99703c78"
+  },
+  "source_overlay": [
+    "runtime/siro-runtime/src/linux.rs",
+    "src/siro/core/cognition.py",
+    "src/siro/core/goal_tasks.py",
+    "src/siro/persistence/goals.py",
+    "src/siro/persistence/migrations/014_goal_tasks.sql",
+    "src/siro/services/agent/goal_tasks.py",
+    "src/siro/services/presentation/gateway.py",
+    "src/siro/services/presentation/static/index.html",
+    "src/siro/services/tools/orchestrator.py",
+    "tests/integration/test_cancel_budget_reserve.py"
+  ],
+  "main_private_tree_scanned": false,
+  "controlled_terminal_bookkeeping_seconds": 0.5,
+  "controlled_contextual_cleanup_seconds": 4.2,
+  "original_total_bound_seconds": 5,
+  "old_assertions_modified": false,
+  "full_suite_delay_root_cause_claimed": false,
+  "unchanged_integrated_execution_backend_and_journal": [
+    "src/siro/services/presentation/integrated.py",
+    "src/siro/services/tools/execution.py",
+    "src/siro/adapters/process_execution.py",
+    "src/siro/services/agent/runs.py",
+    "src/siro/core/conversation.py"
+  ],
+  "checks": [
+    {
+      "name": "green-new-tests",
+      "command": [
+        "/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_cancel_budget_reserve.py"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "original-lifecycle-tests",
+      "command": [
+        "/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_execution_lifecycle.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 21.33,
+      "child_joined": true
+    },
+    {
+      "name": "reverse-check",
+      "command": [
+        "git",
+        "apply",
+        "--reverse",
+        "--check",
+        "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/T19-goal-loop-2026-10-14/cancel-budget/orchestrator-repair.patch"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.002,
+      "child_joined": true
+    },
+    {
+      "name": "reverse-apply",
+      "command": [
+        "git",
+        "apply",
+        "--reverse",
+        "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/T19-goal-loop-2026-10-14/cancel-budget/orchestrator-repair.patch"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.002,
+      "child_joined": true
+    },
+    {
+      "name": "reversed-new-tests",
+      "command": [
+        "/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_cancel_budget_reserve.py"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 11.897,
+      "child_joined": true
+    },
+    {
+      "name": "reapply-check",
+      "command": [
+        "git",
+        "apply",
+        "--check",
+        "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/T19-goal-loop-2026-10-14/cancel-budget/orchestrator-repair.patch"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.002,
+      "child_joined": true
+    },
+    {
+      "name": "reapply-apply",
+      "command": [
+        "git",
+        "apply",
+        "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/T19-goal-loop-2026-10-14/cancel-budget/orchestrator-repair.patch"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.002,
+      "child_joined": true
+    },
+    {
+      "name": "reapplied-new-tests",
+      "command": [
+        "/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_cancel_budget_reserve.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 11.098,
+      "child_joined": true
+    }
+  ],
+  "command": [
+    "/home/jasonliao/文件/Siro/SiroV2/.venv/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/integration/test_cancel_budget_reserve.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 11.12,
+  "owned_subprocess_joined": true,
+  "owned_temporary_root": "/tmp/g58budget-0oe_6_s9",
+  "owned_source_before": {
+    "runtime/siro-runtime/src/linux.rs": "336d34244c4adf3f2252dc7283f9540018de689a10de3f0b38220da878609520",
+    "src/siro/core/cognition.py": "aff1987df45ccc50a549712d639d03c88452a8a584035978d134fe43a8839234",
+    "src/siro/core/goal_tasks.py": "af4af86e7233d7f2314ccc9ff9ff86e87dd096bce52be1668f5f5bfa572c2ead",
+    "src/siro/persistence/goals.py": "d5e6f067cff5190a9389ef3c431eb55a2b24a7749d9d8b3c7251b291dfeb326a",
+    "src/siro/persistence/migrations/014_goal_tasks.sql": "e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34",
+    "src/siro/services/agent/goal_tasks.py": "0b0ecfc2099e1538068e15925b5eaad1ce0b0c05a91046b5849687876779bc3a",
+    "src/siro/services/presentation/gateway.py": "9e52cd7c7e4ec392d80901619310eedeaa76d2ad1d82701602f6eed55c4f812b",
+    "src/siro/services/presentation/static/index.html": "feac42bb3b64855b1f00ae60a920ac7b49d69804e5fb4218f7ac446d7b6d0bf3",
+    "src/siro/services/tools/orchestrator.py": "2451350a4c6884c00cc1a646cd6f869f98e750d8b7562550eb8933f98830f8f0",
+    "tests/integration/test_cancel_budget_reserve.py": "c2622ab1341282f6b3c42c642a4763e2ad1d962966f2a26ae0c5fbd9b83ea251",
+    "tests/integration/test_execution_lifecycle.py": "5671db4f6dc7b4eacf45393c44b999e273d8df238e641b0a4bd4ef54a66edf61",
+    "src/siro/services/presentation/integrated.py": "06c6b510b2905408b4734b2a9aa0eb685d267e954c10a5923c6e0b09e9c66698",
+    "src/siro/services/tools/execution.py": "f8bcf7e3021c83d7e6c761803a9039f7141ec439be71131b5e1c0dad5c5b6025",
+    "src/siro/adapters/process_execution.py": "340dfc09933d804e7b25395f5a8a1a19f5a93c40d50012931b24614755cf19a8",
+    "src/siro/services/agent/runs.py": "785a9d8bd4c89e9f92a948d4ff9b53e0cf18c82b8ea4ceaddc70380f166a7d47",
+    "src/siro/core/conversation.py": "520821243bffc40010bf979872dd2cccee9f72e74b25b3922dc4de7f99703c78"
+  },
+  "owned_source_after": {
+    "runtime/siro-runtime/src/linux.rs": "336d34244c4adf3f2252dc7283f9540018de689a10de3f0b38220da878609520",
+    "src/siro/core/cognition.py": "aff1987df45ccc50a549712d639d03c88452a8a584035978d134fe43a8839234",
+    "src/siro/core/goal_tasks.py": "af4af86e7233d7f2314ccc9ff9ff86e87dd096bce52be1668f5f5bfa572c2ead",
+    "src/siro/persistence/goals.py": "d5e6f067cff5190a9389ef3c431eb55a2b24a7749d9d8b3c7251b291dfeb326a",
+    "src/siro/persistence/migrations/014_goal_tasks.sql": "e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34",
+    "src/siro/services/agent/goal_tasks.py": "0b0ecfc2099e1538068e15925b5eaad1ce0b0c05a91046b5849687876779bc3a",
+    "src/siro/services/presentation/gateway.py": "9e52cd7c7e4ec392d80901619310eedeaa76d2ad1d82701602f6eed55c4f812b",
+    "src/siro/services/presentation/static/index.html": "feac42bb3b64855b1f00ae60a920ac7b49d69804e5fb4218f7ac446d7b6d0bf3",
+    "src/siro/services/tools/orchestrator.py": "2451350a4c6884c00cc1a646cd6f869f98e750d8b7562550eb8933f98830f8f0",
+    "tests/integration/test_cancel_budget_reserve.py": "c2622ab1341282f6b3c42c642a4763e2ad1d962966f2a26ae0c5fbd9b83ea251",
+    "tests/integration/test_execution_lifecycle.py": "5671db4f6dc7b4eacf45393c44b999e273d8df238e641b0a4bd4ef54a66edf61",
+    "src/siro/services/presentation/integrated.py": "06c6b510b2905408b4734b2a9aa0eb685d267e954c10a5923c6e0b09e9c66698",
+    "src/siro/services/tools/execution.py": "f8bcf7e3021c83d7e6c761803a9039f7141ec439be71131b5e1c0dad5c5b6025",
+    "src/siro/adapters/process_execution.py": "340dfc09933d804e7b25395f5a8a1a19f5a93c40d50012931b24614755cf19a8",
+    "src/siro/services/agent/runs.py": "785a9d8bd4c89e9f92a948d4ff9b53e0cf18c82b8ea4ceaddc70380f166a7d47",
+    "src/siro/core/conversation.py": "520821243bffc40010bf979872dd2cccee9f72e74b25b3922dc4de7f99703c78"
+  },
+  "leaf_patch_sha256": "d939a1486f86a91e7247799b79405294abd88f28fb77dfb2f8224fe5a4a71f35",
+  "leaf_reverse_baseline_sha256": "6f9323fcd7846c6a0257c34afca82a342e4233101f488d9466ed561bb426fecd",
+  "leaf_reapply_final_sha256": "2451350a4c6884c00cc1a646cd6f869f98e750d8b7562550eb8933f98830f8f0",
+  "reversed_source_hashes": {
+    "runtime/siro-runtime/src/linux.rs": "336d34244c4adf3f2252dc7283f9540018de689a10de3f0b38220da878609520",
+    "src/siro/core/cognition.py": "aff1987df45ccc50a549712d639d03c88452a8a584035978d134fe43a8839234",
+    "src/siro/core/goal_tasks.py": "af4af86e7233d7f2314ccc9ff9ff86e87dd096bce52be1668f5f5bfa572c2ead",
+    "src/siro/persistence/goals.py": "d5e6f067cff5190a9389ef3c431eb55a2b24a7749d9d8b3c7251b291dfeb326a",
+    "src/siro/persistence/migrations/014_goal_tasks.sql": "e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34",
+    "src/siro/services/agent/goal_tasks.py": "0b0ecfc2099e1538068e15925b5eaad1ce0b0c05a91046b5849687876779bc3a",
+    "src/siro/services/presentation/gateway.py": "9e52cd7c7e4ec392d80901619310eedeaa76d2ad1d82701602f6eed55c4f812b",
+    "src/siro/services/presentation/static/index.html": "feac42bb3b64855b1f00ae60a920ac7b49d69804e5fb4218f7ac446d7b6d0bf3",
+    "src/siro/services/tools/orchestrator.py": "6f9323fcd7846c6a0257c34afca82a342e4233101f488d9466ed561bb426fecd",
+    "tests/integration/test_cancel_budget_reserve.py": "c2622ab1341282f6b3c42c642a4763e2ad1d962966f2a26ae0c5fbd9b83ea251",
+    "tests/integration/test_execution_lifecycle.py": "5671db4f6dc7b4eacf45393c44b999e273d8df238e641b0a4bd4ef54a66edf61",
+    "src/siro/services/presentation/integrated.py": "06c6b510b2905408b4734b2a9aa0eb685d267e954c10a5923c6e0b09e9c66698",
+    "src/siro/services/tools/execution.py": "f8bcf7e3021c83d7e6c761803a9039f7141ec439be71131b5e1c0dad5c5b6025",
+    "src/siro/adapters/process_execution.py": "340dfc09933d804e7b25395f5a8a1a19f5a93c40d50012931b24614755cf19a8",
+    "src/siro/services/agent/runs.py": "785a9d8bd4c89e9f92a948d4ff9b53e0cf18c82b8ea4ceaddc70380f166a7d47",
+    "src/siro/core/conversation.py": "520821243bffc40010bf979872dd2cccee9f72e74b25b3922dc4de7f99703c78"
+  },
+  "leaf_reverse_changed_paths": [
+    "src/siro/services/tools/orchestrator.py"
+  ],
+  "final_new_tests": "2 PASS",
+  "original_lifecycle_tests": "25 PASS",
+  "source_reverse_new_tests": "1 FAIL / 1 PASS",
+  "source_reapply_new_tests": "2 PASS",
+  "original_backend_cleanup_timeout_seconds": 4.5,
+  "contextual_or_mixed_cleanup_timeout_seconds": 4.75,
+  "arguments_only_cleanup_timeout_seconds": 4.0,
+  "owned_temporary_root_removed": true,
+  "source_after": {
+    "runtime/siro-runtime/src/linux.rs": "336d34244c4adf3f2252dc7283f9540018de689a10de3f0b38220da878609520",
+    "src/siro/core/cognition.py": "aff1987df45ccc50a549712d639d03c88452a8a584035978d134fe43a8839234",
+    "src/siro/core/goal_tasks.py": "af4af86e7233d7f2314ccc9ff9ff86e87dd096bce52be1668f5f5bfa572c2ead",
+    "src/siro/persistence/goals.py": "d5e6f067cff5190a9389ef3c431eb55a2b24a7749d9d8b3c7251b291dfeb326a",
+    "src/siro/persistence/migrations/014_goal_tasks.sql": "e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34",
+    "src/siro/services/agent/goal_tasks.py": "0b0ecfc2099e1538068e15925b5eaad1ce0b0c05a91046b5849687876779bc3a",
+    "src/siro/services/presentation/gateway.py": "9e52cd7c7e4ec392d80901619310eedeaa76d2ad1d82701602f6eed55c4f812b",
+    "src/siro/services/presentation/static/index.html": "feac42bb3b64855b1f00ae60a920ac7b49d69804e5fb4218f7ac446d7b6d0bf3",
+    "src/siro/services/tools/orchestrator.py": "2451350a4c6884c00cc1a646cd6f869f98e750d8b7562550eb8933f98830f8f0",
+    "tests/integration/test_cancel_budget_reserve.py": "c2622ab1341282f6b3c42c642a4763e2ad1d962966f2a26ae0c5fbd9b83ea251",
+    "tests/integration/test_execution_lifecycle.py": "5671db4f6dc7b4eacf45393c44b999e273d8df238e641b0a4bd4ef54a66edf61",
+    "src/siro/services/presentation/integrated.py": "06c6b510b2905408b4734b2a9aa0eb685d267e954c10a5923c6e0b09e9c66698",
+    "src/siro/services/tools/execution.py": "f8bcf7e3021c83d7e6c761803a9039f7141ec439be71131b5e1c0dad5c5b6025",
+    "src/siro/adapters/process_execution.py": "340dfc09933d804e7b25395f5a8a1a19f5a93c40d50012931b24614755cf19a8",
+    "src/siro/services/agent/runs.py": "785a9d8bd4c89e9f92a948d4ff9b53e0cf18c82b8ea4ceaddc70380f166a7d47",
+    "src/siro/core/conversation.py": "520821243bffc40010bf979872dd2cccee9f72e74b25b3922dc4de7f99703c78"
+  },
+  "workspace_source_and_original_test_preserved": true
+}

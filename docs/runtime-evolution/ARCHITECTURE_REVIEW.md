@@ -1,5 +1,25 @@
 # SIRO V2 Architecture Review
 
+## 2026-10-15 — CONDITIONAL / D57 durable product goal caller locally VERIFIED
+
+**Overall architecture health：YELLOW / CONDITIONAL。** 負責人審計F1成立，保留既有底座並接一個真caller；整體goal生成/語義評估、智慧品質、自修與正式發布仍PARTIAL。
+
+**Recent improvements。** 主產品明確propose→approve→GoalService/Planner→真Rustread→持久來源結果→pause/cancel/reopen，1–5精確檔案而不掃目錄，單activeowner/20goalrows與budget/deadline。三次actualmain/IAB過程保留pending/completed，零restartreplay；來源更正保新舊觀測。
+
+**Architecture drift found。** 原missingintegration不是需要新框架的證據。candidate filename none/foregroundhydration/callbackfailed/shortcut/startupcorrupt均真RED後最小修；D58補原cancelbudget設計缺陷，只solearguments4.0 reserve1s，contextual/mixed4.75/backend4.5未改。Core純typedmetadata；servicefixedcaller重用既有ports/repos，Gateway薄傳輸/lifecycle。未見新增Core→provider/UI/OSdriver、duplicatestore/cycle/globalowner/自批路径。
+
+**Regression risk changes。** 新source/persistence/foreground交互由179goalcases＋2deadlinecases補baseline，舊134/135Python與13SQL原bytes，唯一journal身份fixture其餘assert保。完整clean public fetchedGit `scripts/check` **EXIT0 /578.090s**：**1,994PASS /5原opt-inSKIP /7既有warnings /259.88s**（collected1,999）；Rust13/fmt/build/clippy、Ruff328、mypy261、schema、原scanner/strictgate全部實際完成。15source/testhash保持，134原Python與13SQL不變，唯一journalfixture固定13slot/name、其餘原assert保留；495observedownedprocess全gone、rootsremoved。 TrueRust/IAB/SQL/3reopen與8source/另leafrollbackPASS；原第3full4FAIL留證，actualextra340ms來源未定位而非捏造migrationregression。realprovider5未選不當已驗；exactheadcloud另驗。
+
+**Technical debt introduced。** 唯一nullable/versionedtypedtask_json，20限只taskrows，已有planningjournalappendretention仍TECH_DEBT/terminalclear刪owntrace。TODO提取不等於學習；觀測是時間點，需新批准讀更正來源；schema14不自升舊13receipt信任。固定profile擴張須具體caller/收益/驗收。
+
+**Roadmap adjustments。** REORDER真T19/T20loop；KEEP/SPLIT結果評估与通用自主、FIX002/005/006品质與RI005handoff。REJECT duplicateplanner/memory/updater或自批抽象，無證據cancel有效原RT，原编号/限定done保持、不ranking。
+
+**New blockers。** 本slicelocal修復gates解除；newheadcloud/publishscope另驗。廣泛背景ownerargv不等於sandbox；immutableimport/oldwriter/handoff及語音/理解/真硬體/24h仍各自門檻，未代證正式release。
+
+**Freeze zone changes。** 局部goal/read/cancel不變量與測試/證據GREEN；Core/service/Gateway/page/typed新metadata整體YELLOW；liveDB/廣泛自主权限/正式發布RED。**Hermes relevance。** 保留有caller且收益可測的goal/來源/規劃，REJECT為原計劃擴第二框架或自批。
+
+**Recommended next3 existing scopes（非ranking）。** T19/T20結果完成判定；FIX002/005/006可核對品質；T21/T32/RI005擴權/發布交接。CodebaseMemory不可呼叫/reindexNOT_RUN。[證據](../evidence/T19-goal-loop-2026-10-14/REPORT.md)。
+
 ## 2026-10-14 — FIX-020 / D56 source identity correction locally VERIFIED
 
 **Overall architecture health：YELLOW。** immutable-source研究發現原T32 source encoding並非一對一，D39完整HMAC無法補足。這是 ORIGINAL_DESIGN_ERROR / BAD_INTERFACE / TEST_GAP、REQUIRED_FIX/HIGH；唯一production releases.py局部更正，不重設runtime。

@@ -1,0 +1,54 @@
+   Compiling siro-runtime v0.1.0 (/home/jasonliao/文件/Siro/SiroV2/runtime/siro-runtime)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.26s
+     Running unittests src/lib.rs (target/debug/deps/siro_runtime-a8e276feebc361cb)
+
+running 7 tests
+test linux::tests::filesystem_read_rejects_invalid_utf8 ... ok
+
+thread 'linux::tests::filesystem_read_rejects_nonregular_directory' (374852) panicked at runtime/siro-runtime/src/linux.rs:436:9:
+assertion `left == right` failed
+  left: Err("Is a directory (os error 21)")
+ right: Err("non_regular_file")
+test linux::tests::filesystem_read_preserves_empty_exact_limit_and_utf8_result_shape ... note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+ok
+test linux::tests::filesystem_read_rejects_oversize_without_truncating ... ok
+test linux::tests::filesystem_read_preserves_scope_refusal_and_in_scope_symlink ... ok
+test linux::tests::filesystem_read_rejects_nonregular_directory ... FAILED
+
+thread 'linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation' (374851) panicked at runtime/siro-runtime/src/linux.rs:401:9:
+bounded sparse read failed: 
+running 1 test
+test linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation ... FAILED
+
+failures:
+
+failures:
+    linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+ 
+thread 'linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation' (374857) panicked at runtime/siro-runtime/src/linux.rs:388:13:
+assertion `left == right` failed
+  left: Err("out of memory")
+ right: Err("output_limit")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+test linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation ... FAILED
+
+thread 'linux::tests::filesystem_read_rejects_fifo_without_waiting_for_a_writer' (374849) panicked at runtime/siro-runtime/src/linux.rs:424:9:
+FIFO read blocked or was accepted: 
+running 1 test
+test linux::tests::filesystem_read_rejects_fifo_without_waiting_for_a_writer ...  
+test linux::tests::filesystem_read_rejects_fifo_without_waiting_for_a_writer ... FAILED
+
+failures:
+
+failures:
+    linux::tests::filesystem_read_rejects_fifo_without_waiting_for_a_writer
+    linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation
+    linux::tests::filesystem_read_rejects_nonregular_directory
+
+test result: FAILED. 4 passed; 3 failed; 0 ignored; 0 measured; 6 filtered out; finished in 3.01s
+
+error: test failed, to rerun pass `--lib`

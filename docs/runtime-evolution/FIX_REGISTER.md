@@ -1,5 +1,81 @@
 # Runtime Evolution Fix Register
 
+## RT-005-FIX-02 — reserve terminal bookkeeping inside cancellation deadline
+
+- Classification: REQUIRED_FIX.
+- Source types: ORIGINAL_DESIGN_ERROR / BAD_INTERFACE / TEST_GAP.
+- Source Task: D22 / RT-005-FIX-01; D57 complete verification.
+- Severity: MEDIUM.
+- Problem: All-arguments cleanup consumes4.75s of a5s end-to-end cancel allowance before terminal IO/body work.
+- Evidence: full1997-case suite4FAIL; original lifecycle cancel5.090748s at line799. Controlled300ms terminal transaction delay fails on baseline13 and candidate14; no-delaydirectcasespass. Exact fullrun excess IO/timer source remains unlocalized.
+- Expected Behavior: Original<5s cancellation gate, truthful unknown/FAILED and retained late ownership; contextual4.5s cleanup stays allowed.
+- Actual Behavior: Original caller can exceed5s even when individual cleanup wait obeys4.75s.
+- Root Cause: CONFIRMED inadequate original end-to-end budget allocation; do not attribute unlocalized walltime to new goal/schema logic.
+- Scope: One local timeout selection in existing ToolOrchestrator.cancel_run; controlled regression tests.
+- Files expected to change: services/tools/orchestrator.py; new test_cancel_budget_reserve.py; contracts/correction/evidence.
+- Files that MUST NOT change: Integrated, process execution/backend/PGID, original lifecycle tests/assertion5s, SQLite/oldSQL, policy/providers/voice/UI, dependencies/checks/CI.
+- Compatibility requirements: Same callbacks/states/errors; cancellation once, no newdispatch/lateUI/replay; retainactive handles to actualdone. Contextual/mixed4.75s and native4.5s remain.
+- Proposed repair: Allactive arguments-only use4.0s existingwait, leaving1s for terminalwork; other modes unchanged.
+- Tests required: Controlled0.5s journal-delay originalSLO RED→GREEN; contextual4.2s cleanup succeedsCANCELLED/ownedzero; originalunknown/late/crosssession/detach/cancel race25cases.
+- Regression tests: Fulloriginal gate with schema-awareD57journalfixture, actualnewheadcloud; no added skips or changed thresholds.
+- Acceptance criteria: TrueRED, local/focused/allchecksPASS with original<5sassert; exact leaf source-onlyreverse/reapply; lateownership/unknown unaffected.
+- Rollback method: Disable affectedentrypoints/drain, revertonlytimeoutchoice/newtest; preservealllatestjournal/DB. Reversalreopensdeadlinegate, notsafe-deployapproval.
+- Risk: LOWlocalbudget; arbitraryblockedOS/storageIO andmixedloadend-to-endbeyondscopedvalidationremainunproven.
+- Status: DONE / LOCAL_VERIFIED: new2/original25/exactleafreverseRED→reapplyGREEN, finalfullscripts/check EXIT0/578.090s (1994PASS/5oldoptinSKIP/7warnings). Removes only this local deadline blocker; exactheadcloud/publicscope separately checked, release/wider-autonomy gates remain.
+
+## FIX-021 — T19/T20 owner-approved product goal loop
+
+- Classification: REQUIRED_FIX.
+- Source types: MISSING_INTEGRATION / INCOMPLETE_TASK / TEST_GAP.
+- Source Task: T19/T20; owner-supplied 2026-10-14 architect audit F1 (no main-product GoalService/Planner caller).
+- Severity: HIGH.
+- Problem: Persisted goals/planning exist as components; the product cannot create, approve, execute and inspect a durable goal.
+- Evidence: `core/cognition.py` and `persistence/goals.py` existed at 5c67c6f; main composition had no goal caller. New true HTTP counterexamples caught a filename `none` colliding with the do-nothing candidate and a foreground DB-await approval window; raw RED is in `T19-goal-loop-2026-10-14/api/`.
+- Expected Behavior: One bounded approved task reaches actual results, retains source and pending intent across restart, gives foreground/cancel priority, and never resumes itself.
+- Actual Behavior: Original product has no goal entrypoint; candidate integration requires the local validation gates below. This is not a claim of general autonomous intelligence.
+- Root Cause: CONFIRMED missing composition/caller; component tests did not cover the product loop. The design already specifies goals/planning; no architecture correction is required.
+- Scope: One fixed `document-checklist-v1` caller reads 1–5 exact selected UTF-8 workspace files and inventories sourced TODOs; reuse existing GoalService/Planner/repositories and runtime boundary.
+- Files expected to change: `core/cognition.py`; new `core/goal_tasks.py`, `services/agent/goal_tasks.py`, migration014; `persistence/goals.py`; main/Gateway transport; existing page; three new integration tests; contracts/decision/evidence.
+- Files that MUST NOT change: Integrated/LLM/TTS/browser/skills/owner/release source, existing SQL migrations and Python tests except the exact latest-schema fixture identity correction in test_run_journal, dependencies/pins/CI/check gates, private data/config/keys/models/live8026. Separate RT-005-FIX-02 is the only additional production leaf.
+- Compatibility requirements: Old Goal constructor/rows/transitions remain valid with task=None; exact approval/session/workspace binding; tools-off stops new work; nullable schema14 is additive. A schema13-only approved release must reject schema14 without rewriting approval or data. No auto model authorization, intent replay or mutation retry.
+- Proposed repair: Typed closed nullable task metadata; explicit revision approve/resume; one cancel/join owner; persisted intent/result and read budget; no generic scheduler, second planner or store. Fix confirmed local caller bugs before completion.
+- Tests required: Actual main/HTTP/Rust/SQLite, auth/origin/no-store, malformed/cross-session/revision/scope negatives, 20-row retention/delete, foreground/kill-switch/pause/cancel/shutdown/timeout, SQLite join, three restarts, sources/SHA/time, UI approval and stale-state controls.
+- Regression tests: Original goal/planner/Gateway/UI/skill/release/owner/storage suites; full clean public Git checkout scripts/check; exact new-head cloud CI. Original tests remain unchanged except the approved schema-aware journal identity fixture; all other original assertions remain.
+- Acceptance criteria: Scoped negative/positive gates and original checks pass; actual visible product loop and normal owned-child shutdown proven; explicit source preservation and rollback. Completion means inventory read complete, not TODO execution or learned strategy.
+- Rollback method: Set `SIRO_GOAL_TASKS_ENABLED=0`, drain/join, roll back only source/UI integration. Retain schema14 column and all task/history/latest data; never drop/reverse SQL or silently authorize an old max_schema13 release. Approved compatible source rollback is a separate release gate.
+- Risk: MEDIUM integration/CAS/cancellation; no guarantee of autonomous goal creation, arbitrary computer sandbox, real provider quality, 24h operation or formal release.
+- Status: DONE / LOCAL_VERIFIED: final15-pathscripts/check EXIT0/578.090s, actualthreeprocess/IAB/readbackcycles, scopedsource-onlydata-retainingrollback and local fixes PASS. Removes only this local integration blocker; exactheadcloud/publicscope separately checked. T19/T20 broader autonomy remains PARTIAL, numbered history preserved.
+
+### D57 review dispositions without extra immediate tasks
+
+- The confirmed candidate ID/foreground window/callback/shortcut/startup-isolation defects are REQUIRED_FIX or MINOR_FIX implementation/integration gaps handled locally in FIX-021; raw RED, exact root causes and tests are linked in its report. They do not justify another planner/store or reopening unrelated RT history.
+- The initial interrupted original lifecycle F was DEFER/UNKNOWN; complete verification later proves a5.090748s deadline violation and controlled baseline/candidate budget sensitivity. Reclassified REQUIRED_FIX / ORIGINAL_DESIGN_ERROR as RT-005-FIX-02; actual fullrun extra duration remains unlocalized, not labeled false-positive or new goal logic regression.
+- Existing append-only planning/journal retention is **TECH_DEBT**;20 limit is only goal rows. Terminal goal cleanup removes this profile's trace. No automatic broader retention/scheduler is introduced.
+- Original T19/T20 component labels versus broader product completion are **DOCUMENTATION_ONLY / DOCUMENTATION_DRIFT**; clarified scope in STATUS/roadmap, no fake whole-product DONE.
+
+## RT-013-FIX-01 — bound the existing Rust filesystem.read leaf
+
+- Classification: REQUIRED_FIX.
+- Source types: IMPLEMENTATION_BUG / TEST_GAP.
+- Source Task: RT-013 read adapter; discovered while verifying FIX-021 background reads.
+- Severity: MEDIUM.
+- Problem: Read size limit was checked after full allocation; opening a FIFO could block a runtime worker.
+- Evidence: Existing `linux.rs` filesystem.read used fs::read then checked limit. Real pre-fix 4GiB sparse-file child under 128MiB limit failed; FIFO with no writer blocked until the owned 3s harness stopped/joined it. [Rust evidence](../evidence/T19-goal-loop-2026-10-14/rust-read/REPORT.md).
+- Expected Behavior: Ordinary scoped UTF-8 reads keep the original result; nonregular or oversized sources fail without whole-file allocation or FIFO blocking.
+- Actual Behavior: Original leaf allocated unbounded input or blocked before the output limit.
+- Root Cause: CONFIRMED eager fs::read/open before resource/type checks.
+- Scope: Existing filesystem.read branch and meaningful Rust negative fixtures only; no list/recursive scanner/process/runtime framework redesign.
+- Files expected to change: `runtime/siro-runtime/src/linux.rs` only (production leaf plus cfg(test)).
+- Files that MUST NOT change: list/other drivers/protocol/policy/roots/versions/locks; Python workspace adapter and original checks.
+- Compatibility requirements: Original root checks, UTF-8 error and {text} output, bounded result and zero write behavior. No claim that O_NOFOLLOW repairs all parent alias/TOCTOU races.
+- Proposed repair: O_NONBLOCK/O_NOFOLLOW open, opened-FD regular/type/size checks and take(limit+1) before accepted UTF-8 projection.
+- Tests required: Sparse-file allocation counterexample, FIFO no-writer bounded refusal, directory, normal UTF-8, oversize/scope errors; all owned children/timeouts cleaned.
+- Regression tests: All original six Rust tests; build/fmt/clippy and full scripts/check.
+- Acceptance criteria: Original negative cases turn GREEN; seven new cases and original six pass; production-only reverse/reapply and exact source preservation; full caller verification.
+- Rollback method: Disable the new read task caller first, reverse only this leaf; preserve runtime ledger/data and other source. Rollback reopens the unbounded-read gate, so it is not deployment approval.
+- Risk: LOW local leaf behavior; general host execution and directory enumeration remain separate gates.
+- Status: DONE / LOCAL_VERIFIED (13 Rust cases/build/fmt/clippy and finalwholecheck EXIT0/578.090s PASS); FIX-021 localgate met. exactheadcloud/publicscope separately checked.
+
 ## FIX-020 — unambiguous signed release source tree
 
 - Classification: REQUIRED_FIX.

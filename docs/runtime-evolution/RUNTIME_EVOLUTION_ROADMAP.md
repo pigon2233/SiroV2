@@ -1,5 +1,19 @@
 # Runtime evolution roadmap
 
+## 2026-10-15 — D57 owner-approved goal loop scoped LOCAL_VERIFIED
+
+**REORDER**投資重心到真智慧體caller，**KEEP**既有T19/T20GoalService/Planner/goals、T21Runtime，**SPLIT**固定批准盤點profile與通用自主目標/語義完成評估。不增加第二planner/memory/goalDB/自進化框架，不改RT編號/ranking、不重做已解問題。
+
+FIX021 firstdocument-checklist-v1與RT013FIX01 boundedread、RT005FIX02 end-to-endcancelreserve已localVERIFIED；解除本slice的BLOCKED_BY_FIX。1–5exactfiles/8KiB/file/20lines/8attempts/24h/10s/read/20taskrows；fullmode不自批，重開不autoexecute，foreground/tools-off/canceljoin。Task完成是閱讀盤點完成。
+
+完整clean public fetchedGit `scripts/check` **EXIT0 /578.090s**：**1,994PASS /5原opt-inSKIP /7既有warnings /259.88s**（collected1,999）；Rust13/fmt/build/clippy、Ruff328、mypy261、schema、原scanner/strictgate全部實際完成。15source/testhash保持，134原Python與13SQL不變，唯一journalfixture固定13slot/name、其餘原assert保留；495observedownedprocess全gone、rootsremoved。
+
+True3main/HTTP/Rust/SQLite/IABprocesscycles、來源更正/零重啟讀、跨session/revision負向、8source與另timeoutleaf保資料reverse/reapplyPASS。第3full4FAIL全留證，僅schema身份fixture與soleargumentwait局部修；原5s不改。exact-headcloud與publicationscope待另實際驗。
+
+**KEEP** FIX002/005/006品質、T21generalexecution权限與RI005immutableimport/oldwriter/approvedhandoff門檻；**KEEP/SPLIT** RI006事實定位→真最小待審patch（UNKNOWN/patchnull不是自修）。**REJECT**第二框架/自批/以Live2D代證智慧。無證據取消有效RT；RT011/013/015原限定DONE保持。
+
+下一三原scope（非ranking）：T19/T20任務結果/完成判定；FIX002/005/006可核對產品品質；T21/T32/RI005擴權與發布交接。[驗收/限制](../evidence/T19-goal-loop-2026-10-14/REPORT.md)。
+
 ## 2026-10-14 — FIX-020 / D56 source identity locally VERIFIED
 
 True two-tree probe invalidated original unframed source identity；D52 identity was FAILED_VERIFICATION / BLOCKED_BY_FIX: FIX-020。最小 D56 framed-v2 repair 已 full local scripts/check EXIT0（1,813 PASS / 5 原 opt-in SKIP / 7 既有 warnings），216 focused、真五個 source/HTTP/data 子程序及精確 source 回退通過。FIX-020 DONE / LOCAL_VERIFIED，解除此 format blocker；v1 歷史檢視保留，execution 需明確新 v2 approval，無自動重新簽署。exact-head cloud 另驗。[最小更正](ARCHITECTURE_CORRECTION.md)／[修復卡](FIX_REGISTER.md)／[驗收](../evidence/FIX-020-2026-10-14/REPORT.md)。

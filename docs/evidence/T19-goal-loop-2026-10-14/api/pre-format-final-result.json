@@ -1,0 +1,58 @@
+{
+  "python": "Python 3.14.4",
+  "checks": [
+    {
+      "log": "final-api-tests.log",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_goal_task_api.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 6.027
+    },
+    {
+      "log": "static-checks.log",
+      "command": [
+        ".venv/bin/mypy",
+        "tests/integration/test_goal_task_api.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.344
+    },
+    {
+      "log": "lint-checks.log",
+      "command": [
+        ".venv/bin/ruff",
+        "check",
+        "tests/integration/test_goal_task_api.py"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 0.013
+    }
+  ],
+  "source_before": {
+    "src/siro/services/presentation/gateway.py": "9e52cd7c7e4ec392d80901619310eedeaa76d2ad1d82701602f6eed55c4f812b",
+    "src/siro/services/agent/goal_tasks.py": "0b0ecfc2099e1538068e15925b5eaad1ce0b0c05a91046b5849687876779bc3a",
+    "src/siro/core/goal_tasks.py": "af4af86e7233d7f2314ccc9ff9ff86e87dd096bce52be1668f5f5bfa572c2ead",
+    "src/siro/core/cognition.py": "aff1987df45ccc50a549712d639d03c88452a8a584035978d134fe43a8839234",
+    "src/siro/persistence/goals.py": "d5e6f067cff5190a9389ef3c431eb55a2b24a7749d9d8b3c7251b291dfeb326a",
+    "src/siro/persistence/migrations/014_goal_tasks.sql": "e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34",
+    "runtime/siro-runtime/src/linux.rs": "336d34244c4adf3f2252dc7283f9540018de689a10de3f0b38220da878609520",
+    "tests/integration/test_goal_task_api.py": "41eba185427c55858bdfd271f9f10d784f959190ade0fc49162d50bd36c7f9f3"
+  },
+  "source_after": {
+    "src/siro/services/presentation/gateway.py": "9e52cd7c7e4ec392d80901619310eedeaa76d2ad1d82701602f6eed55c4f812b",
+    "src/siro/services/agent/goal_tasks.py": "0b0ecfc2099e1538068e15925b5eaad1ce0b0c05a91046b5849687876779bc3a",
+    "src/siro/core/goal_tasks.py": "af4af86e7233d7f2314ccc9ff9ff86e87dd096bce52be1668f5f5bfa572c2ead",
+    "src/siro/core/cognition.py": "aff1987df45ccc50a549712d639d03c88452a8a584035978d134fe43a8839234",
+    "src/siro/persistence/goals.py": "d5e6f067cff5190a9389ef3c431eb55a2b24a7749d9d8b3c7251b291dfeb326a",
+    "src/siro/persistence/migrations/014_goal_tasks.sql": "e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34",
+    "runtime/siro-runtime/src/linux.rs": "336d34244c4adf3f2252dc7283f9540018de689a10de3f0b38220da878609520",
+    "tests/integration/test_goal_task_api.py": "41eba185427c55858bdfd271f9f10d784f959190ade0fc49162d50bd36c7f9f3"
+  },
+  "source_stable": true,
+  "rust_frozen": true
+}

@@ -33,6 +33,7 @@ from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayl
 from siro.core.memory import Memory, MemoryService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
 from siro.ports.models import ToolCall
+from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.organization import MemoryOrganizer
 from siro.services.audio.protocol import (
     AudioFrame,
@@ -76,14 +77,15 @@ class JsonSocket(Protocol):
 
 
 class _UncachedImprovementResponses:
-    """Add one endpoint's cache header without creating tasks or wrapping other traffic."""
+    """Keep the explicit source-derived views uncached without owning work."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not re.fullmatch(
-            r"/v1/conversations/[^/]+/improvement-proposal", scope["path"]
+        if scope["type"] != "http" or not (
+            re.fullmatch(r"/v1/conversations/[^/]+/improvement-proposal", scope["path"])
+            or scope["path"].startswith("/v1/goal-tasks/")
         ):
             await self.app(scope, receive, send)
             return
@@ -361,6 +363,16 @@ class TurnInput(BaseModel):
     input_mode: Literal["text", "speech"] = "text"
 
 
+class GoalPathsInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    paths: tuple[str, ...] = Field(min_length=1, max_length=5)
+
+
+class GoalRevisionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: int = Field(ge=1, strict=True)
+
+
 class CancelInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     reason: str = Field(default="user", min_length=1, max_length=512)
@@ -536,6 +548,7 @@ def create_app(
     skill_candidates: SkillCandidatePreparer | None = None,
     skill_activation: SkillActivationOwner | None = None,
     verified_release: VerifiedRelease | None = None,
+    read_task_owner: ReadTaskOwner | None = None,
 ) -> FastAPI:
     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
     gateway_state = state or GatewayState()
@@ -546,6 +559,7 @@ def create_app(
     candidate_owner = skill_candidates if runtime_profile == "candidate" else None
     activation_owner = skill_activation if runtime_profile == "candidate" else None
     release_started = False
+    goal_owner = read_task_owner if runtime_profile == "candidate" else None
 
     def candidate_metadata() -> dict[str, object]:
         return {
@@ -583,6 +597,8 @@ def create_app(
         try:
             if on_startup is not None:
                 await on_startup()
+            if goal_owner is not None:
+                await goal_owner.start()
             if activation_owner is not None:
                 await activation_owner.initialize()
                 if not gateway_state.kill_switches["tools"]:
@@ -597,8 +613,12 @@ def create_app(
                 with contextlib.suppress(Exception):
                     await on_cancel(turn["turn_id"], "service shutdown")
             try:
-                if candidate_owner is not None:
-                    await candidate_owner.close()
+                try:
+                    if goal_owner is not None:
+                        await goal_owner.close()
+                finally:
+                    if candidate_owner is not None:
+                        await candidate_owner.close()
             finally:
                 try:
                     if activation_owner is not None:
@@ -939,6 +959,8 @@ def create_app(
             raise HTTPException(status_code=503, detail="workspace is unavailable")
         # This is an explicit authenticated owner read, not model-supplied approval.
         context = ExecutionContext(str(uuid4()), "owner-workspace", str(uuid4()), authorized=True)
+        if goal_owner is not None:
+            await goal_owner.foreground()
         if memory_organizer is not None:
             await memory_organizer.foreground()
         try:
@@ -952,6 +974,77 @@ def create_app(
         except Exception as error:
             raise HTTPException(status_code=502, detail="workspace read failed") from error
         return {"path": path, "result": result, "backend": "rust.scoped"}
+
+    def task_access(
+        session_id: str, authorization: str | None, origin: str | None = None
+    ) -> ReadTaskOwner:
+        require_token(authorization)
+        if origin is not None:
+            require_origin(origin)
+        if (
+            not session_id
+            or len(session_id.encode()) > 128
+            or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in session_id)
+        ):
+            raise HTTPException(status_code=400, detail={"code": "invalid_task"})
+        if goal_owner is None:
+            raise HTTPException(status_code=503, detail={"code": "unavailable"})
+        return goal_owner
+
+    async def task_result(operation: Awaitable[Any]) -> Any:
+        try:
+            return await operation
+        except GoalTaskError as error:
+            raise HTTPException(status_code=error.status, detail={"code": error.code}) from error
+        except Exception as error:
+            raise HTTPException(status_code=503, detail={"code": "unavailable"}) from error
+
+    @app.get("/v1/goal-tasks/{session_id}")
+    async def goal_tasks_read(
+        session_id: str, authorization: str | None = Header(default=None)
+    ) -> dict[str, object]:
+        owner = task_access(session_id, authorization)
+        result: dict[str, object] = await task_result(owner.snapshot(session_id))
+        return result
+
+    @app.post("/v1/goal-tasks/{session_id}")
+    async def goal_task_propose(
+        session_id: str,
+        body: GoalPathsInput,
+        request: Request,
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, object]:
+        require_origin(request.headers.get("origin"))
+        owner = task_access(session_id, authorization)
+        return {"goal": await task_result(owner.propose(session_id, body.paths))}
+
+    @app.post("/v1/goal-tasks/{session_id}/{goal_id}/{action}")
+    async def goal_task_control(
+        session_id: str,
+        goal_id: str,
+        action: Literal["approve", "resume", "pause", "cancel"],
+        body: GoalRevisionInput,
+        request: Request,
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, object]:
+        require_origin(request.headers.get("origin"))
+        owner = task_access(session_id, authorization)
+        if action in {"approve", "resume"} and not gateway_state.kill_switches["tools"]:
+            raise HTTPException(status_code=403, detail={"code": "tools_disabled"})
+        operation = getattr(owner, action)
+        return {"goal": await task_result(operation(session_id, goal_id, body.revision))}
+
+    @app.delete("/v1/goal-tasks/{session_id}/{goal_id}")
+    async def goal_task_remove(
+        session_id: str,
+        goal_id: str,
+        body: GoalRevisionInput,
+        request: Request,
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, object]:
+        require_origin(request.headers.get("origin"))
+        owner = task_access(session_id, authorization)
+        return {"removed": await task_result(owner.remove(session_id, goal_id, body.revision))}
 
     @app.get("/v1/memory-organization")
     async def organization_status(
@@ -995,9 +1088,13 @@ def create_app(
             raise HTTPException(status_code=403, detail="cloud conversation is disabled")
         turn_id = str(uuid4())
         gateway_state.active_turns[session_id] = {"turn_id": turn_id, "state": "responding"}
+        if goal_owner is not None:
+            await goal_owner.foreground()
         await gateway_hub.broadcast(
             {"type": "turn_started", "session_id": session_id, "turn_id": turn_id}
         )
+        if memory_organizer is not None:
+            await memory_organizer.foreground()
         browser_url = _browser_request(body.text) if legacy_shortcuts else None
         application = _application_request(body.text) if legacy_shortcuts else None
         if browser_url is not None or application is not None:
@@ -1031,10 +1128,14 @@ def create_app(
             )
             gateway_state.active_turns[session_id]["state"] = "awaiting_approval"
             return {"turn_id": turn_id}
-        if memory_organizer is not None:
-            await memory_organizer.foreground()
-        await on_turn(session_id, body.text, body.input_mode)
-        gateway_state.active_turns[session_id]["state"] = "completed"
+        try:
+            await on_turn(session_id, body.text, body.input_mode)
+        except Exception:
+            if gateway_state.active_turns[session_id]["turn_id"] == turn_id:
+                gateway_state.active_turns[session_id]["state"] = "failed"
+            raise
+        if gateway_state.active_turns[session_id]["turn_id"] == turn_id:
+            gateway_state.active_turns[session_id]["state"] = "completed"
         return {"turn_id": turn_id}
 
     @app.get("/v1/conversations/{session_id}/improvement-proposal")
@@ -1141,6 +1242,8 @@ def create_app(
         gateway_state.kill_switches[name] = body.enabled
         if name == "tools" and not body.enabled:
             try:
+                if goal_owner is not None:
+                    await goal_owner.foreground("tools_disabled")
                 if activation_owner is not None:
                     await activation_result(suspend_skill_activation)
             finally:
@@ -1982,10 +2085,30 @@ def _run_gateway(
         auto_authorize=lambda: state.authorization_mode == "full" and state.kill_switches["tools"],
     )
 
+    task_setting = os.environ.get("SIRO_GOAL_TASKS_ENABLED", "1")
+    if task_setting not in {"0", "1"}:
+        raise ValueError("SIRO_GOAL_TASKS_ENABLED must be 0 or 1")
+    read_tasks = (
+        ReadTaskOwner(
+            shared_store,
+            workspace,
+            busy=lambda: (
+                controller.foreground_active
+                or any(
+                    turn["state"] in {"responding", "awaiting_approval"}
+                    for turn in state.active_turns.values()
+                )
+            ),
+            allowed=lambda: state.kill_switches["tools"],
+        )
+        if runtime_profile == "candidate" and workspace is not None and task_setting == "1"
+        else None
+    )
+
     organizer = (
         MemoryOrganizer(
             memory_service,
-            lambda: controller.foreground_active,
+            lambda: controller.foreground_active or (read_tasks is not None and read_tasks.busy),
             enabled=os.environ.get("SIRO_MEMORY_ORGANIZATION_ENABLED", "1") == "1",
         )
         if runtime_profile == "candidate"
@@ -2028,6 +2151,7 @@ def _run_gateway(
                 "directory": str(workspace.root) if workspace is not None else None,
                 "error": workspace.error if workspace is not None else None,
             },
+            "goal_tasks": {"enabled": read_tasks is not None, "profile": "document-checklist-v1"},
         }
 
     async def cancel_controller(turn_id: str, reason: str) -> None:
@@ -2068,6 +2192,7 @@ def _run_gateway(
             state=state,
             hub=hub,
             verified_release=verified_release,
+            read_task_owner=read_tasks,
             runtime_profile=runtime_profile,
             configuration_source="gateway_env_and_defaults",
             allowed_origins={f"http://127.0.0.1:{port}", f"http://localhost:{port}"},

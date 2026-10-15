@@ -1,0 +1,94 @@
+=================================== FAILURES ===================================
+______ test_arguments_only_cleanup_failure_is_bounded_and_unknown[False] _______
+
+tmp_path = PosixPath('/tmp/g57t-0hb0e3vl/pytest-of-jasonliao/pytest-0/test_arguments_only_cleanup_fa0')
+refuses = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("refuses", [False, True])
+    async def test_arguments_only_cleanup_failure_is_bounded_and_unknown(
+        tmp_path: Path, refuses: bool
+    ) -> None:
+        entered, release = asyncio.Event(), asyncio.Event()
+    
+        async def handler(arguments: dict[str, object]) -> object:
+            entered.set()
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                if refuses:
+                    raise RuntimeError("synthetic cleanup refused") from None
+                await release.wait()  # deliberate noncooperation until the fixture releases it
+            return {"not_proven_stopped": True}
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": handler}
+        )
+        hub = Hub()
+        controller = IntegratedCompanion(
+            tmp_path,
+            ToolModel([["synthetic"]]),
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile="candidate",
+            auto_authorize=lambda: True,
+        )
+        task = asyncio.create_task(controller.respond("noncooperative", "goal"))
+        await asyncio.wait_for(entered.wait(), 10)
+        started = asyncio.get_running_loop().time()
+        try:
+            await controller.cancel("active", "stop", session_id="noncooperative")
+>           assert asyncio.get_running_loop().time() - started < 5
+E           assert (120535.308431546 - 120530.21768313) < 5
+E            +  where 120535.308431546 = time()
+E            +    where time = <_UnixSelectorEventLoop running=True closed=False debug=False>.time
+E            +      where <_UnixSelectorEventLoop running=True closed=False debug=False> = <built-in function get_running_loop>()
+E            +        where <built-in function get_running_loop> = asyncio.get_running_loop
+
+tests/integration/test_execution_lifecycle.py:799: AssertionError
+_______________ test_additive_upgrade_and_old_reader_rollback[0] _______________
+
+tmp_path = PosixPath('/tmp/g57t-0hb0e3vl/pytest-of-jasonliao/pytest-0/test_additive_upgrade_and_old_0')
+old_version = 0
+
+    @pytest.mark.parametrize("old_version", [0, 10, 12])
+    def test_additive_upgrade_and_old_reader_rollback(tmp_path: Path, old_version: int) -> None:
+        path = tmp_path / "upgrade.db"
+        migrations = load_migrations()
+>       assert migrations[-1].version == 13
+E       AssertionError: assert 14 == 13
+E        +  where 14 = Migration(version=14, name='goal_tasks', sql='ALTER TABLE goals ADD COLUMN task_json TEXT\nCHECK (task_json IS NULL OR json_valid(task_json));\n', checksum='e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34').version
+
+tests/integration/test_run_journal.py:184: AssertionError
+______________ test_additive_upgrade_and_old_reader_rollback[10] _______________
+
+tmp_path = PosixPath('/tmp/g57t-0hb0e3vl/pytest-of-jasonliao/pytest-0/test_additive_upgrade_and_old_1')
+old_version = 10
+
+    @pytest.mark.parametrize("old_version", [0, 10, 12])
+    def test_additive_upgrade_and_old_reader_rollback(tmp_path: Path, old_version: int) -> None:
+        path = tmp_path / "upgrade.db"
+        migrations = load_migrations()
+>       assert migrations[-1].version == 13
+E       AssertionError: assert 14 == 13
+E        +  where 14 = Migration(version=14, name='goal_tasks', sql='ALTER TABLE goals ADD COLUMN task_json TEXT\nCHECK (task_json IS NULL OR json_valid(task_json));\n', checksum='e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34').version
+
+tests/integration/test_run_journal.py:184: AssertionError
+______________ test_additive_upgrade_and_old_reader_rollback[12] _______________
+
+tmp_path = PosixPath('/tmp/g57t-0hb0e3vl/pytest-of-jasonliao/pytest-0/test_additive_upgrade_and_old_2')
+old_version = 12
+
+    @pytest.mark.parametrize("old_version", [0, 10, 12])
+    def test_additive_upgrade_and_old_reader_rollback(tmp_path: Path, old_version: int) -> None:
+        path = tmp_path / "upgrade.db"
+        migrations = load_migrations()
+>       assert migrations[-1].version == 13
+E       AssertionError: assert 14 == 13
+E        +  where 14 = Migration(version=14, name='goal_tasks', sql='ALTER TABLE goals ADD COLUMN task_json TEXT\nCHECK (task_json IS NULL OR json_valid(task_json));\n', checksum='e1c1a72259d354bab9229a5cf4256935cc702d8cbdf5a153cf5683f594628e34').version
+
+tests/integration/test_run_journal.py:184: AssertionError

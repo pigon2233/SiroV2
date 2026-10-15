@@ -1,0 +1,75 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_arguments_only_cancel_reserves_terminal_bookkeeping_with_original_total_bound _
+
+tmp_path = PosixPath('/tmp/g58budget-m10r28gq/pytest-of-jasonliao/pytest-0/test_arguments_only_cancel_res0')
+terminal_bookkeeping_delay = <asyncio.locks.Event object at 0x7eed04e8dd30 [set]>
+
+    @pytest.mark.asyncio
+    async def test_arguments_only_cancel_reserves_terminal_bookkeeping_with_original_total_bound(
+        tmp_path: Path, terminal_bookkeeping_delay: asyncio.Event
+    ) -> None:
+        entered, release = asyncio.Event(), asyncio.Event()
+    
+        async def handler(arguments: dict[str, object]) -> object:
+            assert arguments == {"argv": ["synthetic-owned"]}
+            entered.set()
+            try:
+                await release.wait()
+            except asyncio.CancelledError:
+                await release.wait()  # Fixture intentionally cannot prove cleanup before release.
+            return {"not_proven_stopped": True}
+    
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        orchestrator = ToolOrchestrator(
+            SQLiteToolProposalRepository(store), {"computer.execute": handler}
+        )
+        hub = ObservedHub()
+        controller = IntegratedCompanion(
+            tmp_path,
+            SyntheticToolModel(),
+            hub,
+            MinimalWebBodyAdapter(WebSocketBodyTransport()),
+            privacy=Privacy.LOCAL_ONLY,
+            tool_orchestrator=orchestrator,
+            runtime_profile="candidate",
+            auto_authorize=lambda: True,
+        )
+        task = asyncio.create_task(controller.respond("owned-arguments", "synthetic goal"))
+        try:
+            await asyncio.wait_for(entered.wait(), 10)
+            started = asyncio.get_running_loop().time()
+            await controller.cancel("active", "stop", session_id="owned-arguments")
+            elapsed = asyncio.get_running_loop().time() - started
+            assert terminal_bookkeeping_delay.is_set()
+            readback = await controller.recovery_readback("owned-arguments")
+            assert readback is not None and readback["state"] == "failed"
+            assert readback["error"] == "ExecutionCleanupError"
+            unknown_call(readback)
+            assert any(orchestrator._active.values()), "late cleanup must retain task ownership"
+            event_count = len(hub.events)
+            release.set()
+            await asyncio.wait_for(task, 2)
+            assert await controller.recovery_readback("owned-arguments") == readback
+            assert len(hub.events) == event_count
+            assert not any(orchestrator._active.values())
+            assert len([event for event in hub.events if event["type"] == "assistant_terminal"]) == 1
+>           assert elapsed < 5, "original user-total cancellation bound includes terminal bookkeeping"
+E           AssertionError: original user-total cancellation bound includes terminal bookkeeping
+E           assert 5.262203922000481 < 5
+
+tests/integration/test_cancel_budget_reserve.py:130: AssertionError
+=============================== warnings summary ===============================
+../../../home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+../../../home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_cancel_budget_reserve.py::test_arguments_only_cancel_reserves_terminal_bookkeeping_with_original_total_bound
+1 failed, 1 passed, 2 warnings in 11.08s

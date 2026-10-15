@@ -1,5 +1,15 @@
 # Regression baseline
 
+## 2026-10-15 — D57/D58 final local baseline VERIFIED
+
+完整clean public fetchedGit `scripts/check` **EXIT0 /578.090s**：**1,994PASS /5原opt-inSKIP /7既有warnings /259.88s**（collected1,999）；Rust13/fmt/build/clippy、Ruff328、mypy261、schema、原scanner/strictgate全部實際完成。15source/testhash保持，134原Python與13SQL不變，唯一journalfixture固定13slot/name、其餘原assert保留；495observedownedprocess全gone、rootsremoved。
+
+新增39service＋66API＋72page＋2corruptstartup＝179goalcases，另2end-to-endcancelreserve；Rust原6+新7。179是goalcaller驗收，不是學習/智力評分。頁面72新+248原related＝320PASS；實際3main/Rust/SQL/IABcycle、correctedsource/零autoexec/HTTPnegatives另receipt。D58控制0.5s terminaldelay真RED5.262s→2GREEN，原25lifecyclePASS，context4.2＋0.5positive保持CANCELLED。
+
+第1full新testtyping77fail、第2executor失聯INTERRUPTED、第3full4FAIL保持原log，不能抹除當PASS。第3真cancel5.090748來源細分仍UNKNOWN；budget敏感性由baseline/candidatecontrolled300ms重現、局部4.0solearg/4.75ctx修原設計。旧schemafixture latest13→固定journal13slot/name，所有其餘assert保持/整file16PASS。
+
+持續baseline保批准/revision/session/scope/limit/no-store、foreground/tools-off/latecancel/SQLjoin、3reopenunknown保留/零autoexecute、boundedGUIstaleness/不重送、schema13→14旧data與signedrelease拒。8source與另timeoutleaf source-onlyrollbackPASS且保最新data。exactheadcloud與公開範圍另驗，不把local等同remote。[Report](../evidence/T19-goal-loop-2026-10-14/REPORT.md)。
+
 ## 2026-10-14 — FIX-020 / D56 identity baseline
 
 新增 `test_release_tree_identity.py` 15 cases：真 v1 equal-hash ambiguity、獨立 framed-v2 wire/Path.parts vector、算法/tag 錯配、file count/name/content/empty/resource/Unicode 敏感性、legacy stage/selector/rollback 零效果與 v2 正向 staging/tamper。原 7 release/owner fixture 只更新新 approval 準備到 v2，canonical v1 固定 payload/HMAC 與原 assertions 保留；source-selection digest 保持獨立實作，不呼叫 production。

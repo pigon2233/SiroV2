@@ -1,0 +1,98 @@
+{
+  "review_date": "2026-10-14",
+  "scope": "D57 Core/ReadTaskOwner, SQLiteGoalRepository, single approved read-only task and new test_goal_task_loop.py; not product caller/full CI",
+  "result": "NO_CONFIRMED_SCOPED_BLOCKER",
+  "reviewer_production_docs_old_tests_modified": false,
+  "new_test_path": "tests/integration/test_goal_task_loop.py",
+  "source_before": {
+    "tests/integration/test_goal_task_loop.py": "a4924010c3bf92bfd90f60ed777e5d5a4c5f8e8e9476f38a6aa54d8a705148e3",
+    "src/siro/core/goal_tasks.py": "af4af86e7233d7f2314ccc9ff9ff86e87dd096bce52be1668f5f5bfa572c2ead",
+    "src/siro/core/cognition.py": "aff1987df45ccc50a549712d639d03c88452a8a584035978d134fe43a8839234",
+    "src/siro/persistence/goals.py": "d5e6f067cff5190a9389ef3c431eb55a2b24a7749d9d8b3c7251b291dfeb326a",
+    "src/siro/services/agent/goal_tasks.py": "93ad626aee8f9b2ce1aa8882b4b8f39eec26472a5e094f59a0a7e91f9011eb43"
+  },
+  "source_after": {
+    "tests/integration/test_goal_task_loop.py": "a4924010c3bf92bfd90f60ed777e5d5a4c5f8e8e9476f38a6aa54d8a705148e3",
+    "src/siro/core/goal_tasks.py": "af4af86e7233d7f2314ccc9ff9ff86e87dd096bce52be1668f5f5bfa572c2ead",
+    "src/siro/core/cognition.py": "aff1987df45ccc50a549712d639d03c88452a8a584035978d134fe43a8839234",
+    "src/siro/persistence/goals.py": "d5e6f067cff5190a9389ef3c431eb55a2b24a7749d9d8b3c7251b291dfeb326a",
+    "src/siro/services/agent/goal_tasks.py": "93ad626aee8f9b2ce1aa8882b4b8f39eec26472a5e094f59a0a7e91f9011eb43"
+  },
+  "source_changed_during_actual_run": [],
+  "actual_service_tests": {
+    "command": [
+      ".venv/bin/pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/integration/test_goal_task_loop.py",
+      "--basetemp",
+      "/tmp/siro-d57-service-final-bbrk75m1"
+    ],
+    "exit_code": 0,
+    "passed": 39,
+    "failed": 0,
+    "elapsed_pytest_seconds": 1.61,
+    "pytest_child_joined": true,
+    "temporary_root_removed": true
+  },
+  "prior_red": {
+    "passed": 29,
+    "failed": 1,
+    "problem": "allowed switched false between approved files changed Goal to FAILED; contract required waiting_external/tools_disabled",
+    "logs": "red-initial.log",
+    "fixed_by_root_not_reviewer": true
+  },
+  "controlled_tests": [
+    "mutable busy/allowed callbacks with actual SQLite and fixture file IO",
+    "read completion held after CancelledError to prove cancellation join and late-result fence",
+    "READ_TIMEOUT_SECONDS monkeypatched to 0.04 for two negative deadline cases; unchanged production default10s",
+    "started real SQLite worker thread held by explicit gate while approve request/owner close are cancelled",
+    "self-owned corrupt task_json completed-without-hash to prove startup refusal",
+    "self-owned old READY row with exhausted budget to prove restart no implicit read"
+  ],
+  "actual_runtime_test": {
+    "test": "test_real_rust_read_scope_and_three_reopens_preserve_evidence",
+    "existing_binary": "target/debug/siro-runtime",
+    "actual_utf8_file": true,
+    "actual_signed_scoped_rpc": true,
+    "outside_symlink_refused": true,
+    "three_owner_and_store_reopens_preserve_observations": true,
+    "rust_child_joined_and_private_runtime_temp_removed": true,
+    "private_live_data_used": false
+  },
+  "contract_review": {
+    "existing_goal_and_planning_services_reused": true,
+    "task_metadata_nullable_addition_preserves_legacy_goal_shape": true,
+    "no_new_planner_store_generic_scheduler_run_journal_or_interpreter_path": true,
+    "public_wire_closed_and_root_owner_redacted": true,
+    "approval_exact_revision_and_current_root_required": true,
+    "only_filesystem_read_fixed_approved_paths": true,
+    "planning_reasons_durable_before_read": true,
+    "step_budget_and_intent_durable_before_read": true,
+    "completion_requires_all_actual_success_observations": true,
+    "known_completed_files_not_replayed_after_reopen": true,
+    "unknown_inflight_path_preserved": true,
+    "late_results_cancelled_or_expired_cannot_complete_goal": true,
+    "control_waits_started_read_and_database_work": true,
+    "terminal_cancel_does_not_relabel_completed": true,
+    "history_capacity20_global_and_terminal_only_explicit_remove": true,
+    "approved_binding_cas_cannot_mutate_owner_root_paths_time": true,
+    "metadata_completed_evidence_hash_and_aware_timestamps_enforced": true,
+    "truncated_includes_clipped_source_line": true
+  },
+  "not_verified": [
+    "main composition/Gateway auth/UI caller",
+    "goal-subsystem corrupt startup isolation from unrelated chat must be verified at composition",
+    "full repository scripts/check or new head CI",
+    "real model quality or automatic goal generation",
+    "private user documents or live8026",
+    "arbitrary tasks/browser/network/argv/generated code",
+    "cross-process duplicate goal owners beyond existing D50 single-owner premise",
+    "hard OS interruption or power loss",
+    "RI-005 release/deployment handoff",
+    "FIX-002/005/006 product gates"
+  ],
+  "codebase_memory": "NOT_RUN; no callable tool",
+  "evidence_scripts_or_owned_children_left_running": false
+}

@@ -1,0 +1,15 @@
+database-initialize: EXIT 0
+reverse-check: EXIT 0
+reverse-apply: EXIT 0
+database-reversed: EXIT 1
+Traceback (most recent call last):
+  File "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/T19-goal-loop-2026-10-14/rollback/rollback-probe.py", line 241, in <module>
+    main()
+    ~~~~^^
+  File "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/T19-goal-loop-2026-10-14/rollback/rollback-probe.py", line 184, in main
+    run("database-reversed", [*child, "reversed", *child_arguments], project, env)
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/docs/evidence/T19-goal-loop-2026-10-14/rollback/rollback-probe.py", line 87, in run
+    assert completed.returncode == 0, name
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: database-reversed

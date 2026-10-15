@@ -1,0 +1,35 @@
+--- a/runtime/siro-runtime/src/linux.rs
++++ b/runtime/siro-runtime/src/linux.rs
+@@ -3,6 +3,7 @@
+ use std::collections::BTreeMap;
+ use std::fs;
+ use std::io::{self, Read, Write};
++use std::os::unix::fs::OpenOptionsExt;
+ use std::os::unix::process::CommandExt;
+ use std::path::{Path, PathBuf};
+ use std::process::{Child, Command, Stdio};
+@@ -188,7 +189,23 @@
+         match capability {
+             "filesystem.read" => {
+                 let path = self.existing(&Self::path(arguments, "path")?)?;
+-                let bytes = fs::read(path).map_err(|error| error.to_string())?;
++                let file = fs::OpenOptions::new()
++                    .read(true)
++                    .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW)
++                    .open(path)
++                    .map_err(|error| error.to_string())?;
++                let metadata = file.metadata().map_err(|error| error.to_string())?;
++                if !metadata.is_file() {
++                    return Err("non_regular_file".into());
++                }
++                let limit = u64::try_from(self.output_limit).map_err(|_| "invalid_output_limit")?;
++                if metadata.len() > limit {
++                    return Err("output_limit".into());
++                }
++                let mut bytes = Vec::new();
++                file.take(limit.saturating_add(1))
++                    .read_to_end(&mut bytes)
++                    .map_err(|error| error.to_string())?;
+                 if bytes.len() > self.output_limit {
+                     return Err("output_limit".into());
+                 }

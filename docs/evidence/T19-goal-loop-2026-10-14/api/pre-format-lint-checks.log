@@ -1,0 +1,14 @@
+SIM117 Use a single `with` statement with multiple contexts instead of nested `with` statements
+   --> tests/integration/test_goal_task_api.py:523:5
+    |
+521 |               await release_second.wait()
+522 |
+523 | /     with rig(tmp_path, on_turn=controlled_turn, raise_server_exceptions=False) as r:
+524 | |         with ThreadPoolExecutor(max_workers=2) as pool:
+    | |_______________________________________________________^
+525 |               first = pool.submit(
+526 |                   r.client.post,
+    |
+help: Combine `with` statements
+
+Found 1 error.
