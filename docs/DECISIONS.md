@@ -1,5 +1,13 @@
 # 決策紀錄
 
+## D62 / 2026-10-16 / accepted / FIX-026 歷史驗證快照的精確掃描綁定
+
+940bdb7 新追蹤的歷史驗證資料使原 secret gate 出現1332項誤報：12份metadata檔的1331個來源摘要／指紋，及1份舊獨立測試的synthetic literal。檔案皆已核對，保留其原始bytes、位置與報告連結；不改原scanner範圍或六個public tokenizer pins，不把一般hex／JSON欄位／資料夾視為可信。
+
+僅在既有check_secrets helper加入13個固定相對路徑的逐檔綁定：完整檔案SHA256與完整detector tuple批次SHA256皆相符才承認已審核誤報。tuple含filename、line、type、hashed_secret、is_verified；排序list保留重複，任一新增／遺失／變更finding或檔案bytes即拒絕。拒絕symlink及其父層、讀取錯誤與其他路徑；原所有finding shape驗證及固定安全輸出保持。
+
+驗收須用真scanner重現原FAIL→修後PASS，另以新增合成credential、改blob／finding／路徑、duplicate、symlink與讀取錯誤證明仍拒絕。這些是不可變歷史快照，不會因未來新指紋自動擴權；新內容需重新審核。不改production、依賴、runtime架構或其他未提交工作。回退僅撤helper局部綁定與新tests，會恢復已知誤報，不需資料migration。
+
 ## D61 / 2026-10-16 / accepted / 現有 runtime 韌性缺口的局部修復
 
 使用者提出六項急修，先對目前 source／caller／原契約驗證，不把所有建議視為已確認漏洞。以 FIX-022（MQTT）、FIX-023（model protocol）、FIX-024（SQLite收尾）、FIX-025（Rust lifecycle）四張局部卡處理已證實缺口；保留 D60、UI 與其他未提交工作，不改 RT 歷史／ranking。

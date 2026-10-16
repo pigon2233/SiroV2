@@ -1,5 +1,28 @@
 # Runtime Evolution Fix Register
 
+## FIX-026 — 已審核歷史驗證快照的精確 secret gate 綁定
+
+- Classification: REQUIRED_FIX.
+- Source types: DOCUMENTATION_DRIFT / TEST_GAP.
+- Source Task: 940bdb7 新追蹤驗證快照；push Actions 38866208100／使用者2026-10-16掃描修復要求。
+- Severity: MEDIUM（CI交付阻擋；未發現真憑證）。
+- Problem: 舊驗證metadata／synthetic literal新進Git，原helper只承認六個public tokenizer pins，造成1332項誤報。
+- Evidence: 真cloud先完成2129 Python／24 Rust及其他checks，末secret gate失敗；owned clean clone重現1338 findings／1332未解，13檔語意審核見[證據](../evidence/FIX-026-2026-10-16/REPORT.md)。
+- Expected Behavior: 已審核不可變快照可通過；任一新credential／檔案變動／finding batch變動仍拒絕，其他路徑維持原規則。
+- Actual Behavior: 原helper將12份metadata的1331來源指紋與1份synthetic fixture全拒絕。
+- Root Cause: CONFIRMED historical verification artifacts became tracked without an exact reviewed-finding binding in the existing gate。
+- Scope: 既有check_secrets helper加入13個exact path＋blob＋完整tuple batch綁定；不搬檔或新增通用allowlist服務。
+- Files expected to change: scripts/check_secrets.py；新test_ci_snapshot_secret_gate.py；D62／STATUS／本登錄及合成驗收證據。
+- Files that MUST NOT change: scripts/check的scanner/excludes、原六pins、13份歷史檔bytes／路徑、原tests、production／依賴／CI環境／其他未提交修改。
+- Compatibility requirements: 原空report／錯誤格式／原publicpins語意保持；新batch使用排序list保留duplicate，已驗證flag／line／type／fingerprint／filename均綁定。不存在／symlink／讀取失敗不承認。
+- Proposed repair: exact逐檔內容SHA256＋完整detector batch SHA256／count雙重核對，維持固定安全輸出；未改scanner對真正credential的偵測。
+- Tests required: 真scanner RED→GREEN；改13blob、改tuple、少／多／同數量duplicate、alias／symlink／讀檔失敗；真scanner新增credential於snapshot／legacy test／source／workflow仍FAIL。
+- Regression tests: 原25 secret gate cases不改，加37新case、原scanner設定的owned clean candidate及exact-head Actions。
+- Acceptance criteria: 原1332誤報清零，新增credential仍擋、無新排除／skip／全域hex信任；source與檔案links保持；remote整條gate通過後方稱cloud verified。
+- Rollback method: 撤本卡helper hunks／新tests及文件；保所有原快照與使用者工作，不重寫Git歷史／還原DB。會恢復已知誤報。
+- Risk: LOW runtime（僅CI helper）；審核pins是不可變歷史資料，任何scanner／snapshot變更需重審。helper信任scanner提供的report，並不證明scanner沒有整檔漏報。
+- Status: IN_PROGRESS / LOCAL_VERIFIED；exact-head cloud確認後更新。
+
 ## D61 / 2026-10-16 — 本輪六項急修的核對
 
 | 原指控 | 分類／來源 | 實際證據與處置 |

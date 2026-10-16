@@ -1,5 +1,13 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-16 — FIX-026 / D62 掃描誤報 LOCAL_VERIFIED，exact-head CI待驗
+
+已重現940bdb7的真cloud失敗：2129 Python／24 Rust與靜態／schema皆PASS，末secret gate1332項誤報。只在原helper加入13個已審核歷史檔的exact path＋完整blob SHA256＋完整detector tuple batch SHA256/count綁定；保留所有檔案bytes／links、原六pins／scanner範圍／excludes與production。不將一般hex或整個資料夾放行。
+
+原版新測試2FAIL／34PASS；最終原25＋新37 **62PASS／12.60s**。改blob／tuple／同數量duplicate、path／symlink／讀取錯誤、真scanner新增合成credential於snapshot／舊test／source／workflow皆拒絕。owned clean candidate原掃描1338 findings **gate EXIT0／6.869s**；Ruff338／完整候選mypy268／helper及tests mypy2 PASS。獨立review無blocker，另12個同數量duplicate反例全拒絕。
+
+只提交本卡變更；並行startup／UI、前輪編譯與重驗文件保留未提交。exact-head GitHub整條CI另驗，不將本機PASS當remote。正式發布／硬體／產品品質gates保持。[本卡證據與回退](evidence/FIX-026-2026-10-16/REPORT.md)。
+
 ## 2026-10-16 — D61 / FIX-022–025 DONE / LOCAL_VERIFIED
 
 已核對使用者六項急修，完成四項局部修復：MQTT wire status／unknown ACK／terminal fence／1024 RAM cap與prune；模型壞JSON／Unicode安全分類及Ollama error envelope拒絕；SQLite明確close而非改原PRAGMA；Rust Execute reap／活group ownership／cap+1完整輸出判定。最終review另修late duplicate false-negative及不可signal group假stopped，均有真Broker或無特權kernel反例。Core／ports／DB schema／權限／UI／failover政策／固定sandbox profile與D60 firmware保持。
