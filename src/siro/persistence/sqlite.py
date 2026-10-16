@@ -137,17 +137,24 @@ class SQLiteStore:
 
     def _initialize_sync(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             apply_migrations(connection, load_migrations())
 
     def _connect(self, path: Path | None = None) -> sqlite3.Connection:
         connection = sqlite3.connect(path or self.path, timeout=5)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA busy_timeout = 5000")
-        if path is None or path == self.path:
-            connection.execute("PRAGMA journal_mode = WAL")
-            connection.execute("PRAGMA synchronous = NORMAL")
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute("PRAGMA busy_timeout = 5000")
+            if path is None or path == self.path:
+                connection.execute("PRAGMA journal_mode = WAL")
+                connection.execute("PRAGMA synchronous = NORMAL")
+        except BaseException as error:
+            try:
+                connection.close()
+            except BaseException as cleanup_error:
+                error.add_note(f"connection cleanup failed: {type(cleanup_error).__name__}")
+            raise
         return connection
 
     async def run_transaction(self, work: Transaction[T]) -> T:
@@ -155,7 +162,7 @@ class SQLiteStore:
             return await asyncio.to_thread(self._run_transaction_sync, work)
 
     def _run_transaction_sync(self, work: Transaction[T]) -> T:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             try:
                 connection.execute("BEGIN IMMEDIATE")
                 result = work(connection)
@@ -222,7 +229,7 @@ class SQLiteStore:
             raise ValueError("outbox limit must be between 1 and 1000")
 
         def read() -> list[OutboxRecord]:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 rows = connection.execute(
                     "SELECT event_id, subject, payload, state, attempts, last_error FROM outbox "
                     "WHERE state = 'pending' ORDER BY rowid LIMIT ?",
@@ -291,7 +298,7 @@ class SQLiteStore:
             raise ValueError("quarantine limit must be between 1 and 1000")
 
         def read() -> list[OutboxRecord]:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 rows = connection.execute(
                     "SELECT event_id, subject, payload, state, attempts, last_error "
                     "FROM outbox WHERE state = 'quarantined' ORDER BY rowid LIMIT ?",
@@ -332,7 +339,7 @@ class SQLiteStore:
 
     async def integrity_check(self) -> str:
         def check() -> str:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 row = connection.execute("PRAGMA integrity_check").fetchone()
                 return str(row[0]) if row is not None else "missing result"
 

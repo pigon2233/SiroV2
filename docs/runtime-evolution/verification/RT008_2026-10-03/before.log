@@ -1,0 +1,44 @@
+VERIFIED_IMPORT /tmp/rt008-verify-before-twv725kr/src/siro/services/agent/runs.py
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________________ test_separate_runs_may_reuse_provider_call_id _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-14/test_separate_runs_may_reuse_p0')
+
+    @pytest.mark.asyncio
+    async def test_separate_runs_may_reuse_provider_call_id(tmp_path: Path):
+        store = SQLiteStore(tmp_path / "siro.db")
+        await store.initialize()
+        effects = []
+        async def effect(arguments):
+            effects.append("once")
+            return {"ok": True}
+        controller = IntegratedCompanion(tmp_path, ReusedCallModel(), GatewayHub(),
+            MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOCAL_ONLY,
+            runtime_profile="candidate", auto_authorize=lambda: True,
+            tool_orchestrator=ToolOrchestrator(SQLiteToolProposalRepository(store), {"computer.execute": effect}))
+        await controller.respond("same-session", "first goal")
+        first = await controller._agent_runs.latest("same-session")
+        assert first.state.value == "completed"
+        await controller.respond("same-session", "second goal")
+        second = await controller._agent_runs.latest("same-session")
+>       assert second.state.value == "completed"
+E       AssertionError: assert 'failed' == 'completed'
+E         
+E         - completed
+E         + failed
+
+/home/jasonliao/文件/Siro/SiroV2/docs/runtime-evolution/verification/RT008_2026-10-03/test_independent.py:40: AssertionError
+=============================== warnings summary ===============================
+../../home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+../../home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED ../../home/jasonliao/文件/Siro/SiroV2/docs/runtime-evolution/verification/RT008_2026-10-03/test_independent.py::test_separate_runs_may_reuse_provider_call_id
+1 failed, 2 warnings in 0.77s

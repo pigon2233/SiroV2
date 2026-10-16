@@ -1,5 +1,19 @@
 # SIRO 2 介面與資料契約
 
+## D61 — 局部失敗與資源所有權補充（2026-10-16）
+
+MQTT tracker `acknowledge(id,status="applied")` 僅applied受理；unknown id回None，pending拒絕標FAILED，已確認／失敗terminal不復活，已受理不能被晚到重複ACK降級。state只有ACKNOWLEDGED可確認。RAM追蹤預設1024，new issue清terminal／expired，滿active拒新而非丟棄；prune提供顯式清理，非journal。舊一參數只供trusted compatibility caller；wire caller必須傳實際status。
+
+Model protocol壞JSON／Unicode／Ollama error envelope在adapter轉固定安全ProviderResponseInvalid(ValueError)，不洩原payload，不納入transport retry；Conversation原FAILED terminal及RT-009每request retry／egress契約保持。SQLite只補明確close，原WAL／NORMAL／5000ms、schema／transaction不變。Rust仍以`output_limit`拒絕超量、無成功partial或新wire欄位；Execute回收退出child，owned group仍活則保留stop handle，不新增背景owner。
+
+Rust單個reap／group-query失敗的record保留為unknown ownership；process.list與該PID stop以固定error拒絕、不猜測kill，其他已知owned child與非process操作仍可執行，不因一個record使所有cap永久失效。錯誤表僅當輪局部值，無新RPC或持久狀態；無新請求時即時回收未承諾。
+
+## D60 — T27 MQTT／ESP32 wire 相容補充（2026-10-15）
+
+命令仍含 command_id、action、desired_state、具 timezone 的 ISO expires_at；另加 expires_at_epoch=int(expires_at.timestamp())，不 retained。Python simulator 可接受原格式或已知 epoch mirror；mirror 必須是非bool整數且與ISO一致，其餘未知欄位維持拒絕。狀態的 observed_at ISO 欄位存在時必須有效且aware；缺省才接受非bool的int／float observed_at_epoch，使用UTC fromtimestamp，無效／非有限／越界時間於寫入前拒絕。
+
+ESP32 等有效時鐘後才連MQTT；30秒無法對時則重啟、不接收命令。單次硬體驗收腳本必先訂閱再 publish，只一次light.set；同command applied ACK和本次有效新鮮非retained power:true都收到才CONFIRMED。ACK立即標ACKNOWLEDGED；同timestamp矛盾state不能確認，須較新觀測解除，且World投影time/value須一致。ACK不等於成功，舊retained state不證明此次效果，timeout不重送。此補充不更改Core／DB／授權契約，測試設備不得冒充實體證據。
+
 狀態：設計契約 v1；T02–T04 轉成 schema、程式型別與 migration。下列欄位是實作基線，不是現成 API。
 
 ## 1. 事件 Envelope

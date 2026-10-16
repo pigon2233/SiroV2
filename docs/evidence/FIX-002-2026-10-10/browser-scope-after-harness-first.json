@@ -1,0 +1,322 @@
+{
+  "phase": "after",
+  "timestamp_utc": "2026-10-09T16:38:09Z",
+  "scope": "Real Chromium and trusted ephemeral A/B HTTP origins; purely synthetic fixtures",
+  "source_sha256_start": {
+    "src/siro/adapters/browser.py": "c16525742b13d8e8c8b1c37fac134024d807868599af9021a8ba67934f55ff2c",
+    "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484",
+    "src/siro/services/tools/orchestrator.py": "3ed65e1636a5f52f384c66b479abcc7a8d8b0d57c36342eded0ab4d959cffa9d",
+    "src/siro/services/presentation/integrated.py": "bef79667f4906695eafe8da54d9308a9a8cf1fca6af50067cfcfdb1dea227e49",
+    "src/siro/services/presentation/gateway.py": "6b7a215439af7dea7641bdebc003ae3568b5b042855a907ce7036982703c1a63"
+  },
+  "privacy": {
+    "private_data_read": false,
+    "production_8026_accessed": false,
+    "external_websites_accessed": false,
+    "raw_error_or_sensitive_URL_written": false,
+    "canary": "synthetic query and userinfo markers; values omitted from request evidence"
+  },
+  "cases": [
+    {
+      "fixture": "allowed_A",
+      "outcome": "observation",
+      "title_is_A": true,
+      "text_contains_A": true,
+      "load_status": null,
+      "reason": null,
+      "final_observed_origin_allowed": true,
+      "page_current_origin_allowed": true,
+      "followup_read": {
+        "outcome": "observation",
+        "origin_allowed": true,
+        "load_status": null,
+        "reason": null
+      },
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "direct_B",
+      "outcome": "error",
+      "exception_type": "BrowserScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [],
+      "B_hits": 0
+    },
+    {
+      "fixture": "direct_B_userinfo",
+      "outcome": "error",
+      "exception_type": "BrowserScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_redirect_B",
+      "outcome": "error",
+      "exception_type": "BrowserScopeViolation",
+      "reason": "redirect_denied",
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_with_B_image",
+      "outcome": "observation",
+      "title_is_A": true,
+      "text_contains_A": true,
+      "load_status": null,
+      "reason": null,
+      "final_observed_origin_allowed": true,
+      "page_current_origin_allowed": true,
+      "followup_read": {
+        "outcome": "observation",
+        "origin_allowed": true,
+        "load_status": null,
+        "reason": null
+      },
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "image",
+          "is_navigation_request": false,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_with_B_script",
+      "outcome": "observation",
+      "title_is_A": true,
+      "text_contains_A": true,
+      "load_status": null,
+      "reason": null,
+      "final_observed_origin_allowed": true,
+      "page_current_origin_allowed": true,
+      "followup_read": {
+        "outcome": "observation",
+        "origin_allowed": true,
+        "load_status": null,
+        "reason": null
+      },
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "script",
+          "is_navigation_request": false,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_with_B_iframe",
+      "outcome": "observation",
+      "title_is_A": true,
+      "text_contains_A": true,
+      "load_status": null,
+      "reason": null,
+      "final_observed_origin_allowed": true,
+      "page_current_origin_allowed": true,
+      "followup_read": {
+        "outcome": "observation",
+        "origin_allowed": true,
+        "load_status": null,
+        "reason": null
+      },
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": false,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_script_main_navigation_B",
+      "outcome": "error",
+      "exception_type": "BrowserScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_iframe_script_main_navigation_B",
+      "outcome": "observation",
+      "title_is_A": false,
+      "text_contains_A": true,
+      "load_status": null,
+      "reason": null,
+      "final_observed_origin_allowed": true,
+      "page_current_origin_allowed": false,
+      "followup_read": {
+        "outcome": "error",
+        "exception_type": "BrowserScopeViolation",
+        "reason": "UNSPECIFIED"
+      },
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": false,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    },
+    {
+      "fixture": "A_button_main_navigation_B",
+      "outcome": "error",
+      "exception_type": "BrowserScopeViolation",
+      "reason": "UNSPECIFIED",
+      "requests": [
+        {
+          "origin": "A",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": false,
+          "userinfo_present": false
+        },
+        {
+          "origin": "B",
+          "resource_type": "document",
+          "is_navigation_request": true,
+          "is_main_frame": true,
+          "query_present": true,
+          "userinfo_present": false
+        }
+      ],
+      "B_hits": 0
+    }
+  ],
+  "origins": {
+    "B": "http://127.0.0.1:41533",
+    "A": "http://127.0.0.1:40135"
+  },
+  "chromium_version": "154.0.8037.92",
+  "cleanup": {
+    "all_browser_drivers_closed": true,
+    "all_server_threads_stopped": true,
+    "server_sockets_closed": true
+  },
+  "B_total_hits": 0,
+  "B_hit_metadata": [],
+  "A_fixture_hits": [
+    "/plain",
+    "/redirect",
+    "/image",
+    "/script",
+    "/iframe",
+    "/script-top",
+    "/iframe-top",
+    "/frame-top",
+    "/button-top"
+  ],
+  "source_sha256_finish": {
+    "src/siro/adapters/browser.py": "c16525742b13d8e8c8b1c37fac134024d807868599af9021a8ba67934f55ff2c",
+    "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484",
+    "src/siro/services/tools/orchestrator.py": "3ed65e1636a5f52f384c66b479abcc7a8d8b0d57c36342eded0ab4d959cffa9d",
+    "src/siro/services/presentation/integrated.py": "bef79667f4906695eafe8da54d9308a9a8cf1fca6af50067cfcfdb1dea227e49",
+    "src/siro/services/presentation/gateway.py": "6b7a215439af7dea7641bdebc003ae3568b5b042855a907ce7036982703c1a63"
+  },
+  "same_source": true,
+  "completed_at_utc": "2026-10-09T16:38:17Z",
+  "verification_status": "CAPTURE_COMPLETE",
+  "repair_checks": {
+    "allowed_A_readable": true,
+    "outside_origin_never_hit": true,
+    "ordinary_subresources_return_partial_readable_A": false,
+    "direct_and_redirect_still_rejected": false,
+    "main_navigation_never_claims_readable_outside_page": false,
+    "same_source": true,
+    "cleanup": true
+  },
+  "repair_status": "FAIL",
+  "harness_limitation": "First after capture used exact legacy exception name and driver-level load_status, although the repair uses ScopeViolation subclass and blocked_resources with session serialization. Repair checks are invalid for that representation; raw runtime capture retained."
+}

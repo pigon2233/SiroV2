@@ -1,0 +1,122 @@
+Error occurred in event listener
+Traceback (most recent call last):
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_helper.py", line 442, in handle
+    return await self._handle_internal(route)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_helper.py", line 483, in _handle_internal
+    await asyncio.ensure_future(coro_or_future)
+  File "/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_browser_pending_cleanup.py", line 140, in _route_request
+    await super()._route_request(route)
+  File "/home/jasonliao/文件/Siro/SiroV2/src/siro/adapters/browser.py", line 293, in _route_request
+    response = await route.fetch(max_redirects=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/async_api/_generated.py", line 854, in fetch
+    await self._impl_obj.fetch(
+    ...<7 lines>...
+    )
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_network.py", line 496, in fetch
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<10 lines>...
+    )
+    ^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TargetClosedError: Route.fetch: Request context disposed.
+Call log:
+  - → GET http://127.0.0.1:42369/slow
+    - user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36
+    - accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8
+    - accept-encoding: gzip,deflate,br
+    - referer: http://127.0.0.1:42369/page
+    - sec-ch-ua: "Chromium";v="154", "Google Chrome";v="154", "Not A(Brand";v="99"
+    - sec-ch-ua-mobile: ?0
+    - sec-ch-ua-platform: "Linux"
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_page.py", line 310, in _on_route
+    handled = await route_handler.handle(route)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_helper.py", line 451, in handle
+    raise rewrite_error(
+    ...<2 lines>...
+    )
+playwright._impl._errors.TargetClosedError: "Route.fetch: Request context disposed.
+Call log:
+  - → GET http://127.0.0.1:42369/slow
+    - user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36
+    - accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8
+    - accept-encoding: gzip,deflate,br
+    - referer: http://127.0.0.1:42369/page
+    - sec-ch-ua: "Chromium";v="154", "Google Chrome";v="154", "Not A(Brand";v="99"
+    - sec-ch-ua-mobile: ?0
+    - sec-ch-ua-platform: "Linux"
+" while running route callback.
+Consider awaiting `await page.unroute_all(behavior='ignoreErrors')`
+before the end of the test to ignore remaining routes in flight.
+PENDING_BROWSER_CLEANUP_CAPTURE {"action": "close", "cleanup_seconds": 0.06344945199089125, "own_live_after_production_cleanup": [], "pending_routes_after_production_cleanup": 0, "source_after": {"src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b", "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484"}, "source_before": {"src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b", "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484"}}
+.Error occurred in event listener
+Traceback (most recent call last):
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_helper.py", line 442, in handle
+    return await self._handle_internal(route)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_helper.py", line 483, in _handle_internal
+    await asyncio.ensure_future(coro_or_future)
+  File "/home/jasonliao/文件/Siro/SiroV2/tests/integration/test_browser_pending_cleanup.py", line 140, in _route_request
+    await super()._route_request(route)
+  File "/home/jasonliao/文件/Siro/SiroV2/src/siro/adapters/browser.py", line 293, in _route_request
+    response = await route.fetch(max_redirects=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/async_api/_generated.py", line 854, in fetch
+    await self._impl_obj.fetch(
+    ...<7 lines>...
+    )
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_network.py", line 496, in fetch
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<10 lines>...
+    )
+    ^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TargetClosedError: Route.fetch: Request context disposed.
+Call log:
+  - → GET http://127.0.0.1:45897/slow-page
+    - user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36
+    - accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+    - accept-encoding: gzip,deflate,br
+    - upgrade-insecure-requests: 1
+    - sec-ch-ua: "Chromium";v="154", "Google Chrome";v="154", "Not A(Brand";v="99"
+    - sec-ch-ua-mobile: ?0
+    - sec-ch-ua-platform: "Linux"
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_page.py", line 310, in _on_route
+    handled = await route_handler.handle(route)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_helper.py", line 451, in handle
+    raise rewrite_error(
+    ...<2 lines>...
+    )
+playwright._impl._errors.TargetClosedError: "Route.fetch: Request context disposed.
+Call log:
+  - → GET http://127.0.0.1:45897/slow-page
+    - user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36
+    - accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+    - accept-encoding: gzip,deflate,br
+    - upgrade-insecure-requests: 1
+    - sec-ch-ua: "Chromium";v="154", "Google Chrome";v="154", "Not A(Brand";v="99"
+    - sec-ch-ua-mobile: ?0
+    - sec-ch-ua-platform: "Linux"
+" while running route callback.
+Consider awaiting `await page.unroute_all(behavior='ignoreErrors')`
+before the end of the test to ignore remaining routes in flight.
+PENDING_BROWSER_CLEANUP_CAPTURE {"action": "cancel", "cleanup_seconds": 0.06115396200038958, "own_live_after_production_cleanup": [], "pending_routes_after_production_cleanup": 0, "source_after": {"src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b", "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484"}, "source_before": {"src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b", "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484"}}
+.
+2 passed in 2.13s

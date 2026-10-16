@@ -14,6 +14,19 @@ import httpx
 from siro.ports.models import CancellationToken
 
 
+class ProviderResponseInvalid(ValueError):
+    """A provider returned malformed data or an explicit error response."""
+
+
+def _decode_json_response(payload: str | bytes) -> object:
+    try:
+        return json.loads(payload)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        pass
+    # Keep payload-bearing decoder exceptions out of the exception chain.
+    raise ProviderResponseInvalid("provider returned invalid JSON or text encoding")
+
+
 class JsonTransport(Protocol):
     async def post(
         self, url: str, payload: dict[str, object], headers: dict[str, str], timeout: float
@@ -88,7 +101,7 @@ class UrllibJsonTransport:
             method="POST",
         )
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            decoded = json.loads(response.read())
+            decoded = _decode_json_response(response.read())
         if not isinstance(decoded, dict):
             raise ValueError("provider returned a non-object JSON response")
         return decoded

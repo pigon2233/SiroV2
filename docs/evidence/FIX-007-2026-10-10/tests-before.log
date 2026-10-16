@@ -1,0 +1,868 @@
+FFFFFFFFFFFFFFFFFF.FFFFFFFFFFFFFFFFFFFFF                                 [100%]
+=================================== FAILURES ===================================
+_______________ test_digest_binds_all_package_content[plugin.py] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_0')
+name = 'plugin.py'
+
+    @pytest.mark.parametrize("name", ["plugin.py", "helper.py", "requirements.txt", "data.txt"])
+    def test_digest_binds_all_package_content(tmp_path: Path, name: str) -> None:
+        skill = package(tmp_path / "package")
+        (skill.root / name).write_text("unapproved replacement")
+>       assert load_skill(skill.root).manifest_hash != skill.manifest_hash
+E       AssertionError: assert '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' != '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552'
+E        +  where '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+E        +    where InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}) = load_skill(PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_0/package'))
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_0/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+E        +  and   '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+
+tests/integration/test_skill_package_identity.py:83: AssertionError
+_______________ test_digest_binds_all_package_content[helper.py] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_1')
+name = 'helper.py'
+
+    @pytest.mark.parametrize("name", ["plugin.py", "helper.py", "requirements.txt", "data.txt"])
+    def test_digest_binds_all_package_content(tmp_path: Path, name: str) -> None:
+        skill = package(tmp_path / "package")
+        (skill.root / name).write_text("unapproved replacement")
+>       assert load_skill(skill.root).manifest_hash != skill.manifest_hash
+E       AssertionError: assert '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' != '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552'
+E        +  where '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+E        +    where InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}) = load_skill(PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_1/package'))
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_1/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+E        +  and   '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+
+tests/integration/test_skill_package_identity.py:83: AssertionError
+___________ test_digest_binds_all_package_content[requirements.txt] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_2')
+name = 'requirements.txt'
+
+    @pytest.mark.parametrize("name", ["plugin.py", "helper.py", "requirements.txt", "data.txt"])
+    def test_digest_binds_all_package_content(tmp_path: Path, name: str) -> None:
+        skill = package(tmp_path / "package")
+        (skill.root / name).write_text("unapproved replacement")
+>       assert load_skill(skill.root).manifest_hash != skill.manifest_hash
+E       AssertionError: assert '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' != '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552'
+E        +  where '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+E        +    where InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}) = load_skill(PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_2/package'))
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_2/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+E        +  and   '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+
+tests/integration/test_skill_package_identity.py:83: AssertionError
+_______________ test_digest_binds_all_package_content[data.txt] ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_3')
+name = 'data.txt'
+
+    @pytest.mark.parametrize("name", ["plugin.py", "helper.py", "requirements.txt", "data.txt"])
+    def test_digest_binds_all_package_content(tmp_path: Path, name: str) -> None:
+        skill = package(tmp_path / "package")
+        (skill.root / name).write_text("unapproved replacement")
+>       assert load_skill(skill.root).manifest_hash != skill.manifest_hash
+E       AssertionError: assert '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' != '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552'
+E        +  where '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+E        +    where InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}) = load_skill(PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_3/package'))
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_binds_all_package_3/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+E        +  and   '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+
+tests/integration/test_skill_package_identity.py:83: AssertionError
+____________ test_file_set_paths_and_executable_bits_are_bound[add] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut0')
+change = 'add'
+
+    @pytest.mark.parametrize("change", ["add", "delete", "rename", "executable"])
+    def test_file_set_paths_and_executable_bits_are_bound(tmp_path: Path, change: str) -> None:
+        skill = package(tmp_path / "package")
+        helper = skill.root / "helper.py"
+        if change == "add":
+            (skill.root / "extra.py").write_text("VALUE = 'new'\n")
+        elif change == "delete":
+            helper.unlink()
+        elif change == "rename":
+            helper.rename(skill.root / "renamed.py")
+        else:
+            helper.chmod(helper.stat().st_mode | 0o100)
+>       assert load_skill(skill.root).manifest_hash != skill.manifest_hash
+E       AssertionError: assert '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' != '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552'
+E        +  where '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+E        +    where InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}) = load_skill(PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut0/package'))
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut0/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+E        +  and   '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+
+tests/integration/test_skill_package_identity.py:98: AssertionError
+__________ test_file_set_paths_and_executable_bits_are_bound[delete] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut1')
+change = 'delete'
+
+    @pytest.mark.parametrize("change", ["add", "delete", "rename", "executable"])
+    def test_file_set_paths_and_executable_bits_are_bound(tmp_path: Path, change: str) -> None:
+        skill = package(tmp_path / "package")
+        helper = skill.root / "helper.py"
+        if change == "add":
+            (skill.root / "extra.py").write_text("VALUE = 'new'\n")
+        elif change == "delete":
+            helper.unlink()
+        elif change == "rename":
+            helper.rename(skill.root / "renamed.py")
+        else:
+            helper.chmod(helper.stat().st_mode | 0o100)
+>       assert load_skill(skill.root).manifest_hash != skill.manifest_hash
+E       AssertionError: assert '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' != '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552'
+E        +  where '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+E        +    where InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}) = load_skill(PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut1/package'))
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut1/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+E        +  and   '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+
+tests/integration/test_skill_package_identity.py:98: AssertionError
+__________ test_file_set_paths_and_executable_bits_are_bound[rename] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut2')
+change = 'rename'
+
+    @pytest.mark.parametrize("change", ["add", "delete", "rename", "executable"])
+    def test_file_set_paths_and_executable_bits_are_bound(tmp_path: Path, change: str) -> None:
+        skill = package(tmp_path / "package")
+        helper = skill.root / "helper.py"
+        if change == "add":
+            (skill.root / "extra.py").write_text("VALUE = 'new'\n")
+        elif change == "delete":
+            helper.unlink()
+        elif change == "rename":
+            helper.rename(skill.root / "renamed.py")
+        else:
+            helper.chmod(helper.stat().st_mode | 0o100)
+>       assert load_skill(skill.root).manifest_hash != skill.manifest_hash
+E       AssertionError: assert '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' != '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552'
+E        +  where '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+E        +    where InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}) = load_skill(PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut2/package'))
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut2/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+E        +  and   '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+
+tests/integration/test_skill_package_identity.py:98: AssertionError
+________ test_file_set_paths_and_executable_bits_are_bound[executable] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut3')
+change = 'executable'
+
+    @pytest.mark.parametrize("change", ["add", "delete", "rename", "executable"])
+    def test_file_set_paths_and_executable_bits_are_bound(tmp_path: Path, change: str) -> None:
+        skill = package(tmp_path / "package")
+        helper = skill.root / "helper.py"
+        if change == "add":
+            (skill.root / "extra.py").write_text("VALUE = 'new'\n")
+        elif change == "delete":
+            helper.unlink()
+        elif change == "rename":
+            helper.rename(skill.root / "renamed.py")
+        else:
+            helper.chmod(helper.stat().st_mode | 0o100)
+>       assert load_skill(skill.root).manifest_hash != skill.manifest_hash
+E       AssertionError: assert '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' != '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552'
+E        +  where '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+E        +    where InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}) = load_skill(PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut3/package'))
+E        +      where PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_file_set_paths_and_execut3/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+E        +  and   '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+
+tests/integration/test_skill_package_identity.py:98: AssertionError
+_____ test_digest_is_stable_versioned_and_transient_cache_is_not_delivered _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_digest_is_stable_versione0')
+
+    def test_digest_is_stable_versioned_and_transient_cache_is_not_delivered(tmp_path: Path) -> None:
+        skill = package(tmp_path / "package")
+>       assert skill.manifest_hash.startswith("siro-skill-package-v1:")
+E       AssertionError: assert False
+E        +  where False = <built-in method startswith of str object at 0x7939977cc500>('siro-skill-package-v1:')
+E        +    where <built-in method startswith of str object at 0x7939977cc500> = '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552'.startswith
+E        +      where '58ac3fa6c92b5818bcc52e4e769d449ca7fee4e5eb89b1ba956b12c13318a552' = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).manifest_hash
+
+tests/integration/test_skill_package_identity.py:103: AssertionError
+_________ test_package_aliases_and_nonregular_files_are_rejected[file] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_package_aliases_and_nonre0')
+kind = 'file'
+
+    @pytest.mark.parametrize("kind", ["file", "directory", "root", "hardlink", "fifo"])
+    def test_package_aliases_and_nonregular_files_are_rejected(tmp_path: Path, kind: str) -> None:
+        skill = package(tmp_path / "package")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("synthetic host marker")
+        root = skill.root
+        if kind == "file":
+            (root / "helper.py").unlink()
+            (root / "helper.py").symlink_to(outside / "secret.txt")
+        elif kind == "directory":
+            (root / "linked").symlink_to(outside, target_is_directory=True)
+        elif kind == "root":
+            root = tmp_path / "alias"
+            root.symlink_to(skill.root, target_is_directory=True)
+        elif kind == "hardlink":
+            os.link(outside / "secret.txt", root / "linked.txt")
+        else:
+            os.mkfifo(root / "pipe")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:133: Failed
+______ test_package_aliases_and_nonregular_files_are_rejected[directory] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_package_aliases_and_nonre1')
+kind = 'directory'
+
+    @pytest.mark.parametrize("kind", ["file", "directory", "root", "hardlink", "fifo"])
+    def test_package_aliases_and_nonregular_files_are_rejected(tmp_path: Path, kind: str) -> None:
+        skill = package(tmp_path / "package")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("synthetic host marker")
+        root = skill.root
+        if kind == "file":
+            (root / "helper.py").unlink()
+            (root / "helper.py").symlink_to(outside / "secret.txt")
+        elif kind == "directory":
+            (root / "linked").symlink_to(outside, target_is_directory=True)
+        elif kind == "root":
+            root = tmp_path / "alias"
+            root.symlink_to(skill.root, target_is_directory=True)
+        elif kind == "hardlink":
+            os.link(outside / "secret.txt", root / "linked.txt")
+        else:
+            os.mkfifo(root / "pipe")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:133: Failed
+_________ test_package_aliases_and_nonregular_files_are_rejected[root] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_package_aliases_and_nonre2')
+kind = 'root'
+
+    @pytest.mark.parametrize("kind", ["file", "directory", "root", "hardlink", "fifo"])
+    def test_package_aliases_and_nonregular_files_are_rejected(tmp_path: Path, kind: str) -> None:
+        skill = package(tmp_path / "package")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("synthetic host marker")
+        root = skill.root
+        if kind == "file":
+            (root / "helper.py").unlink()
+            (root / "helper.py").symlink_to(outside / "secret.txt")
+        elif kind == "directory":
+            (root / "linked").symlink_to(outside, target_is_directory=True)
+        elif kind == "root":
+            root = tmp_path / "alias"
+            root.symlink_to(skill.root, target_is_directory=True)
+        elif kind == "hardlink":
+            os.link(outside / "secret.txt", root / "linked.txt")
+        else:
+            os.mkfifo(root / "pipe")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:133: Failed
+_______ test_package_aliases_and_nonregular_files_are_rejected[hardlink] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_package_aliases_and_nonre3')
+kind = 'hardlink'
+
+    @pytest.mark.parametrize("kind", ["file", "directory", "root", "hardlink", "fifo"])
+    def test_package_aliases_and_nonregular_files_are_rejected(tmp_path: Path, kind: str) -> None:
+        skill = package(tmp_path / "package")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("synthetic host marker")
+        root = skill.root
+        if kind == "file":
+            (root / "helper.py").unlink()
+            (root / "helper.py").symlink_to(outside / "secret.txt")
+        elif kind == "directory":
+            (root / "linked").symlink_to(outside, target_is_directory=True)
+        elif kind == "root":
+            root = tmp_path / "alias"
+            root.symlink_to(skill.root, target_is_directory=True)
+        elif kind == "hardlink":
+            os.link(outside / "secret.txt", root / "linked.txt")
+        else:
+            os.mkfifo(root / "pipe")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:133: Failed
+_________ test_package_aliases_and_nonregular_files_are_rejected[fifo] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_package_aliases_and_nonre4')
+kind = 'fifo'
+
+    @pytest.mark.parametrize("kind", ["file", "directory", "root", "hardlink", "fifo"])
+    def test_package_aliases_and_nonregular_files_are_rejected(tmp_path: Path, kind: str) -> None:
+        skill = package(tmp_path / "package")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("synthetic host marker")
+        root = skill.root
+        if kind == "file":
+            (root / "helper.py").unlink()
+            (root / "helper.py").symlink_to(outside / "secret.txt")
+        elif kind == "directory":
+            (root / "linked").symlink_to(outside, target_is_directory=True)
+        elif kind == "root":
+            root = tmp_path / "alias"
+            root.symlink_to(skill.root, target_is_directory=True)
+        elif kind == "hardlink":
+            os.link(outside / "secret.txt", root / "linked.txt")
+        else:
+            os.mkfifo(root / "pipe")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:133: Failed
+_ test_unsupported_executable_formats_reject_instead_of_being_ignored[extra.pyc] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_unsupported_executable_fo0')
+name = 'extra.pyc'
+
+    @pytest.mark.parametrize("name", ["extra.pyc", "native.so", "native.pyd"])
+    def test_unsupported_executable_formats_reject_instead_of_being_ignored(
+        tmp_path: Path, name: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        (skill.root / name).write_bytes(b"synthetic unsupported executable")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:143: Failed
+_ test_unsupported_executable_formats_reject_instead_of_being_ignored[native.so] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_unsupported_executable_fo1')
+name = 'native.so'
+
+    @pytest.mark.parametrize("name", ["extra.pyc", "native.so", "native.pyd"])
+    def test_unsupported_executable_formats_reject_instead_of_being_ignored(
+        tmp_path: Path, name: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        (skill.root / name).write_bytes(b"synthetic unsupported executable")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:143: Failed
+_ test_unsupported_executable_formats_reject_instead_of_being_ignored[native.pyd] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_unsupported_executable_fo2')
+name = 'native.pyd'
+
+    @pytest.mark.parametrize("name", ["extra.pyc", "native.so", "native.pyd"])
+    def test_unsupported_executable_formats_reject_instead_of_being_ignored(
+        tmp_path: Path, name: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+        (skill.root / name).write_bytes(b"synthetic unsupported executable")
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:143: Failed
+_____ test_schema_references_must_be_canonical_package_paths[./input.json] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_schema_references_must_be0')
+relative = './input.json'
+
+    @pytest.mark.parametrize("relative", ["./input.json", "../input.json", "input\\.json"])
+    def test_schema_references_must_be_canonical_package_paths(tmp_path: Path, relative: str) -> None:
+        skill = package(tmp_path / "package")
+        path = skill.root / "manifest.json"
+        values = json.loads(path.read_text())
+        values["input_schema"] = relative
+        path.write_text(json.dumps(values))
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:154: Failed
+_____ test_schema_references_must_be_canonical_package_paths[input\\.json] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_schema_references_must_be2')
+relative = 'input\\.json'
+
+    @pytest.mark.parametrize("relative", ["./input.json", "../input.json", "input\\.json"])
+    def test_schema_references_must_be_canonical_package_paths(tmp_path: Path, relative: str) -> None:
+        skill = package(tmp_path / "package")
+        path = skill.root / "manifest.json"
+        values = json.loads(path.read_text())
+        values["input_schema"] = relative
+        path.write_text(json.dumps(values))
+        with pytest.raises(ValueError):
+>           load_skill(skill.root)
+
+tests/integration/test_skill_package_identity.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/core/skills.py:69: in load_skill
+    input_schema = _load_schema(root, manifest.input_schema)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/core/skills.py:83: in _load_schema
+    raw = json.loads(path.read_text(encoding="utf-8"))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:788: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_schema_references_must_be2/package/input\\.json')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-jasonliao/pytest-46/test_schema_references_must_be2/package/input\\.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+___________________ test_entrypoint_requires_package_source ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_entrypoint_requires_packa0')
+
+    def test_entrypoint_requires_package_source(tmp_path: Path) -> None:
+        skill = package(tmp_path / "package")
+        (skill.root / "plugin.py").unlink()
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:161: Failed
+______ test_package_resource_limits_fail_closed[SKILL_PACKAGE_MAX_FILES] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_package_resource_limits_f0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x793997813e10>
+limit = 'SKILL_PACKAGE_MAX_FILES'
+
+    @pytest.mark.parametrize(
+        "limit", ["SKILL_PACKAGE_MAX_FILES", "SKILL_PACKAGE_MAX_BYTES", "SKILL_FILE_MAX_BYTES"]
+    )
+    def test_package_resource_limits_fail_closed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, limit: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+>       monkeypatch.setattr(skills_module, limit, 1)
+E       AttributeError: <module 'siro.core.skills' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/skills.py'> has no attribute 'SKILL_PACKAGE_MAX_FILES'
+
+tests/integration/test_skill_package_identity.py:172: AttributeError
+______ test_package_resource_limits_fail_closed[SKILL_PACKAGE_MAX_BYTES] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_package_resource_limits_f1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7939978502b0>
+limit = 'SKILL_PACKAGE_MAX_BYTES'
+
+    @pytest.mark.parametrize(
+        "limit", ["SKILL_PACKAGE_MAX_FILES", "SKILL_PACKAGE_MAX_BYTES", "SKILL_FILE_MAX_BYTES"]
+    )
+    def test_package_resource_limits_fail_closed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, limit: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+>       monkeypatch.setattr(skills_module, limit, 1)
+E       AttributeError: <module 'siro.core.skills' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/skills.py'> has no attribute 'SKILL_PACKAGE_MAX_BYTES'
+
+tests/integration/test_skill_package_identity.py:172: AttributeError
+________ test_package_resource_limits_fail_closed[SKILL_FILE_MAX_BYTES] ________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_package_resource_limits_f2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7939978356d0>
+limit = 'SKILL_FILE_MAX_BYTES'
+
+    @pytest.mark.parametrize(
+        "limit", ["SKILL_PACKAGE_MAX_FILES", "SKILL_PACKAGE_MAX_BYTES", "SKILL_FILE_MAX_BYTES"]
+    )
+    def test_package_resource_limits_fail_closed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, limit: str
+    ) -> None:
+        skill = package(tmp_path / "package")
+>       monkeypatch.setattr(skills_module, limit, 1)
+E       AttributeError: <module 'siro.core.skills' from '/home/jasonliao/文件/Siro/SiroV2/src/siro/core/skills.py'> has no attribute 'SKILL_FILE_MAX_BYTES'
+
+tests/integration/test_skill_package_identity.py:172: AttributeError
+______________ test_changed_code_never_reaches_supervisor[stale] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_changed_code_never_reache0')
+caller = 'stale'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("caller", ["stale", "reloaded", "forged_hash"])
+    async def test_changed_code_never_reaches_supervisor(tmp_path: Path, caller: str) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+        (skill.root / "plugin.py").write_text(
+            "def run(arguments):\n    raise RuntimeError('changed')\n"
+        )
+        supplied = skill if caller == "stale" else load_skill(skill.root)
+        if caller == "forged_hash":
+            supplied = replace(supplied, manifest_hash=skill.manifest_hash)
+>       with pytest.raises(SkillDisabled):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SkillDisabled
+
+tests/integration/test_skill_package_identity.py:187: Failed
+_____________ test_changed_code_never_reaches_supervisor[reloaded] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_changed_code_never_reache1')
+caller = 'reloaded'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("caller", ["stale", "reloaded", "forged_hash"])
+    async def test_changed_code_never_reaches_supervisor(tmp_path: Path, caller: str) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+        (skill.root / "plugin.py").write_text(
+            "def run(arguments):\n    raise RuntimeError('changed')\n"
+        )
+        supplied = skill if caller == "stale" else load_skill(skill.root)
+        if caller == "forged_hash":
+            supplied = replace(supplied, manifest_hash=skill.manifest_hash)
+>       with pytest.raises(SkillDisabled):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SkillDisabled
+
+tests/integration/test_skill_package_identity.py:187: Failed
+___________ test_changed_code_never_reaches_supervisor[forged_hash] ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_changed_code_never_reache2')
+caller = 'forged_hash'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("caller", ["stale", "reloaded", "forged_hash"])
+    async def test_changed_code_never_reaches_supervisor(tmp_path: Path, caller: str) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+        (skill.root / "plugin.py").write_text(
+            "def run(arguments):\n    raise RuntimeError('changed')\n"
+        )
+        supplied = skill if caller == "stale" else load_skill(skill.root)
+        if caller == "forged_hash":
+            supplied = replace(supplied, manifest_hash=skill.manifest_hash)
+>       with pytest.raises(SkillDisabled):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SkillDisabled
+
+tests/integration/test_skill_package_identity.py:187: Failed
+_____________ test_caller_cannot_forge_non_hash_metadata[manifest] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_caller_cannot_forge_non_h0')
+field = 'manifest'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field", ["manifest", "input_schema", "output_schema"])
+    async def test_caller_cannot_forge_non_hash_metadata(tmp_path: Path, field: str) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+        value: Any = {"type": "object", "properties": {}}
+        if field == "manifest":
+            value = skill.manifest.model_copy(update={"timeout_ms": 120000})
+        supplied = replace(skill, **{field: value})
+>       with pytest.raises(SkillDisabled):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SkillDisabled
+
+tests/integration/test_skill_package_identity.py:200: Failed
+___________ test_caller_cannot_forge_non_hash_metadata[input_schema] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_caller_cannot_forge_non_h1')
+field = 'input_schema'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field", ["manifest", "input_schema", "output_schema"])
+    async def test_caller_cannot_forge_non_hash_metadata(tmp_path: Path, field: str) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+        value: Any = {"type": "object", "properties": {}}
+        if field == "manifest":
+            value = skill.manifest.model_copy(update={"timeout_ms": 120000})
+        supplied = replace(skill, **{field: value})
+>       with pytest.raises(SkillDisabled):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SkillDisabled
+
+tests/integration/test_skill_package_identity.py:200: Failed
+__________ test_caller_cannot_forge_non_hash_metadata[output_schema] ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_caller_cannot_forge_non_h2')
+field = 'output_schema'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field", ["manifest", "input_schema", "output_schema"])
+    async def test_caller_cannot_forge_non_hash_metadata(tmp_path: Path, field: str) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+        value: Any = {"type": "object", "properties": {}}
+        if field == "manifest":
+            value = skill.manifest.model_copy(update={"timeout_ms": 120000})
+        supplied = replace(skill, **{field: value})
+>       with pytest.raises(SkillDisabled):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SkillDisabled
+
+tests/integration/test_skill_package_identity.py:200: Failed
+___________ test_identical_other_root_cannot_borrow_enable_identity ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_identical_other_root_cann0')
+
+    @pytest.mark.asyncio
+    async def test_identical_other_root_cannot_borrow_enable_identity(tmp_path: Path) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+        other = tmp_path / "other"
+        shutil.copytree(skill.root, other)
+        same_content = load_skill(other)
+        assert same_content.manifest_hash == skill.manifest_hash
+>       with pytest.raises(SkillDisabled):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SkillDisabled
+
+tests/integration/test_skill_package_identity.py:212: Failed
+_____ test_legacy_approval_row_is_preserved_but_cannot_enable_or_dispatch ______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_legacy_approval_row_is_pr0')
+
+    @pytest.mark.asyncio
+    async def test_legacy_approval_row_is_preserved_but_cannot_enable_or_dispatch(
+        tmp_path: Path,
+    ) -> None:
+        skill, registry, store, supervisor, dispatcher = await approved(tmp_path)
+        legacy = hashlib.sha256(
+            b"".join(
+                (skill.root / name).read_bytes()
+                for name in ("manifest.json", "input.json", "output.json")
+            )
+        ).hexdigest()
+        await store.run_transaction(lambda c: c.execute("UPDATE skills SET manifest_hash=?", (legacy,)))
+>       assert not await registry.is_enabled(skill.manifest.id, skill.manifest.version)
+E       assert not True
+
+tests/integration/test_skill_package_identity.py:229: AssertionError
+_____________ test_enable_does_not_approve_changed_code_implicitly _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_enable_does_not_approve_c0')
+
+    @pytest.mark.asyncio
+    async def test_enable_does_not_approve_changed_code_implicitly(tmp_path: Path) -> None:
+        skill, registry, store, _, _ = await approved(tmp_path)
+        await registry.set_enabled(skill.manifest.id, skill.manifest.version, enabled=False)
+        (skill.root / "helper.py").write_text("VALUE = 'unapproved'\n")
+>       with pytest.raises(ValueError, match="approval"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:248: Failed
+______________ test_install_cannot_trust_a_forged_hash_or_schema _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_install_cannot_trust_a_fo0')
+
+    @pytest.mark.asyncio
+    async def test_install_cannot_trust_a_forged_hash_or_schema(tmp_path: Path) -> None:
+        skill, registry, store, _, _ = await approved(tmp_path)
+>       with pytest.raises(ValueError, match="approval"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_skill_package_identity.py:257: Failed
+_______ test_snapshot_is_same_verified_bytes_and_removed_after_execution _______
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_snapshot_is_same_verified0')
+
+    @pytest.mark.asyncio
+    async def test_snapshot_is_same_verified_bytes_and_removed_after_execution(tmp_path: Path) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+        cache = skill.root / "__pycache__"
+        cache.mkdir()
+        (cache / "plugin.cpython-314.pyc").write_bytes(b"ignored cache")
+        source_bytes = (skill.root / "plugin.py").read_text()
+        result = await dispatcher.execute(skill, {})
+        assert result["text"] == source_bytes
+        snapshot = supervisor.calls[0]
+>       assert snapshot.root != skill.root
+E       AssertionError: assert PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_snapshot_is_same_verified0/package') != PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_snapshot_is_same_verified0/package')
+E        +  where PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_snapshot_is_same_verified0/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+E        +  and   PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_snapshot_is_same_verified0/package') = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}}).root
+
+tests/integration/test_skill_package_identity.py:273: AssertionError
+______________ test_change_during_capture_rejects_before_handoff _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_change_during_capture_rej0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x793997af0c00>
+
+    @pytest.mark.asyncio
+    async def test_change_during_capture_rejects_before_handoff(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+>       original = worker_module.capture_skill
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.adapters.skill_worker' has no attribute 'capture_skill'
+
+tests/integration/test_skill_package_identity.py:284: AttributeError
+___________ test_frozen_handoff_cannot_execute_later_source_mutation ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_frozen_handoff_cannot_exe0')
+
+    @pytest.mark.asyncio
+    async def test_frozen_handoff_cannot_execute_later_source_mutation(tmp_path: Path) -> None:
+        skill, registry, _, _, _ = await approved(tmp_path)
+        before = (skill.root / "plugin.py").read_bytes()
+    
+        class MutatingSupervisor(WorkerSupervisor):
+            async def execute(self, snapshot: InstalledSkill, arguments: object) -> dict[str, object]:
+                (skill.root / "plugin.py").write_text(
+                    "def run(arguments):\n    return {'text': 'wrong'}\n"
+                )
+                (skill.root / "helper.py").write_text("VALUE = 'wrong'\n")
+                assert (snapshot.root / "plugin.py").read_bytes() == before
+                assert not (snapshot.root / "__pycache__").exists()
+                return await super().execute(snapshot, arguments)
+    
+        dispatcher = SkillDispatcher(registry, MutatingSupervisor())
+>       assert await dispatcher.execute(skill, {"text": "approved"}) == {"text": "approved"}
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_skill_package_identity.py:313: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/adapters/skill_worker.py:140: in execute
+    return await self._supervisor.execute(skill, arguments)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_skill_package_identity.test_frozen_handoff_cannot_execute_later_source_mutation.<locals>.MutatingSupervisor object at 0x793997a38ec0>
+snapshot = InstalledSkill(manifest=SkillManifest(id='fixture.package', version='1.0.0', contract_version=1, description='Syntheti...operties': {'text': {'type': 'string'}}}, output_schema={'type': 'object', 'properties': {'text': {'type': 'string'}}})
+arguments = {'text': 'approved'}
+
+    async def execute(self, snapshot: InstalledSkill, arguments: object) -> dict[str, object]:
+        (skill.root / "plugin.py").write_text(
+            "def run(arguments):\n    return {'text': 'wrong'}\n"
+        )
+        (skill.root / "helper.py").write_text("VALUE = 'wrong'\n")
+>       assert (snapshot.root / "plugin.py").read_bytes() == before
+E       assert b"def run(arg...': 'wrong'}\n" == b"def run(arg...n arguments\n"
+E         
+E         At index 24 diff: b'r' != b'i'
+E         Use -v to get more diff
+
+tests/integration/test_skill_package_identity.py:308: AssertionError
+_______________ test_revoke_during_preparation_prevents_handoff ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_revoke_during_preparation0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7939984d67b0>
+
+    @pytest.mark.asyncio
+    async def test_revoke_during_preparation_prevents_handoff(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skill, registry, _, supervisor, dispatcher = await approved(tmp_path)
+        original = registry.is_enabled
+        queries = 0
+    
+        async def revoked(*args: Any, **kwargs: Any) -> bool:
+            nonlocal queries
+            queries += 1
+            if queries == 2:
+                await registry.set_enabled(skill.manifest.id, skill.manifest.version, enabled=False)
+            return await original(*args, **kwargs)
+    
+        monkeypatch.setattr(registry, "is_enabled", revoked)
+>       with pytest.raises(SkillDisabled):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SkillDisabled
+
+tests/integration/test_skill_package_identity.py:334: Failed
+___________ test_cancel_preparation_joins_and_removes_owned_snapshot ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_cancel_preparation_joins_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7939984b78d0>
+
+    @pytest.mark.asyncio
+    async def test_cancel_preparation_joins_and_removes_owned_snapshot(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        skill, _, _, supervisor, dispatcher = await approved(tmp_path)
+>       original = worker_module._prepare_skill
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'siro.adapters.skill_worker' has no attribute '_prepare_skill'
+
+tests/integration/test_skill_package_identity.py:344: AttributeError
+__________________ test_cancel_worker_removes_owned_snapshot ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_cancel_worker_removes_own0')
+
+    @pytest.mark.asyncio
+    async def test_cancel_worker_removes_owned_snapshot(tmp_path: Path) -> None:
+        skill, registry, _, _, _ = await approved(tmp_path)
+        started = asyncio.Event()
+        roots: list[Path] = []
+    
+        class WaitingSupervisor(WorkerSupervisor):
+            async def execute(self, snapshot: InstalledSkill, arguments: object) -> dict[str, object]:
+                roots.append(snapshot.root)
+                started.set()
+                await asyncio.Event().wait()
+                return {}
+    
+        task = asyncio.create_task(SkillDispatcher(registry, WaitingSupervisor()).execute(skill, {}))
+        await asyncio.wait_for(started.wait(), 2)
+        assert roots[0].exists()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+>       assert not roots[0].exists()
+E       AssertionError: assert not True
+E        +  where True = exists()
+E        +    where exists = PosixPath('/tmp/pytest-of-jasonliao/pytest-46/test_cancel_worker_removes_own0/package').exists
+
+tests/integration/test_skill_package_identity.py:385: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_skill_package_identity.py::test_digest_binds_all_package_content[plugin.py]
+FAILED tests/integration/test_skill_package_identity.py::test_digest_binds_all_package_content[helper.py]
+FAILED tests/integration/test_skill_package_identity.py::test_digest_binds_all_package_content[requirements.txt]
+FAILED tests/integration/test_skill_package_identity.py::test_digest_binds_all_package_content[data.txt]
+FAILED tests/integration/test_skill_package_identity.py::test_file_set_paths_and_executable_bits_are_bound[add]
+FAILED tests/integration/test_skill_package_identity.py::test_file_set_paths_and_executable_bits_are_bound[delete]
+FAILED tests/integration/test_skill_package_identity.py::test_file_set_paths_and_executable_bits_are_bound[rename]
+FAILED tests/integration/test_skill_package_identity.py::test_file_set_paths_and_executable_bits_are_bound[executable]
+FAILED tests/integration/test_skill_package_identity.py::test_digest_is_stable_versioned_and_transient_cache_is_not_delivered
+FAILED tests/integration/test_skill_package_identity.py::test_package_aliases_and_nonregular_files_are_rejected[file]
+FAILED tests/integration/test_skill_package_identity.py::test_package_aliases_and_nonregular_files_are_rejected[directory]
+FAILED tests/integration/test_skill_package_identity.py::test_package_aliases_and_nonregular_files_are_rejected[root]
+FAILED tests/integration/test_skill_package_identity.py::test_package_aliases_and_nonregular_files_are_rejected[hardlink]
+FAILED tests/integration/test_skill_package_identity.py::test_package_aliases_and_nonregular_files_are_rejected[fifo]
+FAILED tests/integration/test_skill_package_identity.py::test_unsupported_executable_formats_reject_instead_of_being_ignored[extra.pyc]
+FAILED tests/integration/test_skill_package_identity.py::test_unsupported_executable_formats_reject_instead_of_being_ignored[native.so]
+FAILED tests/integration/test_skill_package_identity.py::test_unsupported_executable_formats_reject_instead_of_being_ignored[native.pyd]
+FAILED tests/integration/test_skill_package_identity.py::test_schema_references_must_be_canonical_package_paths[./input.json]
+FAILED tests/integration/test_skill_package_identity.py::test_schema_references_must_be_canonical_package_paths[input\\.json]
+FAILED tests/integration/test_skill_package_identity.py::test_entrypoint_requires_package_source
+FAILED tests/integration/test_skill_package_identity.py::test_package_resource_limits_fail_closed[SKILL_PACKAGE_MAX_FILES]
+FAILED tests/integration/test_skill_package_identity.py::test_package_resource_limits_fail_closed[SKILL_PACKAGE_MAX_BYTES]
+FAILED tests/integration/test_skill_package_identity.py::test_package_resource_limits_fail_closed[SKILL_FILE_MAX_BYTES]
+FAILED tests/integration/test_skill_package_identity.py::test_changed_code_never_reaches_supervisor[stale]
+FAILED tests/integration/test_skill_package_identity.py::test_changed_code_never_reaches_supervisor[reloaded]
+FAILED tests/integration/test_skill_package_identity.py::test_changed_code_never_reaches_supervisor[forged_hash]
+FAILED tests/integration/test_skill_package_identity.py::test_caller_cannot_forge_non_hash_metadata[manifest]
+FAILED tests/integration/test_skill_package_identity.py::test_caller_cannot_forge_non_hash_metadata[input_schema]
+FAILED tests/integration/test_skill_package_identity.py::test_caller_cannot_forge_non_hash_metadata[output_schema]
+FAILED tests/integration/test_skill_package_identity.py::test_identical_other_root_cannot_borrow_enable_identity
+FAILED tests/integration/test_skill_package_identity.py::test_legacy_approval_row_is_preserved_but_cannot_enable_or_dispatch
+FAILED tests/integration/test_skill_package_identity.py::test_enable_does_not_approve_changed_code_implicitly
+FAILED tests/integration/test_skill_package_identity.py::test_install_cannot_trust_a_forged_hash_or_schema
+FAILED tests/integration/test_skill_package_identity.py::test_snapshot_is_same_verified_bytes_and_removed_after_execution
+FAILED tests/integration/test_skill_package_identity.py::test_change_during_capture_rejects_before_handoff
+FAILED tests/integration/test_skill_package_identity.py::test_frozen_handoff_cannot_execute_later_source_mutation
+FAILED tests/integration/test_skill_package_identity.py::test_revoke_during_preparation_prevents_handoff
+FAILED tests/integration/test_skill_package_identity.py::test_cancel_preparation_joins_and_removes_owned_snapshot
+FAILED tests/integration/test_skill_package_identity.py::test_cancel_worker_removes_owned_snapshot
+39 failed, 1 passed in 0.61s

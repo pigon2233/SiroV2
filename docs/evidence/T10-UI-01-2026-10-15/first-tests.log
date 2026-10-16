@@ -1,0 +1,1327 @@
+...............FFFFFFFFF................................................ [ 63%]
+.........................................                                [100%]
+=================================== FAILURES ===================================
+_ test_navigation_click_back_forward_and_reinitialization_keep_draft_and_dom_owners _
+
+    def test_navigation_click_back_forward_and_reinitialization_keep_draft_and_dom_owners() -> None:
+>       run_navigation(
+            """
+    initializePageNavigation();
+    const textarea=document.querySelector('#text'),renderer=document.querySelector('#companion');
+    textarea.value='尚未送出的繁體中文草稿';
+    const listenerCounts=[(listeners.get('hashchange') || []).length,
+     (listeners.get('popstate') || []).length];
+    initializePageNavigation();
+    assert.deepEqual([(listeners.get('hashchange') || []).length,
+     (listeners.get('popstate') || []).length],listenerCounts);
+    await clickLink(routeLink('tasks'));assertPage('tasks');
+    assert(document.activeElement?.hasAttribute('data-page-heading'),
+     'A deliberate navigation must move keyboard focus to the work heading');
+    assert.equal(document.activeElement.closest('[data-page]').dataset.page,'tasks');
+    await clickLink(routeLink('memory'));assertPage('memory');
+    history.back();assertPage('tasks');history.back();assertPage('chat');
+    history.forward();assertPage('tasks');
+    assert.equal(textarea.value,'尚未送出的繁體中文草稿');
+    assert.strictEqual(document.querySelector('#text'),textarea);
+    assert.strictEqual(document.querySelector('#companion'),renderer);
+    assert.equal(historyWrites.filter(write=>write.method==='push').length,2);
+    assert.equal(calls.length,0);assert.equal(sockets.length,0);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:275: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...ites.filter(write=>write.method===\'push\').length,2);\nassert.equal(calls.length,0);assert.equal(sockets.length,0);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: TypeError: Cannot read properties of null (reading 'focus')
+E             at showPage ([eval]:184:91)
+E             at navigateToPage ([eval]:191:16)
+E             at link.onclick ([eval]:199:37)
+E             at clickLink ([eval]:1339:23)
+E             at [eval]:1364:7
+E             at [eval]:1377:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...ss/execution:451:12\n    at [eval]-wrapper:6:24\n    at runScriptInContext (node:internal/process/execution:449:60)\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+_ test_browser_navigation_events_reconcile_without_writing_another_history_entry[hashchange] _
+
+event_name = 'hashchange'
+
+    @pytest.mark.parametrize("event_name", ["hashchange", "popstate"])
+    def test_browser_navigation_events_reconcile_without_writing_another_history_entry(
+        event_name: str,
+    ) -> None:
+>       run_navigation(
+            f"""
+    initializePageNavigation();const before=historyWrites.length;
+    location.hash='#/skills';dispatchWindow({json.dumps(event_name)});assertPage('skills');
+    assert.equal(historyWrites.length,before,'Reading browser history must not push another entry');
+    location.hash='#/unknown';dispatchWindow({json.dumps(event_name)});assertPage('chat');
+    assert.equal(historyWrites.filter(write=>write.method==='push').length,0);
+    assert.equal(calls.length,0);assert.equal(sockets.length,0);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:305: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...ites.filter(write=>write.method===\'push\').length,0);\nassert.equal(calls.length,0);assert.equal(sockets.length,0);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: TypeError: Cannot read properties of null (reading 'focus')
+E             at showPage ([eval]:184:91)
+E             at [eval]:202:53
+E             at dispatchWindow ([eval]:37:84)
+E             at [eval]:1357:26
+E             at [eval]:1363:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...iptInContext (node:internal/process/execution:449:60)\n    at evalFunction (node:internal/process/execution:283:30)\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+_ test_browser_navigation_events_reconcile_without_writing_another_history_entry[popstate] _
+
+event_name = 'popstate'
+
+    @pytest.mark.parametrize("event_name", ["hashchange", "popstate"])
+    def test_browser_navigation_events_reconcile_without_writing_another_history_entry(
+        event_name: str,
+    ) -> None:
+>       run_navigation(
+            f"""
+    initializePageNavigation();const before=historyWrites.length;
+    location.hash='#/skills';dispatchWindow({json.dumps(event_name)});assertPage('skills');
+    assert.equal(historyWrites.length,before,'Reading browser history must not push another entry');
+    location.hash='#/unknown';dispatchWindow({json.dumps(event_name)});assertPage('chat');
+    assert.equal(historyWrites.filter(write=>write.method==='push').length,0);
+    assert.equal(calls.length,0);assert.equal(sockets.length,0);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:305: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...ites.filter(write=>write.method===\'push\').length,0);\nassert.equal(calls.length,0);assert.equal(sockets.length,0);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: TypeError: Cannot read properties of null (reading 'focus')
+E             at showPage ([eval]:184:91)
+E             at [eval]:203:51
+E             at dispatchWindow ([eval]:37:84)
+E             at [eval]:1357:26
+E             at [eval]:1363:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...iptInContext (node:internal/process/execution:449:60)\n    at evalFunction (node:internal/process/execution:283:30)\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+_ test_repeated_same_page_and_invalid_programmatic_navigation_do_not_create_actions _
+
+    def test_repeated_same_page_and_invalid_programmatic_navigation_do_not_create_actions() -> None:
+>       run_navigation(
+            """
+    initializePageNavigation();
+    const writes=historyWrites.length;
+    navigateToPage('chat');navigateToPage('chat');
+    assert.equal(historyWrites.length,writes);
+    navigateToPage('untrusted-private-canary');assertPage('chat');
+    assert(!String(location.hash).includes('private-canary'));
+    assert.equal(calls.length,0);assert.equal(sockets.length,0);assert.equal(timers.size,0);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:318: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...udes(\'private-canary\'));\nassert.equal(calls.length,0);assert.equal(sockets.length,0);assert.equal(timers.size,0);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: TypeError: Cannot read properties of null (reading 'focus')
+E             at showPage ([eval]:184:91)
+E             at navigateToPage ([eval]:191:16)
+E             at [eval]:1358:1
+E             at [eval]:1364:3
+E             at runScriptInThisContext (node:internal/vm:219:10)
+E             at node:internal/process/execution:451:12
+E             at [eval]-wrapper:6:24
+E             at runScriptInContext (node:internal/process/execution:449:60)
+E             at evalFunction (node:internal/process/execution:283:30)
+E             at evalTypeScript (node:internal/process/execution:295:3)
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...valFunction (node:internal/process/execution:283:30)\n    at evalTypeScript (node:internal/process/execution:295:3)\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+_ test_pending_turn_survives_navigation_without_resubmission_or_new_connection _
+
+    def test_pending_turn_survives_navigation_without_resubmission_or_new_connection() -> None:
+>       run_navigation(
+            """
+    initializePageNavigation();const owner=await readyControl();
+    let resolveTurn;
+    fetchPlan=()=>new Promise(resolve=>{resolveTurn=resolve;});
+    const submission=submitText('synthetic navigation submission');
+    await until(()=>targetCalls().length===1);
+    const request=targetCalls()[0],pending=pendingSubmission,generation=submissionGeneration;
+    const renderer=document.querySelector('#companion'),sessionOwner=sessionAccess;
+    for(const page of ['tasks','memory','computer','system','chat']) navigateToPage(page);
+    history.back();history.forward();
+    assert.equal(targetCalls().length,1);assert.equal(request.url,'/v1/conversations/browser/turns');
+    assert.strictEqual(pendingSubmission,pending);assert(!pending.signal.aborted);
+    assert.equal(submissionGeneration,generation);assert.strictEqual(socket,owner);
+    assert.strictEqual(sessionAccess,sessionOwner);assert.equal(sockets.length,1);
+    assert.strictEqual(document.querySelector('#companion'),renderer);
+    resolveTurn(response(200,{turn_id:'synthetic-preserved-turn'}));await submission;
+    assert.equal(currentTurn,'synthetic-preserved-turn');assert.equal(targetCalls().length,1);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:332: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...'}));await submission;\nassert.equal(currentTurn,\'synthetic-preserved-turn\');assert.equal(targetCalls().length,1);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: TypeError: Cannot read properties of null (reading 'focus')
+E             at showPage ([eval]:184:91)
+E             at navigateToPage ([eval]:191:16)
+E             at [eval]:1363:66
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...ll (reading 'focus')\n    at showPage ([eval]:184:91)\n    at navigateToPage ([eval]:191:16)\n    at [eval]:1363:66\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+_ test_incoming_proposals_and_pending_approval_keep_route_and_never_repeat_approval _
+
+    def test_incoming_proposals_and_pending_approval_keep_route_and_never_repeat_approval() -> None:
+>       run_navigation(
+            """
+    initializePageNavigation();await readyControl();authorizationMode='safe';
+    navigateToPage('memory');
+    renderToolProposal({proposal_id:'synthetic-proposal',capability:'computer.execute',
+     scope:'synthetic read',target:'synthetic target',risk:'read-only'});
+    assertPage('memory');assert.equal(targetCalls().length,0);
+    const card=document.querySelector('#tool-synthetic-proposal');
+    const approve=card.children.find(child=>child.tagName==='button');assert(approve);
+    let resolveApproval;fetchPlan=()=>new Promise(resolve=>{resolveApproval=resolve;});
+    const approval=approve.onclick();await until(()=>targetCalls().length===1);
+    for(const page of ['computer','tasks','settings','chat','computer']) navigateToPage(page);
+    history.back();history.forward();assert(approve.disabled);
+    assert.equal(targetCalls().length,1);
+    assert.equal(targetCalls()[0].url,'/v1/tool-proposals/synthetic-proposal/approve');
+    assert.deepEqual(JSON.parse(targetCalls()[0].options.body),{approved:true});
+    resolveApproval(response(200,{}));await approval;
+    assert.equal(targetCalls().length,1);assert.equal(sockets.length,1);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:355: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...olveApproval(response(200,{}));await approval;\nassert.equal(targetCalls().length,1);assert.equal(sockets.length,1);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: TypeError: Cannot read properties of null (reading 'focus')
+E             at showPage ([eval]:184:91)
+E             at navigateToPage ([eval]:191:16)
+E             at [eval]:1357:1
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...ull (reading 'focus')\n    at showPage ([eval]:184:91)\n    at navigateToPage ([eval]:191:16)\n    at [eval]:1357:1\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+_ test_streaming_answer_updates_existing_chat_while_another_work_page_is_open __
+
+    def test_streaming_answer_updates_existing_chat_while_another_work_page_is_open() -> None:
+>       run_navigation(
+            """
+    initializePageNavigation();const owner=await readyControl();navigateToPage('tasks');
+    const messages=document.querySelector('#messages');
+    owner.message({type:'turn_started',turn_id:'synthetic-stream-turn'});
+    owner.message({type:'assistant_started',stream_id:'synthetic-stream'});
+    owner.message({type:'assistant_delta',stream_id:'synthetic-stream',text:'合成來源仍然連續'});
+    assertPage('tasks');assert.equal(currentTurn,'synthetic-stream-turn');
+    assert(messages.textContent.includes('合成來源仍然連續'));
+    owner.message({type:'assistant_terminal',stream_id:'synthetic-stream',state:'completed'});
+    await flush();assertPage('tasks');assert.equal(currentTurn,undefined);
+    navigateToPage('chat');assert.strictEqual(document.querySelector('#messages'),messages);
+    assert(messages.textContent.includes('合成來源仍然連續'));
+    assert.equal(targetCalls().length,0,'Returning must not resubmit the turn or replay speech');
+    assert.equal(sockets.length,1);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:378: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...(targetCalls().length,0,\'Returning must not resubmit the turn or replay speech\');\nassert.equal(sockets.length,1);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: TypeError: Cannot read properties of null (reading 'focus')
+E             at showPage ([eval]:184:91)
+E             at navigateToPage ([eval]:191:16)
+E             at [eval]:1356:61
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...ll (reading 'focus')\n    at showPage ([eval]:184:91)\n    at navigateToPage ([eval]:191:16)\n    at [eval]:1356:61\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+_ test_active_speech_is_not_replayed_on_navigation_and_global_cancel_still_stops_it _
+
+    def test_active_speech_is_not_replayed_on_navigation_and_global_cancel_still_stops_it() -> None:
+>       run_navigation(
+            """
+    initializePageNavigation();await readyControl();
+    const audios=[],revoked=[];
+    globalThis.Audio=class {
+     constructor(src){this.src=src;this.played=0;this.pauses=0;audios.push(this);}
+     play(){this.played++;this.onplay?.();return Promise.resolve();}
+     pause(){this.pauses++;}removeAttribute(){}load(){}
+    };
+    URL.createObjectURL=()=> 'blob:synthetic-navigation';
+    URL.revokeObjectURL=url=>revoked.push(url);
+    document.querySelector('#voice-output').checked=true;
+    fetchPlan=async url=>url==='/v1/audio/speech/plan' ? response(200,{
+     segments:['合成的完整語音。'],spoken_text:'合成的完整語音。',version:'synthetic-v1',
+     max_chars:80,max_segments:128,max_total_chars:8000,deadline_seconds:1200
+    }) : url==='/v1/audio/speech' ? new Response(new Uint8Array([1,2,3])) : response(200,{});
+    const narration=playTts('合成的完整語音。',{});
+    await until(()=>audios.length===1);
+    const audioOwner=ttsAudio,generation=ttsGeneration,controller=ttsController;
+    const before=targetCalls().length;currentTurn='synthetic-speaking-turn';
+    for(const page of ['tasks','memory','computer','skills','permissions','system'])
+     navigateToPage(page);
+    assert.strictEqual(ttsAudio,audioOwner);assert.strictEqual(ttsController,controller);
+    assert.equal(ttsGeneration,generation);assert.equal(audios.length,1);
+    assert.equal(audios[0].played,1);assert.equal(audios[0].pauses,0);
+    assert.equal(targetCalls().length,before);assert.equal(sockets.length,1);
+    const cancel=document.querySelector('#cancel');assert.equal(cancel.closest('[data-page]'),null);
+    await cancel.onclick();await narration;
+    assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);
+    assert.equal(targetCalls().filter(call=>call.url==='/v1/turns/synthetic-speaking-turn/cancel').length,1);
+    assert.equal(targetCalls().filter(call=>call.url==='/v1/audio/speech').length,1);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:398: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...aking-turn/cancel\').length,1);\nassert.equal(targetCalls().filter(call=>call.url===\'/v1/audio/speech\').length,1);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: TypeError: Cannot read properties of null (reading 'focus')
+E             at showPage ([eval]:184:91)
+E             at navigateToPage ([eval]:191:16)
+E             at [eval]:1375:2
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...ull (reading 'focus')\n    at showPage ([eval]:184:91)\n    at navigateToPage ([eval]:191:16)\n    at [eval]:1375:2\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+______ test_owner_task_panel_explains_scope_and_proposal_before_execution ______
+
+    def test_owner_task_panel_explains_scope_and_proposal_before_execution() -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        computer = html.split('id="computer-panel"', 1)[1].split('id="memories-panel"', 1)[0]
+        panel = computer.split('id="goal-task-panel"', 1)[1].split("</section>", 1)[0]
+>       assert "交給 SIRO 的任務" in panel
+E       assert '交給 SIRO 的任務' in '>\n              <h2>從文件整理待辦</h2>\n              <p>指定工作目錄內 1–5 份文字檔，每行一個相對路徑。我會唯讀整理尚未勾選的待辦與 TODO／FIXME，保留來源、行數與時間。先建...polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>\n              <div id="goal-task-items" aria-live="polite"></div>\n            '
+
+tests/integration/test_frontend_goal_tasks.py:52: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_frontend_navigation.py::test_navigation_click_back_forward_and_reinitialization_keep_draft_and_dom_owners
+FAILED tests/integration/test_frontend_navigation.py::test_browser_navigation_events_reconcile_without_writing_another_history_entry[hashchange]
+FAILED tests/integration/test_frontend_navigation.py::test_browser_navigation_events_reconcile_without_writing_another_history_entry[popstate]
+FAILED tests/integration/test_frontend_navigation.py::test_repeated_same_page_and_invalid_programmatic_navigation_do_not_create_actions
+FAILED tests/integration/test_frontend_navigation.py::test_pending_turn_survives_navigation_without_resubmission_or_new_connection
+FAILED tests/integration/test_frontend_navigation.py::test_incoming_proposals_and_pending_approval_keep_route_and_never_repeat_approval
+FAILED tests/integration/test_frontend_navigation.py::test_streaming_answer_updates_existing_chat_while_another_work_page_is_open
+FAILED tests/integration/test_frontend_navigation.py::test_active_speech_is_not_replayed_on_navigation_and_global_cancel_still_stops_it
+FAILED tests/integration/test_frontend_goal_tasks.py::test_owner_task_panel_explains_scope_and_proposal_before_execution
+9 failed, 104 passed in 8.84s

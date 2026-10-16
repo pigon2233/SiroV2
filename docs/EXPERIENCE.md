@@ -80,7 +80,7 @@ Device 面板區分 online、offline、unknown、stale；操作後顯示 command
 | System | service health、resources、profile、backup/update | T32–T40 |
 | CLI | doctor、headless chat、diagnostics、backup/restore | T01、T08、T34 |
 
-第一版可以將多個畫面合併在同一個本機控制 UI，但所有入口與資訊仍須可找到；不可用只有開發者看得懂的 log 取代使用者狀態。
+2026-10-15 使用者需求更新：可共用一個本機應用與導覽，但對話、任務、記憶、能力與設定須有獨立可到達的工作畫面，同一時間只呈現目前工作的主要內容。把所有功能塞進同一長頁、再加折疊面板，不符合需求；不可用只有開發者看得懂的 log 取代使用者狀態。角色可用小氣泡喚起對話或指定任務，複雜操作另開其專頁。介面重設計尚未完成，見 [T10-UI-01 規劃](runtime-evolution/INTERFACE_REDESIGN_PLAN.md)。
 
 ## 5. 通知、錯誤與無障礙
 

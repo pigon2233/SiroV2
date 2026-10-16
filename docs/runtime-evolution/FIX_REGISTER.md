@@ -1,5 +1,111 @@
 # Runtime Evolution Fix Register
 
+## D61 / 2026-10-16 — 本輪六項急修的核對
+
+| 原指控 | 分類／來源 | 實際證據與處置 |
+|---|---|---|
+| MQTT 拒絕 ACK／unknown ID／無限追蹤 | REQUIRED_FIX / BAD_INTERFACE、IMPLEMENTATION_BUG、TEST_GAP | 實際類別是 CommandTracker；原helper不收wire status、unknown會KeyError、PENDING也可readback確認。D60 probe已有status guard，不誤稱已證明產品全線誤受理。FIX-022補helper、bounded retention與caller |
+| 模型 JSON／Unicode 未分類 | REQUIRED_FIX / IMPLEMENTATION_BUG、TEST_GAP | 壞回應缺固定安全錯誤；另真HTTP證明合法Ollama error envelope會誤finished。FIX-023 |
+| 模型錯誤摧毀整個 Event Loop | FALSE_POSITIVE | core/conversation.py原有provider Exception→FAILED／terminal；真HTTP證明下一輪仍可成功，不新增全局error framework |
+| SQLite 無 WAL／NORMAL／busy_timeout | FALSE_POSITIVE | sqlite.py原本四項PRAGMA齊全，舊版真reader/writer／合成併發亦通過。實際connection未明確close另列FIX-024 |
+| 固定Python路徑使sandbox靜默失效 | FALSE_POSITIVE；平台擴展 DEFER | D43/D46已限Linux x86_64/system3.14，caller明確unsupported／SkillExecutionError且無host fallback；89真隔離／負例通過。新平台需獨立認證，不以sys.executable繞過 |
+| 單backend重試／cloud budget未扣共享值 | FALSE_POSITIVE / DOCUMENTATION_ONLY | RT-009本來允許一次有界重試，budget是每request額外cloud attempt上限，非共享錢包；原契約／原tests及新跨request反例支持，failover.py不改 |
+| Rust完全不reap／無truncated flag | REQUIRED_FIX（局部）/ IMPLEMENTATION_BUG、TEST_GAP；原敘述過廣 | 原list會reap、run會wait；缺其他Execute回收。RLIMIT恰卡cap導致prefix混成普通result才是真缺陷；FIX-025沿原output_limit拒絕，不添wire欄位 |
+
+無證據要求原Runtime Evolution整體設計更正；四卡皆local repair，無新planner、owner、DB schema或架構重寫。
+
+## FIX-022 — MQTT 拒絕狀態、未知 ID 與有界追蹤
+
+- Classification: REQUIRED_FIX.
+- Source types: BAD_INTERFACE / IMPLEMENTATION_BUG / TEST_GAP.
+- Source Task: T27、D60時間修復後的2026-10-16使用者review；D61。
+- Severity: HIGH（helper正確性；真硬體／未guard產品崩潰未證）。
+- Problem: tracker不讀ACK status、未知ID會KeyError、未ACK也可確認、late ACK會降級，RAM紀錄不清。
+- Evidence: mqtt.py CommandTracker；root-final-rollback-red.log；真Broker probe的late duplicate反例；[本輪證據](../evidence/D61-resilience-2026-10-16/REPORT.md)。注意firmware成功為applied，simulator ACCEPTED.value是accepted，不能混用。
+- Expected Behavior: 只有applied受理、同設備readback才確認，未知ID無副作用，拒絕不成功、terminal不復活，容量可回收。
+- Actual Behavior: 原helper可直接PENDING→CONFIRMED且無status介面；D60 probe已另有guard，不能將helper缺口等同實體事故。
+- Root Cause: CONFIRMED missing wire-status/transition/capacity guards in existing helper。
+- Scope: 原tracker與單次probe caller；不新增持久delivery service或背景scheduler。
+- Files expected to change: devices/mqtt.py；scripts/verify_esp32_mqtt.py；新test_mqtt_tracker_resilience.py、probe追加負例及文件。
+- Files that MUST NOT change: firmware/D60時間格式、Core/World、schema、權限、UI、其他既有tests與RT歷史。
+- Compatibility requirements: 舊一參數trusted ACK仍可用；wire明傳status；unknown ACK回None；FAILED additive。追蹤是RAM，new issue清terminal/expired，預設1024／滿active拒新，不能當持久歷史。
+- Proposed repair: 狀態guard＋FAILED、unknown no-op、ACK前readback不確認、prune/cap；probe映射真status，已applied的late duplicate可繼續等state，初始duplicate仍failed。
+- Tests required: 狀態矩陣、unknown／legacy、1000命令回收／active容量／過期、真Broker applied→duplicate→state與duplicate-only；保留同秒矛盾保護。
+- Regression tests: 原MQTT／epoch／Registry／World／probe與完整專案checks；無真設備假通過。
+- Acceptance criteria: 反例RED→PASS，原格式／重複／過期／保留訊息等不變，沒有新增自動重送或第二tracker。
+- Rollback method: 停本次probe，僅撤D61 tracker/caller/test hunks；保留D60時間修復、最新DB與UI。回退會重開此helper缺口，不等於可部署。
+- Risk: MEDIUM transitions/retention；過期／清除後歷史不由tracker保留；實體ESP32仍需獨立驗證。
+- Status: DONE / LOCAL_VERIFIED（最終隔離Git scripts/check EXIT0；2129 Python PASS／5原opt-in SKIP、24 Rust PASS）；硬體未驗。
+
+## FIX-023 — 模型壞回應分類與拒絕偽完成
+
+- Classification: REQUIRED_FIX.
+- Source types: IMPLEMENTATION_BUG / TEST_GAP.
+- Source Task: T07／RT-009 adapter review、D61。
+- Severity: HIGH（error envelope誤完成），非已證event-loop crash。
+- Problem: JSON／Unicode解析失敗沒有固定安全分類，Ollama合法error envelope可能yield finished。
+- Evidence: 真loopbackHTTP malformed JSON／UTF8／Ollama error envelope；models/原始RED與source-only countercheck。
+- Expected Behavior: 固定安全ProviderResponseInvalid，該turn失敗且後續可用，不把失敗當成功，不洩原response。
+- Actual Behavior: 原JSONDecodeError／UnicodeDecodeError外洩adapter，error envelope可COMPLETED；Conversation原本已捕Exception。
+- Root Cause: CONFIRMED adapter缺protocol decoding boundary與已知error-envelope檢查。
+- Scope: 既有JSON transport、Ollama parse/owned close、OpenAI SSE單一JSON解析點。
+- Files expected to change: adapters/models/http.py、ollama.py、openai_compatible.py；新test_model_protocol_recovery.py。
+- Files that MUST NOT change: failover.py、Core/ports、原tool/completion/privacy/budget邏輯、原tests、依賴／UI／資料。
+- Compatibility requirements: ProviderResponseInvalid為ValueError；protocol error仍不retry。取消優先、已輸出／工具意圖後禁止failover，不修改每request預算與generation策略。
+- Proposed repair: 共用小decoder轉固定錯誤且不保留raw cause/context；已知Ollama error拒絕；沿原模式關閉owned stream並保primary failure。
+- Tests required: 真HTTP JSON／Unicode、合法error envelope、FAILED後下一輪成功、安全error、partial／tool／取消／close failure，原failover政策反例。
+- Regression tests: 原adapter／conversation／failover與FIX-001 generation fence；完整checks。
+- Acceptance criteria: 原版反例失敗、修復通過，壞JSON不擴大cloud egress／重試，不假finished。
+- Rollback method: 撤三個adapter局部修改與新tests；保留對話／memory／run DB。停受影響provider再回退，缺陷會恢復。
+- Risk: LOW local classification；真provider／網路品質不由合成HTTP代證。
+- Status: DONE / LOCAL_VERIFIED（最終隔離Git scripts/check EXIT0；2129 Python PASS／5原opt-in SKIP、24 Rust PASS）。
+
+## FIX-024 — SQLite 明確關閉 owned connection
+
+- Classification: REQUIRED_FIX.
+- Source types: IMPLEMENTATION_BUG / TEST_GAP.
+- Source Task: T04及使用者SQLite review、D61。
+- Severity: MEDIUM；「缺WAL」已判false positive。
+- Problem: sqlite3.Connection的with只commit／rollback，不close；五個本地路徑與PRAGMA初始化失敗缺明確close。
+- Evidence: 原版close tracking／PRAGMA失敗反例，保留真連線物件避免GC掩蓋；舊版WAL／NORMAL／5000已通過。
+- Expected Behavior: 成功／失敗返回前關閉owned handle，保留primary error與原transaction語意。
+- Actual Behavior: 原版初始化／交易／outbox讀／quarantine讀／integrity handle依賴GC；配置失敗亦未close。
+- Root Cause: CONFIRMED treating connection transaction context as resource context。
+- Scope: sqlite.py五處closing與_connect初始化失敗close；不重寫SQLite store。
+- Files expected to change: persistence/sqlite.py；新test_sqlite_connection_cleanup.py。
+- Files that MUST NOT change: PRAGMA值、migration/schema、backup/restore既有ownership/取消設計、其他release/source、原tests、依賴、正式DB。
+- Compatibility requirements: 保留原commit／rollback／foreign keys／writerlock、WAL／NORMAL／busy_timeout5000；cleanup錯誤不得蓋過配置primary failure。
+- Proposed repair: closing(connection)外包原transaction context；配置失敗明確close並保安全note。
+- Tests required: 六路成功/失敗close、配置與close雙失敗、原PRAGMA、held-reader＋writer、20MQTT／20對話／20來源記憶真SQLite併發。
+- Regression tests: 所有原storage/backup/restore及device／memory／conversation／release與完整checks。
+- Acceptance criteria: 原close反例RED→PASS、無schema／資料丟失、原WAL併發證據保持。
+- Rollback method: 只撤本卡close hunks／tests，保留所有最新資料及原PRAGMAs；不還原DB／journal mode。
+- Risk: MEDIUM shared persistence leaf；不保證任意外部長鎖或無界IO一定成功。
+- Status: DONE / LOCAL_VERIFIED（最終隔離Git scripts/check EXIT0；2129 Python PASS／5原opt-in SKIP、24 Rust PASS）。
+
+## FIX-025 — Rust opportunistic reap 與完整輸出判定
+
+- Classification: REQUIRED_FIX.
+- Source types: IMPLEMENTATION_BUG / TEST_GAP.
+- Source Task: T21 Runtime、RT-013既有driver的使用者review；D61。
+- Severity: HIGH（不完整輸出誤回普通結果），reap缺口MEDIUM。
+- Problem: 除list之外不reap退出child；leader退出即丟仍活group stop handle；RLIMIT卡cap使prefix無法辨別超量。
+- Evidence: 真子程序／zombie／parent-exit descendant／ECHILD／stdout/stderr129bytes對128cap；[Rust報告](../evidence/D61-resilience-2026-10-16/rust/REPORT.md)。
+- Expected Behavior: 每Execute回收可確認退出child，仍活owned group保留stop；未知ownership不誤殺，不完整輸出明確error。
+- Actual Behavior: 原list才reap且會丟group；輸出129bytes可回普通128bytes prefix。
+- Root Cause: CONFIRMED opportunistic reap placement、group-handle retention及cap sentinel omission。
+- Scope: linux.rs原driver與cfg(test)，無新背景owner／trait／RPC。
+- Files expected to change: runtime/siro-runtime/src/linux.rs。
+- Files that MUST NOT change: RPC schema／Python backend／permissions／roots／其他driver／Cargo依賴／舊tests／UI。
+- Compatibility requirements: 原process result shape不變；沿原output_limit error，不加truncated成功結果。單record reap錯誤只限制list／該PID stop，其他cap保持；既有13測試保留。
+- Proposed repair: Execute局部reap＋owned group existence guard；當輪錯誤表；capture前驗cap+1，bounded read後先cleanup再傳錯。
+- Tests required: 真exit/reap、活child／unowned不殺、leader退出但descendant可stop、真ECHILD隔離、stdout/stderr／zero/exact/overflow cap與owned檔清理。
+- Regression tests: Cargo fmt/build/test/clippy、Python runtime caller與完整checks；無硬體／多平台冒稱。
+- Acceptance criteria: 原source-only11PASS/8FAIL留證，最終加EPERM kernel反例後24Rust PASS；所有ownedchildren/temp join/清除，無新coupling／新wire欄位。
+- Rollback method: 停新增process使用並drain owned children，僅撤linux.rs本卡production/test hunks，不撤RT-013 filesystem.read修復或最新ledger/DB。
+- Risk: MEDIUM process lifecycle；idle/Health立即reap、一般subreaper/cgroup與其他原capture錯誤分支未本輪認證。
+- Status: DONE / LOCAL_VERIFIED（最終隔離Git scripts/check EXIT0；2129 Python PASS／5原opt-in SKIP、24 Rust PASS）。
+
 ## RT-005-FIX-02 — reserve terminal bookkeeping inside cancellation deadline
 
 - Classification: REQUIRED_FIX.

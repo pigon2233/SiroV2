@@ -1,0 +1,186 @@
+
+running 20 tests
+test linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership ... FAILED
+test linux::tests::filesystem_read_preserves_empty_exact_limit_and_utf8_result_shape ... ok
+test linux::tests::filesystem_read_preserves_scope_refusal_and_in_scope_symlink ... ok
+test linux::tests::filesystem_read_rejects_fifo_without_waiting_for_a_writer ... ok
+test linux::tests::filesystem_read_rejects_invalid_utf8 ... ok
+test linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation ... ok
+test linux::tests::filesystem_read_rejects_nonregular_directory ... ok
+test linux::tests::filesystem_read_rejects_oversize_without_truncating ... ok
+test linux::tests::invalid_output_limit_does_not_create_capture_files ... FAILED
+test linux::tests::managed_child_reap_failure_is_visible_and_keeps_ownership_record ... FAILED
+test linux::tests::non_process_execution_reaps_exited_managed_children ... FAILED
+test linux::tests::process_run_is_bounded_and_managed_processes_are_owned ... ok
+test linux::tests::process_run_output_failure_removes_owned_capture_files ... FAILED
+test linux::tests::process_run_preserves_exact_per_stream_limit_and_result_shape ... ok
+test linux::tests::process_run_rejects_stderr_over_limit_instead_of_returning_a_prefix ... FAILED
+test linux::tests::process_run_rejects_stdout_over_limit_instead_of_returning_a_prefix ... FAILED
+test linux::tests::process_run_zero_limit_accepts_empty_and_rejects_any_output ... FAILED
+test linux::tests::reap_preserves_live_child_and_refuses_unowned_stop ... ok
+test linux::tests::reaped_leader_preserves_owned_descendant_group_stop ... FAILED
+test linux::tests::scoped_file_driver_rejects_symlink_escape ... ok
+
+failures:
+
+---- linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership stdout ----
+
+thread 'linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership' (1051671) panicked at runtime/siro-runtime/src/linux.rs:767:9:
+group permission probe failed: 
+running 1 test
+test linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership ... FAILED
+
+failures:
+
+failures:
+    linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.04s
+
+ 
+thread 'linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership' (1051673) panicked at runtime/siro-runtime/src/linux.rs:754:13:
+assertion `left == right` failed
+  left: Ok(Object {"pids": Array []})
+ right: Err("process_group_permission_denied")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- linux::tests::invalid_output_limit_does_not_create_capture_files stdout ----
+
+thread 'linux::tests::invalid_output_limit_does_not_create_capture_files' (1051696) panicked at runtime/siro-runtime/src/linux.rs:863:9:
+invalid-limit capture probe failed: 
+running 1 test
+test linux::tests::invalid_output_limit_does_not_create_capture_files ... FAILED
+
+failures:
+
+failures:
+    linux::tests::invalid_output_limit_does_not_create_capture_files
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.02s
+
+ 
+thread 'linux::tests::invalid_output_limit_does_not_create_capture_files' (1051698) panicked at runtime/siro-runtime/src/linux.rs:173:15:
+attempt to add with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+---- linux::tests::managed_child_reap_failure_is_visible_and_keeps_ownership_record stdout ----
+
+thread 'linux::tests::managed_child_reap_failure_is_visible_and_keeps_ownership_record' (1051701) panicked at runtime/siro-runtime/src/linux.rs:567:9:
+assertion `left == right` failed
+  left: Ok(Object {"pids": Array [Number(1051702)]})
+ right: Err("process_reap_failed")
+
+---- linux::tests::non_process_execution_reaps_exited_managed_children stdout ----
+
+thread 'linux::tests::non_process_execution_reaps_exited_managed_children' (1051708) panicked at runtime/siro-runtime/src/linux.rs:546:9:
+completed child remains managed
+
+---- linux::tests::process_run_output_failure_removes_owned_capture_files stdout ----
+
+thread 'linux::tests::process_run_output_failure_removes_owned_capture_files' (1051726) panicked at runtime/siro-runtime/src/linux.rs:812:9:
+assertion `left == right` failed
+  left: Ok(Object {"returncode": Number(0), "stderr": String(""), "stdout": String("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")})
+ right: Err("output_limit")
+
+---- linux::tests::process_run_rejects_stderr_over_limit_instead_of_returning_a_prefix stdout ----
+
+thread 'linux::tests::process_run_rejects_stderr_over_limit_instead_of_returning_a_prefix' (1051737) panicked at runtime/siro-runtime/src/linux.rs:795:9:
+assertion `left == right` failed
+  left: Ok(Object {"returncode": Number(0), "stderr": String("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"), "stdout": String("")})
+ right: Err("output_limit")
+
+---- linux::tests::process_run_rejects_stdout_over_limit_instead_of_returning_a_prefix stdout ----
+
+thread 'linux::tests::process_run_rejects_stdout_over_limit_instead_of_returning_a_prefix' (1051740) panicked at runtime/siro-runtime/src/linux.rs:786:9:
+assertion `left == right` failed
+  left: Ok(Object {"returncode": Number(0), "stderr": String(""), "stdout": String("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")})
+ right: Err("output_limit")
+
+---- linux::tests::process_run_zero_limit_accepts_empty_and_rejects_any_output stdout ----
+
+thread 'linux::tests::process_run_zero_limit_accepts_empty_and_rejects_any_output' (1051742) panicked at runtime/siro-runtime/src/linux.rs:840:9:
+assertion `left == right` failed
+  left: Ok(Object {"returncode": Number(120), "stderr": String(""), "stdout": String("")})
+ right: Err("output_limit")
+
+---- linux::tests::reaped_leader_preserves_owned_descendant_group_stop stdout ----
+
+thread 'linux::tests::reaped_leader_preserves_owned_descendant_group_stop' (1051763) panicked at runtime/siro-runtime/src/linux.rs:651:9:
+descendant ownership probe failed: 
+running 1 test
+test linux::tests::reaped_leader_preserves_owned_descendant_group_stop ... FAILED
+
+failures:
+
+failures:
+    linux::tests::reaped_leader_preserves_owned_descendant_group_stop
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.03s
+
+ 
+thread 'linux::tests::reaped_leader_preserves_owned_descendant_group_stop' (1051766) panicked at runtime/siro-runtime/src/linux.rs:641:13:
+assertion `left == right` failed
+  left: Ok(Object {"pids": Array []})
+ right: Ok(Object {"pids": Array [Number(1051767)]})
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+
+failures:
+    linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership
+    linux::tests::invalid_output_limit_does_not_create_capture_files
+    linux::tests::managed_child_reap_failure_is_visible_and_keeps_ownership_record
+    linux::tests::non_process_execution_reaps_exited_managed_children
+    linux::tests::process_run_output_failure_removes_owned_capture_files
+    linux::tests::process_run_rejects_stderr_over_limit_instead_of_returning_a_prefix
+    linux::tests::process_run_rejects_stdout_over_limit_instead_of_returning_a_prefix
+    linux::tests::process_run_zero_limit_accepts_empty_and_rejects_any_output
+    linux::tests::reaped_leader_preserves_owned_descendant_group_stop
+
+test result: FAILED. 11 passed; 9 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.43s
+
+   Compiling version_check v0.9.5
+   Compiling proc-macro2 v1.0.107
+   Compiling typenum v1.20.1
+   Compiling shlex v2.0.1
+   Compiling unicode-ident v1.0.26
+   Compiling quote v1.0.47
+   Compiling find-msvc-tools v0.1.13
+   Compiling pkg-config v0.3.34
+   Compiling serde_core v1.0.229
+   Compiling vcpkg v0.2.15
+   Compiling foldhash v0.2.0
+   Compiling subtle v2.6.1
+   Compiling zmij v1.0.23
+   Compiling serde v1.0.229
+   Compiling libc v0.2.189
+   Compiling serde_json v1.0.151
+   Compiling itoa v1.0.18
+   Compiling hashbrown v0.17.1
+   Compiling fallible-iterator v0.3.0
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling cc v1.4.7
+   Compiling cfg-if v1.0.5
+   Compiling smallvec v1.16.2
+   Compiling cpufeatures v0.2.17
+   Compiling bitflags v2.13.2
+   Compiling generic-array v0.14.7
+   Compiling memchr v2.8.3
+   Compiling hex v0.4.3
+   Compiling hashlink v0.12.2
+   Compiling syn v3.0.6
+   Compiling libsqlite3-sys v0.38.2
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling digest v0.10.7
+   Compiling sha2 v0.10.9
+   Compiling hmac v0.12.1
+   Compiling serde_derive v1.0.229
+   Compiling rusqlite v0.40.2
+   Compiling siro-runtime v0.1.0 (/tmp/siro-d61-rust-counter-pzrlj75x/runtime/siro-runtime)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.43s
+     Running unittests src/lib.rs (target/debug/deps/siro_runtime-a8e276feebc361cb)
+error: test failed, to rerun pass `-p siro-runtime --lib`

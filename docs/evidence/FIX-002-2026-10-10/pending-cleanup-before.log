@@ -1,0 +1,144 @@
+PENDING_BROWSER_CLEANUP_CAPTURE {"action": "close", "asyncio_unhandled_error_types": [], "cleanup_seconds": 0.06419178600481246, "failure_type": "AssertionError", "own_live_after_production_cleanup": [], "pending_routes_after_production_cleanup": 0, "sdk_listener_error_types": ["TargetClosedError"], "source_after": {"src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b", "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484"}, "source_before": {"src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b", "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484"}}
+FPENDING_BROWSER_CLEANUP_CAPTURE {"action": "cancel", "asyncio_unhandled_error_types": [], "cleanup_seconds": 0.06623131599917542, "failure_type": "AssertionError", "own_live_after_production_cleanup": [], "pending_routes_after_production_cleanup": 0, "sdk_listener_error_types": ["TargetClosedError"], "source_after": {"src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b", "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484"}, "source_before": {"src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b", "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484"}}
+F
+=================================== FAILURES ===================================
+____ test_real_chromium_pending_fetch_cleanup_within_original_budget[close] ____
+
+slow_origin = SlowOrigin(origin='http://127.0.0.1:37643', arrived=<threading.Event at 0x772137dcc2d0: set>, release=<threading.Event at 0x77213747e490: set>)
+action = 'close'
+capsys = <_pytest.capture.CaptureFixture object at 0x77213757ea50>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("action", ["close", "cancel"])
+    async def test_real_chromium_pending_fetch_cleanup_within_original_budget(
+        slow_origin: SlowOrigin, action: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        drivers: list[TrackingDriver] = []
+        loop = asyncio.get_running_loop()
+        original_loop_handler = loop.get_exception_handler()
+        loop_errors: list[str] = []
+    
+        def record_loop_error(_loop: asyncio.AbstractEventLoop, event: dict[str, Any]) -> None:
+            loop_errors.append(type(event.get("exception")).__name__)
+    
+        loop.set_exception_handler(record_loop_error)
+    
+        def factory(origins: tuple[str, ...]) -> TrackingDriver:
+            driver = TrackingDriver(origins)
+            drivers.append(driver)
+            return driver
+    
+        pool = BrowserSessions(factory, timeout=15)
+        context = ExecutionContext("pending-fetch", "pending-fetch", "pending-fetch", authorized=True)
+        operation: asyncio.Task[dict[str, str]] | None = None
+        capture: dict[str, object] = {"action": action, "source_before": source_hashes()}
+        began: float | None = None
+        try:
+            url = slow_origin.origin + ("/page" if action == "close" else "/slow-page")
+            operation = asyncio.create_task(pool.execute("navigate+read", {"url": url}, context))
+            if action == "close":
+                observation = await asyncio.wait_for(asyncio.shield(operation), 6)
+                assert "A SYNTHETIC" in observation["text"]
+            async with asyncio.timeout(6):
+                while not drivers or not slow_origin.arrived.is_set():
+                    await asyncio.sleep(0.01)
+                await drivers[0].slow_route.wait()
+            driver = drivers[0]
+            driver.capture_owned()
+            assert driver.routes, "fixture must have an unfinished actual route.fetch"
+            assert not slow_origin.release.is_set()
+            began = time.monotonic()
+            async with asyncio.timeout(5):
+                if action == "close":
+                    await pool.close()
+                else:
+                    context.cancellation.cancel()
+                    with pytest.raises(ExecutionCancelled):
+                        await operation
+            capture["cleanup_seconds"] = time.monotonic() - began
+            assert cast(float, capture["cleanup_seconds"]) < 4
+            await asyncio.sleep(0)
+            assert driver._browser is None and driver._playwright is None
+            assert not driver.routes, "owned route callback must complete during cleanup"
+            assert driver.process is not None and driver.process.returncode is not None
+            assert not driver.live_owned(), "no own Playwright or Chromium child may remain alive"
+            assert not pool._sessions
+            await asyncio.sleep(0.05)
+>           assert not driver.listener_errors, "cleanup must consume expected route shutdown errors"
+E           AssertionError: cleanup must consume expected route shutdown errors
+E           assert not ['TargetClosedError']
+E            +  where ['TargetClosedError'] = <test_browser_pending_cleanup.TrackingDriver object at 0x77213757fa10>.listener_errors
+
+tests/integration/test_browser_pending_cleanup.py:243: AssertionError
+___ test_real_chromium_pending_fetch_cleanup_within_original_budget[cancel] ____
+
+slow_origin = SlowOrigin(origin='http://127.0.0.1:34057', arrived=<threading.Event at 0x77213603a250: set>, release=<threading.Event at 0x77213603a450: set>)
+action = 'cancel'
+capsys = <_pytest.capture.CaptureFixture object at 0x772136b39590>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("action", ["close", "cancel"])
+    async def test_real_chromium_pending_fetch_cleanup_within_original_budget(
+        slow_origin: SlowOrigin, action: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        drivers: list[TrackingDriver] = []
+        loop = asyncio.get_running_loop()
+        original_loop_handler = loop.get_exception_handler()
+        loop_errors: list[str] = []
+    
+        def record_loop_error(_loop: asyncio.AbstractEventLoop, event: dict[str, Any]) -> None:
+            loop_errors.append(type(event.get("exception")).__name__)
+    
+        loop.set_exception_handler(record_loop_error)
+    
+        def factory(origins: tuple[str, ...]) -> TrackingDriver:
+            driver = TrackingDriver(origins)
+            drivers.append(driver)
+            return driver
+    
+        pool = BrowserSessions(factory, timeout=15)
+        context = ExecutionContext("pending-fetch", "pending-fetch", "pending-fetch", authorized=True)
+        operation: asyncio.Task[dict[str, str]] | None = None
+        capture: dict[str, object] = {"action": action, "source_before": source_hashes()}
+        began: float | None = None
+        try:
+            url = slow_origin.origin + ("/page" if action == "close" else "/slow-page")
+            operation = asyncio.create_task(pool.execute("navigate+read", {"url": url}, context))
+            if action == "close":
+                observation = await asyncio.wait_for(asyncio.shield(operation), 6)
+                assert "A SYNTHETIC" in observation["text"]
+            async with asyncio.timeout(6):
+                while not drivers or not slow_origin.arrived.is_set():
+                    await asyncio.sleep(0.01)
+                await drivers[0].slow_route.wait()
+            driver = drivers[0]
+            driver.capture_owned()
+            assert driver.routes, "fixture must have an unfinished actual route.fetch"
+            assert not slow_origin.release.is_set()
+            began = time.monotonic()
+            async with asyncio.timeout(5):
+                if action == "close":
+                    await pool.close()
+                else:
+                    context.cancellation.cancel()
+                    with pytest.raises(ExecutionCancelled):
+                        await operation
+            capture["cleanup_seconds"] = time.monotonic() - began
+            assert cast(float, capture["cleanup_seconds"]) < 4
+            await asyncio.sleep(0)
+            assert driver._browser is None and driver._playwright is None
+            assert not driver.routes, "owned route callback must complete during cleanup"
+            assert driver.process is not None and driver.process.returncode is not None
+            assert not driver.live_owned(), "no own Playwright or Chromium child may remain alive"
+            assert not pool._sessions
+            await asyncio.sleep(0.05)
+>           assert not driver.listener_errors, "cleanup must consume expected route shutdown errors"
+E           AssertionError: cleanup must consume expected route shutdown errors
+E           assert not ['TargetClosedError']
+E            +  where ['TargetClosedError'] = <test_browser_pending_cleanup.TrackingDriver object at 0x772136b3a5d0>.listener_errors
+
+tests/integration/test_browser_pending_cleanup.py:243: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_browser_pending_cleanup.py::test_real_chromium_pending_fetch_cleanup_within_original_budget[close]
+FAILED tests/integration/test_browser_pending_cleanup.py::test_real_chromium_pending_fetch_cleanup_within_original_budget[cancel]
+2 failed in 2.13s

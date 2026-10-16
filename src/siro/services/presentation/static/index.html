@@ -3,117 +3,229 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SIRO · 今天，也陪著你</title>
+    <title>SIRO · 對話</title>
     <style>
-      :root { color-scheme: dark; font-family: "Noto Sans TC", system-ui, sans-serif; background:#10131b; color:#eae8ee; --muted:#a4a2b3; --pink:#e5b6c8; --line:#ffffff14; }
-      * { box-sizing:border-box; } body { margin:0 auto; padding:0 36px 36px; max-width:1600px; background:radial-gradient(ellipse at 20% 20%,#30233460,transparent 50%); }
-      header { display:flex; justify-content:space-between; align-items:center; height:94px; border-bottom:1px solid var(--line); }
-      .brand { font-size:23px; font-weight:600; letter-spacing:6px; } .brand small { font-size:11px; letter-spacing:2px; color:var(--muted); margin-left:20px; font-weight:400; }
-      .connection-pill { color:#bad6c8; font-size:12px; background:#afdbc00c; border:1px solid #afdbc02a; padding:9px 15px; border-radius:30px; }
-      .companion-layout { display:grid; grid-template-columns:1.05fr 1fr; gap:28px; padding-top:28px; }
-      section { background:#191d29; border:1px solid var(--line); border-radius:20px; padding:22px; margin:0 0 16px; }
-      .stage { padding:0; position:relative; overflow:hidden; min-height:690px; background:radial-gradient(ellipse at 50% 55%,#423247,#181b29 70%); }
-      .stage-title { position:absolute; z-index:1; top:24px; left:28px; pointer-events:none; } .eyebrow { font-size:10px; letter-spacing:3px; color:var(--pink); text-transform:uppercase; }
-      h1 { font-weight:450; font-size:31px; letter-spacing:2px; margin:10px 0; } h2 { font-size:17px; font-weight:550; margin:0 0 14px; } h3 { font-size:14px; } p { color:var(--muted); font-size:13px; line-height:1.8; }
-      #companion { border:0; width:100%; height:100%; min-height:690px; display:block; }
-      .stage-footer { position:absolute; bottom:22px; left:24px; right:24px; background:#171b26d9; backdrop-filter:blur(12px); border:1px solid var(--line); border-radius:14px; padding:14px 18px; }
-      #renderer-status { margin:0; } #companion-state { color:#dfc4cf; font-size:13px; margin:0 0 4px; }
-      .conversation { display:flex; flex-direction:column; height:690px; padding:24px; }
-      .conversation-heading { display:flex; justify-content:space-between; align-items:center; padding-bottom:18px; border-bottom:1px solid var(--line); } .conversation-heading h2 { margin:0; } #model-status { color:var(--muted); font-size:11px; }
-      #messages { flex:1; min-height:180px; overflow:auto; padding:22px 0; scroll-behavior:smooth; }
-      .empty-state { padding:60px 20px 20px; text-align:center; } .empty-state strong { font-weight:450; font-size:23px; } #messages:has(.message) .empty-state { display:none; }
-      .message { padding:14px 18px; margin:0 0 15px; border-radius:16px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.85; }
-      .message strong { color:#f2dce5; font-weight:650; } .message code { font-family:ui-monospace,monospace; font-size:.92em; background:#111722; padding:2px 5px; border-radius:5px; }
-      .message pre { max-width:100%; overflow:auto; margin:10px 0; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:#111722; white-space:pre; overflow-wrap:normal; } .message pre code { padding:0; background:none; }
-      .user { background:#443442; margin-left:15%; border-bottom-right-radius:4px; } .assistant { background:#222939; margin-right:10%; border-bottom-left-radius:4px; }
+      :root {
+        color-scheme: light; font-family: "Noto Sans TC", system-ui, sans-serif;
+        --page:#f3f6fa; --surface:#ffffff; --text:#27344a; --muted:#53627a;
+        --action:#365d8d; --pink:#e5b6c8; --line:#dce3ed; --tint:#eaf0f8;
+        --soft:#f8fafc; --success:#2e6655; --warning:#8a4a27; --focus:#365d8d;
+        --stage:#e5eaf3; --user:#e6edf7; --assistant:#f2f5f9;
+        background:var(--page); color:var(--text); line-height:1.6;
+      }
+      * { box-sizing:border-box; }
+      html, body { margin:0; min-width:0; overflow-x:clip; }
+      [hidden] { display:none !important; }
+      button, input, textarea { font:inherit; }
+      a { color:var(--action); text-underline-offset:4px; }
+      button, a { -webkit-tap-highlight-color:transparent; }
+      button, .button-link { border:1px solid var(--line); border-radius:10px; background:var(--surface); color:var(--text); padding:9px 14px; cursor:pointer; font-size:14px; text-decoration:none; white-space:nowrap; }
+      button:hover, .button-link:hover { background:var(--tint); border-color:var(--action); }
+      button:active, .button-link:active { transform:translateY(1px); }
+      button:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+      :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+      h1, h2, h3, p { overflow-wrap:anywhere; }
+      h1 { font-size:30px; font-weight:650; letter-spacing:-.5px; line-height:1.4; margin:0 0 10px; }
+      h2 { font-size:20px; font-weight:650; margin:0 0 14px; }
+      h3 { font-size:17px; font-weight:600; margin:0 0 12px; }
+      p { margin:0 0 16px; color:var(--muted); }
+      small { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+      input, textarea { color:var(--text); border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:12px; max-width:100%; }
+      textarea { width:100%; resize:vertical; min-height:88px; }
+      .app-shell { display:grid; grid-template-columns:204px minmax(0,1fr); min-height:100dvh; }
+      .sidebar { position:sticky; top:0; height:100dvh; display:flex; flex-direction:column; padding:30px 18px 20px; background:var(--surface); border-right:1px solid var(--line); }
+      .brand { display:flex; align-items:center; gap:12px; font-size:27px; font-weight:750; letter-spacing:3px; text-decoration:none; color:var(--text); padding:0 12px; }
+      .brand-mark { width:23px; height:30px; border-radius:50% 50% 40% 40%; background:var(--pink); display:inline-block; transform:rotate(-12deg); }
+      .sidebar-note { margin:10px 12px 30px; font-size:12px; }
+      .primary-nav { display:flex; flex-direction:column; gap:6px; }
+      .primary-nav a { display:flex; align-items:center; gap:12px; padding:11px 13px; border-radius:10px; color:var(--muted); text-decoration:none; white-space:nowrap; font-size:15px; }
+      .nav-mark { width:20px; text-align:center; font-size:18px; }
+      .primary-nav a:hover { color:var(--text); background:var(--soft); }
+      .primary-nav a[aria-current="page"] { background:var(--tint); color:var(--action); font-weight:650; }
+      .nav-divider { height:1px; background:var(--line); margin:12px; }
+      .sidebar-footer { margin-top:auto; padding:24px 12px 0; font-size:12px; color:var(--muted); }
+      .workspace { min-width:0; }
+      .toolbar { position:sticky; top:0; z-index:3; display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:86px; padding:18px 32px; background:var(--surface); border-bottom:1px solid var(--line); }
+      #page-title { font-size:15px; font-weight:600; white-space:nowrap; }
+      .toolbar-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+      .connection-pill { font-size:12px; color:var(--action); background:var(--soft); }
+      #cancel { color:var(--warning); }
+      .live-status { display:flex; gap:16px; flex-wrap:wrap; padding:10px 32px; font-size:12px; color:var(--muted); border-bottom:1px solid var(--line); }
+      .activity-notice { display:block; margin:16px 32px 0; padding:12px 16px; border-left:3px solid var(--action); background:var(--tint); border-radius:0 8px 8px 0; font-size:14px; }
+      .page-content { max-width:1370px; margin:0 auto; padding:30px 32px 44px; }
+      .page-view { min-width:0; }
+      .page-heading { margin-bottom:26px; max-width:760px; }
+      [data-page-heading] { scroll-margin-top:110px; }
+      .page-heading p { margin:0; max-width:65ch; font-size:14px; }
+      .companion-layout { display:grid; grid-template-columns:minmax(240px,.8fr) minmax(0,1.35fr); gap:26px; }
+      .stage { position:relative; min-height:610px; overflow:hidden; border-radius:24px; background:var(--stage); }
+      .stage-title { position:absolute; z-index:1; top:28px; left:26px; right:20px; pointer-events:none; }
+      .stage-title h2 { font-size:23px; font-weight:500; }
+      .stage-title p { font-size:13px; }
+      #companion { border:0; width:100%; height:100%; min-height:610px; display:block; }
+      .stage-footer { position:absolute; bottom:20px; left:20px; right:20px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 16px; }
+      #renderer-status { font-size:12px; margin:0; } #companion-state { color:var(--text); font-size:14px; margin:0 0 4px; }
+      .conversation { display:flex; flex-direction:column; height:610px; min-width:0; }
+      .conversation-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:4px 0 16px; border-bottom:1px solid var(--line); }
+      .conversation-heading h2 { margin:0; font-size:17px; }
+      #model-status { font-size:12px; color:var(--muted); }
+      #messages { flex:1; min-height:160px; overflow:auto; padding:24px 0 12px; }
+      .empty-state { padding:80px 8px 28px; }
+      .empty-state strong { font-size:26px; font-weight:500; }
+      .empty-state p { font-size:14px; margin-top:14px; }
+      #messages:has(.message) .empty-state { display:none; }
+      .message { padding:14px 16px; margin:0 0 16px; border-radius:14px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:15px; line-height:1.85; }
+      .message strong { color:var(--text); font-weight:650; }
+      .message code { font-family:ui-monospace,monospace; font-size:.92em; background:var(--tint); padding:2px 5px; border-radius:4px; }
+      .message pre { max-width:100%; overflow:auto; margin:10px 0; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--soft); white-space:pre; overflow-wrap:normal; }
+      .message pre code { padding:0; background:none; }
+      .user { background:var(--user); margin-left:14%; border-bottom-right-radius:4px; }
+      .assistant { background:var(--surface); margin-right:4%; border-bottom-left-radius:4px; }
       .assistant:empty::after { content:"正在想…"; color:var(--muted); }
-      #chat { display:flex; gap:10px; align-items:flex-end; border:1px solid #c4a1b433; border-radius:16px; background:#111722; padding:8px; }
-      input, textarea { background:#111722; color:#ece9ef; border:1px solid #ffffff20; border-radius:9px; padding:10px; font:inherit; } textarea { resize:vertical; flex:1; min-height:62px; border:0; background:transparent; outline:none; font-size:14px; }
-      button { background:#292f40; color:#d5d4df; border:1px solid var(--line); border-radius:10px; padding:10px 14px; cursor:pointer; font:inherit; font-size:12px; } button:hover { background:#353b4f; } button:disabled { opacity:.4; cursor:default; } #chat button { background:var(--pink); color:#30222e; font-weight:600; }
-      .conversation-actions { display:flex; gap:9px; align-items:center; flex-wrap:wrap; padding-top:10px; color:var(--muted); font-size:11px; } .conversation-actions button { background:transparent; border:0; padding:6px 8px; }
-      .conversation-actions label { margin-left:auto; } .conversation-actions input { width:auto; }
-      .toolbox { align-items:start; display:grid; grid-template-columns:1fr 1fr; gap:20px; } details { border:1px solid var(--line); border-radius:14px; background:#191d29; margin:0 0 16px; padding:18px; } summary { cursor:pointer; font-size:14px; color:#d4d0de; } details[open]>summary { margin-bottom:18px; }
-      details section { border:0; padding:14px 0; background:none; } .quick-actions { display:flex; flex-wrap:wrap; gap:7px; } .capability-note { font-size:12px; } #authorization-status { margin:0; }
-      #events,#snapshot,#workspace-result,#skill-candidate-review,#skill-candidate-files { white-space:pre-wrap; overflow-wrap:anywhere; max-height:250px; overflow:auto; font-size:11px; color:var(--muted); }
-      #affect-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; } .affect-card { font-size:11px; background:#111722; border-radius:8px; padding:10px; } .meter { height:4px; background:#303748; margin-top:5px; }.meter span { display:block;height:100%;background:var(--pink); }
-      .proposal { border:1px solid #e5b6c844; border-radius:10px; padding:12px; margin:8px 0; font-size:12px; } .ok { color:#a7d0b9; }.warn { color:#c9ac89; } a { color:#dcc0d0; } small { color:var(--muted);overflow-wrap:anywhere;font-size:10px; }
-      @media(max-width:850px) { body {padding:0 14px 20px;} header {height:74px;} .brand small {display:none;} .companion-layout,.toolbox {grid-template-columns:1fr;} .stage,#companion {min-height:450px;height:450px;} .conversation {height:620px;} }
+      #chat { display:flex; gap:8px; align-items:flex-end; padding:8px; background:var(--surface); border:1px solid var(--line); border-radius:14px; }
+      #text { border:0; background:transparent; min-height:70px; resize:vertical; flex:1; min-width:0; font-size:15px; }
+      #chat button { background:var(--action); color:var(--surface); border-color:var(--action); }
+      .conversation-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding-top:12px; color:var(--muted); font-size:12px; }
+      .conversation-actions label { display:flex; align-items:center; gap:6px; }
+      .conversation-actions input { margin:0; width:auto; }
+      .conversation-actions button { font-size:12px; padding:6px 10px; }
+      .content-section { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:24px; margin-bottom:22px; min-width:0; }
+      .reading-width { max-width:900px; }
+      .quick-actions { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+      .field-label { display:block; margin:18px 0 8px; font-size:14px; font-weight:600; }
+      .section-note { font-size:13px; }
+      details { border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:20px; margin:0 0 20px; }
+      summary { cursor:pointer; font-size:15px; font-weight:600; }
+      details[open]>summary { margin-bottom:18px; }
+      details .content-section { padding:0; border:0; }
+      #events, #snapshot, #workspace-result, #skill-candidate-review, #skill-candidate-files, #improvement-proposal-review { white-space:pre-wrap; overflow-wrap:anywhere; max-height:340px; overflow:auto; font-size:12px; color:var(--muted); }
+      #affect-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+      .affect-card { font-size:12px; background:var(--soft); border-radius:8px; padding:12px; }
+      .meter { height:4px; background:var(--line); margin-top:6px; } .meter span { display:block; height:100%; background:var(--action); }
+      .proposal { border:1px solid var(--line); border-radius:10px; padding:18px; margin:12px 0; font-size:14px; overflow-wrap:anywhere; }
+      .proposal p { white-space:pre-wrap; }
+      .ok { color:var(--success); } .warn { color:var(--warning); }
+      .destination-list { display:grid; grid-template-columns:minmax(0,1fr); gap:0; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+      .destination-list a { display:flex; gap:18px; align-items:center; justify-content:space-between; padding:22px 24px; text-decoration:none; border-bottom:1px solid var(--line); }
+      .destination-list a:last-child { border-bottom:0; }
+      .destination-list a:hover { background:var(--soft); }
+      .destination-list strong { display:block; color:var(--text); font-size:16px; }
+      .destination-list small { display:block; margin-top:5px; }
+      #switches { display:flex; gap:10px; flex-wrap:wrap; }
+      @media(max-width:1100px) { .app-shell { grid-template-columns:174px minmax(0,1fr); } .sidebar { padding-inline:12px; } .toolbar { padding-inline:24px; } .page-content { padding:24px; } .companion-layout { gap:18px; grid-template-columns:minmax(200px,.75fr) minmax(0,1fr); } }
+      @media(max-width:900px) {
+        .app-shell { grid-template-columns:minmax(0,1fr); } .sidebar { position:static; height:auto; padding:18px 20px 12px; border-right:0; border-bottom:1px solid var(--line); }
+        .brand { padding:0; font-size:23px; } .brand-mark { width:18px; height:24px; } .sidebar-note, .sidebar-footer, .nav-divider, .nav-mark { display:none; }
+        .primary-nav { flex-direction:row; flex-wrap:wrap; gap:4px; margin-top:14px; } .primary-nav a { font-size:13px; padding:7px 10px; }
+        .toolbar { padding:14px 20px; min-height:76px; flex-wrap:wrap; gap:10px; } .toolbar-actions { gap:6px; }
+        .live-status { padding:10px 20px; gap:8px 16px; } .activity-notice { margin-inline:20px; }
+        .companion-layout { grid-template-columns:minmax(0,1fr); } .stage { min-height:330px; height:330px; } #companion { min-height:330px; }
+        .stage-title { top:20px; left:20px; } .stage-title h2 { font-size:20px; } .conversation { height:570px; }
+      }
+      @media(max-width:480px) {
+        h1 { font-size:25px; } .page-content { padding:24px 16px 32px; } .page-heading { margin-bottom:22px; }
+        .toolbar-actions { width:100%; } .toolbar-actions button { font-size:12px; padding:8px 10px; }
+        .content-section { padding:18px; } .destination-list a { padding:18px; } .empty-state { padding-top:48px; }
+        .stage { height:290px; min-height:290px; } #companion { min-height:290px; } .stage-title p { display:none; }
+      }
+      @media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; } button:active, .button-link:active { transform:none; } }
     </style>
   </head>
   <body>
-    <header><div class="brand">SIRO <small>YOUR EVERYDAY COMPANION</small></div><button id="connection" class="connection-pill" type="button" title="重新連線，不會重新執行工作">連線中</button></header>
-    <main class="companion-layout">
-      <section class="stage" aria-label="SIRO 角色">
-        <div class="stage-title"><span class="eyebrow">A LITTLE CLOSER, EVERY DAY</span><h1>今天，也陪著你。</h1></div>
-        <iframe id="companion" src="__SIRO_RENDERER_PATH__" title="SIRO Live2D 角色"></iframe>
-        <div class="stage-footer"><p id="companion-state">正在與角色連線</p><p id="renderer-status">__SIRO_RENDERER_STATUS__</p></div>
-      </section>
-      <section class="conversation">
-        <div class="conversation-heading"><h2>和 SIRO 聊聊</h2><span id="model-status">確認對話連線中</span></div>
-        <div id="messages" aria-live="polite"><div class="empty-state"><strong>從一句「你好」開始。</strong><p>聊聊今天，或一起處理電腦上的事情。<br>想讓我留下的事，可以說「記住：…」。</p></div></div>
-        <form id="chat"><textarea id="text" required maxlength="32768" placeholder="想和 SIRO 說什麼？" aria-label="對話內容"></textarea><button type="submit">送出 ↗</button></form>
-        <div class="conversation-actions"><button id="voice" type="button">開始說話</button><button id="cancel" type="button">停止回覆</button><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
-        <div class="conversation-actions"><span id="voice-status">麥克風待命</span><span id="tts-status">TTS 待命</span></div>
-      </section>
-    </main>
-    <div class="toolbox">
-      <details id="computer-panel"><summary>電腦協助</summary><p>可以請我查看檔案、啟動程式、瀏覽網頁或執行電腦任務。可存取範圍依這台電腦的一般使用者權限與操作授權。</p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><p id="authorization-status"></p><details><summary>我現在能做什麼</summary><p>這裡只查看能力狀態，不會執行操作。實際操作仍依授權與當時狀態檢查。</p><button id="capabilities-refresh" type="button">更新能力狀態</button><div id="capability-items" aria-live="polite">讀取狀態中…</div></details><section id="goal-task-panel">
-        <h3>交給 SIRO 的任務</h3>
-        <p>指定工作目錄內 1–5 份文字檔，每行一個相對路徑。我會唯讀整理尚未勾選的待辦與 TODO／FIXME，保留來源、行數與時間。先建立待審任務，再明確批准；讀取完成不表示待辦已執行。</p>
-        <textarea id="goal-task-paths" rows="3" maxlength="2560" placeholder="notes.md&#10;project/tasks.txt" aria-label="任務要讀取的工作目錄內相對路徑"></textarea>
-        <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button><button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button></div>
-        <p id="goal-task-status" aria-live="polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>
-        <div id="goal-task-items" aria-live="polite"></div>
-      </section><section id="improvement-proposal-panel">
-        <h3>改善建議</h3>
-        <p>查看這段對話最近的可追溯失敗，先整理需要調查與驗證的地方。來源不足時會明說；確認原因後才討論修復。</p>
-        <button id="improvement-proposal-refresh" type="button" disabled>查看這段對話的改善建議</button>
-        <p id="improvement-proposal-status" aria-live="polite">連線完成後可手動查詢；建議只供審閱。</p>
-        <pre id="improvement-proposal-review" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></pre>
-      </section><section id="skill-candidate-panel">
-        <h3>學習新能力</h3>
-        <p>解析貼上的 Markdown 待辦清單。先準備一份待審技能與隔離測試紀錄，再由你檢查；這一步不會安裝或啟用技能。</p>
-        <div class="quick-actions"><button id="skill-candidate-prepare" type="button" disabled>準備待審技能</button><button id="skill-candidate-cancel" type="button" disabled>取消準備</button><button id="skill-candidate-export" type="button" disabled>匯出審查資料 JSON</button></div>
-        <p id="skill-candidate-status" aria-live="polite">確認準備功能狀態中…</p>
-        <details><summary>來源與驗證紀錄</summary><pre id="skill-candidate-review"></pre></details>
-        <details><summary>待審技能內容</summary><pre id="skill-candidate-files"></pre></details>
-      </section><section id="skill-activation-panel">
-        <h3>批准與使用待辦清單技能</h3>
-        <p>先閱讀上方來源、程式內容與驗證紀錄。確認後可安裝，初始保持停用；啟用需要你再按一次。技能只解析你貼上的文字，使用時仍沿用對話中的操作授權。</p>
-        <div class="quick-actions"><button id="skill-activation-install" type="button" disabled>安裝（保持停用）</button><button id="skill-activation-enable" type="button" disabled>啟用已批准技能</button><button id="skill-activation-revoke" type="button" disabled>撤銷啟用</button><button id="skill-activation-fill" type="button" disabled>將待辦範例填入對話</button><button id="skill-activation-refresh" type="button">確認技能狀態</button></div>
-        <p id="skill-activation-status" aria-live="polite">確認技能狀態中…</p>
-      </section><div id="tool-proposals"></div><details><summary>指定工作目錄讀取</summary>    <section>
-      <h2>我的工作目錄</h2>
-      <p id="workspace-status">讀取狀態中…</p>
-      <p>將要分享的文字檔放入上方目錄，再請 SIRO 閱讀。每份文字檔最多 8 KiB。</p>
-      <input id="workspace-file" placeholder="例如 notes.txt" aria-label="工作目錄內檔名">
-      <button id="workspace-list" type="button">列出檔案</button>
-      <button id="workspace-read" type="button">讀取檔案</button>
-      <pre id="workspace-result" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></pre>
-      <p>這個讀檔入口只允許工作目錄；一般電腦操作仍依上方授權模式。</p>
-    </section>
-</details></details>
-      <details id="memories-panel"><summary>共同記憶</summary>    <section>
-      <h2>閒置記憶整理</h2>
-      <p>只在本機整理已記住的內容，將相同內容放在一起；保留原記憶，不推測新的事實，也不主動打擾。</p>
-      <p id="organization-status" aria-live="polite">讀取狀態中…</p>
-      <button id="organization-on" type="button">開啟閒置整理</button>
-      <button id="organization-off" type="button">暫停整理</button>
-      <button id="organization-refresh" type="button">現在整理</button>
-      <button id="product-refresh" type="button">重新整理畫面</button>
-      <div id="organization-items"></div>
-      <h3>原始記憶</h3>
-      <p>對 SIRO 說「記住：…」即可新增。更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p>
-      <div id="memory-items"></div>
-    </section>
-</details>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主要導覽">
+        <a class="brand" href="#/chat" data-nav="chat" aria-label="SIRO 對話"><span class="brand-mark" aria-hidden="true"></span>SIRO</a>
+        <p class="sidebar-note">一起生活，也一起把事情做好。</p>
+        <nav class="primary-nav" aria-label="工作畫面">
+          <a href="#/chat" data-nav="chat" aria-current="page"><span class="nav-mark" aria-hidden="true">◌</span>對話</a>
+          <a href="#/tasks" data-nav="tasks"><span class="nav-mark" aria-hidden="true">☑</span>任務</a>
+          <a href="#/memory" data-nav="memory"><span class="nav-mark" aria-hidden="true">◇</span>記憶</a>
+          <a href="#/capabilities" data-nav="capabilities"><span class="nav-mark" aria-hidden="true">✧</span>能力</a>
+          <div class="nav-divider" aria-hidden="true"></div>
+          <a href="#/computer" data-nav="computer"><span class="nav-mark" aria-hidden="true">⌘</span>電腦</a>
+          <a href="#/skills" data-nav="skills"><span class="nav-mark" aria-hidden="true">▧</span>技能</a>
+          <a href="#/settings" data-nav="settings"><span class="nav-mark" aria-hidden="true">⚙</span>設定</a>
+        </nav>
+        <div class="sidebar-footer">角色桌面活動與新動作<br>仍在製作規劃中。</div>
+      </aside>
+      <div class="workspace">
+        <header class="toolbar">
+          <span id="page-title">對話</span>
+          <div class="toolbar-actions">
+            <button id="connection" class="connection-pill" type="button" title="重新連線，不會重新執行工作">連線中</button>
+            <button id="voice" type="button">開始說話</button>
+            <button id="cancel" type="button">停止回覆與語音</button>
+          </div>
+        </header>
+        <div class="live-status" aria-live="polite"><span id="voice-status">麥克風待命</span><span id="tts-status">TTS 待命</span></div>
+        <div aria-live="polite"><a id="activity-notice" class="activity-notice" href="#/computer" data-nav="computer" hidden>電腦操作有更新，查看授權與結果</a></div>
+        <p id="service-notice" class="activity-notice" role="status" hidden></p>
+        <main class="page-content" id="main-content">
+          <section class="page-view" data-page="chat" aria-labelledby="chat-heading">
+            <div class="page-heading"><h1 id="chat-heading" data-page-heading tabindex="-1">和 SIRO 聊聊</h1><p>有想說的，慢慢說。需要一起處理的事，也可以交給我。</p></div>
+            <div class="companion-layout">
+              <section class="stage" aria-label="SIRO 角色">
+                <div class="stage-title"><h2>今天，也陪著你。</h2><p>同一個 SIRO，同一段相處。</p></div>
+                <iframe id="companion" src="__SIRO_RENDERER_PATH__" title="SIRO Live2D 角色"></iframe>
+                <div class="stage-footer"><p id="companion-state">正在與角色連線</p><p id="renderer-status">__SIRO_RENDERER_STATUS__</p></div>
+              </section>
+              <section class="conversation" aria-label="對話內容與輸入">
+                <div class="conversation-heading"><h2>我們的對話</h2><span id="model-status">確認對話連線中</span></div>
+                <div id="messages" aria-live="polite"><div class="empty-state"><strong>嗨，我在這裡。</strong><p>從一句「你好」開始。<br>想讓我留下的事，可以說「記住：…」。</p></div></div>
+                <form id="chat"><textarea id="text" required maxlength="32768" placeholder="想和 SIRO 說什麼？" aria-label="對話內容"></textarea><button type="submit">送出</button></form>
+                <div class="conversation-actions"><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
+              </section>
+            </div>
+          </section>
+          <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
+            <div class="page-heading"><h1 id="computer-heading" data-page-heading tabindex="-1">電腦協助</h1><p>查看檔案、開啟程式或瀏覽網頁。每個操作都保留授權與結果，範圍以實際能力為準。</p></div>
+            <details id="computer-panel" open><summary>操作與授權</summary><p id="authorization-status"></p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><div id="tool-proposals"></div></details>
+            <section class="content-section"><h2>指定工作目錄讀取</h2><p id="workspace-status">讀取狀態中…</p><p class="section-note">這個入口只允許讀取指定工作目錄內的文字檔，每份最多 8 KiB；一般電腦操作仍依操作授權。</p><label class="field-label" for="workspace-file">檔案相對路徑</label><input id="workspace-file" placeholder="例如 notes.txt"><div class="quick-actions"><button id="workspace-list" type="button">列出檔案</button><button id="workspace-read" type="button">讀取檔案</button></div><pre id="workspace-result" aria-live="polite"></pre></section>
+          </section>
+          <section class="page-view reading-width" data-page="tasks" hidden inert aria-labelledby="tasks-heading">
+            <div class="page-heading"><h1 id="tasks-heading" data-page-heading tabindex="-1">任務</h1><p>先確認要做的事，再看進度與來源。離開這個畫面，任務狀態仍會保存。</p></div>
+            <section class="content-section" id="goal-task-panel">
+              <h2>交給 SIRO 的任務</h2>
+              <p>指定工作目錄內 1–5 份文字檔，每行一個相對路徑。我會唯讀整理尚未勾選的待辦與 TODO／FIXME，保留來源、行數與時間。先建立待審任務，再明確批准；讀取完成不表示待辦已執行。</p>
+              <label class="field-label" for="goal-task-paths">要讀取的檔案</label>
+              <textarea id="goal-task-paths" rows="3" maxlength="2560" placeholder="notes.md&#10;project/tasks.txt" aria-label="任務要讀取的工作目錄內相對路徑"></textarea>
+              <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button><button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button></div>
+              <p id="goal-task-status" aria-live="polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>
+              <div id="goal-task-items" aria-live="polite"></div>
+            </section>
+          </section>
+          <section class="page-view reading-width" data-page="skills" hidden inert aria-labelledby="skills-heading">
+            <div class="page-heading"><h1 id="skills-heading" data-page-heading tabindex="-1">技能與改善</h1><p>從可追溯的來源準備新能力。驗證、審查與啟用，各有清楚的界線。</p></div>
+            <section class="content-section" id="skill-candidate-panel"><h2>學習新能力</h2><p>解析貼上的 Markdown 待辦清單。先準備一份待審技能與隔離測試紀錄，再由你檢查；這一步不會安裝或啟用技能。</p><div class="quick-actions"><button id="skill-candidate-prepare" type="button" disabled>準備待審技能</button><button id="skill-candidate-cancel" type="button" disabled>取消準備</button><button id="skill-candidate-export" type="button" disabled>匯出審查資料 JSON</button></div><p id="skill-candidate-status" aria-live="polite">確認準備功能狀態中…</p><details><summary>來源與驗證紀錄</summary><pre id="skill-candidate-review"></pre></details><details><summary>待審技能內容</summary><pre id="skill-candidate-files"></pre></details></section>
+            <section class="content-section" id="skill-activation-panel"><h2>批准與使用待辦清單技能</h2><p>先閱讀上方來源、程式內容與驗證紀錄。確認後可安裝，初始保持停用；啟用需要你再按一次。技能只解析你貼上的文字，使用時仍沿用對話中的操作授權。</p><div class="quick-actions"><button id="skill-activation-install" type="button" disabled>安裝（保持停用）</button><button id="skill-activation-enable" type="button" disabled>啟用已批准技能</button><button id="skill-activation-revoke" type="button" disabled>撤銷啟用</button><button id="skill-activation-fill" type="button" disabled>將待辦範例填入對話</button><button id="skill-activation-refresh" type="button">確認技能狀態</button></div><p id="skill-activation-status" aria-live="polite">確認技能狀態中…</p></section>
+            <section class="content-section" id="improvement-proposal-panel"><h2>改善建議</h2><p>查看這段對話最近的可追溯失敗，先整理需要調查與驗證的地方。來源不足時會明說；確認原因後才討論修復。</p><button id="improvement-proposal-refresh" type="button" disabled>查看這段對話的改善建議</button><p id="improvement-proposal-status" aria-live="polite">連線完成後可手動查詢；建議只供審閱。</p><pre id="improvement-proposal-review" aria-live="polite"></pre></section>
+          </section>
+          <section class="page-view reading-width" id="memories-panel" data-page="memory" hidden inert aria-labelledby="memory-heading">
+            <div class="page-heading"><h1 id="memory-heading" data-page-heading tabindex="-1">共同記憶</h1><p>留下的事情可以查來源，也能更正與刪除。對我說「記住：…」即可新增。</p></div>
+            <section class="content-section"><h2>記住的事情</h2><p class="section-note">更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p><button id="product-refresh" type="button">重新整理記憶</button><div id="memory-items"></div></section>
+            <details><summary>閒置記憶整理</summary><p>只在本機整理已記住的內容，將相同內容放在一起；保留原記憶，不推測新的事實，也不主動打擾。</p><p id="organization-status" aria-live="polite">讀取狀態中…</p><div class="quick-actions"><button id="organization-on" type="button">開啟閒置整理</button><button id="organization-off" type="button">暫停整理</button><button id="organization-refresh" type="button">現在整理</button></div><div id="organization-items"></div></details>
+          </section>
+          <section class="page-view reading-width" data-page="capabilities" hidden inert aria-labelledby="capabilities-heading">
+            <div class="page-heading"><h1 id="capabilities-heading" data-page-heading tabindex="-1">現在能做什麼</h1><p>以目前註冊與實際就緒狀態為準。查看能力不會執行操作，也不代表已授權。</p></div>
+            <div class="quick-actions"><a class="button-link" href="#/computer" data-nav="computer">開啟電腦協助</a><a class="button-link" href="#/skills" data-nav="skills">管理技能</a><button id="capabilities-refresh" type="button">更新能力狀態</button></div><div id="capability-items" aria-live="polite">讀取狀態中…</div>
+          </section>
+          <section class="page-view reading-width" data-page="settings" hidden inert aria-labelledby="settings-heading">
+            <div class="page-heading"><h1 id="settings-heading" data-page-heading tabindex="-1">相處與設定</h1><p>資料、權限與系統狀態分開查看。語音開關與全文重聽在對話畫面。</p></div>
+            <div class="destination-list"><a href="#/permissions" data-nav="permissions"><span><strong>權限與停止開關</strong><small>查看目前模式，控制工具與資料外送</small></span><span aria-hidden="true">›</span></a><a href="#/system" data-nav="system"><span><strong>系統與診斷</strong><small>長對話續作、內在狀態與連線紀錄</small></span><span aria-hidden="true">›</span></a><a href="#/chat" data-nav="chat"><span><strong>回到對話</strong><small>語音播放與全文重聽</small></span><span aria-hidden="true">›</span></a></div>
+            <p class="section-note" style="margin-top:22px">桌面自由活動、新角色與動作包尚未完成。此版本沿用目前角色，不提供未驗證的角色切換。</p>
+          </section>
+          <section class="page-view reading-width" data-page="permissions" hidden inert aria-labelledby="permissions-heading">
+            <div class="page-heading"><h1 id="permissions-heading" data-page-heading tabindex="-1">權限與停止開關</h1><p>開關直接作用於現有控制路徑，不需要模型同意。完整權限模式的操作仍受實際帳戶與工具範圍限制。</p></div>
+            <section class="content-section"><h2>能力開關</h2><div id="switches"></div></section><a href="#/settings" data-nav="settings">返回設定</a>
+          </section>
+          <section class="page-view reading-width" data-page="system" hidden inert aria-labelledby="system-heading">
+            <div class="page-heading"><h1 id="system-heading" data-page-heading tabindex="-1">系統與診斷</h1><p>這些是目前服務的實際狀態。診斷資料與日常聊天分開，不代表缺少的產品能力已完成。</p></div>
+            <section class="content-section"><h2>長對話續作</h2><p id="summary-status">讀取狀態中…</p><p class="section-note">較舊的長回覆採摘錄摘要，省略處會標示；目標、授權與尚未完成的工具結果保留。摘要不是永久記憶。</p></section>
+            <details><summary>內在狀態</summary><p id="affect-summary">尚無事件評估</p><div id="affect-grid"></div></details><details><summary>連線資訊</summary><pre id="snapshot"></pre></details><details><summary>事件紀錄</summary><pre id="events"></pre></details><div class="quick-actions"><a class="button-link" href="/audio-field-test">音訊驗收工具</a><a class="button-link" href="#/settings" data-nav="settings">返回設定</a></div>
+          </section>
+        </main>
+      </div>
     </div>
-    <details><summary>連線與進階設定</summary>    <section>
-      <h2>長對話續作</h2>
-      <p id="summary-status">讀取狀態中…</p>
-      <p>較舊的長回覆採摘錄摘要，省略處會標示；目標、授權與尚未完成的工具結果保留。摘要不是永久記憶。</p>
-    </section>
-<section><h2>內在狀態</h2><p id="affect-summary">尚無事件評估</p><div id="affect-grid"></div></section><section><h2>能力開關</h2><div id="switches"></div></section><section><h2>連線資訊</h2><pre id="snapshot"></pre></section><section><h2>事件紀錄</h2><pre id="events"></pre></section><p><a href="/audio-field-test">音訊驗收工具</a></p></details>
     <script>
       let socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
       let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
@@ -202,7 +314,64 @@
           ? "上次工作中斷，有些操作的結果未知。我沒有重新執行；請先確認實際結果。"
           : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
       }
+      const pageTitles = Object.freeze({chat:"對話", tasks:"任務", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
+      let activePage = "chat", navigationInitialized = false;
+      function showPage(hash = location.hash, moveFocus = false) {
+        const requested = typeof hash === "string" && /^#\/[a-z]+$/.test(hash) ? hash.slice(2) : "chat";
+        const page = Object.hasOwn(pageTitles, requested) ? requested : "chat";
+        let heading;
+        for (const pane of document.querySelectorAll("[data-page]")) {
+          pane.hidden = pane.dataset.page !== page;
+          pane.inert = pane.hidden;
+          if (!pane.hidden) heading = pane.querySelector("[data-page-heading]");
+        }
+        for (const link of document.querySelectorAll("[data-nav]")) {
+          if (link.dataset.nav === page) link.setAttribute("aria-current", "page");
+          else link.removeAttribute("aria-current");
+        }
+        activePage = page;
+        document.querySelector("#page-title").textContent = pageTitles[page];
+        document.title = `SIRO · ${pageTitles[page]}`;
+        if (page === "computer") document.querySelector("#activity-notice").hidden = true;
+        if (moveFocus) heading.focus();
+        return page;
+      }
+      function navigateToPage(name, moveFocus = true) {
+        const page = Object.hasOwn(pageTitles, name) ? name : "chat";
+        const hash = `#/${page}`;
+        if (location.hash !== hash) window.history.pushState(null, "", hash);
+        return showPage(hash, moveFocus);
+      }
+      function initializePageNavigation() {
+        if (navigationInitialized) return;
+        navigationInitialized = true;
+        for (const link of document.querySelectorAll("[data-nav]")) {
+          link.onclick = event => {
+            if (event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault(); navigateToPage(link.dataset.nav);
+          };
+        }
+        window.addEventListener("hashchange", () => showPage(location.hash, true));
+        window.addEventListener("popstate", () => showPage(location.hash, true));
+        showPage();
+      }
+      function notifyComputerActivity() {
+        document.querySelector("#activity-notice").hidden = activePage === "computer";
+      }
       async function boot() {
+        initializePageNavigation();
+        if (location.protocol === "file:") {
+          const notice = document.querySelector("#service-notice"); notice.hidden = false;
+          notice.textContent = "這是介面預覽，尚未連接 SIRO。請使用 SIRO 服務啟動後提供的網址，才能對話、查看記憶或執行任務。";
+          document.querySelector("#connection").textContent = "介面預覽";
+          document.querySelector("#model-status").textContent = "尚未連接服務";
+          document.querySelector("#companion-state").textContent = "角色尚未連線";
+          document.querySelector("#renderer-status").textContent = "請從 SIRO 服務開啟角色";
+          document.querySelector("#voice-status").textContent = "語音尚未連線";
+          document.querySelector("#tts-status").textContent = "預覽不會執行操作";
+          for (const control of document.querySelectorAll("button, input, textarea")) control.disabled = true;
+          return;
+        }
         await connectControl();
         await refreshProduct();
         const recovery = await authorizedFetch("/v1/agent-runs/browser", {headers: headers()});
@@ -232,7 +401,7 @@
           };
           controlDispose = abandon;
           const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
-          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); ready.resolve(); };
+          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); ready.resolve(); };
           socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
         socket.onmessage = event => {
           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
@@ -535,6 +704,7 @@
         if (document.querySelector("#skill-activation-fill").disabled) return;
         const field = document.querySelector("#text");
         field.value = "請用待辦清單技能整理這段文字，列出待辦與已完成項目：\n- [ ] 整理今天的筆記\n- [x] 喝一杯水";
+        if (navigationInitialized) navigateToPage("chat", false);
         field.focus?.();
       };
       async function productRequest(url, options = {}) {
@@ -952,6 +1122,7 @@
       function renderToolProposal(data) {
         const root = document.querySelector("#tool-proposals");
         document.querySelector("#computer-panel").open = true;
+        if (typeof notifyComputerActivity === "function") notifyComputerActivity();
         if (document.getElementById(`tool-${data.proposal_id}`)) return;
         const card = document.createElement("div"); card.className = "proposal"; card.id = `tool-${data.proposal_id}`;
         const description = document.createElement("p");
@@ -982,6 +1153,7 @@
         let node = card.querySelector(".tool-status");
         if (!node) { node = document.createElement("p"); node.className = "tool-status"; card.appendChild(node); }
         node.textContent = status;
+        if (typeof notifyComputerActivity === "function") notifyComputerActivity();
       }
       function renderToolResult(data) {
         const reasons = {invalid_url: "網址格式不正確，請使用完整的 HTTP 或 HTTPS 網址。", main_origin_denied: "主頁不在這次授權的網站範圍。", redirect_denied: "網站轉往未授權的來源，已停止讀取。", subresource_denied: "部分跨站資源已阻擋，以下內容可能不完整。"};
@@ -1199,6 +1371,7 @@
       document.querySelector("#voice").onclick = async () => {
         const button = document.querySelector("#voice"), status = document.querySelector("#voice-status");
         if (!microphoneEnabled) { status.textContent = "請先開啟 microphone switch"; return; }
+        if (navigationInitialized) navigateToPage("chat", false);
         if (recorder?.state === "recording") { recorder.stop(); button.textContent = "開始說話"; return; }
         try {
           const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, channelCount: 1}});
@@ -1222,9 +1395,9 @@
         document.querySelector("#companion-state").textContent = labels[event.data.emotion] || "陪著你";
         document.querySelector("#renderer-status").textContent = "Live2D 已就緒 · 情緒與對話同步";
       });
-      document.querySelectorAll(".computer-prompt").forEach(button => button.onclick = () => { document.querySelector("#text").value = button.dataset.prompt; document.querySelector("#text").focus(); document.querySelector("#chat").scrollIntoView({behavior:"smooth",block:"center"}); });
+      document.querySelectorAll(".computer-prompt").forEach(button => button.onclick = () => { if (navigationInitialized) navigateToPage("chat", false); document.querySelector("#text").value = button.dataset.prompt; document.querySelector("#text").focus(); document.querySelector("#chat").scrollIntoView({behavior:"smooth",block:"center"}); });
       document.querySelector("#text").addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); document.querySelector("#chat").requestSubmit(); } });
-      boot().catch(error => { document.querySelector("#connection").textContent = error; });
+      boot().catch(() => { document.querySelector("#connection").textContent = "連線未完成"; const notice = document.querySelector("#service-notice"); notice.hidden = false; notice.textContent = "目前無法連接 SIRO。請確認服務已啟動，再按重新連線；已送出的工作不會自動重送。"; });
     </script>
   </body>
 </html>

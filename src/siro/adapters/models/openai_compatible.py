@@ -10,6 +10,7 @@ from siro.adapters.models.http import (
     HttpxStreamingTransport,
     JsonTransport,
     StreamingJsonTransport,
+    _decode_json_response,
 )
 from siro.ports.models import (
     CancellationToken,
@@ -207,7 +208,7 @@ class OpenAICompatibleAdapter:
                 if data == "[DONE]":
                     done_marker = True
                     break
-                event = json.loads(data)
+                event = _decode_json_response(data)
                 if not isinstance(event, dict):
                     raise ValueError("provider stream event is not an object")
                 usage = event.get("usage")

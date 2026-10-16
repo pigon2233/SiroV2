@@ -102,6 +102,34 @@ impl LinuxDriver {
         Ok(command)
     }
 
+    fn reap_finished(&mut self) -> BTreeMap<u32, String> {
+        let mut finished = Vec::new();
+        let mut errors = BTreeMap::new();
+        for (&pid, child) in &mut self.managed {
+            let retained = child
+                .try_wait()
+                .map_err(|_| "process_reap_failed".to_owned())
+                .and_then(|status| {
+                    if status.is_some() {
+                        process_group_exists(pid)
+                    } else {
+                        Ok(true)
+                    }
+                });
+            match retained {
+                Ok(false) => finished.push(pid),
+                Ok(true) => {}
+                Err(error) => {
+                    errors.insert(pid, error);
+                }
+            }
+        }
+        for pid in finished {
+            self.managed.remove(&pid);
+        }
+        errors
+    }
+
     fn run_process(&self, arguments: &Value) -> Result<Value, String> {
         let mut command = self.command(arguments)?;
         let timeout_ms = arguments
@@ -109,6 +137,11 @@ impl LinuxDriver {
             .and_then(Value::as_u64)
             .unwrap_or(3_000)
             .min(120_000);
+        // Keep one sentinel byte so a file-size-limited prefix cannot appear complete.
+        let file_limit = u64::try_from(self.output_limit)
+            .ok()
+            .and_then(|limit| limit.checked_add(1))
+            .ok_or("invalid_output_limit")?;
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|error| error.to_string())?
@@ -118,7 +151,6 @@ impl LinuxDriver {
         let stdout = fs::File::create(&stdout_path).map_err(|error| error.to_string())?;
         let stderr = fs::File::create(&stderr_path).map_err(|error| error.to_string())?;
         command.stdout(stdout).stderr(stderr);
-        let file_limit = u64::try_from(self.output_limit).map_err(|_| "invalid_output_limit")?;
         // SAFETY: pre_exec only invokes async-signal-safe libc calls before exec.
         unsafe {
             command.pre_exec(move || {
@@ -146,14 +178,27 @@ impl LinuxDriver {
             }
             thread::sleep(Duration::from_millis(5));
         };
-        let stdout = read_bounded(&stdout_path, self.output_limit)?;
-        let stderr = read_bounded(&stderr_path, self.output_limit)?;
+        let stdout = read_bounded(&stdout_path, self.output_limit);
+        let stderr = read_bounded(&stderr_path, self.output_limit);
         cleanup(&stdout_path, &stderr_path);
         Ok(json!({
             "returncode": status.code(),
-            "stdout": stdout,
-            "stderr": stderr,
+            "stdout": stdout?,
+            "stderr": stderr?,
         }))
+    }
+}
+
+fn process_group_exists(pid: u32) -> Result<bool, String> {
+    let pid = i32::try_from(pid).map_err(|_| "invalid_pid")?;
+    // SAFETY: signal zero only checks existence of this driver's owned process group.
+    if unsafe { libc::kill(-pid, 0) } == 0 {
+        return Ok(true);
+    }
+    match io::Error::last_os_error().raw_os_error() {
+        Some(libc::ESRCH) => Ok(false),
+        Some(libc::EPERM) => Err("process_group_permission_denied".into()),
+        _ => Err("process_group_check_failed".into()),
     }
 }
 
@@ -186,6 +231,7 @@ fn cleanup(stdout: &Path, stderr: &Path) {
 
 impl OsDriver for LinuxDriver {
     fn execute(&mut self, capability: &str, arguments: &Value) -> Result<Value, String> {
+        let reap_errors = self.reap_finished();
         match capability {
             "filesystem.read" => {
                 let path = self.existing(&Self::path(arguments, "path")?)?;
@@ -279,8 +325,9 @@ impl OsDriver for LinuxDriver {
                 Ok(json!({"pid": pid}))
             }
             "process.list" => {
-                self.managed
-                    .retain(|_, child| child.try_wait().ok().flatten().is_none());
+                if let Some(error) = reap_errors.values().next() {
+                    return Err(error.clone());
+                }
                 Ok(json!({"pids": self.managed.keys().copied().collect::<Vec<_>>()}))
             }
             "process.stop" => {
@@ -289,6 +336,9 @@ impl OsDriver for LinuxDriver {
                     .and_then(Value::as_u64)
                     .ok_or("missing pid")?;
                 let pid = u32::try_from(pid_u64).map_err(|_| "invalid_pid")?;
+                if let Some(error) = reap_errors.get(&pid) {
+                    return Err(error.clone());
+                }
                 let mut child = self.managed.remove(&pid).ok_or("process_not_owned")?;
                 kill_group(pid);
                 child.wait().map_err(|error| error.to_string())?;
@@ -339,6 +389,9 @@ mod tests {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        if path.is_dir() {
+            command.env("TMPDIR", path);
+        }
         // SAFETY: this owned test child invokes only async-signal-safe setrlimit before exec.
         unsafe {
             command.pre_exec(|| {
@@ -499,6 +552,370 @@ mod tests {
             Err("scope_denied".into())
         );
         fs::remove_dir_all(base).expect("cleanup");
+    }
+
+    fn wait_for_owned_exit(pid: u32) {
+        let status_path = PathBuf::from(format!("/proc/{pid}/status"));
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            let status = fs::read_to_string(&status_path).expect("owned child status");
+            if status.lines().any(|line| line.starts_with("State:\tZ")) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "owned child did not exit");
+            thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    fn start_managed(driver: &mut LinuxDriver, root: &Path, source: &str) -> u32 {
+        let result = driver
+            .execute(
+                "process.start",
+                &json!({"argv": ["/usr/bin/python3", "-c", source], "cwd": root}),
+            )
+            .expect("start owned child");
+        u32::try_from(result["pid"].as_u64().expect("pid")).expect("u32 pid")
+    }
+
+    #[test]
+    fn non_process_execution_reaps_exited_managed_children() {
+        let fixture = ReadFixture::new();
+        let mut driver = LinuxDriver::new(vec![fixture.0.clone()], 128).expect("driver");
+        let pid = start_managed(&mut driver, &fixture.0, "pass");
+        wait_for_owned_exit(pid);
+        assert!(driver.managed.contains_key(&pid));
+        let listed = driver.execute("filesystem.list", &json!({"path": fixture.0}));
+        let completed_remains = !driver.managed.is_empty();
+        let zombie_remains = Path::new(&format!("/proc/{pid}")).exists();
+        let stopped = driver.execute("process.stop", &json!({"pid": pid}));
+        // Clean even against the old driver before reporting the regression.
+        if let Some(mut child) = driver.managed.remove(&pid) {
+            child.wait().expect("reap test child");
+        }
+        assert_eq!(listed, Ok(json!({"entries": []})));
+        assert!(!completed_remains, "completed child remains managed");
+        assert!(!zombie_remains, "completed owned child remains a zombie");
+        assert_eq!(stopped, Err("process_not_owned".into()));
+    }
+
+    #[test]
+    fn managed_child_reap_failure_is_visible_and_keeps_ownership_record() {
+        let fixture = ReadFixture::new();
+        let mut driver = LinuxDriver::new(vec![fixture.0.clone()], 128).expect("driver");
+        let pid = start_managed(&mut driver, &fixture.0, "pass");
+        wait_for_owned_exit(pid);
+        let mut status = 0;
+        // SAFETY: this test deliberately injects ECHILD by reaping only its own known child.
+        assert_eq!(
+            unsafe { libc::waitpid(pid as i32, &mut status, 0) },
+            pid as i32
+        );
+        assert_eq!(
+            driver.execute("filesystem.list", &json!({"path": fixture.0})),
+            Ok(json!({"entries": []}))
+        );
+        assert_eq!(
+            driver.execute("process.list", &json!({})),
+            Err("process_reap_failed".into())
+        );
+        assert_eq!(
+            driver.execute("process.stop", &json!({"pid": pid})),
+            Err("process_reap_failed".into())
+        );
+        assert!(driver.managed.contains_key(&pid));
+        let healthy = start_managed(&mut driver, &fixture.0, "import time; time.sleep(10)");
+        assert_eq!(
+            driver.execute("process.stop", &json!({"pid": healthy})),
+            Ok(json!({"stopped": healthy}))
+        );
+        assert!(driver.managed.contains_key(&pid));
+    }
+
+    #[test]
+    fn reap_preserves_live_child_and_refuses_unowned_stop() {
+        let fixture = ReadFixture::new();
+        let mut driver = LinuxDriver::new(vec![fixture.0.clone()], 128).expect("driver");
+        let pid = start_managed(&mut driver, &fixture.0, "import time; time.sleep(10)");
+        let mut unrelated = Command::new("/usr/bin/python3")
+            .args(["-c", "import time; time.sleep(10)"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("unrelated owned test child");
+        let listed = driver.execute("filesystem.list", &json!({"path": fixture.0}));
+        let live_is_managed = driver.managed.contains_key(&pid);
+        let unowned_stop = driver.execute("process.stop", &json!({"pid": unrelated.id()}));
+        let unrelated_status = unrelated.try_wait().expect("unrelated status");
+        let stopped = driver.execute("process.stop", &json!({"pid": pid}));
+        unrelated.kill().expect("stop unrelated test child");
+        unrelated.wait().expect("reap unrelated test child");
+        assert_eq!(listed, Ok(json!({"entries": []})));
+        assert!(live_is_managed);
+        assert_eq!(unowned_stop, Err("process_not_owned".into()));
+        assert!(unrelated_status.is_none());
+        assert_eq!(stopped, Ok(json!({"stopped": pid})));
+    }
+
+    #[test]
+    fn reaped_leader_preserves_owned_descendant_group_stop() {
+        if let Some(root) = probe_path() {
+            // SAFETY: only this disposable test process adopts its own descendants.
+            assert_eq!(
+                unsafe { libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) },
+                0
+            );
+            let mut driver = LinuxDriver::new(vec![root.clone()], 1024).expect("driver");
+            let pid = start_managed(
+                &mut driver,
+                &root,
+                "import os, pathlib, time\nchild = os.fork()\nif child == 0:\n time.sleep(10)\nelse:\n pathlib.Path('descendant.pid').write_text(str(child))\n",
+            );
+            wait_for_owned_exit(pid);
+            let descendant: i32 = fs::read_to_string(root.join("descendant.pid"))
+                .expect("descendant pid")
+                .parse()
+                .expect("pid number");
+            let listed = driver.execute("process.list", &json!({}));
+            let leader_reaped = !Path::new(&format!("/proc/{pid}")).exists();
+            let stopped = driver.execute("process.stop", &json!({"pid": pid}));
+            // Always clean the known test group, including against the old broken driver.
+            kill_group(pid);
+            let mut status = 0;
+            // SAFETY: this subreaper waits only for its known adopted test child.
+            assert_eq!(
+                unsafe { libc::waitpid(descendant, &mut status, 0) },
+                descendant
+            );
+            assert!(leader_reaped, "group leader remains a zombie");
+            assert_eq!(listed, Ok(json!({"pids": [pid]})));
+            assert_eq!(stopped, Ok(json!({"stopped": pid})));
+            assert!(!Path::new(&format!("/proc/{descendant}")).exists());
+            return;
+        }
+        let fixture = ReadFixture::new();
+        let output = run_read_probe(
+            "linux::tests::reaped_leader_preserves_owned_descendant_group_stop",
+            &fixture.0,
+        );
+        assert!(
+            output.status.success(),
+            "descendant ownership probe failed: {} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn deny_owned_group_signals(pid: u32) {
+        let mut instructions = [
+            libc::sock_filter {
+                code: (libc::BPF_LD | libc::BPF_W | libc::BPF_ABS) as u16,
+                jt: 0,
+                jf: 0,
+                k: 0,
+            },
+            libc::sock_filter {
+                code: (libc::BPF_JMP | libc::BPF_JEQ | libc::BPF_K) as u16,
+                jt: 0,
+                jf: 3,
+                k: libc::SYS_kill as u32,
+            },
+            libc::sock_filter {
+                code: (libc::BPF_LD | libc::BPF_W | libc::BPF_ABS) as u16,
+                jt: 0,
+                jf: 0,
+                k: if cfg!(target_endian = "little") {
+                    16
+                } else {
+                    20
+                },
+            },
+            libc::sock_filter {
+                code: (libc::BPF_JMP | libc::BPF_JEQ | libc::BPF_K) as u16,
+                jt: 0,
+                jf: 1,
+                k: (-i32::try_from(pid).expect("owned pid")) as u32,
+            },
+            libc::sock_filter {
+                code: (libc::BPF_RET | libc::BPF_K) as u16,
+                jt: 0,
+                jf: 0,
+                k: libc::SECCOMP_RET_ERRNO | libc::EPERM as u32,
+            },
+            libc::sock_filter {
+                code: (libc::BPF_RET | libc::BPF_K) as u16,
+                jt: 0,
+                jf: 0,
+                k: libc::SECCOMP_RET_ALLOW,
+            },
+        ];
+        let program = libc::sock_fprog {
+            len: u16::try_from(instructions.len()).expect("filter length"),
+            filter: instructions.as_mut_ptr(),
+        };
+        // SAFETY: only this disposable test process installs its own irreversible filter.
+        unsafe {
+            assert_eq!(libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
+            assert_eq!(
+                libc::prctl(libc::PR_SET_SECCOMP, libc::SECCOMP_MODE_FILTER, &program),
+                0
+            );
+        }
+    }
+
+    #[test]
+    fn denied_owned_group_stop_reports_failure_and_preserves_ownership() {
+        if let Some(root) = probe_path() {
+            // SAFETY: this isolated test adopts and joins only its own descendants.
+            assert_eq!(
+                unsafe { libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) },
+                0
+            );
+            let mut driver = LinuxDriver::new(vec![root.clone()], 1024).expect("driver");
+            let pid = start_managed(
+                &mut driver,
+                &root,
+                "import os, pathlib, time\nchild = os.fork()\nif child == 0:\n time.sleep(10)\nelse:\n pathlib.Path('descendant.pid').write_text(str(child))\n",
+            );
+            wait_for_owned_exit(pid);
+            let descendant: i32 = fs::read_to_string(root.join("descendant.pid"))
+                .expect("descendant pid")
+                .parse()
+                .expect("pid number");
+            deny_owned_group_signals(pid);
+            let listed = driver.execute("process.list", &json!({}));
+            let stopped = driver.execute("process.stop", &json!({"pid": pid}));
+            let preserved = driver.managed.contains_key(&pid);
+            let status = fs::read_to_string(format!("/proc/{descendant}/status"))
+                .expect("live descendant status");
+            let live = !status.lines().any(|line| line.starts_with("State:\tZ"));
+            let files = driver.execute("filesystem.list", &json!({"path": root}));
+            let healthy = start_managed(&mut driver, &root, "import time; time.sleep(10)");
+            let healthy_stopped = driver.execute("process.stop", &json!({"pid": healthy}));
+            // The filter denies only the negative group PID, so positive-PID cleanup works.
+            // SAFETY: descendant is this subreaper's known adopted test child.
+            assert_eq!(unsafe { libc::kill(descendant, libc::SIGKILL) }, 0);
+            let mut exit_status = 0;
+            // SAFETY: this test joins only its known adopted child.
+            assert_eq!(
+                unsafe { libc::waitpid(descendant, &mut exit_status, 0) },
+                descendant
+            );
+            assert_eq!(listed, Err("process_group_permission_denied".into()));
+            assert_eq!(stopped, Err("process_group_permission_denied".into()));
+            assert!(preserved, "denied stop discarded ownership");
+            assert!(live, "denied stop unexpectedly killed descendant");
+            assert_eq!(files, Ok(json!({"entries": ["descendant.pid"]})));
+            assert_eq!(healthy_stopped, Ok(json!({"stopped": healthy})));
+            return;
+        }
+        let fixture = ReadFixture::new();
+        let output = run_read_probe(
+            "linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership",
+            &fixture.0,
+        );
+        assert!(
+            output.status.success(),
+            "group permission probe failed: {} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn run_output(root: &Path, limit: usize, source: &str) -> Result<Value, String> {
+        let mut driver = LinuxDriver::new(vec![root.to_path_buf()], limit).expect("driver");
+        driver.execute(
+            "process.run",
+            &json!({"argv": ["/usr/bin/python3", "-c", source], "cwd": root, "timeout_ms": 1000}),
+        )
+    }
+
+    #[test]
+    fn process_run_rejects_stdout_over_limit_instead_of_returning_a_prefix() {
+        let fixture = ReadFixture::new();
+        assert_eq!(
+            run_output(&fixture.0, 128, "import os; os.write(1, b'x' * 129)"),
+            Err("output_limit".into())
+        );
+    }
+
+    #[test]
+    fn process_run_rejects_stderr_over_limit_instead_of_returning_a_prefix() {
+        let fixture = ReadFixture::new();
+        assert_eq!(
+            run_output(&fixture.0, 128, "import os; os.write(2, b'x' * 129)"),
+            Err("output_limit".into())
+        );
+    }
+
+    #[test]
+    fn process_run_output_failure_removes_owned_capture_files() {
+        let fixture = ReadFixture::new();
+        let result = run_output(
+            &fixture.0,
+            1024,
+            "import json, os, pathlib; pathlib.Path('paths.json').write_text(json.dumps([os.readlink('/proc/self/fd/1'), os.readlink('/proc/self/fd/2')])); os.write(1, b'x' * 1025)",
+        );
+        let paths: Vec<PathBuf> =
+            serde_json::from_slice(&fs::read(fixture.0.join("paths.json")).expect("capture paths"))
+                .expect("path JSON");
+        assert_eq!(result, Err("output_limit".into()));
+        assert_eq!(paths.len(), 2);
+        assert!(
+            paths.iter().all(|path| !path.exists()),
+            "capture files leaked"
+        );
+    }
+
+    #[test]
+    fn process_run_preserves_exact_per_stream_limit_and_result_shape() {
+        let fixture = ReadFixture::new();
+        assert_eq!(
+            run_output(
+                &fixture.0,
+                128,
+                "import os; os.write(1, b'x' * 128); os.write(2, b'y' * 128)"
+            ),
+            Ok(json!({"returncode": 0, "stdout": "x".repeat(128), "stderr": "y".repeat(128)}))
+        );
+    }
+
+    #[test]
+    fn process_run_zero_limit_accepts_empty_and_rejects_any_output() {
+        let fixture = ReadFixture::new();
+        assert_eq!(
+            run_output(&fixture.0, 0, "pass"),
+            Ok(json!({"returncode": 0, "stdout": "", "stderr": ""}))
+        );
+        assert_eq!(
+            run_output(&fixture.0, 0, "import os; os.write(1, b'x')"),
+            Err("output_limit".into())
+        );
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn invalid_output_limit_does_not_create_capture_files() {
+        if let Some(root) = probe_path() {
+            assert_eq!(std::env::temp_dir(), root);
+            assert_eq!(
+                run_output(&root, usize::MAX, "pass"),
+                Err("invalid_output_limit".into())
+            );
+            assert_eq!(fs::read_dir(root).expect("capture directory").count(), 0);
+            return;
+        }
+        let fixture = ReadFixture::new();
+        let output = run_read_probe(
+            "linux::tests::invalid_output_limit_does_not_create_capture_files",
+            &fixture.0,
+        );
+        assert!(
+            output.status.success(),
+            "invalid-limit capture probe failed: {} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     #[test]

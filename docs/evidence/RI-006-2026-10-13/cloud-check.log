@@ -1,0 +1,745 @@
+﻿2026-10-13T17:47:20.7972014Z Current runner version: '2.337.0'
+2026-10-13T17:47:20.8006906Z ##[group]Runner Image Provisioner
+2026-10-13T17:47:20.8008485Z Hosted Compute Agent
+2026-10-13T17:47:20.8009420Z Version: 20260901.588
+2026-10-13T17:47:20.8010393Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+2026-10-13T17:47:20.8011635Z Build Date: 2026-09-01T19:56:44Z
+2026-10-13T17:47:20.8012731Z Worker ID: {25103c3b-9e92-4130-b889-a912d273b87f}
+2026-10-13T17:47:20.8013848Z Azure Region: northcentralus
+2026-10-13T17:47:20.8014990Z ##[endgroup]
+2026-10-13T17:47:20.8017153Z ##[group]Operating System
+2026-10-13T17:47:20.8018463Z Ubuntu
+2026-10-13T17:47:20.8019339Z 26.04.1
+2026-10-13T17:47:20.8020112Z LTS
+2026-10-13T17:47:20.8021018Z ##[endgroup]
+2026-10-13T17:47:20.8021864Z ##[group]Runner Image
+2026-10-13T17:47:20.8022856Z Image: ubuntu-26.04
+2026-10-13T17:47:20.8023795Z Version: 20260927.149.1
+2026-10-13T17:47:20.8025956Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20260927.149/images/ubuntu/Ubuntu2604-Readme.md
+2026-10-13T17:47:20.8028601Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20260927.149
+2026-10-13T17:47:20.8029741Z ##[endgroup]
+2026-10-13T17:47:20.8030980Z ##[group]GITHUB_TOKEN Permissions
+2026-10-13T17:47:20.8033774Z Contents: read
+2026-10-13T17:47:20.8034403Z Metadata: read
+2026-10-13T17:47:20.8035097Z ##[endgroup]
+2026-10-13T17:47:20.8037309Z Secret source: Actions
+2026-10-13T17:47:20.8038562Z Cache mode: write
+2026-10-13T17:47:20.8039401Z Prepare workflow directory
+2026-10-13T17:47:20.8404040Z Prepare all required actions
+2026-10-13T17:47:20.8469852Z Getting action download info
+2026-10-13T17:47:21.0868301Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-13T17:47:21.7430860Z Download action repository 'astral-sh/setup-uv@v7' (SHA:37802adc94f370d6bfd71619e3f0bf239e1f3b78)
+2026-10-13T17:47:22.1760212Z Complete job name: python
+2026-10-13T17:47:22.2562769Z ##[group]Run actions/checkout@v4
+2026-10-13T17:47:22.2563703Z with:
+2026-10-13T17:47:22.2564202Z   repository: pigon2233/SiroV2
+2026-10-13T17:47:22.2569103Z   token: ***
+2026-10-13T17:47:22.2569603Z   ssh-strict: true
+2026-10-13T17:47:22.2570096Z   ssh-user: git
+2026-10-13T17:47:22.2570591Z   persist-credentials: true
+2026-10-13T17:47:22.2571131Z   clean: true
+2026-10-13T17:47:22.2571631Z   sparse-checkout-cone-mode: true
+2026-10-13T17:47:22.2572211Z   fetch-depth: 1
+2026-10-13T17:47:22.2572693Z   fetch-tags: false
+2026-10-13T17:47:22.2573201Z   show-progress: true
+2026-10-13T17:47:22.2573703Z   lfs: false
+2026-10-13T17:47:22.2574172Z   submodules: false
+2026-10-13T17:47:22.2574671Z   set-safe-directory: true
+2026-10-13T17:47:22.2575223Z   allow-unsafe-pr-checkout: false
+2026-10-13T17:47:22.2576067Z ##[endgroup]
+2026-10-13T17:47:22.3593680Z Syncing repository: pigon2233/SiroV2
+2026-10-13T17:47:22.3595653Z ##[group]Getting Git version info
+2026-10-13T17:47:22.3596556Z Working directory is '/home/runner/work/SiroV2/SiroV2'
+2026-10-13T17:47:22.3597971Z [command]/usr/bin/git version
+2026-10-13T17:47:22.3598561Z git version 2.55.0
+2026-10-13T17:47:22.3605655Z ##[endgroup]
+2026-10-13T17:47:22.3624819Z Temporarily overriding HOME='/home/runner/work/_temp/470cd271-f764-439b-b69e-3f20fced1169' before making global git config changes
+2026-10-13T17:47:22.3626944Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-13T17:47:22.3630605Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/SiroV2/SiroV2
+2026-10-13T17:47:22.3693719Z Deleting the contents of '/home/runner/work/SiroV2/SiroV2'
+2026-10-13T17:47:22.3696927Z ##[group]Initializing the repository
+2026-10-13T17:47:22.3703873Z [command]/usr/bin/git init /home/runner/work/SiroV2/SiroV2
+2026-10-13T17:47:22.3825146Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-13T17:47:22.3827007Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-13T17:47:22.3828804Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-13T17:47:22.3830151Z hint: call:
+2026-10-13T17:47:22.3830616Z hint:
+2026-10-13T17:47:22.3831194Z hint: 	git config --global init.defaultBranch <name>
+2026-10-13T17:47:22.3831880Z hint:
+2026-10-13T17:47:22.3832527Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-13T17:47:22.3833530Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-13T17:47:22.3834521Z hint:
+2026-10-13T17:47:22.3834984Z hint: 	git branch -m <name>
+2026-10-13T17:47:22.3835517Z hint:
+2026-10-13T17:47:22.3836201Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-13T17:47:22.3843904Z Initialized empty Git repository in /home/runner/work/SiroV2/SiroV2/.git/
+2026-10-13T17:47:22.3856186Z [command]/usr/bin/git remote add origin https://github.com/pigon2233/SiroV2
+2026-10-13T17:47:22.3942538Z ##[endgroup]
+2026-10-13T17:47:22.3944089Z ##[group]Disabling automatic garbage collection
+2026-10-13T17:47:22.3945734Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-13T17:47:22.3985284Z ##[endgroup]
+2026-10-13T17:47:22.3986984Z ##[group]Setting up auth
+2026-10-13T17:47:22.3994206Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-13T17:47:22.4035184Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-13T17:47:22.4524920Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-13T17:47:22.4563480Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-13T17:47:22.4851255Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-13T17:47:22.4888897Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-13T17:47:22.5175407Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-13T17:47:22.5218526Z ##[endgroup]
+2026-10-13T17:47:22.5227299Z ##[group]Fetching the repository
+2026-10-13T17:47:22.5229303Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +f3f94c12e690e80ccc945a0bea16b4e91054875e:refs/remotes/origin/main
+2026-10-13T17:47:23.1765949Z From https://github.com/pigon2233/SiroV2
+2026-10-13T17:47:23.1767700Z  * [new ref]         f3f94c12e690e80ccc945a0bea16b4e91054875e -> origin/main
+2026-10-13T17:47:23.1771689Z ##[endgroup]
+2026-10-13T17:47:23.1773657Z ##[group]Determining the checkout info
+2026-10-13T17:47:23.1775212Z ##[endgroup]
+2026-10-13T17:47:23.1779718Z [command]/usr/bin/git sparse-checkout disable
+2026-10-13T17:47:23.1833213Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-13T17:47:23.1865201Z ##[group]Checking out the ref
+2026-10-13T17:47:23.1869537Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-10-13T17:47:23.3231751Z Switched to a new branch 'main'
+2026-10-13T17:47:23.3233649Z branch 'main' set up to track 'origin/main'.
+2026-10-13T17:47:23.3256571Z ##[endgroup]
+2026-10-13T17:47:23.3306295Z [command]/usr/bin/git log -1 --format=%H
+2026-10-13T17:47:23.3332960Z f3f94c12e690e80ccc945a0bea16b4e91054875e
+2026-10-13T17:47:23.3773624Z ##[group]Run astral-sh/setup-uv@v7
+2026-10-13T17:47:23.3774788Z with:
+2026-10-13T17:47:23.3775622Z   version: 0.12.18
+2026-10-13T17:47:23.3776539Z   enable-cache: true
+2026-10-13T17:47:23.3777676Z   activate-environment: false
+2026-10-13T17:47:23.3778928Z   working-directory: /home/runner/work/SiroV2/SiroV2
+2026-10-13T17:47:23.3789232Z   github-token: ***
+2026-10-13T17:47:23.3791547Z   cache-dependency-glob: **/*requirements*.txt
+**/*requirements*.in
+**/*constraints*.txt
+**/*constraints*.in
+**/pyproject.toml
+**/uv.lock
+**/*.py.lock
+
+2026-10-13T17:47:23.3794494Z   restore-cache: true
+2026-10-13T17:47:23.3795445Z   save-cache: true
+2026-10-13T17:47:23.3796354Z   prune-cache: true
+2026-10-13T17:47:23.3797269Z   cache-python: false
+2026-10-13T17:47:23.3798374Z   ignore-nothing-to-cache: false
+2026-10-13T17:47:23.3799496Z   ignore-empty-workdir: false
+2026-10-13T17:47:23.3800590Z   add-problem-matchers: true
+2026-10-13T17:47:23.3801700Z   resolution-strategy: highest
+2026-10-13T17:47:23.3802789Z ##[endgroup]
+2026-10-13T17:47:23.5627875Z Fetching version data from https://raw.githubusercontent.com/astral-sh/versions/main/v1/uv.ndjson ...
+2026-10-13T17:47:23.6288775Z Downloading uv from "https://releases.astral.sh/github/uv/releases/download/0.12.18/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+2026-10-13T17:47:24.0073583Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/b588515f-bbaf-4a85-abec-9c01ae7ea63e -f /home/runner/work/_temp/31533ee8-b882-4f66-97e9-2e9df9245066
+2026-10-13T17:47:24.2871384Z Added /home/runner/.local/bin to the path
+2026-10-13T17:47:24.2875249Z Added /opt/hostedtoolcache/uv/0.12.18/x86_64 to the path
+2026-10-13T17:47:24.2878549Z Set UV_PYTHON_INSTALL_DIR to /home/runner/work/_temp/uv-python-dir
+2026-10-13T17:47:24.2881668Z Added /home/runner/work/_temp/uv-python-dir to the path
+2026-10-13T17:47:24.2912412Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+2026-10-13T17:47:24.2914753Z Successfully installed uv version 0.12.18
+2026-10-13T17:47:24.3558301Z Searching files using cache dependency glob: /home/runner/work/SiroV2/SiroV2/**/*requirements*.txt,/home/runner/work/SiroV2/SiroV2/**/*requirements*.in,/home/runner/work/SiroV2/SiroV2/**/*constraints*.txt,/home/runner/work/SiroV2/SiroV2/**/*constraints*.in,/home/runner/work/SiroV2/SiroV2/**/pyproject.toml,/home/runner/work/SiroV2/SiroV2/**/uv.lock,/home/runner/work/SiroV2/SiroV2/**/*.py.lock
+2026-10-13T17:47:24.6082363Z /home/runner/work/SiroV2/SiroV2/docs/evidence/RT-011/token-completion/before/pyproject.toml
+2026-10-13T17:47:24.6151280Z /home/runner/work/SiroV2/SiroV2/docs/evidence/RT-011/token-completion/before/uv.lock
+2026-10-13T17:47:24.6606000Z /home/runner/work/SiroV2/SiroV2/pyproject.toml
+2026-10-13T17:47:24.6966641Z /home/runner/work/SiroV2/SiroV2/uv.lock
+2026-10-13T17:47:24.6979887Z Found 4 files to hash.
+2026-10-13T17:47:24.7064769Z Trying to restore cache from GitHub Actions cache with key: setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-26.04-3.14.4-pruned-dc1e8029d372ee0493b1d4014b0ff49372b4b197721c4aeaa733d6e13e88450c
+2026-10-13T17:47:24.8282669Z Cache hit for: setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-26.04-3.14.4-pruned-dc1e8029d372ee0493b1d4014b0ff49372b4b197721c4aeaa733d6e13e88450c
+2026-10-13T17:47:25.4706926Z Received 19586343 of 19586343 (100.0%), 35.9 MBs/sec
+2026-10-13T17:47:25.4707765Z Cache Size: ~19 MB (19586343 B)
+2026-10-13T17:47:25.4733197Z [command]/usr/bin/tar -xf /home/runner/work/_temp/0b799356-381d-4100-bc20-b6962d85004c/cache.tzst -P -C /home/runner/work/SiroV2/SiroV2 --use-compress-program unzstd
+2026-10-13T17:47:25.5083106Z Cache restored successfully
+2026-10-13T17:47:25.5097169Z cache restored from GitHub Actions cache with key: setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-26.04-3.14.4-pruned-dc1e8029d372ee0493b1d4014b0ff49372b4b197721c4aeaa733d6e13e88450c
+2026-10-13T17:47:25.5799386Z ##[group]Run uv python install 3.12
+2026-10-13T17:47:25.5799781Z [36;1muv python install 3.12[0m
+2026-10-13T17:47:25.5978500Z shell: /usr/bin/bash -e {0}
+2026-10-13T17:47:25.5978818Z env:
+2026-10-13T17:47:25.5979140Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+2026-10-13T17:47:25.5979570Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-10-13T17:47:25.5979915Z ##[endgroup]
+2026-10-13T17:47:25.7904358Z Downloading cpython-3.12.14-linux-x86_64-gnu (download) (32.6MiB)
+2026-10-13T17:47:26.8192016Z  Downloaded cpython-3.12.14-linux-x86_64-gnu (download)
+2026-10-13T17:47:26.8257203Z Installed Python 3.12.14 in 1.20s
+2026-10-13T17:47:26.8257957Z  + cpython-3.12.14-linux-x86_64-gnu (python3.12)
+2026-10-13T17:47:26.8322208Z ##[group]Run sudo apt-get update
+2026-10-13T17:47:26.8322563Z [36;1msudo apt-get update[0m
+2026-10-13T17:47:26.8323123Z [36;1msudo apt-get install --yes --no-install-recommends python3.14 bubblewrap libseccomp2 apparmor[0m
+2026-10-13T17:47:26.8323783Z [36;1msudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict[0m
+2026-10-13T17:47:26.8324534Z [36;1m/usr/bin/python3.14 -I -S -c 'import ctypes,sys; assert sys.version_info[:2] == (3,14); ctypes.CDLL("/usr/lib/x86_64-linux-gnu/libseccomp.so.2")'[0m
+2026-10-13T17:47:26.8325351Z [36;1mbwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev /bin/true[0m
+2026-10-13T17:47:26.8388186Z shell: /usr/bin/bash -e {0}
+2026-10-13T17:47:26.8388529Z env:
+2026-10-13T17:47:26.8388842Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+2026-10-13T17:47:26.8389260Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-10-13T17:47:26.8389580Z ##[endgroup]
+2026-10-13T17:47:26.9267855Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2026-10-13T17:47:26.9549715Z Hit:2 http://azure.archive.ubuntu.com/ubuntu resolute InRelease
+2026-10-13T17:47:26.9580690Z Get:6 https://packages.microsoft.com/ubuntu/26.04/prod resolute InRelease [3964 B]
+2026-10-13T17:47:26.9581744Z Get:3 http://azure.archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+2026-10-13T17:47:26.9611821Z Get:4 http://azure.archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
+2026-10-13T17:47:26.9643929Z Get:5 http://azure.archive.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
+2026-10-13T17:47:26.9849159Z Get:7 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main armhf Packages [850 B]
+2026-10-13T17:47:27.0029090Z Get:8 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64v3 Packages [736 kB]
+2026-10-13T17:47:27.0030569Z Get:18 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main amd64 Packages [94.9 kB]
+2026-10-13T17:47:27.0113067Z Get:9 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main Translation-en [173 kB]
+2026-10-13T17:47:27.0158369Z Get:10 http://azure.archive.ubuntu.com/ubuntu resolute-updates/main amd64 Components [110 kB]
+2026-10-13T17:47:27.0163789Z Get:11 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe amd64v3 Packages [324 kB]
+2026-10-13T17:47:27.0165237Z Get:19 https://packages.microsoft.com/ubuntu/26.04/prod resolute/main arm64 Packages [84.6 kB]
+2026-10-13T17:47:27.0188536Z Get:12 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe Translation-en [106 kB]
+2026-10-13T17:47:27.0204959Z Get:13 http://azure.archive.ubuntu.com/ubuntu resolute-updates/universe amd64 Components [201 kB]
+2026-10-13T17:47:27.0360653Z Get:14 http://azure.archive.ubuntu.com/ubuntu resolute-updates/restricted amd64v3 Packages [508 kB]
+2026-10-13T17:47:27.0409089Z Get:15 http://azure.archive.ubuntu.com/ubuntu resolute-updates/restricted Translation-en [101 kB]
+2026-10-13T17:47:27.0417134Z Get:16 http://azure.archive.ubuntu.com/ubuntu resolute-updates/multiverse amd64v3 Packages [21.1 kB]
+2026-10-13T17:47:27.0432317Z Get:17 http://azure.archive.ubuntu.com/ubuntu resolute-updates/multiverse Translation-en [4168 B]
+2026-10-13T17:47:27.0866064Z Get:20 http://azure.archive.ubuntu.com/ubuntu resolute-backports/universe amd64v3 Packages [3144 B]
+2026-10-13T17:47:27.0879032Z Get:21 http://azure.archive.ubuntu.com/ubuntu resolute-backports/universe amd64 Components [1060 B]
+2026-10-13T17:47:27.0888635Z Get:22 http://azure.archive.ubuntu.com/ubuntu resolute-security/main amd64v3 Packages [602 kB]
+2026-10-13T17:47:27.0927389Z Get:23 http://azure.archive.ubuntu.com/ubuntu resolute-security/main Translation-en [138 kB]
+2026-10-13T17:47:27.0943989Z Get:24 http://azure.archive.ubuntu.com/ubuntu resolute-security/main amd64 Components [46.7 kB]
+2026-10-13T17:47:27.0960144Z Get:25 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe amd64v3 Packages [201 kB]
+2026-10-13T17:47:27.0983349Z Get:26 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe Translation-en [65.4 kB]
+2026-10-13T17:47:27.1005194Z Get:27 http://azure.archive.ubuntu.com/ubuntu resolute-security/universe amd64 Components [55.6 kB]
+2026-10-13T17:47:27.1022516Z Get:28 http://azure.archive.ubuntu.com/ubuntu resolute-security/restricted amd64v3 Packages [498 kB]
+2026-10-13T17:47:27.1056383Z Get:29 http://azure.archive.ubuntu.com/ubuntu resolute-security/restricted Translation-en [99.6 kB]
+2026-10-13T17:47:27.1071875Z Get:30 http://azure.archive.ubuntu.com/ubuntu resolute-security/multiverse amd64v3 Packages [20.1 kB]
+2026-10-13T17:47:27.1083611Z Get:31 http://azure.archive.ubuntu.com/ubuntu resolute-security/multiverse Translation-en [3728 B]
+2026-10-13T17:47:30.7756814Z Fetched 4614 kB in 0s (10.0 MB/s)
+2026-10-13T17:47:31.4477171Z Reading package lists...
+2026-10-13T17:47:31.4826279Z Reading package lists...
+2026-10-13T17:47:31.6582025Z Building dependency tree...
+2026-10-13T17:47:31.6589167Z Reading state information...
+2026-10-13T17:47:31.6942880Z python3.14 is already the newest version (3.14.4-1ubuntu0.2).
+2026-10-13T17:47:31.6943577Z python3.14 set to manually installed.
+2026-10-13T17:47:31.6944168Z bubblewrap is already the newest version (0.11.1-1ubuntu0.3).
+2026-10-13T17:47:31.6944773Z bubblewrap set to manually installed.
+2026-10-13T17:47:31.6945343Z libseccomp2 is already the newest version (2.6.0-2ubuntu5).
+2026-10-13T17:47:31.6945938Z libseccomp2 set to manually installed.
+2026-10-13T17:47:31.6946513Z apparmor is already the newest version (5.0.2-0ubuntu1~26.04.1).
+2026-10-13T17:47:31.6946983Z apparmor set to manually installed.
+2026-10-13T17:47:31.7476855Z Solving dependencies...
+2026-10-13T17:47:31.8811273Z 0 upgraded, 0 newly installed, 0 to remove and 49 not upgraded.
+2026-10-13T17:47:31.9564588Z ##[group]Run curl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz -o /tmp/nats-server.tgz
+2026-10-13T17:47:31.9565718Z [36;1mcurl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz -o /tmp/nats-server.tgz[0m
+2026-10-13T17:47:31.9566414Z [36;1mtar -xzf /tmp/nats-server.tgz -C /tmp[0m
+2026-10-13T17:47:31.9566755Z [36;1mmkdir -p "$HOME/.local/bin"[0m
+2026-10-13T17:47:31.9567249Z [36;1minstall -m 755 /tmp/nats-server-v2.15.0-linux-amd64/nats-server "$HOME/.local/bin/nats-server"[0m
+2026-10-13T17:47:31.9632217Z shell: /usr/bin/bash -e {0}
+2026-10-13T17:47:31.9632497Z env:
+2026-10-13T17:47:31.9632806Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+2026-10-13T17:47:31.9633236Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-10-13T17:47:31.9633552Z ##[endgroup]
+2026-10-13T17:47:32.2715367Z ##[group]Run scripts/check
+2026-10-13T17:47:32.2715662Z [36;1mscripts/check[0m
+2026-10-13T17:47:32.2777354Z shell: /usr/bin/bash -e {0}
+2026-10-13T17:47:32.2777809Z env:
+2026-10-13T17:47:32.2778103Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+2026-10-13T17:47:32.2778523Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-10-13T17:47:32.2778864Z ##[endgroup]
+2026-10-13T17:47:32.3032313Z Using CPython 3.14.4 interpreter at: /usr/bin/python3.14
+2026-10-13T17:47:32.3032994Z Creating virtual environment at: .venv
+2026-10-13T17:47:32.3087146Z Resolved 100 packages in 1ms
+2026-10-13T17:47:32.3275351Z    Building siro-core @ file:///home/runner/work/SiroV2/SiroV2
+2026-10-13T17:47:32.4211412Z Downloading pypinyin-dict (9.1MiB)
+2026-10-13T17:47:32.4216776Z Downloading hf-xet (4.3MiB)
+2026-10-13T17:47:32.4217160Z Downloading ast-serialize (1.3MiB)
+2026-10-13T17:47:32.4218945Z Downloading aiohttp (1.7MiB)
+2026-10-13T17:47:32.4220697Z Downloading playwright (46.0MiB)
+2026-10-13T17:47:32.4222387Z Downloading mypy (14.5MiB)
+2026-10-13T17:47:32.4228306Z Downloading uvloop (4.1MiB)
+2026-10-13T17:47:32.4228715Z Downloading ruff (9.8MiB)
+2026-10-13T17:47:32.4228992Z Downloading pillow (6.6MiB)
+2026-10-13T17:47:32.4232958Z Downloading pydantic-core (2.0MiB)
+2026-10-13T17:47:32.4238312Z Downloading numpy (15.9MiB)
+2026-10-13T17:47:32.4241635Z Downloading soundfile (1.3MiB)
+2026-10-13T17:47:32.4262433Z Downloading espeakng-loader (9.6MiB)
+2026-10-13T17:47:32.4264887Z Downloading tokenizers (3.2MiB)
+2026-10-13T17:47:32.4270419Z Downloading onnxruntime (22.5MiB)
+2026-10-13T17:47:32.4272862Z Downloading pygments (1.2MiB)
+2026-10-13T17:47:32.4323368Z Downloading misaki (3.5MiB)
+2026-10-13T17:47:32.6529062Z  Downloaded ast-serialize
+2026-10-13T17:47:32.6530830Z  Downloaded pygments
+2026-10-13T17:47:32.6544977Z  Downloaded soundfile
+2026-10-13T17:47:32.6889092Z  Downloaded aiohttp
+2026-10-13T17:47:32.6889643Z  Downloaded pydantic-core
+2026-10-13T17:47:32.7541162Z  Downloaded tokenizers
+2026-10-13T17:47:32.7746365Z  Downloaded misaki
+2026-10-13T17:47:32.7872060Z  Downloaded hf-xet
+2026-10-13T17:47:32.7908164Z  Downloaded uvloop
+2026-10-13T17:47:32.8898573Z  Downloaded pillow
+2026-10-13T17:47:32.9678674Z  Downloaded pypinyin-dict
+2026-10-13T17:47:32.9728242Z  Downloaded espeakng-loader
+2026-10-13T17:47:32.9820434Z  Downloaded ruff
+2026-10-13T17:47:33.1052498Z  Downloaded numpy
+2026-10-13T17:47:33.1259209Z  Downloaded mypy
+2026-10-13T17:47:33.1783300Z  Downloaded onnxruntime
+2026-10-13T17:47:33.2880886Z       Built siro-core @ file:///home/runner/work/SiroV2/SiroV2
+2026-10-13T17:47:33.3282577Z  Downloaded playwright
+2026-10-13T17:47:33.3284081Z Prepared 99 packages in 1.01s
+2026-10-13T17:47:33.3911216Z Installed 99 packages in 62ms
+2026-10-13T17:47:33.3911722Z  + addict==2.4.0
+2026-10-13T17:47:33.3912165Z  + aiohappyeyeballs==2.7.1
+2026-10-13T17:47:33.3912594Z  + aiohttp==3.14.3
+2026-10-13T17:47:33.3912943Z  + aiomqtt==2.5.1
+2026-10-13T17:47:33.3913285Z  + aiosignal==1.4.0
+2026-10-13T17:47:33.3913674Z  + amqtt==0.12.1
+2026-10-13T17:47:33.3914050Z  + annotated-doc==0.0.5
+2026-10-13T17:47:33.3914442Z  + annotated-types==0.8.0
+2026-10-13T17:47:33.3914822Z  + anyio==4.15.1
+2026-10-13T17:47:33.3915179Z  + argon2-cffi==25.1.0
+2026-10-13T17:47:33.3915603Z  + argon2-cffi-bindings==26.1.0
+2026-10-13T17:47:33.3916030Z  + ast-serialize==0.11.2
+2026-10-13T17:47:33.3916593Z  + attrs==26.1.0
+2026-10-13T17:47:33.3917002Z  + certifi==2026.7.22
+2026-10-13T17:47:33.3917361Z  + cffi==2.1.1
+2026-10-13T17:47:33.3917854Z  + charset-normalizer==3.5.1
+2026-10-13T17:47:33.3918248Z  + click==8.5.0
+2026-10-13T17:47:33.3918586Z  + cloudpickle==3.1.2
+2026-10-13T17:47:33.3918962Z  + cn2an==0.5.24
+2026-10-13T17:47:33.3919310Z  + dacite==1.9.2
+2026-10-13T17:47:33.3919734Z  + detect-secrets==1.5.0
+2026-10-13T17:47:33.3920150Z  + dlinfo==2.0.0
+2026-10-13T17:47:33.3920560Z  + edge-tts==7.2.8
+2026-10-13T17:47:33.3920981Z  + espeakng-loader==0.2.4
+2026-10-13T17:47:33.3921351Z  + fastapi==0.141.1
+2026-10-13T17:47:33.3922130Z  + filelock==4.0.11
+2026-10-13T17:47:33.3922486Z  + flatbuffers==25.12.19
+2026-10-13T17:47:33.3922834Z  + frozenlist==1.8.0
+2026-10-13T17:47:33.3923193Z  + fsspec==2026.9.0
+2026-10-13T17:47:33.3923513Z  + greenlet==3.5.6
+2026-10-13T17:47:33.3923823Z  + h11==0.16.0
+2026-10-13T17:47:33.3924134Z  + hf-xet==1.6.0
+2026-10-13T17:47:33.3924467Z  + httpcore==1.0.9
+2026-10-13T17:47:33.3924892Z  + httptools==0.8.0
+2026-10-13T17:47:33.3925239Z  + httpx==0.28.1
+2026-10-13T17:47:33.3925621Z  + huggingface-hub==1.33.0
+2026-10-13T17:47:33.3926000Z  + idna==3.20
+2026-10-13T17:47:33.3926364Z  + iniconfig==2.3.0
+2026-10-13T17:47:33.3926761Z  + jieba==0.42.1
+2026-10-13T17:47:33.3927268Z  + jinja2==3.1.6
+2026-10-13T17:47:33.3927825Z  + joblib==1.6.0
+2026-10-13T17:47:33.3928163Z  + kokoro-onnx==0.6.1
+2026-10-13T17:47:33.3928519Z  + librt==0.15.0
+2026-10-13T17:47:33.3928995Z  + markdown-it-py==4.2.0
+2026-10-13T17:47:33.3929367Z  + markupsafe==3.0.4
+2026-10-13T17:47:33.3929742Z  + mdurl==0.1.2
+2026-10-13T17:47:33.3930140Z  + misaki==0.9.4
+2026-10-13T17:47:33.3930580Z  + multidict==6.9.1
+2026-10-13T17:47:33.3930981Z  + mypy==2.3.1
+2026-10-13T17:47:33.3931385Z  + mypy-extensions==1.1.0
+2026-10-13T17:47:33.3931803Z  + nats-py==2.16.0
+2026-10-13T17:47:33.3932173Z  + numpy==2.5.3
+2026-10-13T17:47:33.3932565Z  + onnxruntime==1.30.0
+2026-10-13T17:47:33.3932933Z  + ordered-set==4.1.0
+2026-10-13T17:47:33.3933532Z  + packaging==26.3
+2026-10-13T17:47:33.3933858Z  + paho-mqtt==2.1.0
+2026-10-13T17:47:33.3934189Z  + pathspec==1.1.1
+2026-10-13T17:47:33.3934519Z  + phonemizer==3.4.0
+2026-10-13T17:47:33.3934852Z  + pillow==12.3.0
+2026-10-13T17:47:33.3935184Z  + playwright==1.63.0
+2026-10-13T17:47:33.3935532Z  + pluggy==1.6.0
+2026-10-13T17:47:33.3936119Z  + proces==0.1.7
+2026-10-13T17:47:33.3936488Z  + propcache==0.5.4
+2026-10-13T17:47:33.3936823Z  + protobuf==7.36.2
+2026-10-13T17:47:33.3937141Z  + psutil==7.2.2
+2026-10-13T17:47:33.3937603Z  + pwdlib==0.3.1
+2026-10-13T17:47:33.3938008Z  + pycparser==3.0
+2026-10-13T17:47:33.3938431Z  + pydantic==2.13.5
+2026-10-13T17:47:33.3938847Z  + pydantic-core==2.46.5
+2026-10-13T17:47:33.3939249Z  + pyee==13.0.1
+2026-10-13T17:47:33.3939549Z  + pygments==2.21.0
+2026-10-13T17:47:33.3939967Z  + pypinyin==0.55.0
+2026-10-13T17:47:33.3940370Z  + pypinyin-dict==0.9.0
+2026-10-13T17:47:33.3940728Z  + pytest==9.1.1
+2026-10-13T17:47:33.3941161Z  + pytest-asyncio==1.4.0
+2026-10-13T17:47:33.3941567Z  + python-dotenv==1.2.3
+2026-10-13T17:47:33.3942086Z  + pyyaml==6.0.3
+2026-10-13T17:47:33.3942421Z  + regex==2026.9.10
+2026-10-13T17:47:33.3942764Z  + requests==2.34.2
+2026-10-13T17:47:33.3943139Z  + rich==15.0.0
+2026-10-13T17:47:33.3943548Z  + ruff==0.16.8
+2026-10-13T17:47:33.3943896Z  + shellingham==1.5.4
+2026-10-13T17:47:33.3944761Z  + siro-core==0.1.0.dev0 (from file:///home/runner/work/SiroV2/SiroV2)
+2026-10-13T17:47:33.3945440Z  + six==1.17.0
+2026-10-13T17:47:33.3945865Z  + soundfile==0.14.0
+2026-10-13T17:47:33.3946277Z  + starlette==1.7.0
+2026-10-13T17:47:33.3946673Z  + tabulate==0.10.0
+2026-10-13T17:47:33.3947012Z  + tokenizers==0.23.2
+2026-10-13T17:47:33.3947390Z  + tqdm==4.70.1
+2026-10-13T17:47:33.3947848Z  + transitions==0.9.3
+2026-10-13T17:47:33.3948198Z  + typer==0.27.2
+2026-10-13T17:47:33.3948539Z  + typing-extensions==4.16.0
+2026-10-13T17:47:33.3948970Z  + typing-inspection==0.4.4
+2026-10-13T17:47:33.3949347Z  + urllib3==2.8.0
+2026-10-13T17:47:33.3949667Z  + uvicorn==0.53.0
+2026-10-13T17:47:33.3949991Z  + uvloop==0.22.1
+2026-10-13T17:47:33.3950201Z  + watchfiles==1.3.0
+2026-10-13T17:47:33.3950427Z  + websockets==15.0.1
+2026-10-13T17:47:33.3950679Z  + yarl==1.25.1
+2026-10-13T17:47:34.6678136Z Verified pinned tokenizer assets: /home/runner/work/SiroV2/SiroV2/.siro-data/tokenizers/gpt-oss-20b
+2026-10-13T17:47:34.7463125Z info: syncing channel updates for 1.97.1-x86_64-unknown-linux-gnu
+2026-10-13T17:47:34.8695729Z info: latest update on 2026-07-16 for version 1.97.1 (8bab26f4f 2026-07-14)
+2026-10-13T17:47:34.8697788Z info: downloading 5 components
+2026-10-13T17:47:43.7806249Z warn: the missing active toolchain `1.97.1-x86_64-unknown-linux-gnu` has been auto-installed
+2026-10-13T17:47:43.7807130Z warn: this might cause rustup commands to take longer time to finish than expected
+2026-10-13T17:47:43.7808170Z info: you may opt out with `RUSTUP_AUTO_INSTALL=0` or `rustup set auto-install disable`
+2026-10-13T17:47:43.9124927Z     Updating crates.io index
+2026-10-13T17:47:44.0103485Z  Downloading crates ...
+2026-10-13T17:47:44.0672429Z   Downloaded bitflags v2.13.2
+2026-10-13T17:47:44.0715824Z   Downloaded block-buffer v0.10.4
+2026-10-13T17:47:44.0728721Z   Downloaded cpufeatures v0.2.17
+2026-10-13T17:47:44.0745382Z   Downloaded smallvec v1.16.2
+2026-10-13T17:47:44.0762512Z   Downloaded foldhash v0.2.0
+2026-10-13T17:47:44.0776736Z   Downloaded cfg-if v1.0.5
+2026-10-13T17:47:44.0789812Z   Downloaded proc-macro2 v1.0.107
+2026-10-13T17:47:44.0825667Z   Downloaded hmac v0.12.1
+2026-10-13T17:47:44.0846729Z   Downloaded fallible-streaming-iterator v0.1.9
+2026-10-13T17:47:44.0856570Z   Downloaded generic-array v0.14.7
+2026-10-13T17:47:44.0873494Z   Downloaded itoa v1.0.18
+2026-10-13T17:47:44.0889510Z   Downloaded hex v0.4.3
+2026-10-13T17:47:44.0906758Z   Downloaded version_check v0.9.5
+2026-10-13T17:47:44.0922325Z   Downloaded typenum v1.20.1
+2026-10-13T17:47:44.0970328Z   Downloaded pkg-config v0.3.34
+2026-10-13T17:47:44.0989973Z   Downloaded crypto-common v0.1.7
+2026-10-13T17:47:44.1000682Z   Downloaded subtle v2.6.1
+2026-10-13T17:47:44.1013580Z   Downloaded cc v1.4.7
+2026-10-13T17:47:44.1050920Z   Downloaded digest v0.10.7
+2026-10-13T17:47:44.1070740Z   Downloaded fallible-iterator v0.3.0
+2026-10-13T17:47:44.1083009Z   Downloaded find-msvc-tools v0.1.13
+2026-10-13T17:47:44.1099302Z   Downloaded quote v1.0.47
+2026-10-13T17:47:44.1125879Z   Downloaded unicode-ident v1.0.26
+2026-10-13T17:47:44.1153244Z   Downloaded zmij v1.0.23
+2026-10-13T17:47:44.1171343Z   Downloaded serde_core v1.0.229
+2026-10-13T17:47:44.1199013Z   Downloaded sha2 v0.10.9
+2026-10-13T17:47:44.1224397Z   Downloaded shlex v2.0.1
+2026-10-13T17:47:44.1237743Z   Downloaded hashlink v0.12.2
+2026-10-13T17:47:44.1256922Z   Downloaded serde_derive v1.0.229
+2026-10-13T17:47:44.1287400Z   Downloaded memchr v2.8.3
+2026-10-13T17:47:44.1342393Z   Downloaded serde v1.0.229
+2026-10-13T17:47:44.1377000Z   Downloaded hashbrown v0.17.1
+2026-10-13T17:47:44.1430650Z   Downloaded rusqlite v0.40.2
+2026-10-13T17:47:44.1498874Z   Downloaded serde_json v1.0.151
+2026-10-13T17:47:44.1571293Z   Downloaded vcpkg v0.2.15
+2026-10-13T17:47:44.2097103Z   Downloaded syn v3.0.6
+2026-10-13T17:47:44.2208013Z   Downloaded libc v0.2.189
+2026-10-13T17:47:44.2635496Z   Downloaded libsqlite3-sys v0.38.2
+2026-10-13T17:47:44.3519022Z    Compiling version_check v0.9.5
+2026-10-13T17:47:44.3519563Z    Compiling proc-macro2 v1.0.107
+2026-10-13T17:47:44.3520129Z    Compiling typenum v1.20.1
+2026-10-13T17:47:44.3521454Z    Compiling unicode-ident v1.0.26
+2026-10-13T17:47:44.4164848Z    Compiling find-msvc-tools v0.1.13
+2026-10-13T17:47:44.5745346Z    Compiling generic-array v0.14.7
+2026-10-13T17:47:44.5907082Z    Compiling quote v1.0.47
+2026-10-13T17:47:44.6214660Z    Compiling shlex v2.0.1
+2026-10-13T17:47:44.7431213Z    Compiling cc v1.4.7
+2026-10-13T17:47:44.7488580Z    Compiling pkg-config v0.3.34
+2026-10-13T17:47:45.1908726Z    Compiling serde_core v1.0.229
+2026-10-13T17:47:45.2543117Z    Compiling vcpkg v0.2.15
+2026-10-13T17:47:45.5688827Z    Compiling zmij v1.0.23
+2026-10-13T17:47:45.6669213Z    Compiling crypto-common v0.1.7
+2026-10-13T17:47:45.7142923Z    Compiling block-buffer v0.10.4
+2026-10-13T17:47:45.7309604Z    Compiling subtle v2.6.1
+2026-10-13T17:47:45.7852935Z    Compiling foldhash v0.2.0
+2026-10-13T17:47:45.8138631Z    Compiling digest v0.10.7
+2026-10-13T17:47:45.8588608Z    Compiling hashbrown v0.17.1
+2026-10-13T17:47:45.9078771Z    Compiling syn v3.0.6
+2026-10-13T17:47:46.1578813Z    Compiling libsqlite3-sys v0.38.2
+2026-10-13T17:47:46.4439258Z    Compiling serde_json v1.0.151
+2026-10-13T17:47:46.5089261Z    Compiling libc v0.2.189
+2026-10-13T17:47:46.7458835Z    Compiling serde v1.0.229
+2026-10-13T17:47:46.9534715Z    Compiling hashlink v0.12.2
+2026-10-13T17:47:47.5055430Z    Compiling cfg-if v1.0.5
+2026-10-13T17:47:47.5236337Z    Compiling memchr v2.8.3
+2026-10-13T17:47:47.9359812Z    Compiling itoa v1.0.18
+2026-10-13T17:47:48.0696974Z    Compiling cpufeatures v0.2.17
+2026-10-13T17:47:48.0988882Z    Compiling bitflags v2.13.2
+2026-10-13T17:47:48.1896946Z    Compiling fallible-streaming-iterator v0.1.9
+2026-10-13T17:47:48.1953769Z    Compiling serde_derive v1.0.229
+2026-10-13T17:47:48.2502234Z    Compiling fallible-iterator v0.3.0
+2026-10-13T17:47:48.2741517Z    Compiling smallvec v1.16.2
+2026-10-13T17:47:48.4358641Z    Compiling sha2 v0.10.9
+2026-10-13T17:47:49.8293821Z    Compiling hmac v0.12.1
+2026-10-13T17:47:49.8325241Z    Compiling hex v0.4.3
+2026-10-13T17:47:55.6602012Z    Compiling rusqlite v0.40.2
+2026-10-13T17:47:56.2195931Z    Compiling siro-runtime v0.1.0 (/home/runner/work/SiroV2/SiroV2/runtime/siro-runtime)
+2026-10-13T17:47:57.6718840Z     Finished `dev` profile [unoptimized + debuginfo] target(s) in 13.78s
+2026-10-13T17:47:57.7495493Z    Compiling siro-runtime v0.1.0 (/home/runner/work/SiroV2/SiroV2/runtime/siro-runtime)
+2026-10-13T17:47:59.0627679Z     Finished `test` profile [unoptimized + debuginfo] target(s) in 1.34s
+2026-10-13T17:47:59.0653411Z      Running unittests src/lib.rs (target/debug/deps/siro_runtime-a8e276feebc361cb)
+2026-10-13T17:47:59.0667856Z 
+2026-10-13T17:47:59.0668021Z running 6 tests
+2026-10-13T17:47:59.0677858Z test linux::tests::scoped_file_driver_rejects_symlink_escape ... ok
+2026-10-13T17:47:59.0684907Z test rpc::tests::a14_executes_once_and_audits_denials ... ok
+2026-10-13T17:47:59.0685526Z test rpc::tests::local_socket_health_is_bounded_and_owner_only ... ok
+2026-10-13T17:47:59.0686280Z test tests::forged_expired_revoked_and_changed_grants_fail ... ok
+2026-10-13T17:47:59.0687089Z test tests::valid_grant_and_policy_decisions ... ok
+2026-10-13T17:47:59.1063166Z test linux::tests::process_run_is_bounded_and_managed_processes_are_owned ... ok
+2026-10-13T17:47:59.1063743Z 
+2026-10-13T17:47:59.1064096Z test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+2026-10-13T17:47:59.1064465Z 
+2026-10-13T17:47:59.1066245Z      Running unittests src/main.rs (target/debug/deps/siro_runtime-fc89d0237af33e4a)
+2026-10-13T17:47:59.1077422Z 
+2026-10-13T17:47:59.1077916Z running 0 tests
+2026-10-13T17:47:59.1078179Z 
+2026-10-13T17:47:59.1078488Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-10-13T17:47:59.1078864Z 
+2026-10-13T17:47:59.1080137Z    Doc-tests siro_runtime
+2026-10-13T17:47:59.1544998Z 
+2026-10-13T17:47:59.1545508Z running 0 tests
+2026-10-13T17:47:59.1545785Z 
+2026-10-13T17:47:59.1546226Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-10-13T17:47:59.1546632Z 
+2026-10-13T17:47:59.2667079Z     Checking typenum v1.20.1
+2026-10-13T17:47:59.2675755Z     Checking foldhash v0.2.0
+2026-10-13T17:47:59.2681287Z     Checking subtle v2.6.1
+2026-10-13T17:47:59.2698433Z     Checking serde_core v1.0.229
+2026-10-13T17:47:59.3358793Z     Checking hashbrown v0.17.1
+2026-10-13T17:47:59.3388559Z     Checking libsqlite3-sys v0.38.2
+2026-10-13T17:47:59.4679043Z     Checking zmij v1.0.23
+2026-10-13T17:47:59.7049560Z     Checking cfg-if v1.0.5
+2026-10-13T17:47:59.7239977Z     Checking fallible-streaming-iterator v0.1.9
+2026-10-13T17:47:59.7970692Z     Checking fallible-iterator v0.3.0
+2026-10-13T17:47:59.7998521Z     Checking hashlink v0.12.2
+2026-10-13T17:47:59.9869667Z     Checking generic-array v0.14.7
+2026-10-13T17:48:00.0266370Z     Checking smallvec v1.16.2
+2026-10-13T17:48:00.0287279Z     Checking bitflags v2.13.2
+2026-10-13T17:48:00.1188570Z     Checking itoa v1.0.18
+2026-10-13T17:48:00.1599855Z     Checking memchr v2.8.3
+2026-10-13T17:48:00.1938723Z     Checking cpufeatures v0.2.17
+2026-10-13T17:48:00.2198615Z     Checking rusqlite v0.40.2
+2026-10-13T17:48:00.4828573Z     Checking crypto-common v0.1.7
+2026-10-13T17:48:00.5348957Z     Checking block-buffer v0.10.4
+2026-10-13T17:48:00.5425550Z     Checking libc v0.2.189
+2026-10-13T17:48:00.5998434Z     Checking digest v0.10.7
+2026-10-13T17:48:00.7268830Z     Checking hmac v0.12.1
+2026-10-13T17:48:00.7878661Z     Checking sha2 v0.10.9
+2026-10-13T17:48:00.9295355Z     Checking hex v0.4.3
+2026-10-13T17:48:01.1601946Z     Checking serde v1.0.229
+2026-10-13T17:48:01.1602678Z     Checking serde_json v1.0.151
+2026-10-13T17:48:01.6522812Z     Checking siro-runtime v0.1.0 (/home/runner/work/SiroV2/SiroV2/runtime/siro-runtime)
+2026-10-13T17:48:02.0586729Z     Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.85s
+2026-10-13T17:48:02.1309605Z 320 files already formatted
+2026-10-13T17:48:02.2019269Z All checks passed!
+2026-10-13T17:48:15.0755942Z Success: no issues found in 253 source files
+2026-10-13T17:48:20.2200153Z ============================= test session starts ==============================
+2026-10-13T17:48:20.2200845Z platform linux -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0
+2026-10-13T17:48:20.2201431Z rootdir: /home/runner/work/SiroV2/SiroV2
+2026-10-13T17:48:20.2201851Z configfile: pyproject.toml
+2026-10-13T17:48:20.2202193Z testpaths: tests
+2026-10-13T17:48:20.2202531Z plugins: anyio-4.15.1, asyncio-1.4.0
+2026-10-13T17:48:20.2203304Z asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+2026-10-13T17:48:20.2204304Z collected 1803 items
+2026-10-13T17:48:20.2204457Z 
+2026-10-13T17:48:20.3952281Z tests/contract/test_audio_protocol.py ..                                 [  0%]
+2026-10-13T17:48:20.4012155Z tests/contract/test_body_adapter.py .....                                [  0%]
+2026-10-13T17:48:20.4051959Z tests/contract/test_body_assets.py ..                                    [  0%]
+2026-10-13T17:48:20.4481297Z tests/contract/test_boundaries.py ..                                     [  0%]
+2026-10-13T17:48:20.4695788Z tests/contract/test_events.py .........                                  [  1%]
+2026-10-13T17:48:20.5390944Z tests/contract/test_failover_policy.py .........................         [  2%]
+2026-10-13T17:48:20.8268605Z tests/contract/test_model_adapters.py .................................. [  4%]
+2026-10-13T17:48:25.8487646Z ........                                                                 [  4%]
+2026-10-13T17:48:25.8529395Z tests/contract/test_runtime_client.py ..                                 [  4%]
+2026-10-13T17:48:26.0181190Z tests/integration/test_affect_outcomes.py .......                        [  5%]
+2026-10-13T17:48:26.0587119Z tests/integration/test_affect_persistence.py ..                          [  5%]
+2026-10-13T17:48:39.6184027Z tests/integration/test_agent_batches.py ................................ [  7%]
+2026-10-13T17:48:40.6711558Z .............                                                            [  7%]
+2026-10-13T17:48:40.6861341Z tests/integration/test_agent_runs.py .                                   [  7%]
+2026-10-13T17:48:40.6917121Z tests/integration/test_backup_cli_cancellation.py ......                 [  8%]
+2026-10-13T17:48:40.7099684Z tests/integration/test_body_failure_isolation.py .                       [  8%]
+2026-10-13T17:48:44.0112804Z tests/integration/test_bounded_execution.py .........                    [  8%]
+2026-10-13T17:48:54.0760741Z tests/integration/test_browser_driver.py .                               [  8%]
+2026-10-13T17:48:55.5553745Z tests/integration/test_browser_failure_contract.py ..................... [ 10%]
+2026-10-13T17:48:55.5563720Z                                                                          [ 10%]
+2026-10-13T17:48:57.9773282Z tests/integration/test_browser_pending_cleanup.py ....                   [ 10%]
+2026-10-13T17:49:10.0354201Z tests/integration/test_browser_scope_readability.py ..............       [ 11%]
+2026-10-13T17:49:19.8972207Z tests/integration/test_browser_sessions.py ........                      [ 11%]
+2026-10-13T17:49:19.9439302Z tests/integration/test_capability_inventory.py ...........               [ 12%]
+2026-10-13T17:49:20.1564633Z tests/integration/test_capability_product.py ....                        [ 12%]
+2026-10-13T17:49:22.3873499Z tests/integration/test_ci_secret_gate.py .........................       [ 13%]
+2026-10-13T17:49:22.6172247Z tests/integration/test_cloud_conversation_switch.py .....                [ 14%]
+2026-10-13T17:49:22.6233476Z tests/integration/test_companion_launcher.py ...                         [ 14%]
+2026-10-13T17:49:22.6265403Z tests/integration/test_compute_fabric.py .                               [ 14%]
+2026-10-13T17:49:22.7691841Z tests/integration/test_computer_driver.py ...                            [ 14%]
+2026-10-13T17:49:23.1682603Z tests/integration/test_consolidation.py ....                             [ 14%]
+2026-10-13T17:49:23.4884839Z tests/integration/test_context_budget.py ........                        [ 15%]
+2026-10-13T17:49:23.4915147Z tests/integration/test_context_summary.py ..                             [ 15%]
+2026-10-13T17:49:24.3883644Z tests/integration/test_conversation.py .....                             [ 15%]
+2026-10-13T17:49:28.3773407Z tests/integration/test_data_owner_callers.py ........................... [ 16%]
+2026-10-13T17:49:28.5509349Z .......                                                                  [ 17%]
+2026-10-13T17:49:29.2866197Z tests/integration/test_data_owner_lifecycle.py ......................... [ 18%]
+2026-10-13T17:49:29.5146718Z ...........                                                              [ 19%]
+2026-10-13T17:49:29.5548009Z tests/integration/test_device_registry.py ..                             [ 19%]
+2026-10-13T17:49:47.6068699Z tests/integration/test_execution_lifecycle.py .........................  [ 20%]
+2026-10-13T17:49:48.0378328Z tests/integration/test_frontend_browser_result.py ............           [ 21%]
+2026-10-13T17:49:48.4200451Z tests/integration/test_frontend_companion.py ......                      [ 21%]
+2026-10-13T17:49:49.6768001Z tests/integration/test_frontend_control.py ..................            [ 22%]
+2026-10-13T17:49:51.0564449Z tests/integration/test_frontend_improvement_proposal.py ................ [ 23%]
+2026-10-13T17:49:55.1604391Z .......................................................                  [ 26%]
+2026-10-13T17:49:56.6710042Z tests/integration/test_frontend_session.py ..........................    [ 28%]
+2026-10-13T17:49:57.6028896Z tests/integration/test_frontend_skill_activation.py .................... [ 29%]
+2026-10-13T17:49:58.0833449Z .......                                                                  [ 29%]
+2026-10-13T17:49:59.3352480Z tests/integration/test_frontend_skill_candidate.py ..................... [ 30%]
+2026-10-13T17:50:00.3565252Z ............                                                             [ 31%]
+2026-10-13T17:50:00.6674036Z tests/integration/test_frontend_speech_cancel.py ........                [ 32%]
+2026-10-13T17:50:01.6230954Z tests/integration/test_frontend_speech_queue.py ........................ [ 33%]
+2026-10-13T17:50:02.0539632Z ...........                                                              [ 33%]
+2026-10-13T17:50:02.0894425Z tests/integration/test_frontend_unknown_effect.py .                      [ 33%]
+2026-10-13T17:50:03.7528086Z tests/integration/test_gateway.py ..................                     [ 34%]
+2026-10-13T17:50:09.4249877Z tests/integration/test_gateway_main.py ........                          [ 35%]
+2026-10-13T17:50:09.6172511Z tests/integration/test_gateway_terminal_fence.py .....                   [ 35%]
+2026-10-13T17:50:09.6508519Z tests/integration/test_goals.py ..                                       [ 35%]
+2026-10-13T17:50:09.6893085Z tests/integration/test_home_assistant.py ......                          [ 36%]
+2026-10-13T17:50:09.7388361Z tests/integration/test_identity_world.py ....                            [ 36%]
+2026-10-13T17:50:10.1238380Z tests/integration/test_improvement_proposal.py ........................  [ 37%]
+2026-10-13T17:50:10.4269167Z tests/integration/test_integrated_companion.py ......                    [ 38%]
+2026-10-13T17:50:10.9039997Z tests/integration/test_isolated_patch_verification.py .................. [ 39%]
+2026-10-13T17:50:19.6031919Z ....................                                                     [ 40%]
+2026-10-13T17:50:20.8136886Z tests/integration/test_memory_ingress.py .......                         [ 40%]
+2026-10-13T17:50:20.9099640Z tests/integration/test_memory_organization.py ..                         [ 40%]
+2026-10-13T17:50:21.1473034Z tests/integration/test_memory_v2.py .....                                [ 40%]
+2026-10-13T17:50:21.6418896Z tests/integration/test_mqtt_gateway.py ..                                [ 41%]
+2026-10-13T17:50:37.0048701Z tests/integration/test_native_context_budget.py ...................      [ 42%]
+2026-10-13T17:50:37.3708166Z tests/integration/test_nats_delivery.py ...                              [ 42%]
+2026-10-13T17:50:38.9290446Z tests/integration/test_operational_cli.py ....                           [ 42%]
+2026-10-13T17:50:38.9525468Z tests/integration/test_patch_path_protection.py ........................ [ 43%]
+2026-10-13T17:50:39.2245112Z ......................................                                   [ 45%]
+2026-10-13T17:50:39.3026757Z tests/integration/test_patch_verifier.py .                               [ 45%]
+2026-10-13T17:50:39.3571906Z tests/integration/test_persistent_companion.py ....                      [ 46%]
+2026-10-13T17:50:39.4876179Z tests/integration/test_preference_prompt_privacy.py ...                  [ 46%]
+2026-10-13T17:50:39.5006980Z tests/integration/test_procedural_candidates.py ..                       [ 46%]
+2026-10-13T17:50:40.2036100Z tests/integration/test_provider_completion.py ........                   [ 46%]
+2026-10-13T17:50:41.6399850Z tests/integration/test_provider_retry.py .........                       [ 47%]
+2026-10-13T17:50:43.1044366Z tests/integration/test_qwen_lifecycle.py ............................... [ 49%]
+2026-10-13T17:50:43.1338027Z .                                                                        [ 49%]
+2026-10-13T17:50:43.1642043Z tests/integration/test_relationships.py ..                               [ 49%]
+2026-10-13T17:50:44.1953726Z tests/integration/test_release_data_retention.py ....................... [ 50%]
+2026-10-13T17:50:45.4989277Z ............................                                             [ 52%]
+2026-10-13T17:50:45.6461929Z tests/integration/test_release_launch_selection.py ..................... [ 53%]
+2026-10-13T17:50:46.0061855Z .................................................                        [ 56%]
+2026-10-13T17:50:46.1175247Z tests/integration/test_release_manager.py ..                             [ 56%]
+2026-10-13T17:50:46.1715993Z tests/integration/test_release_manifest_signing.py ..................... [ 57%]
+2026-10-13T17:50:46.2632529Z .............                                                            [ 58%]
+2026-10-13T17:50:46.4430067Z tests/integration/test_release_ready_identity.py ...............         [ 58%]
+2026-10-13T17:50:52.9853725Z tests/integration/test_release_source_process.py ...                     [ 59%]
+2026-10-13T17:50:53.1136157Z tests/integration/test_room_automation.py ...                            [ 59%]
+2026-10-13T17:50:59.1909859Z tests/integration/test_run_journal.py ................                   [ 60%]
+2026-10-13T17:50:59.2534157Z tests/integration/test_runtime_boundary.py .                             [ 60%]
+2026-10-13T17:50:59.6155996Z tests/integration/test_runtime_product.py .                              [ 60%]
+2026-10-13T17:51:00.9949892Z tests/integration/test_runtime_status_context.py ....................... [ 61%]
+2026-10-13T17:51:01.4291951Z .................                                                        [ 62%]
+2026-10-13T17:51:01.4321973Z tests/integration/test_service_driver.py .                               [ 62%]
+2026-10-13T17:51:02.6355716Z tests/integration/test_session_restore.py .........                      [ 62%]
+2026-10-13T17:51:03.0388808Z tests/integration/test_session_tokens.py .............                   [ 63%]
+2026-10-13T17:51:03.0820942Z tests/integration/test_signed_companion_launcher.py .......              [ 64%]
+2026-10-13T17:51:10.1936025Z tests/integration/test_skill_activation.py ............................  [ 65%]
+2026-10-13T17:51:10.4680800Z tests/integration/test_skill_activation_foundation.py .................. [ 66%]
+2026-10-13T17:51:10.8144994Z .........................                                                [ 67%]
+2026-10-13T17:51:13.2122223Z tests/integration/test_skill_activation_lifecycle.py .......             [ 68%]
+2026-10-13T17:51:13.9211857Z tests/integration/test_skill_activation_product.py ..................... [ 69%]
+2026-10-13T17:51:15.2054998Z ............................................                             [ 71%]
+2026-10-13T17:51:19.9022346Z tests/integration/test_skill_activation_review.py ...................    [ 73%]
+2026-10-13T17:51:20.5874168Z tests/integration/test_skill_candidate_product.py ...................... [ 74%]
+2026-10-13T17:51:20.9276795Z ..........                                                               [ 74%]
+2026-10-13T17:51:21.1238344Z tests/integration/test_skill_candidates.py .......................       [ 76%]
+2026-10-13T17:51:21.1799184Z tests/integration/test_skill_package_identity.py ....................... [ 77%]
+2026-10-13T17:51:21.8100738Z ....................                                                     [ 78%]
+2026-10-13T17:51:23.7196584Z tests/integration/test_skill_registry.py .....                           [ 78%]
+2026-10-13T17:51:27.0664714Z tests/integration/test_skill_worker_lifecycle.py ....................... [ 80%]
+2026-10-13T17:51:27.0985151Z .                                                                        [ 80%]
+2026-10-13T17:51:27.8312903Z tests/integration/test_speech_completion_edges.py ..............         [ 80%]
+2026-10-13T17:51:28.0836227Z tests/integration/test_speech_plan.py .........                          [ 81%]
+2026-10-13T17:51:28.6627928Z tests/integration/test_sqlite_backup_lifecycle.py ...................    [ 82%]
+2026-10-13T17:51:28.9960488Z tests/integration/test_sqlite_restore_lifecycle.py .........             [ 82%]
+2026-10-13T17:51:29.5992061Z tests/integration/test_sqlite_restore_validation.py .................... [ 84%]
+2026-10-13T17:51:30.0637283Z ............                                                             [ 84%]
+2026-10-13T17:51:30.1654123Z tests/integration/test_sqlite_store.py ..........                        [ 85%]
+2026-10-13T17:51:32.3172886Z tests/integration/test_strict_skill_worker.py .......................... [ 86%]
+2026-10-13T17:51:35.1056861Z .........................                                                [ 88%]
+2026-10-13T17:51:35.6676585Z tests/integration/test_tool_catalog.py ................                  [ 88%]
+2026-10-13T17:51:35.7429427Z tests/integration/test_tool_orchestrator.py ....                         [ 89%]
+2026-10-13T17:51:39.9942917Z tests/integration/test_tts_import_boundary.py .....                      [ 89%]
+2026-10-13T17:51:40.6013852Z tests/integration/test_unknown_effect_approval.py ...................... [ 90%]
+2026-10-13T17:51:41.2649363Z ......................                                                   [ 91%]
+2026-10-13T17:51:44.0915682Z tests/integration/test_verify_patch_cli.py ..........                    [ 92%]
+2026-10-13T17:51:44.1260116Z tests/integration/test_workspace_runtime.py ..                           [ 92%]
+2026-10-13T17:51:44.1305267Z tests/real/test_model_providers.py sss                                   [ 92%]
+2026-10-13T17:51:44.1328659Z tests/real/test_speech_providers.py ss                                   [ 92%]
+2026-10-13T17:51:44.1413114Z tests/test_affect.py .............                                       [ 93%]
+2026-10-13T17:51:44.1599859Z tests/test_affect_simulation.py ..                                       [ 93%]
+2026-10-13T17:51:44.1658242Z tests/test_audio_pipeline.py .....                                       [ 93%]
+2026-10-13T17:51:44.1672961Z tests/test_authorization.py ..                                           [ 94%]
+2026-10-13T17:51:44.1722488Z tests/test_barge_in.py ...                                               [ 94%]
+2026-10-13T17:51:44.5311819Z tests/test_codebase_memory.py ..............................             [ 95%]
+2026-10-13T17:51:44.9192808Z tests/test_cognition.py .......                                          [ 96%]
+2026-10-13T17:51:44.9234806Z tests/test_config.py ...                                                 [ 96%]
+2026-10-13T17:51:44.9287183Z tests/test_doctor.py ...                                                 [ 96%]
+2026-10-13T17:51:44.9305331Z tests/test_expression.py ...                                             [ 96%]
+2026-10-13T17:51:44.9323762Z tests/test_governor.py ..                                                [ 96%]
+2026-10-13T17:51:44.9332560Z tests/test_jobs.py .                                                     [ 96%]
+2026-10-13T17:51:45.0622435Z tests/test_local_event_bus.py .......                                    [ 97%]
+2026-10-13T17:51:45.0652520Z tests/test_nodes.py ..                                                   [ 97%]
+2026-10-13T17:51:45.0659478Z tests/test_preferences.py .                                              [ 97%]
+2026-10-13T17:51:45.0709301Z tests/test_proactivity.py ..                                             [ 97%]
+2026-10-13T17:51:47.7318783Z tests/test_qwen_worker_completion.py ................................... [ 99%]
+2026-10-13T17:51:48.1108441Z ....                                                                     [ 99%]
+2026-10-13T17:51:48.1114633Z tests/test_redaction.py .                                                [ 99%]
+2026-10-13T17:51:48.1122765Z tests/test_router.py .                                                   [ 99%]
+2026-10-13T17:51:48.1129950Z tests/test_self_preferences.py .                                         [ 99%]
+2026-10-13T17:51:48.8288555Z tests/test_wot.py .                                                      [100%]
+2026-10-13T17:51:48.8289015Z 
+2026-10-13T17:51:48.8289237Z =============================== warnings summary ===============================
+2026-10-13T17:51:48.8289812Z src/siro/adapters/models/openai_compatible.py:276
+2026-10-13T17:51:48.8290824Z   /home/runner/work/SiroV2/SiroV2/src/siro/adapters/models/openai_compatible.py:276: SyntaxWarning: 'return' in a 'finally' block
+2026-10-13T17:51:48.8291816Z     return
+2026-10-13T17:51:48.8291959Z 
+2026-10-13T17:51:48.8292157Z .venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+2026-10-13T17:51:48.8293510Z   /home/runner/work/SiroV2/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+2026-10-13T17:51:48.8294278Z     with open(_json_path, encoding='utf8') as fp:
+2026-10-13T17:51:48.8294508Z 
+2026-10-13T17:51:48.8294703Z .venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+2026-10-13T17:51:48.8295522Z   /home/runner/work/SiroV2/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+2026-10-13T17:51:48.8296274Z     with open(_json_path, encoding='utf8') as fp:
+2026-10-13T17:51:48.8296486Z 
+2026-10-13T17:51:48.8296669Z .venv/lib/python3.14/site-packages/jieba/__init__.py:44
+2026-10-13T17:51:48.8298097Z   /home/runner/work/SiroV2/SiroV2/.venv/lib/python3.14/site-packages/jieba/__init__.py:44: SyntaxWarning: "\." is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\."? A raw string is also an option.
+2026-10-13T17:51:48.8299333Z     re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)
+2026-10-13T17:51:48.8299668Z 
+2026-10-13T17:51:48.8299846Z .venv/lib/python3.14/site-packages/jieba/__init__.py:46
+2026-10-13T17:51:48.8301376Z   /home/runner/work/SiroV2/SiroV2/.venv/lib/python3.14/site-packages/jieba/__init__.py:46: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+2026-10-13T17:51:48.8302472Z     re_skip_default = re.compile("(\r\n|\s)", re.U)
+2026-10-13T17:51:48.8302758Z 
+2026-10-13T17:51:48.8302972Z .venv/lib/python3.14/site-packages/jieba/finalseg/__init__.py:78
+2026-10-13T17:51:48.8304130Z   /home/runner/work/SiroV2/SiroV2/.venv/lib/python3.14/site-packages/jieba/finalseg/__init__.py:78: SyntaxWarning: "\." is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\."? A raw string is also an option.
+2026-10-13T17:51:48.8305222Z     re_skip = re.compile("([a-zA-Z0-9]+(?:\.\d+)?%?)")
+2026-10-13T17:51:48.8305465Z 
+2026-10-13T17:51:48.8305660Z .venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+2026-10-13T17:51:48.8306691Z   /home/runner/work/SiroV2/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-10-13T17:51:48.8308032Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-10-13T17:51:48.8308364Z 
+2026-10-13T17:51:48.8308626Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-10-13T17:51:48.8309164Z =========================== short test summary info ============================
+2026-10-13T17:51:48.8309824Z SKIPPED [1] tests/real/test_model_providers.py:41: set SIRO_RUN_REAL_PROVIDERS=1 to permit an external request
+2026-10-13T17:51:48.8310813Z SKIPPED [1] tests/real/test_model_providers.py:62: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+2026-10-13T17:51:48.8311585Z SKIPPED [1] tests/real/test_model_providers.py:80: set SIRO_RUN_REAL_PROVIDERS=1 to run real provider tests
+2026-10-13T17:51:48.8312328Z SKIPPED [1] tests/real/test_speech_providers.py:18: set GROQ_API_KEY for the opt-in Groq speech test
+2026-10-13T17:51:48.8313060Z SKIPPED [1] tests/real/test_speech_providers.py:32: set GROQ_API_KEY for the opt-in Groq speech test
+2026-10-13T17:51:48.8313680Z =========== 1798 passed, 5 skipped, 7 warnings in 212.39s (0:03:32) ============
+2026-10-13T17:55:30.8936779Z Post job cleanup.
+2026-10-13T17:55:31.0150748Z UV_CACHE_DIR is already set to /home/runner/work/_temp/setup-uv-cache
+2026-10-13T17:55:31.0159063Z UV_PYTHON_INSTALL_DIR is already set to /home/runner/work/_temp/uv-python-dir
+2026-10-13T17:55:31.0161082Z Cache hit occurred on key setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-26.04-3.14.4-pruned-dc1e8029d372ee0493b1d4014b0ff49372b4b197721c4aeaa733d6e13e88450c, not saving cache.
+2026-10-13T17:55:31.0814766Z Post job cleanup.
+2026-10-13T17:55:31.1790706Z [command]/usr/bin/git version
+2026-10-13T17:55:31.1868721Z git version 2.55.0
+2026-10-13T17:55:31.1910315Z Temporarily overriding HOME='/home/runner/work/_temp/797373ef-241b-4cd5-a3bc-273bca777e6a' before making global git config changes
+2026-10-13T17:55:31.1911774Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-13T17:55:31.1915463Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/SiroV2/SiroV2
+2026-10-13T17:55:31.1959235Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-13T17:55:31.2004621Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-13T17:55:31.2359242Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-13T17:55:31.2389688Z http.https://github.com/.extraheader
+2026-10-13T17:55:31.2402330Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-13T17:55:31.2446321Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-13T17:55:31.2800367Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-13T17:55:31.2852340Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-13T17:55:31.3371869Z Cleaning up orphan processes
+2026-10-13T17:55:31.3634196Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

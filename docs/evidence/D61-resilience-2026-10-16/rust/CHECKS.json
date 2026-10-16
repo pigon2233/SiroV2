@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-16",
+  "task": "FIX-025 / D61",
+  "classification": "REQUIRED_FIX",
+  "source_file": "runtime/siro-runtime/src/linux.rs",
+  "before_sha256": "336d34244c4adf3f2252dc7283f9540018de689a10de3f0b38220da878609520",
+  "after_sha256": "91da329677585aa3144a67606744f409a6ef1ce5dadc53b8698002ab49d98d5f",
+  "original_linux_test_bodies_unchanged": [
+    "filesystem_read_preserves_empty_exact_limit_and_utf8_result_shape",
+    "filesystem_read_rejects_oversize_without_truncating",
+    "filesystem_read_rejects_invalid_utf8",
+    "filesystem_read_rejects_large_sparse_file_before_allocation",
+    "filesystem_read_rejects_fifo_without_waiting_for_a_writer",
+    "filesystem_read_rejects_nonregular_directory",
+    "filesystem_read_preserves_scope_refusal_and_in_scope_symlink",
+    "scoped_file_driver_rejects_symlink_escape",
+    "process_run_is_bounded_and_managed_processes_are_owned"
+  ],
+  "original_workspace_tests_preserved": 13,
+  "new_workspace_tests": 11,
+  "results": {
+    "original_production_with_final_regressions": {
+      "exit": 101,
+      "passed": 11,
+      "failed": 9,
+      "ignored": 0,
+      "filtered_out": 4,
+      "log": "final-rollback-red.log"
+    },
+    "cargo_fmt_check": {
+      "exit": 0,
+      "log": "final-fmt.log"
+    },
+    "cargo_test_offline_workspace": {
+      "exit": 0,
+      "passed": 24,
+      "failed": 0,
+      "ignored": 0,
+      "log": "final-test.log"
+    },
+    "cargo_build_offline_workspace": {
+      "exit": 0,
+      "log": "final-build.log"
+    },
+    "cargo_clippy_offline_all_targets_deny_warnings": {
+      "exit": 0,
+      "log": "final-clippy.log"
+    },
+    "git_diff_check_linux_rs": {
+      "exit": 0,
+      "log": "diff-check.log"
+    },
+    "permission_branch_red": {
+      "exit": 101,
+      "passed": 0,
+      "failed": 1,
+      "filtered_out": 23,
+      "log": "eperm-red.log",
+      "fixture": "unprivileged per-owned-group seccomp in disposable subreaper subprocess"
+    },
+    "exact_final_source_counter_green": {
+      "exit": 0,
+      "passed": 24,
+      "failed": 0,
+      "log": "final-counter-green.log",
+      "workspace_unchanged": true,
+      "owned_temporary_removed": true
+    }
+  },
+  "test_kind": "real owned Linux subprocesses and filesystem, with synthetic inputs; no physical device",
+  "scope": "Only LinuxDriver and its cfg(test) regressions; no RPC/trait/wire/dependency change",
+  "limits": [
+    "Reaping is opportunistic on Execute; Health/idle calls do not trigger maintenance.",
+    "Retains unknown ownership records on poll errors; process.list and that PID stop report error, unrelated operations remain usable.",
+    "No production subreaper/cgroup or general sandbox added. Test-only isolated subreaper joins the owned orphan-descendant fixture.",
+    "Existing process.run pre-spawn/try_wait error cleanup beyond the touched post-read failure path is not newly certified.",
+    "No exact-head remote CI or release performed by this agent."
+  ],
+  "pre_permission_correction": {
+    "after_sha256": "d7d928d667bfe42637851f5a460bacaffe5087c6d942c6c321e98cf5c8a0ff29",
+    "new_workspace_tests": 10,
+    "test_passed": 23,
+    "source_only_passed": 11,
+    "source_only_failed": 8
+  }
+}

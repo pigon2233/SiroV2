@@ -1,0 +1,64 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_real_nonstream_decode_failure_after_cancel_stays_cancelled ________
+
+    @pytest.mark.asyncio
+    async def test_real_nonstream_decode_failure_after_cancel_stays_cancelled() -> None:
+        token = CancellationToken()
+    
+        class CancelAfterRead(UrllibJsonTransport):
+            async def post(
+                self, url: str, payload: dict[str, object], headers: dict[str, str], timeout: float
+            ) -> dict[str, object]:
+                try:
+                    return await super().post(url, payload, headers, timeout)
+                finally:
+                    token.cancel()
+    
+        async with provider_server((b"synthetic malformed reply",)) as (url, requests):
+            adapter = OllamaAdapter(
+                base_url=url, model="synthetic", transport=CancelAfterRead(), timeout=2
+            )
+>           assert [c async for c in adapter.stream(ModelRequest("hello", "g"), token)] == []
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_model_protocol_recovery.py:321: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/adapters/models/ollama.py:80: in stream
+    response = await self._transport.post(self._url, payload, {}, self._timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_model_protocol_recovery.py:313: in post
+    return await super().post(url, payload, headers, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/models/http.py:87: in post
+    return await asyncio.to_thread(self._post, url, payload, headers, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/concurrent/futures/thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/models/http.py:104: in _post
+    decoded = _decode_json_response(response.read())
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'synthetic malformed reply'
+
+    def _decode_json_response(payload: str | bytes) -> object:
+        try:
+            return json.loads(payload)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            pass
+        # Keep payload-bearing decoder exceptions out of the exception chain.
+>       raise ProviderResponseInvalid("provider returned invalid JSON or text encoding")
+E       siro.adapters.models.http.ProviderResponseInvalid: provider returned invalid JSON or text encoding
+
+src/siro/adapters/models/http.py:27: ProviderResponseInvalid
+=========================== short test summary info ============================
+FAILED tests/integration/test_model_protocol_recovery.py::test_real_nonstream_decode_failure_after_cancel_stays_cancelled
+1 failed, 24 deselected in 0.29s

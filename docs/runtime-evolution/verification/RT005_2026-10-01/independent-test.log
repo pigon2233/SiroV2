@@ -1,0 +1,56 @@
+ACTUAL_DELIVERY ['snapshot', 'tool_proposal', 'tool_started', 'tool_result', 'assistant_started', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'affect_state', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started', 'assistant_terminal', 'tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started'] LATE ['tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started', 'tool_result', 'tool_proposal', 'tool_started']
+F
+=================================== FAILURES ===================================
+___________ test_actual_websocket_has_no_tool_output_after_terminal ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-184/test_actual_websocket_has_no_t0')
+
+    @pytest.mark.asyncio
+    async def test_actual_websocket_has_no_tool_output_after_terminal(tmp_path: Path):
+        store = SQLiteStore(tmp_path / 'siro.db')
+        await store.initialize()
+        entered = asyncio.Event()
+        async def old(arguments):
+            raise AssertionError('legacy bypass')
+        async def execute(arguments, context):
+            if arguments['index'] == 9:
+                entered.set()
+                await context.cancellation.wait()
+                context.check()
+            return {'index': arguments['index']}
+        orchestrator = ToolOrchestrator(SQLiteToolProposalRepository(store), {'computer.execute': old}, contextual_executors={'computer.execute': execute})
+        hub = GatewayHub()
+        socket = Socket()
+        await hub.connect(socket, {'type': 'snapshot'})
+        await socket.entered.wait()
+        controller = IntegratedCompanion(tmp_path, Model(), hub, MinimalWebBodyAdapter(WebSocketBodyTransport()), privacy=Privacy.LOCAL_ONLY, tool_orchestrator=orchestrator, runtime_profile='candidate', auto_authorize=lambda: True)
+        task = asyncio.create_task(controller.respond('session', 'synthetic goal'))
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            await controller.cancel('active', 'stop')
+            await task
+            socket.release.set()
+            for _ in range(100):
+                await asyncio.sleep(.001)
+            types = [m['type'] for m in socket.messages]
+            terminal = types.index('assistant_terminal')
+            late = types[terminal + 1:]
+            print('ACTUAL_DELIVERY', types, 'LATE', late)
+>           assert not any(t in {'tool_result', 'tool_started', 'assistant_delta'} for t in late)
+E           assert not True
+E            +  where True = any(<generator object test_actual_websocket_has_no_tool_output_after_terminal.<locals>.<genexpr> at 0x75fa91bfa8e0>)
+
+docs/runtime-evolution/verification/RT005_2026-10-01/test_independent.py:62: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED docs/runtime-evolution/verification/RT005_2026-10-01/test_independent.py::test_actual_websocket_has_no_tool_output_after_terminal
+1 failed, 2 warnings in 1.09s

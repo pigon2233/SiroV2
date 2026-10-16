@@ -1,5 +1,41 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-16 — D61 / FIX-022–025 DONE / LOCAL_VERIFIED
+
+已核對使用者六項急修，完成四項局部修復：MQTT wire status／unknown ACK／terminal fence／1024 RAM cap與prune；模型壞JSON／Unicode安全分類及Ollama error envelope拒絕；SQLite明確close而非改原PRAGMA；Rust Execute reap／活group ownership／cap+1完整輸出判定。最終review另修late duplicate false-negative及不可signal group假stopped，均有真Broker或無特權kernel反例。Core／ports／DB schema／權限／UI／failover政策／固定sandbox profile與D60 firmware保持。
+
+最終owned隔離Git candidate（public HEAD＋明確修改／9新檔、323 source/test/build hash一致）完整 `scripts/check` **EXIT0／545.074s**：**2129 PASS／5原opt-in SKIP／7既有warnings／253.93s**；Rust24、fmt/build/clippy、Ruff337／mypy267、schema及原scanner/strict gate全部PASS。初輪dirty工作區雖2129PASS，scanner掃到ignored caches與舊untracked驗證檔而EXIT1，完整保留失敗，不改門檻、不刪原資料；最終不是remote CI／正式發布。
+
+Root source-only before24FAIL/3PASS→修後全PASS；model24FAIL/1PASS→25PASS；Rust11PASS/9FAIL→24PASS。三store同SQLite同時20MQTT／20合成對話／20來源記憶，數量／最新state／integrity正確。89 sandbox原測試亦PASS；「缺WAL」「整eventloop崩潰」「共享cloud budget未扣」「靜默無sandbox」等過廣指控已依契約分類，不照單改架構。
+
+解除本四卡local BLOCKED_BY_FIX；T27實板／PlatformIO／真provider、其他OS strict profile及remoteCI／release仍各自未驗。RI005與FIX002／005／006品質gate保持，不重編RT、不撤原限定DONE。Architecture YELLOW/CONDITIONAL，無新owner／scheduler／schema。接續既有T27真板、T19/T20結果判定與產品品質驗收。[修復登錄](runtime-evolution/FIX_REGISTER.md)／[完整證據與回退](evidence/D61-resilience-2026-10-16/REPORT.md)。
+
+## 2026-10-16 — T27-FIX-01 MQTT／ESP32 時間相容 LOCAL_VERIFIED，真板仍待驗
+
+命令保留 ISO 並加整數 expires_at_epoch，simulator 僅接受核對一致的已知 mirror；state 支援 UTC int／float epoch，ISO 優先，無效時間先拒再寫入。firmware 對時最多等30秒，未就緒 restart＋return，loop 亦阻擋。新增 aiomqtt 單次 LED 驗收腳本，沿既有 tracker／projector／registry／臨時 SQLite，applied ACK＋新鮮無矛盾 power:true 才 CONFIRMED；不自動重送或改正式資料。
+
+原版5 RED／28 PASS；新時間格式33 PASS。真 Broker＋合成 ESP32、既有裝置／World／HA／邊界等 **71 PASS／18.38s**，host 實際 clock/setup/loop 的9控制流程 PASS，Ruff／format／mypy／diff PASS。唯讀review發現 ACK-only 狀態與同秒矛盾誤確認，已在 probe 局部修正並加真 Broker 回歸，不改 Core 或 World 排序。
+
+實際本機1883無 Broker，嘗試 exit1／unknown／publish0；沒有 PlatformIO，真板編譯／燒錄／NTP／LED及 A18 **HARDWARE PENDING**。T27維持 simulator 通過、真硬體未驗，完整 CI／發布未跑。只改兩個 production 檔；前輪 UI SHA 保持，DB／權限／依賴／RT 歷史不變。[操作指南](ESP32_MQTT_VERIFICATION.md)／[完整證據與回退](evidence/T27-mqtt-time-2026-10-16/REPORT.md)。
+
+## 2026-10-15 — T10-UI-01 網頁改版首切片 LOCAL_VERIFIED，整體 PARTIAL
+
+已將對話、任務、記憶、能力、電腦、技能、設定、權限、系統分成九個獨立 hash 工作畫面，重做視覺與導覽；共用停止／語音控制、單一 session／socket／renderer，非目前畫面 hidden＋inert，不將全部功能折疊在單長頁。電腦／技能捷徑返回對話；操作更新提示不搶頁。直接 file 開啟明示唯讀預覽，不冒充服務已連線。
+
+只改 production index.html，新增24導航／生命周期案例；**全部前端333 PASS／21.21s**，原 tests／後端／DB／授權／providers／依賴不變。Ruff／format／mypy／diff PASS。真 main／Rust／SQLite 三次啟動與 CUA 點擊驗待審0讀取、明確批准1讀取、跨頁／重啟保結果且不自動執行；24 DOM檢查含四種窄窗12案例、鍵盤、草稿／歷史。source-only隔離回退 RED→PASS，三輪join／temp／自建tabs清理完成。
+
+**T10-UI-01仍PARTIAL**：真Live2D恢復／表情／嘴型及桌面宿主／新動作未驗，fixture明示synthetic renderer；file分支有合成測試，瀏覽器工具政策拒file直接操作。完整CI／200%zoom／完整無障礙／真人體驗／Git發布／部署未跑，不套用前輪PASS。新fixtures兩次錯誤與新test harness修正留原證據；獨立review只到初審，final受帳戶限制，root實測不冒充final批准。
+
+接續：T12現有真renderer的切頁重繪／唯一owner驗收，再沿任務詳情、記憶搜尋、設定用語補完。自由桌寵／全身動作仍明列未完成；RT歷史與RI-005／FIX-002／005／006 gates保持。沒有live8026／私人資料操作。[完整驗收與回退](evidence/T10-UI-01-2026-10-15/REPORT.md)。
+
+## 2026-10-15 — T10-UI-01 介面重設計 TODO / Planned Only
+
+依使用者要求將 UI 全面重設計加入未完成工作，研究 frontend-design、Hallmark 與官方 VPet；已整理 [畫面分工、視覺草案、最小切片與驗收](runtime-evolution/INTERFACE_REDESIGN_PLAN.md)。對話、任務、記憶、能力、設定分開，詳細診斷移到次層；不能把全部功能折疊在單長頁。角色以 VPet 式活動／小氣泡喚起專頁，沿既有 Companion plan 完成真桌面宿主與全身／動作，不借 VPet 的 Windows／PNG 實作宣稱 Live2D 已完成。
+
+同步 TASKS 的 T10-UI-01、EXPERIENCE §4、D59、Companion plan 與 Runtime Roadmap。保留現有 session、批准／取消、持久任務與 renderer／音訊唯一 owner，網頁分頁不等待完整桌寵或自主更新。缺少動作仍是我們的交付責任；沒有重開或重新延期已完成 RT。
+
+本輪範圍是規劃文件，**未修改 production、未安裝依賴／素材、未操作私人服務／資料**。`git diff --check` EXIT0；七份文件的空白／新規劃本機連結與修改範圍檢查 EXIT0（缺失連結0、非預期 tracked 修改0），只讀獨立檢閱無 blocker，已補網頁／桌面分開驗收的澄清。原型、真瀏覽器視覺、Live2D／原生桌面及真人體驗驗收均 **NOT_RUN**，不能套用前輪 CI 為改版 PASS。下一步：T10-UI-01 對話／任務兩個獨立可操作原型，再逐頁移轉；RI-005 與 FIX-002／005／006 gate 保持。
+
 ## 2026-10-15 — D57 / FIX-021 + RT-005-FIX-02 DONE / LOCAL_VERIFIED
 
 「電腦協助 → 交給 SIRO 的任務」已接通既有GoalService/Planner：選1–5exact文字檔，建立待審不讀取，明確批准後有界盤點TODO/未勾選待辦，保存檔案/行/實際SHA/time。可停/取消，前景與tools-off優先，重開保進度/未知意圖而零autoexecute。讀取完成不代表待辦已執行，未稱自主產生目標或學習策略。
@@ -361,7 +397,7 @@ T00–T40 的完成標記只代表各任務所列的元件或測試層級，不�
 | T24 | DONE (Linux Chrome L2 + visible L3) | scoped origin/redirect、stale-screen fence、form/key/pointer/screenshot readback、local pixel analyzer；Wayland desktop unsupported，見 `evidence/T24/README.md` |
 | T25 | DONE (Linux L2 + A17 L3) | allowlisted user-systemd、exact-hash critical install、可視 Chrome＋PipeWire＋service failure isolation；Windows/macOS unsupported，見 `evidence/T25/README.md` |
 | T26 | DONE (SQLite integration + simulators) | descriptor/schema、room edges、canonical actions、TTL/stale/unknown、light/presence/temperature/camera simulators，見 `evidence/T26/README.md` |
-| T27 | DONE (authenticated broker + simulator) / HARDWARE PENDING | Argon2 auth、LWT、retained state、non-retained command、expiry/dedup/ack-readback、ESP32 source，見 `evidence/T27/README.md` |
+| T27 | DONE (authenticated broker + simulator) / HARDWARE PENDING | Argon2 auth、LWT、retained state、non-retained command、expiry/dedup/ack-readback、ESP32 source；T27-FIX-01 epoch／NTP／單次aiomqtt LOCAL_VERIFIED，見 [新證據](evidence/T27-mqtt-time-2026-10-16/REPORT.md)，原 `evidence/T27/README.md` 保留 |
 | T28 | DONE (official protocol mock integration) / REAL HA PENDING | REST descriptor/snapshot/readback、WebSocket auth/state_changed、action ledger、token env-only、revoked/unavailable 降級，見 `evidence/T28/README.md` |
 | T29 | DONE (L1 closed-loop simulator) / L3 PENDING | presence→world→salience→candidate→policy→light→readback、bounce/feedback/manual/offline 抑制，見 `evidence/T29/README.md`；需至少一個真 sensor 和 actuator |
 | T30 | DONE (L1 + SQLite integration) | repeated trusted successful traces、secret redaction、fixture、source trace、review-only candidate persistence；不安裝或 enable，見 `evidence/T30/README.md` |

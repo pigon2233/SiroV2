@@ -1,0 +1,602 @@
+FFFFFFFFFFFFFFF..FFFFFFF                                                 [100%]
+=================================== FAILURES ===================================
+_ test_rejected_ack_never_confirms_even_with_matching_readback[expired_or_invalid] _
+
+status = 'expired_or_invalid'
+
+    @pytest.mark.parametrize(
+        "status", ["expired_or_invalid", "unsupported", "duplicate", "accepted", ""]
+    )
+    def test_rejected_ack_never_confirms_even_with_matching_readback(status: str) -> None:
+        tracker = CommandTracker()
+        tracker.issue("esp32-lab-01", command("rejected"))
+>       result = tracker.acknowledge("rejected", status=status)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.acknowledge() got an unexpected keyword argument 'status'
+
+tests/integration/test_mqtt_tracker_resilience.py:25: TypeError
+__ test_rejected_ack_never_confirms_even_with_matching_readback[unsupported] ___
+
+status = 'unsupported'
+
+    @pytest.mark.parametrize(
+        "status", ["expired_or_invalid", "unsupported", "duplicate", "accepted", ""]
+    )
+    def test_rejected_ack_never_confirms_even_with_matching_readback(status: str) -> None:
+        tracker = CommandTracker()
+        tracker.issue("esp32-lab-01", command("rejected"))
+>       result = tracker.acknowledge("rejected", status=status)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.acknowledge() got an unexpected keyword argument 'status'
+
+tests/integration/test_mqtt_tracker_resilience.py:25: TypeError
+___ test_rejected_ack_never_confirms_even_with_matching_readback[duplicate] ____
+
+status = 'duplicate'
+
+    @pytest.mark.parametrize(
+        "status", ["expired_or_invalid", "unsupported", "duplicate", "accepted", ""]
+    )
+    def test_rejected_ack_never_confirms_even_with_matching_readback(status: str) -> None:
+        tracker = CommandTracker()
+        tracker.issue("esp32-lab-01", command("rejected"))
+>       result = tracker.acknowledge("rejected", status=status)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.acknowledge() got an unexpected keyword argument 'status'
+
+tests/integration/test_mqtt_tracker_resilience.py:25: TypeError
+____ test_rejected_ack_never_confirms_even_with_matching_readback[accepted] ____
+
+status = 'accepted'
+
+    @pytest.mark.parametrize(
+        "status", ["expired_or_invalid", "unsupported", "duplicate", "accepted", ""]
+    )
+    def test_rejected_ack_never_confirms_even_with_matching_readback(status: str) -> None:
+        tracker = CommandTracker()
+        tracker.issue("esp32-lab-01", command("rejected"))
+>       result = tracker.acknowledge("rejected", status=status)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.acknowledge() got an unexpected keyword argument 'status'
+
+tests/integration/test_mqtt_tracker_resilience.py:25: TypeError
+________ test_rejected_ack_never_confirms_even_with_matching_readback[] ________
+
+status = ''
+
+    @pytest.mark.parametrize(
+        "status", ["expired_or_invalid", "unsupported", "duplicate", "accepted", ""]
+    )
+    def test_rejected_ack_never_confirms_even_with_matching_readback(status: str) -> None:
+        tracker = CommandTracker()
+        tracker.issue("esp32-lab-01", command("rejected"))
+>       result = tracker.acknowledge("rejected", status=status)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.acknowledge() got an unexpected keyword argument 'status'
+
+tests/integration/test_mqtt_tracker_resilience.py:25: TypeError
+____________ test_foreign_ack_is_ignored_without_key_error[applied] ____________
+
+status = 'applied'
+
+    @pytest.mark.parametrize("status", ["applied", "unsupported"])
+    def test_foreign_ack_is_ignored_without_key_error(status: str) -> None:
+        tracker = CommandTracker()
+>       assert tracker.acknowledge("not-owned", status=status) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.acknowledge() got an unexpected keyword argument 'status'
+
+tests/integration/test_mqtt_tracker_resilience.py:35: TypeError
+__________ test_foreign_ack_is_ignored_without_key_error[unsupported] __________
+
+status = 'unsupported'
+
+    @pytest.mark.parametrize("status", ["applied", "unsupported"])
+    def test_foreign_ack_is_ignored_without_key_error(status: str) -> None:
+        tracker = CommandTracker()
+>       assert tracker.acknowledge("not-owned", status=status) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.acknowledge() got an unexpected keyword argument 'status'
+
+tests/integration/test_mqtt_tracker_resilience.py:35: TypeError
+_____ test_readback_without_accepted_ack_does_not_confirm_pending_command ______
+
+    def test_readback_without_accepted_ack_does_not_confirm_pending_command() -> None:
+        tracker = CommandTracker()
+        tracker.issue("esp32-lab-01", command("pending"))
+>       assert tracker.observe_state("esp32-lab-01", {"power": True}) == ()
+E       AssertionError: assert ('pending',) == ()
+E         
+E         Left contains one more item: 'pending'
+E         Use -v to get more diff
+
+tests/integration/test_mqtt_tracker_resilience.py:41: AssertionError
+__ test_late_or_duplicate_ack_does_not_regress_accepted_or_confirmed_delivery __
+
+    def test_late_or_duplicate_ack_does_not_regress_accepted_or_confirmed_delivery() -> None:
+        tracker = CommandTracker()
+        tracker.issue("esp32-lab-01", command("applied"))
+>       assert tracker.acknowledge("applied", status="applied") is DeliveryState.ACKNOWLEDGED
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.acknowledge() got an unexpected keyword argument 'status'
+
+tests/integration/test_mqtt_tracker_resilience.py:48: TypeError
+_____ test_active_capacity_refuses_new_work_without_losing_owned_commands ______
+
+    def test_active_capacity_refuses_new_work_without_losing_owned_commands() -> None:
+>       tracker = CommandTracker(max_commands=2)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.__init__() got an unexpected keyword argument 'max_commands'
+
+tests/integration/test_mqtt_tracker_resilience.py:58: TypeError
+____ test_completed_history_is_reclaimed_during_long_running_issue_sequence ____
+
+    def test_completed_history_is_reclaimed_during_long_running_issue_sequence() -> None:
+>       tracker = CommandTracker(max_commands=2)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.__init__() got an unexpected keyword argument 'max_commands'
+
+tests/integration/test_mqtt_tracker_resilience.py:71: TypeError
+___ test_explicit_prune_removes_expired_but_keeps_unexpired_active_commands ____
+
+    def test_explicit_prune_removes_expired_but_keeps_unexpired_active_commands() -> None:
+        now = datetime.now(UTC)
+>       tracker = CommandTracker(max_commands=2)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: CommandTracker.__init__() got an unexpected keyword argument 'max_commands'
+
+tests/integration/test_mqtt_tracker_resilience.py:83: TypeError
+_____________________ test_tracker_capacity_is_bounded[0] ______________________
+
+limit = 0
+
+    @pytest.mark.parametrize("limit", [0, -1, 10001])
+    def test_tracker_capacity_is_bounded(limit: int) -> None:
+        with pytest.raises(ValueError):
+>           CommandTracker(max_commands=limit)
+E           TypeError: CommandTracker.__init__() got an unexpected keyword argument 'max_commands'
+
+tests/integration/test_mqtt_tracker_resilience.py:97: TypeError
+_____________________ test_tracker_capacity_is_bounded[-1] _____________________
+
+limit = -1
+
+    @pytest.mark.parametrize("limit", [0, -1, 10001])
+    def test_tracker_capacity_is_bounded(limit: int) -> None:
+        with pytest.raises(ValueError):
+>           CommandTracker(max_commands=limit)
+E           TypeError: CommandTracker.__init__() got an unexpected keyword argument 'max_commands'
+
+tests/integration/test_mqtt_tracker_resilience.py:97: TypeError
+___________________ test_tracker_capacity_is_bounded[10001] ____________________
+
+limit = 10001
+
+    @pytest.mark.parametrize("limit", [0, -1, 10001])
+    def test_tracker_capacity_is_bounded(limit: int) -> None:
+        with pytest.raises(ValueError):
+>           CommandTracker(max_commands=limit)
+E           TypeError: CommandTracker.__init__() got an unexpected keyword argument 'max_commands'
+
+tests/integration/test_mqtt_tracker_resilience.py:97: TypeError
+_ test_owned_connection_is_closed_before_success_or_error_returns[initialize] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-95/test_owned_connection_is_close0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x72bf6eb08050>
+operation = 'initialize'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "operation",
+        ["initialize", "transaction", "failed_transaction", "pending", "quarantine", "integrity"],
+    )
+    async def test_owned_connection_is_closed_before_success_or_error_returns(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.sqlite3")
+        await store.initialize()
+        original = store._connect
+        created: list[sqlite3.Connection] = []
+        closed: list[sqlite3.Connection] = []
+    
+        class TrackedConnection(sqlite3.Connection):
+            def close(self) -> None:
+                closed.append(self)
+                super().close()
+    
+        def connect(path: Path | None = None) -> sqlite3.Connection:
+            connection = sqlite3.connect(path or store.path, factory=TrackedConnection)
+            connection.row_factory = sqlite3.Row
+            created.append(connection)
+            return connection
+    
+        monkeypatch.setattr(store, "_connect", connect)
+        if operation == "initialize":
+            await store.initialize()
+        elif operation == "transaction":
+            assert (
+                await store.run_transaction(
+                    lambda connection: connection.execute("SELECT 42").fetchone()[0]
+                )
+                == 42
+            )
+        elif operation == "failed_transaction":
+    
+            def fail(_connection: sqlite3.Connection) -> None:
+                raise RuntimeError("synthetic failure")
+    
+            with pytest.raises(RuntimeError, match="synthetic"):
+                await store.run_transaction(fail)
+        elif operation == "pending":
+            assert await store.pending_outbox() == []
+        elif operation == "quarantine":
+            assert await store.quarantined_outbox() == []
+        else:
+            assert await store.integrity_check() == "ok"
+>       assert created and closed == created
+E       assert ([<test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf6820a580>] and [] == [<test_sqlite...72bf6820a580>]
+E         
+E         Right contains one more item: <test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf6820a580>
+E         Use -v to get more diff)
+
+tests/integration/test_sqlite_connection_cleanup.py:98: AssertionError
+_ test_owned_connection_is_closed_before_success_or_error_returns[transaction] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-95/test_owned_connection_is_close1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x72bf6ec5fac0>
+operation = 'transaction'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "operation",
+        ["initialize", "transaction", "failed_transaction", "pending", "quarantine", "integrity"],
+    )
+    async def test_owned_connection_is_closed_before_success_or_error_returns(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.sqlite3")
+        await store.initialize()
+        original = store._connect
+        created: list[sqlite3.Connection] = []
+        closed: list[sqlite3.Connection] = []
+    
+        class TrackedConnection(sqlite3.Connection):
+            def close(self) -> None:
+                closed.append(self)
+                super().close()
+    
+        def connect(path: Path | None = None) -> sqlite3.Connection:
+            connection = sqlite3.connect(path or store.path, factory=TrackedConnection)
+            connection.row_factory = sqlite3.Row
+            created.append(connection)
+            return connection
+    
+        monkeypatch.setattr(store, "_connect", connect)
+        if operation == "initialize":
+            await store.initialize()
+        elif operation == "transaction":
+            assert (
+                await store.run_transaction(
+                    lambda connection: connection.execute("SELECT 42").fetchone()[0]
+                )
+                == 42
+            )
+        elif operation == "failed_transaction":
+    
+            def fail(_connection: sqlite3.Connection) -> None:
+                raise RuntimeError("synthetic failure")
+    
+            with pytest.raises(RuntimeError, match="synthetic"):
+                await store.run_transaction(fail)
+        elif operation == "pending":
+            assert await store.pending_outbox() == []
+        elif operation == "quarantine":
+            assert await store.quarantined_outbox() == []
+        else:
+            assert await store.integrity_check() == "ok"
+>       assert created and closed == created
+E       assert ([<test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf6009fa40>] and [] == [<test_sqlite...72bf6009fa40>]
+E         
+E         Right contains one more item: <test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf6009fa40>
+E         Use -v to get more diff)
+
+tests/integration/test_sqlite_connection_cleanup.py:98: AssertionError
+_ test_owned_connection_is_closed_before_success_or_error_returns[failed_transaction] _
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-95/test_owned_connection_is_close2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x72bf6ecb2650>
+operation = 'failed_transaction'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "operation",
+        ["initialize", "transaction", "failed_transaction", "pending", "quarantine", "integrity"],
+    )
+    async def test_owned_connection_is_closed_before_success_or_error_returns(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.sqlite3")
+        await store.initialize()
+        original = store._connect
+        created: list[sqlite3.Connection] = []
+        closed: list[sqlite3.Connection] = []
+    
+        class TrackedConnection(sqlite3.Connection):
+            def close(self) -> None:
+                closed.append(self)
+                super().close()
+    
+        def connect(path: Path | None = None) -> sqlite3.Connection:
+            connection = sqlite3.connect(path or store.path, factory=TrackedConnection)
+            connection.row_factory = sqlite3.Row
+            created.append(connection)
+            return connection
+    
+        monkeypatch.setattr(store, "_connect", connect)
+        if operation == "initialize":
+            await store.initialize()
+        elif operation == "transaction":
+            assert (
+                await store.run_transaction(
+                    lambda connection: connection.execute("SELECT 42").fetchone()[0]
+                )
+                == 42
+            )
+        elif operation == "failed_transaction":
+    
+            def fail(_connection: sqlite3.Connection) -> None:
+                raise RuntimeError("synthetic failure")
+    
+            with pytest.raises(RuntimeError, match="synthetic"):
+                await store.run_transaction(fail)
+        elif operation == "pending":
+            assert await store.pending_outbox() == []
+        elif operation == "quarantine":
+            assert await store.quarantined_outbox() == []
+        else:
+            assert await store.integrity_check() == "ok"
+>       assert created and closed == created
+E       assert ([<test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf6807d3d0>] and [] == [<test_sqlite...72bf6807d3d0>]
+E         
+E         Right contains one more item: <test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf6807d3d0>
+E         Use -v to get more diff)
+
+tests/integration/test_sqlite_connection_cleanup.py:98: AssertionError
+___ test_owned_connection_is_closed_before_success_or_error_returns[pending] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-95/test_owned_connection_is_close3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x72bf6eb1da90>
+operation = 'pending'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "operation",
+        ["initialize", "transaction", "failed_transaction", "pending", "quarantine", "integrity"],
+    )
+    async def test_owned_connection_is_closed_before_success_or_error_returns(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.sqlite3")
+        await store.initialize()
+        original = store._connect
+        created: list[sqlite3.Connection] = []
+        closed: list[sqlite3.Connection] = []
+    
+        class TrackedConnection(sqlite3.Connection):
+            def close(self) -> None:
+                closed.append(self)
+                super().close()
+    
+        def connect(path: Path | None = None) -> sqlite3.Connection:
+            connection = sqlite3.connect(path or store.path, factory=TrackedConnection)
+            connection.row_factory = sqlite3.Row
+            created.append(connection)
+            return connection
+    
+        monkeypatch.setattr(store, "_connect", connect)
+        if operation == "initialize":
+            await store.initialize()
+        elif operation == "transaction":
+            assert (
+                await store.run_transaction(
+                    lambda connection: connection.execute("SELECT 42").fetchone()[0]
+                )
+                == 42
+            )
+        elif operation == "failed_transaction":
+    
+            def fail(_connection: sqlite3.Connection) -> None:
+                raise RuntimeError("synthetic failure")
+    
+            with pytest.raises(RuntimeError, match="synthetic"):
+                await store.run_transaction(fail)
+        elif operation == "pending":
+            assert await store.pending_outbox() == []
+        elif operation == "quarantine":
+            assert await store.quarantined_outbox() == []
+        else:
+            assert await store.integrity_check() == "ok"
+>       assert created and closed == created
+E       assert ([<test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf600987f0>] and [] == [<test_sqlite...72bf600987f0>]
+E         
+E         Right contains one more item: <test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf600987f0>
+E         Use -v to get more diff)
+
+tests/integration/test_sqlite_connection_cleanup.py:98: AssertionError
+_ test_owned_connection_is_closed_before_success_or_error_returns[quarantine] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-95/test_owned_connection_is_close4')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x72bf6ec7e5f0>
+operation = 'quarantine'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "operation",
+        ["initialize", "transaction", "failed_transaction", "pending", "quarantine", "integrity"],
+    )
+    async def test_owned_connection_is_closed_before_success_or_error_returns(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.sqlite3")
+        await store.initialize()
+        original = store._connect
+        created: list[sqlite3.Connection] = []
+        closed: list[sqlite3.Connection] = []
+    
+        class TrackedConnection(sqlite3.Connection):
+            def close(self) -> None:
+                closed.append(self)
+                super().close()
+    
+        def connect(path: Path | None = None) -> sqlite3.Connection:
+            connection = sqlite3.connect(path or store.path, factory=TrackedConnection)
+            connection.row_factory = sqlite3.Row
+            created.append(connection)
+            return connection
+    
+        monkeypatch.setattr(store, "_connect", connect)
+        if operation == "initialize":
+            await store.initialize()
+        elif operation == "transaction":
+            assert (
+                await store.run_transaction(
+                    lambda connection: connection.execute("SELECT 42").fetchone()[0]
+                )
+                == 42
+            )
+        elif operation == "failed_transaction":
+    
+            def fail(_connection: sqlite3.Connection) -> None:
+                raise RuntimeError("synthetic failure")
+    
+            with pytest.raises(RuntimeError, match="synthetic"):
+                await store.run_transaction(fail)
+        elif operation == "pending":
+            assert await store.pending_outbox() == []
+        elif operation == "quarantine":
+            assert await store.quarantined_outbox() == []
+        else:
+            assert await store.integrity_check() == "ok"
+>       assert created and closed == created
+E       assert ([<test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf680101b0>] and [] == [<test_sqlite...72bf680101b0>]
+E         
+E         Right contains one more item: <test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf680101b0>
+E         Use -v to get more diff)
+
+tests/integration/test_sqlite_connection_cleanup.py:98: AssertionError
+__ test_owned_connection_is_closed_before_success_or_error_returns[integrity] __
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-95/test_owned_connection_is_close5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x72bf6ecb9010>
+operation = 'integrity'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "operation",
+        ["initialize", "transaction", "failed_transaction", "pending", "quarantine", "integrity"],
+    )
+    async def test_owned_connection_is_closed_before_success_or_error_returns(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+    ) -> None:
+        store = SQLiteStore(tmp_path / "siro.sqlite3")
+        await store.initialize()
+        original = store._connect
+        created: list[sqlite3.Connection] = []
+        closed: list[sqlite3.Connection] = []
+    
+        class TrackedConnection(sqlite3.Connection):
+            def close(self) -> None:
+                closed.append(self)
+                super().close()
+    
+        def connect(path: Path | None = None) -> sqlite3.Connection:
+            connection = sqlite3.connect(path or store.path, factory=TrackedConnection)
+            connection.row_factory = sqlite3.Row
+            created.append(connection)
+            return connection
+    
+        monkeypatch.setattr(store, "_connect", connect)
+        if operation == "initialize":
+            await store.initialize()
+        elif operation == "transaction":
+            assert (
+                await store.run_transaction(
+                    lambda connection: connection.execute("SELECT 42").fetchone()[0]
+                )
+                == 42
+            )
+        elif operation == "failed_transaction":
+    
+            def fail(_connection: sqlite3.Connection) -> None:
+                raise RuntimeError("synthetic failure")
+    
+            with pytest.raises(RuntimeError, match="synthetic"):
+                await store.run_transaction(fail)
+        elif operation == "pending":
+            assert await store.pending_outbox() == []
+        elif operation == "quarantine":
+            assert await store.quarantined_outbox() == []
+        else:
+            assert await store.integrity_check() == "ok"
+>       assert created and closed == created
+E       assert ([<test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf600b43a0>] and [] == [<test_sqlite...72bf600b43a0>]
+E         
+E         Right contains one more item: <test_sqlite_connection_cleanup.test_owned_connection_is_closed_before_success_or_error_returns.<locals>.TrackedConnection object at 0x72bf600b43a0>
+E         Use -v to get more diff)
+
+tests/integration/test_sqlite_connection_cleanup.py:98: AssertionError
+_____________ test_connection_configuration_failure_closes_handle ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-95/test_connection_configuration_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x72bf6eb68d60>
+
+    def test_connection_configuration_failure_closes_handle(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        closed = threading.Event()
+        real_connect = sqlite3.connect
+    
+        class FailingConfiguration(sqlite3.Connection):
+            def execute(self, sql: str, parameters: object = ()) -> sqlite3.Cursor:
+                raise sqlite3.OperationalError("synthetic pragma failure")
+    
+            def close(self) -> None:
+                closed.set()
+                super().close()
+    
+        def connect(path: Path, **kwargs: object) -> sqlite3.Connection:
+            return real_connect(path, factory=FailingConfiguration)
+    
+        monkeypatch.setattr(sqlite3, "connect", connect)
+        with pytest.raises(sqlite3.OperationalError, match="synthetic pragma"):
+            SQLiteStore(tmp_path / "siro.sqlite3")._connect()
+>       assert closed.is_set()
+E       assert False
+E        +  where False = is_set()
+E        +    where is_set = <threading.Event at 0x72bf6eb68520: unset>.is_set
+
+tests/integration/test_sqlite_connection_cleanup.py:122: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_rejected_ack_never_confirms_even_with_matching_readback[expired_or_invalid]
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_rejected_ack_never_confirms_even_with_matching_readback[unsupported]
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_rejected_ack_never_confirms_even_with_matching_readback[duplicate]
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_rejected_ack_never_confirms_even_with_matching_readback[accepted]
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_rejected_ack_never_confirms_even_with_matching_readback[]
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_foreign_ack_is_ignored_without_key_error[applied]
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_foreign_ack_is_ignored_without_key_error[unsupported]
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_readback_without_accepted_ack_does_not_confirm_pending_command
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_late_or_duplicate_ack_does_not_regress_accepted_or_confirmed_delivery
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_active_capacity_refuses_new_work_without_losing_owned_commands
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_completed_history_is_reclaimed_during_long_running_issue_sequence
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_explicit_prune_removes_expired_but_keeps_unexpired_active_commands
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_tracker_capacity_is_bounded[0]
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_tracker_capacity_is_bounded[-1]
+FAILED tests/integration/test_mqtt_tracker_resilience.py::test_tracker_capacity_is_bounded[10001]
+FAILED tests/integration/test_sqlite_connection_cleanup.py::test_owned_connection_is_closed_before_success_or_error_returns[initialize]
+FAILED tests/integration/test_sqlite_connection_cleanup.py::test_owned_connection_is_closed_before_success_or_error_returns[transaction]
+FAILED tests/integration/test_sqlite_connection_cleanup.py::test_owned_connection_is_closed_before_success_or_error_returns[failed_transaction]
+FAILED tests/integration/test_sqlite_connection_cleanup.py::test_owned_connection_is_closed_before_success_or_error_returns[pending]
+FAILED tests/integration/test_sqlite_connection_cleanup.py::test_owned_connection_is_closed_before_success_or_error_returns[quarantine]
+FAILED tests/integration/test_sqlite_connection_cleanup.py::test_owned_connection_is_closed_before_success_or_error_returns[integrity]
+FAILED tests/integration/test_sqlite_connection_cleanup.py::test_connection_configuration_failure_closes_handle
+22 failed, 2 passed in 0.40s

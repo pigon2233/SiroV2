@@ -16,6 +16,17 @@ topic：`siro/devices/{id}/{state|availability|command|ack}`。availability/stat
 ack 不 retained。LWT 為 retained `offline`。firmware 明確拒絕 retained command、過期 command、
 重複 command ID 與非 `light.set` action；ack 後另發 state，gateway 必須以 state readback 判定成功。
 
+命令同時帶 ISO `expires_at` 與整數 `expires_at_epoch`；firmware 以後者檢查到期。
+state 使用 UTC 秒數 `observed_at_epoch`，Python gateway 同時支援此格式與原 ISO
+`observed_at`。啟動時呼叫 `configTime` 後最多等 30 秒，直到
+`time(nullptr) > 1700000000` 才連 MQTT；對時逾時重啟，主迴圈亦禁止時鐘未就緒時連線。
+
+真 Broker 的單次 Python 閉環驗收與操作限制見
+[ESP32 MQTT 驗收指南](../../docs/ESP32_MQTT_VERIFICATION.md)。本機 client 使用
+`127.0.0.1:1883`（Broker 可監聽 `0.0.0.0:1883`），只發布一次 `light.set {"power": true}`，
+必須收到同 ID 的 `applied` ACK 與新的 `power: true` state 才確認。驗收會點亮 LED，
+不自動重送或另送關燈；Broker／合成設備通過不能取代真板編譯、燒錄與 LED 驗證。
+
 接線：使用板載 LED 時不需外接。改用外接 LED 時，GPIO → 220–330 Ω 電阻 → LED 陽極，LED
 陰極 → GND；依板型修改 `SIRO_LED_PIN`。不可直接驅動市電、馬達或大電流負載。
 

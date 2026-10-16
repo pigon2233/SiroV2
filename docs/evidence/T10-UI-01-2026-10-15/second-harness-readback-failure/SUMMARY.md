@@ -1,0 +1,3 @@
+# Fixture readback token expired
+
+The real browser created a proposed goal with zero reads. The separate fixture client reused its startup token after manual UI work and received HTTP401 on GET /v1/goal-tasks/browser; this is visible in cycle-1.log. The browser had renewed its own session for the explicit UI action. No production token gate changed. The wrapper now clears only its own cached client token before each explicit stdin readback. This attempt ended with graceful service/Rust shutdown and temporary_removed=true, but did not complete the intended three-cycle acceptance; the later root RESULTS.json is the separate successful run.

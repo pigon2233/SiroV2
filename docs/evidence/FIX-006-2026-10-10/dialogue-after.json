@@ -1,0 +1,94 @@
+{
+  "synthetic_only": true,
+  "actual_configured_provider": true,
+  "tools_executed": 0,
+  "max_output_tokens": 512,
+  "samples_per_case": 1,
+  "source_sha256": {
+    "src/siro/services/presentation/integrated.py": "7a7fda8467aacaa7a45596984c87338d21a95dd1c5b5fecfdeff3ab66515f6d5",
+    "src/siro/services/agent/runs.py": "6e6a3bfbd1554d369daef14deee7c208165d2815d7d904b8220456cd6ad51d8f",
+    "src/siro/core/memory.py": "5f1b5efb380d0c9a7e574ac4565221e33964031d83da5624e5eabc0c3188f5cc",
+    "src/siro/adapters/models/openai_compatible.py": "510852b90f429cbf021c957643f1f1ed71f63b41af1c35388d8ecaf5f6e78ee1"
+  },
+  "sources_unchanged": true,
+  "limitations": [
+    "not statistical quality certification",
+    "captcha uses synthetic native observation; not browser acceptance",
+    "no private conversations/live service changes"
+  ],
+  "results": [
+    {
+      "case": "greeting",
+      "arm": "actual_repaired_composition",
+      "text": "你好呀！有什麼可以幫忙的嗎？",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "e4ede9f8a49aaafd5c57e9c36ef32fe0eb8f50a889ff98b7ff22b979129840a8",
+      "own_status_in_prompt": false
+    },
+    {
+      "case": "memory_capability",
+      "arm": "actual_repaired_composition",
+      "text": "有，我有持久的本地記憶，可以記住你告訴我的資訊並在下次對話中呼叫。",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "6fccc2e9c243ce0bce12d4a371dea0d5577f23722a189ebff47fec25cc5a4571",
+      "own_status_in_prompt": false
+    },
+    {
+      "case": "own_failure",
+      "arm": "actual_repaired_composition",
+      "text": "我剛剛遇到一個 **HTTPStatusError**，根本原因目前還不清楚。這不是因為你需要串接別人的 API，而是系統內部執行失敗。  \n如果你需要我再試一次或做其他操作，請告訴我，我會立即嘗試。若你有其他需求，也請說說看。",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "6e4fee5d3f1eb524976258a8c97f9fe8fbd7b3ddd617126c0bfa21e6d5097d80",
+      "own_status_in_prompt": true
+    },
+    {
+      "case": "voice_correction",
+      "arm": "actual_repaired_composition",
+      "error_class": "ProviderOutputTruncated",
+      "http_status": null,
+      "retry_after_seconds": null,
+      "executed_tools": 0,
+      "own_status_in_prompt": false
+    },
+    {
+      "case": "unknown_effect",
+      "arm": "actual_repaired_composition",
+      "text": "好的，我很樂意幫忙！請告訴我剛剛你想我做的操作是什麼，或者你想再次執行哪個步驟？🙂",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "a315a7523d9c8f5c075b09aac933f4a6c38956c1f87471ce885c0bad5fff485a",
+      "own_status_in_prompt": true
+    },
+    {
+      "case": "captcha",
+      "arm": "actual_repaired_composition",
+      "text": "",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [
+        {
+          "name": "browser.navigate+read"
+        }
+      ],
+      "executed_tools": 0,
+      "prompt_sha256": "75ae5c5ec4cbfc018136156662d57c8ea6b818a2e0dd3781afac9706b4aa39a7",
+      "own_status_in_prompt": false
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "result": "PASS",
+  "synthetic_text": "今天的天空很晴朗，我們一起把小故事慢慢說完。",
+  "text_sha256": "ac3523ce2c385b365266309e8d7d10d0e1baa265274cbba1926dc126b98d3bd6",
+  "seed": 20261008,
+  "cache": "NOT_USED; no cache API is called",
+  "model_loads": 1,
+  "attention": "sdpa",
+  "script_sha256": "1adad1a96b97282cca767c15e71f18bffb1c7819f4188b70dae2a30ddfda63d9",
+  "selected_profiles": [
+    {
+      "attention": "sdpa",
+      "threads": "default"
+    }
+  ],
+  "dtype": "bfloat16",
+  "non_streaming_mode": true,
+  "max_new_tokens": 512,
+  "versions": {
+    "qwen-tts": "0.1.1",
+    "torch": "2.12.0+cu130",
+    "transformers": "4.57.3",
+    "soundfile": "0.14.0"
+  },
+  "default_num_threads": 8,
+  "num_interop_threads": 16,
+  "cpu_count": 16,
+  "import_seconds": 11.96854,
+  "samples": [
+    {
+      "group": "default",
+      "attention": "sdpa",
+      "num_threads": 8,
+      "num_interop_threads": 16,
+      "kind": "warmup",
+      "index": 0,
+      "result": "PASS",
+      "completion": {
+        "status": "complete",
+        "eos_observed": true,
+        "cap_reached": false,
+        "generated_tokens": 59,
+        "max_new_tokens": 512,
+        "observer_calls": 1
+      },
+      "generation_seconds": 8.381658,
+      "talker_seconds": 8.083474,
+      "outside_talker_seconds": 0.298184,
+      "duration_seconds": 4.64,
+      "real_time_factor": 1.806392,
+      "sample_rate": 24000,
+      "audio_sha256": "17605893fdcce93db0c0d88ca96ada2de00c20aa0ed77b1669c0434ef3952f4e"
+    },
+    {
+      "group": "default",
+      "attention": "sdpa",
+      "num_threads": 8,
+      "num_interop_threads": 16,
+      "kind": "measured",
+      "index": 1,
+      "result": "PASS",
+      "completion": {
+        "status": "complete",
+        "eos_observed": true,
+        "cap_reached": false,
+        "generated_tokens": 59,
+        "max_new_tokens": 512,
+        "observer_calls": 1
+      },
+      "generation_seconds": 8.158215,
+      "talker_seconds": 7.906564,
+      "outside_talker_seconds": 0.251651,
+      "duration_seconds": 4.64,
+      "real_time_factor": 1.758236,
+      "sample_rate": 24000,
+      "audio_sha256": "17605893fdcce93db0c0d88ca96ada2de00c20aa0ed77b1669c0434ef3952f4e"
+    },
+    {
+      "group": "default",
+      "attention": "sdpa",
+      "num_threads": 8,
+      "num_interop_threads": 16,
+      "kind": "measured",
+      "index": 2,
+      "result": "PASS",
+      "completion": {
+        "status": "complete",
+        "eos_observed": true,
+        "cap_reached": false,
+        "generated_tokens": 59,
+        "max_new_tokens": 512,
+        "observer_calls": 1
+      },
+      "generation_seconds": 8.13257,
+      "talker_seconds": 7.878969,
+      "outside_talker_seconds": 0.253601,
+      "duration_seconds": 4.64,
+      "real_time_factor": 1.752709,
+      "sample_rate": 24000,
+      "audio_sha256": "17605893fdcce93db0c0d88ca96ada2de00c20aa0ed77b1669c0434ef3952f4e"
+    }
+  ],
+  "limitations": [
+    "One model stays loaded; only warmed generation is compared.",
+    "Thread setter is called before each group, after model initialization.",
+    "Fixed seed does not guarantee CUDA/audio identity across settings.",
+    "No human listening, desktop playback or p95 latency validation."
+  ],
+  "device": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "model_load_seconds": 1.890179,
+  "actual_attention": {
+    "model": "sdpa",
+    "talker": "sdpa",
+    "code_predictor": "sdpa",
+    "speech_tokenizer": "sdpa"
+  },
+  "reference_prompt_seconds": 0.9475,
+  "generation_settings_sha256": "ddabe2bc16ab0c4ca21d34e110121cfe7a851a15188620359a867724bea36903",
+  "worker_sha256": "7fef382492daad2d70a81c5417dca3b4e02cbdee644c19f7055ff3a3eb82aaa8",
+  "total_seconds": 41.422077,
+  "cleanup": "model/voice references released; process exit releases CUDA context"
+}

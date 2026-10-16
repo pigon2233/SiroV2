@@ -1,0 +1,459 @@
+{
+  "status": "PASS",
+  "mode": "real",
+  "real_qwen_inference": "RUN",
+  "human_listening": "NOT_RUN",
+  "child_offline_policy": {
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1"
+  },
+  "started_ms": 1791442144173.234,
+  "scope": "Native Chromium Audio playing/ended, actual index.html and ephemeral Uvicorn",
+  "limits": [
+    "No human listening or semantic fidelity claim",
+    "No ASR or cloud audio transfer",
+    "EOS metadata is generation termination evidence only",
+    "First speech waits for final text"
+  ],
+  "verification_script_sha256": "86cf4487e0ea987506ace179f87513ddc63119930842519afb0ddfcb6225207b",
+  "source_sha256_start": {
+    "scripts/qwen_tts_worker.py": "70941acaaf16906aaa8852e4eb13e099e66c348ca8cd0df95daad0ce43d4d12c",
+    "src/siro/services/audio/tts.py": "26fea6450524a3e9dd26371f01d7ffa8d13b85255061a90d67e960b1715ec6e6",
+    "src/siro/services/presentation/gateway.py": "a4bc4d1582a1d1836c9300697bc80ec9d054f8c4d1add7a360621cf127d528bf",
+    "src/siro/services/presentation/static/index.html": "616d449fc913c441b45351703b12c3dcadd667c8758d26f30fcd67cd7fab0bc8"
+  },
+  "story_chars": 157,
+  "story_final_sentence": "故事到這裡，平安結束了。",
+  "checks": {
+    "cold_short": "PASS",
+    "cache_hit_separate_from_warm_generation": "PASS",
+    "browser_ordered_complete_native_playback": "PASS",
+    "fresh_inflight_cancel": "PASS"
+  },
+  "jobs": [
+    {
+      "index": 0,
+      "case": "cold-short",
+      "chars": 22,
+      "text_sha256": "ac3523ce2c385b365266309e8d7d10d0e1baa265274cbba1926dc126b98d3bd6",
+      "started_ms": 1791442144195.381,
+      "worker_messages": [
+        {
+          "ready": true,
+          "device": "cuda:0",
+          "completion_protocol": 2,
+          "received_ms": 1791442158464.029,
+          "audio_present": false
+        },
+        {
+          "cache_hit": false,
+          "completion": {
+            "status": "complete",
+            "eos_observed": true,
+            "cap_reached": false,
+            "generated_tokens": 72,
+            "max_new_tokens": 512,
+            "observer_calls": 1
+          },
+          "received_ms": 1791442168775.628,
+          "audio_present": true
+        }
+      ],
+      "outcome": "audio",
+      "exchange_wait_started_ms": 1791442158464.366,
+      "ended_ms": 1791442168776.552,
+      "audio_duration_seconds": 5.68,
+      "audio_path": "/home/jasonliao/文件/Siro/SiroV2/.siro-data/verification/FIX-005-2026-10-08/sdpa-verified/00-cold-short.wav",
+      "audio_bytes": 272684,
+      "audio_sha256": "311128408380cd43ec344d92f127d45171666fdd81ee2997456b61e1865821de",
+      "elapsed_seconds": 24.581577,
+      "real_time_factor": 4.327742
+    },
+    {
+      "index": 1,
+      "case": "cache-hit",
+      "chars": 22,
+      "text_sha256": "ac3523ce2c385b365266309e8d7d10d0e1baa265274cbba1926dc126b98d3bd6",
+      "started_ms": 1791442168777.145,
+      "worker_messages": [
+        {
+          "cache_hit": true,
+          "completion": {
+            "status": "complete",
+            "eos_observed": true,
+            "cap_reached": false,
+            "generated_tokens": 72,
+            "max_new_tokens": 512,
+            "observer_calls": 1
+          },
+          "received_ms": 1791442168781.047,
+          "audio_present": true
+        }
+      ],
+      "outcome": "audio",
+      "exchange_wait_started_ms": 1791442168777.296,
+      "ended_ms": 1791442168781.791,
+      "audio_duration_seconds": 5.68,
+      "audio_path": "/home/jasonliao/文件/Siro/SiroV2/.siro-data/verification/FIX-005-2026-10-08/sdpa-verified/01-cache-hit.wav",
+      "audio_bytes": 272684,
+      "audio_sha256": "311128408380cd43ec344d92f127d45171666fdd81ee2997456b61e1865821de",
+      "elapsed_seconds": 0.005001,
+      "real_time_factor": 0.00088
+    },
+    {
+      "index": 2,
+      "case": "browser-story",
+      "chars": 56,
+      "text_sha256": "1574ff1e1b5f2d1ccbb5ead19743e277f454452c420d836f27335737c3dbe964",
+      "started_ms": 1791442170416.09,
+      "worker_messages": [
+        {
+          "cache_hit": false,
+          "completion": {
+            "status": "complete",
+            "eos_observed": true,
+            "cap_reached": false,
+            "generated_tokens": 160,
+            "max_new_tokens": 512,
+            "observer_calls": 1
+          },
+          "received_ms": 1791442192740.477,
+          "audio_present": true
+        }
+      ],
+      "outcome": "audio",
+      "exchange_wait_started_ms": 1791442170416.166,
+      "ended_ms": 1791442192742.018,
+      "audio_duration_seconds": 12.72,
+      "audio_path": "/home/jasonliao/文件/Siro/SiroV2/.siro-data/verification/FIX-005-2026-10-08/sdpa-verified/02-browser-story.wav",
+      "audio_bytes": 610604,
+      "audio_sha256": "ba5361f98cf6b5eb4ca197f1b261872715ae92d48a0b8d4ff58fa9fcee051adf",
+      "elapsed_seconds": 22.326616,
+      "real_time_factor": 1.755237
+    },
+    {
+      "index": 3,
+      "case": "browser-story",
+      "chars": 60,
+      "text_sha256": "02abd0023033065543f92d606052795f4cb0d5637ed76a7fc6d501d760bcaca6",
+      "started_ms": 1791442192750.652,
+      "worker_messages": [
+        {
+          "cache_hit": false,
+          "completion": {
+            "status": "complete",
+            "eos_observed": true,
+            "cap_reached": false,
+            "generated_tokens": 165,
+            "max_new_tokens": 512,
+            "observer_calls": 1
+          },
+          "received_ms": 1791442215675.735,
+          "audio_present": true
+        }
+      ],
+      "outcome": "audio",
+      "exchange_wait_started_ms": 1791442192750.726,
+      "ended_ms": 1791442215677.384,
+      "audio_duration_seconds": 13.12,
+      "audio_path": "/home/jasonliao/文件/Siro/SiroV2/.siro-data/verification/FIX-005-2026-10-08/sdpa-verified/03-browser-story.wav",
+      "audio_bytes": 629804,
+      "audio_sha256": "81792e3458cead1829c127a66911f466940007932ca5a6c1b47060c540dde8ca",
+      "elapsed_seconds": 22.927461,
+      "real_time_factor": 1.74752
+    },
+    {
+      "index": 4,
+      "case": "browser-story",
+      "chars": 41,
+      "text_sha256": "cad208deb35c608070bebf502912a0991a69128002b0fe80206f37cbc46c409d",
+      "started_ms": 1791442215684.514,
+      "worker_messages": [
+        {
+          "cache_hit": false,
+          "completion": {
+            "status": "complete",
+            "eos_observed": true,
+            "cap_reached": false,
+            "generated_tokens": 122,
+            "max_new_tokens": 512,
+            "observer_calls": 1
+          },
+          "received_ms": 1791442232627.507,
+          "audio_present": true
+        }
+      ],
+      "outcome": "audio",
+      "exchange_wait_started_ms": 1791442215684.607,
+      "ended_ms": 1791442232628.801,
+      "audio_duration_seconds": 9.68,
+      "audio_path": "/home/jasonliao/文件/Siro/SiroV2/.siro-data/verification/FIX-005-2026-10-08/sdpa-verified/04-browser-story.wav",
+      "audio_bytes": 464684,
+      "audio_sha256": "dd537d5c907db6362897417da29336d3eb23a10fab19fcb48f4ac0267de2e378",
+      "elapsed_seconds": 16.944825,
+      "real_time_factor": 1.750498
+    },
+    {
+      "index": 5,
+      "case": "cancel",
+      "chars": 60,
+      "text_sha256": "e2a5a3c08e7a93b2eea247b18376fd2acf9336a32f0f68382002f0b9c606a9e3",
+      "started_ms": 1791442242481.161,
+      "worker_messages": [],
+      "outcome": "CancelledError",
+      "exchange_wait_started_ms": 1791442242481.231,
+      "ended_ms": 1791442243071.359,
+      "elapsed_seconds": 0.590224
+    }
+  ],
+  "stage": "finished",
+  "cache": {
+    "temporary": true,
+    "original_cache_untouched": true
+  },
+  "ui_script_sha256": "98822a659418f2b9446f7d6b92e50c4edefbff952ffaeac9de4de88c2d58662c",
+  "story_plan": {
+    "segments": [
+      "星期六的清晨，小雨帶著一盞小燈，陪爺爺走進安靜的花園。昨夜的雨水還停在葉尖，一隻迷路的小鳥躲在木椅旁，輕輕叫著。",
+      "小雨放下一碗清水，退到樹後耐心等待，爺爺則替牠搭了一處避風的小屋。太陽升高時，小鳥終於拍動翅膀，飛向遠處傳來歌聲的樹林。",
+      "他們收好小燈，一起回家吃熱粥，窗邊也留下了一個溫柔的約定。故事到這裡，平安結束了。"
+    ],
+    "spoken_text": "星期六的清晨，小雨帶著一盞小燈，陪爺爺走進安靜的花園。昨夜的雨水還停在葉尖，一隻迷路的小鳥躲在木椅旁，輕輕叫著。小雨放下一碗清水，退到樹後耐心等待，爺爺則替牠搭了一處避風的小屋。太陽升高時，小鳥終於拍動翅膀，飛向遠處傳來歌聲的樹林。他們收好小燈，一起回家吃熱粥，窗邊也留下了一個溫柔的約定。故事到這裡，平安結束了。",
+    "version": "sentence-v1-80",
+    "max_chars": 80,
+    "max_segments": 128,
+    "max_total_chars": 8000,
+    "deadline_seconds": 1200
+  },
+  "browser_story": {
+    "native_audio": [
+      {
+        "index": 0,
+        "created_ms": 1791442192747,
+        "events": [
+          {
+            "type": "play",
+            "at_ms": 1791442192753,
+            "current_time": 0,
+            "duration": null,
+            "playback_rate": 1,
+            "status": "語音準備中（已播 0/3 段）"
+          },
+          {
+            "type": "waiting",
+            "at_ms": 1791442192754,
+            "current_time": 0,
+            "duration": null,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 0/3 段）"
+          },
+          {
+            "type": "playing",
+            "at_ms": 1791442192804,
+            "current_time": 0,
+            "duration": 12.72,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 0/3 段）"
+          },
+          {
+            "type": "pause",
+            "at_ms": 1791442205634,
+            "current_time": 12.72,
+            "duration": 12.72,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 0/3 段）"
+          },
+          {
+            "type": "ended",
+            "at_ms": 1791442205634,
+            "current_time": 12.72,
+            "duration": 12.72,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 0/3 段）"
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "created_ms": 1791442215681,
+        "events": [
+          {
+            "type": "play",
+            "at_ms": 1791442215682,
+            "current_time": 0,
+            "duration": null,
+            "playback_rate": 1,
+            "status": "語音準備中（已播 1/3 段）"
+          },
+          {
+            "type": "waiting",
+            "at_ms": 1791442215682,
+            "current_time": 0,
+            "duration": null,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 1/3 段）"
+          },
+          {
+            "type": "playing",
+            "at_ms": 1791442215687,
+            "current_time": 0,
+            "duration": 13.12,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 1/3 段）"
+          },
+          {
+            "type": "pause",
+            "at_ms": 1791442228919,
+            "current_time": 13.12,
+            "duration": 13.12,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 1/3 段）"
+          },
+          {
+            "type": "ended",
+            "at_ms": 1791442228919,
+            "current_time": 13.12,
+            "duration": 13.12,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 1/3 段）"
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "created_ms": 1791442232632,
+        "events": [
+          {
+            "type": "play",
+            "at_ms": 1791442232632,
+            "current_time": 0,
+            "duration": null,
+            "playback_rate": 1,
+            "status": "語音準備中（已播 2/3 段）"
+          },
+          {
+            "type": "waiting",
+            "at_ms": 1791442232633,
+            "current_time": 0,
+            "duration": null,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 2/3 段）"
+          },
+          {
+            "type": "playing",
+            "at_ms": 1791442232638,
+            "current_time": 0,
+            "duration": 9.68,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 2/3 段）"
+          },
+          {
+            "type": "pause",
+            "at_ms": 1791442242380,
+            "current_time": 9.68,
+            "duration": 9.68,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 2/3 段）"
+          },
+          {
+            "type": "ended",
+            "at_ms": 1791442242380,
+            "current_time": 9.68,
+            "duration": 9.68,
+            "playback_rate": 1,
+            "status": "SIRO 正在說話（已播 2/3 段）"
+          }
+        ]
+      }
+    ],
+    "statuses": [
+      {
+        "at_ms": 1791442170348,
+        "text": "TTS 待命"
+      },
+      {
+        "at_ms": 1791442170362,
+        "text": "TTS 待命"
+      },
+      {
+        "at_ms": 1791442170367,
+        "text": "準備全文朗讀…"
+      },
+      {
+        "at_ms": 1791442170413,
+        "text": "語音準備中（已播 0/3 段）"
+      },
+      {
+        "at_ms": 1791442192753,
+        "text": "SIRO 正在說話（已播 0/3 段）"
+      },
+      {
+        "at_ms": 1791442205635,
+        "text": "語音準備中（已播 1/3 段）"
+      },
+      {
+        "at_ms": 1791442215682,
+        "text": "SIRO 正在說話（已播 1/3 段）"
+      },
+      {
+        "at_ms": 1791442228920,
+        "text": "語音準備中（已播 2/3 段）"
+      },
+      {
+        "at_ms": 1791442232633,
+        "text": "SIRO 正在說話（已播 2/3 段）"
+      },
+      {
+        "at_ms": 1791442242391,
+        "text": "全文朗讀完成（3/3 段）"
+      }
+    ],
+    "first_play_wait_seconds": 22.446177001953124,
+    "generated_segments_at_first_play": 1,
+    "segment_gaps_seconds": [
+      10.053,
+      3.719
+    ],
+    "completed_after_final_ended": true,
+    "max_one_segment_prefetch": true,
+    "warm_uncached_render_seconds": [
+      22.326616,
+      22.927461,
+      16.944825
+    ]
+  },
+  "cancellation": {
+    "inference_wait_observed": true,
+    "cancel_at_ms": 1791442242732.249,
+    "worker_reaped_before_close": true,
+    "worker_returncode": -9,
+    "no_audio_returned": true,
+    "no_new_native_audio_after_cancel": true,
+    "observation_after_cleanup_seconds": 1.0,
+    "scope": "owned Qwen gateway disconnect"
+  },
+  "cleanup": {
+    "browser_closed": true,
+    "body_detached": true,
+    "control_clients_remaining": 0,
+    "server_stopped": true,
+    "listener_closed": true,
+    "qwen_closed": true,
+    "pending_renders": 0,
+    "active_render_cleared": true,
+    "owned_processes_reaped": true,
+    "owned_process_count": 1,
+    "temporary_tokens_disposed": 2,
+    "tokens_remaining": 0,
+    "cleanup_error_types": [],
+    "temporary_cache_removed": true
+  },
+  "page_js_error_types": [],
+  "blocked_external_request_count": 0,
+  "source_sha256_finish": {
+    "scripts/qwen_tts_worker.py": "70941acaaf16906aaa8852e4eb13e099e66c348ca8cd0df95daad0ce43d4d12c",
+    "src/siro/services/audio/tts.py": "26fea6450524a3e9dd26371f01d7ffa8d13b85255061a90d67e960b1715ec6e6",
+    "src/siro/services/presentation/gateway.py": "a4bc4d1582a1d1836c9300697bc80ec9d054f8c4d1add7a360621cf127d528bf",
+    "src/siro/services/presentation/static/index.html": "616d449fc913c441b45351703b12c3dcadd667c8758d26f30fcd67cd7fab0bc8"
+  }
+}

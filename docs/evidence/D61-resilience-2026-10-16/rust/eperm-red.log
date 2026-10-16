@@ -1,0 +1,38 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running unittests src/lib.rs (target/debug/deps/siro_runtime-a8e276feebc361cb)
+
+running 1 test
+test linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership ... FAILED
+
+failures:
+
+---- linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership stdout ----
+
+thread 'linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership' (1041389) panicked at runtime/siro-runtime/src/linux.rs:813:9:
+group permission probe failed: 
+running 1 test
+test linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership ... FAILED
+
+failures:
+
+failures:
+    linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.04s
+
+ 
+thread 'linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership' (1041391) panicked at runtime/siro-runtime/src/linux.rs:800:13:
+assertion `left == right` failed
+  left: Ok(Object {"pids": Array [Number(1041392)]})
+ right: Err("process_group_permission_denied")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    linux::tests::denied_owned_group_stop_reports_failure_and_preserves_ownership
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p siro-runtime --lib`

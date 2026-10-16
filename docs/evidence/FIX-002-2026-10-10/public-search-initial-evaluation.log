@@ -1,0 +1,162 @@
+Error occurred in event listener
+Traceback (most recent call last):
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_helper.py", line 442, in handle
+    return await self._handle_internal(route)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_helper.py", line 483, in _handle_internal
+    await asyncio.ensure_future(coro_or_future)
+  File "/home/jasonliao/文件/Siro/SiroV2/src/siro/adapters/browser.py", line 293, in _route_request
+    response = await route.fetch(max_redirects=0)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/async_api/_generated.py", line 854, in fetch
+    await self._impl_obj.fetch(
+    ...<7 lines>...
+    )
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_network.py", line 496, in fetch
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<10 lines>...
+    )
+    ^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_connection.py", line 632, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TargetClosedError: Route.fetch: Request context disposed.
+Call log:
+  - → GET https://www.bing.com/sa/simg/favicon-trans-bg-blue-mg.svg
+    - user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36
+    - accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8
+    - accept-encoding: gzip,deflate,br
+    - cookie: MUID=2EE7BD5A805363F12966AAB7817B62F8; MUIDB=2EE7BD5A805363F12966AAB7817B62F8; _EDGE_S=F=1&SID=0BB3D9500AE06BEF3EA9CEBD0BC86A47; _EDGE_V=1; __Host-XY=CfDJ8Pj64jZaZ_RFrelrus2TRACoGzl8gJFTKu2sWR-O2iKzU3Hbt1krcD5jT0GOleLf1rW7OsHTFxvCQ8TBj0HLYdhpxuUlBZeAhvsjzJ4XuuP3z823xvtxhUJ5dCbz9valkQgC-QDb0rmoQKCSBAqbPjuWKyFzGaOrlOKFu2nymOY_1LkxrM2SHD3rFInDa6YaJ2gjzDiOForY0r9Y3nmzs-i88VTqLiqSjqe3KRrvwOxckh2gQbVu-Zyv0z8N5H_QQ9qkUN_K8iq0q5mbe27TnpE; SRCHD=AF=NOFORM; SRCHUID=V=2&GUID=C800D114C9894EF2A2F8E15157775E8F&dmnchg=1; SRCHUSR=DOB=20261009; _SS=SID=0BB3D9500AE06BEF3EA9CEBD0BC86A47; SRCHHPGUSR=V=CfDJ8Pj64jZaZ_RFrelrus2TRAD_KiuGW3RUGcTGd2Fhpdj53nsLPgtxASasP8U9LKoWF0mnNTH0I8LffaeykHk1BsTB7F0P0_UbRpKhACnjICQTEQIV-8r8nxr4hCf0HHv_sTwS_z6AJmWsd5sGRJtfHNw&SRCHLANG=zh-Hant&IG=83AFEA15C5414C108ED3E1FA740434F5&HV=1791564309&HVE=CfDJ8Pj64jZaZ_RFrelrus2TRACOyZhTILu96-l4blxD04jofUKqAf-BVJa3w41kmh8F3k2fKHPg03zWgpu9mdrD2vEEhUg-vZUPpsb57jjNpEwT8Rpe_52_IxcD8xwY5JVKRyAdhLtqRlSaF9zoJpWyYNjmuL-vFcJZcfQ0DsNYjAHK8l32TIp39uROlo86WNgBbQ
+    - referer: https://www.bing.com/search?q=Python+asyncio+documentation
+    - ect: 4g
+    - sec-ch-prefers-color-scheme: light
+    - sec-ch-ua: "Chromium";v="154", "Google Chrome";v="154", "Not A(Brand";v="99"
+    - sec-ch-ua-arch: "x86"
+    - sec-ch-ua-bitness: "64"
+    - sec-ch-ua-full-version: "154.0.8037.92"
+    - sec-ch-ua-full-version-list: "Chromium";v="154.0.8037.92", "Google Chrome";v="154.0.8037.92", "Not A(Brand";v="99.0.0.0"
+    - sec-ch-ua-mobile: ?0
+    - sec-ch-ua-model: ""
+    - sec-ch-ua-platform: "Linux"
+    - sec-ch-ua-platform-version: ""
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_page.py", line 310, in _on_route
+    handled = await route_handler.handle(route)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/playwright/_impl/_helper.py", line 451, in handle
+    raise rewrite_error(
+    ...<2 lines>...
+    )
+playwright._impl._errors.TargetClosedError: "Route.fetch: Request context disposed.
+Call log:
+  - → GET https://www.bing.com/sa/simg/favicon-trans-bg-blue-mg.svg
+    - user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36
+    - accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8
+    - accept-encoding: gzip,deflate,br
+    - cookie: MUID=2EE7BD5A805363F12966AAB7817B62F8; MUIDB=2EE7BD5A805363F12966AAB7817B62F8; _EDGE_S=F=1&SID=0BB3D9500AE06BEF3EA9CEBD0BC86A47; _EDGE_V=1; __Host-XY=CfDJ8Pj64jZaZ_RFrelrus2TRACoGzl8gJFTKu2sWR-O2iKzU3Hbt1krcD5jT0GOleLf1rW7OsHTFxvCQ8TBj0HLYdhpxuUlBZeAhvsjzJ4XuuP3z823xvtxhUJ5dCbz9valkQgC-QDb0rmoQKCSBAqbPjuWKyFzGaOrlOKFu2nymOY_1LkxrM2SHD3rFInDa6YaJ2gjzDiOForY0r9Y3nmzs-i88VTqLiqSjqe3KRrvwOxckh2gQbVu-Zyv0z8N5H_QQ9qkUN_K8iq0q5mbe27TnpE; SRCHD=AF=NOFORM; SRCHUID=V=2&GUID=C800D114C9894EF2A2F8E15157775E8F&dmnchg=1; SRCHUSR=DOB=20261009; _SS=SID=0BB3D9500AE06BEF3EA9CEBD0BC86A47; SRCHHPGUSR=V=CfDJ8Pj64jZaZ_RFrelrus2TRAD_KiuGW3RUGcTGd2Fhpdj53nsLPgtxASasP8U9LKoWF0mnNTH0I8LffaeykHk1BsTB7F0P0_UbRpKhACnjICQTEQIV-8r8nxr4hCf0HHv_sTwS_z6AJmWsd5sGRJtfHNw&SRCHLANG=zh-Hant&IG=83AFEA15C5414C108ED3E1FA740434F5&HV=1791564309&HVE=CfDJ8Pj64jZaZ_RFrelrus2TRACOyZhTILu96-l4blxD04jofUKqAf-BVJa3w41kmh8F3k2fKHPg03zWgpu9mdrD2vEEhUg-vZUPpsb57jjNpEwT8Rpe_52_IxcD8xwY5JVKRyAdhLtqRlSaF9zoJpWyYNjmuL-vFcJZcfQ0DsNYjAHK8l32TIp39uROlo86WNgBbQ
+    - referer: https://www.bing.com/search?q=Python+asyncio+documentation
+    - ect: 4g
+    - sec-ch-prefers-color-scheme: light
+    - sec-ch-ua: "Chromium";v="154", "Google Chrome";v="154", "Not A(Brand";v="99"
+    - sec-ch-ua-arch: "x86"
+    - sec-ch-ua-bitness: "64"
+    - sec-ch-ua-full-version: "154.0.8037.92"
+    - sec-ch-ua-full-version-list: "Chromium";v="154.0.8037.92", "Google Chrome";v="154.0.8037.92", "Not A(Brand";v="99.0.0.0"
+    - sec-ch-ua-mobile: ?0
+    - sec-ch-ua-model: ""
+    - sec-ch-ua-platform: "Linux"
+    - sec-ch-ua-platform-version: ""
+" while running route callback.
+Consider awaiting `await page.unroute_all(behavior='ignoreErrors')`
+before the end of the test to ignore remaining routes in flight.
+{
+  "synthetic_public_only": true,
+  "never_touched_existing_service_or_private_data": true,
+  "ui_voice_human_checks": "NOT_RUN",
+  "source_sha256_before": {
+    "src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b",
+    "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484",
+    "src/siro/services/tools/orchestrator.py": "0eb1d2e7acd596e03bc69cb955ddf46ff2a990815e5b401416fcef2a139d853b",
+    "src/siro/services/presentation/integrated.py": "bef79667f4906695eafe8da54d9308a9a8cf1fca6af50067cfcfdb1dea227e49",
+    "src/siro/adapters/models/openai_compatible.py": "510852b90f429cbf021c957643f1f1ed71f63b41af1c35388d8ecaf5f6e78ee1"
+  },
+  "direct_browser": {
+    "target": "https://www.bing.com/search?q=Python+asyncio+documentation",
+    "actual_browser": true,
+    "url": "https://www.bing.com/search?q=Python+asyncio+documentation",
+    "title": "Python asyncio documentation - 搜尋",
+    "public_text_excerpt": "跳至內容\n協助工具意見反應\n行動裝置\nEnglish\n全部\nWeb\nAI 模式\n圖片\n影片\n更多\n地圖\n新聞\n航班\n工具\n隱私權\n條款\n內容使用 AI 產生。深入了解\n全部過去 24 小時過去 1 週過去 1 個月過去 1 年",
+    "text_characters": 113,
+    "partial": true,
+    "reason": "subresource_denied",
+    "captcha_suspected": false,
+    "seconds": 1.545
+  },
+  "configured_product": {
+    "actual_configured_provider": true,
+    "actual_browser": true,
+    "private_inputs": false,
+    "max_model_rounds": 4,
+    "max_seconds": 180,
+    "tool": "browser.navigate+read",
+    "target": "https://www.bing.com/search?q=Python+asyncio+documentation",
+    "owned_browser_pool_cleaned": true,
+    "model_rounds": 2,
+    "model_message_roles": [
+      [
+        "system",
+        "user"
+      ],
+      [
+        "system",
+        "user",
+        "assistant",
+        "tool"
+      ]
+    ],
+    "actual_tool_dispatches": 1,
+    "exact_approved_argument_bindings": [
+      true
+    ],
+    "native_pairing_checks": [
+      true
+    ],
+    "observations": [
+      {
+        "state": "completed",
+        "error": null,
+        "capability": "browser.navigate+read",
+        "url": "https://www.bing.com/search?q=Python+asyncio+documentation",
+        "title": "Python asyncio documentation - 搜尋",
+        "public_text_excerpt": "跳至內容\n協助工具意見反應\n行動裝置\nEnglish\n全部\nWeb\nAI 模式\n圖片\n影片\n更多\n地圖\n新聞\n航班\n工具\n© 2026 Microsoft\n隱私權和 Cookie\n法律聲明\n廣告\n關於我們的廣告\n說明\n意見反應\n內容使用 AI 產生。深入了解\n全部過去 24 小時過去 1 週過去 1 個月過去 1 年",
+        "load_status": "partial",
+        "reason": "subresource_denied"
+      }
+    ],
+    "terminal_count": 1,
+    "terminal_states": [
+      "completed"
+    ],
+    "terminal_errors": [
+      null
+    ],
+    "natural_reply": "我使用 `browser.navigate+read` 開啟了網址 https://www.bing.com/search?q=Python+asyncio+documentation，頁面只載入了部分內容（`load_status` 為 *partial*），主要顯示搜尋頁面的標題與頁首導航。可見文字中並未呈現任何指向 Python 官方 asyncio 文件（如 https://docs.python.org/3/library/asyncio.html）的連結或相關文字，因此無法確認已找到官方文件。若需要進一步確認，請開啟該搜尋頁面的完整內容。 \n\n**來源 URL**: https://www.bing.com/search?q=Python+asyncio+documentation",
+    "sourced_reply_has_search_url": true,
+    "actual_page_read": true,
+    "automatic_end_to_end_gate": true,
+    "temporary_data_removed": true,
+    "seconds": 3.822
+  },
+  "source_sha256_after": {
+    "src/siro/adapters/browser.py": "da6c4ec180c4134b04b9be601e6562d9ef502e9b30cafb4fe7b0daee99b9371b",
+    "src/siro/services/tools/browser_session.py": "4883c01108751c78d6479b7ad32fa8f350510b7a660325a5868e52c9239de484",
+    "src/siro/services/tools/orchestrator.py": "0eb1d2e7acd596e03bc69cb955ddf46ff2a990815e5b401416fcef2a139d853b",
+    "src/siro/services/presentation/integrated.py": "bef79667f4906695eafe8da54d9308a9a8cf1fca6af50067cfcfdb1dea227e49",
+    "src/siro/adapters/models/openai_compatible.py": "510852b90f429cbf021c957643f1f1ed71f63b41af1c35388d8ecaf5f6e78ee1"
+  },
+  "source_unchanged_during_probe": true
+}

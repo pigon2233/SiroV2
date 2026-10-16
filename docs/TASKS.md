@@ -1,5 +1,11 @@
 # Sol 逐項實作任務卡
 
+## 2026-10-16 D61 局部修復接續點
+
+使用者六項急修已核對，真正缺口分為 [FIX-022／023／024／025](runtime-evolution/FIX_REGISTER.md)：MQTT ACK／有界追蹤、模型protocol錯誤、SQLite連線關閉、Rust回收與完整輸出。**DONE / LOCAL_VERIFIED**：最終隔離Git完整check EXIT0、2129 Python PASS／5原opt-in SKIP、24 Rust PASS，見 [本輪證據](evidence/D61-resilience-2026-10-16/REPORT.md)。原WAL／RT-009 failover／D43固定sandbox profile不重做；不改RT編號／原任務歷史。
+
+已解除本四卡的local BLOCKED_BY_FIX；不以軟體PASS宣告發布或真ESP32完成。T27仍需真Broker／toolchain／板子驗收，擴大process權限與正式release仍有原先獨立gate。
+
 所有任務初始為 TODO；實際狀態以 [STATUS.md](STATUS.md) 的任務表為準。依賴是開工前條件；每張卡還必須遵守 [契約](CONTRACTS.md)、[體驗](EXPERIENCE.md)、[安全與隱私](SECURITY_PRIVACY.md)、[驗收](ACCEPTANCE.md) 和 [操作手冊](SOL_RUNBOOK.md)。路徑為目標產出；目前尚未建立的程式檔不代表遺漏。
 
 每張卡執行同一流程：讀輸入 → 檢查現況 → 補驗收 fixture → 實作 → 跑相關檢查 → 記錄證據 → 更新狀態。每張卡的證據放 `docs/evidence/Txx/`，至少含環境、執行命令、結果、限制；真實私人資料只保存脫敏摘要。任務不應越界實作後續整個階段。
@@ -87,6 +93,15 @@
 - 步驟：獨立 gateway；session/Origin 認證；單 writer、控制佇列、snapshot/reconnect；小型 UI 顯示對話、取消、健康狀態、資料路由與本機 kill switches。
 - 產出：`services/presentation`、`ui`、WS contract tests。
 - 驗收：慢 client／多 producer／反覆連線不破壞 event loop；一個 client 不影響另一個；A05/A06 通過。
+
+#### T10-UI-01 介面重設計與獨立工作畫面
+
+- 狀態：**PARTIAL**（2026-10-15）。首個網頁分頁／視覺切片 LOCAL_VERIFIED：九工作畫面、333前端PASS、真main／Rust／SQLite三次啟動與24 CUA檢查；[證據／限制](evidence/T10-UI-01-2026-10-15/REPORT.md)。真Live2D切頁、任務詳情／記憶搜尋等補完及真人體驗未完，原 T10 傳輸驗收及 T／RT 編號保持。
+- 依賴：T10 現有 session／Origin／single writer 與 D34 續期；各畫面重用現有 API。桌面外殼／動作沿 T12 及既有 Companion plan，不阻擋先交付網頁分頁。
+- 輸入與產出：[INTERFACE_REDESIGN_PLAN](runtime-evolution/INTERFACE_REDESIGN_PLAN.md) 的入口對照、視覺草案、分開的可操作原型、逐頁移轉與回退；參考 frontend-design／Hallmark／VPet。
+- 最小切片：先對話＋任務獨立畫面，再移記憶、能力、設定／診斷；共用同一 control／session，避免每頁開第二 renderer／音訊 owner。不能只換配色或將全部功能折疊。
+- 驗收：逐頁直接進入／後退／重新整理；聊天→審查任務→返回、更正記憶、停止工具三流程；狀態／來源／批准／取消／unknown 保持，跨頁不重送動作或舊音。窄窗／鍵盤／真 renderer 與真桌面分開取證。
+- 回退：只撤新前端／外殼／資產，保留最新 DB 與任務；本卡不改 Core／DB schema／授權／provider／release。桌面自由活動及缺少動作仍按 [COMPANION_EVOLUTION_PLAN](runtime-evolution/COMPANION_EVOLUTION_PLAN.md) 各自驗收，不以規劃或原型冒稱完成。
 
 ### T11 AIRI 身體接入可行性
 
@@ -218,6 +233,14 @@ D57 跨任務控制沿本卡：owner明確批准後離開可繼續有界讀取�
 - 步驟：broker 認證、availability/LWT、state、command/ack；ESP32 提供設定式 presence 或 temperature sensor 與低風險 LED actuator 範例。
 - 產出：gateway、`firmware/esp32`、接線/燒錄指南、simulator。
 - 驗收：重複/retained/過期命令與離線測試；真板讀值及 LED readback；無硬體只標 simulator 通過。
+
+#### T27-FIX-01 MQTT／ESP32 時間格式與對時修復
+
+- 狀態：**LOCAL_VERIFIED / HARDWARE PENDING**（2026-10-16）；不更改 T27 原本真板驗收門檻。
+- 來源／根因：Python command 缺 firmware 必需的 `expires_at_epoch`，Python state 只接受 ISO，且 `configTime` 啟動 SNTP 後 firmware 未等時間就連 MQTT。原版本對新增驗收有5個失敗；屬已確認的 implementation／integration defect。
+- 最小修復：保留 ISO、加 epoch mirror；simulator 只接受已核對一致的已知 mirror；state 接受 UTC 數值 epoch且寫入前驗時。firmware 30秒有界等待及 loop guard；新增 aiomqtt 單次 probe，重用現有 tracker／projector／registry，applied ACK加新鮮無矛盾state才確認。
+- 相容／範圍：舊 ISO、non-retained、expiry／dedup／LWT／auth 不變；不改 Core、World 排序、schema、授權、UI、依賴或既有 RT 編號。腳本單次點亮授權 LED，無自動重送／補償動作。
+- 驗收／回退：時間格式、真 Broker＋合成 peer、既有相鄰回歸及 host clock control-flow；只撤本卡 MQTT／firmware hunk與新增 probe／tests，不還原 DB。真板與 PlatformIO build 分開驗。[證據與限制](evidence/T27-mqtt-time-2026-10-16/REPORT.md)。
 
 ### T28 Home Assistant Adapter
 

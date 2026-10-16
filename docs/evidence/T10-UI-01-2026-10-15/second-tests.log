@@ -1,0 +1,335 @@
+...................F.F.................................................. [ 63%]
+.........................................                                [100%]
+=================================== FAILURES ===================================
+_ test_pending_turn_survives_navigation_without_resubmission_or_new_connection _
+
+    def test_pending_turn_survives_navigation_without_resubmission_or_new_connection() -> None:
+>       run_navigation(
+            """
+    initializePageNavigation();const owner=await readyControl();
+    let resolveTurn;
+    fetchPlan=()=>new Promise(resolve=>{resolveTurn=resolve;});
+    const submission=submitText('synthetic navigation submission');
+    await until(()=>targetCalls().length===1);
+    const request=targetCalls()[0],pending=pendingSubmission,generation=submissionGeneration;
+    const renderer=document.querySelector('#companion'),sessionOwner=sessionAccess;
+    for(const page of ['tasks','memory','computer','system','chat']) navigateToPage(page);
+    history.back();history.forward();
+    assert.equal(targetCalls().length,1);assert.equal(request.url,'/v1/conversations/browser/turns');
+    assert.strictEqual(pendingSubmission,pending);assert(!pending.signal.aborted);
+    assert.equal(submissionGeneration,generation);assert.strictEqual(socket,owner);
+    assert.strictEqual(sessionAccess,sessionOwner);assert.equal(sockets.length,1);
+    assert.strictEqual(document.querySelector('#companion'),renderer);
+    resolveTurn(response(200,{turn_id:'synthetic-preserved-turn'}));await submission;
+    assert.equal(currentTurn,'synthetic-preserved-turn');assert.equal(targetCalls().length,1);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:332: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...'}));await submission;\nassert.equal(currentTurn,\'synthetic-preserved-turn\');assert.equal(targetCalls().length,1);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+E         + actual - expected
+E         
+E         + undefined
+E         - 'synthetic-preserved-turn'
+E         
+E             at [eval]:1385:8 {
+E           generatedMessage: true,
+E           code: 'ERR_ASSERTION',
+E           actual: undefined,
+E           expected: 'synthetic-preserved-turn',
+E           operator: 'strictEqual',
+E           diff: 'simple'
+E         }
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...N',\n  actual: undefined,\n  expected: 'synthetic-preserved-turn',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n").returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+_ test_streaming_answer_updates_existing_chat_while_another_work_page_is_open __
+
+    def test_streaming_answer_updates_existing_chat_while_another_work_page_is_open() -> None:
+>       run_navigation(
+            """
+    initializePageNavigation();const owner=await readyControl();navigateToPage('tasks');
+    const messages=document.querySelector('#messages');
+    owner.message({type:'turn_started',turn_id:'synthetic-stream-turn'});
+    owner.message({type:'assistant_started',stream_id:'synthetic-stream'});
+    owner.message({type:'assistant_delta',stream_id:'synthetic-stream',text:'合成來源仍然連續'});
+    assertPage('tasks');assert.equal(currentTurn,'synthetic-stream-turn');
+    assert(messages.textContent.includes('合成來源仍然連續'));
+    owner.message({type:'assistant_terminal',stream_id:'synthetic-stream',state:'completed'});
+    await flush();assertPage('tasks');assert.equal(currentTurn,undefined);
+    navigateToPage('chat');assert.strictEqual(document.querySelector('#messages'),messages);
+    assert(messages.textContent.includes('合成來源仍然連續'));
+    assert.equal(targetCalls().length,0,'Returning must not resubmit the turn or replay speech');
+    assert.equal(sockets.length,1);
+    """
+        )
+
+tests/integration/test_frontend_navigation.py:378: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_frontend_navigation.py:200: in run_navigation
+    run_control(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+checks = 'const PAGE_SPEC={"tag": "body", "attrs": {}, "children": [{"tag": "div", "attrs": {"class": "app-shell"}, "children":...(targetCalls().length,0,\'Returning must not resubmit the turn or replay speech\');\nassert.equal(sockets.length,1);\n'
+
+    def run_control(checks: str) -> None:
+        """Run the real page with synthetic socket events and a manually advanced clock."""
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        script = script[: script.rindex("      boot().catch(")]
+        ids = json.dumps(re.findall(r'\bid="([^"]+)"', html))
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const roots = [], listeners = new Map(), timers = new Map(), sockets = [], calls = [];
+    let clock = 0, nextTimer = 0, nextToken = 0, fetchPlan, bootstrapPlan;
+    const performance = {now: () => clock};
+    const location = {origin:'http://localhost', host:'localhost', protocol:'http:', reload() {
+      throw new Error('Connection recovery must not reload the page');
+    }};
+    class Element {
+      constructor(tag) { this.tagName = tag; this.children = []; this._text = ''; }
+      set textContent(value) { this._text = String(value); this.children = []; }
+      get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
+      appendChild(child) { child.parent = this; this.children.push(child); return child; }
+      append(...children) { children.forEach(child => this.appendChild(child)); }
+      querySelector(selector) { return find(this.children, selector); }
+      addEventListener() {}
+      remove() {}
+    }
+    function find(elements, selector) {
+      for (const element of elements) {
+        if ((selector.startsWith('#') && element.id === selector.slice(1)) ||
+            (selector.startsWith('.') && element.className === selector.slice(1))) return element;
+        const child = find(element.children, selector); if (child) return child;
+      }
+      return null;
+    }
+    const document = {
+      querySelector: selector => find(roots, selector), querySelectorAll: () => [],
+      getElementById: id => find(roots, '#' + id), createElement: tag => new Element(tag),
+    };
+    const window = {
+      addEventListener: (name, callback) => {
+        if (!listeners.has(name)) listeners.set(name, []);
+        listeners.get(name).push(callback);
+      }
+    };
+    const dispatchWindow = name => { for (const callback of listeners.get(name) || []) callback({}); };
+    const setTimeout = (callback, delay) => {
+      const id = ++nextTimer; timers.set(id, {callback, delay}); return id;
+    };
+    const clearTimeout = id => timers.delete(id);
+    const fireTimer = predicate => {
+      const entry = [...timers].find(([id, timer]) => predicate(timer));
+      assert(entry, 'Expected owned timer does not exist');
+      const [id, timer] = entry; timers.delete(id); clock += timer.delay; timer.callback();
+    };
+    const flush = async () => { for (let index = 0; index < 100; index++) await Promise.resolve(); };
+    const until = async predicate => {
+      await flush(); assert(predicate(), 'Expected asynchronous step was not reached');
+    };
+    class WebSocket {
+      constructor(url) {
+        this.url = url; this.readyState = 0; this.sent = []; this.closeCalls = 0; sockets.push(this);
+      }
+      send(data) { assert.equal(this.readyState, 1); this.sent.push(JSON.parse(data)); }
+      open() { this.readyState = 1; this.onopen?.(); }
+      message(data) { this.onmessage?.({data: JSON.stringify(data)}); }
+      close() { this.closeCalls++; this.readyState = 2; }
+      disconnect() { this.readyState = 3; this.onclose?.({code:1006}); }
+    }
+    const response = (status, body) => new Response(JSON.stringify(body), {
+      status, headers: {'Content-Type':'application/json'}
+    });
+    const fetch = async (url, options) => {
+      calls.push({url, options});
+      if (url === '/v1/session') {
+        if (bootstrapPlan) return bootstrapPlan(options);
+        return response(200, {token:`synthetic-${++nextToken}`, expires_in_seconds:300});
+      }
+      return fetchPlan ? fetchPlan(url, options) : response(200, {turn_id:'synthetic-turn'});
+    };
+    const snapshot = active_turns => ({
+      type:'snapshot', identity:{identity_id:'siro'}, active_turns:active_turns || {},
+      kill_switches:{}, authorization_mode:'safe', health:{}, routes:{}
+    });
+    """
+        initialize = f"""
+    for (const id of {ids}) {{ const node = new Element('div'); node.id = id; roots.push(node); }}
+    document.querySelector('#voice-output').checked = false;
+    """
+        helpers = r"""
+    const readyControl = async (state = {}) => {
+      const count = sockets.length, connecting = connectControl();
+      await until(() => sockets.length === count + 1);
+      const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
+      await connecting; return owner;
+    };
+    const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+    let finished = false;
+    process.on('beforeExit', () => {
+      if (!finished) {
+        console.error('Synthetic control scenario left its promise unresolved'); process.exitCode = 1;
+      }
+    });
+    """
+        result = subprocess.run(
+            [
+                "node",
+                "-e",
+                setup
+                + initialize
+                + script
+                + helpers
+                + "\n(async () => {\n"
+                + checks
+                + "\n})().then(() => { finished = true; }, error => {"
+                + " finished = true; console.error(error); process.exitCode = 1; });",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: TypeError: message.replaceChildren is not a function
+E             at formatAssistantMessage ([eval]:1056:17)
+E             at socket.onmessage ([eval]:278:64)
+E             at WebSocket.message ([eval]:57:35)
+E             at [eval]:1377:7
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['node', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst roots = [], listeners =...l]:1056:17)\n    at socket.onmessage ([eval]:278:64)\n    at WebSocket.message ([eval]:57:35)\n    at [eval]:1377:7\n').returncode
+
+tests/integration/test_frontend_control.py:127: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_frontend_navigation.py::test_pending_turn_survives_navigation_without_resubmission_or_new_connection
+FAILED tests/integration/test_frontend_navigation.py::test_streaming_answer_updates_existing_chat_while_another_work_page_is_open
+2 failed, 111 passed in 8.77s

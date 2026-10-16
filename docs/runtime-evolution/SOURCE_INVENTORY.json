@@ -1,0 +1,2564 @@
+{
+  "head": "a27001d32349841002f3a5a02c97c18544f8ce40",
+  "gateway_static_import_closure": [
+    "siro.adapters.body.web",
+    "siro.adapters.browser",
+    "siro.adapters.computer",
+    "siro.adapters.models.http",
+    "siro.adapters.models.mock",
+    "siro.adapters.models.ollama",
+    "siro.adapters.models.openai_compatible",
+    "siro.contracts.events",
+    "siro.core.affect",
+    "siro.core.authorization",
+    "siro.core.companion",
+    "siro.core.conversation",
+    "siro.core.expression",
+    "siro.core.identity",
+    "siro.core.memory",
+    "siro.core.outcomes",
+    "siro.core.preferences",
+    "siro.core.relationships",
+    "siro.core.world",
+    "siro.persistence.affect",
+    "siro.persistence.conversation",
+    "siro.persistence.memory",
+    "siro.persistence.relationships",
+    "siro.persistence.sqlite",
+    "siro.persistence.state",
+    "siro.ports.body",
+    "siro.ports.models",
+    "siro.ports.persistence",
+    "siro.ports.runtime",
+    "siro.services.affect.coordinator",
+    "siro.services.agent.runs",
+    "siro.services.audio.protocol",
+    "siro.services.audio.stt",
+    "siro.services.audio.tts",
+    "siro.services.presentation.gateway",
+    "siro.services.presentation.integrated",
+    "siro.services.tools.orchestrator"
+  ],
+  "files": [
+    {
+      "file": "src/siro/operations.py",
+      "sha256": "4ca501497228283d1b9e0ea6f2889c95c5f187f695b1be50ca0737f5dbc0d55b",
+      "imports": [
+        "__future__",
+        "hashlib",
+        "json",
+        "os",
+        "subprocess",
+        "tempfile",
+        "time",
+        "zipfile",
+        "dataclasses",
+        "pathlib",
+        "siro.config",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "InstallResult:20",
+        "_unit_quote:26",
+        "_unit_path:30",
+        "install_user_service:34",
+        "enable_user_service:99",
+        "prune_logs:105",
+        "create_backup_bundle:119",
+        "restore_backup_bundle:145",
+        "_atomic_write:173"
+      ]
+    },
+    {
+      "file": "src/siro/redaction.py",
+      "sha256": "88ee931e59d6ad98bc90272ea82c1f3d718745e73f8e978cd850749c1680a692",
+      "imports": [
+        "__future__",
+        "re",
+        "collections.abc"
+      ],
+      "symbols": [
+        "redact_mapping:11"
+      ]
+    },
+    {
+      "file": "src/siro/doctor.py",
+      "sha256": "b4e9098885f79a69c69dc6a6987fcc15b6736a42cc89fa50a819a20863526463",
+      "imports": [
+        "__future__",
+        "os",
+        "shutil",
+        "subprocess",
+        "sys",
+        "urllib.request",
+        "dataclasses",
+        "pathlib",
+        "siro.config"
+      ],
+      "symbols": [
+        "CheckResult:15",
+        "_data_dir:24",
+        "_command_check:34",
+        "_nvidia_check:41",
+        "_config_check:60",
+        "_gateway_check:74",
+        "collect_checks:86",
+        "checks_as_dicts:112"
+      ]
+    },
+    {
+      "file": "src/siro/config.py",
+      "sha256": "7955c00ff4f6ab4eefc1b1209800581dba31722c901256f3ddd72eebe4fb7931",
+      "imports": [
+        "__future__",
+        "json",
+        "enum",
+        "pathlib",
+        "typing",
+        "pydantic"
+      ],
+      "symbols": [
+        "DeploymentProfile:13",
+        "PrivacyClass:22",
+        "ProactivitySettings:30",
+        "RoomAutomationSettings:42",
+        "ResourceSettings:50",
+        "NetworkSettings:61",
+        "SiroSettings:71",
+        "load_settings:85"
+      ]
+    },
+    {
+      "file": "src/siro/skill_worker.py",
+      "sha256": "4dcfa7f039b7188fc99a0e0c1611453b1280241a7ab96ebcd3020e6d009874fc",
+      "imports": [
+        "__future__",
+        "importlib",
+        "json",
+        "os",
+        "resource",
+        "sys",
+        "collections.abc",
+        "typing"
+      ],
+      "symbols": [
+        "main:14"
+      ]
+    },
+    {
+      "file": "src/siro/cli.py",
+      "sha256": "e67a080b6c820810adc099735a07799b2b87df26c5d57fa2cc7d513895af2871",
+      "imports": [
+        "__future__",
+        "argparse",
+        "asyncio",
+        "json",
+        "os",
+        "collections.abc",
+        "datetime",
+        "pathlib",
+        "siro",
+        "siro.config",
+        "siro.core.releases",
+        "siro.doctor",
+        "siro.adapters.models.mock",
+        "siro.core.companion",
+        "siro.core.conversation",
+        "siro.core.identity",
+        "siro.core.memory",
+        "siro.persistence.conversation",
+        "siro.persistence.memory",
+        "siro.persistence.sqlite",
+        "siro.persistence.state",
+        "siro.persistence.sqlite",
+        "siro.core.releases",
+        "siro.persistence.sqlite",
+        "siro.persistence.sqlite",
+        "siro.operations",
+        "siro.operations",
+        "siro.operations",
+        "siro.operations"
+      ],
+      "symbols": [
+        "_run_demo:19",
+        "_demo:80",
+        "_doctor:84",
+        "_config_schema:103",
+        "_validate_config:108",
+        "_release_manager:114",
+        "_release_stage:129",
+        "_release_rollback:144",
+        "_backup_data:150",
+        "_restore_data:167",
+        "_backup:184",
+        "_restore:188",
+        "_install:192",
+        "_prune_logs:218",
+        "build_parser:226",
+        "main:301",
+        "answer:60"
+      ]
+    },
+    {
+      "file": "src/siro/__init__.py",
+      "sha256": "997c680c39ef0c924f9e8f5cad513e3cbaeee0b980ccfb5d6e932ae81451e7b6",
+      "imports": [
+        "importlib.metadata"
+      ],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/evaluation/affect_simulation.py",
+      "sha256": "d462eae91d642c8fc121876acde61dd376699909ad69a0e6fa1ad7131d59db21",
+      "imports": [
+        "__future__",
+        "hashlib",
+        "json",
+        "random",
+        "dataclasses",
+        "siro.core.affect",
+        "siro.core.expression",
+        "siro.core.relationships"
+      ],
+      "symbols": [
+        "AffectSimulationReport:16",
+        "run_affect_simulation:38",
+        "as_json:34"
+      ]
+    },
+    {
+      "file": "src/siro/evaluation/__init__.py",
+      "sha256": "b203c9ed4ab08b4065940fb4be4b9209a37517f21c376c140eb4576c202cb166",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/events/local.py",
+      "sha256": "dfee14e2f234ebf92fb5d6af40f8bf352a52be6395731f3b2be099a34171a4ae",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "collections",
+        "dataclasses",
+        "datetime",
+        "enum",
+        "siro.contracts.events",
+        "siro.ports.events"
+      ],
+      "symbols": [
+        "UtcClock:29",
+        "_EnqueueOutcome:36",
+        "_BufferClosedError:42",
+        "_BoundedPriorityBuffer:46",
+        "_MutableStats:128",
+        "LocalSubscription:135",
+        "LocalEventBus:225",
+        "now:32",
+        "__init__:49",
+        "size:60",
+        "put_nowait:63",
+        "get:91",
+        "_pop_next:103",
+        "close:122",
+        "__init__:138",
+        "subscription_id:158",
+        "pattern:162",
+        "pending:166",
+        "worker_running:170",
+        "matches:173",
+        "enqueue:178",
+        "stats:186",
+        "_run:196",
+        "unsubscribe:211",
+        "_close:214",
+        "__init__:228",
+        "start:240",
+        "stop:246",
+        "subscribe:255",
+        "publish:272",
+        "_unsubscribe:299",
+        "snapshot:305",
+        "_is_expired:315",
+        "_remember:321",
+        "_validate_pattern:329"
+      ]
+    },
+    {
+      "file": "src/siro/events/nats.py",
+      "sha256": "aed0511f065ad4d931134b09f45ae431831cb2709aee6c82b3a376d0454a70fb",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "nats",
+        "nats.aio.client",
+        "nats.js",
+        "nats.js.errors",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "NatsJetStream:15",
+        "DispatchReport:60",
+        "OutboxDispatcher:66",
+        "__init__:16",
+        "connected:22",
+        "connect:25",
+        "close:34",
+        "ensure_stream:40",
+        "publish:47",
+        "jetstream:50",
+        "_required:53",
+        "__init__:67",
+        "dispatch_once:78"
+      ]
+    },
+    {
+      "file": "src/siro/events/__init__.py",
+      "sha256": "3c8923994b5f53fb6ea9b5553db8aefb913e8a843feadb74a45c3fb421ee344c",
+      "imports": [
+        "siro.events.local"
+      ],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/events/replay.py",
+      "sha256": "7fdcaccd3471e450900e4d6b5085948a289df6fbd70b0e38123b08f7b1459aa6",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "sqlite3",
+        "collections.abc",
+        "siro.contracts.events",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "ReplaySideEffectError:15",
+        "ReplayRuntime:19",
+        "ReplayRunner:24",
+        "dispatch:20",
+        "__init__:25",
+        "run:28",
+        "read:29"
+      ]
+    },
+    {
+      "file": "src/siro/contracts/__init__.py",
+      "sha256": "071404a1b9f6b315ff1df7ac402273991964c521590f157d2ce82d70d0762861",
+      "imports": [
+        "siro.contracts.events"
+      ],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/contracts/boundaries.py",
+      "sha256": "874c18b7592a9e6849de60a81732711438c1a4234f7e7bb2a4efdb803ab77dfc",
+      "imports": [
+        "__future__",
+        "ast",
+        "pathlib"
+      ],
+      "symbols": [
+        "find_core_import_violations:15"
+      ]
+    },
+    {
+      "file": "src/siro/contracts/events.py",
+      "sha256": "f0269f3cc26c1accd872531eb8e1b47638c9ebd0d76640c556d16ae03b31f1d6",
+      "imports": [
+        "__future__",
+        "datetime",
+        "enum",
+        "typing",
+        "uuid",
+        "pydantic"
+      ],
+      "symbols": [
+        "Priority:15",
+        "Privacy:22",
+        "StrictModel:28",
+        "EventEnvelope:34",
+        "UserTextPayload:61",
+        "UserTextEvent:66",
+        "TurnStartedPayload:77",
+        "TurnStartedEvent:81",
+        "TextDeltaPayload:86",
+        "TextDeltaEvent:92",
+        "TurnFinishedPayload:97",
+        "TurnFinishedEvent:102",
+        "CancelRequestedPayload:107",
+        "CancelRequestedEvent:112",
+        "TurnCancelledPayload:117",
+        "TurnCancelledEvent:122",
+        "WorldObservedPayload:127",
+        "WorldObservedEvent:142",
+        "ActionRequestedPayload:147",
+        "ActionRequestedEvent:161",
+        "ActionResultPayload:166",
+        "ActionResultEvent:176",
+        "GoalTransitionPayload:181",
+        "GoalTransitionEvent:188",
+        "MemoryCorrectedPayload:193",
+        "MemoryCorrectedEvent:200",
+        "SystemHealthPayload:205",
+        "SystemHealthEvent:219",
+        "validate_event_json:243",
+        "ensure_same_session:251",
+        "require_timezone:55",
+        "require_conversation_scope:71",
+        "require_expiry_timezone:136",
+        "require_deadline_timezone:155",
+        "require_observed_timezone:213"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/procedural.py",
+      "sha256": "34d31c091dee84d081274cf065e9e95202f2e66ea96558b2f8b62a4599b882a5",
+      "imports": [
+        "__future__",
+        "json",
+        "sqlite3",
+        "siro.core.procedural",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "SQLiteProceduralCandidateRepository:12",
+        "__init__:13",
+        "save:16",
+        "candidates:34",
+        "read:35"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/conversation.py",
+      "sha256": "95c7d456d74bed6c17d7aed01820916abd529f0461de73c59fd848661d623be3",
+      "imports": [
+        "__future__",
+        "sqlite3",
+        "datetime",
+        "siro.core.conversation",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "SQLiteConversationRepository:12",
+        "__init__:13",
+        "start_turn:16",
+        "finish_turn:41",
+        "write:19",
+        "write:42"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/relationships.py",
+      "sha256": "1340c2b9574407175c8e83cd1e391f7d35147092ca9e7d4ca511460c6e187372",
+      "imports": [
+        "__future__",
+        "json",
+        "sqlite3",
+        "siro.core.relationships",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "SQLiteRelationshipRepository:12",
+        "__init__:13",
+        "current:16",
+        "record:37",
+        "read:17",
+        "write:38"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/sqlite.py",
+      "sha256": "714a396d4b6d3d1a1aee68bafa4de7184b46804ff399d2e10a49ebcedc2af8fe",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "hashlib",
+        "os",
+        "sqlite3",
+        "tempfile",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "importlib.resources",
+        "pathlib",
+        "typing",
+        "siro.contracts.events",
+        "siro.ports.persistence"
+      ],
+      "symbols": [
+        "Migration:24",
+        "OutboxRecord:32",
+        "MigrationError:41",
+        "load_migrations:45",
+        "apply_migrations:69",
+        "_split_statements:118",
+        "SQLiteStore:124",
+        "__init__:127",
+        "initialize:131",
+        "_initialize_sync:135",
+        "_connect:140",
+        "run_transaction:150",
+        "_run_transaction_sync:154",
+        "append_event_with_outbox:165",
+        "record_event:199",
+        "pending_outbox:217",
+        "mark_outbox_sent:242",
+        "mark_outbox_failed:254",
+        "quarantined_outbox:286",
+        "process_once:311",
+        "integrity_check:330",
+        "backup_to:338",
+        "_backup_sync:342",
+        "restore_from:359",
+        "_restore_sync:363",
+        "write:174",
+        "read:221",
+        "update:243",
+        "update:262",
+        "read:290",
+        "process:319",
+        "check:331"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/consolidation.py",
+      "sha256": "a1d57d6c0d0b43c2ed9da4bfafbbb116e56315d69e47179175835bcdec2017cb",
+      "imports": [
+        "__future__",
+        "json",
+        "sqlite3",
+        "datetime",
+        "uuid",
+        "siro.core.consolidation",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "SQLiteConsolidationRepository:14",
+        "__init__:15",
+        "start_or_resume:18",
+        "commit_candidate:44",
+        "finish_run:129",
+        "apply_trait:138",
+        "revise_relationship:189",
+        "write:21",
+        "write:52",
+        "write:152",
+        "write:199"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/goals.py",
+      "sha256": "49c06c9474e962c6702e0f431385348bbf0b12c827fc8d0bfb89b2c3725dc44c",
+      "imports": [
+        "__future__",
+        "json",
+        "sqlite3",
+        "datetime",
+        "siro.core.cognition",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "SQLiteGoalRepository:13",
+        "__init__:14",
+        "add:17",
+        "get:26",
+        "replace:46",
+        "_values:67",
+        "_budget:78",
+        "read:27",
+        "write:47"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/skills.py",
+      "sha256": "eb831c431070d303b2e75b827b9315b6313d9e13e6691acf3ab229e85d2b4a4e",
+      "imports": [
+        "__future__",
+        "sqlite3",
+        "siro.core.skills",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "SQLiteSkillRegistry:11",
+        "__init__:12",
+        "install:15",
+        "set_enabled:33",
+        "is_enabled:46",
+        "update:36",
+        "read:47"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/affect.py",
+      "sha256": "0ad4235cc669a576d60ea84e92e14ecea7a50d6d3e1f755e398b5b069b0bab63",
+      "imports": [
+        "__future__",
+        "json",
+        "sqlite3",
+        "dataclasses",
+        "datetime",
+        "uuid",
+        "siro.core.affect",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "Preference:23",
+        "SQLiteAffectRepository:38",
+        "__init__:39",
+        "state:42",
+        "record:63",
+        "dynamics:110",
+        "elapsed_hours:149",
+        "latest_coping:162",
+        "record_result:175",
+        "put_preference:269",
+        "delete_preference:316",
+        "preferences:339",
+        "read:43",
+        "write:68",
+        "read:113",
+        "read:150",
+        "read:163",
+        "write:205",
+        "write:274",
+        "update:321",
+        "read:340"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/memory.py",
+      "sha256": "62fc171d5898cc3f498a253cc99cf7b7a0bb27c9df87c74da3ef9b6ad79e2cfc",
+      "imports": [
+        "__future__",
+        "json",
+        "sqlite3",
+        "datetime",
+        "uuid",
+        "siro.contracts.events",
+        "siro.core.memory",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "SQLiteMemoryRepository:15",
+        "__init__:16",
+        "add:19",
+        "add_fact:25",
+        "facts:43",
+        "search:68",
+        "correct:137",
+        "delete:170",
+        "revisions:216",
+        "list_active:240",
+        "rebuild_index:257",
+        "_insert_event:269",
+        "_add_memory:282",
+        "_index:312",
+        "_source_ids:319",
+        "_to_memory:329",
+        "_insert_revision:345",
+        "write:20",
+        "write:26",
+        "read:46",
+        "read:82",
+        "write:140",
+        "write:171",
+        "read:217",
+        "read:246",
+        "write:258",
+        "score:120"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/state.py",
+      "sha256": "16a2285ca6177a2a2e1face48747ed1bce48678361d650f429a8a1e7a2c7c301",
+      "imports": [
+        "__future__",
+        "json",
+        "sqlite3",
+        "collections.abc",
+        "datetime",
+        "siro.core.identity",
+        "siro.core.world",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "ConcurrentUpdateError:15",
+        "SQLiteIdentityRepository:19",
+        "SQLiteWorldRepository:94",
+        "__init__:20",
+        "create:23",
+        "get:46",
+        "save:55",
+        "__init__:95",
+        "record:98",
+        "current:155",
+        "insert:24",
+        "read:47",
+        "update:63",
+        "insert:99",
+        "read:156"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/devices.py",
+      "sha256": "8040d3c918a5449c7453bc728ced09f4c65c1c8abc830ae86377dad2ebf071b7",
+      "imports": [
+        "__future__",
+        "sqlite3",
+        "datetime",
+        "siro.core.devices",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "SQLiteDeviceRepository:12",
+        "__init__:13",
+        "upsert:16",
+        "get:37",
+        "list:41",
+        "set_availability:44",
+        "in_location:57",
+        "_read:64",
+        "write:17",
+        "write:47",
+        "read:65"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/planning.py",
+      "sha256": "6fa08d96ab762a863f6c263cda69b5eb2558ff9bbdab7252c443ba134b5a470b",
+      "imports": [
+        "__future__",
+        "json",
+        "siro.core.cognition",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "SQLitePlanningRepository:11",
+        "__init__:12",
+        "record:15"
+      ]
+    },
+    {
+      "file": "src/siro/persistence/__init__.py",
+      "sha256": "e1e3adc0844921bc255dff880be6090b21bb6298481be9d47270ba22248ba52a",
+      "imports": [
+        "siro.persistence.sqlite"
+      ],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/adapters/computer.py",
+      "sha256": "996d1add5a8718c51e279ceaac99b2423ad5d0f4a7163d788eb350e2140d9af3",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "hashlib",
+        "os",
+        "shutil",
+        "signal",
+        "tempfile",
+        "dataclasses",
+        "datetime",
+        "pathlib",
+        "siro.core.outcomes"
+      ],
+      "symbols": [
+        "ScopeViolation:18",
+        "ComputerActionError:22",
+        "ProcessResult:27",
+        "ScopedFileDriver:33",
+        "AsyncScopedFileDriver:102",
+        "ProcessDriver:189",
+        "__init__:34",
+        "read_text:41",
+        "list:48",
+        "write_text:55",
+        "move:79",
+        "_resolve:95",
+        "__init__:105",
+        "write_text:115",
+        "move:136",
+        "_replay:159",
+        "_record:167",
+        "__init__:190",
+        "list_managed:205",
+        "start:210",
+        "stop:237",
+        "run:266",
+        "_validate_command:328",
+        "_collect:339"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/vision.py",
+      "sha256": "03195436624d342ea20146781a106f5e493272db6dd83e7fab25f9c3ca85286a",
+      "imports": [
+        "__future__",
+        "io",
+        "collections",
+        "collections.abc",
+        "typing",
+        "PIL",
+        "siro.ports.vision"
+      ],
+      "symbols": [
+        "PixelScreenAnalyzer:15",
+        "analyze:18"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/home_assistant.py",
+      "sha256": "19610d2a8cef87bb4b4689fc638bd1447c7c09de738805050504b0c96da9d823",
+      "imports": [
+        "__future__",
+        "json",
+        "os",
+        "collections.abc",
+        "datetime",
+        "enum",
+        "pathlib",
+        "typing",
+        "urllib.parse",
+        "httpx",
+        "pydantic",
+        "websockets.asyncio.client",
+        "siro.contracts.events",
+        "siro.core.devices",
+        "siro.core.rooms"
+      ],
+      "symbols": [
+        "HomeAssistantError:29",
+        "HomeAssistantAuthError:33",
+        "HomeAssistantProtocolError:37",
+        "HomeAssistantEntityMapping:41",
+        "HomeAssistantConfig:50",
+        "HomeAssistantFileConfig:59",
+        "load_home_assistant_config:68",
+        "HomeAssistantState:84",
+        "HomeAssistantStateChange:94",
+        "LightActionStatus:103",
+        "LightActionResult:112",
+        "descriptor_for:122",
+        "state_value:146",
+        "parse_state_changed:165",
+        "HomeAssistantAdapter:191",
+        "HomeAssistantLightActuator:368",
+        "__init__:192",
+        "__aenter__:207",
+        "__aexit__:210",
+        "aclose:213",
+        "descriptors:217",
+        "states:220",
+        "state:228",
+        "sync_registry:233",
+        "project_change:244",
+        "project_state:255",
+        "set_light:275",
+        "state_changes:323",
+        "mapping_for:356",
+        "_raise_for_status:362",
+        "__init__:371",
+        "set_power:375"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/skill_worker.py",
+      "sha256": "9f7c04edf267ab0ce465a38812f148bf3df52fbac30e49bd6d3a42c9776f25c3",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "json",
+        "shutil",
+        "sys",
+        "pathlib",
+        "siro.core.skills",
+        "siro.persistence.skills"
+      ],
+      "symbols": [
+        "SkillExecutionError:15",
+        "SkillDisabled:19",
+        "WorkerSupervisor:23",
+        "SkillDispatcher:132",
+        "__init__:24",
+        "execute:27",
+        "_execute_one:33",
+        "__init__:133",
+        "execute:137"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/runtime.py",
+      "sha256": "9627c7b94f5507bab1bf908b01c57ce80fd97f24cbd9ce68873c38c543830a7e",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "json",
+        "pathlib",
+        "typing",
+        "siro.ports.runtime"
+      ],
+      "symbols": [
+        "LocalRuntimeClient:20",
+        "__init__:21",
+        "health:25",
+        "execute:32",
+        "revoke:52",
+        "_call:57"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/services.py",
+      "sha256": "06d928ea20d346fc61907602ff7d1715a10459d3f2903f0bc3d8f20f25d82959",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "hashlib",
+        "os",
+        "tempfile",
+        "dataclasses",
+        "datetime",
+        "pathlib",
+        "siro.adapters.computer",
+        "siro.core.outcomes"
+      ],
+      "symbols": [
+        "ServiceStatus:18",
+        "CriticalInstallApproval:26",
+        "SystemdUserServiceDriver:33",
+        "SystemdUserUnitInstaller:132",
+        "__init__:34",
+        "status:46",
+        "start:60",
+        "stop:63",
+        "reload:66",
+        "_change:69",
+        "_require_unit:106",
+        "_run:110",
+        "__init__:133",
+        "approval_request:139",
+        "install:147"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/wot.py",
+      "sha256": "0f5431a4c6e80318c83ff7e9f6e6b178f7f5b39486b330e09ad0e2b5affba491",
+      "imports": [
+        "__future__",
+        "siro.contracts.events",
+        "siro.core.devices"
+      ],
+      "symbols": [
+        "translate_thing_description:9"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/browser.py",
+      "sha256": "9a8e94e52737e3c5427d2b8607f24c458970a1dc3877c659b4c8f6e9f1aa945f",
+      "imports": [
+        "__future__",
+        "hashlib",
+        "shutil",
+        "dataclasses",
+        "datetime",
+        "typing",
+        "urllib.parse",
+        "playwright.async_api",
+        "siro.adapters.computer",
+        "siro.core.outcomes"
+      ],
+      "symbols": [
+        "BrowserObservation:29",
+        "BrowserTarget:37",
+        "ScopedBrowserDriver:43",
+        "__init__:44",
+        "__aenter__:62",
+        "__aexit__:74",
+        "navigate:80",
+        "observe:101",
+        "select:116",
+        "fill:125",
+        "click:138",
+        "press:152",
+        "pointer_click:165",
+        "_replay:170",
+        "_record:182",
+        "screenshot:202",
+        "_verify_target:207",
+        "_verify_version:212",
+        "_locator:216",
+        "_require_page:219",
+        "_require_url:224",
+        "_url_allowed:231",
+        "_route_request:238",
+        "_replace_page:253"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/devices.py",
+      "sha256": "726a363e17af52c8166a817e8d4e31cf9575d03dbe9a667714f5d58d467f4acd",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "siro.contracts.events",
+        "siro.core.devices",
+        "siro.core.rooms"
+      ],
+      "symbols": [
+        "SimulatedLight:13",
+        "SimulatedRoomLightActuator:44",
+        "SimulatedSensor:63",
+        "SimulatedCamera:96",
+        "descriptor:21",
+        "set_power:33",
+        "set_power:50",
+        "descriptor:72",
+        "descriptor:103",
+        "capture:115"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/__init__.py",
+      "sha256": "b709b09ae1982ec4702a167f9809d2b4eb8accd93ec121995444d622fbd487cd",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/core/procedural.py",
+      "sha256": "16a088f5008391eadd86bc5cd4aa3b4caa24a6bdc2e1014e179f22a6cc3ec756",
+      "imports": [
+        "__future__",
+        "re",
+        "dataclasses",
+        "datetime",
+        "uuid",
+        "pydantic",
+        "siro.core.authorization"
+      ],
+      "symbols": [
+        "TraceStep:18",
+        "SuccessfulTrace:27",
+        "ProceduralCandidate:37",
+        "RejectedTrace:50",
+        "ProceduralCandidateGenerator:55",
+        "generate:58",
+        "_signature:88",
+        "_redact_step:91",
+        "_redact_object:99",
+        "_contains_secret:110"
+      ]
+    },
+    {
+      "file": "src/siro/core/conversation.py",
+      "sha256": "81eaa441b3cfe75dc8728dcbc9bdf8410b6ed98fa158b9b75e9525487846efcc",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "collections.abc",
+        "dataclasses",
+        "enum",
+        "typing",
+        "uuid",
+        "siro.ports.models"
+      ],
+      "symbols": [
+        "TurnState:22",
+        "TurnResult:30",
+        "ConversationSignal:41",
+        "ConversationRepository:51",
+        "_ignore_signal:63",
+        "_ActiveTurn:68",
+        "ConversationEngine:73",
+        "start_turn:52",
+        "finish_turn:56",
+        "__init__:74",
+        "respond:89",
+        "cancel:161",
+        "_is_current:169"
+      ]
+    },
+    {
+      "file": "src/siro/core/identity.py",
+      "sha256": "47c355eaeb55d95eb7dc14ff4eca60d683725f3bcfcec4726988467efd4a126c",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "datetime",
+        "enum",
+        "typing",
+        "pydantic"
+      ],
+      "symbols": [
+        "_FrozenModel:13",
+        "ImmutableCore:17",
+        "TraitState:34",
+        "IdentityState:50",
+        "OwnerAuthorization:66",
+        "IdentityRepository:72",
+        "IdentityService:87",
+        "unique_nonempty_values:25",
+        "validate_traits:39",
+        "require_timezone:60",
+        "create:73",
+        "get:75",
+        "save:77",
+        "__init__:88",
+        "create:91",
+        "get:110",
+        "update_core:113",
+        "update_traits:136",
+        "_required:158"
+      ]
+    },
+    {
+      "file": "src/siro/core/relationships.py",
+      "sha256": "c068e90d78a8b89809a03d59d1cdba879cda8f6d88ca7e43c624a1e92d3aa976",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "enum",
+        "typing"
+      ],
+      "symbols": [
+        "_unit:10",
+        "RelationshipEvent:14",
+        "RelationshipState:23",
+        "RelationshipUpdate:46",
+        "RelationshipRepository:53",
+        "RelationshipSystem:61",
+        "relationship_event_from_text:116",
+        "__post_init__:31",
+        "significance:41",
+        "current:54",
+        "record:56",
+        "update:65"
+      ]
+    },
+    {
+      "file": "src/siro/core/world.py",
+      "sha256": "91e557110fb3b4b5cefd2bf74a01a8823752943e42471857114d453cef4a4b7a",
+      "imports": [
+        "__future__",
+        "datetime",
+        "enum",
+        "typing",
+        "uuid",
+        "pydantic"
+      ],
+      "symbols": [
+        "_FrozenModel:13",
+        "WorldObservation:17",
+        "WorldStatus:41",
+        "WorldValue:46",
+        "WorldRepository:52",
+        "WorldModel:58",
+        "require_timezone:29",
+        "expiry_follows_observation:35",
+        "record:53",
+        "current:55",
+        "__init__:59",
+        "observe:62",
+        "current:67"
+      ]
+    },
+    {
+      "file": "src/siro/core/computer.py",
+      "sha256": "6f49328565fd7cbbbd2fa5981a2d09d2c68a59479e4e49d603e71bd9b29855d8",
+      "imports": [
+        "__future__",
+        "shutil",
+        "sys",
+        "dataclasses"
+      ],
+      "symbols": [
+        "BuiltinCapability:11",
+        "platform_capabilities:18"
+      ]
+    },
+    {
+      "file": "src/siro/core/authorization.py",
+      "sha256": "5dc0b13c1c1b1723fc5064a7ffeb9f69c5a068f6fca28b9a75ad7ba5cf3f6ba3",
+      "imports": [
+        "__future__",
+        "hashlib",
+        "hmac",
+        "json",
+        "time",
+        "dataclasses",
+        "enum",
+        "siro.ports.runtime"
+      ],
+      "symbols": [
+        "PermissionDecision:15",
+        "AuthorizationRequest:22",
+        "AuthorizationOutcome:31",
+        "PermissionPolicy:37",
+        "AuthorizationService:45",
+        "argument_hash:92",
+        "__init__:38",
+        "decide:41",
+        "__init__:46",
+        "authorize:56",
+        "resolve:65",
+        "_issue:77"
+      ]
+    },
+    {
+      "file": "src/siro/core/consolidation.py",
+      "sha256": "0d23866f1c85e62d32b6e487177a0ef2cc67c7aee6f5bd1d38291c2c4a2abb38",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "hashlib",
+        "dataclasses",
+        "datetime",
+        "typing",
+        "uuid",
+        "siro.core.memory",
+        "siro.ports.models"
+      ],
+      "symbols": [
+        "ConsolidationCandidate:17",
+        "ConsolidationResult:41",
+        "ConsolidationRepository:49",
+        "Consolidator:66",
+        "_ScheduledRun:113",
+        "ConsolidationScheduler:118",
+        "__post_init__:24",
+        "key:33",
+        "start_or_resume:50",
+        "commit_candidate:54",
+        "finish_run:63",
+        "__init__:67",
+        "run:78",
+        "__init__:121",
+        "active:125",
+        "schedule:129",
+        "cancel:149",
+        "wait:157",
+        "close:166"
+      ]
+    },
+    {
+      "file": "src/siro/core/router.py",
+      "sha256": "2ab4a6a3e0de1128e779b39b1b420703c95a1c0b0f4a1a483182dcff6d63f5b6",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "datetime",
+        "siro.contracts.events",
+        "siro.core.nodes"
+      ],
+      "symbols": [
+        "RouteDecision:13",
+        "ComputeRouter:21",
+        "__init__:22",
+        "calibrate:32",
+        "route:37"
+      ]
+    },
+    {
+      "file": "src/siro/core/companion.py",
+      "sha256": "790acdace68519e93387ce4d93dfa5b9e4870ae76aabc176cd47d4b2e394aee1",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "siro.core.conversation",
+        "siro.core.identity",
+        "siro.core.memory",
+        "siro.ports.models"
+      ],
+      "symbols": [
+        "CompanionCore:13",
+        "__init__:14",
+        "respond:26"
+      ]
+    },
+    {
+      "file": "src/siro/core/nodes.py",
+      "sha256": "86b7910870249551f8454a7872b66af20c160f25930dbdff2117700c3a955e9b",
+      "imports": [
+        "__future__",
+        "json",
+        "datetime",
+        "enum",
+        "pathlib",
+        "typing",
+        "pydantic",
+        "siro.contracts.events"
+      ],
+      "symbols": [
+        "NodeStatus:16",
+        "NodeProfile:22",
+        "NodeHeartbeat:36",
+        "NodeRegistry:44",
+        "privacy_rank:123",
+        "__init__:45",
+        "pair:50",
+        "heartbeat:55",
+        "revoke:72",
+        "status:77",
+        "heartbeat_details:91",
+        "save:95",
+        "load:106",
+        "routeable:114"
+      ]
+    },
+    {
+      "file": "src/siro/core/releases.py",
+      "sha256": "b5d13662e0dedce9e14e6be4ed21132ada58c3ce0a621f892b1ffcff5f4ee1da",
+      "imports": [
+        "__future__",
+        "hashlib",
+        "hmac",
+        "json",
+        "shutil",
+        "sqlite3",
+        "subprocess",
+        "dataclasses",
+        "pathlib",
+        "pydantic"
+      ],
+      "symbols": [
+        "ReleaseManifest:17",
+        "ReleaseResult:28",
+        "ReleaseManager:33",
+        "__init__:34",
+        "stage_and_activate:42",
+        "active_version:76",
+        "rollback:87",
+        "_verified:103",
+        "_compatible:112",
+        "_digest:116",
+        "_atomic_json:124",
+        "_backup_database:130",
+        "_restore_database:142"
+      ]
+    },
+    {
+      "file": "src/siro/core/cognition.py",
+      "sha256": "a930ca185796642ae12c31278c736b0a2242a2fa89a640a8c3b467864f9d80d2",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "datetime",
+        "enum",
+        "typing",
+        "uuid",
+        "siro.core.affect"
+      ],
+      "symbols": [
+        "Clock:14",
+        "GoalState:18",
+        "Drive:29",
+        "AttentionSignal:53",
+        "ActionCandidate:86",
+        "Selection:115",
+        "PlanningDecision:121",
+        "PlanningRepository:131",
+        "Planner:135",
+        "select_attention:162",
+        "select_action:174",
+        "affect_attention_signals:197",
+        "apply_affect_to_candidates:239",
+        "Goal:270",
+        "GoalRepository:288",
+        "GoalService:314",
+        "Workspace:375",
+        "now:15",
+        "__post_init__:35",
+        "attention_signal:39",
+        "__post_init__:63",
+        "score:75",
+        "allowed:102",
+        "record:132",
+        "__init__:136",
+        "plan:140",
+        "budget_available:282",
+        "add:289",
+        "get:291",
+        "replace:293",
+        "__init__:315",
+        "propose:319",
+        "transition:324",
+        "spend:343",
+        "_required:368",
+        "__init__:376",
+        "update:381"
+      ]
+    },
+    {
+      "file": "src/siro/core/self_preferences.py",
+      "sha256": "e3a19f043889596ed6544628abca961cb0d546cff703627c4cb7d16545104e16",
+      "imports": [
+        "__future__",
+        "dataclasses"
+      ],
+      "symbols": [
+        "SelfPreferenceUpdate:9",
+        "develop_self_preference:18"
+      ]
+    },
+    {
+      "file": "src/siro/core/skills.py",
+      "sha256": "47160bf68c55cf8493081367e1a9eb56aa31539f44178425679f41d76df17536",
+      "imports": [
+        "__future__",
+        "hashlib",
+        "json",
+        "dataclasses",
+        "enum",
+        "pathlib",
+        "typing",
+        "pydantic"
+      ],
+      "symbols": [
+        "SkillState:15",
+        "Permission:20",
+        "ResourceLimits:27",
+        "SkillManifest:35",
+        "InstalledSkill:57",
+        "load_skill:65",
+        "_load_schema:77",
+        "validate_object:89"
+      ]
+    },
+    {
+      "file": "src/siro/core/expression.py",
+      "sha256": "9bd6e5e69a06bb22c49d3b8f9c43af51cd5c1be2eb85ebd368103300b727b8bd",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "typing",
+        "siro.core.affect"
+      ],
+      "symbols": [
+        "ExpressionContext:12",
+        "ExpressionDecision:19",
+        "ExpressionPolicy:29",
+        "expression_context_from_text:83",
+        "decide:45"
+      ]
+    },
+    {
+      "file": "src/siro/core/proactivity.py",
+      "sha256": "18db7fe487d03d57c09ad7c4377cdf70ab8c971230f617b1ac37943b9d5b45b4",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "datetime",
+        "zoneinfo",
+        "siro.config"
+      ],
+      "symbols": [
+        "ProactivityContext:13",
+        "ProactivityChoice:25",
+        "ProactivityRules:34",
+        "should_speak:30",
+        "__init__:35",
+        "choose:39",
+        "_quiet:63"
+      ]
+    },
+    {
+      "file": "src/siro/core/affect.py",
+      "sha256": "3f1c134eddd8979468b4c269ab1422fab3b5745a3931ba367bcd50a30a8ed40a",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "enum",
+        "math"
+      ],
+      "symbols": [
+        "_unit:17",
+        "_signed:21",
+        "Agency:25",
+        "CopingStrategy:31",
+        "OutcomeKind:42",
+        "SelfConcern:52",
+        "concern_outcome_from_text:68",
+        "Temperament:87",
+        "AffectParameters:102",
+        "DriveState:141",
+        "MoodState:166",
+        "Appraisal:179",
+        "EmotionActivation:217",
+        "CopingDecision:224",
+        "AffectState:231",
+        "AffectResult:240",
+        "AffectSystem:249",
+        "__post_init__:59",
+        "__post_init__:94",
+        "__post_init__:116",
+        "__post_init__:149",
+        "changed:155",
+        "__post_init__:171",
+        "__post_init__:196",
+        "__init__:252",
+        "configuration:263",
+        "evaluate:270",
+        "advance_time:353",
+        "regulate_drives:391",
+        "appraise_user_event:398",
+        "appraise_outcome:458",
+        "appraise_concern_outcome:516",
+        "_choose_coping:558",
+        "appraise:590",
+        "restore:634",
+        "state:647",
+        "mood:652",
+        "drives:655"
+      ]
+    },
+    {
+      "file": "src/siro/core/evolution.py",
+      "sha256": "0439c6bf93910e9c5501581b85e60cfdbafbecc2a02d229e8fead6d52e9f2e1a",
+      "imports": [
+        "__future__",
+        "hashlib",
+        "shutil",
+        "subprocess",
+        "tempfile",
+        "dataclasses",
+        "datetime",
+        "pathlib",
+        "uuid",
+        "pydantic"
+      ],
+      "symbols": [
+        "PatchProposal:17",
+        "VerificationReport:26",
+        "PatchVerifier:34",
+        "__init__:37",
+        "verify:42",
+        "_changed_paths:84",
+        "_run:97",
+        "_tree_digest:113"
+      ]
+    },
+    {
+      "file": "src/siro/core/memory.py",
+      "sha256": "dd2ded4b7c22db1753f8783556be41e8e21078dd486c31a381322dece9649f6e",
+      "imports": [
+        "__future__",
+        "collections",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "enum",
+        "typing",
+        "uuid",
+        "siro.contracts.events",
+        "siro.core.identity"
+      ],
+      "symbols": [
+        "MemoryKind:17",
+        "MemoryStatus:25",
+        "Memory:33",
+        "MemoryRevision:58",
+        "SemanticFact:69",
+        "MemoryRepository:81",
+        "MemoryService:115",
+        "WorkingMessage:184",
+        "WorkingMemory:189",
+        "assemble_prompt:213",
+        "__post_init__:46",
+        "__post_init__:76",
+        "add:82",
+        "search:84",
+        "correct:96",
+        "delete:100",
+        "revisions:102",
+        "list_active:104",
+        "add_fact:108",
+        "facts:110",
+        "__init__:116",
+        "remember:119",
+        "remember_fact:124",
+        "recall:133",
+        "correct:154",
+        "delete:161",
+        "revisions:164",
+        "browse:167",
+        "conflicting_facts:172",
+        "__init__:192",
+        "append:200",
+        "recent:206",
+        "clear:209"
+      ]
+    },
+    {
+      "file": "src/siro/core/rooms.py",
+      "sha256": "77ba35ce06d6375bb572487bf96eafacddf13fd8735712d4093a636f078aef75",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "datetime",
+        "enum",
+        "typing",
+        "uuid",
+        "siro.config",
+        "siro.core.authorization",
+        "siro.core.devices",
+        "siro.core.outcomes",
+        "siro.core.proactivity"
+      ],
+      "symbols": [
+        "LightReadbackStatus:22",
+        "LightReadback:29",
+        "RoomLightActuator:34",
+        "RoomTraceStep:39",
+        "RoomSceneResult:45",
+        "RoomAutomation:51",
+        "set_power:35",
+        "__init__:59",
+        "ingest_presence:82",
+        "ingest_light_readback:140",
+        "_turn_on_location_light:151"
+      ]
+    },
+    {
+      "file": "src/siro/core/devices.py",
+      "sha256": "ed17ae1230be1c3b83b94e8d72f7392290a52c1002371ac0d4dcf8daa1f64158",
+      "imports": [
+        "__future__",
+        "datetime",
+        "enum",
+        "typing",
+        "uuid",
+        "pydantic",
+        "siro.contracts.events",
+        "siro.core.world"
+      ],
+      "symbols": [
+        "FrozenModel:16",
+        "DeviceProperty:20",
+        "DeviceAction:26",
+        "DeviceDescriptor:30",
+        "DeviceAvailability:41",
+        "DeviceRecord:48",
+        "PresenceProjection:54",
+        "DeviceRepository:60",
+        "DeviceRegistry:74",
+        "upsert:61",
+        "get:63",
+        "list:65",
+        "set_availability:67",
+        "in_location:71",
+        "__init__:75",
+        "register:79",
+        "set_availability:82",
+        "available:89",
+        "devices_for_action:98",
+        "record_property:110",
+        "room_presence:140"
+      ]
+    },
+    {
+      "file": "src/siro/core/governor.py",
+      "sha256": "111899757122a87b5f754dcf89d2c9d305fb95a55c6ec11e79b42f1afceffb66",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "enum",
+        "pathlib"
+      ],
+      "symbols": [
+        "ResourceSnapshot:11",
+        "Admission:21",
+        "ProcMemoryTelemetry:28",
+        "ComputeGovernor:37",
+        "available_ratio:17",
+        "snapshot:29",
+        "__init__:38",
+        "background_paused:49",
+        "observe:52",
+        "admit:59"
+      ]
+    },
+    {
+      "file": "src/siro/core/__init__.py",
+      "sha256": "4f7c0ee8b5ec37ca0e21efcd892bf3f08488f6cc3945e0213b479aacb05ed526",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/core/preferences.py",
+      "sha256": "e8e7af20e8fab9b784a910fdfc30947664f33c889bc4f84107dae1e6da041346",
+      "imports": [
+        "__future__",
+        "re",
+        "dataclasses"
+      ],
+      "symbols": [
+        "PreferenceStatement:10",
+        "extract_explicit_preference:22"
+      ]
+    },
+    {
+      "file": "src/siro/core/outcomes.py",
+      "sha256": "9836d754b5eea95c18c5c9fd709fe641749a353c9c390fe20a4f267883787a6c",
+      "imports": [
+        "__future__",
+        "datetime",
+        "typing"
+      ],
+      "symbols": [
+        "ActionOutcomeReporter:11",
+        "report_action:12"
+      ]
+    },
+    {
+      "file": "src/siro/core/jobs.py",
+      "sha256": "76531698b8c25d473de3af466fdae70013bf67112d1fb2d6226d5a816513dada",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "datetime",
+        "uuid"
+      ],
+      "symbols": [
+        "JobAttempt:11",
+        "JobLeases:18",
+        "__init__:19",
+        "submit:25",
+        "retry:35",
+        "accept_result:47",
+        "cancel:59"
+      ]
+    },
+    {
+      "file": "src/siro/services/__init__.py",
+      "sha256": "a1a9d3defe008f6137d405f6eba0d9873124fd95e2217f38064c73cb9278909e",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/ports/models.py",
+      "sha256": "f1cfba82e6b75491df75d42824417f61774b180e49903df9841a4fe4ff554220",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "collections.abc",
+        "dataclasses",
+        "enum",
+        "typing"
+      ],
+      "symbols": [
+        "Privacy:12",
+        "ToolDefinition:18",
+        "ToolCall:25",
+        "ModelMessage:32",
+        "ModelRequest:48",
+        "ModelChunk:64",
+        "CancellationToken:71",
+        "LanguageModel:86",
+        "__post_init__:38",
+        "__post_init__:56",
+        "__init__:72",
+        "cancel:75",
+        "cancelled:79",
+        "wait:82",
+        "stream:89"
+      ]
+    },
+    {
+      "file": "src/siro/ports/vision.py",
+      "sha256": "7a6d870e598b42fe0e6852ee69223824c019de21474298933acedbc5f268e14b",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "typing"
+      ],
+      "symbols": [
+        "VisualObservation:10",
+        "VisionModel:18",
+        "analyze:19"
+      ]
+    },
+    {
+      "file": "src/siro/ports/body.py",
+      "sha256": "8cca39baecbbcb9ecb81b4761849566df344026dfba0c7b94664f75976573167",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "enum",
+        "typing"
+      ],
+      "symbols": [
+        "BodyConnection:14",
+        "SpeechIntent:20",
+        "EmotionIntent:42",
+        "BodyStatus:54",
+        "BodyAdapter:59",
+        "__post_init__:28",
+        "__post_init__:46",
+        "speak:60",
+        "set_emotion:62",
+        "cancel:64",
+        "status:66"
+      ]
+    },
+    {
+      "file": "src/siro/ports/persistence.py",
+      "sha256": "af3c4dfc5a59148c753416c9c2fda5e75920e411418789a159e10ecf06777db3",
+      "imports": [
+        "__future__",
+        "sqlite3",
+        "collections.abc",
+        "pathlib",
+        "typing",
+        "siro.contracts.events"
+      ],
+      "symbols": [
+        "Persistence:16",
+        "initialize:17",
+        "run_transaction:19",
+        "append_event_with_outbox:21",
+        "process_once:25",
+        "backup_to:32",
+        "restore_from:34"
+      ]
+    },
+    {
+      "file": "src/siro/ports/runtime.py",
+      "sha256": "7be80d7a3d5a3e7f531c3c3abec50a1aa28e697e931696507f131aa299b350d8",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "typing"
+      ],
+      "symbols": [
+        "GrantToken:10",
+        "RuntimeRequest:16",
+        "RuntimeResult:26",
+        "RuntimeUnavailable:30",
+        "RuntimeRejected:34",
+        "RuntimePort:38",
+        "health:39",
+        "execute:41"
+      ]
+    },
+    {
+      "file": "src/siro/ports/__init__.py",
+      "sha256": "aa418c28e269d6eb84a07d64cbc9c32ccd6bc03ea0ba5fb0a41ea6f49ad8bf6f",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/ports/events.py",
+      "sha256": "30120a7e2b6b04518738a8078393fe78bb49dfdd654d138ead066edf20cdb088",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "typing",
+        "siro.contracts.events"
+      ],
+      "symbols": [
+        "Clock:15",
+        "DeliveryStats:22",
+        "PublishResult:32",
+        "BusSnapshot:42",
+        "Subscription:50",
+        "EventBus:62",
+        "now:18",
+        "subscription_id:52",
+        "pattern:55",
+        "stats:57",
+        "unsubscribe:59",
+        "start:63",
+        "stop:65",
+        "publish:67",
+        "subscribe:69",
+        "snapshot:77"
+      ]
+    },
+    {
+      "file": "src/siro/services/compute/worker.py",
+      "sha256": "ed39f13ca3a0926d7d8942388a966bb57976b49810b4eed8928cc159d80d180a",
+      "imports": [
+        "__future__",
+        "argparse",
+        "asyncio",
+        "hashlib",
+        "json",
+        "tempfile",
+        "dataclasses",
+        "pathlib"
+      ],
+      "symbols": [
+        "WorkerResult:15",
+        "ComputeWorkerServer:20",
+        "run_job:76",
+        "main:107",
+        "__init__:21",
+        "handle:26",
+        "_send:71",
+        "serve:114"
+      ]
+    },
+    {
+      "file": "src/siro/services/compute/__init__.py",
+      "sha256": "5225e0ab2adaae1c4b855512997aba23ef1e136e80d9ab5722a6ef19605e9bcc",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/services/affect/planner.py",
+      "sha256": "0ae4355fdf90d5a7d0bbcb7102b2b43322a070854789b3cdfb257e29c716e784",
+      "imports": [
+        "__future__",
+        "siro.core.cognition",
+        "siro.persistence.affect"
+      ],
+      "symbols": [
+        "AffectDecisionLoop:17",
+        "AffectAwarePlanner:49",
+        "AffectAwareAttention:73",
+        "__init__:25",
+        "decide:33",
+        "__init__:50",
+        "plan:61",
+        "__init__:74",
+        "select:87"
+      ]
+    },
+    {
+      "file": "src/siro/services/affect/coordinator.py",
+      "sha256": "e58c58d5fda46e42fcf40a94e19f3f59a0e5306a63d1db15ec99b8df3b578c2c",
+      "imports": [
+        "__future__",
+        "datetime",
+        "uuid",
+        "siro.contracts.events",
+        "siro.core.affect",
+        "siro.core.outcomes",
+        "siro.core.relationships",
+        "siro.persistence.affect",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "AffectCoordinator:23",
+        "AffectOutcomeReporter:93",
+        "__init__:24",
+        "ingest:36",
+        "__init__:96",
+        "report_action:109"
+      ]
+    },
+    {
+      "file": "src/siro/services/affect/__init__.py",
+      "sha256": "7aca403d9dcb5e6641ecf79fdca684bec89c8518e7f75fa106db71b2a0b4dadb",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/services/devices/mqtt.py",
+      "sha256": "0bac076bdebb06b8e7ed9d6499fed7d516ab0a8293c7c666f1b90a58d7cb5111",
+      "imports": [
+        "__future__",
+        "json",
+        "datetime",
+        "enum",
+        "pydantic",
+        "siro.adapters.devices",
+        "siro.core.devices"
+      ],
+      "symbols": [
+        "StrictModel:15",
+        "DeviceCommand:19",
+        "CommandResult:33",
+        "DeliveryState:41",
+        "CommandTracker:47",
+        "MqttLightCommandProcessor:79",
+        "MqttStateProjector:101",
+        "command_message:119",
+        "timezone_required:27",
+        "__init__:48",
+        "issue:51",
+        "acknowledge:60",
+        "observe_state:65",
+        "state:75",
+        "__init__:80",
+        "handle:84",
+        "__init__:102",
+        "handle_state:105"
+      ]
+    },
+    {
+      "file": "src/siro/services/devices/__init__.py",
+      "sha256": "43f057b76886effd72873e3d613be7cd1ce22ca6a1963d71acfcf5f05c3b9abb",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/services/audio/stt.py",
+      "sha256": "a0afcf658d28defeb1492d226be4be5fbe80285e1ae44c9935b4146d348c9d1f",
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "typing",
+        "httpx"
+      ],
+      "symbols": [
+        "Transcript:12",
+        "SpeechToText:18",
+        "GroqWhisper:22",
+        "MockSpeechToText:56",
+        "transcribe:19",
+        "__init__:23",
+        "transcribe:36",
+        "__init__:57",
+        "transcribe:62"
+      ]
+    },
+    {
+      "file": "src/siro/services/audio/protocol.py",
+      "sha256": "2105800a79a7af6f3d928f9bae2467f7d9203aad5b4b2134e88aafb5b2c0d9a7",
+      "imports": [
+        "__future__",
+        "struct",
+        "dataclasses",
+        "enum"
+      ],
+      "symbols": [
+        "AudioMetadata:16",
+        "AudioFrame:47",
+        "BufferResult:91",
+        "AudioRingBuffer:98",
+        "PlaybackOwnership:127",
+        "__post_init__:26",
+        "frame_samples:42",
+        "encode:54",
+        "decode:77",
+        "__init__:99",
+        "push:105",
+        "pop:119",
+        "pending:123",
+        "__init__:128",
+        "acquire:131",
+        "release:138"
+      ]
+    },
+    {
+      "file": "src/siro/services/audio/session.py",
+      "sha256": "3a9a98d4ee4450d9cb3307baafaf0616fd14dfb16486d61037167255656e59b2",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "collections.abc",
+        "dataclasses",
+        "siro.services.audio.tts"
+      ],
+      "symbols": [
+        "AudioSession:15",
+        "begin:21",
+        "barge_in:29",
+        "accept_audio:35",
+        "reconnect:40",
+        "_cancel_locked:44"
+      ]
+    },
+    {
+      "file": "src/siro/services/audio/tts.py",
+      "sha256": "ca2d6707ec5fb802a327b590ec5297567b587078c5044e120ac53d0d65bc2e90",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "base64",
+        "io",
+        "json",
+        "re",
+        "collections.abc",
+        "dataclasses",
+        "enum",
+        "pathlib",
+        "typing",
+        "edge_tts",
+        "httpx",
+        "numpy",
+        "soundfile",
+        "kokoro_onnx",
+        "misaki"
+      ],
+      "symbols": [
+        "prepare_spoken_text:30",
+        "speech_segments:44",
+        "TextToSpeech:67",
+        "EdgeNeuralTTS:71",
+        "KokoroLocalTTS:104",
+        "QwenReferenceTTS:154",
+        "GroqOrpheus:243",
+        "SpeechState:281",
+        "SpeechPlayback:290",
+        "synthesize_or_fallback:312",
+        "synthesize:68",
+        "__init__:74",
+        "render:77",
+        "__init__:107",
+        "render:122",
+        "_render_sync:128",
+        "__init__:157",
+        "render:185",
+        "_ensure_worker:202",
+        "_read_json:221",
+        "__init__:246",
+        "synthesize:259",
+        "acknowledge:296",
+        "mouth_open:305",
+        "cancel:308",
+        "read:227"
+      ]
+    },
+    {
+      "file": "src/siro/services/audio/input.py",
+      "sha256": "8150c58c48fbdfb7a5db72d2924da876fdec75760265a7a870bfc10879f94f36",
+      "imports": [
+        "__future__",
+        "io",
+        "math",
+        "struct",
+        "wave",
+        "collections.abc",
+        "dataclasses",
+        "enum",
+        "siro.services.audio.stt"
+      ],
+      "symbols": [
+        "InputResult:16",
+        "InputEvent:26",
+        "EnergyVad:31",
+        "pcm_to_wav:44",
+        "InputEndpoint:54",
+        "__init__:32",
+        "is_speech:35",
+        "__init__:57",
+        "push:84",
+        "disconnect:114",
+        "_finish:118"
+      ]
+    },
+    {
+      "file": "src/siro/services/audio/__init__.py",
+      "sha256": "2c6947913da6de006923e6bec1963c3fbf4b0cb67c6c510d2116cfb8ca3db6dd",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/services/agent/runs.py",
+      "sha256": "adb065e775fe7e5764a60133c5602a4b75a5d7c73a5b91b939aafaf366752476",
+      "imports": [
+        "__future__",
+        "json",
+        "sqlite3",
+        "dataclasses",
+        "datetime",
+        "enum",
+        "typing",
+        "uuid",
+        "siro.persistence.sqlite"
+      ],
+      "symbols": [
+        "AgentRunState:16",
+        "AgentRun:25",
+        "AgentStep:37",
+        "SQLiteAgentRunRepository:45",
+        "__init__:46",
+        "start:49",
+        "get:67",
+        "latest:75",
+        "append:84",
+        "steps:138",
+        "_run:156",
+        "write:57",
+        "write:97"
+      ]
+    },
+    {
+      "file": "src/siro/services/agent/__init__.py",
+      "sha256": "f4d1a8432132baf31b229652746609f1397d79ae8ddbd4432eb83b31fa91ea3a",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/services/presentation/gateway.py",
+      "sha256": "b2ab2588378eed7ccf9034499af2b08eb0e367bb4da16da9823b4ca7afd32080",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "contextlib",
+        "logging",
+        "os",
+        "re",
+        "secrets",
+        "time",
+        "collections.abc",
+        "contextlib",
+        "dataclasses",
+        "datetime",
+        "logging.handlers",
+        "pathlib",
+        "typing",
+        "urllib.parse",
+        "uuid",
+        "fastapi",
+        "fastapi.responses",
+        "fastapi.staticfiles",
+        "pydantic",
+        "siro.adapters.body.web",
+        "siro.contracts.events",
+        "siro.core.memory",
+        "siro.ports.models",
+        "siro.services.audio.protocol",
+        "siro.services.audio.stt",
+        "siro.services.audio.tts",
+        "siro.services.tools.orchestrator",
+        "uvicorn",
+        "siro.adapters.body.web",
+        "siro.adapters.browser",
+        "siro.adapters.models.mock",
+        "siro.adapters.models.ollama",
+        "siro.adapters.models.openai_compatible",
+        "siro.core.memory",
+        "siro.persistence.memory",
+        "siro.persistence.sqlite",
+        "siro.ports.models",
+        "siro.ports.models",
+        "siro.services.audio.stt",
+        "siro.services.presentation.integrated",
+        "siro.services.tools.orchestrator"
+      ],
+      "symbols": [
+        "JsonSocket:42",
+        "SpeechSynthesizer:48",
+        "SessionTokens:52",
+        "GatewayState:74",
+        "ClientChannel:100",
+        "GatewayHub:170",
+        "TurnInput:221",
+        "CancelInput:227",
+        "KillSwitchInput:232",
+        "MemoryCorrectionInput:237",
+        "SpeechInput:243",
+        "ToolApprovalInput:251",
+        "_browser_request:269",
+        "_application_request:277",
+        "_proposal_json:288",
+        "_memory_json:300",
+        "_ignore_turn:324",
+        "_ignore_cancel:328",
+        "_ignore_memory_correction:332",
+        "_ignore_tool_result:336",
+        "create_app:340",
+        "main:849",
+        "send_json:43",
+        "close:45",
+        "render:49",
+        "__init__:53",
+        "issue:57",
+        "valid:63",
+        "snapshot:88",
+        "__init__:101",
+        "start:116",
+        "enqueue:121",
+        "stop:129",
+        "_write_loop:140",
+        "__init__:171",
+        "client_count:178",
+        "connect:181",
+        "disconnect:193",
+        "broadcast:197",
+        "shutdown:210",
+        "lifespan:369",
+        "require_origin:382",
+        "require_token:386",
+        "index:394",
+        "body_page:410",
+        "audio_field_test:415",
+        "live:420",
+        "ready:424",
+        "issue_session:428",
+        "transcribe_audio:436",
+        "synthesize_speech:464",
+        "snapshot:488",
+        "create_turn:493",
+        "approve_tool_proposal:542",
+        "cancel_turn:577",
+        "set_kill_switch:591",
+        "list_memories:605",
+        "memory_revisions:630",
+        "correct_memory:654",
+        "delete_memory:687",
+        "control:700",
+        "body:728",
+        "audio_hello:755",
+        "audio_input:792",
+        "audio_output:820",
+        "browser_tool:923",
+        "application_tool:935",
+        "execute_browser:989",
+        "execute_application:995",
+        "execute_computer:1001"
+      ]
+    },
+    {
+      "file": "src/siro/services/presentation/integrated.py",
+      "sha256": "de0940a0765fa92a867f23de01b983c7d82a877b2fd60440a04b247b63e7c79c",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "collections.abc",
+        "datetime",
+        "pathlib",
+        "uuid",
+        "siro.adapters.body.web",
+        "siro.contracts.events",
+        "siro.contracts.events",
+        "siro.core.affect",
+        "siro.core.companion",
+        "siro.core.conversation",
+        "siro.core.expression",
+        "siro.core.identity",
+        "siro.core.memory",
+        "siro.core.preferences",
+        "siro.core.relationships",
+        "siro.persistence.affect",
+        "siro.persistence.conversation",
+        "siro.persistence.memory",
+        "siro.persistence.relationships",
+        "siro.persistence.sqlite",
+        "siro.persistence.state",
+        "siro.ports.body",
+        "siro.ports.models",
+        "siro.services.affect.coordinator",
+        "siro.services.agent.runs",
+        "siro.services.presentation.gateway",
+        "siro.services.tools.orchestrator"
+      ],
+      "symbols": [
+        "_emotion_command:87",
+        "_local_status_command:93",
+        "IntegratedCompanion:105",
+        "__init__:106",
+        "respond:139",
+        "continue_after_tool:391",
+        "_propose_tool_calls:481",
+        "cancel:551",
+        "memory_corrected:559",
+        "_ensure_core:625",
+        "delta:303"
+      ]
+    },
+    {
+      "file": "src/siro/services/presentation/__init__.py",
+      "sha256": "f60f3c9fe509baad84c0079ae08a96b6982a468351c98b0ab8aca1c4ec43892d",
+      "imports": [
+        "siro.services.presentation.gateway"
+      ],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/services/tools/orchestrator.py",
+      "sha256": "268a2898feca2da2945c77d974ca8b216f4d53f25e839f7e66fd5008b7e01a53",
+      "imports": [
+        "__future__",
+        "json",
+        "sqlite3",
+        "collections.abc",
+        "dataclasses",
+        "datetime",
+        "enum",
+        "typing",
+        "uuid",
+        "siro.core.authorization",
+        "siro.persistence.sqlite",
+        "siro.ports.models"
+      ],
+      "symbols": [
+        "ProposalState:21",
+        "ToolProposal:31",
+        "SQLiteToolProposalRepository:44",
+        "ToolOrchestrator:141",
+        "__init__:45",
+        "put:48",
+        "get:74",
+        "transition:86",
+        "_from_row:125",
+        "__init__:142",
+        "get:150",
+        "propose:153",
+        "resolve:169",
+        "execute:189",
+        "write:51",
+        "read:75",
+        "write:101"
+      ]
+    },
+    {
+      "file": "src/siro/services/tools/__init__.py",
+      "sha256": "299fff98f4673e42be693e69ac3f9017e10856b9ec06f8b652ad9d30f3cf77a1",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/adapters/body/assets.py",
+      "sha256": "205ad10ac86f97487e251344c727c39906e3e66263bad5ce84e90423144cc534",
+      "imports": [
+        "__future__",
+        "hashlib",
+        "json",
+        "pathlib",
+        "pydantic"
+      ],
+      "symbols": [
+        "BodyAssetFile:12",
+        "BodyAssetManifest:19",
+        "load_verified_manifest:34"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/body/web.py",
+      "sha256": "ae6b825805cd26a1cb028ce34cdfa52375cccedda34f0c49eca60a2694dadf4f",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "contextlib",
+        "typing",
+        "siro.ports.body"
+      ],
+      "symbols": [
+        "BodyTransport:12",
+        "JsonBodySocket:19",
+        "WebSocketBodyTransport:25",
+        "MinimalWebBodyAdapter:82",
+        "connected:14",
+        "send:16",
+        "send_json:20",
+        "close:22",
+        "__init__:28",
+        "connected:37",
+        "attach:40",
+        "detach:46",
+        "send:58",
+        "_write_loop:68",
+        "__init__:87",
+        "speak:90",
+        "set_emotion:106",
+        "cancel:116",
+        "status:128",
+        "_send:132"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/body/__init__.py",
+      "sha256": "5a095d3fe4c37884e6a21322da436d8fdc378c7cea4fd1bb31f8ddb27a4b7bd2",
+      "imports": [
+        "siro.adapters.body.web"
+      ],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/adapters/models/openai_compatible.py",
+      "sha256": "f2f1c0c7dbd1daccbe84634debdd4ef7b48462e3654a3c08710f8d481f9b1be5",
+      "imports": [
+        "__future__",
+        "json",
+        "collections.abc",
+        "typing",
+        "siro.adapters.models.http",
+        "siro.ports.models"
+      ],
+      "symbols": [
+        "_serialize_message:24",
+        "OpenAICompatibleAdapter:43",
+        "__init__:46",
+        "stream:63",
+        "_stream_response:139"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/models/http.py",
+      "sha256": "df6ea9e40ef5f118e60a42bbc44eca8436a48ca4c055980aec3631ee4bb4dbd4",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "json",
+        "urllib.request",
+        "collections.abc",
+        "dataclasses",
+        "typing",
+        "httpx",
+        "siro.ports.models"
+      ],
+      "symbols": [
+        "JsonTransport:17",
+        "StreamingJsonTransport:23",
+        "HttpxStreamingTransport:35",
+        "UrllibJsonTransport:70",
+        "post:18",
+        "stream_lines:24",
+        "stream_lines:36",
+        "post:71",
+        "_post:77"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/models/mock.py",
+      "sha256": "9b99a76abea516886d785c6b81ec68b3861bc5ad7e9a05cd3400e069a232ff59",
+      "imports": [
+        "__future__",
+        "asyncio",
+        "collections.abc",
+        "siro.ports.models"
+      ],
+      "symbols": [
+        "MockModel:11",
+        "OfflineDemoModel:38",
+        "__init__:14",
+        "stream:25",
+        "stream:43"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/models/failover.py",
+      "sha256": "bd3f2bc65845095645254fc67d359c26c1db5609d910026f328b811b692fa050",
+      "imports": [
+        "__future__",
+        "collections.abc",
+        "dataclasses",
+        "uuid",
+        "siro.ports.models"
+      ],
+      "symbols": [
+        "FailoverModel:12",
+        "__init__:15",
+        "stream:20"
+      ]
+    },
+    {
+      "file": "src/siro/adapters/models/__init__.py",
+      "sha256": "10716dc01b467ebb8d89b1f417b0e033b892cae1065bf238593cdaafbf6625cc",
+      "imports": [],
+      "symbols": []
+    },
+    {
+      "file": "src/siro/adapters/models/ollama.py",
+      "sha256": "d83c247f5e13cf2f5ccde68e623170a5ad4a464c325e337c30fa3bc2875c6f86",
+      "imports": [
+        "__future__",
+        "json",
+        "collections.abc",
+        "typing",
+        "siro.adapters.models.http",
+        "siro.ports.models"
+      ],
+      "symbols": [
+        "_serialize_message:17",
+        "OllamaAdapter:29",
+        "__init__:32",
+        "stream:45",
+        "_stream_response:112"
+      ]
+    }
+  ]
+}

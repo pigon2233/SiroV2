@@ -1,0 +1,130 @@
+{
+  "actual_configured_provider": true,
+  "private_input": false,
+  "live_service_restart": false,
+  "tool_execution": false,
+  "production_changes": false,
+  "samples_per_arm": 1,
+  "max_parallel_provider_calls": 2,
+  "source_sha256": {
+    "src/siro/services/presentation/integrated.py": "bef79667f4906695eafe8da54d9308a9a8cf1fca6af50067cfcfdb1dea227e49",
+    "src/siro/services/agent/runs.py": "b1fd14ef1e08de246fd90f296b73874f16e745a1efb3f188b51361832ee7c6bf",
+    "src/siro/core/memory.py": "5f1b5efb380d0c9a7e574ac4565221e33964031d83da5624e5eabc0c3188f5cc",
+    "src/siro/adapters/models/openai_compatible.py": "510852b90f429cbf021c957643f1f1ed71f63b41af1c35388d8ecaf5f6e78ee1"
+  },
+  "sources_unchanged": true,
+  "limitations": [
+    "single paired sample per case, no statistical quality claim",
+    "B is evidence-only prospective composition, not production code",
+    "CAPTCHA is a synthetic native observation derived from public negative evidence, not a new browser acceptance"
+  ],
+  "results": [
+    {
+      "case": "greeting",
+      "arm": "A",
+      "text": "你好！😊 有什麼我可以幫忙的嗎？",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "57c01596414c06dcc35afeca06a901bcf6e19d35c841671aabe70466aba97545"
+    },
+    {
+      "case": "greeting",
+      "arm": "B",
+      "text": "你好呀！有什麼需要幫忙的嗎？",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "514acca9ade7a67cb395081598906ca780f6a35800c16d300058f96b720f58cc"
+    },
+    {
+      "case": "memory_capability",
+      "arm": "A",
+      "text": "是的，我具備持久的本地記憶。  \n當你說「記住 …」時，我會把那段訊息保存進本地資料庫，之後即使重新開啟對話，也能繼續使用。  \n同時，我也能回顧本次對話的最近幾輪內容（受限於記憶窗口），以確保交流連續性。  \n\n若你有任何想要記住的資訊，直接告訴我即可。",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "e364d37f0b97ebc12b365f5b00be19bcc9937d06337ca92b401cf87fec5c6977"
+    },
+    {
+      "case": "memory_capability",
+      "arm": "B",
+      "text": "當然有！我能在本地持久化保存你說過的重要訊息，並在下次對話時再次提起。這些記憶會被自動記錄，除非你告訴我刪除。若你有任何想讓我記住的內容，只要說「記住…」即可。",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "fdb6a3db3c2905ed870f20299fe9c1804b65502fd4bc58257b9aa3ab2852616b"
+    },
+    {
+      "case": "own_failure",
+      "arm": "A",
+      "text": "對不起，我現在沒有辦法回顧剛才發生的錯誤。能否告訴我錯誤訊息的內容或是你正在做什麼操作？這樣我才能更準確地協助你找出問題所在。",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "b03ad5f3f89975c10d80c8aa4f914eba44a30b7a721263413e5da647164f4603"
+    },
+    {
+      "case": "own_failure",
+      "arm": "B",
+      "text": "我剛剛的回覆是因為我的內部呼叫出現了 HTTPStatusError，根據目前的執行紀錄，錯誤類別是「HTTPStatusError」，根本原因（root_cause）仍為「UNKNOWN」。已知的是：\n\n- 這次失敗是由我自己在執行過程中發生的錯誤，並非你需要自行串接第三方 API。  \n- 錯誤類別顯示是 HTTP 狀態錯誤，但目前沒有更進一步的訊息能說明是哪個 HTTP 代碼或是哪一步失敗。  \n\n未知的是：\n\n- 具體是哪一個 API 呼叫或哪一步驟導致此錯誤。  \n- 是否因為網路連線、憑證、授權或其他環境因素。  \n\n目前我無法進一步診斷或修復，建議可以：\n\n1. 試著再次執行相同的請求，查看是否還會重現。  \n2. 如有權限或授權訊息，請確認相關憑證或授權設定。  \n3. 若問題持續，考慮由人工或授權的替代方案完成此步驟。  \n\n如果你有其他需要協助的地方，隨時告訴我。",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "83a7f124c4351fb80be972baecbfcf14d5bf9afe760b5bd19f8ffedaa83903fc"
+    },
+    {
+      "case": "voice_correction",
+      "arm": "A",
+      "text": "我已經知道自己可以直接用內建的 TTS（文字轉語音）功能把文字朗讀出來，並且能夠一次讀完整篇文章。  \n但我還不知道你想朗讀的是哪一段文字，或你已經把那段文字放在對話中還是還需要你再貼上。  \n\n**下一步：**  \n1. 請先告訴我「故事」是哪一段文字，或把它貼到對話框裡。  \n2. 我會把文字分段，逐段朗讀並在每段朗讀完後停頓，讓你確認「已經朗讀完了」。  \n3. 若你想確認整篇已完整朗讀，我會在最後再說「朗讀完成，請再確認一次」。\n\n請把你要朗讀的文字貼上，我們就可以開始！",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "538d31ee452b8d170b2a3b7aaa0fce1565de94d84c6117adcd75b439238f9b1a"
+    },
+    {
+      "case": "voice_correction",
+      "arm": "B",
+      "error_class": "HTTPStatusError",
+      "executed_tools": 0
+    },
+    {
+      "case": "unknown_effect",
+      "arm": "A",
+      "error_class": "HTTPStatusError",
+      "executed_tools": 0
+    },
+    {
+      "case": "unknown_effect",
+      "arm": "B",
+      "error_class": "HTTPStatusError",
+      "executed_tools": 0
+    },
+    {
+      "case": "captcha",
+      "arm": "A",
+      "error_class": "HTTPStatusError",
+      "executed_tools": 0
+    },
+    {
+      "case": "captcha",
+      "arm": "B",
+      "error_class": "HTTPStatusError",
+      "executed_tools": 0
+    }
+  ]
+}

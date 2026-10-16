@@ -1,0 +1,124 @@
+   Compiling siro-runtime v0.1.0 (/tmp/siro-rust-lifecycle-tA5Ay2/rollback/runtime/siro-runtime)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.47s
+     Running unittests src/lib.rs (/tmp/siro-rust-lifecycle-tA5Ay2/rollback/target/debug/deps/siro_runtime-a8e276feebc361cb)
+
+running 19 tests
+test linux::tests::filesystem_read_preserves_empty_exact_limit_and_utf8_result_shape ... ok
+test linux::tests::filesystem_read_preserves_scope_refusal_and_in_scope_symlink ... ok
+test linux::tests::filesystem_read_rejects_fifo_without_waiting_for_a_writer ... ok
+test linux::tests::filesystem_read_rejects_invalid_utf8 ... ok
+test linux::tests::filesystem_read_rejects_large_sparse_file_before_allocation ... ok
+test linux::tests::filesystem_read_rejects_nonregular_directory ... ok
+test linux::tests::filesystem_read_rejects_oversize_without_truncating ... ok
+test linux::tests::invalid_output_limit_does_not_create_capture_files ... FAILED
+test linux::tests::managed_child_reap_failure_is_visible_and_keeps_ownership_record ... FAILED
+test linux::tests::non_process_execution_reaps_exited_managed_children ... FAILED
+test linux::tests::process_run_is_bounded_and_managed_processes_are_owned ... ok
+test linux::tests::process_run_output_failure_removes_owned_capture_files ... FAILED
+test linux::tests::process_run_preserves_exact_per_stream_limit_and_result_shape ... ok
+test linux::tests::process_run_rejects_stderr_over_limit_instead_of_returning_a_prefix ... FAILED
+test linux::tests::process_run_rejects_stdout_over_limit_instead_of_returning_a_prefix ... FAILED
+test linux::tests::process_run_zero_limit_accepts_empty_and_rejects_any_output ... FAILED
+test linux::tests::reap_preserves_live_child_and_refuses_unowned_stop ... ok
+test linux::tests::reaped_leader_preserves_owned_descendant_group_stop ... FAILED
+test linux::tests::scoped_file_driver_rejects_symlink_escape ... ok
+
+failures:
+
+---- linux::tests::invalid_output_limit_does_not_create_capture_files stdout ----
+
+thread 'linux::tests::invalid_output_limit_does_not_create_capture_files' (966717) panicked at runtime/siro-runtime/src/linux.rs:747:9:
+invalid-limit capture probe failed: 
+running 1 test
+test linux::tests::invalid_output_limit_does_not_create_capture_files ... FAILED
+
+failures:
+
+failures:
+    linux::tests::invalid_output_limit_does_not_create_capture_files
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 22 filtered out; finished in 0.02s
+
+ 
+thread 'linux::tests::invalid_output_limit_does_not_create_capture_files' (966719) panicked at runtime/siro-runtime/src/linux.rs:173:15:
+attempt to add with overflow
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- linux::tests::managed_child_reap_failure_is_visible_and_keeps_ownership_record stdout ----
+
+thread 'linux::tests::managed_child_reap_failure_is_visible_and_keeps_ownership_record' (966721) panicked at runtime/siro-runtime/src/linux.rs:567:9:
+assertion `left == right` failed
+  left: Ok(Object {"pids": Array [Number(966722)]})
+ right: Err("process_reap_failed")
+
+---- linux::tests::non_process_execution_reaps_exited_managed_children stdout ----
+
+thread 'linux::tests::non_process_execution_reaps_exited_managed_children' (966723) panicked at runtime/siro-runtime/src/linux.rs:546:9:
+completed child remains managed
+
+---- linux::tests::process_run_output_failure_removes_owned_capture_files stdout ----
+
+thread 'linux::tests::process_run_output_failure_removes_owned_capture_files' (966729) panicked at runtime/siro-runtime/src/linux.rs:696:9:
+assertion `left == right` failed
+  left: Ok(Object {"returncode": Number(0), "stderr": String(""), "stdout": String("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")})
+ right: Err("output_limit")
+
+---- linux::tests::process_run_rejects_stderr_over_limit_instead_of_returning_a_prefix stdout ----
+
+thread 'linux::tests::process_run_rejects_stderr_over_limit_instead_of_returning_a_prefix' (966733) panicked at runtime/siro-runtime/src/linux.rs:679:9:
+assertion `left == right` failed
+  left: Ok(Object {"returncode": Number(0), "stderr": String("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"), "stdout": String("")})
+ right: Err("output_limit")
+
+---- linux::tests::process_run_rejects_stdout_over_limit_instead_of_returning_a_prefix stdout ----
+
+thread 'linux::tests::process_run_rejects_stdout_over_limit_instead_of_returning_a_prefix' (966735) panicked at runtime/siro-runtime/src/linux.rs:670:9:
+assertion `left == right` failed
+  left: Ok(Object {"returncode": Number(0), "stderr": String(""), "stdout": String("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")})
+ right: Err("output_limit")
+
+---- linux::tests::process_run_zero_limit_accepts_empty_and_rejects_any_output stdout ----
+
+thread 'linux::tests::process_run_zero_limit_accepts_empty_and_rejects_any_output' (966737) panicked at runtime/siro-runtime/src/linux.rs:724:9:
+assertion `left == right` failed
+  left: Ok(Object {"returncode": Number(120), "stderr": String(""), "stdout": String("")})
+ right: Err("output_limit")
+
+---- linux::tests::reaped_leader_preserves_owned_descendant_group_stop stdout ----
+
+thread 'linux::tests::reaped_leader_preserves_owned_descendant_group_stop' (966745) panicked at runtime/siro-runtime/src/linux.rs:651:9:
+descendant ownership probe failed: 
+running 1 test
+test linux::tests::reaped_leader_preserves_owned_descendant_group_stop ... FAILED
+
+failures:
+
+failures:
+    linux::tests::reaped_leader_preserves_owned_descendant_group_stop
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 22 filtered out; finished in 0.03s
+
+ 
+thread 'linux::tests::reaped_leader_preserves_owned_descendant_group_stop' (966747) panicked at runtime/siro-runtime/src/linux.rs:641:13:
+assertion `left == right` failed
+  left: Ok(Object {"pids": Array []})
+ right: Ok(Object {"pids": Array [Number(966748)]})
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+
+failures:
+    linux::tests::invalid_output_limit_does_not_create_capture_files
+    linux::tests::managed_child_reap_failure_is_visible_and_keeps_ownership_record
+    linux::tests::non_process_execution_reaps_exited_managed_children
+    linux::tests::process_run_output_failure_removes_owned_capture_files
+    linux::tests::process_run_rejects_stderr_over_limit_instead_of_returning_a_prefix
+    linux::tests::process_run_rejects_stdout_over_limit_instead_of_returning_a_prefix
+    linux::tests::process_run_zero_limit_accepts_empty_and_rejects_any_output
+    linux::tests::reaped_leader_preserves_owned_descendant_group_stop
+
+test result: FAILED. 11 passed; 8 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.38s
+
+error: test failed, to rerun pass `-p siro-runtime --lib`

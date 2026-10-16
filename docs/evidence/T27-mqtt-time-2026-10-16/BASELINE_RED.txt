@@ -1,0 +1,156 @@
+FF........FF...............F.....                                        [100%]
+=================================== FAILURES ===================================
+_______ test_command_wire_preserves_iso_and_adds_integer_epoch[offset0] ________
+
+offset = datetime.timezone.utc
+
+    @pytest.mark.parametrize("offset", [UTC, timezone(timedelta(hours=8))])
+    def test_command_wire_preserves_iso_and_adds_integer_epoch(offset: timezone) -> None:
+        original = command()
+        original = original.model_copy(update={"expires_at": original.expires_at.astimezone(offset)})
+        payload, retained = command_message(original)
+        parsed = json.loads(payload)
+        assert retained is False
+        assert datetime.fromisoformat(parsed["expires_at"]) == original.expires_at
+>       assert type(parsed["expires_at_epoch"]) is int
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'expires_at_epoch'
+
+tests/integration/test_mqtt_time_formats.py:46: KeyError
+_______ test_command_wire_preserves_iso_and_adds_integer_epoch[offset1] ________
+
+offset = datetime.timezone(datetime.timedelta(seconds=28800))
+
+    @pytest.mark.parametrize("offset", [UTC, timezone(timedelta(hours=8))])
+    def test_command_wire_preserves_iso_and_adds_integer_epoch(offset: timezone) -> None:
+        original = command()
+        original = original.model_copy(update={"expires_at": original.expires_at.astimezone(offset)})
+        payload, retained = command_message(original)
+        parsed = json.loads(payload)
+        assert retained is False
+        assert datetime.fromisoformat(parsed["expires_at"]) == original.expires_at
+>       assert type(parsed["expires_at_epoch"]) is int
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'expires_at_epoch'
+
+tests/integration/test_mqtt_time_formats.py:46: KeyError
+____ test_state_time_formats_reach_existing_registry_and_world[timestamp0] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-86/test_state_time_formats_reach_0')
+timestamp = {'observed_at_epoch': 1792065600}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp",
+        [
+            {"observed_at_epoch": int(NOW.timestamp())},
+            {"observed_at_epoch": NOW.timestamp() + 0.125},
+            {"observed_at": NOW.isoformat()},
+            {"observed_at": NOW.astimezone(timezone(timedelta(hours=8))).isoformat()},
+        ],
+    )
+    async def test_state_time_formats_reach_existing_registry_and_world(
+        tmp_path: Path, timestamp: dict[str, object]
+    ) -> None:
+        store = SQLiteStore(tmp_path / "mqtt-time.sqlite3")
+        await store.initialize()
+        world = WorldModel(SQLiteWorldRepository(store))
+        registry = DeviceRegistry(SQLiteDeviceRepository(store), world)
+        light = SimulatedLight("light-time", "esp32_mqtt", "lab")
+        await registry.register(light.descriptor)
+>       await MqttStateProjector(registry).handle_state(
+            light.descriptor.device_id,
+            json.dumps({**timestamp, "properties": {"power": True}}).encode(),
+        )
+
+tests/integration/test_mqtt_time_formats.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.services.devices.mqtt.MqttStateProjector object at 0x7ee8177d4440>
+device_id = 'light-time'
+payload = b'{"observed_at_epoch": 1792065600, "properties": {"power": true}}'
+
+>   ???
+E   ValueError: invalid MQTT state payload
+
+HEAD/src/siro/services/devices/mqtt.py:108: ValueError
+____ test_state_time_formats_reach_existing_registry_and_world[timestamp1] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-86/test_state_time_formats_reach_1')
+timestamp = {'observed_at_epoch': 1792065600.125}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp",
+        [
+            {"observed_at_epoch": int(NOW.timestamp())},
+            {"observed_at_epoch": NOW.timestamp() + 0.125},
+            {"observed_at": NOW.isoformat()},
+            {"observed_at": NOW.astimezone(timezone(timedelta(hours=8))).isoformat()},
+        ],
+    )
+    async def test_state_time_formats_reach_existing_registry_and_world(
+        tmp_path: Path, timestamp: dict[str, object]
+    ) -> None:
+        store = SQLiteStore(tmp_path / "mqtt-time.sqlite3")
+        await store.initialize()
+        world = WorldModel(SQLiteWorldRepository(store))
+        registry = DeviceRegistry(SQLiteDeviceRepository(store), world)
+        light = SimulatedLight("light-time", "esp32_mqtt", "lab")
+        await registry.register(light.descriptor)
+>       await MqttStateProjector(registry).handle_state(
+            light.descriptor.device_id,
+            json.dumps({**timestamp, "properties": {"power": True}}).encode(),
+        )
+
+tests/integration/test_mqtt_time_formats.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.services.devices.mqtt.MqttStateProjector object at 0x7ee8177ea850>
+device_id = 'light-time'
+payload = b'{"observed_at_epoch": 1792065600.125, "properties": {"power": true}}'
+
+>   ???
+E   ValueError: invalid MQTT state payload
+
+HEAD/src/siro/services/devices/mqtt.py:108: ValueError
+_ test_invalid_state_timestamp_rejected_before_registry_mutation[timestamp12] __
+
+timestamp = {'observed_at': '2026-10-15T12:00:00', 'observed_at_epoch': 1792065600.0}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp",
+        [
+            {},
+            {"observed_at_epoch": True},
+            {"observed_at_epoch": False},
+            {"observed_at_epoch": None},
+            {"observed_at_epoch": "1792065600"},
+            {"observed_at_epoch": float("nan")},
+            {"observed_at_epoch": float("inf")},
+            {"observed_at_epoch": -float("inf")},
+            {"observed_at_epoch": 10**100},
+            {"observed_at_epoch": -(10**100)},
+            {"observed_at": "invalid", "observed_at_epoch": NOW.timestamp()},
+            {"observed_at": None, "observed_at_epoch": NOW.timestamp()},
+            {"observed_at": "2026-10-15T12:00:00", "observed_at_epoch": NOW.timestamp()},
+        ],
+    )
+    async def test_invalid_state_timestamp_rejected_before_registry_mutation(
+        timestamp: dict[str, object],
+    ) -> None:
+        registry = Mock(spec=DeviceRegistry)
+        registry.record_property = AsyncMock()
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/integration/test_mqtt_time_formats.py:162: Failed
+=========================== short test summary info ============================
+FAILED tests/integration/test_mqtt_time_formats.py::test_command_wire_preserves_iso_and_adds_integer_epoch[offset0]
+FAILED tests/integration/test_mqtt_time_formats.py::test_command_wire_preserves_iso_and_adds_integer_epoch[offset1]
+FAILED tests/integration/test_mqtt_time_formats.py::test_state_time_formats_reach_existing_registry_and_world[timestamp0]
+FAILED tests/integration/test_mqtt_time_formats.py::test_state_time_formats_reach_existing_registry_and_world[timestamp1]
+FAILED tests/integration/test_mqtt_time_formats.py::test_invalid_state_timestamp_rejected_before_registry_mutation[timestamp12]
+5 failed, 28 passed in 0.19s

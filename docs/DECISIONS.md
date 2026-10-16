@@ -1,5 +1,29 @@
 # 決策紀錄
 
+## D61 / 2026-10-16 / accepted / 現有 runtime 韌性缺口的局部修復
+
+使用者提出六項急修，先對目前 source／caller／原契約驗證，不把所有建議視為已確認漏洞。以 FIX-022（MQTT）、FIX-023（model protocol）、FIX-024（SQLite收尾）、FIX-025（Rust lifecycle）四張局部卡處理已證實缺口；保留 D60、UI 與其他未提交工作，不改 RT 歷史／ranking。
+
+MQTT 沿原 CommandTracker：wire 成功值為 `applied`，不是 simulator CommandResult.ACCEPTED 的 `accepted`。acknowledge 新增可選 status（原一參數 trusted caller 相容），未知ID不拋錯；拒絕不變成 ACK，terminal 不復活／降級；只有已 ACK 指令可由 state 確認。追蹤上限預設1024，issue 時清 terminal／expired，未到期 active 不任意丟棄，滿則明確拒新指令；提供顯式 prune，非持久歷史或新 scheduler。
+
+模型僅在 adapter 邊界將 JSON／Unicode 與 Ollama error envelope 轉固定安全 ProviderResponseInvalid(ValueError)，不保留原 body／secret；保留取消、partial／tool意圖後不retry以及原privacy／budget。必要時同一解析點涵蓋既有 OpenAI SSE，無新 Core／port／模型router。Conversation 已捕捉 provider Exception，不能誤稱整個 event loop 崩潰。RT-009 單 backend 一次有界重試與每request額外cloud attempt預算保留，禁止改共享扣計數。
+
+SQLite 已設定 WAL／NORMAL／busy_timeout5000，原「未設定」為 FALSE_POSITIVE。實際修復是 sqlite.py 本地連線 context 額外 closing，及 PRAGMA 初始化失敗關閉，保留原 transaction commit／rollback／writerlock、backup／restore所有權，不改 pragma值／schema／DB或其他release程式。
+
+Rust 在既有 Execute 入口 opportunistic try_wait，無新thread／Health trait；reap leader 後 group仍活則保留stop ownership，無owned group才移除。process.run 以 output_limit+1 sentinel 偵測超量，沿原 `output_limit` error fail closed，讀取失敗亦清 owned capture檔，不新增 truncated wire 欄位。原 process.list 已reap、run已wait，不能稱全部沒有回收；無RPC時的idle即時回收及一般subreaper/cgroup不是本卡承諾。
+
+Rust錯誤隔離補充：sentinel overflow驗證先於capture建立；本輪reap失敗PID局部表僅限制list／該target stop，保留unknown ownership不kill、不remove；其他filesystem/start與known-owned stop仍可用，避免故障耦合把Runtime永久brick。真ECHILD反例要驗原錯誤可查、未誤殺與其他能力可繼續。
+
+D43/D46 strict sandbox明確認證Linux x86_64/systemCPython3.14，缺runtime／unsupported平台有 typed refusal、無未隔離fallback；「沙盒失效」為 FALSE_POSITIVE，跨平台／其他Python profile是另需認證的 DEFER，不以sys.executable或整棵host掛載繞過。只有新證據能重開。驗收用合成資料、自有temporary／loopback／children；實體ESP32／live資料／正式部署不在此輪。
+
+## D60 / 2026-10-15 / accepted / T27 MQTT 時間相容修復
+
+ESP32 使用 epoch 而 Python wire 只輸出 ISO，兩端目前無法完成到期／狀態回讀。最小修復：命令保留 ISO expires_at 並加整數 expires_at_epoch；既有嚴格 simulator decoder 只允許此 mirror 且核對一致，其他未知欄位仍拒。狀態保留 ISO 優先（欄位存在但壞值不得靜默 fallback），缺省才讀 int／float epoch，UTC、拒 bool／非有限值／越界，時間驗證先於 registry 寫入。
+
+韌體 configTime 後最多等30秒，時鐘大於1700000000才 connectMqtt；超時重啟並 return，loop 亦拒未對時接入。新增單次 aiomqtt 驗收腳本，沿現有 CommandTracker／MqttStateProjector／DeviceRegistry，不新增第二 tracker 或常駐 gateway；此次 command 的 applied ACK 與新鮮非retained matching state 兩者具備才確認，不重送。Broker 0.0.0.0 是監聽位址，預設 client 使用127.0.0.1:1883。真broker＋合成ESP32與實體板／PlatformIO編譯分開取證；不改Core、DB schema、授權、UI、依賴或原T／RT歷史。
+
+2026-10-16 驗收補充：ACK立即進ACKNOWLEDGED；probe僅保存本次最新合法wire state候選，同timestamp矛盾直到較新觀測解除前不CONFIRMED，且須與既有World投影time/value一致。這是單次驗收防誤判，不更改全局tracker或World排序；epoch一秒精度／多writer歸因仍有明示界限。
+
 目前均為 2026-09-23 的規劃基線，T00 核對環境後可補充實作版本。使用者明確修改需求時優先更新此表與受影響文件。
 
 | ID | 決策 | 原因與取捨 | 重新評估條件 |
@@ -439,3 +463,15 @@ Accept the owner's architecture audit F1: retain the existing foundation but shi
 ## D58 / 2026-10-15 / accepted / RT-005-FIX-02 cancellation reserve
 
 True full cancellation5.090748s and controlled baseline/candidate300ms journal-delay RED invalidate the old D22 assumption that4.75s handler waiting leaves adequate room in a5s controller gate. Locally reserve1s only for all-arguments-only cancellation; keep contextual/mixed4.75s and argv4.5s unchanged. Retain unknown/fence/late ownership, original user deadline and original tests. No change to Integrated/SQLite/backend architecture. Separately, D57's old latest-schema13 fixture moves to the fixed journal13 slot/name, preserving all compatibility assertions; no SQL/release-bound changes. CONTRACTS D58 and ARCHITECTURE_CORRECTION define proof and scope before repair.
+
+## D59 / 2026-10-15 / accepted requirement, implementation planned / T10-UI-01
+
+使用者要求把介面重設計加入未完成，明確不要所有內容放同一畫面，角色存在形式參考 VPet。決定沿同一應用與既有 API，將對話、任務、記憶、能力與設定分成獨立工作畫面；取代 EXPERIENCE §4 對單長頁集中全部功能的允許。frontend-design 與 Hallmark 作設計／檢討依據，不新增 runtime 框架。VPet 借鑑角色活動、小氣泡與分離控制窗，不搬其 WPF 或假稱現成 Live2D／Linux 支援。
+
+角色、宿主、動作沿既有 Companion plan：一個 Identity／body／音訊 owner，表情／嘴型／位置各守來源，缺少的動作由我們製作驗收。網頁先分頁，不等待桌面或自主更新全部完成；原型、網頁、真平台、資產各自取證。現有 Core、GoalService／Planner、DB schema、批准／取消／unknown、權限與 release gate 不變。新增視窗／body 契約如有必要，開工前再補窄幅相容決策，不由本規劃自動授權。
+
+產出與切片：[INTERFACE_REDESIGN_PLAN](runtime-evolution/INTERFACE_REDESIGN_PLAN.md)、TASKS 的 T10-UI-01；狀態 TODO / Planned Only，未執行原型或 production 改版。逐步撤新前端／宿主／資產即可回現有入口，保留最新資料；T／RT 歷史不重編、不以規劃取代 DONE 證據。
+
+D59 第一切片施工界線（2026-10-15）：沿既有 HTML／JS，有限 hash routes 切換獨立工作畫面，原 DOM 常駐、非目前畫面設 hidden＋inert。這修正規劃「只掛載目前頁」的過度限制：原 WS／非同步回呼仍引用原節點，保留節點可避免為導航重寫所有 handler，也不會讓所有內容同時可見或可聚焦。共用 session／control／iframe／audio；切頁不作網路請求或 mutation、不重置輪詢／情緒／語音，不自動進任務或批准。停止回覆與語音控制移至共用 shell；電腦提案以可達提示引導，不搶走正在輸入的畫面。第一切片只改 index.html、必要新導航測試與文件／合成證據；Core、Gateway、DB、權限、providers、資產及依賴不改。真桌寵仍按獨立 gate，未接入能力不能由新版 UI 冒稱完成。
+
+D59 第一切片結果（2026-10-15）：九畫面已接既有產品，333前端PASS、三次真main／Rust／SQLite與24 CUA檢查，source-only隔離回退已驗。[報告](evidence/T10-UI-01-2026-10-15/REPORT.md)。只認定網頁導航／移轉LOCAL_VERIFIED；T10-UI-01整體PARTIAL，真Live2D切頁／原生桌面／動作包及完整產品體驗不由此放行。file預覽停用控制且不bootstrap，不放寬認證。

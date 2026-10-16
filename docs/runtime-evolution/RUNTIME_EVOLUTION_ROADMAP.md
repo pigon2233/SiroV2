@@ -1,5 +1,23 @@
 # Runtime evolution roadmap
 
+## 2026-10-16 — D61 既有底座局部修復，不改 RT 歷史
+
+**KEEP** 已有 RT-009 的有界重試／每request cloud attempt預算、D43/D46明確strict sandbox profile，以及D60 ISO／epoch與NTP修復。SQLite原WAL／NORMAL／5000ms已存在，無須重做；其他Python／OS sandbox profile未認證，不以動態host interpreter假稱完成。
+
+實際缺口插入 [FIX-022–025](FIX_REGISTER.md)：MQTT ACK／bounded RAM、adapter protocol error／Ollama error envelope、SQLite明確close、Rust Execute reap／完整輸出。**DONE / LOCAL_VERIFIED**：最終隔離Git完整check EXIT0／545.074s，2129 Python PASS／5原opt-in SKIP、24 Rust PASS；解除本四卡local **BLOCKED_BY_FIX**。沒有新增RT號／排序／背景owner／wire schema；真T27設備、擴權、RI005與FIX002／005／006品質／發布gate保持。原dirty scan EXIT1亦留證，不放寬scanner或移除舊資料。[REPORT](../evidence/D61-resilience-2026-10-16/REPORT.md) 明列限制，不能用軟體PASS當硬體／發布PASS。
+
+## 2026-10-15 — T10-UI-01 首個網頁切片已驗，整體 PARTIAL
+
+**KEEP／SPLIT**：九個獨立工作畫面與視覺改版已 LOCAL_VERIFIED，333前端PASS、真main／Rust／SQLite三輪及24 CUA檢查，source-only回退與清理已驗。只改現有index；不重做Core／DB／授權，不新增框架。下一切片驗T12真renderer切頁／重繪／唯一owner，再補任務詳情、記憶搜尋與設定用語；真桌面／新動作／真人體驗仍未完成。[驗收與限制](../evidence/T10-UI-01-2026-10-15/REPORT.md)。原T／RT歷史、RI-005與FIX002／005／006 gate保持，不以改版放行發布。
+
+## 2026-10-15 — T10-UI-01 介面重設計加入未完成
+
+**KEEP／SPLIT，TODO / Planned Only**：使用者追加重新設計 UI；對話、任務、記憶、能力、設定分開工作畫面，不能用單頁折疊所有功能代替。任務子卡在 [TASKS](../TASKS.md)，[完整規劃與驗收](INTERFACE_REDESIGN_PLAN.md)，決策 D59。先交付對話／任務原型和網頁分頁，沿既有 API／session／取消邊界逐頁移轉，不重寫 Core、DB 或新增前端 runtime 框架。
+
+**KEEP** [Companion plan](COMPANION_EVOLUTION_PLAN.md) 的桌面場景、全身／動作製作、自由活動三切片，納入同一未完成範圍：VPet 參考存在形式，真宿主、步態、單一 body／音訊 owner 與情緒一致分開驗收；缺動作由我們製作。網頁不等待桌面或自主更新全部完成。
+
+本輪只有研究／文件，原型、production 改版與產品驗收 NOT_RUN；不新增 RT 編號、不排名、不撤原 DONE，RT-011／013／015 與 D57 已解問題不重做。RI-005／FIX-002／005／006 原有 gate 保持，UI 規劃不解除品質或發布 blocker。下一個具體動作是 T10-UI-01 對話／任務分開的可操作原型。
+
 ## 2026-10-15 — D57 owner-approved goal loop scoped LOCAL_VERIFIED
 
 **REORDER**投資重心到真智慧體caller，**KEEP**既有T19/T20GoalService/Planner/goals、T21Runtime，**SPLIT**固定批准盤點profile與通用自主目標/語義完成評估。不增加第二planner/memory/goalDB/自進化框架，不改RT編號/ranking、不重做已解問題。

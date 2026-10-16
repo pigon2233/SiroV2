@@ -10,6 +10,16 @@ WiFiClient network;
 MqttClient mqtt(network);
 String prefix = String("siro/devices/") + SIRO_DEVICE_ID + "/";
 String lastCommandId;
+constexpr time_t minimumSyncedTime = 1700000000;
+
+bool waitForTimeSync() {
+  const uint32_t started = millis();
+  while (time(nullptr) <= minimumSyncedTime) {
+    if (millis() - started >= 30000UL) return false;
+    delay(250);
+  }
+  return true;
+}
 
 void publishJson(const String &topic, JsonDocument &document, bool retain) {
   String payload;
@@ -81,10 +91,19 @@ void setup() {
   WiFi.begin(SIRO_WIFI_SSID, SIRO_WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) delay(250);
   configTime(0, 0, "pool.ntp.org");
+  if (!waitForTimeSync()) {
+    Serial.println("NTP synchronization timed out; MQTT remains disconnected.");
+    ESP.restart();
+    return;
+  }
   connectMqtt();
 }
 
 void loop() {
+  if (time(nullptr) <= minimumSyncedTime) {
+    delay(250);
+    return;
+  }
   if (WiFi.status() != WL_CONNECTED) ESP.restart();
   if (!mqtt.connected()) connectMqtt();
   mqtt.poll();

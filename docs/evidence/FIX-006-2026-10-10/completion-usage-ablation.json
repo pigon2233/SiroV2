@@ -1,0 +1,188 @@
+{
+  "synthetic_only": true,
+  "actual_configured_provider": true,
+  "production_changes": false,
+  "budget_or_model_change": false,
+  "only_wire_difference": "reasoning_effort=low vs omitted default",
+  "tools_executed": 0,
+  "hidden_reasoning_retained": false,
+  "max_requests": 8,
+  "max_parallel": 1,
+  "max_events_per_request": 2048,
+  "max_wall_seconds_per_request": 35,
+  "no_auto_retry": true,
+  "source_sha256": {
+    "src/siro/services/presentation/integrated.py": "96a611da61a07247a8cd6f24f588f8fc6bf02217898331f41e5b5c561f276b99",
+    "src/siro/services/agent/runs.py": "785a9d8bd4c89e9f92a948d4ff9b53e0cf18c82b8ea4ceaddc70380f166a7d47",
+    "src/siro/core/memory.py": "5f1b5efb380d0c9a7e574ac4565221e33964031d83da5624e5eabc0c3188f5cc",
+    "src/siro/adapters/models/openai_compatible.py": "510852b90f429cbf021c957643f1f1ed71f63b41af1c35388d8ecaf5f6e78ee1"
+  },
+  "sources_unchanged": true,
+  "usage_note": "latest cumulative numeric totals, not sum; missing reasoning count UNKNOWN",
+  "sources": [
+    "https://console.groq.com/docs/api-reference",
+    "https://console.groq.com/docs/reasoning",
+    "https://github.com/groq/groq-python/blob/main/src/groq/types/completion_usage.py",
+    "https://github.com/groq/groq-python/blob/main/src/groq/types/chat/chat_completion_chunk.py"
+  ],
+  "limitations": [
+    "small synthetic samples, no statistical or overall quality claim",
+    "raw metrics consumer is evidence-only; production completion fence unchanged",
+    "no private chat/live service/restart/deployment"
+  ],
+  "results": [
+    {
+      "case": "own_failure",
+      "arm": "omitted_default",
+      "iteration": 0,
+      "max_tokens": 512,
+      "tools_executed": 0,
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 979,
+        "completion_tokens": 512,
+        "total_tokens": 1491,
+        "reasoning_tokens": 417
+      },
+      "visible_characters": 119,
+      "tool_proposal_fragments": false,
+      "done_marker": true,
+      "elapsed_seconds": 17.388,
+      "prompt_sha256": "509ec8ae99641e613030ae38cd4273dbb25590e2e402592850bc0d47d62454da"
+    },
+    {
+      "case": "own_failure",
+      "arm": "low",
+      "iteration": 0,
+      "max_tokens": 512,
+      "tools_executed": 0,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 979,
+        "completion_tokens": 207,
+        "total_tokens": 1186,
+        "reasoning_tokens": 11
+      },
+      "visible_characters": 225,
+      "tool_proposal_fragments": false,
+      "done_marker": true,
+      "completed_visible_text": "抱歉剛才那個報錯是我這邊的系統問題，並非你在呼叫其他 API。根據目前的內部紀錄，最新一次運行失敗的原因被記錄為 `UNKNOWN`，無法確定到底是什麼導致失敗。  \n目前我無法自行查出更詳細的錯誤訊息，也沒有額外的日誌可以提供給你。  \n\n如果你方便的話，可以再試一次相同的請求，或把錯誤訊息（如回傳的 HTTP 狀態碼或錯誤訊息文字）貼給我，我會盡力協助你找出原因。  \n如果你覺得這是我這邊的失誤，請告訴我你想要做什麼，我會直接進行下一步操作。",
+      "elapsed_seconds": 1.03,
+      "prompt_sha256": "509ec8ae99641e613030ae38cd4273dbb25590e2e402592850bc0d47d62454da"
+    },
+    {
+      "case": "voice_correction",
+      "arm": "omitted_default",
+      "iteration": 0,
+      "max_tokens": 512,
+      "tools_executed": 0,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 815,
+        "completion_tokens": 419,
+        "total_tokens": 1234,
+        "reasoning_tokens": 116
+      },
+      "visible_characters": 376,
+      "tool_proposal_fragments": false,
+      "done_marker": true,
+      "completed_visible_text": "我可以把文字直接朗讀給你聽，使用的是我內建的文字轉語音（TTS）功能。因為文字太長，我會先把故事拆成幾段，逐段朗讀，這樣不會因為一次太長而中斷。\n\n**我現在知道的事：**\n\n1. 你想聽完整個故事，而文字太長一次朗讀可能無法完成。  \n2. 我能利用內建 TTS，把文字分段後一次性朗讀。  \n3. 如果你需要確認我已經朗讀完所有段落，我可以在朗讀結束後提示你，或請你告訴我是否還有剩餘部分。\n\n**如何驗證：**\n\n- 我可以在朗讀每段前先告訴你「即將開始朗讀第 X 段，長度 Y 個字。」  \n- 朗讀完成後，我會說「已經朗讀完全部段落，請確認是否還需要聽其他內容。」  \n- 你可以直接回覆「沒問題」或「還有未朗讀的部分」，這樣我就能確認是否真的完成。\n\n如果你有特定的朗讀速度、語氣或語音風格需求，告訴我，我會盡量調整。需要我立即開始朗讀嗎？",
+      "elapsed_seconds": 4.229,
+      "prompt_sha256": "d6f9d81cfbcde306246742b2f563efd0019183df99c58e55388c193c9559bc4d"
+    },
+    {
+      "case": "voice_correction",
+      "arm": "low",
+      "iteration": 0,
+      "max_tokens": 512,
+      "tools_executed": 0,
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 815,
+        "completion_tokens": 512,
+        "total_tokens": 1327,
+        "reasoning_tokens": 23
+      },
+      "visible_characters": 636,
+      "tool_proposal_fragments": false,
+      "done_marker": true,
+      "elapsed_seconds": 1.501,
+      "prompt_sha256": "d6f9d81cfbcde306246742b2f563efd0019183df99c58e55388c193c9559bc4d"
+    },
+    {
+      "case": "voice_correction",
+      "arm": "omitted_default",
+      "iteration": 1,
+      "max_tokens": 512,
+      "tools_executed": 0,
+      "finish_reason": "length",
+      "usage": {
+        "prompt_tokens": 815,
+        "completion_tokens": 512,
+        "total_tokens": 1327,
+        "reasoning_tokens": 318
+      },
+      "visible_characters": 239,
+      "tool_proposal_fragments": false,
+      "done_marker": true,
+      "elapsed_seconds": 2.605,
+      "prompt_sha256": "d6f9d81cfbcde306246742b2f563efd0019183df99c58e55388c193c9559bc4d"
+    },
+    {
+      "case": "voice_correction",
+      "arm": "low",
+      "iteration": 1,
+      "max_tokens": 512,
+      "tools_executed": 0,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 815,
+        "completion_tokens": 334,
+        "total_tokens": 1149,
+        "reasoning_tokens": 39
+      },
+      "visible_characters": 365,
+      "tool_proposal_fragments": false,
+      "done_marker": true,
+      "completed_visible_text": "我了解你想用自己的語音來朗讀整個故事，因為文字太長，手動閱讀會比較困難。這裡可以先幫你確認目前可行的步驟：\n\n1. **確認故事內容長度**  \n   - 先把故事貼上來，我會統計字數/句數，看看是否超出一次朗讀的字數限制。\n\n2. **檢查 TTS 功能可用性**  \n   - 我已經具備本地文字轉語音（TTS）介面，並且可以使用自己的聲音。若要立即朗讀，我需要確認語音合成已啟動並且沒有錯誤。\n\n3. **分段朗讀**  \n   - 若故事過長，我們可以把它切成多段，每段依次朗讀。這樣不僅能確保完整傳達，也能讓你聽得更輕鬆。\n\n4. **驗證朗讀品質**  \n   - 朗讀完第一段後，你可以聽一聽音質、語速與音調是否符合期望，若有需要調整，我們再調整參數。\n\n請先把故事貼上來，我們一起一步步完成。你還有想先檢查什麼嗎？",
+      "elapsed_seconds": 1.556,
+      "prompt_sha256": "d6f9d81cfbcde306246742b2f563efd0019183df99c58e55388c193c9559bc4d"
+    },
+    {
+      "case": "unknown_effect",
+      "arm": "omitted_default",
+      "iteration": 0,
+      "max_tokens": 512,
+      "tools_executed": 0,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 958,
+        "completion_tokens": 176,
+        "total_tokens": 1134,
+        "reasoning_tokens": 136
+      },
+      "visible_characters": 36,
+      "tool_proposal_fragments": false,
+      "done_marker": true,
+      "completed_visible_text": "抱歉，我沒收到具體的操作內容。請問是哪一個步驟或指令需要我再次執行呢？🙂",
+      "elapsed_seconds": 1.117,
+      "prompt_sha256": "e77eccfe09c998598fce16db0439559e88ac22fbc7422154752fe83fd2e9e8d4"
+    },
+    {
+      "case": "unknown_effect",
+      "arm": "low",
+      "iteration": 0,
+      "max_tokens": 512,
+      "tools_executed": 0,
+      "finish_reason": null,
+      "usage": {},
+      "visible_characters": 0,
+      "tool_proposal_fragments": false,
+      "done_marker": false,
+      "error_class": "HTTPStatusError",
+      "http_status": 429,
+      "elapsed_seconds": 0.574,
+      "prompt_sha256": "e77eccfe09c998598fce16db0439559e88ac22fbc7422154752fe83fd2e9e8d4"
+    }
+  ]
+}

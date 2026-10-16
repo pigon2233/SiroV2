@@ -1,5 +1,25 @@
 # SIRO V2 Architecture Review
 
+## 2026-10-16 — D61 局部不變量修復，CONDITIONAL
+
+**Overall architecture health：YELLOW / CONDITIONAL。** FIX-022–025完成局部修復，沒有因急修引入第二套scheduler／tracker／store或改Core。產品智慧品質、真設備與正式release仍有既有gate。
+
+**Recent improvements。** MQTT拒絕／unknown ACK與有界RAM、adapter安全protocol分類／error envelope、SQLite明確close、Rust opportunistic reap與完整輸出fail closed；late duplicate／同秒矛盾及unknown process ownership都有負例。
+
+**Architecture drift found。** 原helper狀態／收尾缺口屬局部implementation/interface問題，無需新框架。Core dependency boundary、原ports／權限／DB schema保持；沒有新增cycle／hidden global owner。SQLite pragma、RT009預算與D43 profile本來有明確契約，不把錯的問題敘述當重構理由。
+
+**Regression risk changes。** 最終owned Git candidate完整check EXIT0／545.074s，2129 Python PASS／5原opt-in SKIP／7warnings、Rust24／static／schema／原secret gate全PASS。新增56 Python案例／11 Rust案例，before source-only反例留證；原Git tracked Python tests保持，D60 probe只加更嚴assert／cases。初輪dirty scanner讀到本機cache／untracked驗證檔而EXIT1，改驗明確交付候選，沒有放寬gate。
+
+**Technical debt introduced。** 新ACK status保留trusted一參數相容，wire明傳實status；bounded tracker不是持久歷史。既有一般process sandbox／idle maintenance／跨OS strict profile未擴張，不補永久adapter或背景owner掩蓋界限。
+
+**Roadmap adjustments。** KEEP原RT限定DONE／T與RT歷史；只插FIX022–025，local BLOCKED_BY_FIX已解除，不ranking。KEEP品質／硬體／RI005 release gate；跨平台sandbox仍需具體profile認證。Hermes無新增需求，REJECT另一套planner／記憶／cleanup framework。
+
+**New blockers。** 無本輪scoped blocker；真ESP32 Broker／toolchain／燒錄、真provider、remoteCI與正式handoff仍待各自驗證。最終EPERM blocker由root以真kernel受控反例修正，不假稱後續獨立approval。
+
+**Freeze zone changes。** 新反例／tests/evidence GREEN；MQTT／provider／SQLite／process共享葉節點維持YELLOW，live資料／migration／授權／formal release RED，沒有因synthetic PASS放寬。
+
+**Recommended next 3既有scope（非ranking）。** T27真板閉環；T19/T20任務結果／完成判定；FIX002／005／006可核對產品品質。RI005既有release gate保持。原RT編號不重做／不重排。[完整驗收與回退](../evidence/D61-resilience-2026-10-16/REPORT.md)。
+
 ## 2026-10-15 — CONDITIONAL / D57 durable product goal caller locally VERIFIED
 
 **Overall architecture health：YELLOW / CONDITIONAL。** 負責人審計F1成立，保留既有底座並接一個真caller；整體goal生成/語義評估、智慧品質、自修與正式發布仍PARTIAL。

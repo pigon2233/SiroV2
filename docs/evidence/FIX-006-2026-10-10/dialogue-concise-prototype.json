@@ -1,0 +1,70 @@
+{
+  "synthetic_only": true,
+  "executed_tools": 0,
+  "max_output_tokens": 512,
+  "samples_per_arm": 1,
+  "guidance": "若使用者追問自身故障或更正需求，先用最多兩個短句說已知與未知，保留他的目標，不列一般API教學、不索取憑證、不猜原因或假稱修好。前一輪若有工具派送，先回讀結果，不能先答應重做。閒聊不須背誦故障資料；故事或詳解則依使用者要求。驗證頁不能繞過；只能使用已授權來源或依網站要求由人完成驗證。[source:runtime-dialogue-policy]",
+  "presentation_fact": "SIRO has speech recognition, local speech synthesis and Live2D integration interfaces. Actual readiness and complete playback require observations; do not promise every completed text reply was spoken completely. [source:runtime-capabilities]",
+  "results": [
+    {
+      "case": "own_failure",
+      "arm": "A",
+      "text": "抱歉剛剛的錯誤造成困擾。由於我無法直接存取 API 的內部日誌，無法確定是哪一部份出了問題。不過常見的原因有：\n\n1. **請求格式或參數錯誤** – 送出的參數不符合 API 規範，導致回傳錯誤。\n2. **授權或認證失效** – API key 或 token 已過期或無法通過驗證。\n3. **網路連線問題** – 服務暫時不可用或網路延遲。\n4. **服務端錯誤** – 目標服務本身發生 5xx 錯誤。\n\n您可以先檢查一下：\n\n- API 呼叫的 URL、方法、參數是否正確。\n- 使用的授權資訊是否仍有效。\n- 在錯誤回應中有無提供 `error_code` 或 `message`，可作進一步排查。\n\n如果您願意，可以把錯誤訊息貼給我，我會盡力幫忙找出問題所在。謝謝！",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "76d76a1697d1759ce59ee7a55507ce6c0cc17b542c0cd2b255b4133934e84e75"
+    },
+    {
+      "case": "own_failure",
+      "arm": "B",
+      "text": "已知發生錯誤，類型為 HTTPStatusError。根本原因目前未知，無法立即說明。",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "da65f154148eccc3a62d1b4f6ed47675777942061f0034af32897904209a407b"
+    },
+    {
+      "case": "voice_correction",
+      "arm": "A",
+      "error_class": "ProviderOutputTruncated",
+      "http_status": null,
+      "retry_after_seconds": null,
+      "executed_tools": 0
+    },
+    {
+      "case": "voice_correction",
+      "arm": "B",
+      "error_class": "ProviderOutputTruncated",
+      "http_status": null,
+      "retry_after_seconds": null,
+      "executed_tools": 0
+    },
+    {
+      "case": "unknown_effect",
+      "arm": "A",
+      "text": "抱歉，我沒辦法記住剛才的操作細節。請問您想我再次執行什麼指令或步驟呢？我會盡力協助。",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "b1ec1321c7d4103067e5155d0a139625d12ab8aa7f7b501a9ad7d29db8418a6d"
+    },
+    {
+      "case": "unknown_effect",
+      "arm": "B",
+      "text": "我目前沒有收到剛才操作的任何回傳結果。請告訴我您想再次執行的具體步驟，或需要哪個工具協助，我再幫您處理。",
+      "terminal_chunk_kinds": [
+        "finished"
+      ],
+      "tool_proposals": [],
+      "executed_tools": 0,
+      "prompt_sha256": "2fae05f5658d2d1ba2f63123b71741b5b63b986f5cbdf98982d13aca67f6d25e"
+    }
+  ]
+}

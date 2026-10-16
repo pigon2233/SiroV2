@@ -1,0 +1,374 @@
+FFFFFFFFFFFF.                                                            [100%]
+=================================== FAILURES ===================================
+_____ test_real_http_json_failures_have_safe_adapter_error[model loading] ______
+
+body = b'model loading'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("body", [b"model loading", b'{"message":', b"\xff"])
+    async def test_real_http_json_failures_have_safe_adapter_error(body: bytes) -> None:
+        async with provider_server((body,)) as (url, requests):
+            with pytest.raises(ValueError) as failure:
+                await UrllibJsonTransport().post(url, {"prompt": "synthetic"}, {}, 2)
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'JSONDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + JSONDecodeError
+
+tests/integration/test_model_protocol_recovery.py:109: AssertionError
+______ test_real_http_json_failures_have_safe_adapter_error[{"message":] _______
+
+body = b'{"message":'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("body", [b"model loading", b'{"message":', b"\xff"])
+    async def test_real_http_json_failures_have_safe_adapter_error(body: bytes) -> None:
+        async with provider_server((body,)) as (url, requests):
+            with pytest.raises(ValueError) as failure:
+                await UrllibJsonTransport().post(url, {"prompt": "synthetic"}, {}, 2)
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'JSONDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + JSONDecodeError
+
+tests/integration/test_model_protocol_recovery.py:109: AssertionError
+__________ test_real_http_json_failures_have_safe_adapter_error[\xff] __________
+
+body = b'\xff'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("body", [b"model loading", b'{"message":', b"\xff"])
+    async def test_real_http_json_failures_have_safe_adapter_error(body: bytes) -> None:
+        async with provider_server((body,)) as (url, requests):
+            with pytest.raises(ValueError) as failure:
+                await UrllibJsonTransport().post(url, {"prompt": "synthetic"}, {}, 2)
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'UnicodeDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + UnicodeDecodeError
+
+tests/integration/test_model_protocol_recovery.py:109: AssertionError
+__ test_real_ollama_invalid_ndjson_never_dispatches_fallback[model loading\n] __
+
+body = b'model loading\n'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "body",
+        [
+            b"model loading\n",
+            b'{"message":\n',
+            b"\xff\n",
+            b'{"error":"synthetic model loading"}\n',
+        ],
+    )
+    async def test_real_ollama_invalid_ndjson_never_dispatches_fallback(body: bytes) -> None:
+        fallback = ScriptModel()
+        async with provider_server((body,)) as (url, requests):
+            wrapper = FailoverModel(
+                (OllamaAdapter(base_url=url, model="synthetic", timeout=2), fallback),
+                backoff_seconds=0,
+            )
+            with pytest.raises(ValueError) as failure:
+                _ = [c async for c in wrapper.stream(ModelRequest("hello", "g"), CancellationToken())]
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'JSONDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + JSONDecodeError
+
+tests/integration/test_model_protocol_recovery.py:133: AssertionError
+___ test_real_ollama_invalid_ndjson_never_dispatches_fallback[{"message":\n] ___
+
+body = b'{"message":\n'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "body",
+        [
+            b"model loading\n",
+            b'{"message":\n',
+            b"\xff\n",
+            b'{"error":"synthetic model loading"}\n',
+        ],
+    )
+    async def test_real_ollama_invalid_ndjson_never_dispatches_fallback(body: bytes) -> None:
+        fallback = ScriptModel()
+        async with provider_server((body,)) as (url, requests):
+            wrapper = FailoverModel(
+                (OllamaAdapter(base_url=url, model="synthetic", timeout=2), fallback),
+                backoff_seconds=0,
+            )
+            with pytest.raises(ValueError) as failure:
+                _ = [c async for c in wrapper.stream(ModelRequest("hello", "g"), CancellationToken())]
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'JSONDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + JSONDecodeError
+
+tests/integration/test_model_protocol_recovery.py:133: AssertionError
+______ test_real_ollama_invalid_ndjson_never_dispatches_fallback[\xff\n] _______
+
+body = b'\xff\n'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "body",
+        [
+            b"model loading\n",
+            b'{"message":\n',
+            b"\xff\n",
+            b'{"error":"synthetic model loading"}\n',
+        ],
+    )
+    async def test_real_ollama_invalid_ndjson_never_dispatches_fallback(body: bytes) -> None:
+        fallback = ScriptModel()
+        async with provider_server((body,)) as (url, requests):
+            wrapper = FailoverModel(
+                (OllamaAdapter(base_url=url, model="synthetic", timeout=2), fallback),
+                backoff_seconds=0,
+            )
+            with pytest.raises(ValueError) as failure:
+                _ = [c async for c in wrapper.stream(ModelRequest("hello", "g"), CancellationToken())]
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'JSONDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + JSONDecodeError
+
+tests/integration/test_model_protocol_recovery.py:133: AssertionError
+_ test_real_ollama_invalid_ndjson_never_dispatches_fallback[{"error":"synthetic model loading"}\n] _
+
+body = b'{"error":"synthetic model loading"}\n'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "body",
+        [
+            b"model loading\n",
+            b'{"message":\n',
+            b"\xff\n",
+            b'{"error":"synthetic model loading"}\n',
+        ],
+    )
+    async def test_real_ollama_invalid_ndjson_never_dispatches_fallback(body: bytes) -> None:
+        fallback = ScriptModel()
+        async with provider_server((body,)) as (url, requests):
+            wrapper = FailoverModel(
+                (OllamaAdapter(base_url=url, model="synthetic", timeout=2), fallback),
+                backoff_seconds=0,
+            )
+>           with pytest.raises(ValueError) as failure:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests/integration/test_model_protocol_recovery.py:131: Failed
+_ test_partial_output_survives_protocol_failure_without_retry[json-{"message":{"content":"partial"}}] _
+
+first = '{"message":{"content":"partial"}}', failure_kind = 'json'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "first",
+        [
+            '{"message":{"content":"partial"}}',
+            '{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}',
+        ],
+    )
+    @pytest.mark.parametrize("failure_kind", ["json", "unicode"])
+    async def test_partial_output_survives_protocol_failure_without_retry(
+        first: str, failure_kind: str
+    ) -> None:
+        bad: str | Exception = (
+            "synthetic malformed provider payload"
+            if failure_kind == "json"
+            else UnicodeDecodeError("utf-8", b"\xff", 0, 1, "synthetic encoding failure")
+        )
+        transport = ScriptTransport((first, bad))
+        fallback = ScriptModel()
+        wrapper = FailoverModel(
+            (OllamaAdapter(model="synthetic", transport=transport), fallback), backoff_seconds=0
+        )
+        chunks: list[ModelChunk] = []
+        with pytest.raises(ValueError) as failure:
+            async for chunk in wrapper.stream(ModelRequest("hello", "g"), CancellationToken()):
+                chunks.append(chunk)
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'JSONDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + JSONDecodeError
+
+tests/integration/test_model_protocol_recovery.py:164: AssertionError
+_ test_partial_output_survives_protocol_failure_without_retry[json-{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}] _
+
+first = '{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}'
+failure_kind = 'json'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "first",
+        [
+            '{"message":{"content":"partial"}}',
+            '{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}',
+        ],
+    )
+    @pytest.mark.parametrize("failure_kind", ["json", "unicode"])
+    async def test_partial_output_survives_protocol_failure_without_retry(
+        first: str, failure_kind: str
+    ) -> None:
+        bad: str | Exception = (
+            "synthetic malformed provider payload"
+            if failure_kind == "json"
+            else UnicodeDecodeError("utf-8", b"\xff", 0, 1, "synthetic encoding failure")
+        )
+        transport = ScriptTransport((first, bad))
+        fallback = ScriptModel()
+        wrapper = FailoverModel(
+            (OllamaAdapter(model="synthetic", transport=transport), fallback), backoff_seconds=0
+        )
+        chunks: list[ModelChunk] = []
+        with pytest.raises(ValueError) as failure:
+            async for chunk in wrapper.stream(ModelRequest("hello", "g"), CancellationToken()):
+                chunks.append(chunk)
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'JSONDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + JSONDecodeError
+
+tests/integration/test_model_protocol_recovery.py:164: AssertionError
+_ test_partial_output_survives_protocol_failure_without_retry[unicode-{"message":{"content":"partial"}}] _
+
+first = '{"message":{"content":"partial"}}', failure_kind = 'unicode'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "first",
+        [
+            '{"message":{"content":"partial"}}',
+            '{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}',
+        ],
+    )
+    @pytest.mark.parametrize("failure_kind", ["json", "unicode"])
+    async def test_partial_output_survives_protocol_failure_without_retry(
+        first: str, failure_kind: str
+    ) -> None:
+        bad: str | Exception = (
+            "synthetic malformed provider payload"
+            if failure_kind == "json"
+            else UnicodeDecodeError("utf-8", b"\xff", 0, 1, "synthetic encoding failure")
+        )
+        transport = ScriptTransport((first, bad))
+        fallback = ScriptModel()
+        wrapper = FailoverModel(
+            (OllamaAdapter(model="synthetic", transport=transport), fallback), backoff_seconds=0
+        )
+        chunks: list[ModelChunk] = []
+        with pytest.raises(ValueError) as failure:
+            async for chunk in wrapper.stream(ModelRequest("hello", "g"), CancellationToken()):
+                chunks.append(chunk)
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'UnicodeDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + UnicodeDecodeError
+
+tests/integration/test_model_protocol_recovery.py:164: AssertionError
+_ test_partial_output_survives_protocol_failure_without_retry[unicode-{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}] _
+
+first = '{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}'
+failure_kind = 'unicode'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "first",
+        [
+            '{"message":{"content":"partial"}}',
+            '{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}',
+        ],
+    )
+    @pytest.mark.parametrize("failure_kind", ["json", "unicode"])
+    async def test_partial_output_survives_protocol_failure_without_retry(
+        first: str, failure_kind: str
+    ) -> None:
+        bad: str | Exception = (
+            "synthetic malformed provider payload"
+            if failure_kind == "json"
+            else UnicodeDecodeError("utf-8", b"\xff", 0, 1, "synthetic encoding failure")
+        )
+        transport = ScriptTransport((first, bad))
+        fallback = ScriptModel()
+        wrapper = FailoverModel(
+            (OllamaAdapter(model="synthetic", transport=transport), fallback), backoff_seconds=0
+        )
+        chunks: list[ModelChunk] = []
+        with pytest.raises(ValueError) as failure:
+            async for chunk in wrapper.stream(ModelRequest("hello", "g"), CancellationToken()):
+                chunks.append(chunk)
+>       assert type(failure.value).__name__ == "ProviderResponseInvalid"
+E       AssertionError: assert 'UnicodeDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + UnicodeDecodeError
+
+tests/integration/test_model_protocol_recovery.py:164: AssertionError
+________ test_protocol_failure_leaves_conversation_ready_for_next_turn _________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-94/test_protocol_failure_leaves_c0')
+
+    @pytest.mark.asyncio
+    async def test_protocol_failure_leaves_conversation_ready_for_next_turn(tmp_path: Path) -> None:
+        store = SQLiteStore(tmp_path / "synthetic.db")
+        await store.initialize()
+        await IdentityService(SQLiteIdentityRepository(store)).create(
+            "siro",
+            ImmutableCore(
+                name="SIRO",
+                baseline_identity="Synthetic companion",
+                core_values=("honesty",),
+                creator_relationship="owner",
+            ),
+            now=datetime.now(UTC),
+        )
+        signals: list[ConversationSignal] = []
+    
+        async def capture(signal: ConversationSignal) -> None:
+            signals.append(signal)
+    
+        async with provider_server(
+            (b"synthetic malformed reply\n", b'{"message":{"content":"recovered"},"done":true}\n')
+        ) as (url, requests):
+            engine = ConversationEngine(
+                FailoverModel((OllamaAdapter(base_url=url, model="synthetic", timeout=2),)),
+                SQLiteConversationRepository(store),
+                on_signal=capture,
+            )
+            failed = await engine.respond("session", "siro", "first")
+            recovered = await engine.respond("session", "siro", "second")
+        assert failed.state is TurnState.FAILED
+>       assert failed.error == "ProviderResponseInvalid"
+E       AssertionError: assert 'JSONDecodeError' == 'ProviderResponseInvalid'
+E         
+E         - ProviderResponseInvalid
+E         + JSONDecodeError
+
+tests/integration/test_model_protocol_recovery.py:202: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_model_protocol_recovery.py::test_real_http_json_failures_have_safe_adapter_error[model loading]
+FAILED tests/integration/test_model_protocol_recovery.py::test_real_http_json_failures_have_safe_adapter_error[{"message":]
+FAILED tests/integration/test_model_protocol_recovery.py::test_real_http_json_failures_have_safe_adapter_error[\xff]
+FAILED tests/integration/test_model_protocol_recovery.py::test_real_ollama_invalid_ndjson_never_dispatches_fallback[model loading\n]
+FAILED tests/integration/test_model_protocol_recovery.py::test_real_ollama_invalid_ndjson_never_dispatches_fallback[{"message":\n]
+FAILED tests/integration/test_model_protocol_recovery.py::test_real_ollama_invalid_ndjson_never_dispatches_fallback[\xff\n]
+FAILED tests/integration/test_model_protocol_recovery.py::test_real_ollama_invalid_ndjson_never_dispatches_fallback[{"error":"synthetic model loading"}\n]
+FAILED tests/integration/test_model_protocol_recovery.py::test_partial_output_survives_protocol_failure_without_retry[json-{"message":{"content":"partial"}}]
+FAILED tests/integration/test_model_protocol_recovery.py::test_partial_output_survives_protocol_failure_without_retry[json-{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}]
+FAILED tests/integration/test_model_protocol_recovery.py::test_partial_output_survives_protocol_failure_without_retry[unicode-{"message":{"content":"partial"}}]
+FAILED tests/integration/test_model_protocol_recovery.py::test_partial_output_survives_protocol_failure_without_retry[unicode-{"message":{"tool_calls":[{"function":{"name":"read","arguments":{}}}]}}]
+FAILED tests/integration/test_model_protocol_recovery.py::test_protocol_failure_leaves_conversation_ready_for_next_turn
+12 failed, 1 passed in 0.41s
