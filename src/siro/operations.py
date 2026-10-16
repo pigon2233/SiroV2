@@ -43,9 +43,10 @@ def install_user_service(
     """Install deterministic user units without starting them."""
 
     root = project_root.resolve()
-    executable = root / ".venv/bin/siro-gateway"
+    executable = root / ".venv/bin/python"
+    launcher = root / "scripts/launch_companion.py"
     cli = root / ".venv/bin/siro"
-    if not executable.is_file() or not cli.is_file():
+    if not executable.is_file() or not cli.is_file() or not launcher.is_file():
         raise FileNotFoundError("run 'uv sync --locked' before installing the service")
     for directory in (unit_dir, config_dir, data_dir, log_dir):
         directory.mkdir(parents=True, exist_ok=True)
@@ -60,7 +61,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory={_unit_path(str(root))}
-ExecStart={_unit_quote(str(executable))}
+ExecStart={_unit_quote(str(executable))} {_unit_quote(str(launcher))}
 Environment={_unit_quote(f"SIRO_CONFIG={config}")}
 Environment={_unit_quote(f"SIRO_DATA_DIR={data_dir}")}
 Environment={_unit_quote(f"SIRO_LOG_DIR={log_dir}")}

@@ -344,6 +344,8 @@ Qwen worker ready可宣告 `completion_protocol: 2`。此worker成功audio須帶
 
 D35 2026-10-08局部profile補充：CUDA使用已量測SDPA，CPU維持eager，cache fingerprint綁同一實際attention選擇；不互讀eager／sdpa快取。相同model／reference／sampling／512上限保留。這是推論時間改善，非聲線切換或1秒SLO達成；正常EOS與native播放仍不代替人工語意聽驗。
 
+D35 2026-10-16首段補充：plan version 與 worker segment fingerprint 更新為 `sentence-v2-first24-rest80`。首段最多24字、優先完整句／自然停頓且不併回後段；其餘最多80字，`max_chars:80` 仍是全段上界。全文字串、總段數／字數／期限、既有 JSON keys 與 Audio owner 保留。此版本仍在 final 後先生成完整第一段，沒有真逐音塊串流或速度達標宣稱。
+
 
 ### RI-002 — Read-only capability inventory (2026-10-09)
 
@@ -641,3 +643,7 @@ Only when all currently active tasks are arguments-only, cap the existing cancel
 Before implementation, add true controlled journal-delay RED and contextual4.2s positive/no-shortened-window cases. Regress original25 lifecycle, full supported check and exact-headcloud. Operational rollback disables affected background/direct entrypoints then reverts only this one local timeout selection; preserve latest journal/DB data and do not redeploy a known failed-budget case.
 
 D57 schema fixture correction after full3fail: old test_run_journal says the latest migration must be13. Migration014 is intentionally additive and actual13→14/legacy/signedrefusal alreadyverified. Keep the original journal identity assertion at migrations[12].version13 and additionally assert name run_journal; all old data/idempotence/prior-reader/integrity assertions unchanged. This is the only permitted existing Python test preparation/assertion adjustment for the card;134 other original files remain exact. Old SQL migrations do not change.
+
+## DESKTOP-VOICE-RECOVERY / 2026-10-16
+
+Rate-limit recovery is optional and pre-emission only: FailoverModel(rate_limit_max_wait_seconds=None, clock=UTC-now, on_retry=None) preserves existing defaults. Explicit policy accepts a valid Retry-After delta/date within a configured maximum, otherwise bounded original backoff or fail-closed over-limit. A 429 retry targets the same provider and needs explicit cloud_request_budget=1; there are at most two attempts, no tool execution replay and immediate cancellation-aware stop. Groq remaining-requests=0 means daily quota depleted and rejects another attempt. One async on_retry(original request, safe delay) enables an owner-scoped UI notice. No provider bodies, credentials, headers or prompts in the notice. Native desktop adds optional body authentication presentation='desktop'; connected desktop owns rendering, web control views omit competing renderer and speech playback. Exact local Origin/session authentication remains required.

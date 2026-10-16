@@ -1,0 +1,527 @@
+........................................................................ [ 21%]
+........................................................................ [ 42%]
+........................................................................ [ 64%]
+........................................................................ [ 85%]
+....FF.F........................................                         [100%]
+=================================== FAILURES ===================================
+_________________ test_actual_frontend_speech_cancel[pending] __________________
+
+scenario = 'pending'
+
+    @pytest.mark.parametrize(
+        "scenario",
+        ["pending", "blob", "supersede", "playing", "turn", "terminal", "replay", "disable"],
+    )
+    def test_actual_frontend_speech_cancel(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        cancel = html[
+            html.index('document.querySelector("#cancel").onclick =') : html.index(
+                'window.addEventListener("message",'
+            )
+        ]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const mode = process.argv[1];
+    const button = {}, status = {}, replay = {}, voice = {checked:true};
+    const calls = [], audios = [], revoked = [];
+    let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+    let assistantBubble, lastSpeech;
+    const pageClosing = false, socket = {readyState:1}, log = () => {};
+    const owner = socket, epoch = 0, controlEpoch = 0, retired = false, markAuthenticated = () => {};
+    let submissionGeneration = 0, pendingSubmission;
+    const acceptRunEvent = () => true;
+    const headers = () => ({});
+    const document = {querySelector: selector => selector === '#cancel' ? button :
+     selector === '#voice-output' ? voice : selector === '#replay-speech' ? replay : status};
+    const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+    const pending = () => {
+     let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+     return {promise,resolve,reject};
+    };
+    class Audio {
+     constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+     play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+     pause() {this.pauses++;}
+     end() {this.onended?.();}
+    }
+    const plan = () => ({ok:true,json:async()=>({segments:['完整的合成語音。'],
+     spoken_text:'完整的合成語音。',version:'synthetic-plan-v1',
+     max_chars:80,max_segments:128,max_total_chars:8000,deadline_seconds:1200})});
+    const authorizedFetch = (url, options) => {
+     const call={url,options,...pending()};calls.push(call);
+     if(url==='/v1/audio/speech/plan' && !['pending','turn'].includes(mode))
+      return Promise.resolve(plan());
+     if(url==='/v1/audio/speech'||url==='/v1/audio/speech/plan')return call.promise;
+     return Promise.resolve({ok:true});
+    };
+    const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+    const tick = async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
+    const speeches = () => calls.filter(call=>call.url==='/v1/audio/speech');
+    """
+        checks = r"""
+    (async()=>{
+     if(mode==='pending'||mode==='turn') {
+      if(mode==='turn')currentTurn='turn-A';
+      const work=playTts('synthetic',{}), call=calls[0];
+      assert.equal(call.url,'/v1/audio/speech/plan');
+      await button.onclick();await work;
+      assert(call.options.signal.aborted);assert.equal(audios.length,0);
+      assert.equal(status.textContent,'朗讀已停止');
+      call.resolve(plan());await tick();assert.equal(speeches().length,0);
+      if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+     } else if(mode==='terminal') {
+      currentTurn='cancelled-turn';await button.onclick();
+      assistantBubble={textContent:'late answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      await tick();assert.equal(calls.filter(c=>c.url==='/v1/audio/speech/plan').length,0);
+      socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+      assistantBubble={textContent:'new answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      await tick();const speech=speeches()[0];assert(speech);
+      speech.resolve(response('new'));await tick();
+      assert.equal(lastSpeech.text,'new answer');assert.equal(replay.disabled,false);
+      assert.equal(audios.length,1);audios[0].end();await tick();
+      assert.match(status.textContent,/全文朗讀完成/);
+     } else if(mode==='blob') {
+      const blob=pending(),work=playTts('old',{});await tick();
+      speeches()[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+      await button.onclick();await work;
+      blob.resolve('late-blob');await tick();assert.equal(audios.length,0);
+      assert.equal(status.textContent,'朗讀已停止');
+     } else if(mode==='supersede') {
+      const old=playTts('old',{});await tick();const oldCall=speeches()[0];
+      const newer=playTts('new',{});await tick();
+      assert(oldCall.options.signal.aborted);
+      speeches()[1].resolve(response('new'));await tick();await old;
+      oldCall.reject(new Error('old failed late'));await tick();
+      assert.equal(audios.length,1);assert.match(status.textContent,/正在說話/);
+      assert(ttsController,'old cleanup must not detach newer owner');
+      audios[0].end();await newer;
+      assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);
+     } else if(mode==='playing') {
+      const delayed=pending();
+      Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+      const work=playTts('playing',{});await tick();
+      speeches()[0].resolve(response('audio'));await tick();
+      assert.equal(audios.length,1);await button.onclick();await work;
+      assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);
+      delayed.resolve();await tick();
+      assert(audios[0].pauses>=2);assert.equal(status.textContent,'朗讀已停止');
+     } else if(mode==='replay') {
+      voice.checked=false;speechCancelled=true;
+      const canonical='前言。\n```sh\nprintf synthetic\n```\n尾句。';
+      lastSpeech={text:canonical,prosody:{rate:1.1}};
+      const work=replay.onclick();await tick();
+      assert(voice.checked,'manual replay visibly enables speech');assert(!speechCancelled);
+      assert.deepEqual(JSON.parse(calls[0].options.body),{text:canonical});
+      assert.equal(speeches()[0].options.method,'POST');
+      assert.equal(JSON.parse(speeches()[0].options.body).rate,1.1);
+      speeches()[0].resolve(response('replay'));await tick();
+      assert(!/全文朗讀完成/.test(status.textContent));audios[0].end();await work;
+      assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);
+     } else if(mode==='disable') {
+      const work=playTts('playing',{});await tick();
+      speeches()[0].resolve(response('audio'));await tick();
+      voice.checked=false;voice.onchange({target:voice});await work;
+      assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);
+      assert.equal(status.textContent,'朗讀已停止');
+     }
+     console.log('CANCEL_OK');
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+    """
+>       result = subprocess.run(
+            [
+                "node",
+                "--unhandled-rejections=strict",
+                "-e",
+                setup + functions + cancel + handler + checks,
+                scenario,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+tests/integration/test_frontend_speech_cancel.py:134: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/subprocess.py:557: in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/subprocess.py:1221: in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/subprocess.py:2154: in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: -9 args: ['node', '--unhandled-rejections=strict', '-e',...>
+endtime = 29079.124850547, orig_timeout = 10, stdout_seq = []
+stderr_seq = [b'ReferenceError: clearRetryNotice is not defined\n    at document.querySelector.onclick ([eval]:177:65)\n    at [eva...:283:30)\n    at evalTypeScript (node:internal/process/execution:295:3)\n    at node:internal/main/eval_string:71:3\n']
+skip_check_and_raise = False
+
+    def _check_timeout(self, endtime, orig_timeout, stdout_seq, stderr_seq,
+                       skip_check_and_raise=False):
+        """Convenience for checking if a timeout has expired."""
+        if endtime is None:
+            return
+        if skip_check_and_raise or _time() > endtime:
+>           raise TimeoutExpired(
+                    self.args, orig_timeout,
+                    output=b''.join(stdout_seq) if stdout_seq else None,
+                    stderr=b''.join(stderr_seq) if stderr_seq else None)
+E           subprocess.TimeoutExpired: Command '['node', '--unhandled-rejections=strict', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst mode = process.argv[1];\nconst button = {}, status = {}, replay = {}, voice = {checked:true};\nconst calls = [], audios = [], revoked = [];\nlet currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;\nlet assistantBubble, lastSpeech;\nconst pageClosing = false, socket = {readyState:1}, log = () => {};\nconst owner = socket, epoch = 0, controlEpoch = 0, retired = false, markAuthenticated = () => {};\nlet submissionGeneration = 0, pendingSubmission;\nconst acceptRunEvent = () => true;\nconst headers = () => ({});\nconst document = {querySelector: selector => selector === \'#cancel\' ? button :\n selector === \'#voice-output\' ? voice : selector === \'#replay-speech\' ? replay : status};\nconst URL = {createObjectURL: () => \'blob:\'+audios.length, revokeObjectURL: s => revoked.push(s)};\nconst pending = () => {\n let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});\n return {promise,resolve,reject};\n};\nclass Audio {\n constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}\n play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}\n pause() {this.pauses++;}\n end() {this.onended?.();}\n}\nconst plan = () => ({ok:true,json:async()=>({segments:[\'完整的合成語音。\'],\n spoken_text:\'完整的合成語音。\',version:\'synthetic-plan-v1\',\n max_chars:80,max_segments:128,max_total_chars:8000,deadline_seconds:1200})});\nconst authorizedFetch = (url, options) => {\n const call={url,options,...pending()};calls.push(call);\n if(url===\'/v1/audio/speech/plan\' && ![\'pending\',\'turn\'].includes(mode))\n  return Promise.resolve(plan());\n if(url===\'/v1/audio/speech\'||url===\'/v1/audio/speech/plan\')return call.promise;\n return Promise.resolve({ok:true});\n};\nconst response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});\nconst tick = async()=>{for(let i=0;i<20;i++)await Promise.resolve();};\nconst speeches = () => calls.filter(call=>call.url===\'/v1/audio/speech\');\nfunction formatAssistantMessage(message) {\n        const source = message.textContent || "", doc = message.ownerDocument;\n        if (!doc) return source;\n        message.replaceChildren();\n        function inline(parent, text) {\n          const tokens = /\\*\\*([^\\n]+?)\\*\\*|(?<!`)`([^`\\n]+)`(?!`)/g;\n          let start = 0;\n          for (const match of text.matchAll(tokens)) {\n            parent.appendChild(doc.createTextNode(text.slice(start, match.index)));\n            const node = doc.createElement(match[1] === undefined ? "code" : "strong");\n            node.textContent = match[1] ?? match[2]; parent.appendChild(node);\n            start = match.index + match[0].length;\n          }\n          parent.appendChild(doc.createTextNode(text.slice(start)));\n        }\n        const fences = /^```[^\\n]*\\n([\\s\\S]*?)^```[ \\t]*(?:\\n|$)/gm;\n        let start = 0;\n        for (const match of source.matchAll(fences)) {\n          inline(message, source.slice(start, match.index));\n          const block = doc.createElement("pre"), code = doc.createElement("code");\n          code.textContent = match[1]; block.appendChild(code); message.appendChild(block);\n          start = match.index + match[0].length;\n        }\n        inline(message, source.slice(start));\n        return message.textContent;\n      }\n      function stopTts() {\n        const active = Boolean(ttsController || ttsAudio);\n        ttsGeneration++;\n        ttsController?.abort(); ttsController = undefined;\n        if (ttsAudio) {\n          ttsAudio.onplay = null; ttsAudio.onended = null; ttsAudio.onerror = null;\n          ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src);\n          ttsAudio.removeAttribute?.("src"); ttsAudio.load?.(); ttsAudio = undefined;\n        }\n        const status = document.querySelector("#tts-status");\n        status.textContent = active ? "朗讀已停止" : "TTS 待命"; status.className = "warn";\n      }\n      async function playTts(text, prosody) {\n        stopTts();\n        if (document.body?.classList?.contains("siro-control") || document.querySelector("#voice-output")?.checked === false) return;\n        const generation = ttsGeneration;\n        const controller = new AbortController(); ttsController = controller;\n        const current = () => generation === ttsGeneration && !controller.signal.aborted;\n        const status = document.querySelector("#tts-status"); status.textContent = "準備全文朗讀…";\n        const started = performance.now();\n        let played = 0, total = 0, deadlineReached = false;\n        let timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, 1200000);\n        const aborted = () => new DOMException("朗讀已停止", "AbortError");\n        const assertCurrent = () => { if (!current()) throw aborted(); };\n        const waitFor = promise => new Promise((resolve, reject) => {\n          const cancel = () => reject(aborted());\n          controller.signal.addEventListener("abort", cancel, {once: true});\n          Promise.resolve(promise).then(resolve, reject).finally(() => controller.signal.removeEventListener("abort", cancel));\n          if (!current()) cancel();\n        });\n        const request = async (url, body) => {\n          assertCurrent();\n          const response = await waitFor(authorizedFetch(url, {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify(body)}));\n          assertCurrent();\n          if (!response.ok) throw new Error((await waitFor(response.json())).detail || `HTTP ${response.status}`);\n          return response;\n        };\n        const loadSegment = async segment => {\n          try {\n            const response = await request("/v1/audio/speech", {text: segment, ...prosody});\n            const blob = await waitFor(response.blob()); assertCurrent();\n            return {blob};\n          } catch (error) { return {error}; } // A prefetched rejection always has an owner.\n        };\n        const playSegment = async blob => {\n          assertCurrent();\n          const url = URL.createObjectURL(blob);\n          let audio;\n          try { audio = new Audio(url); } catch (error) { URL.revokeObjectURL(url); throw error; }\n          ttsAudio = audio;\n          let cancel;\n          try {\n            await new Promise((resolve, reject) => {\n              cancel = () => reject(aborted());\n              controller.signal.addEventListener("abort", cancel, {once: true});\n              audio.onplay = () => {\n                if (current()) { status.textContent = `SIRO 正在說話（已播 ${played}/${total} 段）`; status.className = "ok"; }\n              };\n              audio.onended = () => { if (current()) resolve(); else reject(aborted()); };\n              audio.onerror = () => reject(new Error("音訊播放失敗"));\n              try {\n                Promise.resolve(audio.play()).then(() => { if (!current()) audio.pause(); }, reject);\n              } catch (error) { reject(error); }\n            });\n            assertCurrent();\n          } finally {\n            controller.signal.removeEventListener("abort", cancel);\n            audio.onplay = null; audio.onended = null; audio.onerror = null; audio.pause();\n            if (ttsAudio === audio) {\n              URL.revokeObjectURL(audio.src); audio.removeAttribute?.("src"); audio.load?.(); ttsAudio = undefined;\n            }\n          }\n        };\n        try {\n          const response = await request("/v1/audio/speech/plan", {text});\n          const plan = await waitFor(response.json()); assertCurrent();\n          if (!Array.isArray(plan.segments) || !plan.segments.length || plan.segments.length > 128 ||\n              plan.max_chars !== 80 || plan.max_segments !== 128 || plan.max_total_chars !== 8000 ||\n              typeof plan.version !== "string" || !plan.version || typeof plan.spoken_text !== "string" ||\n              !plan.spoken_text.trim() || Array.from(plan.spoken_text).length > 8000 ||\n              plan.segments.some(segment => typeof segment !== "string" || !segment.trim() || Array.from(segment).length > 80) ||\n              plan.segments.reduce((sum, segment) => sum + Array.from(segment).length, 0) > 8000 ||\n              plan.segments.join("") !== plan.spoken_text ||\n              !Number.isFinite(plan.deadline_seconds) || plan.deadline_seconds <= 0 || plan.deadline_seconds > 1200)\n            throw new Error("朗讀計畫超出上限或內容無效，沒有截短播放");\n          total = plan.segments.length;\n          clearTimeout(timer);\n          const remaining = plan.deadline_seconds * 1000 - (performance.now() - started);\n          if (remaining <= 0) { deadlineReached = true; controller.abort(); throw aborted(); }\n          timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, remaining);\n          let next = loadSegment(plan.segments[0]);\n          for (let index = 0; index < total; index++) {\n            status.textContent = `語音準備中（已播 ${played}/${total} 段）`; status.className = "warn";\n            const result = await next; assertCurrent();\n            if (result.error) throw result.error;\n            const playback = playSegment(result.blob);\n            next = index + 1 < total ? loadSegment(plan.segments[index + 1]) : undefined;\n            await playback; assertCurrent();\n            played++;\n          }\n          status.textContent = `全文朗讀完成（${played}/${total} 段）`; status.className = "ok";\n        } catch (error) {\n          if (generation === ttsGeneration && (deadlineReached || !controller.signal.aborted)) {\n            status.textContent = deadlineReached ? `已達朗讀時限（已播 ${played}/${total} 段），全文未完成。`\n              : `朗讀失敗（已播 ${played}/${total} 段）：${error.message}。全文未完成。`;\n            status.className = "warn";\n          }\n        } finally {\n          clearTimeout(timer); controller.abort();\n          if (ttsController === controller) ttsController = undefined;\n        }\n      }\n      document.querySelector("#cancel").onclick = async () => { clearRetryNotice(); submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };\n      document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };\n      document.querySelector("#replay-speech").onclick = async () => {\n        if (!lastSpeech || pageClosing) return;\n        document.querySelector("#voice-output").checked = true;\n        speechCancelled = false;\n        await playTts(lastSpeech.text, lastSpeech.prosody);\n      };\n      if (document.body?.classList?.contains("siro-control")) {\n        document.querySelector("#voice-output").checked = false;\n        document.querySelector("#voice-output").disabled = true;\n      }\n      socket.onmessage = event => {\n          if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;\n          const data = JSON.parse(event.data);\n          if (!acceptRunEvent(data)) return;\n          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();\n          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);\n          log(data);\n          if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }\n          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);\n          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean" && typeof applyGoalTaskTools === "function") applyGoalTaskTools(data.enabled);\n          if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }\n          if (data.type === "affect_state") { renderAffect(data); }\n          if (data.type === "assistant_started") {\n            assistantBubble = appendMessage("assistant", "");\n          }\n          if (data.type === "assistant_retry_wait") {\n            const notice = document.querySelector("#service-notice");\n            const seconds = Math.max(0, Math.min(60, Number(data.retry_after_seconds) || 0));\n            notice.hidden = false; retryWaitVisible = true;\n            notice.textContent = `對話服務暫時限流，約 ${Math.ceil(seconds)} 秒後重試這段回覆。已完成的工具不會重做，可隨時停止。`;\n          }\n          if (data.type === "assistant_delta") {\n            clearRetryNotice();\n            if (!assistantBubble) assistantBubble = appendMessage("assistant", "");\n            assistantBubble.textContent += data.text;\n            document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;\n          }\n          if (data.type === "assistant_terminal") {\n            clearRetryNotice();\n            const canonicalText = assistantBubble?.textContent || "";\n            if (data.state === "completed" && assistantBubble) formatAssistantMessage(assistantBubble);\n            if (data.state !== "completed") {\n              if (!assistantBubble) assistantBubble = appendMessage("assistant", "");\n              const reasons = {\n                ProviderOutputTruncated: "這次回覆未完成，文字生成已達上限。已收到的內容保留，沒有自動重送操作。",\n                ProviderOutputFiltered: "這次回覆未完成，對話服務停止了這段輸出。",\n                ProviderOutputIncomplete: "這次回覆未完成，沒有收到完整結束資訊。已收到的內容保留，沒有自動重送操作。"\n              };\n              const notice = document.createElement("p"); notice.className = "warn";\n              notice.textContent = data.state === "cancelled" ? "已停止這次回覆。"\n                : reasons[data.error] || "這次回覆未完成。已執行的操作結果會保留在電腦協助，請確認後再試。";\n              if (data.error && !reasons[data.error]) notice.textContent += `（${data.error}）`;\n              assistantBubble.appendChild(notice);\n            }\n            if (data.state !== "completed") stopTts();\n            if (data.state === "completed" && canonicalText) {\n              lastSpeech = {text: canonicalText, prosody: data.prosody || {}};\n              document.querySelector("#replay-speech").disabled = false;\n              if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);\n            }\n            assistantBubble = undefined; currentTurn = undefined;\n          }\n          if (data.type === "tool_proposal") renderToolProposal(data);\n          if (data.type === "tool_started") updateToolProposal(data.proposal_id, "執行中…");\n          if (data.type === "tool_result") renderToolResult(data);\n          document.querySelector("#connection").textContent = "已連線";\n          document.querySelector("#connection").className = "connection-pill ok";\n        };\n          \n(async()=>{\n if(mode===\'pending\'||mode===\'turn\') {\n  if(mode===\'turn\')currentTurn=\'turn-A\';\n  const work=playTts(\'synthetic\',{}), call=calls[0];\n  assert.equal(call.url,\'/v1/audio/speech/plan\');\n  await button.onclick();await work;\n  assert(call.options.signal.aborted);assert.equal(audios.length,0);\n  assert.equal(status.textContent,\'朗讀已停止\');\n  call.resolve(plan());await tick();assert.equal(speeches().length,0);\n  if(mode===\'turn\')assert(calls.some(c=>c.url===\'/v1/turns/turn-A/cancel\'));\n } else if(mode===\'terminal\') {\n  currentTurn=\'cancelled-turn\';await button.onclick();\n  assistantBubble={textContent:\'late answer\'};\n  socket.onmessage({data:JSON.stringify({type:\'assistant_terminal\',state:\'completed\'})});\n  await tick();assert.equal(calls.filter(c=>c.url===\'/v1/audio/speech/plan\').length,0);\n  socket.onmessage({data:JSON.stringify({type:\'turn_started\',turn_id:\'new-turn\'})});\n  assistantBubble={textContent:\'new answer\'};\n  socket.onmessage({data:JSON.stringify({type:\'assistant_terminal\',state:\'completed\'})});\n  await tick();const speech=speeches()[0];assert(speech);\n  speech.resolve(response(\'new\'));await tick();\n  assert.equal(lastSpeech.text,\'new answer\');assert.equal(replay.disabled,false);\n  assert.equal(audios.length,1);audios[0].end();await tick();\n  assert.match(status.textContent,/全文朗讀完成/);\n } else if(mode===\'blob\') {\n  const blob=pending(),work=playTts(\'old\',{});await tick();\n  speeches()[0].resolve({ok:true,blob:()=>blob.promise});await tick();\n  await button.onclick();await work;\n  blob.resolve(\'late-blob\');await tick();assert.equal(audios.length,0);\n  assert.equal(status.textContent,\'朗讀已停止\');\n } else if(mode===\'supersede\') {\n  const old=playTts(\'old\',{});await tick();const oldCall=speeches()[0];\n  const newer=playTts(\'new\',{});await tick();\n  assert(oldCall.options.signal.aborted);\n  speeches()[1].resolve(response(\'new\'));await tick();await old;\n  oldCall.reject(new Error(\'old failed late\'));await tick();\n  assert.equal(audios.length,1);assert.match(status.textContent,/正在說話/);\n  assert(ttsController,\'old cleanup must not detach newer owner\');\n  audios[0].end();await newer;\n  assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);\n } else if(mode===\'playing\') {\n  const delayed=pending();\n  Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};\n  const work=playTts(\'playing\',{});await tick();\n  speeches()[0].resolve(response(\'audio\'));await tick();\n  assert.equal(audios.length,1);await button.onclick();await work;\n  assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);\n  delayed.resolve();await tick();\n  assert(audios[0].pauses>=2);assert.equal(status.textContent,\'朗讀已停止\');\n } else if(mode===\'replay\') {\n  voice.checked=false;speechCancelled=true;\n  const canonical=\'前言。\\n```sh\\nprintf synthetic\\n```\\n尾句。\';\n  lastSpeech={text:canonical,prosody:{rate:1.1}};\n  const work=replay.onclick();await tick();\n  assert(voice.checked,\'manual replay visibly enables speech\');assert(!speechCancelled);\n  assert.deepEqual(JSON.parse(calls[0].options.body),{text:canonical});\n  assert.equal(speeches()[0].options.method,\'POST\');\n  assert.equal(JSON.parse(speeches()[0].options.body).rate,1.1);\n  speeches()[0].resolve(response(\'replay\'));await tick();\n  assert(!/全文朗讀完成/.test(status.textContent));audios[0].end();await work;\n  assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);\n } else if(mode===\'disable\') {\n  const work=playTts(\'playing\',{});await tick();\n  speeches()[0].resolve(response(\'audio\'));await tick();\n  voice.checked=false;voice.onchange({target:voice});await work;\n  assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);\n  assert.equal(status.textContent,\'朗讀已停止\');\n }\n console.log(\'CANCEL_OK\');\n})().catch(error=>{console.error(error);process.exitCode=1;});\n', 'pending']' timed out after 10 seconds
+
+/usr/lib/python3.14/subprocess.py:1268: TimeoutExpired
+___________________ test_actual_frontend_speech_cancel[blob] ___________________
+
+scenario = 'blob'
+
+    @pytest.mark.parametrize(
+        "scenario",
+        ["pending", "blob", "supersede", "playing", "turn", "terminal", "replay", "disable"],
+    )
+    def test_actual_frontend_speech_cancel(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        cancel = html[
+            html.index('document.querySelector("#cancel").onclick =') : html.index(
+                'window.addEventListener("message",'
+            )
+        ]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const mode = process.argv[1];
+    const button = {}, status = {}, replay = {}, voice = {checked:true};
+    const calls = [], audios = [], revoked = [];
+    let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+    let assistantBubble, lastSpeech;
+    const pageClosing = false, socket = {readyState:1}, log = () => {};
+    const owner = socket, epoch = 0, controlEpoch = 0, retired = false, markAuthenticated = () => {};
+    let submissionGeneration = 0, pendingSubmission;
+    const acceptRunEvent = () => true;
+    const headers = () => ({});
+    const document = {querySelector: selector => selector === '#cancel' ? button :
+     selector === '#voice-output' ? voice : selector === '#replay-speech' ? replay : status};
+    const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+    const pending = () => {
+     let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+     return {promise,resolve,reject};
+    };
+    class Audio {
+     constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+     play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+     pause() {this.pauses++;}
+     end() {this.onended?.();}
+    }
+    const plan = () => ({ok:true,json:async()=>({segments:['完整的合成語音。'],
+     spoken_text:'完整的合成語音。',version:'synthetic-plan-v1',
+     max_chars:80,max_segments:128,max_total_chars:8000,deadline_seconds:1200})});
+    const authorizedFetch = (url, options) => {
+     const call={url,options,...pending()};calls.push(call);
+     if(url==='/v1/audio/speech/plan' && !['pending','turn'].includes(mode))
+      return Promise.resolve(plan());
+     if(url==='/v1/audio/speech'||url==='/v1/audio/speech/plan')return call.promise;
+     return Promise.resolve({ok:true});
+    };
+    const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+    const tick = async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
+    const speeches = () => calls.filter(call=>call.url==='/v1/audio/speech');
+    """
+        checks = r"""
+    (async()=>{
+     if(mode==='pending'||mode==='turn') {
+      if(mode==='turn')currentTurn='turn-A';
+      const work=playTts('synthetic',{}), call=calls[0];
+      assert.equal(call.url,'/v1/audio/speech/plan');
+      await button.onclick();await work;
+      assert(call.options.signal.aborted);assert.equal(audios.length,0);
+      assert.equal(status.textContent,'朗讀已停止');
+      call.resolve(plan());await tick();assert.equal(speeches().length,0);
+      if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+     } else if(mode==='terminal') {
+      currentTurn='cancelled-turn';await button.onclick();
+      assistantBubble={textContent:'late answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      await tick();assert.equal(calls.filter(c=>c.url==='/v1/audio/speech/plan').length,0);
+      socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+      assistantBubble={textContent:'new answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      await tick();const speech=speeches()[0];assert(speech);
+      speech.resolve(response('new'));await tick();
+      assert.equal(lastSpeech.text,'new answer');assert.equal(replay.disabled,false);
+      assert.equal(audios.length,1);audios[0].end();await tick();
+      assert.match(status.textContent,/全文朗讀完成/);
+     } else if(mode==='blob') {
+      const blob=pending(),work=playTts('old',{});await tick();
+      speeches()[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+      await button.onclick();await work;
+      blob.resolve('late-blob');await tick();assert.equal(audios.length,0);
+      assert.equal(status.textContent,'朗讀已停止');
+     } else if(mode==='supersede') {
+      const old=playTts('old',{});await tick();const oldCall=speeches()[0];
+      const newer=playTts('new',{});await tick();
+      assert(oldCall.options.signal.aborted);
+      speeches()[1].resolve(response('new'));await tick();await old;
+      oldCall.reject(new Error('old failed late'));await tick();
+      assert.equal(audios.length,1);assert.match(status.textContent,/正在說話/);
+      assert(ttsController,'old cleanup must not detach newer owner');
+      audios[0].end();await newer;
+      assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);
+     } else if(mode==='playing') {
+      const delayed=pending();
+      Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+      const work=playTts('playing',{});await tick();
+      speeches()[0].resolve(response('audio'));await tick();
+      assert.equal(audios.length,1);await button.onclick();await work;
+      assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);
+      delayed.resolve();await tick();
+      assert(audios[0].pauses>=2);assert.equal(status.textContent,'朗讀已停止');
+     } else if(mode==='replay') {
+      voice.checked=false;speechCancelled=true;
+      const canonical='前言。\n```sh\nprintf synthetic\n```\n尾句。';
+      lastSpeech={text:canonical,prosody:{rate:1.1}};
+      const work=replay.onclick();await tick();
+      assert(voice.checked,'manual replay visibly enables speech');assert(!speechCancelled);
+      assert.deepEqual(JSON.parse(calls[0].options.body),{text:canonical});
+      assert.equal(speeches()[0].options.method,'POST');
+      assert.equal(JSON.parse(speeches()[0].options.body).rate,1.1);
+      speeches()[0].resolve(response('replay'));await tick();
+      assert(!/全文朗讀完成/.test(status.textContent));audios[0].end();await work;
+      assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);
+     } else if(mode==='disable') {
+      const work=playTts('playing',{});await tick();
+      speeches()[0].resolve(response('audio'));await tick();
+      voice.checked=false;voice.onchange({target:voice});await work;
+      assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);
+      assert.equal(status.textContent,'朗讀已停止');
+     }
+     console.log('CANCEL_OK');
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+    """
+>       result = subprocess.run(
+            [
+                "node",
+                "--unhandled-rejections=strict",
+                "-e",
+                setup + functions + cancel + handler + checks,
+                scenario,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+tests/integration/test_frontend_speech_cancel.py:134: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/subprocess.py:557: in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/subprocess.py:1221: in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/subprocess.py:2154: in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: -9 args: ['node', '--unhandled-rejections=strict', '-e',...>
+endtime = 29089.222905652, orig_timeout = 10, stdout_seq = []
+stderr_seq = [b'ReferenceError: clearRetryNotice is not defined\n    at document.querySelector.onclick ([eval]:177:65)\n    at [eval]:274:16\n']
+skip_check_and_raise = False
+
+    def _check_timeout(self, endtime, orig_timeout, stdout_seq, stderr_seq,
+                       skip_check_and_raise=False):
+        """Convenience for checking if a timeout has expired."""
+        if endtime is None:
+            return
+        if skip_check_and_raise or _time() > endtime:
+>           raise TimeoutExpired(
+                    self.args, orig_timeout,
+                    output=b''.join(stdout_seq) if stdout_seq else None,
+                    stderr=b''.join(stderr_seq) if stderr_seq else None)
+E           subprocess.TimeoutExpired: Command '['node', '--unhandled-rejections=strict', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst mode = process.argv[1];\nconst button = {}, status = {}, replay = {}, voice = {checked:true};\nconst calls = [], audios = [], revoked = [];\nlet currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;\nlet assistantBubble, lastSpeech;\nconst pageClosing = false, socket = {readyState:1}, log = () => {};\nconst owner = socket, epoch = 0, controlEpoch = 0, retired = false, markAuthenticated = () => {};\nlet submissionGeneration = 0, pendingSubmission;\nconst acceptRunEvent = () => true;\nconst headers = () => ({});\nconst document = {querySelector: selector => selector === \'#cancel\' ? button :\n selector === \'#voice-output\' ? voice : selector === \'#replay-speech\' ? replay : status};\nconst URL = {createObjectURL: () => \'blob:\'+audios.length, revokeObjectURL: s => revoked.push(s)};\nconst pending = () => {\n let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});\n return {promise,resolve,reject};\n};\nclass Audio {\n constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}\n play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}\n pause() {this.pauses++;}\n end() {this.onended?.();}\n}\nconst plan = () => ({ok:true,json:async()=>({segments:[\'完整的合成語音。\'],\n spoken_text:\'完整的合成語音。\',version:\'synthetic-plan-v1\',\n max_chars:80,max_segments:128,max_total_chars:8000,deadline_seconds:1200})});\nconst authorizedFetch = (url, options) => {\n const call={url,options,...pending()};calls.push(call);\n if(url===\'/v1/audio/speech/plan\' && ![\'pending\',\'turn\'].includes(mode))\n  return Promise.resolve(plan());\n if(url===\'/v1/audio/speech\'||url===\'/v1/audio/speech/plan\')return call.promise;\n return Promise.resolve({ok:true});\n};\nconst response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});\nconst tick = async()=>{for(let i=0;i<20;i++)await Promise.resolve();};\nconst speeches = () => calls.filter(call=>call.url===\'/v1/audio/speech\');\nfunction formatAssistantMessage(message) {\n        const source = message.textContent || "", doc = message.ownerDocument;\n        if (!doc) return source;\n        message.replaceChildren();\n        function inline(parent, text) {\n          const tokens = /\\*\\*([^\\n]+?)\\*\\*|(?<!`)`([^`\\n]+)`(?!`)/g;\n          let start = 0;\n          for (const match of text.matchAll(tokens)) {\n            parent.appendChild(doc.createTextNode(text.slice(start, match.index)));\n            const node = doc.createElement(match[1] === undefined ? "code" : "strong");\n            node.textContent = match[1] ?? match[2]; parent.appendChild(node);\n            start = match.index + match[0].length;\n          }\n          parent.appendChild(doc.createTextNode(text.slice(start)));\n        }\n        const fences = /^```[^\\n]*\\n([\\s\\S]*?)^```[ \\t]*(?:\\n|$)/gm;\n        let start = 0;\n        for (const match of source.matchAll(fences)) {\n          inline(message, source.slice(start, match.index));\n          const block = doc.createElement("pre"), code = doc.createElement("code");\n          code.textContent = match[1]; block.appendChild(code); message.appendChild(block);\n          start = match.index + match[0].length;\n        }\n        inline(message, source.slice(start));\n        return message.textContent;\n      }\n      function stopTts() {\n        const active = Boolean(ttsController || ttsAudio);\n        ttsGeneration++;\n        ttsController?.abort(); ttsController = undefined;\n        if (ttsAudio) {\n          ttsAudio.onplay = null; ttsAudio.onended = null; ttsAudio.onerror = null;\n          ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src);\n          ttsAudio.removeAttribute?.("src"); ttsAudio.load?.(); ttsAudio = undefined;\n        }\n        const status = document.querySelector("#tts-status");\n        status.textContent = active ? "朗讀已停止" : "TTS 待命"; status.className = "warn";\n      }\n      async function playTts(text, prosody) {\n        stopTts();\n        if (document.body?.classList?.contains("siro-control") || document.querySelector("#voice-output")?.checked === false) return;\n        const generation = ttsGeneration;\n        const controller = new AbortController(); ttsController = controller;\n        const current = () => generation === ttsGeneration && !controller.signal.aborted;\n        const status = document.querySelector("#tts-status"); status.textContent = "準備全文朗讀…";\n        const started = performance.now();\n        let played = 0, total = 0, deadlineReached = false;\n        let timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, 1200000);\n        const aborted = () => new DOMException("朗讀已停止", "AbortError");\n        const assertCurrent = () => { if (!current()) throw aborted(); };\n        const waitFor = promise => new Promise((resolve, reject) => {\n          const cancel = () => reject(aborted());\n          controller.signal.addEventListener("abort", cancel, {once: true});\n          Promise.resolve(promise).then(resolve, reject).finally(() => controller.signal.removeEventListener("abort", cancel));\n          if (!current()) cancel();\n        });\n        const request = async (url, body) => {\n          assertCurrent();\n          const response = await waitFor(authorizedFetch(url, {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify(body)}));\n          assertCurrent();\n          if (!response.ok) throw new Error((await waitFor(response.json())).detail || `HTTP ${response.status}`);\n          return response;\n        };\n        const loadSegment = async segment => {\n          try {\n            const response = await request("/v1/audio/speech", {text: segment, ...prosody});\n            const blob = await waitFor(response.blob()); assertCurrent();\n            return {blob};\n          } catch (error) { return {error}; } // A prefetched rejection always has an owner.\n        };\n        const playSegment = async blob => {\n          assertCurrent();\n          const url = URL.createObjectURL(blob);\n          let audio;\n          try { audio = new Audio(url); } catch (error) { URL.revokeObjectURL(url); throw error; }\n          ttsAudio = audio;\n          let cancel;\n          try {\n            await new Promise((resolve, reject) => {\n              cancel = () => reject(aborted());\n              controller.signal.addEventListener("abort", cancel, {once: true});\n              audio.onplay = () => {\n                if (current()) { status.textContent = `SIRO 正在說話（已播 ${played}/${total} 段）`; status.className = "ok"; }\n              };\n              audio.onended = () => { if (current()) resolve(); else reject(aborted()); };\n              audio.onerror = () => reject(new Error("音訊播放失敗"));\n              try {\n                Promise.resolve(audio.play()).then(() => { if (!current()) audio.pause(); }, reject);\n              } catch (error) { reject(error); }\n            });\n            assertCurrent();\n          } finally {\n            controller.signal.removeEventListener("abort", cancel);\n            audio.onplay = null; audio.onended = null; audio.onerror = null; audio.pause();\n            if (ttsAudio === audio) {\n              URL.revokeObjectURL(audio.src); audio.removeAttribute?.("src"); audio.load?.(); ttsAudio = undefined;\n            }\n          }\n        };\n        try {\n          const response = await request("/v1/audio/speech/plan", {text});\n          const plan = await waitFor(response.json()); assertCurrent();\n          if (!Array.isArray(plan.segments) || !plan.segments.length || plan.segments.length > 128 ||\n              plan.max_chars !== 80 || plan.max_segments !== 128 || plan.max_total_chars !== 8000 ||\n              typeof plan.version !== "string" || !plan.version || typeof plan.spoken_text !== "string" ||\n              !plan.spoken_text.trim() || Array.from(plan.spoken_text).length > 8000 ||\n              plan.segments.some(segment => typeof segment !== "string" || !segment.trim() || Array.from(segment).length > 80) ||\n              plan.segments.reduce((sum, segment) => sum + Array.from(segment).length, 0) > 8000 ||\n              plan.segments.join("") !== plan.spoken_text ||\n              !Number.isFinite(plan.deadline_seconds) || plan.deadline_seconds <= 0 || plan.deadline_seconds > 1200)\n            throw new Error("朗讀計畫超出上限或內容無效，沒有截短播放");\n          total = plan.segments.length;\n          clearTimeout(timer);\n          const remaining = plan.deadline_seconds * 1000 - (performance.now() - started);\n          if (remaining <= 0) { deadlineReached = true; controller.abort(); throw aborted(); }\n          timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, remaining);\n          let next = loadSegment(plan.segments[0]);\n          for (let index = 0; index < total; index++) {\n            status.textContent = `語音準備中（已播 ${played}/${total} 段）`; status.className = "warn";\n            const result = await next; assertCurrent();\n            if (result.error) throw result.error;\n            const playback = playSegment(result.blob);\n            next = index + 1 < total ? loadSegment(plan.segments[index + 1]) : undefined;\n            await playback; assertCurrent();\n            played++;\n          }\n          status.textContent = `全文朗讀完成（${played}/${total} 段）`; status.className = "ok";\n        } catch (error) {\n          if (generation === ttsGeneration && (deadlineReached || !controller.signal.aborted)) {\n            status.textContent = deadlineReached ? `已達朗讀時限（已播 ${played}/${total} 段），全文未完成。`\n              : `朗讀失敗（已播 ${played}/${total} 段）：${error.message}。全文未完成。`;\n            status.className = "warn";\n          }\n        } finally {\n          clearTimeout(timer); controller.abort();\n          if (ttsController === controller) ttsController = undefined;\n        }\n      }\n      document.querySelector("#cancel").onclick = async () => { clearRetryNotice(); submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };\n      document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };\n      document.querySelector("#replay-speech").onclick = async () => {\n        if (!lastSpeech || pageClosing) return;\n        document.querySelector("#voice-output").checked = true;\n        speechCancelled = false;\n        await playTts(lastSpeech.text, lastSpeech.prosody);\n      };\n      if (document.body?.classList?.contains("siro-control")) {\n        document.querySelector("#voice-output").checked = false;\n        document.querySelector("#voice-output").disabled = true;\n      }\n      socket.onmessage = event => {\n          if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;\n          const data = JSON.parse(event.data);\n          if (!acceptRunEvent(data)) return;\n          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();\n          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);\n          log(data);\n          if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }\n          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);\n          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean" && typeof applyGoalTaskTools === "function") applyGoalTaskTools(data.enabled);\n          if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }\n          if (data.type === "affect_state") { renderAffect(data); }\n          if (data.type === "assistant_started") {\n            assistantBubble = appendMessage("assistant", "");\n          }\n          if (data.type === "assistant_retry_wait") {\n            const notice = document.querySelector("#service-notice");\n            const seconds = Math.max(0, Math.min(60, Number(data.retry_after_seconds) || 0));\n            notice.hidden = false; retryWaitVisible = true;\n            notice.textContent = `對話服務暫時限流，約 ${Math.ceil(seconds)} 秒後重試這段回覆。已完成的工具不會重做，可隨時停止。`;\n          }\n          if (data.type === "assistant_delta") {\n            clearRetryNotice();\n            if (!assistantBubble) assistantBubble = appendMessage("assistant", "");\n            assistantBubble.textContent += data.text;\n            document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;\n          }\n          if (data.type === "assistant_terminal") {\n            clearRetryNotice();\n            const canonicalText = assistantBubble?.textContent || "";\n            if (data.state === "completed" && assistantBubble) formatAssistantMessage(assistantBubble);\n            if (data.state !== "completed") {\n              if (!assistantBubble) assistantBubble = appendMessage("assistant", "");\n              const reasons = {\n                ProviderOutputTruncated: "這次回覆未完成，文字生成已達上限。已收到的內容保留，沒有自動重送操作。",\n                ProviderOutputFiltered: "這次回覆未完成，對話服務停止了這段輸出。",\n                ProviderOutputIncomplete: "這次回覆未完成，沒有收到完整結束資訊。已收到的內容保留，沒有自動重送操作。"\n              };\n              const notice = document.createElement("p"); notice.className = "warn";\n              notice.textContent = data.state === "cancelled" ? "已停止這次回覆。"\n                : reasons[data.error] || "這次回覆未完成。已執行的操作結果會保留在電腦協助，請確認後再試。";\n              if (data.error && !reasons[data.error]) notice.textContent += `（${data.error}）`;\n              assistantBubble.appendChild(notice);\n            }\n            if (data.state !== "completed") stopTts();\n            if (data.state === "completed" && canonicalText) {\n              lastSpeech = {text: canonicalText, prosody: data.prosody || {}};\n              document.querySelector("#replay-speech").disabled = false;\n              if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);\n            }\n            assistantBubble = undefined; currentTurn = undefined;\n          }\n          if (data.type === "tool_proposal") renderToolProposal(data);\n          if (data.type === "tool_started") updateToolProposal(data.proposal_id, "執行中…");\n          if (data.type === "tool_result") renderToolResult(data);\n          document.querySelector("#connection").textContent = "已連線";\n          document.querySelector("#connection").className = "connection-pill ok";\n        };\n          \n(async()=>{\n if(mode===\'pending\'||mode===\'turn\') {\n  if(mode===\'turn\')currentTurn=\'turn-A\';\n  const work=playTts(\'synthetic\',{}), call=calls[0];\n  assert.equal(call.url,\'/v1/audio/speech/plan\');\n  await button.onclick();await work;\n  assert(call.options.signal.aborted);assert.equal(audios.length,0);\n  assert.equal(status.textContent,\'朗讀已停止\');\n  call.resolve(plan());await tick();assert.equal(speeches().length,0);\n  if(mode===\'turn\')assert(calls.some(c=>c.url===\'/v1/turns/turn-A/cancel\'));\n } else if(mode===\'terminal\') {\n  currentTurn=\'cancelled-turn\';await button.onclick();\n  assistantBubble={textContent:\'late answer\'};\n  socket.onmessage({data:JSON.stringify({type:\'assistant_terminal\',state:\'completed\'})});\n  await tick();assert.equal(calls.filter(c=>c.url===\'/v1/audio/speech/plan\').length,0);\n  socket.onmessage({data:JSON.stringify({type:\'turn_started\',turn_id:\'new-turn\'})});\n  assistantBubble={textContent:\'new answer\'};\n  socket.onmessage({data:JSON.stringify({type:\'assistant_terminal\',state:\'completed\'})});\n  await tick();const speech=speeches()[0];assert(speech);\n  speech.resolve(response(\'new\'));await tick();\n  assert.equal(lastSpeech.text,\'new answer\');assert.equal(replay.disabled,false);\n  assert.equal(audios.length,1);audios[0].end();await tick();\n  assert.match(status.textContent,/全文朗讀完成/);\n } else if(mode===\'blob\') {\n  const blob=pending(),work=playTts(\'old\',{});await tick();\n  speeches()[0].resolve({ok:true,blob:()=>blob.promise});await tick();\n  await button.onclick();await work;\n  blob.resolve(\'late-blob\');await tick();assert.equal(audios.length,0);\n  assert.equal(status.textContent,\'朗讀已停止\');\n } else if(mode===\'supersede\') {\n  const old=playTts(\'old\',{});await tick();const oldCall=speeches()[0];\n  const newer=playTts(\'new\',{});await tick();\n  assert(oldCall.options.signal.aborted);\n  speeches()[1].resolve(response(\'new\'));await tick();await old;\n  oldCall.reject(new Error(\'old failed late\'));await tick();\n  assert.equal(audios.length,1);assert.match(status.textContent,/正在說話/);\n  assert(ttsController,\'old cleanup must not detach newer owner\');\n  audios[0].end();await newer;\n  assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);\n } else if(mode===\'playing\') {\n  const delayed=pending();\n  Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};\n  const work=playTts(\'playing\',{});await tick();\n  speeches()[0].resolve(response(\'audio\'));await tick();\n  assert.equal(audios.length,1);await button.onclick();await work;\n  assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);\n  delayed.resolve();await tick();\n  assert(audios[0].pauses>=2);assert.equal(status.textContent,\'朗讀已停止\');\n } else if(mode===\'replay\') {\n  voice.checked=false;speechCancelled=true;\n  const canonical=\'前言。\\n```sh\\nprintf synthetic\\n```\\n尾句。\';\n  lastSpeech={text:canonical,prosody:{rate:1.1}};\n  const work=replay.onclick();await tick();\n  assert(voice.checked,\'manual replay visibly enables speech\');assert(!speechCancelled);\n  assert.deepEqual(JSON.parse(calls[0].options.body),{text:canonical});\n  assert.equal(speeches()[0].options.method,\'POST\');\n  assert.equal(JSON.parse(speeches()[0].options.body).rate,1.1);\n  speeches()[0].resolve(response(\'replay\'));await tick();\n  assert(!/全文朗讀完成/.test(status.textContent));audios[0].end();await work;\n  assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);\n } else if(mode===\'disable\') {\n  const work=playTts(\'playing\',{});await tick();\n  speeches()[0].resolve(response(\'audio\'));await tick();\n  voice.checked=false;voice.onchange({target:voice});await work;\n  assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);\n  assert.equal(status.textContent,\'朗讀已停止\');\n }\n console.log(\'CANCEL_OK\');\n})().catch(error=>{console.error(error);process.exitCode=1;});\n', 'blob']' timed out after 10 seconds
+
+/usr/lib/python3.14/subprocess.py:1268: TimeoutExpired
+_________________ test_actual_frontend_speech_cancel[playing] __________________
+
+scenario = 'playing'
+
+    @pytest.mark.parametrize(
+        "scenario",
+        ["pending", "blob", "supersede", "playing", "turn", "terminal", "replay", "disable"],
+    )
+    def test_actual_frontend_speech_cancel(scenario: str) -> None:
+        html = Path("src/siro/services/presentation/static/index.html").read_text()
+        functions = html[
+            html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        ]
+        cancel = html[
+            html.index('document.querySelector("#cancel").onclick =') : html.index(
+                'window.addEventListener("message",'
+            )
+        ]
+        handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
+        setup = r"""
+    const assert = require('node:assert/strict');
+    const mode = process.argv[1];
+    const button = {}, status = {}, replay = {}, voice = {checked:true};
+    const calls = [], audios = [], revoked = [];
+    let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+    let assistantBubble, lastSpeech;
+    const pageClosing = false, socket = {readyState:1}, log = () => {};
+    const owner = socket, epoch = 0, controlEpoch = 0, retired = false, markAuthenticated = () => {};
+    let submissionGeneration = 0, pendingSubmission;
+    const acceptRunEvent = () => true;
+    const headers = () => ({});
+    const document = {querySelector: selector => selector === '#cancel' ? button :
+     selector === '#voice-output' ? voice : selector === '#replay-speech' ? replay : status};
+    const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
+    const pending = () => {
+     let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
+     return {promise,resolve,reject};
+    };
+    class Audio {
+     constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}
+     play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}
+     pause() {this.pauses++;}
+     end() {this.onended?.();}
+    }
+    const plan = () => ({ok:true,json:async()=>({segments:['完整的合成語音。'],
+     spoken_text:'完整的合成語音。',version:'synthetic-plan-v1',
+     max_chars:80,max_segments:128,max_total_chars:8000,deadline_seconds:1200})});
+    const authorizedFetch = (url, options) => {
+     const call={url,options,...pending()};calls.push(call);
+     if(url==='/v1/audio/speech/plan' && !['pending','turn'].includes(mode))
+      return Promise.resolve(plan());
+     if(url==='/v1/audio/speech'||url==='/v1/audio/speech/plan')return call.promise;
+     return Promise.resolve({ok:true});
+    };
+    const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
+    const tick = async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
+    const speeches = () => calls.filter(call=>call.url==='/v1/audio/speech');
+    """
+        checks = r"""
+    (async()=>{
+     if(mode==='pending'||mode==='turn') {
+      if(mode==='turn')currentTurn='turn-A';
+      const work=playTts('synthetic',{}), call=calls[0];
+      assert.equal(call.url,'/v1/audio/speech/plan');
+      await button.onclick();await work;
+      assert(call.options.signal.aborted);assert.equal(audios.length,0);
+      assert.equal(status.textContent,'朗讀已停止');
+      call.resolve(plan());await tick();assert.equal(speeches().length,0);
+      if(mode==='turn')assert(calls.some(c=>c.url==='/v1/turns/turn-A/cancel'));
+     } else if(mode==='terminal') {
+      currentTurn='cancelled-turn';await button.onclick();
+      assistantBubble={textContent:'late answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      await tick();assert.equal(calls.filter(c=>c.url==='/v1/audio/speech/plan').length,0);
+      socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
+      assistantBubble={textContent:'new answer'};
+      socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
+      await tick();const speech=speeches()[0];assert(speech);
+      speech.resolve(response('new'));await tick();
+      assert.equal(lastSpeech.text,'new answer');assert.equal(replay.disabled,false);
+      assert.equal(audios.length,1);audios[0].end();await tick();
+      assert.match(status.textContent,/全文朗讀完成/);
+     } else if(mode==='blob') {
+      const blob=pending(),work=playTts('old',{});await tick();
+      speeches()[0].resolve({ok:true,blob:()=>blob.promise});await tick();
+      await button.onclick();await work;
+      blob.resolve('late-blob');await tick();assert.equal(audios.length,0);
+      assert.equal(status.textContent,'朗讀已停止');
+     } else if(mode==='supersede') {
+      const old=playTts('old',{});await tick();const oldCall=speeches()[0];
+      const newer=playTts('new',{});await tick();
+      assert(oldCall.options.signal.aborted);
+      speeches()[1].resolve(response('new'));await tick();await old;
+      oldCall.reject(new Error('old failed late'));await tick();
+      assert.equal(audios.length,1);assert.match(status.textContent,/正在說話/);
+      assert(ttsController,'old cleanup must not detach newer owner');
+      audios[0].end();await newer;
+      assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);
+     } else if(mode==='playing') {
+      const delayed=pending();
+      Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};
+      const work=playTts('playing',{});await tick();
+      speeches()[0].resolve(response('audio'));await tick();
+      assert.equal(audios.length,1);await button.onclick();await work;
+      assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);
+      delayed.resolve();await tick();
+      assert(audios[0].pauses>=2);assert.equal(status.textContent,'朗讀已停止');
+     } else if(mode==='replay') {
+      voice.checked=false;speechCancelled=true;
+      const canonical='前言。\n```sh\nprintf synthetic\n```\n尾句。';
+      lastSpeech={text:canonical,prosody:{rate:1.1}};
+      const work=replay.onclick();await tick();
+      assert(voice.checked,'manual replay visibly enables speech');assert(!speechCancelled);
+      assert.deepEqual(JSON.parse(calls[0].options.body),{text:canonical});
+      assert.equal(speeches()[0].options.method,'POST');
+      assert.equal(JSON.parse(speeches()[0].options.body).rate,1.1);
+      speeches()[0].resolve(response('replay'));await tick();
+      assert(!/全文朗讀完成/.test(status.textContent));audios[0].end();await work;
+      assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);
+     } else if(mode==='disable') {
+      const work=playTts('playing',{});await tick();
+      speeches()[0].resolve(response('audio'));await tick();
+      voice.checked=false;voice.onchange({target:voice});await work;
+      assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);
+      assert.equal(status.textContent,'朗讀已停止');
+     }
+     console.log('CANCEL_OK');
+    })().catch(error=>{console.error(error);process.exitCode=1;});
+    """
+>       result = subprocess.run(
+            [
+                "node",
+                "--unhandled-rejections=strict",
+                "-e",
+                setup + functions + cancel + handler + checks,
+                scenario,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+tests/integration/test_frontend_speech_cancel.py:134: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.14/subprocess.py:557: in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/subprocess.py:1221: in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/subprocess.py:2154: in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Popen: returncode: -9 args: ['node', '--unhandled-rejections=strict', '-e',...>
+endtime = 29099.337407723, orig_timeout = 10, stdout_seq = []
+stderr_seq = [b'ReferenceError: clearRetryNotice is not defined\n    at document.querySelector.onclick ([eval]:177:65)\n    at [eval]:292:46\n']
+skip_check_and_raise = False
+
+    def _check_timeout(self, endtime, orig_timeout, stdout_seq, stderr_seq,
+                       skip_check_and_raise=False):
+        """Convenience for checking if a timeout has expired."""
+        if endtime is None:
+            return
+        if skip_check_and_raise or _time() > endtime:
+>           raise TimeoutExpired(
+                    self.args, orig_timeout,
+                    output=b''.join(stdout_seq) if stdout_seq else None,
+                    stderr=b''.join(stderr_seq) if stderr_seq else None)
+E           subprocess.TimeoutExpired: Command '['node', '--unhandled-rejections=strict', '-e', '\nconst assert = require(\'node:assert/strict\');\nconst mode = process.argv[1];\nconst button = {}, status = {}, replay = {}, voice = {checked:true};\nconst calls = [], audios = [], revoked = [];\nlet currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;\nlet assistantBubble, lastSpeech;\nconst pageClosing = false, socket = {readyState:1}, log = () => {};\nconst owner = socket, epoch = 0, controlEpoch = 0, retired = false, markAuthenticated = () => {};\nlet submissionGeneration = 0, pendingSubmission;\nconst acceptRunEvent = () => true;\nconst headers = () => ({});\nconst document = {querySelector: selector => selector === \'#cancel\' ? button :\n selector === \'#voice-output\' ? voice : selector === \'#replay-speech\' ? replay : status};\nconst URL = {createObjectURL: () => \'blob:\'+audios.length, revokeObjectURL: s => revoked.push(s)};\nconst pending = () => {\n let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});\n return {promise,resolve,reject};\n};\nclass Audio {\n constructor(src) {this.src=src;this.pauses=0;this.played=0;audios.push(this);}\n play() {this.played++;this.onplay?.();return this.wait?.promise ?? Promise.resolve();}\n pause() {this.pauses++;}\n end() {this.onended?.();}\n}\nconst plan = () => ({ok:true,json:async()=>({segments:[\'完整的合成語音。\'],\n spoken_text:\'完整的合成語音。\',version:\'synthetic-plan-v1\',\n max_chars:80,max_segments:128,max_total_chars:8000,deadline_seconds:1200})});\nconst authorizedFetch = (url, options) => {\n const call={url,options,...pending()};calls.push(call);\n if(url===\'/v1/audio/speech/plan\' && ![\'pending\',\'turn\'].includes(mode))\n  return Promise.resolve(plan());\n if(url===\'/v1/audio/speech\'||url===\'/v1/audio/speech/plan\')return call.promise;\n return Promise.resolve({ok:true});\n};\nconst response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});\nconst tick = async()=>{for(let i=0;i<20;i++)await Promise.resolve();};\nconst speeches = () => calls.filter(call=>call.url===\'/v1/audio/speech\');\nfunction formatAssistantMessage(message) {\n        const source = message.textContent || "", doc = message.ownerDocument;\n        if (!doc) return source;\n        message.replaceChildren();\n        function inline(parent, text) {\n          const tokens = /\\*\\*([^\\n]+?)\\*\\*|(?<!`)`([^`\\n]+)`(?!`)/g;\n          let start = 0;\n          for (const match of text.matchAll(tokens)) {\n            parent.appendChild(doc.createTextNode(text.slice(start, match.index)));\n            const node = doc.createElement(match[1] === undefined ? "code" : "strong");\n            node.textContent = match[1] ?? match[2]; parent.appendChild(node);\n            start = match.index + match[0].length;\n          }\n          parent.appendChild(doc.createTextNode(text.slice(start)));\n        }\n        const fences = /^```[^\\n]*\\n([\\s\\S]*?)^```[ \\t]*(?:\\n|$)/gm;\n        let start = 0;\n        for (const match of source.matchAll(fences)) {\n          inline(message, source.slice(start, match.index));\n          const block = doc.createElement("pre"), code = doc.createElement("code");\n          code.textContent = match[1]; block.appendChild(code); message.appendChild(block);\n          start = match.index + match[0].length;\n        }\n        inline(message, source.slice(start));\n        return message.textContent;\n      }\n      function stopTts() {\n        const active = Boolean(ttsController || ttsAudio);\n        ttsGeneration++;\n        ttsController?.abort(); ttsController = undefined;\n        if (ttsAudio) {\n          ttsAudio.onplay = null; ttsAudio.onended = null; ttsAudio.onerror = null;\n          ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src);\n          ttsAudio.removeAttribute?.("src"); ttsAudio.load?.(); ttsAudio = undefined;\n        }\n        const status = document.querySelector("#tts-status");\n        status.textContent = active ? "朗讀已停止" : "TTS 待命"; status.className = "warn";\n      }\n      async function playTts(text, prosody) {\n        stopTts();\n        if (document.body?.classList?.contains("siro-control") || document.querySelector("#voice-output")?.checked === false) return;\n        const generation = ttsGeneration;\n        const controller = new AbortController(); ttsController = controller;\n        const current = () => generation === ttsGeneration && !controller.signal.aborted;\n        const status = document.querySelector("#tts-status"); status.textContent = "準備全文朗讀…";\n        const started = performance.now();\n        let played = 0, total = 0, deadlineReached = false;\n        let timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, 1200000);\n        const aborted = () => new DOMException("朗讀已停止", "AbortError");\n        const assertCurrent = () => { if (!current()) throw aborted(); };\n        const waitFor = promise => new Promise((resolve, reject) => {\n          const cancel = () => reject(aborted());\n          controller.signal.addEventListener("abort", cancel, {once: true});\n          Promise.resolve(promise).then(resolve, reject).finally(() => controller.signal.removeEventListener("abort", cancel));\n          if (!current()) cancel();\n        });\n        const request = async (url, body) => {\n          assertCurrent();\n          const response = await waitFor(authorizedFetch(url, {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify(body)}));\n          assertCurrent();\n          if (!response.ok) throw new Error((await waitFor(response.json())).detail || `HTTP ${response.status}`);\n          return response;\n        };\n        const loadSegment = async segment => {\n          try {\n            const response = await request("/v1/audio/speech", {text: segment, ...prosody});\n            const blob = await waitFor(response.blob()); assertCurrent();\n            return {blob};\n          } catch (error) { return {error}; } // A prefetched rejection always has an owner.\n        };\n        const playSegment = async blob => {\n          assertCurrent();\n          const url = URL.createObjectURL(blob);\n          let audio;\n          try { audio = new Audio(url); } catch (error) { URL.revokeObjectURL(url); throw error; }\n          ttsAudio = audio;\n          let cancel;\n          try {\n            await new Promise((resolve, reject) => {\n              cancel = () => reject(aborted());\n              controller.signal.addEventListener("abort", cancel, {once: true});\n              audio.onplay = () => {\n                if (current()) { status.textContent = `SIRO 正在說話（已播 ${played}/${total} 段）`; status.className = "ok"; }\n              };\n              audio.onended = () => { if (current()) resolve(); else reject(aborted()); };\n              audio.onerror = () => reject(new Error("音訊播放失敗"));\n              try {\n                Promise.resolve(audio.play()).then(() => { if (!current()) audio.pause(); }, reject);\n              } catch (error) { reject(error); }\n            });\n            assertCurrent();\n          } finally {\n            controller.signal.removeEventListener("abort", cancel);\n            audio.onplay = null; audio.onended = null; audio.onerror = null; audio.pause();\n            if (ttsAudio === audio) {\n              URL.revokeObjectURL(audio.src); audio.removeAttribute?.("src"); audio.load?.(); ttsAudio = undefined;\n            }\n          }\n        };\n        try {\n          const response = await request("/v1/audio/speech/plan", {text});\n          const plan = await waitFor(response.json()); assertCurrent();\n          if (!Array.isArray(plan.segments) || !plan.segments.length || plan.segments.length > 128 ||\n              plan.max_chars !== 80 || plan.max_segments !== 128 || plan.max_total_chars !== 8000 ||\n              typeof plan.version !== "string" || !plan.version || typeof plan.spoken_text !== "string" ||\n              !plan.spoken_text.trim() || Array.from(plan.spoken_text).length > 8000 ||\n              plan.segments.some(segment => typeof segment !== "string" || !segment.trim() || Array.from(segment).length > 80) ||\n              plan.segments.reduce((sum, segment) => sum + Array.from(segment).length, 0) > 8000 ||\n              plan.segments.join("") !== plan.spoken_text ||\n              !Number.isFinite(plan.deadline_seconds) || plan.deadline_seconds <= 0 || plan.deadline_seconds > 1200)\n            throw new Error("朗讀計畫超出上限或內容無效，沒有截短播放");\n          total = plan.segments.length;\n          clearTimeout(timer);\n          const remaining = plan.deadline_seconds * 1000 - (performance.now() - started);\n          if (remaining <= 0) { deadlineReached = true; controller.abort(); throw aborted(); }\n          timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, remaining);\n          let next = loadSegment(plan.segments[0]);\n          for (let index = 0; index < total; index++) {\n            status.textContent = `語音準備中（已播 ${played}/${total} 段）`; status.className = "warn";\n            const result = await next; assertCurrent();\n            if (result.error) throw result.error;\n            const playback = playSegment(result.blob);\n            next = index + 1 < total ? loadSegment(plan.segments[index + 1]) : undefined;\n            await playback; assertCurrent();\n            played++;\n          }\n          status.textContent = `全文朗讀完成（${played}/${total} 段）`; status.className = "ok";\n        } catch (error) {\n          if (generation === ttsGeneration && (deadlineReached || !controller.signal.aborted)) {\n            status.textContent = deadlineReached ? `已達朗讀時限（已播 ${played}/${total} 段），全文未完成。`\n              : `朗讀失敗（已播 ${played}/${total} 段）：${error.message}。全文未完成。`;\n            status.className = "warn";\n          }\n        } finally {\n          clearTimeout(timer); controller.abort();\n          if (ttsController === controller) ttsController = undefined;\n        }\n      }\n      document.querySelector("#cancel").onclick = async () => { clearRetryNotice(); submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };\n      document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };\n      document.querySelector("#replay-speech").onclick = async () => {\n        if (!lastSpeech || pageClosing) return;\n        document.querySelector("#voice-output").checked = true;\n        speechCancelled = false;\n        await playTts(lastSpeech.text, lastSpeech.prosody);\n      };\n      if (document.body?.classList?.contains("siro-control")) {\n        document.querySelector("#voice-output").checked = false;\n        document.querySelector("#voice-output").disabled = true;\n      }\n      socket.onmessage = event => {\n          if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;\n          const data = JSON.parse(event.data);\n          if (!acceptRunEvent(data)) return;\n          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();\n          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);\n          log(data);\n          if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }\n          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);\n          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean" && typeof applyGoalTaskTools === "function") applyGoalTaskTools(data.enabled);\n          if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }\n          if (data.type === "affect_state") { renderAffect(data); }\n          if (data.type === "assistant_started") {\n            assistantBubble = appendMessage("assistant", "");\n          }\n          if (data.type === "assistant_retry_wait") {\n            const notice = document.querySelector("#service-notice");\n            const seconds = Math.max(0, Math.min(60, Number(data.retry_after_seconds) || 0));\n            notice.hidden = false; retryWaitVisible = true;\n            notice.textContent = `對話服務暫時限流，約 ${Math.ceil(seconds)} 秒後重試這段回覆。已完成的工具不會重做，可隨時停止。`;\n          }\n          if (data.type === "assistant_delta") {\n            clearRetryNotice();\n            if (!assistantBubble) assistantBubble = appendMessage("assistant", "");\n            assistantBubble.textContent += data.text;\n            document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;\n          }\n          if (data.type === "assistant_terminal") {\n            clearRetryNotice();\n            const canonicalText = assistantBubble?.textContent || "";\n            if (data.state === "completed" && assistantBubble) formatAssistantMessage(assistantBubble);\n            if (data.state !== "completed") {\n              if (!assistantBubble) assistantBubble = appendMessage("assistant", "");\n              const reasons = {\n                ProviderOutputTruncated: "這次回覆未完成，文字生成已達上限。已收到的內容保留，沒有自動重送操作。",\n                ProviderOutputFiltered: "這次回覆未完成，對話服務停止了這段輸出。",\n                ProviderOutputIncomplete: "這次回覆未完成，沒有收到完整結束資訊。已收到的內容保留，沒有自動重送操作。"\n              };\n              const notice = document.createElement("p"); notice.className = "warn";\n              notice.textContent = data.state === "cancelled" ? "已停止這次回覆。"\n                : reasons[data.error] || "這次回覆未完成。已執行的操作結果會保留在電腦協助，請確認後再試。";\n              if (data.error && !reasons[data.error]) notice.textContent += `（${data.error}）`;\n              assistantBubble.appendChild(notice);\n            }\n            if (data.state !== "completed") stopTts();\n            if (data.state === "completed" && canonicalText) {\n              lastSpeech = {text: canonicalText, prosody: data.prosody || {}};\n              document.querySelector("#replay-speech").disabled = false;\n              if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);\n            }\n            assistantBubble = undefined; currentTurn = undefined;\n          }\n          if (data.type === "tool_proposal") renderToolProposal(data);\n          if (data.type === "tool_started") updateToolProposal(data.proposal_id, "執行中…");\n          if (data.type === "tool_result") renderToolResult(data);\n          document.querySelector("#connection").textContent = "已連線";\n          document.querySelector("#connection").className = "connection-pill ok";\n        };\n          \n(async()=>{\n if(mode===\'pending\'||mode===\'turn\') {\n  if(mode===\'turn\')currentTurn=\'turn-A\';\n  const work=playTts(\'synthetic\',{}), call=calls[0];\n  assert.equal(call.url,\'/v1/audio/speech/plan\');\n  await button.onclick();await work;\n  assert(call.options.signal.aborted);assert.equal(audios.length,0);\n  assert.equal(status.textContent,\'朗讀已停止\');\n  call.resolve(plan());await tick();assert.equal(speeches().length,0);\n  if(mode===\'turn\')assert(calls.some(c=>c.url===\'/v1/turns/turn-A/cancel\'));\n } else if(mode===\'terminal\') {\n  currentTurn=\'cancelled-turn\';await button.onclick();\n  assistantBubble={textContent:\'late answer\'};\n  socket.onmessage({data:JSON.stringify({type:\'assistant_terminal\',state:\'completed\'})});\n  await tick();assert.equal(calls.filter(c=>c.url===\'/v1/audio/speech/plan\').length,0);\n  socket.onmessage({data:JSON.stringify({type:\'turn_started\',turn_id:\'new-turn\'})});\n  assistantBubble={textContent:\'new answer\'};\n  socket.onmessage({data:JSON.stringify({type:\'assistant_terminal\',state:\'completed\'})});\n  await tick();const speech=speeches()[0];assert(speech);\n  speech.resolve(response(\'new\'));await tick();\n  assert.equal(lastSpeech.text,\'new answer\');assert.equal(replay.disabled,false);\n  assert.equal(audios.length,1);audios[0].end();await tick();\n  assert.match(status.textContent,/全文朗讀完成/);\n } else if(mode===\'blob\') {\n  const blob=pending(),work=playTts(\'old\',{});await tick();\n  speeches()[0].resolve({ok:true,blob:()=>blob.promise});await tick();\n  await button.onclick();await work;\n  blob.resolve(\'late-blob\');await tick();assert.equal(audios.length,0);\n  assert.equal(status.textContent,\'朗讀已停止\');\n } else if(mode===\'supersede\') {\n  const old=playTts(\'old\',{});await tick();const oldCall=speeches()[0];\n  const newer=playTts(\'new\',{});await tick();\n  assert(oldCall.options.signal.aborted);\n  speeches()[1].resolve(response(\'new\'));await tick();await old;\n  oldCall.reject(new Error(\'old failed late\'));await tick();\n  assert.equal(audios.length,1);assert.match(status.textContent,/正在說話/);\n  assert(ttsController,\'old cleanup must not detach newer owner\');\n  audios[0].end();await newer;\n  assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);\n } else if(mode===\'playing\') {\n  const delayed=pending();\n  Audio.prototype.play=function(){this.played++;this.onplay?.();return delayed.promise;};\n  const work=playTts(\'playing\',{});await tick();\n  speeches()[0].resolve(response(\'audio\'));await tick();\n  assert.equal(audios.length,1);await button.onclick();await work;\n  assert(audios[0].pauses>=1);assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);\n  delayed.resolve();await tick();\n  assert(audios[0].pauses>=2);assert.equal(status.textContent,\'朗讀已停止\');\n } else if(mode===\'replay\') {\n  voice.checked=false;speechCancelled=true;\n  const canonical=\'前言。\\n```sh\\nprintf synthetic\\n```\\n尾句。\';\n  lastSpeech={text:canonical,prosody:{rate:1.1}};\n  const work=replay.onclick();await tick();\n  assert(voice.checked,\'manual replay visibly enables speech\');assert(!speechCancelled);\n  assert.deepEqual(JSON.parse(calls[0].options.body),{text:canonical});\n  assert.equal(speeches()[0].options.method,\'POST\');\n  assert.equal(JSON.parse(speeches()[0].options.body).rate,1.1);\n  speeches()[0].resolve(response(\'replay\'));await tick();\n  assert(!/全文朗讀完成/.test(status.textContent));audios[0].end();await work;\n  assert.match(status.textContent,/全文朗讀完成/);assert.equal(revoked.length,1);\n } else if(mode===\'disable\') {\n  const work=playTts(\'playing\',{});await tick();\n  speeches()[0].resolve(response(\'audio\'));await tick();\n  voice.checked=false;voice.onchange({target:voice});await work;\n  assert.equal(ttsAudio,undefined);assert.equal(revoked.length,1);\n  assert.equal(status.textContent,\'朗讀已停止\');\n }\n console.log(\'CANCEL_OK\');\n})().catch(error=>{console.error(error);process.exitCode=1;});\n', 'playing']' timed out after 10 seconds
+
+/usr/lib/python3.14/subprocess.py:1268: TimeoutExpired
+=========================== short test summary info ============================
+FAILED tests/integration/test_frontend_speech_cancel.py::test_actual_frontend_speech_cancel[pending]
+FAILED tests/integration/test_frontend_speech_cancel.py::test_actual_frontend_speech_cancel[blob]
+FAILED tests/integration/test_frontend_speech_cancel.py::test_actual_frontend_speech_cancel[playing]
+3 failed, 333 passed in 55.41s

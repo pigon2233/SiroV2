@@ -1,0 +1,112 @@
+/* The desktop shell shares the normal page's session, conversation and audio owner. */
+html.siro-desktop-root,
+html:has(body.siro-desktop),
+body.siro-desktop {
+  background: transparent !important;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+body.siro-desktop .app-shell,
+body.siro-desktop .workspace,
+body.siro-desktop .page-content,
+body.siro-desktop [data-page="chat"],
+body.siro-desktop .companion-layout {
+  display: block;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+body.siro-desktop .sidebar,
+body.siro-desktop .toolbar,
+body.siro-desktop .live-status,
+body.siro-desktop .workspace > [aria-live],
+body.siro-desktop .workspace > .activity-notice,
+body.siro-desktop .page-heading,
+body.siro-desktop .stage-title,
+body.siro-desktop .stage-footer,
+body.siro-desktop .page-view:not([data-page="chat"]) {
+  display: none !important;
+}
+body.siro-desktop .stage {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  min-height: 0;
+  width: 100%;
+  border-radius: 0;
+  background: transparent;
+}
+body.siro-desktop #companion {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: transparent;
+}
+body.siro-desktop .conversation {
+  display: none;
+  position: fixed;
+  z-index: 4;
+  left: 12px;
+  right: 12px;
+  top: 40px;
+  height: min(66dvh, 450px);
+  min-height: 200px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-radius: 18px;
+  background: rgba(250, 252, 255, .96);
+  box-shadow: 0 8px 30px rgba(31, 43, 68, .2);
+}
+body.siro-desktop.desktop-chat-open .conversation { display: flex; }
+body.siro-desktop .conversation-heading { padding-bottom: 8px; }
+body.siro-desktop .conversation-heading h2 { font-size: 14px; }
+body.siro-desktop #model-status { font-size: 11px; }
+body.siro-desktop #messages { min-height: 50px; padding-top: 12px; }
+body.siro-desktop .empty-state { padding: 12px 4px; }
+body.siro-desktop .empty-state strong { font-size: 19px; }
+body.siro-desktop .message { font-size: 14px; margin-bottom: 10px; padding: 9px 12px; }
+body.siro-desktop #text { min-height: 46px; max-height: 110px; resize: none; }
+body.siro-desktop #chat { padding: 3px; }
+body.siro-desktop #chat button { font-size: 13px; padding: 8px; }
+body.siro-desktop .conversation-actions { gap: 6px; padding-top: 6px; }
+body.siro-desktop .desktop-controls {
+  position: fixed;
+  z-index: 5;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-radius: 14px;
+  background: rgba(248, 250, 254, .95);
+  box-shadow: 0 3px 16px rgba(31, 43, 68, .16);
+}
+body.siro-desktop .desktop-controls button {
+  padding: 6px 8px;
+  min-height: 32px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+body.siro-desktop #desktop-move { cursor: move; touch-action: none; }
+body.siro-desktop #desktop-stop { color: var(--warning); }
+body.siro-desktop #desktop-chat.desktop-unread { border-color: var(--action); background: var(--tint); }
+body.siro-desktop #desktop-status {
+  flex: 0 0 100%;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 0;
+  max-height: 3em;
+  overflow: hidden;
+}

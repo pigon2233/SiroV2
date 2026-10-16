@@ -56,3 +56,7 @@ restore 會先驗證 bundle 檔案集合、SHA-256、設定 schema 和 SQLite in
 依序檢查 `scripts/doctor --json`、`systemctl --user status siro-gateway.service`、health endpoint 和
 `~/.local/state/siro/log/siro.log`。缺少可選 GPU、音訊或設備能力會顯示 unavailable，不應造成 minimal
 profile crash loop。
+
+## 2026-10-16 正式服務入口修正
+
+新產生的 siro-gateway.service 經專案 .venv/bin/python 執行 scripts/launch_companion.py，與 scripts/start-runtime-product 相同，會讀取 allowlisted 本機模型設定並載入已準備角色；缺少設定明確失敗。既有已安裝 unit 不會因原始碼更新自動改寫，需重新執行 scripts/install、檢視 unit 後 daemon-reload，再由 owner 決定重啟。不要以直接執行 siro-gateway 的離線測試結果當成正式模型／Live2D已驗。scripts/start PID_FILE 預設正式入口，只有明確 --demo 才走舊的離線 gateway。

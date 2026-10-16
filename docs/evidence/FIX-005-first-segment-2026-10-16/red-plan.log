@@ -1,0 +1,170 @@
+F.FFFF........                                                           [100%]
+=================================== FAILURES ===================================
+________ test_plan_covers_long_canonical_text_without_generating_audio _________
+
+    @pytest.mark.asyncio
+    async def test_plan_covers_long_canonical_text_without_generating_audio() -> None:
+        class Speech:
+            async def render(self, text: str, *, rate: float, pitch: float, energy: float) -> bytes:
+                raise AssertionError("Planning must not generate audio")
+    
+        tokens = SessionTokens()
+        token, _ = tokens.issue()
+        app = create_app(tokens=tokens, text_to_speech=Speech())
+        transport = httpx.ASGITransport(app=app)
+        text = "合成長文完整朗讀驗收,保留每一個段落。" * 250 + "最後一句也必須保留。"
+        assert len(text) > 4000
+        async with httpx.AsyncClient(transport=transport, base_url=ORIGIN) as client:
+            response = await client.post(
+                "/v1/audio/speech/plan",
+                headers={"origin": ORIGIN, "authorization": f"Bearer {token}"},
+                json={"text": text},
+            )
+        assert response.status_code == 200
+        plan = response.json()
+        assert plan["spoken_text"] == prepare_spoken_text(text)
+        assert "".join(plan["segments"]) == plan["spoken_text"]
+        assert plan["segments"][-1].endswith("最後一句也必須保留。")
+        assert all(0 < len(segment) <= 80 for segment in plan["segments"])
+        assert len(plan["segments"]) <= 128
+>       assert plan["version"] == "sentence-v2-first24-rest80"
+E       AssertionError: assert 'sentence-v1-80' == 'sentence-v2-first24-rest80'
+E         
+E         - sentence-v2-first24-rest80
+E         + sentence-v1-80
+
+tests/integration/test_speech_plan.py:37: AssertionError
+_ test_first_segment_is_bounded_and_does_not_absorb_following_text[\u5148\u628a\u7b2c\u4e00\u53e5\u8aaa\u5b8c\u6574\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002-\u5148\u628a\u7b2c\u4e00\u53e5\u8aaa\u5b8c\u6574\u3002] _
+
+text = '先把第一句說完整。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。'
+first = '先把第一句說完整。'
+
+    @pytest.mark.parametrize(
+        ("text", "first"),
+        [
+            ("短句。", "短句。"),
+            ("先把第一句說完整。" + "後面的內容依照既有上限完整保留。" * 8, "先把第一句說完整。"),
+            ("這是一個比較長的合成驗收句子,後面還有內容需要讀完。" * 8,
+             "這是一個比較長的合成驗收句子,"),
+            ("甲" * 30 + "。" + "乙" * 100, "甲" * 24),
+            ("synthetic first sentence continues with later words. " * 8, "synthetic first"),
+        ],
+    )
+    def test_first_segment_is_bounded_and_does_not_absorb_following_text(
+        text: str, first: str
+    ) -> None:
+        plan = plan_speech(text)
+        segments = plan["segments"]
+        assert isinstance(segments, list)
+>       assert segments[0] == first
+E       AssertionError: assert '先把第一句說完整。後面的...內容依照既有上限完整保留。' == '先把第一句說完整。'
+E         
+E         - 先把第一句說完整。
+E         + 先把第一句說完整。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。後面的內容依照既有上限完整保留。
+
+tests/integration/test_speech_plan.py:60: AssertionError
+_ test_first_segment_is_bounded_and_does_not_absorb_following_text[\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002-\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,] _
+
+text = '這是一個比較長的合成驗收句子,後面還有內容需要讀完。這是一個比較長的合成驗收句子,後面還有內容需要讀完。這是一個比較長的合成驗收句子,後面還有內容需要讀完。這是一個比較長的合成驗收句子,後面還有內容需要讀完。這是一個比較長的合成驗收句子,後面還有內容需要讀完。這是一個比較長的合成驗收句子,後面還有內容需要讀完。這是一個比較長的合成驗收句子,後面還有內容需要讀完。這是一個比較長的合成驗收句子,後面還有內容需要讀完。'
+first = '這是一個比較長的合成驗收句子,'
+
+    @pytest.mark.parametrize(
+        ("text", "first"),
+        [
+            ("短句。", "短句。"),
+            ("先把第一句說完整。" + "後面的內容依照既有上限完整保留。" * 8, "先把第一句說完整。"),
+            ("這是一個比較長的合成驗收句子,後面還有內容需要讀完。" * 8,
+             "這是一個比較長的合成驗收句子,"),
+            ("甲" * 30 + "。" + "乙" * 100, "甲" * 24),
+            ("synthetic first sentence continues with later words. " * 8, "synthetic first"),
+        ],
+    )
+    def test_first_segment_is_bounded_and_does_not_absorb_following_text(
+        text: str, first: str
+    ) -> None:
+        plan = plan_speech(text)
+        segments = plan["segments"]
+        assert isinstance(segments, list)
+>       assert segments[0] == first
+E       AssertionError: assert '這是一個比較長的合成驗收...子,後面還有內容需要讀完。' == '這是一個比較長的合成驗收句子,'
+E         
+E         - 這是一個比較長的合成驗收句子,
+E         + 這是一個比較長的合成驗收句子,後面還有內容需要讀完。這是一個比較長的合成驗收句子,後面還有內容需要讀完。這是一個比較長的合成驗收句子,後面還有內容需要讀完。
+
+tests/integration/test_speech_plan.py:60: AssertionError
+_ test_first_segment_is_bounded_and_does_not_absorb_following_text[\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u3002\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59-\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532] _
+
+text = '甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲。乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙乙'
+first = '甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲'
+
+    @pytest.mark.parametrize(
+        ("text", "first"),
+        [
+            ("短句。", "短句。"),
+            ("先把第一句說完整。" + "後面的內容依照既有上限完整保留。" * 8, "先把第一句說完整。"),
+            ("這是一個比較長的合成驗收句子,後面還有內容需要讀完。" * 8,
+             "這是一個比較長的合成驗收句子,"),
+            ("甲" * 30 + "。" + "乙" * 100, "甲" * 24),
+            ("synthetic first sentence continues with later words. " * 8, "synthetic first"),
+        ],
+    )
+    def test_first_segment_is_bounded_and_does_not_absorb_following_text(
+        text: str, first: str
+    ) -> None:
+        plan = plan_speech(text)
+        segments = plan["segments"]
+        assert isinstance(segments, list)
+>       assert segments[0] == first
+E       AssertionError: assert '甲甲甲甲甲甲甲甲甲甲甲甲...甲甲甲甲甲甲甲甲甲甲甲甲。' == '甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲'
+E         
+E         - 甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲
+E         + 甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲甲。
+E         ?                         +++++++
+
+tests/integration/test_speech_plan.py:60: AssertionError
+_ test_first_segment_is_bounded_and_does_not_absorb_following_text[synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. -synthetic first] _
+
+text = 'synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic f...ater words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. '
+first = 'synthetic first'
+
+    @pytest.mark.parametrize(
+        ("text", "first"),
+        [
+            ("短句。", "短句。"),
+            ("先把第一句說完整。" + "後面的內容依照既有上限完整保留。" * 8, "先把第一句說完整。"),
+            ("這是一個比較長的合成驗收句子,後面還有內容需要讀完。" * 8,
+             "這是一個比較長的合成驗收句子,"),
+            ("甲" * 30 + "。" + "乙" * 100, "甲" * 24),
+            ("synthetic first sentence continues with later words. " * 8, "synthetic first"),
+        ],
+    )
+    def test_first_segment_is_bounded_and_does_not_absorb_following_text(
+        text: str, first: str
+    ) -> None:
+        plan = plan_speech(text)
+        segments = plan["segments"]
+        assert isinstance(segments, list)
+>       assert segments[0] == first
+E       AssertionError: assert 'synthetic fi... later words.' == 'synthetic first'
+E         
+E         - synthetic first
+E         + synthetic first sentence continues with later words.
+
+tests/integration/test_speech_plan.py:60: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_speech_plan.py::test_plan_covers_long_canonical_text_without_generating_audio
+FAILED tests/integration/test_speech_plan.py::test_first_segment_is_bounded_and_does_not_absorb_following_text[\u5148\u628a\u7b2c\u4e00\u53e5\u8aaa\u5b8c\u6574\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002\u5f8c\u9762\u7684\u5167\u5bb9\u4f9d\u7167\u65e2\u6709\u4e0a\u9650\u5b8c\u6574\u4fdd\u7559\u3002-\u5148\u628a\u7b2c\u4e00\u53e5\u8aaa\u5b8c\u6574\u3002]
+FAILED tests/integration/test_speech_plan.py::test_first_segment_is_bounded_and_does_not_absorb_following_text[\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,\u5f8c\u9762\u9084\u6709\u5167\u5bb9\u9700\u8981\u8b80\u5b8c\u3002-\u9019\u662f\u4e00\u500b\u6bd4\u8f03\u9577\u7684\u5408\u6210\u9a57\u6536\u53e5\u5b50,]
+FAILED tests/integration/test_speech_plan.py::test_first_segment_is_bounded_and_does_not_absorb_following_text[\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u3002\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59\u4e59-\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532\u7532]
+FAILED tests/integration/test_speech_plan.py::test_first_segment_is_bounded_and_does_not_absorb_following_text[synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. synthetic first sentence continues with later words. -synthetic first]
+5 failed, 9 passed, 2 warnings in 1.20s

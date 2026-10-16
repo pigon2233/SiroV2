@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import runpy
+from pathlib import Path
+
 import httpx
 import pytest
 
-from siro.services.audio.tts import prepare_spoken_text
+from siro.services.audio.tts import plan_speech, prepare_spoken_text
 from siro.services.presentation.gateway import SessionTokens, create_app
 
 ORIGIN = "http://127.0.0.1:8000"
@@ -34,9 +37,40 @@ async def test_plan_covers_long_canonical_text_without_generating_audio() -> Non
     assert plan["segments"][-1].endswith("最後一句也必須保留。")
     assert all(0 < len(segment) <= 80 for segment in plan["segments"])
     assert len(plan["segments"]) <= 128
-    assert plan["version"] == "sentence-v1-80"
+    assert plan["version"] == "sentence-v2-first24-rest80"
+    assert 0 < len(plan["segments"][0]) <= 24
     assert plan["max_chars"] == 80 and plan["max_total_chars"] == 8000
     assert plan["deadline_seconds"] == 1200
+
+
+@pytest.mark.parametrize(
+    ("text", "first"),
+    [
+        ("短句。", "短句。"),
+        ("先把第一句說完整。" + "後面的內容依照既有上限完整保留。" * 8, "先把第一句說完整。"),
+        (
+            "這是一個比較長的合成驗收句子,後面還有內容需要讀完。" * 8,
+            "這是一個比較長的合成驗收句子,",
+        ),
+        ("甲" * 30 + "。" + "乙" * 100, "甲" * 24),
+        ("synthetic first sentence continues with later words. " * 8, "synthetic first"),
+    ],
+)
+def test_first_segment_is_bounded_and_does_not_absorb_following_text(text: str, first: str) -> None:
+    plan = plan_speech(text)
+    segments = plan["segments"]
+    assert isinstance(segments, list)
+    assert segments[0] == first
+    assert "".join(segments) == plan["spoken_text"]
+    assert 0 < len(segments[0]) <= 24
+    assert all(0 < len(segment) <= 80 and segment.strip() for segment in segments)
+    if len(str(plan["spoken_text"])) > 80:
+        assert any(len(segment) > 24 for segment in segments[1:])
+
+
+def test_plan_and_owned_worker_bind_the_same_segment_cache_version() -> None:
+    worker = runpy.run_path(str(Path(__file__).parents[2] / "scripts/qwen_tts_worker.py"))
+    assert plan_speech("合成測試。字串保持完整。")["version"] == worker["SEGMENT_VERSION"]
 
 
 @pytest.mark.asyncio

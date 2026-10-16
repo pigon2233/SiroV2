@@ -1,8 +1,22 @@
 # Runtime 產品入口
 
-2026-10-07 更新。RT-013、RT-015、RT-011 summary 已由原 DEFER 轉為可使用的有界切片；詳見 [交付證據](../evidence/runtime-product-2026-10-06/REPORT.md)。這不代表所有 provider、硬體或長期自主行為已驗收。
+2026-10-16 更新。RT-013、RT-015、RT-011 summary 已由原 DEFER 轉為可使用的有界切片；詳見 [交付證據](../evidence/runtime-product-2026-10-06/REPORT.md)。這不代表所有 provider、硬體或長期自主行為已驗收。
 
-## 啟動
+## 獨立桌寵
+
+日常執行 `scripts/start-companion`：先確認正式後端，再啟動單一透明角色視窗。`scripts/install-desktop` 建立使用者應用程式選單的「SIRO 桌寵」，不加入開機自動啟動；已在本機建立。
+
+- 按角色或「聊聊」打開對話氣泡；按住「移動」拖曳視窗。
+- 「控制台」開啟獨立任務／記憶／設定畫面；它不再掛第二個角色或播放第二份語音。
+- 「停止」沿用真正取消；「暫藏」最小化，可從工作列／應用切換恢復；「退出」只關角色，不停止後端或刪資料。
+- 使用已安裝 GJS／GTK3／WebKitGTK4.1；沙箱保持啟用。GNOME Wayland 下明示使用應用程式範圍的 XWayland 相容模式，沒有更改登入 session。原生 Wayland 位置／焦點／全平台未驗。
+- 首個交付是獨立透明角色、互動與交接；Haru 沒有腿部rig，**步行／自由漫遊／坐下素材仍未完成，不能把它當完整VPet活動已驗收**。
+
+模型限流復原：正式launcher預設 `SIRO_RATE_LIMIT_RECOVERY_ENABLED=1`，最多依 Retry-After 等候60秒，原provider只多試一次，畫面有等待與停止。已完成工具不會重播；整日額度耗盡、要求等待超過上限或再次429仍明確失敗。`SIRO_RATE_LIMIT_RECOVERY_ENABLED=0` 回原追加預算0；非正式raw gateway預設仍0。`SIRO_RATE_LIMIT_MAX_WAIT_SECONDS` 只接受0..60。
+
+原qwen3-siro-anime-daughter-v1.wav聲線保留，首段改24字內自然停頓、後段80字，分段版本／快取同步，全文不截斷。本輪GPU速度尚未驗，因目前kernel7.0.0-38缺相應NVIDIA module；`scripts/repair-nvidia-kernel` 是目前Ubuntu26.04的官方signed-package修復，需owner在自己的終端機輸入sudo密碼，不關SecureBoot、不自動重啟。不要把CPU／cache hit當GPU改善數字。
+
+## 啟動後端（無桌寵時）
 
 在 SiroV2 目錄執行 `scripts/start-runtime-product`。它選用 candidate、準備 Rust binary，載入 `.env.local` 中四個模型連線欄位（shell 設定優先，不印出 key），沿用 shell 的語音設定；選支援的 GPT-OSS 時校驗 pinned tokenizer。預設網址 http://127.0.0.1:8000。已有服務占用時不會強制停掉它；可設定 `SIRO_GATEWAY_PORT=8026` 使用其他入口。
 
@@ -43,3 +57,7 @@
 ## 回滾
 
 先正常停止／drain Gateway，再以需要的開關重啟：`SIRO_WORKSPACE_ENABLED=0`、`SIRO_MEMORY_ORGANIZATION_ENABLED=0`、`SIRO_CONTEXT_SUMMARY_ENABLED=0`。不移除 DB、journal、原始記憶或既有 budget／privacy guard。Rust-owned process 與背景 task 在 shutdown 清理；啟動失敗明報，不偷偷降級至更弱的檔案 backend。
+
+## 啟動後確認（2026-10-16）
+
+首頁應顯示「本機對話」或「雲端對話」，以及「Live2D 已就緒」。若看到離線固定規則或替身告知，請停止舊開發 gateway，改以本文件的 scripts/start-runtime-product 啟動；不要把固定示範回覆當成模型回答。需要 PID 管理時，scripts/start .siro-data/companion-service.pid 與 scripts/stop .siro-data/companion-service.pid 配對使用。raw uv run siro-gateway 保留為開發入口，不會讀取 .env.local。

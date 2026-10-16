@@ -219,6 +219,12 @@ Keep healthy control/body connections during token rotation. Reconnect control t
 在 RTX3050Laptop、現有qwen-tts0.1.1／torch2.12.0+cu130／transformers4.57.3上，固定原model／reference、22字合成句、seed、512上限，eager暖無快取正式樣本12.891／12.655s；CPU intra-op1／4沒有實質收益，REJECT該調整。SDK與官方Transformers4.57.3確認支持SDPA，實際model／talker／code_predictor／tokenizer四層皆sdpa；正式樣本8.158／8.133s。EOS正常，數值運算差異使63token／4.96s音訊改為59token／4.64s，不能宣稱bitwise相同或已完成人耳語意驗收；速度仍不達SLO。只採CUDA worker的attn_implementation=sdpa，CPU保留eager；同一effective值進cache fingerprint，互不讀取不同attention快取。無新依賴、backend／聲線／生成上限／Core變動。先做profile/cache反例，再改worker並真機重驗。證據：docs/evidence/FIX-005-2026-10-07/benchmark-inference-results.json、benchmark-sdpa-results.json；https://huggingface.co/docs/transformers/v4.57.3/en/attention_interface 。
 
 
+### D35 補充：首段工作量有界縮短（2026-10-16）
+
+保留既有原聲線、CUDA SDPA、512 codec 上限及正常 EOS／cache／owned-worker 取消契約。現有 planner 會把首句與後句合併到 80 字；改成首段最多 24 字並且不再合併後段，優先完整句、其次至少 8 字後的逗號等停頓或英文空格，沒有停頓時只切有界前綴。其餘各段仍最多 80 字，canonical 內容逐字重組相同、128 段／8,000 字／1,200 秒上限不變。plan 與 worker fingerprint 的分段版本同步更新，舊快取保留且不混讀。
+
+安裝的官方 qwen-tts 0.1.1 `generate_voice_clone` 明示 non_streaming_mode=False 只模擬文字輸入，不提供串流生成；本切片不翻此旗標、不改 SDK、Core、worker 數或 Audio owner。CPU 測試只證明首段工作量與完整性，需以同一單 GPU 的冷／暖未快取及首尾人耳驗收判斷實際收益，不能把短段或 cache hit 宣稱速度達標。
+
 ## D36 — RI-002 同一catalog的唯讀能力說明（2026-10-09）
 
 沿用ToolDescriptor／ToolCatalog與authenticated GET /v1/runtime。新增optional typed metadata與closed availability reason codes；舊positional descriptor／bool readiness及舊HTTP keys保留。未知欄位為null，availability probe exception不洩漏文字，unknown不提供model工具且dispatch仍fail closed。每次capture只讀一次trusted readiness predicate，同一snapshot產生當round工具及inventory；不執行executor／CLI／network／plugin。此metadata只作描述，不替Policy／grant批准，也不改既有full/ask與風險批准語意。
@@ -483,3 +489,15 @@ True full cancellation5.090748s and controlled baseline/candidate300ms journal-d
 D59 第一切片施工界線（2026-10-15）：沿既有 HTML／JS，有限 hash routes 切換獨立工作畫面，原 DOM 常駐、非目前畫面設 hidden＋inert。這修正規劃「只掛載目前頁」的過度限制：原 WS／非同步回呼仍引用原節點，保留節點可避免為導航重寫所有 handler，也不會讓所有內容同時可見或可聚焦。共用 session／control／iframe／audio；切頁不作網路請求或 mutation、不重置輪詢／情緒／語音，不自動進任務或批准。停止回覆與語音控制移至共用 shell；電腦提案以可達提示引導，不搶走正在輸入的畫面。第一切片只改 index.html、必要新導航測試與文件／合成證據；Core、Gateway、DB、權限、providers、資產及依賴不改。真桌寵仍按獨立 gate，未接入能力不能由新版 UI 冒稱完成。
 
 D59 第一切片結果（2026-10-15）：九畫面已接既有產品，333前端PASS、三次真main／Rust／SQLite與24 CUA檢查，source-only隔離回退已驗。[報告](evidence/T10-UI-01-2026-10-15/REPORT.md)。只認定網頁導航／移轉LOCAL_VERIFIED；T10-UI-01整體PARTIAL，真Live2D切頁／原生桌面／動作包及完整產品體驗不由此放行。file預覽停用控制且不bootstrap，不放寬認證。
+
+## COMPANION-STARTUP / 2026-10-16 / Companion startup repair
+
+Owner reported placeholder Live2D and the literal OfflineDemoModel NO_SOURCE response to hello. The configured local Groq model and licensed Haru renderer assets exist; the raw siro-gateway path ignores .env.local and SIRO_LIVE2D_DIST unless explicitly exported. User-facing scripts/start and generated user service must invoke the existing configured launch_companion.py entry; explicit scripts/start PID_FILE --demo retains isolated low-level/offline operation. Raw siro-gateway remains a development entry for compatibility and must visibly disclose offline/placeholder state. No greeting hardcode, no change to memory/provenance or provider routing/privacy, no forced asset auto-discovery in create_app, no release selection bypass. Update README/operations to make the configured product entry primary. Verify existing launch/signed-release compatibility, real rendered character and bounded synthetic greeting against the configured provider; back up local DB before normal startup, don't export private history or secrets.
+
+COMPANION-STARTUP 限定診斷補充：正式UI的真工具效果已完成，但model continuation出現HTTPStatusError；隔離同目標兩次200，尚未重現。HTTP transport失敗只記數字status，不記URL、header、prompt或provider body，用於區分request拒絕／速率限制；不放寬重試、不重播工具、不把HTTP錯誤改為成功。
+
+## DESKTOP-VOICE-RECOVERY / 2026-10-16 / authorized delivery
+
+User explicitly requests native desktop pet first, then voice experience and rate-limit solution. Use installed GJS/GTK3/WebKitGTK4.1 with sandbox enabled, exact loopback origin, fixed UI-only native commands and one desktop instance. GNOME Wayland positioning constraints are handled by visibly declared application-only XWayland compatibility, never switching desktop session. Native input shape derives from visible alpha; no screen capture or global pointer tracking. The native view consumes existing index/session/audio handlers via /desktop; control center omits its renderer/audio owner. Optional body-auth presentation field gives connected desktop priority; original clients remain supported. No second Core/database or file/null-origin exception. Haru's missing leg rig remains a separate genuine asset gate; no sliding standing pose represented as walking. Short natural first speech segment preserves original v1 voice and complete text. Rate-limit policy must stay bounded, cancellation-aware and pre-emission-only, preserving completed effects; production composition explicitly grants any additional cloud request budget. Each slice needs actual checks and distinct limitations.
+
+DESKTOP-VOICE-RECOVERY 429契約：FailoverModel新增optional rate_limit_max_wait_seconds=None（舊預設不變）、clock（UTC datetime，用於HTTP-date）、on_retry(request,delay) async。明確啟用時429只重試原provider，Retry-After秒數／HTTP-date，無效缺省用原有限backoff；超過設定上限原錯誤拒絕。任何text/tool intent/finished emission後零retry；最多兩次attempt、cloud_request_budget預設0保留，產品composition明確給1。Groq官方remaining-requests為每日額度，api.groq.com回0不再派送；不猜其他host語意。等待可取消；callback只帶original ModelRequest與安全delay，不含provider body/header/key、不替自己授權或重跑工具。產品以60秒為單次最大等待，不把整日額度或反覆429當成成功。

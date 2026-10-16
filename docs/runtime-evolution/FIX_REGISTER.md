@@ -21,7 +21,7 @@
 - Acceptance criteria: 原1332誤報清零，新增credential仍擋、無新排除／skip／全域hex信任；source與檔案links保持；remote整條gate通過後方稱cloud verified。
 - Rollback method: 撤本卡helper hunks／新tests及文件；保所有原快照與使用者工作，不重寫Git歷史／還原DB。會恢復已知誤報。
 - Risk: LOW runtime（僅CI helper）；審核pins是不可變歷史資料，任何scanner／snapshot變更需重審。helper信任scanner提供的report，並不證明scanner沒有整檔漏報。
-- Status: IN_PROGRESS / LOCAL_VERIFIED；exact-head cloud確認後更新。
+- Status: DONE / CLOUD_VERIFIED；5e4506a已推送，Actions38868369775完整scripts/check成功（2166 Python／24 Rust／原scanner與strict gate全PASS）。
 
 ## D61 / 2026-10-16 — 本輪六項急修的核對
 
@@ -1101,7 +1101,7 @@ MEDIUM：重送造成重複效果、token 累積、socket 交接競爭。以 pre
 
 ## FIX-005 — 有界分句朗讀、首段延遲與全文完整性
 
-Status：**PARTIAL / IN_PROGRESS（2026-10-08；A／B實作，原聲線基線完整性／取消已驗；速度FAIL、人工語意聽驗NOT_RUN。僅CUDA採已量測SDPA，最後671項回歸／source回退已PASS，最終真機功能PASS、首播仍22.446s／RTF約1.75；維持體驗gate）**。分類：REQUIRED_FIX。來源：MISSING_INTEGRATION、BAD_INTERFACE、TEST_GAP；不將RT-006已驗owned-worker lifecycle宣告失敗。下方Problem／Actual保留修前時點。
+Status：**PARTIAL / IN_PROGRESS（2026-10-17；NVIDIA/CUDA恢復，原v1聲線first24真暖未快取7.781／10.109s；隔離當前前端三段實播／預取中取消回收0.517s PASS。但cold首播18.789s、段間23.977／14.926s，速度體驗仍FAIL，人工聽驗待owner回饋。GPU_DRIVER_BLOCKED已解除，未放行體驗gate）**。分類：REQUIRED_FIX。來源：MISSING_INTEGRATION、BAD_INTERFACE、TEST_GAP；不將RT-006已驗owned-worker lifecycle宣告失敗。下方Problem／Actual保留修前時點。最新證據：[2026-10-17真機複驗](../evidence/FIX-005-first-segment-2026-10-17/REPORT.md)。
 
 ### Source Task
 

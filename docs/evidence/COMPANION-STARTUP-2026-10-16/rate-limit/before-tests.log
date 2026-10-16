@@ -1,0 +1,646 @@
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFF                                            [100%]
+=================================== FAILURES ===================================
+_ test_enabled_rate_limit_wait_retries_same_provider_and_preserves_completed_pair _
+
+    @pytest.mark.asyncio
+    async def test_enabled_rate_limit_wait_retries_same_provider_and_preserves_completed_pair() -> None:
+        primary = LimitedModel(limited("0.015"))
+        alternate = LimitedModel(ValueError("must not dispatch"))
+        notices: list[tuple[ModelRequest, float]] = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            notices.append((request, delay))
+    
+        request = ModelRequest(
+            "unchanged goal",
+            "original-generation",
+            Privacy.CLOUD_ALLOWED,
+            max_output_tokens=24,
+            messages=(
+                ModelMessage("user", "unchanged goal"),
+                ModelMessage(
+                    "assistant", tool_calls=(ToolCall("completed", "computer.execute", {"x": 1}),)
+                ),
+                ModelMessage("tool", "already executed once", tool_call_id="completed"),
+            ),
+        )
+>       model = FailoverModel(
+            (primary, alternate),
+            cloud_indices=frozenset({0}),
+            cloud_request_budget=1,
+            rate_limit_max_wait_seconds=1,
+            on_retry=notice,
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:94: TypeError
+______ test_http_date_uses_injected_clock_and_past_date_does_not_wait[7] _______
+
+seconds = 7
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("seconds", [7, 0, -7])
+    async def test_http_date_uses_injected_clock_and_past_date_does_not_wait(seconds: int) -> None:
+        now = datetime(2026, 10, 16, 12, tzinfo=UTC)
+        primary = LimitedModel(limited(format_datetime(now + timedelta(seconds=seconds), usegmt=True)))
+        token = CancellationToken()
+        delays = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            delays.append(delay)
+            token.cancel()
+    
+>       model = FailoverModel(
+            (primary,), rate_limit_max_wait_seconds=10, clock=lambda: now, on_retry=notice
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:127: TypeError
+______ test_http_date_uses_injected_clock_and_past_date_does_not_wait[0] _______
+
+seconds = 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("seconds", [7, 0, -7])
+    async def test_http_date_uses_injected_clock_and_past_date_does_not_wait(seconds: int) -> None:
+        now = datetime(2026, 10, 16, 12, tzinfo=UTC)
+        primary = LimitedModel(limited(format_datetime(now + timedelta(seconds=seconds), usegmt=True)))
+        token = CancellationToken()
+        delays = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            delays.append(delay)
+            token.cancel()
+    
+>       model = FailoverModel(
+            (primary,), rate_limit_max_wait_seconds=10, clock=lambda: now, on_retry=notice
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:127: TypeError
+______ test_http_date_uses_injected_clock_and_past_date_does_not_wait[-7] ______
+
+seconds = -7
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("seconds", [7, 0, -7])
+    async def test_http_date_uses_injected_clock_and_past_date_does_not_wait(seconds: int) -> None:
+        now = datetime(2026, 10, 16, 12, tzinfo=UTC)
+        primary = LimitedModel(limited(format_datetime(now + timedelta(seconds=seconds), usegmt=True)))
+        token = CancellationToken()
+        delays = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            delays.append(delay)
+            token.cancel()
+    
+>       model = FailoverModel(
+            (primary,), rate_limit_max_wait_seconds=10, clock=lambda: now, on_retry=notice
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:127: TypeError
+_____ test_missing_or_invalid_header_uses_finite_configured_backoff[None] ______
+
+header = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("header", [None, "invalid", "nan", "inf", "-1"])
+    async def test_missing_or_invalid_header_uses_finite_configured_backoff(header: str | None) -> None:
+        primary = LimitedModel(limited(header))
+        delays = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            delays.append(delay)
+    
+>       model = FailoverModel(
+            (primary,), backoff_seconds=0.001, rate_limit_max_wait_seconds=1, on_retry=notice
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:143: TypeError
+____ test_missing_or_invalid_header_uses_finite_configured_backoff[invalid] ____
+
+header = 'invalid'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("header", [None, "invalid", "nan", "inf", "-1"])
+    async def test_missing_or_invalid_header_uses_finite_configured_backoff(header: str | None) -> None:
+        primary = LimitedModel(limited(header))
+        delays = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            delays.append(delay)
+    
+>       model = FailoverModel(
+            (primary,), backoff_seconds=0.001, rate_limit_max_wait_seconds=1, on_retry=notice
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:143: TypeError
+______ test_missing_or_invalid_header_uses_finite_configured_backoff[nan] ______
+
+header = 'nan'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("header", [None, "invalid", "nan", "inf", "-1"])
+    async def test_missing_or_invalid_header_uses_finite_configured_backoff(header: str | None) -> None:
+        primary = LimitedModel(limited(header))
+        delays = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            delays.append(delay)
+    
+>       model = FailoverModel(
+            (primary,), backoff_seconds=0.001, rate_limit_max_wait_seconds=1, on_retry=notice
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:143: TypeError
+______ test_missing_or_invalid_header_uses_finite_configured_backoff[inf] ______
+
+header = 'inf'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("header", [None, "invalid", "nan", "inf", "-1"])
+    async def test_missing_or_invalid_header_uses_finite_configured_backoff(header: str | None) -> None:
+        primary = LimitedModel(limited(header))
+        delays = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            delays.append(delay)
+    
+>       model = FailoverModel(
+            (primary,), backoff_seconds=0.001, rate_limit_max_wait_seconds=1, on_retry=notice
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:143: TypeError
+______ test_missing_or_invalid_header_uses_finite_configured_backoff[-1] _______
+
+header = '-1'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("header", [None, "invalid", "nan", "inf", "-1"])
+    async def test_missing_or_invalid_header_uses_finite_configured_backoff(header: str | None) -> None:
+        primary = LimitedModel(limited(header))
+        delays = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            delays.append(delay)
+    
+>       model = FailoverModel(
+            (primary,), backoff_seconds=0.001, rate_limit_max_wait_seconds=1, on_retry=notice
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:143: TypeError
+_ test_server_wait_over_cap_preserves_error_without_retry_or_notification[61] __
+
+header = '61'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("header", ["61", "86400", "99999999999999999999999999999"])
+    async def test_server_wait_over_cap_preserves_error_without_retry_or_notification(
+        header: str,
+    ) -> None:
+        error = limited(header)
+        primary = LimitedModel(error)
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            raise AssertionError("a refused retry must not be announced")
+    
+>       model = FailoverModel((primary,), rate_limit_max_wait_seconds=60, on_retry=notice)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:161: TypeError
+_ test_server_wait_over_cap_preserves_error_without_retry_or_notification[86400] _
+
+header = '86400'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("header", ["61", "86400", "99999999999999999999999999999"])
+    async def test_server_wait_over_cap_preserves_error_without_retry_or_notification(
+        header: str,
+    ) -> None:
+        error = limited(header)
+        primary = LimitedModel(error)
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            raise AssertionError("a refused retry must not be announced")
+    
+>       model = FailoverModel((primary,), rate_limit_max_wait_seconds=60, on_retry=notice)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:161: TypeError
+_ test_server_wait_over_cap_preserves_error_without_retry_or_notification[99999999999999999999999999999] _
+
+header = '99999999999999999999999999999'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("header", ["61", "86400", "99999999999999999999999999999"])
+    async def test_server_wait_over_cap_preserves_error_without_retry_or_notification(
+        header: str,
+    ) -> None:
+        error = limited(header)
+        primary = LimitedModel(error)
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            raise AssertionError("a refused retry must not be announced")
+    
+>       model = FailoverModel((primary,), rate_limit_max_wait_seconds=60, on_retry=notice)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:161: TypeError
+__ test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool[text] __
+
+kind = 'text'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kind", ["text", "tool_request", "finished", "buffered_tool"])
+    async def test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool(kind: str) -> None:
+        error = limited("0")
+        before: tuple[ModelChunk, ...] = ()
+        if kind == "buffered_tool":
+            error.add_note(_TOOL_INTENT_EMITTED)
+        else:
+            before = (ModelChunk(kind, "partial" if kind == "text" else ""),)
+        primary = LimitedModel(error, before=before)
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            raise AssertionError("emission must fence retry")
+    
+>       model = FailoverModel((primary,), rate_limit_max_wait_seconds=1, on_retry=notice)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:181: TypeError
+_ test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool[tool_request] _
+
+kind = 'tool_request'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kind", ["text", "tool_request", "finished", "buffered_tool"])
+    async def test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool(kind: str) -> None:
+        error = limited("0")
+        before: tuple[ModelChunk, ...] = ()
+        if kind == "buffered_tool":
+            error.add_note(_TOOL_INTENT_EMITTED)
+        else:
+            before = (ModelChunk(kind, "partial" if kind == "text" else ""),)
+        primary = LimitedModel(error, before=before)
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            raise AssertionError("emission must fence retry")
+    
+>       model = FailoverModel((primary,), rate_limit_max_wait_seconds=1, on_retry=notice)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:181: TypeError
+_ test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool[finished] _
+
+kind = 'finished'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kind", ["text", "tool_request", "finished", "buffered_tool"])
+    async def test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool(kind: str) -> None:
+        error = limited("0")
+        before: tuple[ModelChunk, ...] = ()
+        if kind == "buffered_tool":
+            error.add_note(_TOOL_INTENT_EMITTED)
+        else:
+            before = (ModelChunk(kind, "partial" if kind == "text" else ""),)
+        primary = LimitedModel(error, before=before)
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            raise AssertionError("emission must fence retry")
+    
+>       model = FailoverModel((primary,), rate_limit_max_wait_seconds=1, on_retry=notice)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:181: TypeError
+_ test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool[buffered_tool] _
+
+kind = 'buffered_tool'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kind", ["text", "tool_request", "finished", "buffered_tool"])
+    async def test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool(kind: str) -> None:
+        error = limited("0")
+        before: tuple[ModelChunk, ...] = ()
+        if kind == "buffered_tool":
+            error.add_note(_TOOL_INTENT_EMITTED)
+        else:
+            before = (ModelChunk(kind, "partial" if kind == "text" else ""),)
+        primary = LimitedModel(error, before=before)
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            raise AssertionError("emission must fence retry")
+    
+>       model = FailoverModel((primary,), rate_limit_max_wait_seconds=1, on_retry=notice)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:181: TypeError
+__________ test_second_429_is_terminal_and_total_attempts_remain_two ___________
+
+    @pytest.mark.asyncio
+    async def test_second_429_is_terminal_and_total_attempts_remain_two() -> None:
+        error = limited("0")
+        primary = LimitedModel(error, always_fail=True)
+        delays = []
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            delays.append(delay)
+    
+        with pytest.raises(httpx.HTTPStatusError) as caught:
+            await collect(
+>               FailoverModel((primary,), rate_limit_max_wait_seconds=1, on_retry=notice),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                ModelRequest("goal", "g"),
+            )
+E           TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:198: TypeError
+_ test_token_or_task_cancel_interrupts_wait_and_never_dispatches_again[False] __
+
+task_cancel = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("task_cancel", [False, True])
+    async def test_token_or_task_cancel_interrupts_wait_and_never_dispatches_again(
+        task_cancel: bool,
+    ) -> None:
+        primary = LimitedModel(limited("60"))
+        token = CancellationToken()
+        waiting = asyncio.Event()
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            assert delay == 60
+            waiting.set()
+    
+        task = asyncio.create_task(
+            collect(
+>               FailoverModel((primary,), rate_limit_max_wait_seconds=60, on_retry=notice),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                ModelRequest("goal", "g"),
+                token,
+            )
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:219: TypeError
+__ test_token_or_task_cancel_interrupts_wait_and_never_dispatches_again[True] __
+
+task_cancel = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("task_cancel", [False, True])
+    async def test_token_or_task_cancel_interrupts_wait_and_never_dispatches_again(
+        task_cancel: bool,
+    ) -> None:
+        primary = LimitedModel(limited("60"))
+        token = CancellationToken()
+        waiting = asyncio.Event()
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            assert delay == 60
+            waiting.set()
+    
+        task = asyncio.create_task(
+            collect(
+>               FailoverModel((primary,), rate_limit_max_wait_seconds=60, on_retry=notice),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                ModelRequest("goal", "g"),
+                token,
+            )
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:219: TypeError
+___ test_additional_cloud_request_still_requires_explicit_budget_and_privacy ___
+
+    @pytest.mark.asyncio
+    async def test_additional_cloud_request_still_requires_explicit_budget_and_privacy() -> None:
+        primary = LimitedModel(limited("0"))
+>       model = FailoverModel((primary,), cloud_indices=frozenset({0}), rate_limit_max_wait_seconds=1)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:238: TypeError
+_ test_groq_daily_request_exhaustion_refuses_retry_without_guessing_other_hosts[True] _
+
+groq = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("groq", [True, False])
+    async def test_groq_daily_request_exhaustion_refuses_retry_without_guessing_other_hosts(
+        groq: bool,
+    ) -> None:
+        error = limited("0", host="api.groq.com" if groq else "synthetic.invalid", daily_remaining="0")
+        primary = LimitedModel(error)
+>       model = FailoverModel((primary,), rate_limit_max_wait_seconds=1)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:253: TypeError
+_ test_groq_daily_request_exhaustion_refuses_retry_without_guessing_other_hosts[False] _
+
+groq = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("groq", [True, False])
+    async def test_groq_daily_request_exhaustion_refuses_retry_without_guessing_other_hosts(
+        groq: bool,
+    ) -> None:
+        error = limited("0", host="api.groq.com" if groq else "synthetic.invalid", daily_remaining="0")
+        primary = LimitedModel(error)
+>       model = FailoverModel((primary,), rate_limit_max_wait_seconds=1)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:253: TypeError
+_____ test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds[-1] ______
+
+maximum = -1
+
+    @pytest.mark.parametrize("maximum", [-1, 61, float("nan"), float("inf")])
+    def test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds(maximum: float) -> None:
+        with pytest.raises(ValueError):
+>           FailoverModel((LimitedModel(limited()),), rate_limit_max_wait_seconds=maximum)
+E           TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:266: TypeError
+_____ test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds[61] ______
+
+maximum = 61
+
+    @pytest.mark.parametrize("maximum", [-1, 61, float("nan"), float("inf")])
+    def test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds(maximum: float) -> None:
+        with pytest.raises(ValueError):
+>           FailoverModel((LimitedModel(limited()),), rate_limit_max_wait_seconds=maximum)
+E           TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:266: TypeError
+_____ test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds[nan] _____
+
+maximum = nan
+
+    @pytest.mark.parametrize("maximum", [-1, 61, float("nan"), float("inf")])
+    def test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds(maximum: float) -> None:
+        with pytest.raises(ValueError):
+>           FailoverModel((LimitedModel(limited()),), rate_limit_max_wait_seconds=maximum)
+E           TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:266: TypeError
+_____ test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds[inf] _____
+
+maximum = inf
+
+    @pytest.mark.parametrize("maximum", [-1, 61, float("nan"), float("inf")])
+    def test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds(maximum: float) -> None:
+        with pytest.raises(ValueError):
+>           FailoverModel((LimitedModel(limited()),), rate_limit_max_wait_seconds=maximum)
+E           TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:266: TypeError
+_______ test_default_policy_does_not_enable_server_wait_or_notification ________
+
+    @pytest.mark.asyncio
+    async def test_default_policy_does_not_enable_server_wait_or_notification() -> None:
+        primary = LimitedModel(limited("86400"))
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            raise AssertionError("unconfigured recovery remains disabled")
+    
+        assert (
+            await collect(
+>               FailoverModel((primary,), backoff_seconds=0, on_retry=notice), ModelRequest("goal", "g")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            )
+        )[0].text == "confirmed"
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'on_retry'
+
+tests/contract/test_rate_limit_recovery.py:278: TypeError
+__ test_cancel_during_wait_notification_joins_callback_without_second_request __
+
+    @pytest.mark.asyncio
+    async def test_cancel_during_wait_notification_joins_callback_without_second_request() -> None:
+        primary = LimitedModel(limited("1"))
+        token = CancellationToken()
+        entered, closed = asyncio.Event(), asyncio.Event()
+    
+        async def notice(request: ModelRequest, delay: float) -> None:
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                closed.set()
+    
+        task = asyncio.create_task(
+            collect(
+>               FailoverModel((primary,), rate_limit_max_wait_seconds=1, on_retry=notice),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                ModelRequest("goal", "g"),
+                token,
+            )
+        )
+E       TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:299: TypeError
+___________ test_actual_http_429_wait_and_same_adapter_payload_retry ___________
+
+    @pytest.mark.asyncio
+    async def test_actual_http_429_wait_and_same_adapter_payload_retry() -> None:
+        bodies: list[bytes] = []
+        arrivals: list[float] = []
+        handlers: set[asyncio.Task[None]] = set()
+    
+        async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+            task = asyncio.current_task()
+            assert task is not None
+            handlers.add(task)
+            try:
+                headers = await reader.readuntil(b"\r\n\r\n")
+                length = next(
+                    int(line.split(b":", 1)[1])
+                    for line in headers.split(b"\r\n")
+                    if line.lower().startswith(b"content-length:")
+                )
+                bodies.append(await reader.readexactly(length))
+                arrivals.append(asyncio.get_running_loop().time())
+                if len(bodies) == 1:
+                    body = b"{}"
+                    response = (
+                        b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 0.015\r\n"
+                        b"Content-Length: 2\r\nConnection: close\r\n\r\n" + body
+                    )
+                else:
+                    body = (
+                        b'data: {"choices":[{"delta":{"content":"confirmed"},'
+                        b'"finish_reason":"stop"}]}\n\n'
+                    )
+                    response = (
+                        b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
+                        + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode()
+                        + body
+                    )
+                writer.write(response)
+                await writer.drain()
+            finally:
+                writer.close()
+                await writer.wait_closed()
+                handlers.discard(task)
+    
+        server = await asyncio.start_server(serve, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        try:
+            adapter = OpenAICompatibleAdapter(
+                base_url=f"http://127.0.0.1:{port}",
+                api_key="synthetic",  # pragma: allowlist secret
+                model="synthetic",
+            )
+            chunks = await collect(
+>               FailoverModel((adapter,), cloud_request_budget=1, rate_limit_max_wait_seconds=1),
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                ModelRequest("synthetic goal", "g", Privacy.CLOUD_ALLOWED),
+            )
+E           TypeError: FailoverModel.__init__() got an unexpected keyword argument 'rate_limit_max_wait_seconds'
+
+tests/contract/test_rate_limit_recovery.py:361: TypeError
+=========================== short test summary info ============================
+FAILED tests/contract/test_rate_limit_recovery.py::test_enabled_rate_limit_wait_retries_same_provider_and_preserves_completed_pair
+FAILED tests/contract/test_rate_limit_recovery.py::test_http_date_uses_injected_clock_and_past_date_does_not_wait[7]
+FAILED tests/contract/test_rate_limit_recovery.py::test_http_date_uses_injected_clock_and_past_date_does_not_wait[0]
+FAILED tests/contract/test_rate_limit_recovery.py::test_http_date_uses_injected_clock_and_past_date_does_not_wait[-7]
+FAILED tests/contract/test_rate_limit_recovery.py::test_missing_or_invalid_header_uses_finite_configured_backoff[None]
+FAILED tests/contract/test_rate_limit_recovery.py::test_missing_or_invalid_header_uses_finite_configured_backoff[invalid]
+FAILED tests/contract/test_rate_limit_recovery.py::test_missing_or_invalid_header_uses_finite_configured_backoff[nan]
+FAILED tests/contract/test_rate_limit_recovery.py::test_missing_or_invalid_header_uses_finite_configured_backoff[inf]
+FAILED tests/contract/test_rate_limit_recovery.py::test_missing_or_invalid_header_uses_finite_configured_backoff[-1]
+FAILED tests/contract/test_rate_limit_recovery.py::test_server_wait_over_cap_preserves_error_without_retry_or_notification[61]
+FAILED tests/contract/test_rate_limit_recovery.py::test_server_wait_over_cap_preserves_error_without_retry_or_notification[86400]
+FAILED tests/contract/test_rate_limit_recovery.py::test_server_wait_over_cap_preserves_error_without_retry_or_notification[99999999999999999999999999999]
+FAILED tests/contract/test_rate_limit_recovery.py::test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool[text]
+FAILED tests/contract/test_rate_limit_recovery.py::test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool[tool_request]
+FAILED tests/contract/test_rate_limit_recovery.py::test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool[finished]
+FAILED tests/contract/test_rate_limit_recovery.py::test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool[buffered_tool]
+FAILED tests/contract/test_rate_limit_recovery.py::test_second_429_is_terminal_and_total_attempts_remain_two
+FAILED tests/contract/test_rate_limit_recovery.py::test_token_or_task_cancel_interrupts_wait_and_never_dispatches_again[False]
+FAILED tests/contract/test_rate_limit_recovery.py::test_token_or_task_cancel_interrupts_wait_and_never_dispatches_again[True]
+FAILED tests/contract/test_rate_limit_recovery.py::test_additional_cloud_request_still_requires_explicit_budget_and_privacy
+FAILED tests/contract/test_rate_limit_recovery.py::test_groq_daily_request_exhaustion_refuses_retry_without_guessing_other_hosts[True]
+FAILED tests/contract/test_rate_limit_recovery.py::test_groq_daily_request_exhaustion_refuses_retry_without_guessing_other_hosts[False]
+FAILED tests/contract/test_rate_limit_recovery.py::test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds[-1]
+FAILED tests/contract/test_rate_limit_recovery.py::test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds[61]
+FAILED tests/contract/test_rate_limit_recovery.py::test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds[nan]
+FAILED tests/contract/test_rate_limit_recovery.py::test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds[inf]
+FAILED tests/contract/test_rate_limit_recovery.py::test_default_policy_does_not_enable_server_wait_or_notification
+FAILED tests/contract/test_rate_limit_recovery.py::test_cancel_during_wait_notification_joins_callback_without_second_request
+FAILED tests/contract/test_rate_limit_recovery.py::test_actual_http_429_wait_and_same_adapter_payload_retry
+29 failed in 0.54s

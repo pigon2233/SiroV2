@@ -1,0 +1,267 @@
+diff --git a/scripts/start b/scripts/start
+index 1c3e131..6cbe4c5 100755
+--- a/scripts/start
++++ b/scripts/start
+@@ -2,11 +2,11 @@
+ set -euo pipefail
+ 
+ if [ "$#" -lt 1 ]; then
+-  echo "usage: scripts/start PID_FILE [GATEWAY_ARGS...]" >&2
++  echo "usage: scripts/start PID_FILE [--demo]" >&2
+   exit 2
+ fi
+ 
+-pid_file="$1"
++pid_file="$(realpath -m -- "$1")"
+ shift
+ if [ -e "$pid_file" ]; then
+   old_pid="$(cat "$pid_file" 2>/dev/null || true)"
+@@ -18,7 +18,16 @@ if [ -e "$pid_file" ]; then
+ fi
+ 
+ mkdir -p "$(dirname "$pid_file")"
+-uv run siro-gateway "$@" &
++project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$project_root"
++if [[ "$#" -eq 0 ]]; then
++  uv run python scripts/launch_companion.py &
++elif [[ "$#" -eq 1 && "$1" == "--demo" ]]; then
++  uv run siro-gateway &
++else
++  echo "usage: scripts/start PID_FILE [--demo]" >&2
++  exit 2
++fi
+ child_pid=$!
+ printf '%s\n' "$child_pid" > "$pid_file"
+ cleanup() { rm -f "$pid_file"; }
+diff --git a/src/siro/adapters/models/http.py b/src/siro/adapters/models/http.py
+index 0e999e4..11d15e4 100644
+--- a/src/siro/adapters/models/http.py
++++ b/src/siro/adapters/models/http.py
+@@ -4,6 +4,7 @@ from __future__ import annotations
+ 
+ import asyncio
+ import json
++import logging
+ import urllib.request
+ from collections.abc import AsyncIterator
+ from dataclasses import dataclass
+@@ -59,6 +60,11 @@ class HttpxStreamingTransport:
+             httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client,
+             client.stream("POST", url, json=payload, headers=request_headers) as response,
+         ):
++            if response.is_error:
++                # Status only: never log provider bodies, URLs, credentials or prompts.
++                logging.getLogger(__name__).warning(
++                    "model provider HTTP failure status=%d", response.status_code
++                )
+             response.raise_for_status()
+             iterator = response.aiter_lines().__aiter__()
+             while not cancellation.cancelled:
+diff --git a/src/siro/operations.py b/src/siro/operations.py
+index c3700f9..5b27e61 100644
+--- a/src/siro/operations.py
++++ b/src/siro/operations.py
+@@ -43,9 +43,10 @@ def install_user_service(
+     """Install deterministic user units without starting them."""
+ 
+     root = project_root.resolve()
+-    executable = root / ".venv/bin/siro-gateway"
++    executable = root / ".venv/bin/python"
++    launcher = root / "scripts/launch_companion.py"
+     cli = root / ".venv/bin/siro"
+-    if not executable.is_file() or not cli.is_file():
++    if not executable.is_file() or not cli.is_file() or not launcher.is_file():
+         raise FileNotFoundError("run 'uv sync --locked' before installing the service")
+     for directory in (unit_dir, config_dir, data_dir, log_dir):
+         directory.mkdir(parents=True, exist_ok=True)
+@@ -60,7 +61,7 @@ After=network.target
+ [Service]
+ Type=simple
+ WorkingDirectory={_unit_path(str(root))}
+-ExecStart={_unit_quote(str(executable))}
++ExecStart={_unit_quote(str(executable))} {_unit_quote(str(launcher))}
+ Environment={_unit_quote(f"SIRO_CONFIG={config}")}
+ Environment={_unit_quote(f"SIRO_DATA_DIR={data_dir}")}
+ Environment={_unit_quote(f"SIRO_LOG_DIR={log_dir}")}
+diff --git a/src/siro/services/presentation/gateway.py b/src/siro/services/presentation/gateway.py
+index 4713535..b407458 100644
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -661,10 +661,18 @@ def create_app(
+         else:
+             renderer_path = "/body"
+             renderer_status = "目前是替身 renderer。尚未載入 Cubism 模型。"
++        setup_notices = []
++        if gateway_state.routes.get("model") == "offline":
++            setup_notices.append("目前是離線示範。未連接正式對話模型。回覆來自固定示範規則。")
++        if live2d_dist is None:
++            setup_notices.append("角色目前顯示替身。尚未載入 Live2D。")
++        if setup_notices:
++            setup_notices.append("請使用 scripts/start-runtime-product 啟動正式產品入口。")
+         return HTMLResponse(
+-            html.replace("__SIRO_RENDERER_PATH__", renderer_path).replace(
+-                "__SIRO_RENDERER_STATUS__", renderer_status
+-            )
++            html.replace("__SIRO_RENDERER_PATH__", renderer_path)
++            .replace("__SIRO_RENDERER_STATUS__", renderer_status)
++            .replace("__SIRO_SETUP_NOTICE_HIDDEN__", "" if setup_notices else "hidden")
++            .replace("__SIRO_SETUP_NOTICE__", " ".join(setup_notices))
+         )
+ 
+     @app.get("/body", response_class=HTMLResponse)
+diff --git a/src/siro/services/presentation/static/index.html b/src/siro/services/presentation/static/index.html
+index 96a556a..3779af4 100644
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -160,6 +160,7 @@
+         <div class="live-status" aria-live="polite"><span id="voice-status">麥克風待命</span><span id="tts-status">TTS 待命</span></div>
+         <div aria-live="polite"><a id="activity-notice" class="activity-notice" href="#/computer" data-nav="computer" hidden>電腦操作有更新，查看授權與結果</a></div>
+         <p id="service-notice" class="activity-notice" role="status" hidden></p>
++        <p id="runtime-notice" class="activity-notice" role="status" __SIRO_SETUP_NOTICE_HIDDEN__>__SIRO_SETUP_NOTICE__</p>
+         <main class="page-content" id="main-content">
+           <section class="page-view" data-page="chat" aria-labelledby="chat-heading">
+             <div class="page-heading"><h1 id="chat-heading" data-page-heading tabindex="-1">和 SIRO 聊聊</h1><p>有想說的，慢慢說。需要一起處理的事，也可以交給我。</p></div>
+@@ -1023,7 +1024,7 @@
+           renderSkillActivation(runtime);
+           const features = runtime.features || {}, workspace = features.workspace || {};
+           const backend = runtime.routes?.model || "offline";
+-          document.querySelector("#model-status").textContent = backend === "offline" ? "尚未連接對話模型" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
++          document.querySelector("#model-status").textContent = backend === "offline" ? "離線示範 · 固定規則回覆" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
+           document.querySelector("#workspace-status").textContent = workspace.available
+             ? `可讀取：${workspace.directory}` : `工作目錄尚未就緒${workspace.directory ? "：" + workspace.directory : "（此執行模式未啟用）"}`;
+           document.querySelector("#workspace-list").disabled = !workspace.available;
+diff --git a/tests/contract/test_model_adapters.py b/tests/contract/test_model_adapters.py
+index 582f9b4..aeba379 100644
+--- a/tests/contract/test_model_adapters.py
++++ b/tests/contract/test_model_adapters.py
+@@ -645,3 +645,32 @@ async def test_http_stream_cancellation_closes_stalled_request() -> None:
+     for handler in tuple(handlers):
+         handler.cancel()
+     await asyncio.gather(*handlers, return_exceptions=True)
++
++
++@pytest.mark.asyncio
++async def test_provider_http_failure_logs_status_without_request_or_response(
++    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
++) -> None:
++    import httpx
++
++    from siro.adapters.models import http as module
++
++    original = httpx.AsyncClient
++    transport = httpx.MockTransport(
++        lambda request: httpx.Response(400, json={"error": "synthetic-private-response"})
++    )
++    monkeypatch.setattr(
++        httpx, "AsyncClient", lambda **kwargs: original(transport=transport, **kwargs)
++    )
++    with pytest.raises(httpx.HTTPStatusError) as failure:
++        async for _ in HttpxStreamingTransport().stream_lines(
++            "https://example.invalid/synthetic-private-url",
++            {"prompt": "synthetic-private-prompt"},
++            {"Authorization": "Bearer synthetic-private-key"},
++            1,
++            CancellationToken(),
++        ):
++            pytest.fail("an HTTP error must not emit model data")
++    assert failure.value.response.status_code == 400
++    records = [record.getMessage() for record in caplog.records if record.name == module.__name__]
++    assert records == ["model provider HTTP failure status=400"]
+diff --git a/tests/integration/test_gateway.py b/tests/integration/test_gateway.py
+index 540cbc5..ed8ade5 100644
+--- a/tests/integration/test_gateway.py
++++ b/tests/integration/test_gateway.py
+@@ -313,6 +313,25 @@ def test_live2d_distribution_is_only_mounted_when_configured(tmp_path: Path) ->
+     assert 'src="/body"' in unconfigured.get("/").text
+ 
+ 
++@pytest.mark.parametrize("offline", [False, True])
++@pytest.mark.parametrize("renderer", [False, True])
++def test_homepage_persistently_identifies_demo_and_placeholder(
++    tmp_path: Path, offline: bool, renderer: bool
++) -> None:
++    (tmp_path / "index.html").write_text("<title>renderer fixture</title>", encoding="utf-8")
++    state = GatewayState(routes={"model": "offline" if offline else "cloud:synthetic"})
++    client = TestClient(create_app(state=state, live2d_dist=tmp_path if renderer else None))
++    html = client.get("/").text
++    notice = html.split('<p id="runtime-notice"', 1)[1].split("</p>", 1)[0]
++    assert ("hidden" not in notice.split(">", 1)[0]) == (offline or not renderer)
++    assert ("離線示範。未連接正式對話模型" in notice) == offline
++    assert ("回覆來自固定示範規則" in notice) == offline
++    assert ("角色目前顯示替身" in notice) == (not renderer)
++    assert ("scripts/start-runtime-product" in notice) == (offline or not renderer)
++    # A successful socket handshake only clears transient connection errors.
++    assert 'querySelector("#runtime-notice").hidden' not in html
++
++
+ class FakeSocket:
+     def __init__(self, *, blocked: bool = False, delay: float = 0) -> None:
+         self.sent: list[object] = []
+diff --git a/tests/integration/test_operational_cli.py b/tests/integration/test_operational_cli.py
+index 923ba77..3c86959 100644
+--- a/tests/integration/test_operational_cli.py
++++ b/tests/integration/test_operational_cli.py
+@@ -91,10 +91,12 @@ def test_t34_installer_units_and_log_retention(tmp_path: Path) -> None:
+     project = tmp_path / "project"
+     binaries = project / ".venv/bin"
+     binaries.mkdir(parents=True)
+-    for name in ("siro", "siro-gateway"):
++    for name in ("siro", "python"):
+         executable = binaries / name
+         executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+         executable.chmod(0o755)
++    (project / "scripts").mkdir()
++    (project / "scripts/launch_companion.py").write_text("# synthetic launcher fixture\n")
+     units = tmp_path / "units"
+     logs = tmp_path / "logs"
+     result = install_user_service(
+@@ -106,6 +108,10 @@ def test_t34_installer_units_and_log_retention(tmp_path: Path) -> None:
+         port=8765,
+     )
+     assert result.unit.stat().st_mode & 0o777 == 0o600
++    assert (
++        f'ExecStart="{binaries / "python"}" "{project / "scripts/launch_companion.py"}"'
++        in result.unit.read_text()
++    )
+     assert "NoNewPrivileges=true" in result.unit.read_text()
+     assert "SIRO_GATEWAY_PORT=8765" in result.unit.read_text()
+     subprocess.run(["systemd-analyze", "verify", str(result.unit)], check=True)
+@@ -136,7 +142,7 @@ def test_t34_start_stop_health_and_pid_cleanup(tmp_path: Path) -> None:
+     environment["SIRO_GATEWAY_PORT"] = str(port)
+     environment["SIRO_LOG_DIR"] = str(tmp_path / "logs")
+     process = subprocess.Popen(
+-        [str(root / "scripts/start"), str(pid_file)],
++        [str(root / "scripts/start"), str(pid_file), "--demo"],
+         cwd=root,
+         env=environment,
+         stdout=subprocess.DEVNULL,
+@@ -162,3 +168,28 @@ def test_t34_start_stop_health_and_pid_cleanup(tmp_path: Path) -> None:
+         if process.poll() is None:
+             process.terminate()
+             process.wait(timeout=10)
++
++
++def test_default_start_refuses_missing_model_instead_of_starting_demo(tmp_path: Path) -> None:
++    root = Path(__file__).parents[2]
++    environment = {
++        key: value
++        for key, value in os.environ.items()
++        if not key.startswith("SIRO_") and key != "GROQ_API_KEY"
++    }
++    # Explicit empty shell values prevent loading credentials from the developer's .env.local.
++    environment.update(SIRO_OPENAI_MODEL="", SIRO_OPENAI_API_KEY="", SIRO_OLLAMA_MODEL="")
++    environment["SIRO_DATA_DIR"] = str(tmp_path / "data")
++    pid_file = tmp_path / "refused.pid"
++    result = subprocess.run(
++        [str(root / "scripts/start"), str(pid_file)],
++        cwd=tmp_path,
++        env=environment,
++        capture_output=True,
++        text=True,
++        timeout=15,
++    )
++    assert result.returncode != 0
++    assert "尚未設定對話模型" in result.stderr
++    assert not pid_file.exists()
++    assert not (tmp_path / "data/siro.db").exists()

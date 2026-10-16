@@ -1,0 +1,148 @@
+{
+  "status": "FUNCTIONAL_MEASUREMENT_PASS",
+  "scope": "single current worker; old/new planner workload comparison; no browser",
+  "limits": [
+    "No speed SLO, statistical significance or naturalness acceptance claim",
+    "Cold includes worker load; cache hit is separate from warm uncached generation",
+    "Both workloads use the same current voice/model/SDPA/generation settings",
+    "Synthetic texts differ between groups; random sampling is unchanged"
+  ],
+  "measurements": [
+    {
+      "case": "cold-short",
+      "plan_characters": 22,
+      "rendered_characters": 22,
+      "elapsed_seconds": 20.103886,
+      "audio_duration_seconds": 5.2,
+      "real_time_factor": 3.864313,
+      "cache_hit": false,
+      "completion": {
+        "status": "complete",
+        "eos_observed": true,
+        "cap_reached": false,
+        "generated_tokens": 66,
+        "max_new_tokens": 512,
+        "observer_calls": 1
+      },
+      "owned_pid": 149998
+    },
+    {
+      "case": "cache-hit",
+      "plan_characters": 22,
+      "rendered_characters": 22,
+      "elapsed_seconds": 0.018518,
+      "audio_duration_seconds": 5.2,
+      "real_time_factor": 0.000869,
+      "cache_hit": true,
+      "completion": {
+        "status": "complete",
+        "eos_observed": true,
+        "cap_reached": false,
+        "generated_tokens": 66,
+        "max_new_tokens": 512,
+        "observer_calls": 1
+      },
+      "owned_pid": 149998
+    },
+    {
+      "case": "warm-baseline-1",
+      "plan_characters": 56,
+      "rendered_characters": 56,
+      "elapsed_seconds": 21.647581,
+      "audio_duration_seconds": 12.8,
+      "real_time_factor": 1.690397,
+      "cache_hit": false,
+      "completion": {
+        "status": "complete",
+        "eos_observed": true,
+        "cap_reached": false,
+        "generated_tokens": 161,
+        "max_new_tokens": 512,
+        "observer_calls": 1
+      },
+      "owned_pid": 149998
+    },
+    {
+      "case": "warm-first24-1",
+      "plan_characters": 16,
+      "rendered_characters": 17,
+      "elapsed_seconds": 7.781442,
+      "audio_duration_seconds": 4.48,
+      "real_time_factor": 1.73281,
+      "cache_hit": false,
+      "completion": {
+        "status": "complete",
+        "eos_observed": true,
+        "cap_reached": false,
+        "generated_tokens": 57,
+        "max_new_tokens": 512,
+        "observer_calls": 1
+      },
+      "owned_pid": 149998
+    },
+    {
+      "case": "warm-first24-2",
+      "plan_characters": 16,
+      "rendered_characters": 17,
+      "elapsed_seconds": 10.108893,
+      "audio_duration_seconds": 5.6,
+      "real_time_factor": 1.803157,
+      "cache_hit": false,
+      "completion": {
+        "status": "complete",
+        "eos_observed": true,
+        "cap_reached": false,
+        "generated_tokens": 71,
+        "max_new_tokens": 512,
+        "observer_calls": 1
+      },
+      "owned_pid": 149998
+    },
+    {
+      "case": "warm-baseline-2",
+      "plan_characters": 56,
+      "rendered_characters": 56,
+      "elapsed_seconds": 21.693997,
+      "audio_duration_seconds": 12.96,
+      "real_time_factor": 1.672962,
+      "cache_hit": false,
+      "completion": {
+        "status": "complete",
+        "eos_observed": true,
+        "cap_reached": false,
+        "generated_tokens": 163,
+        "max_new_tokens": 512,
+        "observer_calls": 1
+      },
+      "owned_pid": 149998
+    }
+  ],
+  "source_hashes_start": {
+    "scripts/qwen_tts_worker.py": "0cc99a5b60774380db35f26d82eba5ba11608dfd94e6725a3a174d9668ce5d8f",
+    "src/siro/services/audio/tts.py": "2faa0f8a134cfb2d882291f5b55a673182144a9accb650f4d93ca5827e3a32cc"
+  },
+  "source_hashes_end": {
+    "scripts/qwen_tts_worker.py": "0cc99a5b60774380db35f26d82eba5ba11608dfd94e6725a3a174d9668ce5d8f",
+    "src/siro/services/audio/tts.py": "2faa0f8a134cfb2d882291f5b55a673182144a9accb650f4d93ca5827e3a32cc"
+  },
+  "owned_worker_reaped": true,
+  "worker_returncodes": [
+    -9
+  ],
+  "remaining_qwen_pids": [],
+  "temporary_cache_removed": true,
+  "source_unchanged": true,
+  "date": "2026-10-17",
+  "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU, 595.99.02, 4096 MiB, 1 MiB",
+  "torch": {
+    "version": "2.12.0+cu130",
+    "cuda_runtime": "13.0",
+    "cuda_available": true,
+    "device": "NVIDIA GeForce RTX 3050 Laptop GPU"
+  },
+  "cache_hit_bytes_equal": true,
+  "human_listening": "PENDING_OWNER_FEEDBACK",
+  "production_changes_this_followup": [],
+  "ui_playback_and_cancellation": "PENDING_SEPARATE_VERIFICATION",
+  "reference_audio_sha256": "d789532217148b8f84592898033a6623aaddde376977b33f31b8b4c6e7d62d25"
+}

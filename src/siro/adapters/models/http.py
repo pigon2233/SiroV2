@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import urllib.request
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -59,6 +60,11 @@ class HttpxStreamingTransport:
             httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client,
             client.stream("POST", url, json=payload, headers=request_headers) as response,
         ):
+            if response.is_error:
+                # Status only: never log provider bodies, URLs, credentials or prompts.
+                logging.getLogger(__name__).warning(
+                    "model provider HTTP failure status=%d", response.status_code
+                )
             response.raise_for_status()
             iterator = response.aiter_lines().__aiter__()
             while not cancellation.cancelled:

@@ -106,6 +106,98 @@ window.setInterval(() => {
 """
             + main[end:]
         )
+    # Keep reconnect ownership independent of the emotion/mouth projection above.
+    # An explicitly replaced renderer must never reclaim the one body socket.
+    connection = """// SIRO renderer ownership v3
+let siroDetached = false;
+let siroRetryTimer: number | undefined;
+let siroSocket: WebSocket | undefined;
+function scheduleSiroReconnect(): void {
+  if (!siroDetached && siroRetryTimer === undefined) {
+    siroRetryTimer = window.setTimeout(() => {
+      siroRetryTimer = undefined;
+      void connectSiro();
+    }, 1000);
+  }
+}
+async function connectSiro(): Promise<void> {
+  if (siroDetached) return;
+  try {
+    const session = await fetch('/v1/session', {
+      method: 'POST', headers: { Origin: location.origin }
+    });
+    if (!session.ok) throw new Error(`session ${session.status}`);
+    const { token } = await session.json();
+    if (siroDetached) return;
+    const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${scheme}://${location.host}/ws/body`);
+    siroSocket = socket;
+    socket.addEventListener('open', () => {
+      if (siroDetached || siroSocket !== socket) { socket.close(); return; }
+      const presentation = new URLSearchParams(location.search).get('presentation');
+      socket.send(JSON.stringify({
+        type: 'authenticate', token,
+        ...(presentation === 'desktop' ? {presentation: 'desktop'} : {})
+      }));
+    });
+    socket.addEventListener('message', event => {
+      if (siroDetached || siroSocket !== socket) return;
+      renderSiro(JSON.parse(event.data));
+    });
+    socket.addEventListener('close', event => {
+      if (siroSocket !== socket) return;
+      siroSocket = undefined;
+      stopSpeaking();
+      if (event.reason === 'renderer replaced' || event.reason === 'desktop owner active') {
+        siroDetached = true;
+        if (siroRetryTimer !== undefined) window.clearTimeout(siroRetryTimer);
+        siroRetryTimer = undefined;
+        window.parent.postMessage({type: 'siro.renderer.detached'}, location.origin);
+      } else scheduleSiroReconnect();
+    });
+  } catch (_) {
+    scheduleSiroReconnect();
+  }
+}
+window.addEventListener('pagehide', () => {
+  siroDetached = true;
+  if (siroRetryTimer !== undefined) window.clearTimeout(siroRetryTimer);
+  siroRetryTimer = undefined;
+  siroSocket?.close();
+});
+// End SIRO renderer ownership v3"""
+    if "// SIRO renderer ownership v3" in main:
+        main = re.sub(
+            r"// SIRO renderer ownership v3.*?// End SIRO renderer ownership v3",
+            lambda _: connection,
+            main,
+            count=1,
+            flags=re.S,
+        )
+    else:
+        main, count = re.subn(
+            r"async function connectSiro\(\): Promise<void> \{.*?\n\}",
+            lambda _: connection,
+            main,
+            count=1,
+            flags=re.S,
+        )
+        if count != 1:
+            raise RuntimeError("expected exactly one renderer connection bridge")
+    if "// SIRO desktop click-to-chat" not in main:
+        main += """
+// SIRO desktop click-to-chat: only the displayed local character initiates this UI action.
+let desktopPress: {x: number; y: number} | undefined;
+window.addEventListener('pointerdown', event => {
+  if (new URLSearchParams(location.search).get('presentation') === 'desktop' && event.button === 0)
+    desktopPress = {x: event.screenX, y: event.screenY};
+});
+window.addEventListener('pointerup', event => {
+  const press = desktopPress; desktopPress = undefined;
+  if (press && Math.hypot(event.screenX - press.x, event.screenY - press.y) < 8)
+    window.parent.postMessage({type:'siro.renderer.interact'}, location.origin);
+});
+"""
     write("main.ts", main)
     define = (demo / "src/lappdefine.ts").read_text()
     define = re.sub(
@@ -135,6 +227,29 @@ window.setInterval(() => {
         .replace("gl.clearColor(0.0, 0.0, 0.0, 1.0);", "gl.clearColor(0.0, 0.0, 0.0, 0.0);")
     )
     write("lappsubdelegate.ts", delegate)
+    render_loop = demo / "src/lappdelegate.ts"
+    if render_loop.is_file():
+        loop_source = render_loop.read_text()
+        if "SIRO desktop frame budget" not in loop_source:
+            original = "    const loop = (): void => {"
+            if original not in loop_source:
+                raise ValueError("unsupported SDK render loop for desktop frame budget")
+            loop_source = loop_source.replace(
+                original,
+                "    // SIRO desktop frame budget: retain normal web timing.\n"
+                "    const desktop = new URLSearchParams(location.search).get('presentation') "
+                "=== 'desktop';\n"
+                "    let lastDesktopFrame = 0;\n"
+                "    const loop = (): void => {\n"
+                "      const frameNow = performance.now();\n"
+                "      if (desktop && frameNow - lastDesktopFrame < 1000 / 24) {\n"
+                "        requestAnimationFrame(loop); return;\n"
+                "      }\n"
+                "      lastDesktopFrame = frameNow;",
+                1,
+            )
+            render_loop.write_text(loop_source)
+            changed = True
     index = demo / "index.html"
     markup = index.read_text()
     if "/* SIRO stage */" not in markup:
@@ -143,6 +258,25 @@ window.setInterval(() => {
             "<style>/* SIRO stage */ html, body { background: "
             "radial-gradient(ellipse at 50% 45%, #49394e, #191c2a 75%); }",
         )
+        index.write_text(markup)
+        changed = True
+    if "/* SIRO desktop transparency */" not in markup:
+        markup = markup.replace(
+            "</head>",
+            """<script>
+  if (new URLSearchParams(location.search).get('presentation') === 'desktop') {
+    document.documentElement.dataset.siroPresentation = 'desktop';
+  }
+</script>
+<style>/* SIRO desktop transparency */
+  html[data-siro-presentation="desktop"],
+  html[data-siro-presentation="desktop"] body { background: transparent !important; }
+</style>
+</head>""",
+            1,
+        )
+        if "/* SIRO desktop transparency */" not in markup:
+            raise RuntimeError("expected renderer HTML head")
         index.write_text(markup)
         changed = True
     return changed

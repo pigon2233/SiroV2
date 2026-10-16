@@ -6,6 +6,10 @@
 
 ## 前置條件與執行
 
+2026-10-16：既有 `esp32dev` pinned 設定已在自建暫存環境完成真交叉編譯，
+[工具版本與結果](evidence/T27-firmware-build-2026-10-16/REPORT.md)可核對；使用 example 設定，
+尚未燒錄或操作實板。以下 broker／NTP／LED 前置條件仍需在實際驗收時成立。
+
 - MQTT broker 已啟動，ESP32 已設定相同 broker／帳密／device ID 並完成 NTP 對時。
 - 裝置為使用者授權的低風險測試 LED；broker ACL 允許 command 發布及 ack/state 訂閱。
 - 使用專案既有虛擬環境，不新增或下載依賴。

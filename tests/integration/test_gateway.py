@@ -313,6 +313,25 @@ def test_live2d_distribution_is_only_mounted_when_configured(tmp_path: Path) -> 
     assert 'src="/body"' in unconfigured.get("/").text
 
 
+@pytest.mark.parametrize("offline", [False, True])
+@pytest.mark.parametrize("renderer", [False, True])
+def test_homepage_persistently_identifies_demo_and_placeholder(
+    tmp_path: Path, offline: bool, renderer: bool
+) -> None:
+    (tmp_path / "index.html").write_text("<title>renderer fixture</title>", encoding="utf-8")
+    state = GatewayState(routes={"model": "offline" if offline else "cloud:synthetic"})
+    client = TestClient(create_app(state=state, live2d_dist=tmp_path if renderer else None))
+    html = client.get("/").text
+    notice = html.split('<p id="runtime-notice"', 1)[1].split("</p>", 1)[0]
+    assert ("hidden" not in notice.split(">", 1)[0]) == (offline or not renderer)
+    assert ("離線示範。未連接正式對話模型" in notice) == offline
+    assert ("回覆來自固定示範規則" in notice) == offline
+    assert ("角色目前顯示替身" in notice) == (not renderer)
+    assert ("scripts/start-runtime-product" in notice) == (offline or not renderer)
+    # A successful socket handshake only clears transient connection errors.
+    assert 'querySelector("#runtime-notice").hidden' not in html
+
+
 class FakeSocket:
     def __init__(self, *, blocked: bool = False, delay: float = 0) -> None:
         self.sent: list[object] = []

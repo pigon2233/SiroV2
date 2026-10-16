@@ -1,0 +1,2263 @@
+--- /dev/null
++++ b/desktop/host.js
+@@ -0,0 +1,176 @@
++#!/usr/bin/gjs -m
++// Native presentation only; the existing loopback server owns identity, audio and tools.
++import Gtk from 'gi://Gtk?version=3.0';
++import Gdk from 'gi://Gdk?version=3.0';
++import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
++import Gio from 'gi://Gio';
++import GLib from 'gi://GLib';
++import GLibUnix from 'gi://GLibUnix';
++import WebKit from 'gi://WebKit2?version=4.1';
++import Cairo from 'cairo';
++import {inputMask} from './input-mask.mjs';
++
++const url = GLib.getenv('SIRO_DESKTOP_URL') || 'http://127.0.0.1:8000/desktop';
++const parsed = GLib.Uri.parse(url, GLib.UriFlags.NONE);
++if (parsed.get_scheme() !== 'http' || !['127.0.0.1', 'localhost'].includes(parsed.get_host()) || parsed.get_path() !== '/desktop' || parsed.get_userinfo() || parsed.get_query())
++    throw new Error('Desktop requires the exact loopback /desktop URL without credentials/query');
++const origin = `http://${parsed.get_host()}:${parsed.get_port() > 0 ? parsed.get_port() : 80}`;
++const reportDirectory = GLib.getenv('SIRO_DESKTOP_REPORT_DIR');
++const app = new Gtk.Application({application_id: 'org.siro.Companion', flags: Gio.ApplicationFlags.FLAGS_NONE});
++let window, web, center, pendingSnapshot = false, timer = 0, ready = false, lastChat = false;
++let samples = 0, lastRegion = 0;
++const disposable = GLib.dir_make_tmp('siro-desktop-XXXXXX');
++const scratch = GLib.build_filenamev([disposable, 'alpha.png']);
++const state = {protocol: 1, toolkit: 'GTK3/WebKitGTK4.1', backend: GLib.getenv('GDK_BACKEND') || 'default', sandbox: false, ready: false, alpha: false, input_regions: 0};
++const hostFile = Gio.File.new_for_uri(import.meta.url);
++state.host_source_sha256 = GLib.compute_checksum_for_data(GLib.ChecksumType.SHA256, hostFile.load_contents(null)[1]);
++function saveState() {
++    if (!reportDirectory) return;
++    GLib.mkdir_with_parents(reportDirectory, 448);
++    GLib.file_set_contents(GLib.build_filenamev([reportDirectory, 'native-state.json']), JSON.stringify(state, null, 2));
++}
++function permitted(uri) {
++    try { const p = GLib.Uri.parse(uri, GLib.UriFlags.NONE); return p.get_scheme() === 'http' && p.get_host() === parsed.get_host() && (p.get_port() > 0 ? p.get_port() : 80) === (parsed.get_port() > 0 ? parsed.get_port() : 80); }
++    catch (_) { return false; }
++}
++function restrict(view) {
++    view.connect('decide-policy', (_view, decision, type) => {
++        if (type === WebKit.PolicyDecisionType.NAVIGATION_ACTION || type === WebKit.PolicyDecisionType.NEW_WINDOW_ACTION) {
++            if (!permitted(decision.get_request().get_uri()) || type === WebKit.PolicyDecisionType.NEW_WINDOW_ACTION) { decision.ignore(); return true; }
++        }
++        return false;
++    });
++    view.connect('permission-request', (_view, request) => {
++        const audioOnly = request instanceof WebKit.UserMediaPermissionRequest &&
++            request.is_for_audio_device() && !request.is_for_video_device();
++        if (!audioOnly || !permitted(view.get_uri() || '')) { request.deny(); return true; }
++        const dialog = new Gtk.MessageDialog({transient_for: window, modal: true,
++            message_type: Gtk.MessageType.QUESTION, buttons: Gtk.ButtonsType.NONE,
++            text: '允許這次使用麥克風嗎？', secondary_text: '只在你按開始說話後錄音；辨識使用目前設定的語音服務。'});
++        dialog.add_button('取消', Gtk.ResponseType.CANCEL);
++        dialog.add_button('允許這次', Gtk.ResponseType.ACCEPT);
++        dialog.connect('response', (_dialog, response) => {
++            if (response === Gtk.ResponseType.ACCEPT && permitted(view.get_uri() || '')) request.allow();
++            else request.deny();
++            dialog.destroy();
++        });
++        dialog.show_all(); return true;
++    });
++    view.connect('create', () => null);
++}
++function evaluate(script) {
++    if (!web) return;
++    web.evaluate_javascript(script, -1, null, null, null, (_view, result) => {
++        try { web.evaluate_javascript_finish(result); } catch (_) { /* closed/reloading view */ }
++    });
++}
++function openCenter() {
++    if (!center) {
++        center = new Gtk.ApplicationWindow({application: app, title: 'SIRO · 控制台', default_width: 1080, default_height: 760});
++        const view = new WebKit.WebView({web_context: web.get_context()});
++        restrict(view); center.add(view);
++        view.load_uri(`${origin}/?view=control`);
++        center.connect('delete-event', () => { center.hide(); return true; });
++    }
++    center.show_all(); center.present();
++}
++function updateShape() {
++    if (!web || !window || pendingSnapshot || !window.get_visible() || web.is_loading) return GLib.SOURCE_CONTINUE;
++    pendingSnapshot = true;
++    web.get_snapshot(WebKit.SnapshotRegion.VISIBLE, WebKit.SnapshotOptions.TRANSPARENT_BACKGROUND, null, (_view, result) => {
++        pendingSnapshot = false;
++        if (!window) return;
++        try {
++            const surface = web.get_snapshot_finish(result);
++            surface.writeToPNG(scratch);
++            const image = GdkPixbuf.Pixbuf.new_from_file(scratch);
++            const pixels = image.get_pixels(), channels = image.get_n_channels(), stride = image.get_rowstride();
++            const width = image.get_width(), height = image.get_height();
++            const region = new Cairo.Region();
++            const {rectangles, occupied} = inputMask(pixels, width, height, stride, channels);
++            for (const r of rectangles) region.unionRectangle(r);
++            // Leave a rescue control area while the page is still loading.
++            if (occupied === 0) region.unionRectangle({x: 0, y: 0, width: width, height: 48});
++            window.get_window()?.input_shape_combine_region(region, 0, 0);
++            lastRegion = region.numRectangles(); samples++;
++            state.input_regions = lastRegion; state.occupied_fraction = occupied / (width * height);
++            state.alpha = image.get_has_alpha() && occupied < width * height * .95;
++            state.snapshots = samples; state.width = width; state.height = height; state.position = window.get_position(); state.chat_open = lastChat;
++            if (reportDirectory && !lastChat && samples <= 9 && samples % 3 === 0) surface.writeToPNG(GLib.build_filenamev([reportDirectory, 'pet.png']));
++            saveState();
++        } catch (error) { state.snapshot_error = String(error); saveState(); }
++    });
++    return GLib.SOURCE_CONTINUE;
++}
++function activate() {
++    if (window) { window.deiconify(); window.show_all(); return; }
++    const context = WebKit.WebContext.new_ephemeral();
++    context.set_sandbox_enabled(true);
++    state.sandbox = context.get_sandbox_enabled();
++    if (!state.sandbox) throw new Error('WebKit sandbox must remain enabled');
++    const manager = new WebKit.UserContentManager();
++    const css = 'html,body{background:transparent!important;}';
++    manager.add_style_sheet(new WebKit.UserStyleSheet(css, WebKit.UserContentInjectedFrames.ALL_FRAMES, WebKit.UserStyleLevel.USER, null, null));
++    manager.register_script_message_handler('siroDesktop');
++    manager.connect('script-message-received::siroDesktop', (_manager, result) => {
++        if (!web || !permitted(web.get_uri() || '')) return;
++        let message;
++        try { message = JSON.parse(result.get_js_value().to_string()); } catch (_) { return; }
++        if (!message || typeof message.type !== 'string') return;
++        if (message.type === 'desktop.quit') app.quit();
++        else if (message.type === 'desktop.hide') window.iconify();
++        else if (message.type === 'desktop.console') openCenter();
++        else if (message.type === 'desktop.chat' && typeof message.open === 'boolean') {
++            lastChat = message.open; window.set_accept_focus(lastChat);
++            if (lastChat) window.present();
++            updateShape();
++        } else if (message.type === 'desktop.move' && message.button === 1 && Number.isFinite(message.screenX) && Number.isFinite(message.screenY)) {
++            const display = Gdk.Display.get_default();
++            let insideMonitor = false;
++            for (let index = 0; index < display.get_n_monitors(); index++) {
++                const area = display.get_monitor(index).get_geometry();
++                if (message.screenX >= area.x && message.screenX <= area.x + area.width && message.screenY >= area.y && message.screenY <= area.y + area.height) insideMonitor = true;
++            }
++            if (insideMonitor) window.begin_move_drag(1, Math.round(message.screenX), Math.round(message.screenY), Gdk.CURRENT_TIME);
++        } else if (message.type === 'desktop.ready') { ready = true; state.ready = true; saveState(); }
++    });
++    window = new Gtk.ApplicationWindow({application: app, title: `SIRO 桌寵 · ${GLib.getenv('GDK_BACKEND') === 'x11' ? 'XWayland/X11 相容' : '原生顯示'}`, default_width: 360, default_height: 570, decorated: false, resizable: false});
++    window.set_app_paintable(true);
++    const rgba = window.get_screen().get_rgba_visual();
++    if (!rgba) throw new Error('RGBA compositing visual is unavailable');
++    if (!window.get_screen().is_composited()) throw new Error('Desktop compositor is unavailable');
++    window.set_icon_from_file(Gio.File.new_for_uri(import.meta.url).get_parent().get_child('siro.svg').get_path());
++    window.set_visual(rgba); window.set_keep_above(true); window.set_accept_focus(false); window.set_focus_on_map(false);
++    const provider = new Gtk.CssProvider();
++    provider.load_from_data('window { background-color: transparent; }');
++    window.get_style_context().add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
++    web = new WebKit.WebView({web_context: context, user_content_manager: manager});
++    const transparent = new Gdk.RGBA(); transparent.parse('rgba(0,0,0,0)'); web.set_background_color(transparent);
++    const settings = web.get_settings(); settings.set_enable_write_console_messages_to_stdout(Boolean(reportDirectory)); settings.set_enable_webgl(true); settings.set_enable_developer_extras(false); settings.set_media_playback_requires_user_gesture(false);
++    restrict(web); window.add(web);
++    web.connect('web-process-terminated', () => { state.ready = false; saveState(); });
++    web.connect('load-failed', () => { state.ready = false; state.load_failed = true; saveState(); return false; });
++    window.connect('delete-event', () => { app.quit(); return true; });
++    window.show_all();
++    const display = Gdk.Display.get_default(), monitor = display.get_primary_monitor() || display.get_monitor(0);
++    if (monitor) { const area = monitor.get_workarea(); window.move(area.x + area.width - 390, area.y + area.height - 600); }
++    window.get_screen().connect('monitors-changed', () => {
++        if (!window) return;
++        const d = Gdk.Display.get_default(), m = d.get_monitor_at_window(window.get_window()) || d.get_primary_monitor() || d.get_monitor(0);
++        if (!m) return;
++        const area = m.get_workarea(), [x, y] = window.get_position(), [width, height] = window.get_size();
++        window.move(Math.max(area.x, Math.min(x, area.x + area.width - width)), Math.max(area.y, Math.min(y, area.y + area.height - height)));
++    });
++    web.load_uri(url);
++    timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, updateShape);
++    saveState();
++}
++app.connect('activate', activate);
++app.connect('shutdown', () => {
++    if (timer) GLib.source_remove(timer);
++    state.closed = true; saveState(); center?.destroy(); window?.destroy(); window = null; web = null;
++    try { GLib.unlink(scratch); GLib.rmdir(disposable); } catch (_) { /* temporary cleanup */ }
++});
++GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, 15, () => { app.quit(); return GLib.SOURCE_REMOVE; });
++GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, 2, () => { app.quit(); return GLib.SOURCE_REMOVE; });
++app.run([]);
+--- /dev/null
++++ b/desktop/input-mask.mjs
+@@ -0,0 +1,24 @@
++/** Compute bounded native input rectangles from our own transparent WebView, never the screen. */
++export function inputMask(pixels, width, height, stride, channels, step = 6) {
++  if (![width, height, stride, channels, step].every(Number.isSafeInteger) || width < 1 || height < 1 || width > 4096 || height > 4096 || ![3, 4].includes(channels) || step < 1 || step > 16 || stride < width * channels || pixels.length < stride * height)
++    throw new Error('Invalid desktop pixel geometry');
++  const rectangles = [];
++  let occupied = 0;
++  for (let y = 0; y < height; y += step) {
++    let begin = -1;
++    for (let x = 0; x < width + step; x += step) {
++      let hit = false;
++      if (x < width) {
++        for (let dy = 0; dy < step && y + dy < height && !hit; dy++)
++          for (let dx = 0; dx < step && x + dx < width; dx++)
++            if (channels < 4 || pixels[(y + dy) * stride + (x + dx) * channels + 3] > 28) { hit = true; break; }
++      }
++      if (hit && begin < 0) begin = x;
++      if (!hit && begin >= 0) {
++        const r = {x: begin, y, width: Math.min(x, width) - begin, height: Math.min(step, height - y)};
++        rectangles.push(r); occupied += r.width * r.height; begin = -1;
++      }
++    }
++  }
++  return {rectangles, occupied};
++}
+--- /dev/null
++++ b/desktop/siro.svg
+@@ -0,0 +1 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect x="5" y="5" width="118" height="118" rx="32" fill="#f3f6fa"/><path d="M41 91c-20-13-23-39-7-54s41-16 59-3c-16 0-35 10-34 26 0 16 23 17 35 32-16 9-39 11-53-1z" fill="#365d8d"/><circle cx="91" cy="36" r="14" fill="#e5b6c8"/></svg>
+--- /dev/null
++++ b/scripts/start-companion
+@@ -0,0 +1,24 @@
++#!/usr/bin/env bash
++# Start the one configured backend if necessary, then the single native presentation.
++set -euo pipefail
++project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$project_root"
++port="${SIRO_GATEWAY_PORT:-8000}"
++if [[ ! "$port" =~ ^[0-9]+$ ]] || ((port < 1024 || port > 65535)); then
++  echo 'SIRO_GATEWAY_PORT must be 1024..65535' >&2; exit 2
++fi
++if ! curl --fail --silent --max-time 2 "http://127.0.0.1:$port/health/ready" >/dev/null; then
++  mkdir -p .siro-data
++  scripts/start .siro-data/companion-service.pid >> .siro-data/companion-service.log 2>&1 </dev/null &
++  ready=0
++  for ((attempt=0; attempt<60; attempt++)); do
++    if curl --fail --silent --max-time 1 "http://127.0.0.1:$port/health/ready" >/dev/null; then ready=1; break; fi
++    sleep .5
++  done
++  if ((ready == 0)); then
++    echo '正式 SIRO 尚未啟動；請檢查 .siro-data/companion-service.log。未開啟替身桌寵。' >&2
++    exit 1
++  fi
++fi
++export SIRO_DESKTOP_URL="http://127.0.0.1:$port/desktop"
++exec scripts/start-desktop
+--- /dev/null
++++ b/scripts/start-desktop
+@@ -0,0 +1,37 @@
++#!/usr/bin/env bash
++set -euo pipefail
++project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$project_root"
++if ! command -v gjs >/dev/null; then
++  echo '桌寵需要 GJS、GTK3 和 WebKitGTK 4.1；尚未啟動。' >&2
++  exit 2
++fi
++# Validate the existing backend without exposing its short-lived token.
++export SIRO_DESKTOP_URL="${SIRO_DESKTOP_URL:-http://127.0.0.1:8000/desktop}"
++.venv/bin/python - <<'CHECK'
++import json, os, urllib.parse, urllib.request
++url=os.environ["SIRO_DESKTOP_URL"]
++p=urllib.parse.urlsplit(url)
++if p.scheme != "http" or p.hostname not in {"127.0.0.1","localhost"} or p.path != "/desktop" or p.username or p.password or p.query or p.fragment:
++    raise SystemExit("Desktop requires the exact loopback /desktop URL")
++base=f"{p.scheme}://{p.netloc}"
++try:
++    request=urllib.request.Request(base+"/v1/session",data=b"",headers={"Origin":base},method="POST")
++    with urllib.request.urlopen(request,timeout=5) as r: token=json.load(r)["token"]
++    request=urllib.request.Request(base+"/v1/runtime",headers={"Authorization":"Bearer "+token})
++    with urllib.request.urlopen(request,timeout=5) as r: runtime=json.load(r)
++    if runtime.get("routes",{}).get("model","offline") == "offline":
++        raise SystemExit("目前服務是離線示範；請先停止它，再用 scripts/start-companion 啟動正式 SIRO。")
++    with urllib.request.urlopen(url,timeout=5) as r:
++        if r.status != 200: raise SystemExit("Desktop renderer is unavailable")
++except (OSError,KeyError,ValueError):
++    raise SystemExit("尚未連接正式 SIRO 與 Live2D；請使用 scripts/start-companion。") from None
++CHECK
++if [[ "${XDG_SESSION_TYPE:-}" == wayland && -z "${SIRO_DESKTOP_BACKEND:-}" ]]; then
++  # Application-only XWayland compatibility. The desktop session is never changed.
++  export GDK_BACKEND=x11
++  echo 'SIRO 桌寵使用 XWayland 相容模式（不更改目前 Wayland 桌面）。'
++elif [[ -n "${SIRO_DESKTOP_BACKEND:-}" ]]; then
++  export GDK_BACKEND="$SIRO_DESKTOP_BACKEND"
++fi
++exec gjs -m desktop/host.js
+--- /dev/null
++++ b/scripts/install-desktop
+@@ -0,0 +1,26 @@
++#!/usr/bin/env bash
++# Per-user menu entry only; does not auto-start or alter the login session.
++set -euo pipefail
++project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$project_root"
++.venv/bin/python - <<'PY'
++import os
++from pathlib import Path
++root=Path.cwd()
++destination=Path(os.environ.get('XDG_DATA_HOME',str(Path.home()/'.local/share')))/'applications/org.siro.Companion.desktop'
++destination.parent.mkdir(parents=True,exist_ok=True)
++command=str(root/'scripts/start-companion').replace('\\','\\\\').replace('"','\\"').replace('%','%%')
++destination.write_text(f'''[Desktop Entry]
++Type=Application
++Name=SIRO 桌寵
++Comment=獨立角色、對話與 SIRO 控制台
++Exec="{command}"
++Path={root}
++Icon={root}/desktop/siro.svg
++Terminal=false
++Categories=Utility;
++StartupNotify=true
++StartupWMClass=org.siro.Companion
++''')
++print(f'已建立應用程式選單入口：{destination}')
++PY
+--- /dev/null
++++ b/scripts/repair-nvidia-kernel
+@@ -0,0 +1,14 @@
++#!/usr/bin/env bash
++# Local Ubuntu 26.04 signed-package repair. Does not change Secure Boot or reboot.
++set -euo pipefail
++kernel_version="$(uname -r)"
++if [[ ! "$kernel_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-generic$ ]]; then
++  echo 'Unsupported kernel flavour; no driver packages changed.' >&2
++  exit 2
++fi
++module_package="linux-modules-nvidia-595-open-${kernel_version}"
++apt-cache show "$module_package" >/dev/null
++sudo apt-get install nvidia-driver-595-open "$module_package" linux-modules-nvidia-595-open-generic-hwe-26.04
++sudo modprobe nvidia
++sudo modprobe nvidia_uvm
++nvidia-smi
+--- a/scripts/launch_companion.py
++++ b/scripts/launch_companion.py
+@@ -81,6 +81,7 @@
+         "SIRO_WORKSPACE_ENABLED",
+         "SIRO_MEMORY_ORGANIZATION_ENABLED",
+         "SIRO_CONTEXT_SUMMARY_ENABLED",
++        "SIRO_RATE_LIMIT_RECOVERY_ENABLED",
+     ):
+         os.environ.setdefault(key, "1")
+     binary = root / "target/debug/siro-runtime"
+--- a/scripts/repair_companion_renderer.py
++++ b/scripts/repair_companion_renderer.py
+@@ -106,6 +106,98 @@
+ """
+             + main[end:]
+         )
++    # Keep reconnect ownership independent of the emotion/mouth projection above.
++    # An explicitly replaced renderer must never reclaim the one body socket.
++    connection = """// SIRO renderer ownership v3
++let siroDetached = false;
++let siroRetryTimer: number | undefined;
++let siroSocket: WebSocket | undefined;
++function scheduleSiroReconnect(): void {
++  if (!siroDetached && siroRetryTimer === undefined) {
++    siroRetryTimer = window.setTimeout(() => {
++      siroRetryTimer = undefined;
++      void connectSiro();
++    }, 1000);
++  }
++}
++async function connectSiro(): Promise<void> {
++  if (siroDetached) return;
++  try {
++    const session = await fetch('/v1/session', {
++      method: 'POST', headers: { Origin: location.origin }
++    });
++    if (!session.ok) throw new Error(`session ${session.status}`);
++    const { token } = await session.json();
++    if (siroDetached) return;
++    const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
++    const socket = new WebSocket(`${scheme}://${location.host}/ws/body`);
++    siroSocket = socket;
++    socket.addEventListener('open', () => {
++      if (siroDetached || siroSocket !== socket) { socket.close(); return; }
++      const presentation = new URLSearchParams(location.search).get('presentation');
++      socket.send(JSON.stringify({
++        type: 'authenticate', token,
++        ...(presentation === 'desktop' ? {presentation: 'desktop'} : {})
++      }));
++    });
++    socket.addEventListener('message', event => {
++      if (siroDetached || siroSocket !== socket) return;
++      renderSiro(JSON.parse(event.data));
++    });
++    socket.addEventListener('close', event => {
++      if (siroSocket !== socket) return;
++      siroSocket = undefined;
++      stopSpeaking();
++      if (event.reason === 'renderer replaced' || event.reason === 'desktop owner active') {
++        siroDetached = true;
++        if (siroRetryTimer !== undefined) window.clearTimeout(siroRetryTimer);
++        siroRetryTimer = undefined;
++        window.parent.postMessage({type: 'siro.renderer.detached'}, location.origin);
++      } else scheduleSiroReconnect();
++    });
++  } catch (_) {
++    scheduleSiroReconnect();
++  }
++}
++window.addEventListener('pagehide', () => {
++  siroDetached = true;
++  if (siroRetryTimer !== undefined) window.clearTimeout(siroRetryTimer);
++  siroRetryTimer = undefined;
++  siroSocket?.close();
++});
++// End SIRO renderer ownership v3"""
++    if "// SIRO renderer ownership v3" in main:
++        main = re.sub(
++            r"// SIRO renderer ownership v3.*?// End SIRO renderer ownership v3",
++            lambda _: connection,
++            main,
++            count=1,
++            flags=re.S,
++        )
++    else:
++        main, count = re.subn(
++            r"async function connectSiro\(\): Promise<void> \{.*?\n\}",
++            lambda _: connection,
++            main,
++            count=1,
++            flags=re.S,
++        )
++        if count != 1:
++            raise RuntimeError("expected exactly one renderer connection bridge")
++    if "// SIRO desktop click-to-chat" not in main:
++        main += """
++// SIRO desktop click-to-chat: only the displayed local character initiates this UI action.
++let desktopPress: {x: number; y: number} | undefined;
++window.addEventListener('pointerdown', event => {
++  if (new URLSearchParams(location.search).get('presentation') === 'desktop' && event.button === 0)
++    desktopPress = {x: event.screenX, y: event.screenY};
++});
++window.addEventListener('pointerup', event => {
++  const press = desktopPress; desktopPress = undefined;
++  if (press && Math.hypot(event.screenX - press.x, event.screenY - press.y) < 8)
++    window.parent.postMessage({type:'siro.renderer.interact'}, location.origin);
++});
++"""
+     write("main.ts", main)
+     define = (demo / "src/lappdefine.ts").read_text()
+     define = re.sub(
+@@ -135,6 +227,29 @@
+         .replace("gl.clearColor(0.0, 0.0, 0.0, 1.0);", "gl.clearColor(0.0, 0.0, 0.0, 0.0);")
+     )
+     write("lappsubdelegate.ts", delegate)
++    render_loop = demo / "src/lappdelegate.ts"
++    if render_loop.is_file():
++        loop_source = render_loop.read_text()
++        if "SIRO desktop frame budget" not in loop_source:
++            original = "    const loop = (): void => {"
++            if original not in loop_source:
++                raise ValueError("unsupported SDK render loop for desktop frame budget")
++            loop_source = loop_source.replace(
++                original,
++                "    // SIRO desktop frame budget: retain normal web timing.\n"
++                "    const desktop = new URLSearchParams(location.search).get('presentation') "
++                "=== 'desktop';\n"
++                "    let lastDesktopFrame = 0;\n"
++                "    const loop = (): void => {\n"
++                "      const frameNow = performance.now();\n"
++                "      if (desktop && frameNow - lastDesktopFrame < 1000 / 24) {\n"
++                "        requestAnimationFrame(loop); return;\n"
++                "      }\n"
++                "      lastDesktopFrame = frameNow;",
++                1,
++            )
++            render_loop.write_text(loop_source)
++            changed = True
+     index = demo / "index.html"
+     markup = index.read_text()
+     if "/* SIRO stage */" not in markup:
+@@ -145,6 +260,25 @@
+         )
+         index.write_text(markup)
+         changed = True
++    if "/* SIRO desktop transparency */" not in markup:
++        markup = markup.replace(
++            "</head>",
++            """<script>
++  if (new URLSearchParams(location.search).get('presentation') === 'desktop') {
++    document.documentElement.dataset.siroPresentation = 'desktop';
++  }
++</script>
++<style>/* SIRO desktop transparency */
++  html[data-siro-presentation="desktop"],
++  html[data-siro-presentation="desktop"] body { background: transparent !important; }
++</style>
++</head>""",
++            1,
++        )
++        if "/* SIRO desktop transparency */" not in markup:
++            raise RuntimeError("expected renderer HTML head")
++        index.write_text(markup)
++        changed = True
+     return changed
+ 
+ 
+--- a/scripts/qwen_tts_worker.py
++++ b/scripts/qwen_tts_worker.py
+@@ -16,7 +16,7 @@
+ 
+ COMPLETION_PROTOCOL = 2
+ MAX_NEW_TOKENS = 512
+-SEGMENT_VERSION = "sentence-v1-80"
++SEGMENT_VERSION = "sentence-v2-first24-rest80"
+ CACHE_VERSION = "completion-v2"
+ MAX_CACHE_BYTES = 16 * 1024 * 1024
+ 
+--- a/src/siro/adapters/models/failover.py
++++ b/src/siro/adapters/models/failover.py
+@@ -3,8 +3,11 @@
+ from __future__ import annotations
+ 
+ import asyncio
+-from collections.abc import AsyncIterator, Sequence
++import math
++from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+ from dataclasses import replace
++from datetime import UTC, datetime
++from email.utils import parsedate_to_datetime
+ from uuid import uuid4
+ 
+ import httpx
+@@ -21,6 +24,41 @@
+     return isinstance(error, (ConnectionError, TimeoutError, httpx.TransportError))
+ 
+ 
++def _rate_limit_delay(
++    error: httpx.HTTPStatusError,
++    *,
++    fallback: float,
++    maximum: float,
++    clock: Callable[[], datetime],
++) -> float | None:
++    # Groq documents this header as requests *per day*, not the minute limit.
++    if error.request.url.host == "api.groq.com":
++        remaining = error.response.headers.get("x-ratelimit-remaining-requests")
++        try:
++            if remaining is not None and int(remaining) <= 0:
++                return None
++        except ValueError:
++            pass
++    value = error.response.headers.get("retry-after", "").strip()
++    delay = fallback
++    try:
++        seconds = float(value)
++        if math.isfinite(seconds) and seconds >= 0:
++            delay = seconds
++    except ValueError:
++        try:
++            deadline = parsedate_to_datetime(value)
++            now = clock()
++            if deadline.tzinfo is None:
++                deadline = deadline.replace(tzinfo=UTC)
++            if now.tzinfo is None:
++                now = now.replace(tzinfo=UTC)
++            delay = max(0.0, (deadline - now).total_seconds())
++        except (ValueError, TypeError, OverflowError):
++            pass
++    return delay if delay <= maximum else None
++
++
+ class FailoverModel:
+     def __init__(
+         self,
+@@ -29,6 +67,9 @@
+         backoff_seconds: float = 0.25,
+         cloud_indices: frozenset[int] = frozenset(),
+         cloud_request_budget: int = 0,
++        rate_limit_max_wait_seconds: float | None = None,
++        clock: Callable[[], datetime] | None = None,
++        on_retry: Callable[[ModelRequest, float], Awaitable[None]] | None = None,
+     ) -> None:
+         if not models:
+             raise ValueError("at least one model is required")
+@@ -36,6 +77,11 @@
+             raise ValueError("invalid bounded retry budget")
+         if any(i < 0 or i >= len(models) for i in cloud_indices):
+             raise ValueError("invalid cloud model index")
++        if rate_limit_max_wait_seconds is not None and (
++            not math.isfinite(rate_limit_max_wait_seconds)
++            or not 0 <= rate_limit_max_wait_seconds <= 60
++        ):
++            raise ValueError("rate limit wait must be between zero and sixty seconds")
+         self._models = tuple(models)
+         # Preserve selected-provider provenance for existing journal consumers.
+         self.name = self._models[0].name
+@@ -44,14 +90,17 @@
+             i for i, model in enumerate(models) if isinstance(model, OpenAICompatibleAdapter)
+         )
+         self._cloud_budget = cloud_request_budget
++        self._rate_limit_max_wait = rate_limit_max_wait_seconds
++        self._clock = clock or (lambda: datetime.now(UTC))
++        self._on_retry = on_retry
+ 
+     async def stream(
+         self, request: ModelRequest, cancellation: CancellationToken
+     ) -> AsyncIterator[ModelChunk]:
++        index = 0
+         for attempt in range(2):
+             if cancellation.cancelled:
+                 return
+-            index = min(attempt, len(self._models) - 1)
+             if index in self._cloud_indices:
+                 if request.privacy is not Privacy.CLOUD_ALLOWED:
+                     raise PermissionError("cloud egress requires cloud_allowed privacy")
+@@ -75,14 +124,48 @@
+             except Exception as error:
+                 if emitted or cancellation.cancelled or attempt == 1 or not _retryable(error):
+                     raise
+-                next_index = min(1, len(self._models) - 1)
++                rate_limited = (
++                    self._rate_limit_max_wait is not None
++                    and isinstance(error, httpx.HTTPStatusError)
++                    and error.response.status_code == 429
++                )
++                next_index = index if rate_limited else min(1, len(self._models) - 1)
+                 # Preserve the original provider failure when policy rules out another request.
+                 if next_index in self._cloud_indices and (
+                     request.privacy is not Privacy.CLOUD_ALLOWED or self._cloud_budget == 0
+                 ):
+                     raise
++                delay = self._backoff
++                if rate_limited:
++                    assert isinstance(error, httpx.HTTPStatusError)
++                    assert self._rate_limit_max_wait is not None
++                    selected_delay = _rate_limit_delay(
++                        error,
++                        fallback=self._backoff,
++                        maximum=self._rate_limit_max_wait,
++                        clock=self._clock,
++                    )
++                    if selected_delay is None:
++                        raise
++                    delay = selected_delay
++                    if self._on_retry is not None:
++                        notification = asyncio.ensure_future(self._on_retry(request, delay))
++                        cancelled = asyncio.create_task(cancellation.wait())
++                        try:
++                            await asyncio.wait(
++                                (notification, cancelled), return_when=asyncio.FIRST_COMPLETED
++                            )
++                            if cancellation.cancelled:
++                                return
++                            await notification
++                        finally:
++                            notification.cancel()
++                            cancelled.cancel()
++                            await asyncio.gather(notification, cancelled, return_exceptions=True)
++                    if cancellation.cancelled:
++                        return
+                 try:
+-                    await asyncio.wait_for(cancellation.wait(), timeout=self._backoff)
++                    await asyncio.wait_for(cancellation.wait(), timeout=delay)
+                     return
+                 except TimeoutError:
+-                    pass
++                    index = next_index
+--- a/src/siro/services/audio/tts.py
++++ b/src/siro/services/audio/tts.py
+@@ -81,13 +81,25 @@
+         raise ValueError("沒有可朗讀的內容。")
+     if len(spoken) > 8000:
+         raise OverflowError("全文超過一次朗讀的8,000字上限;文字已保留,請選較短段落。")
+-    segments: list[str] = []
+-    cursor = 0
++    first_end = min(24, len(spoken))
++    if len(spoken) > first_end:
++        prefix = spoken[:first_end]
++        sentences = list(re.finditer(r"[.!?。！？]", prefix))  # noqa: RUF001
++        pauses = list(re.finditer(r"[,，;；:：、]", prefix))  # noqa: RUF001
++        pauses = [match for match in pauses if match.end() >= 8]
++        if sentences:
++            first_end = sentences[-1].end()
++        elif pauses:
++            first_end = pauses[-1].end()
++        elif " " in prefix:
++            first_end = prefix.rfind(" ")
++    segments = [spoken[:first_end]]
++    cursor = first_end
+     # Reserve one character for the normalized separator at a segment boundary.
+-    for piece in speech_segments(spoken, max_chars=79):
++    for piece in speech_segments(spoken[first_end:], max_chars=79):
+         start = spoken.index(piece, cursor)
+         separator = spoken[cursor:start]
+-        if segments and len(segments[-1]) + len(separator) + len(piece) <= 80:
++        if len(segments) > 1 and len(segments[-1]) + len(separator) + len(piece) <= 80:
+             segments[-1] += separator + piece
+         else:
+             segments.append(separator + piece)
+@@ -97,7 +109,7 @@
+     return {
+         "segments": segments,
+         "spoken_text": spoken,
+-        "version": "sentence-v1-80",
++        "version": "sentence-v2-first24-rest80",
+         "max_chars": 80,
+         "max_segments": 128,
+         "max_total_chars": 8000,
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -177,6 +177,7 @@
+ 
+ _RUN_PROGRESS_EVENTS = frozenset(
+     {
++        "assistant_retry_wait",
+         "assistant_started",
+         "assistant_delta",
+         "affect_state",
+@@ -651,12 +652,13 @@
+         if not session_tokens.valid(authorization.removeprefix(prefix)):
+             raise HTTPException(status_code=401, detail="session token is invalid or expired")
+ 
+-    @app.get("/", response_class=HTMLResponse)
+-    async def index() -> HTMLResponse:
++    desktop_renderer: WebSocket | None = None
++
++    def render_index(*, desktop: bool = False, controls: bool = False) -> HTMLResponse:
+         path = Path(__file__).with_name("static") / "index.html"
+         html = path.read_text(encoding="utf-8")
+         if live2d_dist is not None:
+-            renderer_path = "/live2d/"
++            renderer_path = "/live2d/?presentation=desktop" if desktop else "/live2d/"
+             renderer_status = "Live2D 載入中…"
+         else:
+             renderer_path = "/body"
+@@ -668,11 +670,45 @@
+             setup_notices.append("角色目前顯示替身。尚未載入 Live2D。")
+         if setup_notices:
+             setup_notices.append("請使用 scripts/start-runtime-product 啟動正式產品入口。")
++        if controls or (desktop_renderer is not None and not desktop):
++            renderer_path = "about:blank"
++            renderer_status = "角色目前在獨立桌寵視窗"
++            html = html.replace("<body>", '<body class="siro-control">')
++        if desktop:
++            html = html.replace("<body>", '<body class="siro-desktop">')
++            html = html.replace(
++                "</head>", '<link rel="stylesheet" href="/static/desktop.css"></head>'
++            )
++            html = html.replace("</body>", '<script src="/static/desktop.js"></script></body>')
+         return HTMLResponse(
+             html.replace("__SIRO_RENDERER_PATH__", renderer_path)
+             .replace("__SIRO_RENDERER_STATUS__", renderer_status)
+             .replace("__SIRO_SETUP_NOTICE_HIDDEN__", "" if setup_notices else "hidden")
+             .replace("__SIRO_SETUP_NOTICE__", " ".join(setup_notices))
++        )
++
++    @app.get("/", response_class=HTMLResponse)
++    async def index(request: Request) -> HTMLResponse:
++        return render_index(controls=request.query_params.get("view") == "control")
++
++    @app.get("/desktop", response_class=HTMLResponse)
++    async def desktop_index() -> HTMLResponse:
++        if live2d_dist is None:
++            raise HTTPException(status_code=503, detail="desktop requires prepared Live2D")
++        return render_index(desktop=True)
++
++    @app.get("/static/desktop.css")
++    async def desktop_styles() -> Response:
++        return Response(
++            (Path(__file__).with_name("static") / "desktop.css").read_text(),
++            media_type="text/css",
++        )
++
++    @app.get("/static/desktop.js")
++    async def desktop_script() -> Response:
++        return Response(
++            (Path(__file__).with_name("static") / "desktop.js").read_text(),
++            media_type="application/javascript",
+         )
+ 
+     @app.get("/body", response_class=HTMLResponse)
+@@ -815,6 +851,7 @@
+             "features": feature_status() if feature_status is not None else {},
+             "runtime_profile": runtime_profile,
+             "configuration_source": configuration_source,
++            "presentation": {"owner": "desktop" if desktop_renderer is not None else "web"},
+             "catalog_enabled": tool_orchestrator is not None
+             and tool_orchestrator.catalog is not None,
+             "json_settings_applied": False,
+@@ -1397,6 +1434,7 @@
+ 
+     @app.websocket("/ws/body")
+     async def body(websocket: WebSocket) -> None:
++        nonlocal desktop_renderer
+         if websocket.headers.get("origin") not in allowed:
+             await websocket.close(code=1008, reason="origin is not allowed")
+             return
+@@ -1412,6 +1450,15 @@
+             ):
+                 await websocket.close(code=1008, reason="invalid renderer authentication")
+                 return
++            presentation = hello.get("presentation", "web")
++            if not isinstance(presentation, str) or presentation not in {"web", "desktop"}:
++                await websocket.close(code=1008, reason="invalid presentation owner")
++                return
++            if desktop_renderer is not None and presentation != "desktop":
++                await websocket.close(reason="desktop owner active")
++                return
++            if presentation == "desktop":
++                desktop_renderer = websocket
+             await renderer_transport.attach(websocket)
+             try:
+                 while True:
+@@ -1419,6 +1466,10 @@
+             except WebSocketDisconnect:
+                 pass
+             finally:
++                # Clear ownership before awaiting writer cleanup: disconnect task cancellation
++                # must not leave a dead desktop lease blocking the next explicit renderer.
++                if desktop_renderer is websocket:
++                    desktop_renderer = None
+                 await renderer_transport.detach(socket=websocket)
+         except TimeoutError:
+             await websocket.close(code=1008, reason="authentication timeout")
+@@ -1564,7 +1615,7 @@
+     from siro.persistence.memory import SQLiteMemoryRepository
+     from siro.persistence.skills import SQLiteSkillRegistry
+     from siro.persistence.sqlite import SQLiteStore
+-    from siro.ports.models import LanguageModel
++    from siro.ports.models import LanguageModel, ModelRequest
+     from siro.ports.models import Privacy as ModelPrivacy
+     from siro.services.audio.stt import GroqWhisper
+     from siro.services.presentation.integrated import IntegratedCompanion
+@@ -1605,13 +1656,26 @@
+         retry_enabled = os.environ.get("SIRO_MODEL_RETRY_ENABLED", "1")
+         if retry_enabled not in {"0", "1"}:
+             raise ValueError("SIRO_MODEL_RETRY_ENABLED must be 0 or 1")
++        recovery_setting = os.environ.get("SIRO_RATE_LIMIT_RECOVERY_ENABLED", "0")
++        if recovery_setting not in {"0", "1"}:
++            raise ValueError("SIRO_RATE_LIMIT_RECOVERY_ENABLED must be 0 or 1")
++        recovery_enabled = recovery_setting == "1"
++        retry_wait_limit = float(os.environ.get("SIRO_RATE_LIMIT_MAX_WAIT_SECONDS", "60"))
++        if not 0 <= retry_wait_limit <= 60:
++            raise ValueError("SIRO_RATE_LIMIT_MAX_WAIT_SECONDS must be between 0 and 60")
++
++        async def notify_model_retry(request: ModelRequest, seconds: float) -> None:
++            await controller.model_retry_wait(request.generation_id, seconds)
++
+         if retry_enabled == "1":
+             model = FailoverModel(
+                 (model,),
+                 cloud_indices=frozenset({0})
+                 if privacy is ModelPrivacy.CLOUD_ALLOWED
+                 else frozenset(),
+-                cloud_request_budget=0,
++                cloud_request_budget=1 if recovery_enabled else 0,
++                rate_limit_max_wait_seconds=retry_wait_limit if recovery_enabled else None,
++                on_retry=notify_model_retry if recovery_enabled else None,
+             )
+         from siro.services.agent.context import (
+             ContextBudgetModel,
+--- a/src/siro/services/presentation/integrated.py
++++ b/src/siro/services/presentation/integrated.py
+@@ -193,6 +193,32 @@
+         if self._runtime_profile == "candidate":
+             message = {**message, "stream_id": stream_id}
+         await self._hub.broadcast(message, urgent=urgent)
++
++    async def model_retry_wait(self, generation_id: str, seconds: float) -> None:
++        """Notify only the active run that owns this already-started model generation."""
++        if self._store is None or self._runtime_profile != "candidate":
++            return
++        row = await self._store.run_transaction(
++            lambda connection: connection.execute(
++                "SELECT session_id FROM turns WHERE generation_id=? AND state='responding'",
++                (generation_id,),
++            ).fetchone()
++        )
++        if row is None:
++            return
++        session_id = str(row[0])
++        run_id = self._run_ids.get(session_id)
++        if run_id is None or run_id in self._terminated:
++            return
++        await self._broadcast_stream(
++            self._event_streams.get(run_id, run_id),
++            {
++                "type": "assistant_retry_wait",
++                "session_id": session_id,
++                "retry_after_seconds": seconds,
++            },
++            urgent=True,
++        )
+ 
+     async def respond(self, session_id: str, text: str, input_mode: str = "text") -> None:
+         await self._ensure_core()
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -86,6 +86,8 @@
+       #text { border:0; background:transparent; min-height:70px; resize:vertical; flex:1; min-width:0; font-size:15px; }
+       #chat button { background:var(--action); color:var(--surface); border-color:var(--action); }
+       .conversation-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding-top:12px; color:var(--muted); font-size:12px; }
++      body.siro-control .stage { display:none; }
++      body.siro-control .companion-layout { grid-template-columns:minmax(0,1fr); }
+       .conversation-actions label { display:flex; align-items:center; gap:6px; }
+       .conversation-actions input { margin:0; width:auto; }
+       .conversation-actions button { font-size:12px; padding:6px 10px; }
+@@ -297,7 +299,7 @@
+       const authorizedFetch = (url, options) => sessionAccess.request(url, options);
+       function createTerminalFence(limit = 1024) {
+         const ended = new Set(), order = [];
+-        const progress = new Set(["assistant_started", "assistant_delta", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
++        const progress = new Set(["assistant_started", "assistant_delta", "assistant_retry_wait", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
+         return data => {
+           if (typeof data.stream_id !== "string") return true;
+           if (ended.has(data.stream_id) && (progress.has(data.type) || data.type === "assistant_terminal")) return false;
+@@ -419,12 +421,20 @@
+           if (data.type === "assistant_started") {
+             assistantBubble = appendMessage("assistant", "");
+           }
++          if (data.type === "assistant_retry_wait") {
++            const notice = document.querySelector("#service-notice");
++            const seconds = Math.max(0, Math.min(60, Number(data.retry_after_seconds) || 0));
++            notice.hidden = false; notice.dataset.retryWait = "1";
++            notice.textContent = `對話服務暫時限流，約 ${Math.ceil(seconds)} 秒後重試這段回覆。已完成的工具不會重做，可隨時停止。`;
++          }
+           if (data.type === "assistant_delta") {
++            clearRetryNotice();
+             if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
+             assistantBubble.textContent += data.text;
+             document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;
+           }
+           if (data.type === "assistant_terminal") {
++            clearRetryNotice();
+             const canonicalText = assistantBubble?.textContent || "";
+             if (data.state === "completed" && assistantBubble) formatAssistantMessage(assistantBubble);
+             if (data.state !== "completed") {
+@@ -1227,6 +1237,12 @@
+         inline(message, source.slice(start));
+         return message.textContent;
+       }
++      function clearRetryNotice() {
++        const notice = document.querySelector("#service-notice");
++        if (!notice?.dataset?.retryWait) return;
++        delete notice.dataset.retryWait;
++        notice.hidden = true;
++      }
+       function stopTts() {
+         const active = Boolean(ttsController || ttsAudio);
+         ttsGeneration++;
+@@ -1241,7 +1257,7 @@
+       }
+       async function playTts(text, prosody) {
+         stopTts();
+-        if (document.querySelector("#voice-output")?.checked === false) return;
++        if (document.body?.classList?.contains("siro-control") || document.querySelector("#voice-output")?.checked === false) return;
+         const generation = ttsGeneration;
+         const controller = new AbortController(); ttsController = controller;
+         const current = () => generation === ttsGeneration && !controller.signal.aborted;
+@@ -1382,7 +1398,7 @@
+           recorder.start(); button.textContent = "停止並送出"; status.textContent = "正在聆聽…"; status.className = "ok";
+         } catch (error) { status.textContent = `無法使用麥克風：${error.message}`; status.className = "warn"; }
+       };
+-      document.querySelector("#cancel").onclick = async () => { submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
++      document.querySelector("#cancel").onclick = async () => { clearRetryNotice(); submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
+       document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };
+       document.querySelector("#replay-speech").onclick = async () => {
+         if (!lastSpeech || pageClosing) return;
+@@ -1390,8 +1406,20 @@
+         speechCancelled = false;
+         await playTts(lastSpeech.text, lastSpeech.prosody);
+       };
++      if (document.body?.classList?.contains("siro-control")) {
++        document.querySelector("#voice-output").checked = false;
++        document.querySelector("#voice-output").disabled = true;
++      }
+       window.addEventListener("message", event => {
+-        if (event.origin !== location.origin || event.source !== document.querySelector("#companion").contentWindow || event.data?.type !== "siro.renderer.ready") return;
++        if (event.origin !== location.origin || event.source !== document.querySelector("#companion").contentWindow) return;
++        if (event.data?.type === "siro.renderer.detached") {
++          stopTts();
++          document.querySelector("#companion").hidden = true;
++          document.querySelector("#renderer-status").textContent = "角色已交給獨立桌寵視窗；此頁保留控制功能";
++          document.querySelector("#voice-output").checked = false;
++          return;
++        }
++        if (event.data?.type !== "siro.renderer.ready") return;
+         const labels = {neutral:"平靜地陪著你", happy:"開心", sad:"有點難過", angry:"認真表達不滿", surprised:"好奇、留意著"};
+         document.querySelector("#companion-state").textContent = labels[event.data.emotion] || "陪著你";
+         document.querySelector("#renderer-status").textContent = "Live2D 已就緒 · 情緒與對話同步";
+--- /dev/null
++++ b/src/siro/services/presentation/static/desktop.js
+@@ -0,0 +1,112 @@
++/* Native commands only control this window. All SIRO work uses the existing page. */
++(() => {
++  "use strict";
++  function initializeDesktop() {
++    if (!document.body.classList.contains("siro-desktop") || window.siroDesktopView) return;
++    document.documentElement.classList.add("siro-desktop-root");
++    const conversation = document.querySelector(".conversation");
++    const frame = document.querySelector("#companion");
++    if (!conversation || !frame) return;
++    const controls = document.createElement("nav");
++    controls.className = "desktop-controls";
++    controls.setAttribute("aria-label", "桌寵控制");
++    const nativeCommand = message => {
++      const bridge = window.webkit?.messageHandlers?.siroDesktop;
++      if (!bridge) return false;
++      bridge.postMessage(JSON.stringify(message));
++      return true;
++    };
++    const button = (id, text, title, action) => {
++      const node = document.createElement("button");
++      node.type = "button";
++      node.id = id;
++      node.textContent = text;
++      node.title = title;
++      node.addEventListener("click", action);
++      controls.appendChild(node);
++      return node;
++    };
++    let chatOpen = false;
++    const setChat = open => {
++      chatOpen = Boolean(open);
++      document.body.classList.toggle("desktop-chat-open", chatOpen);
++      conversation.inert = !chatOpen;
++      chatButton.setAttribute("aria-expanded", String(chatOpen));
++      chatButton.classList.remove("desktop-unread");
++      nativeCommand({type: "desktop.chat", open: chatOpen});
++      if (chatOpen) document.querySelector("#text")?.focus();
++      return chatOpen;
++    };
++    const chatButton = button("desktop-chat", "聊聊", "展開或收起對話", () => setChat(!chatOpen));
++    chatButton.setAttribute("aria-expanded", "false");
++    chatButton.setAttribute("aria-controls", "desktop-conversation");
++    conversation.id = "desktop-conversation";
++    conversation.inert = true;
++    const forward = id => document.querySelector(id)?.click();
++    const voiceButton = button("desktop-voice", "說話", "沿用對話的麥克風與語音輸入", () => {
++      setChat(true);
++      forward("#voice");
++    });
++    button("desktop-stop", "停止", "停止回覆、工具與語音", () => forward("#cancel"));
++    const moveButton = button("desktop-move", "移動", "按住這裡拖曳桌寵視窗", () => {});
++    moveButton.addEventListener("pointerdown", event => {
++      if (event.button !== 0) return;
++      event.preventDefault();
++      nativeCommand({type: "desktop.move", button: 1, screenX: event.screenX, screenY: event.screenY});
++    });
++    const consoleButton = button("desktop-console", "控制台", "開啟任務、記憶與設定", () => {
++      if (!nativeCommand({type: "desktop.console"})) window.open("/?view=control#/chat", "siro-control");
++    });
++    button("desktop-hide", "暫藏", "最小化；可從工作列恢復", () => nativeCommand({type: "desktop.hide"}));
++    button("desktop-quit", "退出", "關閉桌寵視窗，SIRO 服務繼續執行", () => nativeCommand({type: "desktop.quit"}));
++    const status = document.createElement("p");
++    status.id = "desktop-status";
++    status.setAttribute("role", "status");
++    controls.appendChild(status);
++    document.body.appendChild(controls);
++    let detached = false;
++    const updateStatus = () => {
++      const source = id => document.querySelector(id)?.textContent?.trim() || "";
++      const notices = ["#service-notice", "#runtime-notice"].map(id => document.querySelector(id));
++      const notice = notices.find(node => node && !node.hidden && node.textContent?.trim());
++      const activity = document.querySelector("#activity-notice");
++      consoleButton.textContent = activity && !activity.hidden ? "控制台 · 有更新" : "控制台";
++      voiceButton.textContent = source("#voice") || "說話";
++      status.textContent = detached ? "角色顯示已交接；重新啟動桌寵可取回。" :
++        notice ? notice.textContent.trim() :
++          [source("#connection"), source("#voice-status"), source("#tts-status")].filter(Boolean).join(" · ");
++    };
++    const observer = new MutationObserver(updateStatus);
++    for (const id of ["#connection", "#voice", "#voice-status", "#tts-status", "#activity-notice", "#service-notice", "#runtime-notice"]) {
++      const node = document.querySelector(id);
++      if (node) observer.observe(node, {childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden"]});
++    }
++    const messages = document.querySelector("#messages");
++    const unreadObserver = new MutationObserver(() => {
++      if (!chatOpen) chatButton.classList.add("desktop-unread");
++    });
++    if (messages) unreadObserver.observe(messages, {childList: true, characterData: true, subtree: true});
++    window.addEventListener("message", event => {
++      if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
++      if (event.data?.type === "siro.renderer.detached") {
++        detached = true;
++        updateStatus();
++      }
++    });
++    window.addEventListener("keydown", event => {
++      if (event.key !== "Escape") return;
++      forward("#cancel");
++      setChat(false);
++    });
++    window.addEventListener("pagehide", () => { observer.disconnect(); unreadObserver.disconnect(); }, {once: true});
++    window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false)});
++    window.addEventListener("message", event => {
++      if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
++      if (event.data?.type === "siro.renderer.ready") nativeCommand({type: "desktop.ready"});
++      if (event.data?.type === "siro.renderer.interact") setChat(true);
++    });
++    updateStatus();
++  }
++  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initializeDesktop, {once: true});
++  else initializeDesktop();
++})();
+--- /dev/null
++++ b/src/siro/services/presentation/static/desktop.css
+@@ -0,0 +1,112 @@
++/* The desktop shell shares the normal page's session, conversation and audio owner. */
++html.siro-desktop-root,
++html:has(body.siro-desktop),
++body.siro-desktop {
++  background: transparent !important;
++  margin: 0;
++  width: 100%;
++  height: 100%;
++  overflow: hidden;
++}
++body.siro-desktop .app-shell,
++body.siro-desktop .workspace,
++body.siro-desktop .page-content,
++body.siro-desktop [data-page="chat"],
++body.siro-desktop .companion-layout {
++  display: block;
++  width: 100%;
++  height: 100dvh;
++  min-height: 0;
++  max-width: none;
++  padding: 0;
++  margin: 0;
++  background: transparent;
++}
++body.siro-desktop .sidebar,
++body.siro-desktop .toolbar,
++body.siro-desktop .live-status,
++body.siro-desktop .workspace > [aria-live],
++body.siro-desktop .workspace > .activity-notice,
++body.siro-desktop .page-heading,
++body.siro-desktop .stage-title,
++body.siro-desktop .stage-footer,
++body.siro-desktop .page-view:not([data-page="chat"]) {
++  display: none !important;
++}
++body.siro-desktop .stage {
++  position: fixed;
++  inset: 0;
++  height: 100dvh;
++  min-height: 0;
++  width: 100%;
++  border-radius: 0;
++  background: transparent;
++}
++body.siro-desktop #companion {
++  width: 100%;
++  height: 100%;
++  min-height: 0;
++  background: transparent;
++}
++body.siro-desktop .conversation {
++  display: none;
++  position: fixed;
++  z-index: 4;
++  left: 12px;
++  right: 12px;
++  top: 40px;
++  height: min(66dvh, 450px);
++  min-height: 200px;
++  padding: 14px;
++  border: 1px solid rgba(255, 255, 255, .85);
++  border-radius: 18px;
++  background: rgba(250, 252, 255, .96);
++  box-shadow: 0 8px 30px rgba(31, 43, 68, .2);
++}
++body.siro-desktop.desktop-chat-open .conversation { display: flex; }
++body.siro-desktop .conversation-heading { padding-bottom: 8px; }
++body.siro-desktop .conversation-heading h2 { font-size: 14px; }
++body.siro-desktop #model-status { font-size: 11px; }
++body.siro-desktop #messages { min-height: 50px; padding-top: 12px; }
++body.siro-desktop .empty-state { padding: 12px 4px; }
++body.siro-desktop .empty-state strong { font-size: 19px; }
++body.siro-desktop .message { font-size: 14px; margin-bottom: 10px; padding: 9px 12px; }
++body.siro-desktop #text { min-height: 46px; max-height: 110px; resize: none; }
++body.siro-desktop #chat { padding: 3px; }
++body.siro-desktop #chat button { font-size: 13px; padding: 8px; }
++body.siro-desktop .conversation-actions { gap: 6px; padding-top: 6px; }
++body.siro-desktop .desktop-controls {
++  position: fixed;
++  z-index: 5;
++  bottom: 10px;
++  left: 10px;
++  right: 10px;
++  display: flex;
++  flex-wrap: wrap;
++  align-items: center;
++  justify-content: center;
++  gap: 5px;
++  padding: 7px;
++  border: 1px solid rgba(255, 255, 255, .85);
++  border-radius: 14px;
++  background: rgba(248, 250, 254, .95);
++  box-shadow: 0 3px 16px rgba(31, 43, 68, .16);
++}
++body.siro-desktop .desktop-controls button {
++  padding: 6px 8px;
++  min-height: 32px;
++  font-size: 12px;
++  border-radius: 8px;
++}
++body.siro-desktop #desktop-move { cursor: move; touch-action: none; }
++body.siro-desktop #desktop-stop { color: var(--warning); }
++body.siro-desktop #desktop-chat.desktop-unread { border-color: var(--action); background: var(--tint); }
++body.siro-desktop #desktop-status {
++  flex: 0 0 100%;
++  text-align: center;
++  font-size: 11px;
++  line-height: 1.45;
++  margin: 0;
++  max-height: 3em;
++  overflow: hidden;
++}
+--- /dev/null
++++ b/tests/contract/test_rate_limit_recovery.py
+@@ -0,0 +1,370 @@
++from __future__ import annotations
++
++import asyncio
++from collections.abc import AsyncIterator
++from datetime import UTC, datetime, timedelta
++from email.utils import format_datetime
++
++import httpx
++import pytest
++
++from siro.adapters.models.failover import FailoverModel
++from siro.adapters.models.openai_compatible import _TOOL_INTENT_EMITTED, OpenAICompatibleAdapter
++from siro.ports.models import (
++    CancellationToken,
++    ModelChunk,
++    ModelMessage,
++    ModelRequest,
++    Privacy,
++    ToolCall,
++)
++
++
++def limited(
++    retry_after: str | None = None,
++    *,
++    host: str = "api.groq.com",
++    daily_remaining: str | None = None,
++) -> httpx.HTTPStatusError:
++    request = httpx.Request("POST", f"https://{host}/openai/v1/chat/completions")
++    headers = {}
++    if retry_after is not None:
++        headers["retry-after"] = retry_after
++    if daily_remaining is not None:
++        headers["x-ratelimit-remaining-requests"] = daily_remaining
++    response = httpx.Response(429, request=request, headers=headers)
++    return httpx.HTTPStatusError("synthetic limited", request=request, response=response)
++
++
++class LimitedModel:
++    name = "selected-provider"
++
++    def __init__(
++        self,
++        error: Exception,
++        *,
++        always_fail: bool = False,
++        before: tuple[ModelChunk, ...] = (),
++    ) -> None:
++        self.error = error
++        self.always_fail = always_fail
++        self.before = before
++        self.requests: list[ModelRequest] = []
++
++    async def stream(
++        self, request: ModelRequest, cancellation: CancellationToken
++    ) -> AsyncIterator[ModelChunk]:
++        self.requests.append(request)
++        if len(self.requests) == 1 or self.always_fail:
++            for chunk in self.before:
++                yield chunk
++            raise self.error
++        yield ModelChunk("text", "confirmed")
++        yield ModelChunk("finished")
++
++
++async def collect(
++    model: FailoverModel, request: ModelRequest, token: CancellationToken | None = None
++) -> list[ModelChunk]:
++    return [chunk async for chunk in model.stream(request, token or CancellationToken())]
++
++
++@pytest.mark.asyncio
++async def test_enabled_rate_limit_wait_retries_same_provider_and_preserves_completed_pair() -> None:
++    primary = LimitedModel(limited("0.015"))
++    alternate = LimitedModel(ValueError("must not dispatch"))
++    notices: list[tuple[ModelRequest, float]] = []
++
++    async def notice(request: ModelRequest, delay: float) -> None:
++        notices.append((request, delay))
++
++    request = ModelRequest(
++        "unchanged goal",
++        "original-generation",
++        Privacy.CLOUD_ALLOWED,
++        max_output_tokens=24,
++        messages=(
++            ModelMessage("user", "unchanged goal"),
++            ModelMessage(
++                "assistant", tool_calls=(ToolCall("completed", "computer.execute", {"x": 1}),)
++            ),
++            ModelMessage("tool", "already executed once", tool_call_id="completed"),
++        ),
++    )
++    model = FailoverModel(
++        (primary, alternate),
++        cloud_indices=frozenset({0}),
++        cloud_request_budget=1,
++        rate_limit_max_wait_seconds=1,
++        on_retry=notice,
++    )
++    started = asyncio.get_running_loop().time()
++    chunks = await collect(model, request)
++    assert asyncio.get_running_loop().time() - started >= 0.015
++    assert chunks[0].text == "confirmed"
++    assert len(primary.requests) == 2 and not alternate.requests
++    assert notices == [(request, 0.015)]
++    assert primary.requests[0] is request
++    retried = primary.requests[1]
++    assert retried.generation_id != request.generation_id
++    assert retried.messages == request.messages and retried.tools == request.tools
++    assert retried.privacy is request.privacy and retried.max_output_tokens == 24
++    assert model.name == "selected-provider"
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("seconds", [7, 0, -7])
++async def test_http_date_uses_injected_clock_and_past_date_does_not_wait(seconds: int) -> None:
++    now = datetime(2026, 10, 16, 12, tzinfo=UTC)
++    primary = LimitedModel(limited(format_datetime(now + timedelta(seconds=seconds), usegmt=True)))
++    token = CancellationToken()
++    delays = []
++
++    async def notice(request: ModelRequest, delay: float) -> None:
++        delays.append(delay)
++        token.cancel()
++
++    model = FailoverModel(
++        (primary,), rate_limit_max_wait_seconds=10, clock=lambda: now, on_retry=notice
++    )
++    assert await collect(model, ModelRequest("goal", "g"), token) == []
++    assert delays == [max(0, seconds)] and len(primary.requests) == 1
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("header", [None, "invalid", "nan", "inf", "-1"])
++async def test_missing_or_invalid_header_uses_finite_configured_backoff(header: str | None) -> None:
++    primary = LimitedModel(limited(header))
++    delays = []
++
++    async def notice(request: ModelRequest, delay: float) -> None:
++        delays.append(delay)
++
++    model = FailoverModel(
++        (primary,), backoff_seconds=0.001, rate_limit_max_wait_seconds=1, on_retry=notice
++    )
++    assert (await collect(model, ModelRequest("goal", "g")))[0].text == "confirmed"
++    assert delays == [0.001] and len(primary.requests) == 2
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("header", ["61", "86400", "99999999999999999999999999999"])
++async def test_server_wait_over_cap_preserves_error_without_retry_or_notification(
++    header: str,
++) -> None:
++    error = limited(header)
++    primary = LimitedModel(error)
++
++    async def notice(request: ModelRequest, delay: float) -> None:
++        raise AssertionError("a refused retry must not be announced")
++
++    model = FailoverModel((primary,), rate_limit_max_wait_seconds=60, on_retry=notice)
++    with pytest.raises(httpx.HTTPStatusError) as caught:
++        await collect(model, ModelRequest("goal", "g"))
++    assert caught.value is error and len(primary.requests) == 1
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("kind", ["text", "tool_request", "finished", "buffered_tool"])
++async def test_enabled_policy_cannot_retry_after_any_emission_or_buffered_tool(kind: str) -> None:
++    error = limited("0")
++    before: tuple[ModelChunk, ...] = ()
++    if kind == "buffered_tool":
++        error.add_note(_TOOL_INTENT_EMITTED)
++    else:
++        before = (ModelChunk(kind, "partial" if kind == "text" else ""),)
++    primary = LimitedModel(error, before=before)
++
++    async def notice(request: ModelRequest, delay: float) -> None:
++        raise AssertionError("emission must fence retry")
++
++    model = FailoverModel((primary,), rate_limit_max_wait_seconds=1, on_retry=notice)
++    with pytest.raises(httpx.HTTPStatusError) as caught:
++        await collect(model, ModelRequest("goal", "g"))
++    assert caught.value is error and len(primary.requests) == 1
++
++
++@pytest.mark.asyncio
++async def test_second_429_is_terminal_and_total_attempts_remain_two() -> None:
++    error = limited("0")
++    primary = LimitedModel(error, always_fail=True)
++    delays = []
++
++    async def notice(request: ModelRequest, delay: float) -> None:
++        delays.append(delay)
++
++    with pytest.raises(httpx.HTTPStatusError) as caught:
++        await collect(
++            FailoverModel((primary,), rate_limit_max_wait_seconds=1, on_retry=notice),
++            ModelRequest("goal", "g"),
++        )
++    assert caught.value is error and len(primary.requests) == 2 and delays == [0]
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("task_cancel", [False, True])
++async def test_token_or_task_cancel_interrupts_wait_and_never_dispatches_again(
++    task_cancel: bool,
++) -> None:
++    primary = LimitedModel(limited("60"))
++    token = CancellationToken()
++    waiting = asyncio.Event()
++
++    async def notice(request: ModelRequest, delay: float) -> None:
++        assert delay == 60
++        waiting.set()
++
++    task = asyncio.create_task(
++        collect(
++            FailoverModel((primary,), rate_limit_max_wait_seconds=60, on_retry=notice),
++            ModelRequest("goal", "g"),
++            token,
++        )
++    )
++    await asyncio.wait_for(waiting.wait(), 1)
++    if task_cancel:
++        task.cancel()
++        with pytest.raises(asyncio.CancelledError):
++            await asyncio.wait_for(task, 0.5)
++    else:
++        token.cancel()
++        assert await asyncio.wait_for(task, 0.5) == []
++    assert len(primary.requests) == 1
++
++
++@pytest.mark.asyncio
++async def test_additional_cloud_request_still_requires_explicit_budget_and_privacy() -> None:
++    primary = LimitedModel(limited("0"))
++    model = FailoverModel((primary,), cloud_indices=frozenset({0}), rate_limit_max_wait_seconds=1)
++    with pytest.raises(httpx.HTTPStatusError):
++        await collect(model, ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED))
++    with pytest.raises(PermissionError):
++        await collect(model, ModelRequest("private", "g2"))
++    assert len(primary.requests) == 1
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("groq", [True, False])
++async def test_groq_daily_request_exhaustion_refuses_retry_without_guessing_other_hosts(
++    groq: bool,
++) -> None:
++    error = limited("0", host="api.groq.com" if groq else "synthetic.invalid", daily_remaining="0")
++    primary = LimitedModel(error)
++    model = FailoverModel((primary,), rate_limit_max_wait_seconds=1)
++    if groq:
++        with pytest.raises(httpx.HTTPStatusError) as caught:
++            await collect(model, ModelRequest("goal", "g"))
++        assert caught.value is error and len(primary.requests) == 1
++    else:
++        assert (await collect(model, ModelRequest("goal", "g")))[0].text == "confirmed"
++        assert len(primary.requests) == 2
++
++
++@pytest.mark.parametrize("maximum", [-1, 61, float("nan"), float("inf")])
++def test_recovery_wait_cap_must_be_finite_and_at_most_sixty_seconds(maximum: float) -> None:
++    with pytest.raises(ValueError):
++        FailoverModel((LimitedModel(limited()),), rate_limit_max_wait_seconds=maximum)
++
++
++@pytest.mark.asyncio
++async def test_default_policy_does_not_enable_server_wait_or_notification() -> None:
++    primary = LimitedModel(limited("86400"))
++
++    async def notice(request: ModelRequest, delay: float) -> None:
++        raise AssertionError("unconfigured recovery remains disabled")
++
++    assert (
++        await collect(
++            FailoverModel((primary,), backoff_seconds=0, on_retry=notice), ModelRequest("goal", "g")
++        )
++    )[0].text == "confirmed"
++    assert len(primary.requests) == 2
++
++
++@pytest.mark.asyncio
++async def test_cancel_during_wait_notification_joins_callback_without_second_request() -> None:
++    primary = LimitedModel(limited("1"))
++    token = CancellationToken()
++    entered, closed = asyncio.Event(), asyncio.Event()
++
++    async def notice(request: ModelRequest, delay: float) -> None:
++        entered.set()
++        try:
++            await asyncio.Event().wait()
++        finally:
++            closed.set()
++
++    task = asyncio.create_task(
++        collect(
++            FailoverModel((primary,), rate_limit_max_wait_seconds=1, on_retry=notice),
++            ModelRequest("goal", "g"),
++            token,
++        )
++    )
++    await asyncio.wait_for(entered.wait(), 1)
++    token.cancel()
++    assert await asyncio.wait_for(task, 0.5) == []
++    assert closed.is_set() and len(primary.requests) == 1
++
++
++@pytest.mark.asyncio
++async def test_actual_http_429_wait_and_same_adapter_payload_retry() -> None:
++    bodies: list[bytes] = []
++    arrivals: list[float] = []
++    handlers: set[asyncio.Task[None]] = set()
++
++    async def serve(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
++        task = asyncio.current_task()
++        assert task is not None
++        handlers.add(task)
++        try:
++            headers = await reader.readuntil(b"\r\n\r\n")
++            length = next(
++                int(line.split(b":", 1)[1])
++                for line in headers.split(b"\r\n")
++                if line.lower().startswith(b"content-length:")
++            )
++            bodies.append(await reader.readexactly(length))
++            arrivals.append(asyncio.get_running_loop().time())
++            if len(bodies) == 1:
++                body = b"{}"
++                response = (
++                    b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 0.015\r\n"
++                    b"Content-Length: 2\r\nConnection: close\r\n\r\n" + body
++                )
++            else:
++                body = (
++                    b'data: {"choices":[{"delta":{"content":"confirmed"},'
++                    b'"finish_reason":"stop"}]}\n\n'
++                )
++                response = (
++                    b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
++                    + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode()
++                    + body
++                )
++            writer.write(response)
++            await writer.drain()
++        finally:
++            writer.close()
++            await writer.wait_closed()
++            handlers.discard(task)
++
++    server = await asyncio.start_server(serve, "127.0.0.1", 0)
++    port = server.sockets[0].getsockname()[1]
++    try:
++        adapter = OpenAICompatibleAdapter(
++            base_url=f"http://127.0.0.1:{port}",
++            api_key="synthetic",  # pragma: allowlist secret
++            model="synthetic",
++        )
++        chunks = await collect(
++            FailoverModel((adapter,), cloud_request_budget=1, rate_limit_max_wait_seconds=1),
++            ModelRequest("synthetic goal", "g", Privacy.CLOUD_ALLOWED),
++        )
++        assert any(chunk.text == "confirmed" for chunk in chunks)
++        assert len(bodies) == 2 and bodies[0] == bodies[1]
++        assert arrivals[1] - arrivals[0] >= 0.015
++    finally:
++        server.close()
++        await server.wait_closed()
++        await asyncio.gather(*tuple(handlers), return_exceptions=True)
+--- /dev/null
++++ b/tests/integration/test_rate_limit_recovery_main.py
+@@ -0,0 +1,193 @@
++from __future__ import annotations
++
++import asyncio
++import os
++import sys
++from collections.abc import AsyncIterator
++from pathlib import Path
++
++import httpx
++import pytest
++import uvicorn
++from fastapi import FastAPI
++
++from siro.persistence.sqlite import SQLiteStore
++from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, ToolCall
++from siro.services.agent.runs import SQLiteAgentRunRepository
++
++
++class RecordingSocket:
++    def __init__(self) -> None:
++        self.events: list[dict[str, object]] = []
++        self.retry, self.terminal, self.barrier = asyncio.Event(), asyncio.Event(), asyncio.Event()
++
++    async def send_json(self, data: object) -> None:
++        assert isinstance(data, dict)
++        self.events.append(data)
++        if data.get("type") == "assistant_retry_wait":
++            self.retry.set()
++        elif data.get("type") == "assistant_terminal":
++            self.terminal.set()
++        elif data.get("type") == "synthetic_barrier":
++            self.barrier.set()
++
++    async def close(self, code: int = 1000, reason: str | None = None) -> None:
++        pass
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize("mode", ["completed", "cancelled", "disabled"])
++async def test_main_tool_once_rate_limit_notice_recovery_cancel_and_writer_fence(
++    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
++) -> None:
++    from siro.adapters.models import openai_compatible
++    from siro.services.presentation import gateway
++
++    for name in tuple(os.environ):
++        if name.startswith("SIRO_") or name == "GROQ_API_KEY":
++            monkeypatch.delenv(name)
++    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
++    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
++    monkeypatch.setenv("SIRO_OPENAI_MODEL", "synthetic-rate-limit")
++    monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic")
++    monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
++    monkeypatch.setenv("SIRO_WORKSPACE_ENABLED", "0")
++    monkeypatch.setenv("SIRO_RATE_LIMIT_RECOVERY_ENABLED", "0" if mode == "disabled" else "1")
++    monkeypatch.setenv("SIRO_RATE_LIMIT_MAX_WAIT_SECONDS", "60")
++    marker = tmp_path / "effects.txt"
++    requests: list[ModelRequest] = []
++
++    class Cloud:
++        name = "synthetic-selected-provider"
++
++        def __init__(self, *, base_url: str, api_key: str, model: str) -> None:
++            pass
++
++        async def stream(
++            self, request: ModelRequest, cancellation: CancellationToken
++        ) -> AsyncIterator[ModelChunk]:
++            requests.append(request)
++            if len(requests) == 1:
++                yield ModelChunk(
++                    "tool_request",
++                    tool_call=ToolCall(
++                        "completed-effect",
++                        "computer.execute",
++                        {
++                            "argv": [
++                                sys.executable,
++                                "-c",
++                                "from pathlib import Path; "
++                                f"p=Path({str(marker)!r}); "
++                                "p.open('a').write('effect\\n'); print('confirmed')",
++                            ]
++                        },
++                    ),
++                )
++            elif len(requests) == 2:
++                raw = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
++                response = httpx.Response(
++                    429,
++                    request=raw,
++                    headers={"retry-after": "60" if mode == "cancelled" else "0.01"},
++                )
++                raise httpx.HTTPStatusError("synthetic limited", request=raw, response=response)
++            else:
++                yield ModelChunk("text", "confirmed once without repeating the tool")
++            yield ModelChunk("finished")
++
++    monkeypatch.setattr(openai_compatible, "OpenAICompatibleAdapter", Cloud)
++    apps: list[FastAPI] = []
++    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: apps.append(app))
++    await asyncio.to_thread(gateway.main)
++    app = apps[0]
++    owner = "rate-limit-owner"
++    socket = RecordingSocket()
++    expected = "failed" if mode == "disabled" else mode
++    async with app.router.lifespan_context(app):
++        hub = app.state.gateway_hub
++        channel = await hub.connect(socket, {"type": "snapshot"})
++        try:
++            async with httpx.AsyncClient(
++                transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8000"
++            ) as client:
++                token = (
++                    await client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"})
++                ).json()["token"]
++                headers = {"authorization": f"Bearer {token}"}
++                turn = asyncio.create_task(
++                    client.post(
++                        f"/v1/conversations/{owner}/turns",
++                        headers=headers,
++                        json={"text": "synthetic goal with exactly one tool effect"},
++                    )
++                )
++                try:
++                    if mode == "cancelled":
++                        await asyncio.wait_for(socket.retry.wait(), 5)
++                        snapshot = (await client.get("/v1/snapshot", headers=headers)).json()
++                        turn_id = snapshot["active_turns"][owner]["turn_id"]
++                        response = await client.post(
++                            f"/v1/turns/{turn_id}/cancel",
++                            headers=headers,
++                            json={"reason": "stop during rate limit wait"},
++                        )
++                        assert response.status_code == 200
++                    assert (await asyncio.wait_for(turn, 5)).status_code == 200
++                    await asyncio.wait_for(socket.terminal.wait(), 1)
++                    readback = (await client.get(f"/v1/agent-runs/{owner}", headers=headers)).json()
++                    assert readback["state"] == expected
++                    assert readback["tool_calls"] == 1 and readback["model_rounds"] == 2
++                    assert readback["backend"] == "synthetic-selected-provider"
++                    tools = [
++                        message for message in readback["messages"] if message["role"] == "tool"
++                    ]
++                    assert len(tools) == 1 and tools[0]["tool_call_id"] == "completed-effect"
++                    notices = [e for e in socket.events if e["type"] == "assistant_retry_wait"]
++                    assert len(notices) == (0 if mode == "disabled" else 1)
++                    if notices:
++                        assert set(notices[0]) == {
++                            "type",
++                            "session_id",
++                            "stream_id",
++                            "retry_after_seconds",
++                        }
++                        assert notices[0]["session_id"] == owner
++                        assert notices[0]["retry_after_seconds"] == (
++                            60 if mode == "cancelled" else 0.01
++                        )
++                    terminal = [e for e in socket.events if e["type"] == "assistant_terminal"]
++                    assert len(terminal) == 1 and terminal[0]["state"] == expected
++                    # Use the actual Gateway writer to prove a queued/late notice cannot revive it.
++                    await hub.broadcast(
++                        {
++                            "type": "assistant_retry_wait",
++                            "session_id": owner,
++                            "stream_id": terminal[0]["stream_id"],
++                            "retry_after_seconds": 1,
++                        },
++                        urgent=True,
++                    )
++                    await hub.broadcast({"type": "synthetic_barrier"}, urgent=True)
++                    await asyncio.wait_for(socket.barrier.wait(), 1)
++                    assert len(
++                        [e for e in socket.events if e["type"] == "assistant_retry_wait"]
++                    ) == len(notices)
++                finally:
++                    if not turn.done():
++                        await client.post(
++                            "/v1/turns/active/cancel", headers=headers, json={"reason": "cleanup"}
++                        )
++                    await asyncio.gather(turn, return_exceptions=True)
++        finally:
++            await hub.disconnect(channel)
++    assert marker.read_text().splitlines() == ["effect"]
++    assert len(requests) == (3 if mode == "completed" else 2)
++    if mode == "completed":
++        assert requests[1].messages == requests[2].messages
++        assert requests[1].generation_id != requests[2].generation_id
++    store = SQLiteStore(tmp_path / "siro.db")
++    await store.initialize()
++    persisted = await SQLiteAgentRunRepository(store).readback(owner)
++    assert persisted is not None and persisted["state"] == expected
++    assert persisted["backend"] == "synthetic-selected-provider"
+--- /dev/null
++++ b/tests/integration/test_frontend_rate_limit_notice.py
+@@ -0,0 +1,56 @@
++from __future__ import annotations
++
++import pytest
++from test_frontend_control import run_control
++
++
++def test_real_frontend_wait_notice_clears_on_delta_without_replaying_actions() -> None:
++    run_control(
++        """
++// The shared minimal DOM omits DOMStringMap; provide this standard element property.
++document.querySelector('#service-notice').dataset = {};
++const owner = await readyControl();
++owner.message({type:'turn_started', turn_id:'turn-one', stream_id:'stream-one'});
++owner.message({type:'assistant_started', session_id:'browser', stream_id:'stream-one'});
++owner.message({type:'assistant_retry_wait', session_id:'browser',
++  stream_id:'stream-one', retry_after_seconds:60});
++const notice = document.querySelector('#service-notice');
++assert.equal(notice.hidden, false);
++assert.match(notice.textContent, /60/);
++assert.match(notice.textContent, /不會重做/);
++assert.equal(targetCalls().length, 0);
++owner.message({type:'assistant_delta', session_id:'browser',
++  stream_id:'stream-one', text:'confirmed answer'});
++assert.equal(notice.hidden, true);
++assert.equal(targetCalls().length, 0);
++"""
++    )
++
++
++@pytest.mark.parametrize("state", ["cancelled", "failed"])
++def test_real_frontend_terminal_clears_wait_notice_and_rejects_late_wait(state: str) -> None:
++    run_control(
++        f"const terminalState = {state!r};\n"
++        + """
++// The shared minimal DOM omits DOMStringMap; provide this standard element property.
++document.querySelector('#service-notice').dataset = {};
++const owner = await readyControl();
++owner.message({type:'turn_started', turn_id:'turn-one', stream_id:'stream-one'});
++owner.message({type:'assistant_started', session_id:'browser', stream_id:'stream-one'});
++owner.message({type:'assistant_retry_wait', session_id:'browser',
++  stream_id:'stream-one', retry_after_seconds:60});
++const notice = document.querySelector('#service-notice');
++assert.equal(notice.hidden, false);
++if (terminalState === 'cancelled') await document.querySelector('#cancel').onclick();
++owner.message({type:'assistant_terminal', session_id:'browser', stream_id:'stream-one',
++  state:terminalState, error:terminalState === 'failed' ? 'HTTPStatusError' : null});
++assert.equal(notice.hidden, true);
++owner.message({type:'assistant_retry_wait', session_id:'browser',
++  stream_id:'stream-one', retry_after_seconds:1});
++assert.equal(notice.hidden, true);
++assert.equal(targetCalls().length, terminalState === 'cancelled' ? 1 : 0);
++if (terminalState === 'cancelled')
++  assert.equal(targetCalls()[0].url, '/v1/turns/turn-one/cancel');
++assert.equal(targetCalls().filter(call => call.url.includes('/conversations/')).length, 0);
++"""
++    )
+--- /dev/null
++++ b/tests/integration/test_desktop_host.py
+@@ -0,0 +1,83 @@
++from __future__ import annotations
++
++import json
++import subprocess
++from pathlib import Path
++
++import pytest
++from fastapi.testclient import TestClient
++from starlette.websockets import WebSocketDisconnect
++
++from siro.adapters.body.web import WebSocketBodyTransport
++from siro.services.presentation.gateway import create_app
++
++ORIGIN = "http://127.0.0.1:8000"
++
++
++def test_native_mask_passes_clear_pixels_and_keeps_odd_edge() -> None:
++    source = Path(__file__).parents[2] / "desktop/input-mask.mjs"
++    script = f"""
++import {{inputMask}} from {json.dumps(source.as_uri())};
++const image=new Uint8Array(7*7*4);
++if(inputMask(image,7,7,28,4).occupied!==0)throw Error('clear blocks');
++image[(6*7+6)*4+3]=255;
++if(inputMask(image,7,7,28,4).occupied!==1)throw Error('odd edge lost');
++image.fill(255);
++if(inputMask(image,7,7,28,4).occupied!==49)throw Error('opaque incomplete');
++for(const args of [[image,0,7,28,4],[image,7,7,1,4],[[],7,7,28,4]]){{
++ let rejected=false;try{{inputMask(...args)}}catch(e){{rejected=true}}
++ if(!rejected)throw Error('invalid geometry accepted');
++}}
++"""
++    subprocess.run(["node", "--input-type=module", "-e", script], check=True, timeout=10)
++
++
++def test_desktop_requires_real_prepared_renderer() -> None:
++    with TestClient(create_app()) as client:
++        assert client.get("/desktop").status_code == 503
++
++
++def test_desktop_priority_then_explicit_web_handoff(tmp_path: Path) -> None:
++    (tmp_path / "index.html").write_text("synthetic renderer")
++    body = WebSocketBodyTransport()
++    emotion = {"v": 1, "type": "body.emotion", "name": "sad", "intensity": 0.4}
++    body.remember_emotion(emotion)
++    with TestClient(create_app(live2d_dist=tmp_path, body_transport=body)) as client:
++        token = client.post("/v1/session", headers={"origin": ORIGIN}).json()["token"]
++        headers = {"authorization": f"Bearer {token}"}
++        desktop = client.get("/desktop")
++        assert 'class="siro-desktop"' in desktop.text
++        assert "/live2d/?presentation=desktop" in desktop.text
++        assert client.get("/static/desktop.js").status_code == 200
++        assert client.get("/static/desktop.css").headers["content-type"].startswith("text/css")
++        with client.websocket_connect("/ws/body", headers={"origin": ORIGIN}) as pet:
++            pet.send_json({"type": "authenticate", "token": token, "presentation": "desktop"})
++            assert pet.receive_json() == emotion
++            page = client.get("/").text
++            assert 'src="about:blank"' in page
++            assert 'class="siro-control"' in page
++            assert (
++                client.get("/v1/runtime", headers=headers).json()["presentation"]["owner"]
++                == "desktop"
++            )
++            with client.websocket_connect("/ws/body", headers={"origin": ORIGIN}) as web:
++                web.send_json({"type": "authenticate", "token": token})
++                with pytest.raises(WebSocketDisconnect) as rejected:
++                    web.receive_json()
++                assert rejected.value.reason == "desktop owner active"
++            assert body.connected
++        # New explicit web attachment after native exit receives only latest emotion, no speech.
++        with client.websocket_connect("/ws/body", headers={"origin": ORIGIN}) as web:
++            web.send_json({"type": "authenticate", "token": token})
++            assert web.receive_json() == emotion
++        assert 'src="about:blank"' in client.get("/?view=control").text
++
++
++def test_body_rejects_malformed_presentation_without_detaching_owner() -> None:
++    with TestClient(create_app()) as client:
++        token = client.post("/v1/session", headers={"origin": ORIGIN}).json()["token"]
++        with client.websocket_connect("/ws/body", headers={"origin": ORIGIN}) as socket:
++            socket.send_json({"type": "authenticate", "token": token, "presentation": {}})
++            with pytest.raises(WebSocketDisconnect) as rejected:
++                socket.receive_json()
++            assert rejected.value.code == 1008
+--- /dev/null
++++ b/tests/integration/test_desktop_web.py
+@@ -0,0 +1,284 @@
++from __future__ import annotations
++
++import ast
++import importlib.util
++import json
++import re
++import subprocess
++from pathlib import Path
++from types import ModuleType
++
++import pytest
++
++STATIC = Path("src/siro/services/presentation/static")
++
++
++def run_node(source: str) -> None:
++    result = subprocess.run(["node", "-e", source], capture_output=True, text=True, timeout=10)
++    assert result.returncode == 0, result.stderr
++
++
++def run_desktop(checks: str) -> None:
++    setup = r"""
++const assert = require('node:assert/strict');
++const nativeMessages=[], opened=[], observers=[], listeners=new Map();
++class Element {
++  constructor(tag) {
++    this.tagName=tag; this.children=[]; this.textContent=''; this.className='';
++    this.attrs={}; this.events=new Map();
++    this.classList={
++      contains: name => this.className.split(/\s+/).includes(name),
++      add: name => {if(!this.classList.contains(name)) this.className+=' '+name;},
++      remove: name => {this.className=this.className.split(/\s+/).filter(x=>x!==name).join(' ');},
++      toggle: (name,on) => {if(on) this.classList.add(name);else this.classList.remove(name);}
++    };
++  }
++  setAttribute(key,value) {this.attrs[key]=value;}
++  appendChild(node) {this.children.push(node);return node;}
++  addEventListener(name,fn) {this.events.set(name,fn);}
++  click() {this.events.get('click')?.({});this.onclick?.();}
++  focus() {document.activeElement=this;}
++}
++const document={readyState:'complete',body:new Element('body'),documentElement:new Element('html'),
++  createElement: tag=>new Element(tag)};
++document.body.className='siro-desktop';
++const existing=new Map();
++for(const id of ['companion','messages','text','voice','cancel','connection',
++                'voice-status','tts-status']) {
++  const node=new Element('div');node.id=id;existing.set('#'+id,node);
++}
++const conversation=new Element('section');conversation.className='conversation';
++existing.set('.conversation',conversation);
++existing.get('#companion').contentWindow={renderer:true};
++const find=(node,id)=>node.id===id?node:node.children.map(child=>find(child,id)).find(Boolean);
++document.querySelector=selector=>existing.get(selector)||find(document.body,selector.slice(1))||null;
++const window={
++  webkit:{messageHandlers:{siroDesktop:{postMessage: text=>nativeMessages.push(JSON.parse(text))}}},
++  addEventListener(name,fn) {
++    if(!listeners.has(name))listeners.set(name,[]);listeners.get(name).push(fn);
++  },
++  open(url,name) {opened.push({url,name});}
++};
++const location={origin:'http://localhost'};
++class MutationObserver {
++  constructor(fn) {this.fn=fn;this.owned=[];observers.push(this);}
++  observe(node,options) {this.owned.push(node);}
++  disconnect() {this.disconnected=true;}
++}
++const dispatch=(name,event)=>{for(const fn of listeners.get(name)||[])fn(event);};
++let stopped=0,voiced=0;
++existing.get('#cancel').onclick=()=>stopped++;
++existing.get('#voice').onclick=()=>voiced++;
++existing.get('#connection').textContent='已連線';
++existing.get('#voice-status').textContent='麥克風待命';
++existing.get('#tts-status').textContent='TTS 待命';
++"""
++    run_node(setup + STATIC.joinpath("desktop.js").read_text() + "\n" + checks)
++
++
++def test_desktop_chat_uses_original_nodes_and_native_focus_notification() -> None:
++    run_desktop(
++        """
++assert(window.siroDesktopView);
++assert.equal(conversation.inert,true);
++const input=existing.get('#text'),frame=existing.get('#companion');
++assert.equal(window.siroDesktopView.openChat(),true);
++assert.equal(document.activeElement,input);
++assert.equal(conversation.inert,false);
++assert.deepEqual(nativeMessages.at(-1),{type:'desktop.chat',open:true});
++assert.equal(window.siroDesktopView.toggleChat(),false);
++assert.equal(conversation.inert,true);
++assert.equal(existing.get('#companion'),frame);
++assert.equal(existing.get('#text'),input);
++assert.equal(document.querySelector('#desktop-chat').attrs['aria-expanded'],'false');
++"""
++    )
++
++
++def test_native_controls_and_escape_keep_real_stop_and_voice_paths_reachable() -> None:
++    run_desktop(
++        """
++document.querySelector('#desktop-stop').click();
++document.querySelector('#desktop-voice').click();
++assert.equal(stopped,1);assert.equal(voiced,1);
++assert.equal(conversation.inert,false);
++let prevented=0;
++document.querySelector('#desktop-move').events.get('pointerdown')({
++  button:0,screenX:123,screenY:234,preventDefault(){prevented++;}
++});
++assert.equal(prevented,1);
++assert.deepEqual(nativeMessages.at(-1),{type:'desktop.move',button:1,screenX:123,screenY:234});
++for(const name of ['console','hide','quit']) document.querySelector('#desktop-'+name).click();
++assert.deepEqual(nativeMessages.slice(-3),[
++  {type:'desktop.console'},{type:'desktop.hide'},{type:'desktop.quit'}
++]);
++dispatch('keydown',{key:'Escape'});
++assert.equal(stopped,2);assert.equal(conversation.inert,true);
++assert.equal(opened.length,0);
++"""
++    )
++
++
++def test_desktop_unread_status_and_renderer_events_are_origin_and_source_scoped() -> None:
++    run_desktop(
++        """
++observers.find(item=>item.owned.includes(existing.get('#messages'))).fn();
++assert(document.querySelector('#desktop-chat').classList.contains('desktop-unread'));
++window.siroDesktopView.openChat();
++assert(!document.querySelector('#desktop-chat').classList.contains('desktop-unread'));
++const detached={type:'siro.renderer.detached'};
++dispatch('message',{origin:'http://foreign',source:existing.get('#companion').contentWindow,data:detached});
++dispatch('message',{origin:location.origin,source:{},data:detached});
++assert(document.querySelector('#desktop-status').textContent.includes('已連線'));
++dispatch('message',{origin:location.origin,source:existing.get('#companion').contentWindow,data:detached});
++assert(document.querySelector('#desktop-status').textContent.includes('已交接'));
++dispatch('pagehide',{});
++assert(observers.every(item=>item.disconnected));
++"""
++    )
++
++
++def test_browser_preview_does_not_gain_native_commands() -> None:
++    run_desktop(
++        """
++delete window.webkit;
++document.querySelector('#desktop-console').click();
++document.querySelector('#desktop-quit').click();
++assert.deepEqual(opened,[{url:'/?view=control#/chat',name:'siro-control'}]);
++assert.equal(nativeMessages.length,0);
++"""
++    )
++
++
++def load_repair() -> ModuleType:
++    spec = importlib.util.spec_from_file_location(
++        "desktop_repair", "scripts/repair_companion_renderer.py"
++    )
++    assert spec and spec.loader
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++def synthetic_sdk(tmp_path: Path) -> Path:
++    """Use the real preparation bridge, without licensed SDK assets or build tools."""
++    tree = ast.parse(Path("scripts/prepare_live2d_renderer.py").read_text())
++    bridge = next(
++        ast.literal_eval(node.value)
++        for node in ast.walk(tree)
++        if isinstance(node, ast.Assign)
++        and any(isinstance(target, ast.Name) and target.id == "bridge" for target in node.targets)
++    )
++    sources = {
++        "main.ts": bridge + "\nwindow.onload = () => {};\n",
++        "lappmodel.ts": "  public setExpression(expressionId: string): void {}\n"
++        "this._wavFileHandler.start(path);",
++        "lapplive2dmanager.ts": "  public setSiroExpression(expressionId: string): void {}\n"
++        "model.setRandomExpression();",
++        "lappdefine.ts": "export const ModelDir: string[] = ['Haru', 'Other'];",
++        "lappview.ts": "this._gear.render(this._programId);\n"
++        "this._back.render(this._programId);\nlapplive2dmanager.nextScene();",
++        "lappsubdelegate.ts": "gl.clearColor(0.0, 0.0, 0.0, 1.0);",
++    }
++    tmp_path.joinpath("src").mkdir()
++    for name, content in sources.items():
++        tmp_path.joinpath("src", name).write_text(content)
++    tmp_path.joinpath("index.html").write_text(
++        "<html><head><style></style></head><body></body></html>"
++    )
++    return tmp_path
++
++
++def repaired_bridge(tmp_path: Path) -> str:
++    demo = synthetic_sdk(tmp_path)
++    assert load_repair().repair(demo)
++    source = demo.joinpath("src/main.ts").read_text()
++    bridge = source.split("// SIRO renderer ownership v3", 1)[1].split(
++        "// End SIRO renderer ownership v3", 1
++    )[0]
++    bridge = re.sub(r": (?:number|WebSocket) \| undefined", "", bridge)
++    return re.sub(r": (?:void|Promise<void>)", "", bridge)
++
++
++def run_bridge(tmp_path: Path, checks: str, presentation: str = "desktop") -> None:
++    bridge = repaired_bridge(tmp_path)
++    setup = r"""
++const assert=require('node:assert/strict');
++const sockets=[],timers=new Map(),messages=[],listeners=new Map();
++let sequence=0,stopCount=0,fetches=0,rendered=0;
++const window={setTimeout(fn){const id=++sequence;timers.set(id,fn);return id;},
++  clearTimeout(id){timers.delete(id);},parent:{postMessage(message,origin){messages.push({message,origin});}},
++  addEventListener(name,fn){listeners.set(name,fn);}};
++const location={origin:'http://localhost',host:'localhost',protocol:'http:',search:SEARCH};
++const fetch=async(url,options)=>{assert.equal(url,'/v1/session');fetches++;return {
++  ok:true,json:async()=>({token:'synthetic-'+fetches})};};
++const stopSpeaking=()=>stopCount++;
++const renderSiro=()=>rendered++;
++class WebSocket {
++  constructor(url){this.url=url;this.listeners=new Map();this.sent=[];sockets.push(this);}
++  addEventListener(name,fn){this.listeners.set(name,fn);}
++  send(message){this.sent.push(JSON.parse(message));}
++  close(){this.closed=true;}
++  emit(name,event={}){this.listeners.get(name)?.(event);}
++}
++const flush=async()=>{for(let i=0;i<10;i++)await Promise.resolve();};
++""".replace("SEARCH", json.dumps("?presentation=" + presentation))
++    run_node(
++        setup
++        + bridge
++        + "\n(async()=>{\n"
++        + checks
++        + "\n})().catch(error=>{console.error(error);process.exitCode=1;});"
++    )
++
++
++@pytest.mark.parametrize("reason", ["renderer replaced", "desktop owner active"])
++def test_renderer_handoff_notifies_parent_and_never_reclaims_owner(
++    tmp_path: Path, reason: str
++) -> None:
++    run_bridge(
++        tmp_path,
++        """
++await connectSiro();const socket=sockets[0];socket.emit('open');
++assert.deepEqual(socket.sent,[{type:'authenticate',token:'synthetic-1',presentation:'desktop'}]);
++socket.emit('close',{reason:REASON});
++assert.equal(stopCount,1);assert.equal(timers.size,0);
++assert.deepEqual(messages,[{message:{type:'siro.renderer.detached'},origin:location.origin}]);
++await connectSiro();assert.equal(sockets.length,1);assert.equal(fetches,1);
++socket.emit('message',{data:'{}'});assert.equal(rendered,0);
++""".replace("REASON", json.dumps(reason)),
++    )
++
++
++def test_renderer_network_close_reauthenticates_and_pagehide_cancels_retry(tmp_path: Path) -> None:
++    run_bridge(
++        tmp_path,
++        """
++await connectSiro();sockets[0].emit('open');
++assert.deepEqual(sockets[0].sent,[{type:'authenticate',token:'synthetic-1'}]);
++sockets[0].emit('close',{reason:''});assert.equal(timers.size,1);
++const retry=[...timers.values()][0];timers.clear();retry();await flush();
++assert.equal(sockets.length,2);sockets[1].emit('open');
++assert.equal(sockets[1].sent[0].token,'synthetic-2');
++sockets[1].emit('close',{reason:''});assert.equal(timers.size,1);
++listeners.get('pagehide')();assert.equal(timers.size,0);
++await connectSiro();assert.equal(sockets.length,2);
++""",
++        presentation="web",
++    )
++
++
++def test_renderer_repair_is_idempotent_and_desktop_transparency_is_opt_in(tmp_path: Path) -> None:
++    demo = synthetic_sdk(tmp_path)
++    module = load_repair()
++    assert module.repair(demo)
++    snapshot = {path: path.read_bytes() for path in demo.rglob("*") if path.is_file()}
++    assert not module.repair(demo)
++    assert all(path.read_bytes() == content for path, content in snapshot.items())
++    markup = demo.joinpath("index.html").read_text()
++    assert 'html[data-siro-presentation="desktop"]' in markup
++    assert "radial-gradient" in markup  # The ordinary web renderer retains its scene.
++    main = demo.joinpath("src/main.ts").read_text()
++    assert "// SIRO persistent presentation v2" in main
++    assert "Audible speech has one owner in the parent page" in main
++    assert main.count("async function connectSiro()") == 1
+--- a/tests/integration/test_speech_plan.py
++++ b/tests/integration/test_speech_plan.py
+@@ -1,9 +1,12 @@
+ from __future__ import annotations
++
++import runpy
++from pathlib import Path
+ 
+ import httpx
+ import pytest
+ 
+-from siro.services.audio.tts import prepare_spoken_text
++from siro.services.audio.tts import plan_speech, prepare_spoken_text
+ from siro.services.presentation.gateway import SessionTokens, create_app
+ 
+ ORIGIN = "http://127.0.0.1:8000"
+@@ -34,9 +37,40 @@
+     assert plan["segments"][-1].endswith("最後一句也必須保留。")
+     assert all(0 < len(segment) <= 80 for segment in plan["segments"])
+     assert len(plan["segments"]) <= 128
+-    assert plan["version"] == "sentence-v1-80"
++    assert plan["version"] == "sentence-v2-first24-rest80"
++    assert 0 < len(plan["segments"][0]) <= 24
+     assert plan["max_chars"] == 80 and plan["max_total_chars"] == 8000
+     assert plan["deadline_seconds"] == 1200
++
++
++@pytest.mark.parametrize(
++    ("text", "first"),
++    [
++        ("短句。", "短句。"),
++        ("先把第一句說完整。" + "後面的內容依照既有上限完整保留。" * 8, "先把第一句說完整。"),
++        (
++            "這是一個比較長的合成驗收句子,後面還有內容需要讀完。" * 8,
++            "這是一個比較長的合成驗收句子,",
++        ),
++        ("甲" * 30 + "。" + "乙" * 100, "甲" * 24),
++        ("synthetic first sentence continues with later words. " * 8, "synthetic first"),
++    ],
++)
++def test_first_segment_is_bounded_and_does_not_absorb_following_text(text: str, first: str) -> None:
++    plan = plan_speech(text)
++    segments = plan["segments"]
++    assert isinstance(segments, list)
++    assert segments[0] == first
++    assert "".join(segments) == plan["spoken_text"]
++    assert 0 < len(segments[0]) <= 24
++    assert all(0 < len(segment) <= 80 and segment.strip() for segment in segments)
++    if len(str(plan["spoken_text"])) > 80:
++        assert any(len(segment) > 24 for segment in segments[1:])
++
++
++def test_plan_and_owned_worker_bind_the_same_segment_cache_version() -> None:
++    worker = runpy.run_path(str(Path(__file__).parents[2] / "scripts/qwen_tts_worker.py"))
++    assert plan_speech("合成測試。字串保持完整。")["version"] == worker["SEGMENT_VERSION"]
+ 
+ 
+ @pytest.mark.asyncio

@@ -230,3 +230,12 @@ GREEN：既有契約內的桌寵外觀、隔離技能包、合成 fixtures、候
 ## 本輪產出與未執行事項
 
 產出為本規劃、搜尋及對話／語音修復定義、匿名檢視與文件交接。程式證據為靜態 call-path 檢視；OpenClaw／Electron／Live2D／Qwen 為官方文件研究，不代表 SIRO 已整合或通過新能力。依使用者追加授權唯讀檢查近期對話、服務狀態碼與音檔 headers，未匯出原文／音檔、重播或生成測試音訊。本輪沒有改程式、安裝外殼、生成角色／動作、啟用主動性、更新模型、執行候選、寫私人 DB、重啟服務或執行上述功能驗收。
+
+## 2026-10-16 implementation checkpoint
+
+已實作獨立GJS/GTK3/WebKitGTK4.1 native host、/desktop透明模式、角色點擊聊天／明示拖曳／控制台／最小化／退出、single GtkApplication與desktop body優先權。真本機XWayland相容路徑ready、RGBA alpha、像素input region與sandbox已量測；非原生Wayland或全桌面驗收。framework輸入區域資料不冒充owner實際滑鼠穿透／多螢幕／全螢幕人工驗收。
+
+仍未完成：Haru腿部rig／walk/play/rest套件與自由活動gate，沒有用站姿滑動造假；原創全身／可編輯來源流程保留。首段語音CPUtests完成但kernel更新後NVIDIA module缺件使GPU速度驗收被阻；限流僅有界可取消重試，不增加免費quota。詳 DESKTOP-VOICE-RECOVERY-2026-10-16證據。整體桌寵卡仍PARTIAL，不能因nativewindow存在宣告完整活動系統DONE。
+## 2026-10-17 GPU follow-up
+
+使用者完成driver repair後，CUDA blocker已解除；原v1聲線真RTX3050 first24暖未快取7.781／10.109s（舊首段21.648／21.694s）。當前隔離前端三段真實播完及真停止→prefetch worker回收0.517s已驗，正式8000／單native host已恢復。惟cold首播18.789s、段間23.977／14.926s，語音速度體驗仍FAIL，FIX005及整體產品保持PARTIAL；人工聽驗仍待owner回饋，自由活動素材門檻不變。此段更新前次GPU_DRIVER_BLOCKED checkpoint，不將歷史未驗項補記PASS。詳 [真機複驗](../evidence/FIX-005-first-segment-2026-10-17/REPORT.md)。

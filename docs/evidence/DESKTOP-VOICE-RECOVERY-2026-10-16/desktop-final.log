@@ -1,0 +1,73 @@
+..F.............................................................         [100%]
+=================================== FAILURES ===================================
+_______________ test_desktop_priority_then_explicit_web_handoff ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-jasonliao/pytest-14/test_desktop_priority_then_exp0')
+
+    def test_desktop_priority_then_explicit_web_handoff(tmp_path: Path) -> None:
+        (tmp_path / "index.html").write_text("synthetic renderer")
+        body = WebSocketBodyTransport()
+        emotion = {"v": 1, "type": "body.emotion", "name": "sad", "intensity": 0.4}
+        body.remember_emotion(emotion)
+        with TestClient(create_app(live2d_dist=tmp_path, body_transport=body)) as client:
+            token = client.post("/v1/session", headers={"origin": ORIGIN}).json()["token"]
+            headers = {"authorization": f"Bearer {token}"}
+            desktop = client.get("/desktop")
+            assert 'class="siro-desktop"' in desktop.text
+            assert "/live2d/?presentation=desktop" in desktop.text
+            assert client.get("/static/desktop.js").status_code == 200
+            assert client.get("/static/desktop.css").headers["content-type"].startswith("text/css")
+            with client.websocket_connect("/ws/body", headers={"origin": ORIGIN}) as pet:
+                pet.send_json({"type": "authenticate", "token": token, "presentation": "desktop"})
+                assert pet.receive_json() == emotion
+                page = client.get("/").text
+                assert 'src="about:blank"' in page
+                assert 'class="siro-control"' in page
+                assert (
+                    client.get("/v1/runtime", headers=headers).json()["presentation"]["owner"]
+                    == "desktop"
+                )
+                with client.websocket_connect("/ws/body", headers={"origin": ORIGIN}) as web:
+                    web.send_json({"type": "authenticate", "token": token})
+                    with pytest.raises(WebSocketDisconnect) as rejected:
+                        web.receive_json()
+                    assert rejected.value.reason == "desktop owner active"
+                assert body.connected
+            # New explicit web attachment after native exit receives only latest emotion, no speech.
+            with client.websocket_connect("/ws/body", headers={"origin": ORIGIN}) as web:
+                web.send_json({"type": "authenticate", "token": token})
+>               assert web.receive_json() == emotion
+                       ^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_desktop_host.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.14/site-packages/starlette/testclient.py:197: in receive_json
+    self._raise_on_close(message)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.testclient.WebSocketTestSession object at 0x750e9ea9fb10>
+message = {'type': 'websocket.close', 'code': 1000, 'reason': 'desktop owner active'}
+
+    def _raise_on_close(self, message: Message) -> None:
+        if message["type"] == "websocket.close":
+>           raise WebSocketDisconnect(code=message.get("code", 1000), reason=message.get("reason", ""))
+E           starlette.websockets.WebSocketDisconnect
+
+.venv/lib/python3.14/site-packages/starlette/testclient.py:150: WebSocketDisconnect
+=============================== warnings summary ===============================
+.venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/jasonliao/文件/Siro/SiroV2/.venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_desktop_host.py::test_desktop_priority_then_explicit_web_handoff
+1 failed, 63 passed, 3 warnings in 6.65s

@@ -81,13 +81,25 @@ def plan_speech(text: str) -> dict[str, object]:
         raise ValueError("沒有可朗讀的內容。")
     if len(spoken) > 8000:
         raise OverflowError("全文超過一次朗讀的8,000字上限;文字已保留,請選較短段落。")
-    segments: list[str] = []
-    cursor = 0
+    first_end = min(24, len(spoken))
+    if len(spoken) > first_end:
+        prefix = spoken[:first_end]
+        sentences = list(re.finditer(r"[.!?。！？]", prefix))  # noqa: RUF001
+        pauses = list(re.finditer(r"[,，;；:：、]", prefix))  # noqa: RUF001
+        pauses = [match for match in pauses if match.end() >= 8]
+        if sentences:
+            first_end = sentences[-1].end()
+        elif pauses:
+            first_end = pauses[-1].end()
+        elif " " in prefix:
+            first_end = prefix.rfind(" ")
+    segments = [spoken[:first_end]]
+    cursor = first_end
     # Reserve one character for the normalized separator at a segment boundary.
-    for piece in speech_segments(spoken, max_chars=79):
+    for piece in speech_segments(spoken[first_end:], max_chars=79):
         start = spoken.index(piece, cursor)
         separator = spoken[cursor:start]
-        if segments and len(segments[-1]) + len(separator) + len(piece) <= 80:
+        if len(segments) > 1 and len(segments[-1]) + len(separator) + len(piece) <= 80:
             segments[-1] += separator + piece
         else:
             segments.append(separator + piece)
@@ -97,7 +109,7 @@ def plan_speech(text: str) -> dict[str, object]:
     return {
         "segments": segments,
         "spoken_text": spoken,
-        "version": "sentence-v1-80",
+        "version": "sentence-v2-first24-rest80",
         "max_chars": 80,
         "max_segments": 128,
         "max_total_chars": 8000,

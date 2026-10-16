@@ -16,7 +16,7 @@ from typing import Any
 
 COMPLETION_PROTOCOL = 2
 MAX_NEW_TOKENS = 512
-SEGMENT_VERSION = "sentence-v1-80"
+SEGMENT_VERSION = "sentence-v2-first24-rest80"
 CACHE_VERSION = "completion-v2"
 MAX_CACHE_BYTES = 16 * 1024 * 1024
 

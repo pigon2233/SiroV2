@@ -1,0 +1,57 @@
+{
+  "functional_verdict": "PASS",
+  "voice_experience_verdict": "PARTIAL",
+  "first_play_wait_seconds": 18.78939501953125,
+  "segment_gaps_seconds": [
+    23.977,
+    14.926
+  ],
+  "render_seconds": [
+    18.717988,
+    28.730754,
+    31.509917
+  ],
+  "cancel_to_owned_cleanup_seconds": 0.51735107421875,
+  "post_cancel_no_new_audio_observation_seconds": 87.527,
+  "checks": {
+    "ordered_native_playing_ended": "PASS",
+    "complete_only_after_last_ended": "PASS",
+    "canonical_segment_texts": "PASS",
+    "max_one_segment_prefetch": "PASS",
+    "all_story_uncached": "PASS",
+    "normal_eos_no_cap": "PASS",
+    "cancel_inflight_prefetch_and_playback_ui": "PASS",
+    "no_post_cancel_new_audio": "PASS",
+    "owned_worker_reaped": "PASS",
+    "source_unchanged": "PASS",
+    "cancel_before_any_audio": "NOT_VERIFIED",
+    "human_listening": "NOT_VERIFIED",
+    "GTK_WebKit_audio": "NOT_VERIFIED",
+    "near_realtime_voice": "FAIL"
+  },
+  "main_ui_script_sha256": "8becc72c81b8e787773b2b10f04a8e7325b93326254197e610b54fcedc13b10e",
+  "source_hashes_start": {
+    "scripts/qwen_tts_worker.py": "0cc99a5b60774380db35f26d82eba5ba11608dfd94e6725a3a174d9668ce5d8f",
+    "src/siro/services/audio/tts.py": "2faa0f8a134cfb2d882291f5b55a673182144a9accb650f4d93ca5827e3a32cc",
+    "src/siro/services/presentation/gateway.py": "455d67a6bc1e7e252ea70f2ea1d0c015259fe12279564125343508b41769240c",
+    "src/siro/services/presentation/static/index.html": "3115d63577dccf521c23d86ec4ab71c4cced90f9837a582f62158e16cb1c3f8a"
+  },
+  "source_hashes_end": {
+    "scripts/qwen_tts_worker.py": "0cc99a5b60774380db35f26d82eba5ba11608dfd94e6725a3a174d9668ce5d8f",
+    "src/siro/services/audio/tts.py": "2faa0f8a134cfb2d882291f5b55a673182144a9accb650f4d93ca5827e3a32cc",
+    "src/siro/services/presentation/gateway.py": "455d67a6bc1e7e252ea70f2ea1d0c015259fe12279564125343508b41769240c",
+    "src/siro/services/presentation/static/index.html": "3115d63577dccf521c23d86ec4ab71c4cced90f9837a582f62158e16cb1c3f8a"
+  },
+  "cleanup": {
+    "error_types": [],
+    "owned_worker_reaped": true,
+    "remaining_qwen_pids": [],
+    "pending": 0,
+    "active_cleared": true,
+    "server_stopped": true,
+    "listener_closed": true,
+    "temporary_cache_removed": true,
+    "control_clients": 0
+  },
+  "log_note": "Uvicorn logged gateway.py:811 CancelledError: speech client disconnected for the intentionally aborted speech HTTP request; cleanup checks passed. This is log noise, not proof of a new regression."
+}

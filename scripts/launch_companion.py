@@ -81,6 +81,7 @@ def main() -> None:
         "SIRO_WORKSPACE_ENABLED",
         "SIRO_MEMORY_ORGANIZATION_ENABLED",
         "SIRO_CONTEXT_SUMMARY_ENABLED",
+        "SIRO_RATE_LIMIT_RECOVERY_ENABLED",
     ):
         os.environ.setdefault(key, "1")
     binary = root / "target/debug/siro-runtime"

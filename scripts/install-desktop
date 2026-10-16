@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Per-user menu entry only; does not auto-start or alter the login session.
+set -euo pipefail
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$project_root"
+.venv/bin/python - <<'PY'
+import os
+from pathlib import Path
+root=Path.cwd()
+destination=Path(os.environ.get('XDG_DATA_HOME',str(Path.home()/'.local/share')))/'applications/org.siro.Companion.desktop'
+destination.parent.mkdir(parents=True,exist_ok=True)
+command=str(root/'scripts/start-companion').replace('\\','\\\\').replace('"','\\"').replace('%','%%')
+destination.write_text(f'''[Desktop Entry]
+Type=Application
+Name=SIRO 桌寵
+Comment=獨立角色、對話與 SIRO 控制台
+Exec="{command}"
+Path={root}
+Icon={root}/desktop/siro.svg
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+StartupWMClass=org.siro.Companion
+''')
+print(f'已建立應用程式選單入口：{destination}')
+PY

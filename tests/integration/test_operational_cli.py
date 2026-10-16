@@ -91,10 +91,12 @@ def test_t34_installer_units_and_log_retention(tmp_path: Path) -> None:
     project = tmp_path / "project"
     binaries = project / ".venv/bin"
     binaries.mkdir(parents=True)
-    for name in ("siro", "siro-gateway"):
+    for name in ("siro", "python"):
         executable = binaries / name
         executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         executable.chmod(0o755)
+    (project / "scripts").mkdir()
+    (project / "scripts/launch_companion.py").write_text("# synthetic launcher fixture\n")
     units = tmp_path / "units"
     logs = tmp_path / "logs"
     result = install_user_service(
@@ -106,6 +108,10 @@ def test_t34_installer_units_and_log_retention(tmp_path: Path) -> None:
         port=8765,
     )
     assert result.unit.stat().st_mode & 0o777 == 0o600
+    assert (
+        f'ExecStart="{binaries / "python"}" "{project / "scripts/launch_companion.py"}"'
+        in result.unit.read_text()
+    )
     assert "NoNewPrivileges=true" in result.unit.read_text()
     assert "SIRO_GATEWAY_PORT=8765" in result.unit.read_text()
     subprocess.run(["systemd-analyze", "verify", str(result.unit)], check=True)
@@ -136,7 +142,7 @@ def test_t34_start_stop_health_and_pid_cleanup(tmp_path: Path) -> None:
     environment["SIRO_GATEWAY_PORT"] = str(port)
     environment["SIRO_LOG_DIR"] = str(tmp_path / "logs")
     process = subprocess.Popen(
-        [str(root / "scripts/start"), str(pid_file)],
+        [str(root / "scripts/start"), str(pid_file), "--demo"],
         cwd=root,
         env=environment,
         stdout=subprocess.DEVNULL,
@@ -162,3 +168,28 @@ def test_t34_start_stop_health_and_pid_cleanup(tmp_path: Path) -> None:
         if process.poll() is None:
             process.terminate()
             process.wait(timeout=10)
+
+
+def test_default_start_refuses_missing_model_instead_of_starting_demo(tmp_path: Path) -> None:
+    root = Path(__file__).parents[2]
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("SIRO_") and key != "GROQ_API_KEY"
+    }
+    # Explicit empty shell values prevent loading credentials from the developer's .env.local.
+    environment.update(SIRO_OPENAI_MODEL="", SIRO_OPENAI_API_KEY="", SIRO_OLLAMA_MODEL="")
+    environment["SIRO_DATA_DIR"] = str(tmp_path / "data")
+    pid_file = tmp_path / "refused.pid"
+    result = subprocess.run(
+        [str(root / "scripts/start"), str(pid_file)],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode != 0
+    assert "尚未設定對話模型" in result.stderr
+    assert not pid_file.exists()
+    assert not (tmp_path / "data/siro.db").exists()

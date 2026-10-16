@@ -177,6 +177,7 @@ class GatewayState:
 
 _RUN_PROGRESS_EVENTS = frozenset(
     {
+        "assistant_retry_wait",
         "assistant_started",
         "assistant_delta",
         "affect_state",
@@ -651,20 +652,63 @@ def create_app(
         if not session_tokens.valid(authorization.removeprefix(prefix)):
             raise HTTPException(status_code=401, detail="session token is invalid or expired")
 
-    @app.get("/", response_class=HTMLResponse)
-    async def index() -> HTMLResponse:
+    desktop_renderer: WebSocket | None = None
+
+    def render_index(*, desktop: bool = False, controls: bool = False) -> HTMLResponse:
         path = Path(__file__).with_name("static") / "index.html"
         html = path.read_text(encoding="utf-8")
         if live2d_dist is not None:
-            renderer_path = "/live2d/"
+            renderer_path = "/live2d/?presentation=desktop" if desktop else "/live2d/"
             renderer_status = "Live2D 載入中…"
         else:
             renderer_path = "/body"
             renderer_status = "目前是替身 renderer。尚未載入 Cubism 模型。"
-        return HTMLResponse(
-            html.replace("__SIRO_RENDERER_PATH__", renderer_path).replace(
-                "__SIRO_RENDERER_STATUS__", renderer_status
+        setup_notices = []
+        if gateway_state.routes.get("model") == "offline":
+            setup_notices.append("目前是離線示範。未連接正式對話模型。回覆來自固定示範規則。")
+        if live2d_dist is None:
+            setup_notices.append("角色目前顯示替身。尚未載入 Live2D。")
+        if setup_notices:
+            setup_notices.append("請使用 scripts/start-runtime-product 啟動正式產品入口。")
+        if controls or (desktop_renderer is not None and not desktop):
+            renderer_path = "about:blank"
+            renderer_status = "角色目前在獨立桌寵視窗"
+            html = html.replace("<body>", '<body class="siro-control">')
+        if desktop:
+            html = html.replace("<body>", '<body class="siro-desktop">')
+            html = html.replace(
+                "</head>", '<link rel="stylesheet" href="/static/desktop.css"></head>'
             )
+            html = html.replace("</body>", '<script src="/static/desktop.js"></script></body>')
+        return HTMLResponse(
+            html.replace("__SIRO_RENDERER_PATH__", renderer_path)
+            .replace("__SIRO_RENDERER_STATUS__", renderer_status)
+            .replace("__SIRO_SETUP_NOTICE_HIDDEN__", "" if setup_notices else "hidden")
+            .replace("__SIRO_SETUP_NOTICE__", " ".join(setup_notices))
+        )
+
+    @app.get("/", response_class=HTMLResponse)
+    async def index(request: Request) -> HTMLResponse:
+        return render_index(controls=request.query_params.get("view") == "control")
+
+    @app.get("/desktop", response_class=HTMLResponse)
+    async def desktop_index() -> HTMLResponse:
+        if live2d_dist is None:
+            raise HTTPException(status_code=503, detail="desktop requires prepared Live2D")
+        return render_index(desktop=True)
+
+    @app.get("/static/desktop.css")
+    async def desktop_styles() -> Response:
+        return Response(
+            (Path(__file__).with_name("static") / "desktop.css").read_text(),
+            media_type="text/css",
+        )
+
+    @app.get("/static/desktop.js")
+    async def desktop_script() -> Response:
+        return Response(
+            (Path(__file__).with_name("static") / "desktop.js").read_text(),
+            media_type="application/javascript",
         )
 
     @app.get("/body", response_class=HTMLResponse)
@@ -807,6 +851,7 @@ def create_app(
             "features": feature_status() if feature_status is not None else {},
             "runtime_profile": runtime_profile,
             "configuration_source": configuration_source,
+            "presentation": {"owner": "desktop" if desktop_renderer is not None else "web"},
             "catalog_enabled": tool_orchestrator is not None
             and tool_orchestrator.catalog is not None,
             "json_settings_applied": False,
@@ -1389,6 +1434,7 @@ def create_app(
 
     @app.websocket("/ws/body")
     async def body(websocket: WebSocket) -> None:
+        nonlocal desktop_renderer
         if websocket.headers.get("origin") not in allowed:
             await websocket.close(code=1008, reason="origin is not allowed")
             return
@@ -1404,6 +1450,15 @@ def create_app(
             ):
                 await websocket.close(code=1008, reason="invalid renderer authentication")
                 return
+            presentation = hello.get("presentation", "web")
+            if not isinstance(presentation, str) or presentation not in {"web", "desktop"}:
+                await websocket.close(code=1008, reason="invalid presentation owner")
+                return
+            if desktop_renderer is not None and presentation != "desktop":
+                await websocket.close(reason="desktop owner active")
+                return
+            if presentation == "desktop":
+                desktop_renderer = websocket
             await renderer_transport.attach(websocket)
             try:
                 while True:
@@ -1411,6 +1466,10 @@ def create_app(
             except WebSocketDisconnect:
                 pass
             finally:
+                # Clear ownership before awaiting writer cleanup: disconnect task cancellation
+                # must not leave a dead desktop lease blocking the next explicit renderer.
+                if desktop_renderer is websocket:
+                    desktop_renderer = None
                 await renderer_transport.detach(socket=websocket)
         except TimeoutError:
             await websocket.close(code=1008, reason="authentication timeout")
@@ -1556,7 +1615,7 @@ def _run_gateway(
     from siro.persistence.memory import SQLiteMemoryRepository
     from siro.persistence.skills import SQLiteSkillRegistry
     from siro.persistence.sqlite import SQLiteStore
-    from siro.ports.models import LanguageModel
+    from siro.ports.models import LanguageModel, ModelRequest
     from siro.ports.models import Privacy as ModelPrivacy
     from siro.services.audio.stt import GroqWhisper
     from siro.services.presentation.integrated import IntegratedCompanion
@@ -1597,13 +1656,26 @@ def _run_gateway(
         retry_enabled = os.environ.get("SIRO_MODEL_RETRY_ENABLED", "1")
         if retry_enabled not in {"0", "1"}:
             raise ValueError("SIRO_MODEL_RETRY_ENABLED must be 0 or 1")
+        recovery_setting = os.environ.get("SIRO_RATE_LIMIT_RECOVERY_ENABLED", "0")
+        if recovery_setting not in {"0", "1"}:
+            raise ValueError("SIRO_RATE_LIMIT_RECOVERY_ENABLED must be 0 or 1")
+        recovery_enabled = recovery_setting == "1"
+        retry_wait_limit = float(os.environ.get("SIRO_RATE_LIMIT_MAX_WAIT_SECONDS", "60"))
+        if not 0 <= retry_wait_limit <= 60:
+            raise ValueError("SIRO_RATE_LIMIT_MAX_WAIT_SECONDS must be between 0 and 60")
+
+        async def notify_model_retry(request: ModelRequest, seconds: float) -> None:
+            await controller.model_retry_wait(request.generation_id, seconds)
+
         if retry_enabled == "1":
             model = FailoverModel(
                 (model,),
                 cloud_indices=frozenset({0})
                 if privacy is ModelPrivacy.CLOUD_ALLOWED
                 else frozenset(),
-                cloud_request_budget=0,
+                cloud_request_budget=1 if recovery_enabled else 0,
+                rate_limit_max_wait_seconds=retry_wait_limit if recovery_enabled else None,
+                on_retry=notify_model_retry if recovery_enabled else None,
             )
         from siro.services.agent.context import (
             ContextBudgetModel,

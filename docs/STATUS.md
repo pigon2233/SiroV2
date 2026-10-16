@@ -1,12 +1,22 @@
 # SIRO 2 目前進度與接續點
 
-## 2026-10-16 — FIX-026 / D62 掃描誤報 LOCAL_VERIFIED，exact-head CI待驗
+## 2026-10-16 — FIX-026 / D62 掃描誤報 DONE / CLOUD_VERIFIED
 
 已重現940bdb7的真cloud失敗：2129 Python／24 Rust與靜態／schema皆PASS，末secret gate1332項誤報。只在原helper加入13個已審核歷史檔的exact path＋完整blob SHA256＋完整detector tuple batch SHA256/count綁定；保留所有檔案bytes／links、原六pins／scanner範圍／excludes與production。不將一般hex或整個資料夾放行。
 
 原版新測試2FAIL／34PASS；最終原25＋新37 **62PASS／12.60s**。改blob／tuple／同數量duplicate、path／symlink／讀取錯誤、真scanner新增合成credential於snapshot／舊test／source／workflow皆拒絕。owned clean candidate原掃描1338 findings **gate EXIT0／6.869s**；Ruff338／完整候選mypy268／helper及tests mypy2 PASS。獨立review無blocker，另12個同數量duplicate反例全拒絕。
 
-只提交本卡變更；並行startup／UI、前輪編譯與重驗文件保留未提交。exact-head GitHub整條CI另驗，不將本機PASS當remote。正式發布／硬體／產品品質gates保持。[本卡證據與回退](evidence/FIX-026-2026-10-16/REPORT.md)。
+修復5e4506a已推送，exact-head [Actions38868369775](https://github.com/pigon2233/SiroV2/actions/runs/38868369775) **SUCCESS**：完整scripts/check完成，2166 Python PASS／5原opt-in SKIP／7warnings／261.93s，24 Rust、Ruff338／mypy268／schema／原scanner與strict gate全PASS。解除本卡交付阻擋；只提交本卡，其他startup／UI及前輪文件保持未提交。最後cloud驗收紀錄已另存本機，正式發布／硬體／產品品質gates保持。[本卡證據與回退](evidence/FIX-026-2026-10-16/REPORT.md)。
+
+## 2026-10-16 — D61 清單重驗／T27 真交叉編譯 PASS；Git 交付另有阻擋
+
+依使用者重申清單核對：FIX-022–025本卡16份source／test／firmware hash與前輪完整合格候選相同；本次五組新回歸實跑 **111 PASS／19.55s／EXIT0**。MQTT拒絕ACK／unknown／bounded回收、模型安全錯誤、SQLite關閉及Rust回收保持。WAL／NORMAL／5000原已有；strict Python缺件明確拒絕、無host fallback，維持原認證profile，其他平台未認證。只補文件證據，沒有再次修改production。
+
+ESP32以自建暫存PlatformIO Core6.1.19、原pinned esp32dev設定完成**真cross-compile EXIT0**；RAM45276／327680、Flash777901／1310720。example帳密、未燒錄／操作實板；真NTP／目視LED及A18仍HARDWARE PENDING。[編譯與清理證據](evidence/T27-firmware-build-2026-10-16/REPORT.md)。
+
+續作發現本機新提交940bdb7（非本輪根代理建立），同時納入大量舊驗證快照。owned clean clone的原scanner／strict gate **EXIT1，1332項**：1331個摘要／來源指紋、1個合成fixture。未識別真credential，但40張舊圖未視覺公開審查；故交付 **BLOCKED_BY_DELIVERY_REVIEW**，沒有push、重寫提交、刪資料或放寬gate。323份全域source先核對相同後，另有並行UI／啟動修改；本卡PASS不涵蓋那些新工作。
+
+接續：先單獨收斂940bdb7的公開範圍／metadata檢查，再驗exact-head遠端CI；硬體依既有單次probe指南驗收。四卡local DONE保持，正式部署與其他產品品質gate不解除。[清單重驗與界限](evidence/D61-resilience-2026-10-16/CURRENT_HEAD_RECHECK.md)。
 
 ## 2026-10-16 — D61 / FIX-022–025 DONE / LOCAL_VERIFIED
 
@@ -822,3 +832,35 @@ FIX-005真聲線首輪：157字合成故事3段native playing/ended順序、EOS�
 最後SDPA真Qwen／native Chromium probe PASS，四production起訖SHA一致、worker70941aca…匹配最後source回退；safe evidence real-voice-final.json。157字3段160/165/122正常EOS tokens，首次playing時只生成1/3段、最終ended才完成、fresh推論cancel/reap/no晚Audio、所有資源與temp cache cleanup PASS。cold短句24.582s；cache0.005001s獨列；warm故事22.327/22.927/16.945s、RTF約1.75；首段22.446s（原示例30.472）、gap10.053/3.719s（原23.289/6.387），仍未達體驗／SLO且人工語意聽驗NOT_RUN，不標DONE。最終671PASS／94completion／mypy203／Ruff265與source回退164/281見REPORT。
 
 Supervisor已結束並finally恢復8026，pid22624，health與auth plan PASS；不是仍在驗收中，不需再啟第二服務。open_in_codex browser http://127.0.0.1:8026/ 返回queued，尚未確認使用者畫面已導航；避免使用file://畫面當產品入口。卡片PARTIAL／BLOCKED_BY_FIX語音體驗gate保留；005C無已提交句子契約未做，006理解、002搜尋、桌寵與自主技能各自未完成。下一個窄步驟針對已測talker瓶頸／可取消的受支持音訊chunk接入作實證，不換聲線、不擴Core；先完成合成首尾的人耳聽驗，不把EOS當語意正確。
+
+## 2026-10-16 / Companion 正式入口修復與目前產品判定
+
+使用者回報hello得到OfflineDemoModel固定句、Live2D替身；確認raw siro-gateway不讀.env.local／不選renderer，README/start/installer導向錯入口。正式scripts/start與新產生service現走既有launch_companion；--demo保留開發離線，首頁明示固定示範／替身與正確入口。實際8000已啟，DB先一致備份、schema14無migration，真Groq hello與真Haru視覺PASS；私人歷史／key未匯出。
+
+真工具cat OS結果成功，但UI後續模型回覆失敗。隔離同目標兩次Groq200 completed；正式service重測安全status log確證429限流，因此不能宣稱整體可靠，早先未instrument失敗status仍UNKNOWN。新增transport只記數字status，不改HTTP exception/retry、不重播效果。
+
+入口相關72PASS、最終operation5PASS、adapter43PASS、renderer相關38PASS、navigation/cancel32PASS（重疊不加總）；mypy268files/scopedRuff PASS。未跑本輪全套/remoteCI/真語音/桌面。詳 docs/evidence/COMPANION-STARTUP-2026-10-16/REPORT.md。
+
+目前只是可測試的網頁整合候選，不是完整女兒產品；獨立透明VPet式桌面外殼／自由活動與動作尚未實作驗收，TTS速度、人耳與模型穩定性gate保留。RT013/015/summary限定DONE保留，不沿用舊DEFER作現在狀態。下一個產品工作應按既有plan做真native host與429有界復原，不能把頁面角色或新架構數量當成完成。
+
+## 2026-10-16 / DESKTOP-VOICE-RECOVERY：native可啟動；語音GPU驗收BLOCKED
+
+依owner明確三項授權，新增GJS/GTK3/WebKitGTK獨立透明桌寵（sandbox on、app-only XWayland、pixel input shape、單GtkApplication、聊天／拖曳／控制台／最小化／退出），正式8000目前有唯一native renderer；web作控制台不重複音訊。SDK desktop-only24fps及角色點擊聊天，動作仍Haru現有idle，無假走路；走路／坐下／可編輯leg rig仍未實作，整體桌寵卡PARTIAL。Manual mouse/DPI/fullscreen/native Wayland NOT VERIFIED，owner回饋pending。
+
+原v1聲線首段24字自然切分、後段80、全文／worker／EOS／cache／取消保留；148CPU PASS、首段56→16僅工作量改善。GPU-onlygate拒絕執行：kernel7.0.0-38缺匹配NVIDIA modules（已裝只到-34）、nvidia-smi9、Torch CUDAfalse。官方signed module apt模擬成功，scripts/repair-nvidia-kernel已備妥，但sudo要求互動認證，owner需自行終端輸入密碼；沒有停SecureBoot／重開機／偽CPU benchmark。FIX005仍PARTIAL/GPU_DRIVER_BLOCKED，無新速度／人耳PASS。
+
+429限定復原已接正式launcher：最多一個追加雲端request、Retry-After<=60秒同provider、pre-emission only、可取消等待，UI安全提示及terminal清理。真main/Core/SQLite marker effect僅一次再續作PASS；真loopback429→SSE200，daily/cap/again429仍明拒，不保證無限quota。Raw預設0不變。
+
+最後offline全套2225PASS／5real-provider未選／3warnings（250.34s）；初次2220PASS/5FAIL為舊speech harness切片helper缺失，保留反例並修後full綠。final targeted26PASS（重疊不加總），mypy273files/Ruff/285format/Node/shell/SDKbuild PASS，23file source-onlyreverse＋byte比較PASS，保留前輪startup baseline及私人最新DB。實際native sourcehashmatch ready/alpha/sandboxtrue，3次有界avatar-only診斷不存聊天圖；隔離8028已停、8000與一個nativehost保留。詳 docs/evidence/DESKTOP-VOICE-RECOVERY-2026-10-16/REPORT.md。
+
+下一步：owner完成signedGPUmodule修復後單worker真GPU首段/冷暖對照與人耳，再做真滑鼠／多monitor與正規角色活動素材。沒有把nativewindow或自動測試數字當成完整VPet／語音體驗DONE。無push／全產品release。
+
+## 2026-10-17 / FIX-005：CUDA driver blocker解除，原聲線實播／取消PASS，速度仍PARTIAL
+
+owner完成NVIDIA repair後，RTX3050Laptop 4GiB／driver595.99.02／Torch2.12.0+cu130／CUDA13可用。協調暫停managed8000，GPU-only current adapter/worker以全新temp cache測原v1聲線：cold22字20.104s；cache0.019s且bytes相等（不當暖推論）；舊planner56字21.648／21.694s，新首段16字7.781／10.109s。小樣本工作量對照，非統計或SLO。
+
+再以CUA操作隔離current前端/Gateway/Qwen，固定合成157字故事三段真Audio playing/ended與完成時序PASS，cache全miss／正常EOS／一段預取／一個worker；cold首播18.789s、段間23.977／14.926s，長文仍不流暢。真停止按鈕同時停止首段、取消正在推論的第二段預取，0.517s owned cleanup/reap，後續87.527s無新Audio。第一段在檢查與click之間已生成，不誤稱取消時尚無音訊；未直接擷取paused屬性。故意abort HTTP在Uvicorn留下speech client disconnected CancelledError log，cleanup無錯；未當新regression或隱藏。
+
+兩組worker已reap、temp cache刪除、isolated server/listener關閉，production source hashes起訖不變。恢復managed8000 healthy、原控制台reload已連線；舊nativehost graceful退出後用原launcher重啟一次恢復控制連線，單實例alpha/sandboxtrue、rendererowner=desktop，avatar診斷圖為真Live2D。原reference/私人DB/產品cache不變。本輪128PASS／2既有warnings、harness compile/Ruff、diff check PASS；沒有production改動，未重跑舊2225全套或cloudCI。生成WAV留ignored本機，未讀私人聊天／外送音訊。
+
+FIX005保持PARTIAL：近即時速度FAIL、人耳待回饋；GTK/WebKit實播／桌寵滑鼠及多monitor、自由活動素材、長期soak／部署rollback未由這次in-app browser probe驗收。不是全產品DONE。詳 docs/evidence/FIX-005-first-segment-2026-10-17/REPORT.md。無push。

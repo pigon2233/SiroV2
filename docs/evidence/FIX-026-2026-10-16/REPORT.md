@@ -1,11 +1,19 @@
 # FIX-026 — 歷史驗證快照的 secret scan 誤報修復
 
-日期：2026-10-16（Asia/Taipei）。**LOCAL_VERIFIED；exact-head cloud CI另驗**。
+日期：2026-10-16（Asia/Taipei）。**DONE / CLOUD_VERIFIED**：修復已推送，exact-head Actions成功。。
 
 940bdb7 新追蹤舊驗證資料，Actions [38866208100](https://github.com/pigon2233/SiroV2/actions/runs/38866208100)
 完成2129 Python PASS／5原opt-in SKIP／7warnings（226.32s）、24 Rust tests與靜態／schema checks，
 最後 secret gate 因1332個已審核誤報失敗。獨立乾淨Git副本重現相同1338個detector findings，
 原六個public tokenizer pins照舊允許，剩1332個位於13份歷史檔案。
+
+## Exact-head cloud結果
+
+修復commit `5e4506a`：[Actions 38868369775](https://github.com/pigon2233/SiroV2/actions/runs/38868369775) **completed / success**，
+完整scripts/check step成功：**2166 Python PASS／5原opt-in SKIP／7warnings／261.93s**，
+24 Rust tests、fmt/build/clippy、Ruff338、mypy268、schema與原scanner／strict gate全PASS。
+遠端main已確認同一完整SHA，沒有以local PASS或舊commit代替。本卡交付阻擋解除；
+正式發布／實板／其他產品品質gates保持。[機器可讀證據](CLOUD_ACCEPTANCE.json)。
 
 ## 實際修正
 

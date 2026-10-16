@@ -86,6 +86,8 @@
       #text { border:0; background:transparent; min-height:70px; resize:vertical; flex:1; min-width:0; font-size:15px; }
       #chat button { background:var(--action); color:var(--surface); border-color:var(--action); }
       .conversation-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding-top:12px; color:var(--muted); font-size:12px; }
+      body.siro-control .stage { display:none; }
+      body.siro-control .companion-layout { grid-template-columns:minmax(0,1fr); }
       .conversation-actions label { display:flex; align-items:center; gap:6px; }
       .conversation-actions input { margin:0; width:auto; }
       .conversation-actions button { font-size:12px; padding:6px 10px; }
@@ -160,6 +162,7 @@
         <div class="live-status" aria-live="polite"><span id="voice-status">麥克風待命</span><span id="tts-status">TTS 待命</span></div>
         <div aria-live="polite"><a id="activity-notice" class="activity-notice" href="#/computer" data-nav="computer" hidden>電腦操作有更新，查看授權與結果</a></div>
         <p id="service-notice" class="activity-notice" role="status" hidden></p>
+        <p id="runtime-notice" class="activity-notice" role="status" __SIRO_SETUP_NOTICE_HIDDEN__>__SIRO_SETUP_NOTICE__</p>
         <main class="page-content" id="main-content">
           <section class="page-view" data-page="chat" aria-labelledby="chat-heading">
             <div class="page-heading"><h1 id="chat-heading" data-page-heading tabindex="-1">和 SIRO 聊聊</h1><p>有想說的，慢慢說。需要一起處理的事，也可以交給我。</p></div>
@@ -296,7 +299,7 @@
       const authorizedFetch = (url, options) => sessionAccess.request(url, options);
       function createTerminalFence(limit = 1024) {
         const ended = new Set(), order = [];
-        const progress = new Set(["assistant_started", "assistant_delta", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
+        const progress = new Set(["assistant_started", "assistant_delta", "assistant_retry_wait", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
         return data => {
           if (typeof data.stream_id !== "string") return true;
           if (ended.has(data.stream_id) && (progress.has(data.type) || data.type === "assistant_terminal")) return false;
@@ -418,12 +421,20 @@
           if (data.type === "assistant_started") {
             assistantBubble = appendMessage("assistant", "");
           }
+          if (data.type === "assistant_retry_wait") {
+            const notice = document.querySelector("#service-notice");
+            const seconds = Math.max(0, Math.min(60, Number(data.retry_after_seconds) || 0));
+            notice.hidden = false; notice.dataset.retryWait = "1";
+            notice.textContent = `對話服務暫時限流，約 ${Math.ceil(seconds)} 秒後重試這段回覆。已完成的工具不會重做，可隨時停止。`;
+          }
           if (data.type === "assistant_delta") {
+            clearRetryNotice();
             if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
             assistantBubble.textContent += data.text;
             document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;
           }
           if (data.type === "assistant_terminal") {
+            clearRetryNotice();
             const canonicalText = assistantBubble?.textContent || "";
             if (data.state === "completed" && assistantBubble) formatAssistantMessage(assistantBubble);
             if (data.state !== "completed") {
@@ -1023,7 +1034,7 @@
           renderSkillActivation(runtime);
           const features = runtime.features || {}, workspace = features.workspace || {};
           const backend = runtime.routes?.model || "offline";
-          document.querySelector("#model-status").textContent = backend === "offline" ? "尚未連接對話模型" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
+          document.querySelector("#model-status").textContent = backend === "offline" ? "離線示範 · 固定規則回覆" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
           document.querySelector("#workspace-status").textContent = workspace.available
             ? `可讀取：${workspace.directory}` : `工作目錄尚未就緒${workspace.directory ? "：" + workspace.directory : "（此執行模式未啟用）"}`;
           document.querySelector("#workspace-list").disabled = !workspace.available;
@@ -1226,6 +1237,12 @@
         inline(message, source.slice(start));
         return message.textContent;
       }
+      function clearRetryNotice() {
+        const notice = document.querySelector("#service-notice");
+        if (!notice?.dataset?.retryWait) return;
+        delete notice.dataset.retryWait;
+        notice.hidden = true;
+      }
       function stopTts() {
         const active = Boolean(ttsController || ttsAudio);
         ttsGeneration++;
@@ -1240,7 +1257,7 @@
       }
       async function playTts(text, prosody) {
         stopTts();
-        if (document.querySelector("#voice-output")?.checked === false) return;
+        if (document.body?.classList?.contains("siro-control") || document.querySelector("#voice-output")?.checked === false) return;
         const generation = ttsGeneration;
         const controller = new AbortController(); ttsController = controller;
         const current = () => generation === ttsGeneration && !controller.signal.aborted;
@@ -1381,7 +1398,7 @@
           recorder.start(); button.textContent = "停止並送出"; status.textContent = "正在聆聽…"; status.className = "ok";
         } catch (error) { status.textContent = `無法使用麥克風：${error.message}`; status.className = "warn"; }
       };
-      document.querySelector("#cancel").onclick = async () => { submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
+      document.querySelector("#cancel").onclick = async () => { clearRetryNotice(); submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
       document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };
       document.querySelector("#replay-speech").onclick = async () => {
         if (!lastSpeech || pageClosing) return;
@@ -1389,8 +1406,20 @@
         speechCancelled = false;
         await playTts(lastSpeech.text, lastSpeech.prosody);
       };
+      if (document.body?.classList?.contains("siro-control")) {
+        document.querySelector("#voice-output").checked = false;
+        document.querySelector("#voice-output").disabled = true;
+      }
       window.addEventListener("message", event => {
-        if (event.origin !== location.origin || event.source !== document.querySelector("#companion").contentWindow || event.data?.type !== "siro.renderer.ready") return;
+        if (event.origin !== location.origin || event.source !== document.querySelector("#companion").contentWindow) return;
+        if (event.data?.type === "siro.renderer.detached") {
+          stopTts();
+          document.querySelector("#companion").hidden = true;
+          document.querySelector("#renderer-status").textContent = "角色已交給獨立桌寵視窗；此頁保留控制功能";
+          document.querySelector("#voice-output").checked = false;
+          return;
+        }
+        if (event.data?.type !== "siro.renderer.ready") return;
         const labels = {neutral:"平靜地陪著你", happy:"開心", sad:"有點難過", angry:"認真表達不滿", surprised:"好奇、留意著"};
         document.querySelector("#companion-state").textContent = labels[event.data.emotion] || "陪著你";
         document.querySelector("#renderer-status").textContent = "Live2D 已就緒 · 情緒與對話同步";

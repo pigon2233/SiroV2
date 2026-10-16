@@ -46,15 +46,17 @@ systemctl --user status ollama
 SIRO_OLLAMA_MODEL=qwen3:4b uv run pytest -m real_provider tests/real/test_model_providers.py -vv
 ```
 
-本機 gateway 與明示為 placeholder 的 body shell：
+日常使用請啟動獨立 SIRO 桌寵（必要時啟動正式後端，讀取本機 `.env.local` 模型設定）：
 
 ```bash
-uv run siro-gateway
+scripts/start-companion
 ```
 
-開啟 `http://127.0.0.1:8000/` 查看控制頁，或設定 `SIRO_LIVE2D_DIST` 後開啟
-`http://127.0.0.1:8000/live2d/` 查看真 Cubism renderer。下載的 Cubism Core、角色資產與
-授權接受紀錄不得提交 Git；可重現準備命令與格式見 `config/body-assets/README.md`。
+桌面角色提供「聊聊／移動／控制台／暫藏／退出」，控制台也可從 [SIRO](http://127.0.0.1:8000/?view=control) 開啟。若只需要後端，執行 `scripts/start-runtime-product`。頁面應顯示「雲端對話」或「本機對話」，以及「Live2D 已就緒」；缺少模型或角色時入口會明確停止。詳細設定與功能限制見 [產品操作說明](docs/runtime-evolution/PRODUCT_QUICKSTART.md)。
+
+需要 PID 管理可用 `scripts/start .siro-data/companion-service.pid`，停止用 `scripts/stop .siro-data/companion-service.pid`。這兩種正式入口使用同一個 launcher。
+
+開發用離線示範另用 `scripts/start /tmp/siro-demo.pid --demo` 或 `uv run siro-gateway`。低階 gateway 不讀 `.env.local` 或自動選角色；沒有明確模型／renderer 環境設定時，會使用固定示範回覆與替身，不是日常可用的 SIRO。下載的 Cubism Core、角色資產與授權接受紀錄不得提交 Git；準備方式見 `config/body-assets/README.md`。
 
 ## 開發環境
 

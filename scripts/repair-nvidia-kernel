@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Local Ubuntu 26.04 signed-package repair. Does not change Secure Boot or reboot.
+set -euo pipefail
+kernel_version="$(uname -r)"
+if [[ ! "$kernel_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-generic$ ]]; then
+  echo 'Unsupported kernel flavour; no driver packages changed.' >&2
+  exit 2
+fi
+module_package="linux-modules-nvidia-595-open-${kernel_version}"
+apt-cache show "$module_package" >/dev/null
+sudo apt-get install nvidia-driver-595-open "$module_package" linux-modules-nvidia-595-open-generic-hwe-26.04
+sudo modprobe nvidia
+sudo modprobe nvidia_uvm
+nvidia-smi

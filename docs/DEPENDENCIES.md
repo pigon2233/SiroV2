@@ -42,3 +42,7 @@ CLI T01 使用 Python 標準庫 `argparse`，不先增加 CLI framework。Runtim
 ## 授權與供應鏈
 
 T01 只使用公開 Python registry 的鎖定套件。lockfile 與 dependency metadata 進 Git，cache、wheel、venv 不進 Git。第三方 repo 或模型不可只追 branch；PoC 後鎖 commit/version，記錄 license 與取得來源。更新在 T32 前不得直接替換 active production environment。
+
+## 2026-10-16 native presentation runtime
+
+本機使用已安裝GJS1.88.0、GTK3.24.52、WebKitGTK2.52.6（GI API4.1）。未新增Electron、Python GUI dependency或關閉sandbox；launcher缺GJS/連線/renderer時明確停止。其他主機需由官方OS套件安裝gjs與gir1.2-webkit2-4.1，不能把本機已安裝當成跨平台保證。官方API依據：[RGBA](https://webkitgtk.org/reference/webkit2gtk/2.40.5/method.WebView.set_background_color.html)、[input region](https://docs.gtk.org/gdk3/method.Window.input_shape_combine_region.html)、[WebKit sandbox](https://webkitgtk.org/reference/webkit2gtk/stable/method.WebContext.set_sandbox_enabled.html)。

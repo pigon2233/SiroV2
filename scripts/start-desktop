@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$project_root"
+if ! command -v gjs >/dev/null; then
+  echo '桌寵需要 GJS、GTK3 和 WebKitGTK 4.1；尚未啟動。' >&2
+  exit 2
+fi
+# Validate the existing backend without exposing its short-lived token.
+export SIRO_DESKTOP_URL="${SIRO_DESKTOP_URL:-http://127.0.0.1:8000/desktop}"
+.venv/bin/python - <<'CHECK'
+import json, os, urllib.parse, urllib.request
+url=os.environ["SIRO_DESKTOP_URL"]
+p=urllib.parse.urlsplit(url)
+if p.scheme != "http" or p.hostname not in {"127.0.0.1","localhost"} or p.path != "/desktop" or p.username or p.password or p.query or p.fragment:
+    raise SystemExit("Desktop requires the exact loopback /desktop URL")
+base=f"{p.scheme}://{p.netloc}"
+try:
+    request=urllib.request.Request(base+"/v1/session",data=b"",headers={"Origin":base},method="POST")
+    with urllib.request.urlopen(request,timeout=5) as r: token=json.load(r)["token"]
+    request=urllib.request.Request(base+"/v1/runtime",headers={"Authorization":"Bearer "+token})
+    with urllib.request.urlopen(request,timeout=5) as r: runtime=json.load(r)
+    if runtime.get("routes",{}).get("model","offline") == "offline":
+        raise SystemExit("目前服務是離線示範；請先停止它，再用 scripts/start-companion 啟動正式 SIRO。")
+    with urllib.request.urlopen(url,timeout=5) as r:
+        if r.status != 200: raise SystemExit("Desktop renderer is unavailable")
+except (OSError,KeyError,ValueError):
+    raise SystemExit("尚未連接正式 SIRO 與 Live2D；請使用 scripts/start-companion。") from None
+CHECK
+if [[ "${XDG_SESSION_TYPE:-}" == wayland && -z "${SIRO_DESKTOP_BACKEND:-}" ]]; then
+  # Application-only XWayland compatibility. The desktop session is never changed.
+  export GDK_BACKEND=x11
+  echo 'SIRO 桌寵使用 XWayland 相容模式（不更改目前 Wayland 桌面）。'
+elif [[ -n "${SIRO_DESKTOP_BACKEND:-}" ]]; then
+  export GDK_BACKEND="$SIRO_DESKTOP_BACKEND"
+fi
+exec gjs -m desktop/host.js

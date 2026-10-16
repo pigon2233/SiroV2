@@ -1,6 +1,10 @@
 # SIRO ESP32 MQTT 範例
 
-狀態：source ready，尚未在實體板或 PlatformIO toolchain 編譯／燒錄。
+狀態：2026-10-16 已以 PlatformIO Core 6.1.19／既有 pinned `esp32dev` 設定完成真實交叉編譯；實體板燒錄／NTP／目視 LED 仍待驗。
+
+編譯使用自建暫存環境與 example 帳密，來源未改，RAM 45,276／327,680 bytes，Flash
+777,901／1,310,720 bytes。編譯產物僅供驗證，沒有燒錄或納入 Git；重現、工具版本與清理見
+[編譯證據](../../docs/evidence/T27-firmware-build-2026-10-16/REPORT.md)。
 
 此範例使用 ESP32 DevKit 內建 LED（預設 GPIO 2）作低風險 actuator。複製
 `include/secrets.example.h` 為被 Git 忽略的 `include/secrets.h`，設定 Wi-Fi、loopback/LAN MQTT

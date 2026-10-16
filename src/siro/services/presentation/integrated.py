@@ -194,6 +194,32 @@ class IntegratedCompanion:
             message = {**message, "stream_id": stream_id}
         await self._hub.broadcast(message, urgent=urgent)
 
+    async def model_retry_wait(self, generation_id: str, seconds: float) -> None:
+        """Notify only the active run that owns this already-started model generation."""
+        if self._store is None or self._runtime_profile != "candidate":
+            return
+        row = await self._store.run_transaction(
+            lambda connection: connection.execute(
+                "SELECT session_id FROM turns WHERE generation_id=? AND state='responding'",
+                (generation_id,),
+            ).fetchone()
+        )
+        if row is None:
+            return
+        session_id = str(row[0])
+        run_id = self._run_ids.get(session_id)
+        if run_id is None or run_id in self._terminated:
+            return
+        await self._broadcast_stream(
+            self._event_streams.get(run_id, run_id),
+            {
+                "type": "assistant_retry_wait",
+                "session_id": session_id,
+                "retry_after_seconds": seconds,
+            },
+            urgent=True,
+        )
+
     async def respond(self, session_id: str, text: str, input_mode: str = "text") -> None:
         await self._ensure_core()
         assert self._core is not None

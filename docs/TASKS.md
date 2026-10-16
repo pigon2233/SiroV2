@@ -240,7 +240,7 @@ D57 跨任務控制沿本卡：owner明確批准後離開可繼續有界讀取�
 - 來源／根因：Python command 缺 firmware 必需的 `expires_at_epoch`，Python state 只接受 ISO，且 `configTime` 啟動 SNTP 後 firmware 未等時間就連 MQTT。原版本對新增驗收有5個失敗；屬已確認的 implementation／integration defect。
 - 最小修復：保留 ISO、加 epoch mirror；simulator 只接受已核對一致的已知 mirror；state 接受 UTC 數值 epoch且寫入前驗時。firmware 30秒有界等待及 loop guard；新增 aiomqtt 單次 probe，重用現有 tracker／projector／registry，applied ACK加新鮮無矛盾state才確認。
 - 相容／範圍：舊 ISO、non-retained、expiry／dedup／LWT／auth 不變；不改 Core、World 排序、schema、授權、UI、依賴或既有 RT 編號。腳本單次點亮授權 LED，無自動重送／補償動作。
-- 驗收／回退：時間格式、真 Broker＋合成 peer、既有相鄰回歸及 host clock control-flow；只撤本卡 MQTT／firmware hunk與新增 probe／tests，不還原 DB。真板與 PlatformIO build 分開驗。[證據與限制](evidence/T27-mqtt-time-2026-10-16/REPORT.md)。
+- 驗收／回退：時間格式、真 Broker＋合成 peer、既有相鄰回歸及 host clock control-flow；只撤本卡 MQTT／firmware hunk與新增 probe／tests，不還原 DB。2026-10-16 已補真 PlatformIO `esp32dev` cross-compile PASS；真板燒錄／NTP／LED仍待驗。[時間與整合證據](evidence/T27-mqtt-time-2026-10-16/REPORT.md)／[完整編譯證據](evidence/T27-firmware-build-2026-10-16/REPORT.md)。
 
 ### T28 Home Assistant Adapter
 

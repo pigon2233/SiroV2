@@ -645,3 +645,32 @@ async def test_http_stream_cancellation_closes_stalled_request() -> None:
     for handler in tuple(handlers):
         handler.cancel()
     await asyncio.gather(*handlers, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_provider_http_failure_logs_status_without_request_or_response(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import httpx
+
+    from siro.adapters.models import http as module
+
+    original = httpx.AsyncClient
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(400, json={"error": "synthetic-private-response"})
+    )
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kwargs: original(transport=transport, **kwargs)
+    )
+    with pytest.raises(httpx.HTTPStatusError) as failure:
+        async for _ in HttpxStreamingTransport().stream_lines(
+            "https://example.invalid/synthetic-private-url",
+            {"prompt": "synthetic-private-prompt"},
+            {"Authorization": "Bearer synthetic-private-key"},
+            1,
+            CancellationToken(),
+        ):
+            pytest.fail("an HTTP error must not emit model data")
+    assert failure.value.response.status_code == 400
+    records = [record.getMessage() for record in caplog.records if record.name == module.__name__]
+    assert records == ["model provider HTTP failure status=400"]
