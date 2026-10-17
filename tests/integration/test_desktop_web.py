@@ -18,7 +18,7 @@ def run_node(source: str) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def run_desktop(checks: str) -> None:
+def run_desktop(checks: str, before: str = "") -> None:
     setup = r"""
 const assert = require('node:assert/strict');
 const nativeMessages=[], opened=[], observers=[], listeners=new Map();
@@ -34,8 +34,10 @@ class Element {
     };
   }
   setAttribute(key,value) {this.attrs[key]=value;}
+  getAttribute(key) {return this.attrs[key]??null;}
   appendChild(node) {this.children.push(node);return node;}
   addEventListener(name,fn) {this.events.set(name,fn);}
+  removeEventListener(name,fn) {if(this.events.get(name)===fn)this.events.delete(name);}
   click() {this.events.get('click')?.({});this.onclick?.();}
   focus() {document.activeElement=this;}
 }
@@ -73,7 +75,168 @@ existing.get('#connection').textContent='已連線';
 existing.get('#voice-status').textContent='麥克風待命';
 existing.get('#tts-status').textContent='TTS 待命';
 """
-    run_node(setup + STATIC.joinpath("desktop.js").read_text() + "\n" + checks)
+    run_node(setup + before + STATIC.joinpath("desktop.js").read_text() + "\n" + checks)
+
+
+def test_desktop_scale_controls_request_only_fixed_native_steps() -> None:
+    run_desktop(
+        """
+document.querySelector('#desktop-smaller').click();
+document.querySelector('#desktop-scale').click();
+document.querySelector('#desktop-larger').click();
+assert.deepEqual(nativeMessages.slice(-3),[
+ {type:'desktop.scale',step:-1},{type:'desktop.scale',step:0},{type:'desktop.scale',step:1}
+]);
+assert.equal(existing.get('#companion'),originalFrame);
+document.querySelector('#desktop-stop').click();
+assert.equal(stopped,1);
+""",
+        "const originalFrame=existing.get('#companion');\n",
+    )
+
+
+def test_desktop_role_pointer_drag_uses_threshold_and_suppresses_chat_after_drag() -> None:
+    run_desktop(
+        """
+const event=(x,y,button=0)=>({button,screenX:x,screenY:y,pointerId:3,
+ preventDefault(){},stopImmediatePropagation(){}});
+role.events.get('pointerdown')(event(100,100));
+role.events.get('pointermove')(event(103,103));
+assert(!nativeMessages.some(item=>item.type==='desktop.move'));
+role.events.get('pointermove')(event(117,111));
+role.events.get('pointermove')(event(120,115));
+assert.deepEqual(nativeMessages.filter(item=>item.type==='desktop.move'),[
+ {type:'desktop.move',button:1,screenX:117,screenY:111}
+]);
+role.events.get('pointerup')(event(120,115));
+dispatch('message',{origin:location.origin,source:existing.get('#companion').contentWindow,
+ data:{type:'siro.renderer.interact'}});
+assert.equal(conversation.inert,true);
+role.events.get('pointerdown')(event(120,115));
+role.events.get('pointerup')(event(120,115));
+dispatch('message',{origin:location.origin,source:existing.get('#companion').contentWindow,
+ data:{type:'siro.renderer.interact'}});
+assert.equal(conversation.inert,false);
+""",
+        """
+const role=new Element('document');
+existing.get('#companion').contentDocument=role;
+""",
+    )
+
+
+def test_desktop_role_pointer_right_button_does_not_move_or_suppress_click() -> None:
+    run_desktop(
+        """
+const event={button:2,screenX:100,screenY:100,pointerId:3,preventDefault(){}};
+role.events.get('pointerdown')(event);
+role.events.get('pointermove')({...event,screenX:200});
+assert(!nativeMessages.some(item=>item.type==='desktop.move'));
+""",
+        "const role=new Element('document');existing.get('#companion').contentDocument=role;\n",
+    )
+
+
+def test_desktop_visible_speech_switch_uses_original_checkbox_and_change() -> None:
+    run_desktop(
+        """
+const speech=document.querySelector('#desktop-speech');
+assert.equal(output.checked,false);
+assert.equal(speech.attrs['aria-pressed'],'false');
+speech.click();
+assert.equal(output.checked,true);
+assert.equal(changes,1);
+assert.equal(speech.attrs['aria-pressed'],'true');
+assert(speech.textContent.includes('開'));
+speech.click();
+assert.equal(output.checked,false);
+assert.equal(changes,2);
+assert.equal(existing.get('#voice-output'),output);
+""",
+        """
+let changes=0;
+const output=new Element('input');output.checked=false;
+output.dispatchEvent=event=>{assert.equal(event.type,'change');changes++;};
+existing.set('#voice-output',output);
+""",
+    )
+
+
+def test_desktop_native_layout_api_updates_geometry_without_replacing_nodes() -> None:
+    run_desktop(
+        """
+const frame=existing.get('#companion'),input=existing.get('#text');
+window.siroDesktopView.setLayout({petWidth:360,petHeight:570,petX:0,
+ chatX:372,chatY:8,chatWidth:380,chatHeight:554,scale:1});
+assert.equal(properties.get('--desktop-pet-width'),'360px');
+assert.equal(properties.get('--desktop-chat-x'),'372px');
+assert.equal(document.querySelector('#desktop-scale').textContent,'100%');
+window.siroDesktopView.openChat();
+window.siroDesktopView.closeChat();
+assert.equal(existing.get('#companion'),frame);assert.equal(existing.get('#text'),input);
+const previous=new Map(properties);
+window.siroDesktopView.setLayout({petWidth:NaN});
+assert.deepEqual(properties,previous);
+""",
+        """
+const properties=new Map();
+document.documentElement.style={setProperty:(key,value)=>properties.set(key,value)};
+""",
+    )
+
+
+def test_desktop_microphone_switch_forwards_without_starting_recording() -> None:
+    run_desktop(
+        """
+const button=document.querySelector('#desktop-microphone');
+assert.equal(button.textContent,'麥克風\uff1a關');
+button.click();
+assert.equal(toggled,1);assert.equal(voiced,0);
+observers.find(item=>item.owned.includes(microphone)).fn();
+assert.equal(button.textContent,'麥克風\uff1a開');
+assert.equal(button.attrs['aria-pressed'],'true');
+microphone.disabled=true;
+observers.find(item=>item.owned.includes(microphone)).fn();
+assert.equal(button.disabled,true);
+""",
+        """
+let toggled=0;
+const microphone=new Element('button');
+microphone.textContent='麥克風\uff1a關';microphone.setAttribute('aria-pressed','false');
+microphone.onclick=()=>{toggled++;microphone.textContent='麥克風\uff1a開';microphone.setAttribute('aria-pressed','true');};
+existing.set('#microphone-toggle',microphone);
+""",
+    )
+
+
+def test_desktop_geometry_keeps_chat_and_role_separate_and_inside_workarea() -> None:
+    source = Path("desktop/layout.mjs").resolve().as_uri()
+    run_node(
+        f"""
+(async()=>{{
+ const assert=require('node:assert/strict');
+ const {{desktopLayout}}=await import({json.dumps(source)});
+ for(const [width,height] of [[1920,1080],[1280,720],[640,480],[360,640],[64,64]])
+  for(const scale of [.6,1,1.5]) for(const chat of [false,true]){{
+   const r=desktopLayout(scale,chat,width,height);
+   for(const key of ['width','height','petWidth','petHeight','chatWidth','chatHeight'])
+    assert(Number.isSafeInteger(r[key]) && r[key]>0,key);
+   assert(r.width<=width && r.height<=height,JSON.stringify(r));
+   assert(r.petX>=0 && r.petX+r.petWidth<=r.width);
+   assert(r.petHeight<=r.height);
+   assert(r.controlsY>=r.petHeight && r.paneX>=0 && r.paneX+r.paneWidth<=r.width);
+   if(chat){{
+    assert(r.chatX>=0 && r.chatY>=0);
+    assert(r.chatX+r.chatWidth<=r.width);
+    assert(r.chatY+r.chatHeight<=r.height);
+    assert(r.chatX>=r.petX+r.petWidth || r.chatY>=r.petHeight,JSON.stringify(r));
+   }}
+  }}
+ for(const invalid of [NaN,Infinity,-1,0,2])
+  assert.throws(()=>desktopLayout(invalid,true,1280,720));
+}})().catch(error=>{{console.error(error);process.exit(1);}});
+"""
+    )
 
 
 def test_desktop_chat_uses_original_nodes_and_native_focus_notification() -> None:

@@ -501,3 +501,45 @@ COMPANION-STARTUP 限定診斷補充：正式UI的真工具效果已完成，但
 User explicitly requests native desktop pet first, then voice experience and rate-limit solution. Use installed GJS/GTK3/WebKitGTK4.1 with sandbox enabled, exact loopback origin, fixed UI-only native commands and one desktop instance. GNOME Wayland positioning constraints are handled by visibly declared application-only XWayland compatibility, never switching desktop session. Native input shape derives from visible alpha; no screen capture or global pointer tracking. The native view consumes existing index/session/audio handlers via /desktop; control center omits its renderer/audio owner. Optional body-auth presentation field gives connected desktop priority; original clients remain supported. No second Core/database or file/null-origin exception. Haru's missing leg rig remains a separate genuine asset gate; no sliding standing pose represented as walking. Short natural first speech segment preserves original v1 voice and complete text. Rate-limit policy must stay bounded, cancellation-aware and pre-emission-only, preserving completed effects; production composition explicitly grants any additional cloud request budget. Each slice needs actual checks and distinct limitations.
 
 DESKTOP-VOICE-RECOVERY 429契約：FailoverModel新增optional rate_limit_max_wait_seconds=None（舊預設不變）、clock（UTC datetime，用於HTTP-date）、on_retry(request,delay) async。明確啟用時429只重試原provider，Retry-After秒數／HTTP-date，無效缺省用原有限backoff；超過設定上限原錯誤拒絕。任何text/tool intent/finished emission後零retry；最多兩次attempt、cloud_request_budget預設0保留，產品composition明確給1。Groq官方remaining-requests為每日額度，api.groq.com回0不再派送；不猜其他host語意。等待可取消；callback只帶original ModelRequest與安全delay，不含provider body/header/key、不替自己授權或重跑工具。產品以60秒為單次最大等待，不把整日額度或反覆429當成成功。
+
+## D63 — 2026-10-17 / E 槽 WSL 本機接續設定
+
+使用者授權補齊新機環境，並在本聊天明確同意官方 Cubism Web 5-r.5 與 Haru 授權。選擇官方本機 qwen3:4b-instruct／Ollama0.34.3，不建立付費provider或編造key；Ollama只綁loopback且OLLAMA_NO_CLOUD=1。原qwen3:4b真QA只輸出分析並達512上限，保留其安裝不刪；instruct固定digest 0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0，以128輸出上限直接API單次實測6.231秒、3tokens、「您好！」、done stop、thinking0。這只證該合成短問候，並非模型品質整體PASS。此模型沿既有byte guard，以明確本機設定 SIRO_CONTEXT_TOKEN_BUDGET_ENABLED=0 選擇；不變更launcher預設native guard、不新增假token profile或自動降級，byte/取消/權限/本機路由限制保持。桌面installer只保存明確選定的非secret執行路徑／0或1政策，不保存provider或release credentials。
+
+Windows source保留；為減少已量測的DrvFS載入開銷，建立內容hash核對的Ubuntu ext4執行副本與專用venv／cache。副本不是正式signed release，也不自動追蹤Windows未保存或之後變更；重建需再次hash核對，不能悄悄跑舊source。相同未改5秒gate需在選定環境真驗，不修改SQL或SLO。資產、DB、logs、Ollama模型與編譯產物外置於E槽Ubuntu VHD。
+
+原Qwen reference聲線未提供，不能宣稱恢復。先沿既有Kokoro本機fallback，以官方同v1.0 q4模型與voices資產／固定commit及完整摘要備妥，不改語音類別或原聲線程式。UI明示實際路由，真人聽驗與原生推論取消限制分別記錄。Live2D Core、Haru、manifest與聲音／模型weights不進Git；SDK原archive SHA與正式renderer修復保持，build依賴修補另記lock與驗收。
+
+D63 / Ollama 完整性補充：本機真QA顯示達輸出上限仍被標為completed；唯讀確認Ollama adapter忽略done_reason並在stream EOF無條件finished。沿FIX-003既有provider邊界與typed errors，只修Ollama葉節點：length回ProviderOutputTruncated；未知終止、明確未done或stream未見done:true的EOF回ProviderOutputIncomplete。保留已收到文字，取消優先，空content／只有thinking且無工具不能冒稱完成；不以文字、標點或模型名稱猜完整性。nonstream舊atomic fixture省略done／reason、stream舊done:true省略reason維持相容。工具僅在合法完整終止且owned stream cleanup成功後釋出；已見工具意圖後失敗或cleanup錯誤沿原FIX-003註記阻擋failover重送，不改工具授權。先合成RED再修，覆蓋partial、EOF、length、正常stop／tools、取消與cleanup優先、真合成HTTP整合持久狀態。Core、Policy、schema、原tests、512上限及provider retry政策保持；換instruct模型與真品質另驗，不將adapter修復當模型理解能力完成。
+
+D63 / 原錯誤分類測試預期修正：已審核授權只改test_model_protocol_recovery.py的test_partial_output_survives_protocol_failure_without_retry同一斷言處。原工具意圖後壞JSON／Unicode兩例要求保留tool_request，與本次「完整成功後才釋出工具」衝突；保留text的一個partial，工具改零chunk，另驗原_TOOL_INTENT_EMITTED註記。ProviderResponseInvalid型別、無payload/context/cause洩漏、零fallback、closed原斷言全部保持；不依缺done欄位造production特例，不修改其他舊測試。原／新hash與兩個反例須記錄，原錯誤分類用途不變；以上「原tests保持」僅有本段明列的已批准例外。
+
+## D64 — 2026-10-17 / WSL 桌寵實際互動與音訊修復
+
+使用者真實回報麥克風不可用、語音無法播放、對話遮住角色、不能縮放、需點移動才可拖，以及長回答無法停止。沿同一桌寵／既有語音與取消契約修復，不以D63合成短問候／file-level WAV當真實播放已驗。每一子項先反例再局部修復，真裝置／合成／人工證據分開，不重新編造全產品DONE。
+
+桌寵維持一個WebView／session／renderer／audio owner；開對話採側邊布局，角色本體可拖動且保留點擊交互，縮放限螢幕工作區且不縮小對話文字。保留loopback、短效session、origin、WebKit sandbox及相機拒絕；麥克風僅明確使用者操作啟用，顯示狀態／一鍵關閉，OS權限拒絕要可理解，不默默重試或自動錄音。
+
+本機無STT設定是確定缺口。新增可明確選擇的CPU faster-whisper本機SpeechToText adapter，重用現有transcription endpoint；模型固定來源／revision／license，SDK與lock核實後才加入。只接受已存在的本機模型，執行期local_files_only／offline，不自動下載、無cloud fallback／key、無原音持久化；有界WAV／30秒輸入、單一可取消短生命worker、timeout後terminate／kill／join，不把native推論直接放Core loop。未配置時維持disabled，雲端既有路由保持。新增明確本機設定，不改既有預設privacy／kill switch。
+
+停止必須取消錄音／尚未提交的轉錄、前景turn、LLM串流與播放器；late output不能復活。現有output上限與未完成裁決保持，先定位長文與取消根因，再調必要本機簡潔設定，不能單純放大token上限或硬切文字假完成。語音owner、stop、嘴型與實際播放時計保持，不能兩個視窗一起發聲。安裝的Pulse/GStreamer診斷工具不能取代真WebKit播放證據；Windows麥克風實際音量與真人聽感需使用者確認。
+
+D64 實作收斂：HTTP opening／body read都race同一取消token，回收owned task／response。UI已dispatch的POST保留返回turn_id以便取消，client-only onDispatch/onRejected在fetch前剝除；verified401重認證不能重新送出已停請求。停止期間禁新提交，只有canonical snapshot非active或已知terminal且舊POST已settled才解除；cancelling ACK不是已停止。5秒deadline過後abort owned waits，保留未確認fence、無自動重送，late stream不得發聲／清掉新turn。舊音訊fragment fixture接入同一真factory，區分service與TTS status，下一turn加入明確新submit意圖；限流fixture改驗重試notice撤除而保留新停止狀態，原語音／零重播斷言保持。共用Node harness改stdin避Linux單argv128KiB，不縮頁面或測試。原生GI audio/video唯讀properties修正；WebsitePolicies.ALLOW只在既有loopback WebView，audio-only許可仍逐次確認。插件缺件與PyAV16.1相容pin均有真反例／官方來源。
+
+## D65 — 2026-10-17 / T15 聲音品質試聽子任務
+
+使用者真人回報 D64 備用 Kokoro 聲音機械、音色不喜歡且破碎，補充希望動漫感、可愛活潑。D64 的功能及停止驗證保留，聲音品質不能列 DONE。先檢查已知合成音訊的削波／波形與分段，製作本機短試聽，讓使用者選角色聲；不把提高音高、僅換音量或自動數值檢查當自然度通過。
+
+試聽採官方 Qwen3-TTS-12Hz-1.7B-VoiceDesign（Apache-2.0），固定 revision 5ecdb67327fd37bb2e042aab12ff7391903235d3，官方 qwen-tts 0.1.1／Transformers4.57.3 與 PyTorch2.8.0 CUDA12.8，獨立 E 槽 WSL 環境及模型目錄，保存來源／hash與實際 freeze。只用合成台詞，不錄真人、不模仿指定真人、不外送私人對話；下載與推論分離。先產元氣／甜柔／俏皮三個短樣本，檢查有限波形／留 headroom／結尾與生成上限。未經使用者聽選前不宣稱主觀品質通過、不替換正在使用的聲線／資料庫。正式接入仍須現有取消／過期輸出／單一 audio owner 驗收，不能以單檔試聽取代。
+
+## D66 — 2026-10-17 / T15 固定使用者選定 B 角色聲
+
+使用者選 B（甜柔、親切），授權接入既有對話朗讀。以 B 的原始合成音檔及對應台詞建立固定本機 reference，沿官方 Voice Design then Clone／既有 QwenReferenceTTS worker，以官方0.6B Base及獨立 E 槽 WSL SDK環境執行。不可把舊硬編碼 reference_text 套到新音檔，或把備用 Kokoro 路由仍標成 B。
+
+新增顯式 SIRO_QWEN_VOICE_PROFILE 本機 JSON（version／voice_id／reference_wav／reference_text），有界大小、嚴格欄位／安全 ID／絕對既存 WAV／非空有界台詞；無配置維持原分支，顯式配置錯誤或缺資產則拒啟動，不靜默換音色。cache 依 voice_id 分流且仍綁原 reference／text／model／SDK指紋。選定 profile 無論 runtime profile 均啟用既有可取消 owned worker；Gateway disconnect／停止、shutdown、過期輸出與唯一播放器需重驗。模型僅固定官方已驗 hash 本機素材，worker local-files-only／offline。試聽 B 的人工選擇不是新文字 clone 品質、播放延遲或硬體 SLO 通過的證明；必須記錄新合成及實際播放結果。
+
+## D67 — 2026-10-17 / T08 一般對話長度
+
+D63 已將 `done_reason=length` 判為未完成，保留 partial 並禁止自動重送；D64 已驗證前景停止及晚到輸出隔離。程式檢查發現 SIRO 的人格提示僅籠統要求簡潔，缺少日常短答長度與明確展開條件。一般聊天現在預設直接回答 1–3 句，通常不超過 120 個中文字，省略無助回答的背景、例子與重述；只有使用者要求詳解或任務需要時才展開，答完停止，不填字、不重複、不自行宣布續寫。
+
+保持現有 512 輸出 token 硬上限、`ProviderOutputTruncated`／UI 未完成狀態、partial 保留、停止及重送政策；不增加上限、不硬截文字冒稱完成、不建立自動續寫或第二次模型呼叫。提示只影響回答風格，真實生成仍需使用者體驗驗收。依據 T08 Persona prompt，以合成身分驗提示傳遞與既有取消／截斷回歸。

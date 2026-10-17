@@ -77,6 +77,7 @@
 - 步驟：接 working/episodic 儲存、身份 prompt 組裝、記憶來源查詢、使用者可修改初始 persona；提供一鍵文字 demo。
 - 產出：`core/memory` 初版、P1 walkthrough、identity example。
 - 驗收：連續 3 次重啟後仍能找回指定事件；換 adapter 保留 identity_id；無來源時回答未知，A03 通過。
+- D67 接續修正：普通聊天明確採 1–3 句短答，詳解依使用者要求展開；保留原輸出上限、取消及截斷失敗裁決，不自動續寫。見 `evidence/T08-REPLY-LENGTH-2026-10-17/REPORT.md`。
 
 ## P2：跨程序通道與 Live2D
 
@@ -102,6 +103,8 @@
 - 最小切片：先對話＋任務獨立畫面，再移記憶、能力、設定／診斷；共用同一 control／session，避免每頁開第二 renderer／音訊 owner。不能只換配色或將全部功能折疊。
 - 驗收：逐頁直接進入／後退／重新整理；聊天→審查任務→返回、更正記憶、停止工具三流程；狀態／來源／批准／取消／unknown 保持，跨頁不重送動作或舊音。窄窗／鍵盤／真 renderer 與真桌面分開取證。
 - 回退：只撤新前端／外殼／資產，保留最新 DB 與任務；本卡不改 Core／DB schema／授權／provider／release。桌面自由活動及缺少動作仍按 [COMPANION_EVOLUTION_PLAN](runtime-evolution/COMPANION_EVOLUTION_PLAN.md) 各自驗收，不以規劃或原型冒稱完成。
+- 2026-10-18 補充：修復聊天輸入法組字期間 Enter 被當成送出的 T10 regression，合成回歸及實際 WSL 部署通過，見 [T10 IME evidence](evidence/T10-IME-2026-10-18/REPORT.md)；真人原生輸入法體驗尚待確認，T10-UI-01 其餘項目仍維持 PARTIAL。
+- 2026-10-18 後續：使用者確認是「注音根本打不出來」，定位 WSLg 缺 Windows IME 轉送與 Ubuntu 注音引擎；安裝 IBus Chewing 並接入桌寵啟動流程，見 [T10 注音證據](evidence/T10-ZHUYIN-2026-10-18/REPORT.md)。真人按鍵體驗待驗，T10-UI-01 仍為 PARTIAL。
 
 ### T11 AIRI 身體接入可行性
 
@@ -135,6 +138,8 @@
 
 ### T15 TTS、分句與口型
 
+- 2026-10-17 D65 聲音品質子任務：使用者真人回報 Kokoro 機械／音色不合／破碎，指定動漫、可愛活潑；先做獨立本機 VoiceDesign 三聲線試聽及波形診斷。試聽結果與使用者聽選前不得稱品質通過，正式接入另須原取消／單 owner 驗收。見 DECISIONS D65，D64 功能證據不替代此品質驗收。
+- D66接續：使用者選B後已固定reference，真Base clone／原生播放／推論取消／正式入口B路由及431相關回歸通過，已重開供使用者。新台詞主觀品質／破音設備聽驗、首音SLO仍待驗；不把局部接入列整張T15 DONE。見 evidence/T15-VOICE-B-2026-10-17/REPORT.md。
 - 依賴：T13、T07。輸入：語音模型/資產與授权。
 - 步驟：句段緩衝、TTS streaming、playback ack、口型依播放時鐘、語音失效轉文字；不朗讀 tool JSON。
 - 產出：TTS adapter、prosody mapping、speech events。

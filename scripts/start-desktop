@@ -6,9 +6,17 @@ if ! command -v gjs >/dev/null; then
   echo '桌寵需要 GJS、GTK3 和 WebKitGTK 4.1；尚未啟動。' >&2
   exit 2
 fi
+uv_command="$(command -v uv || true)"
+if [[ -z "$uv_command" && -x "${HOME}/.local/bin/uv" ]]; then
+  uv_command="${HOME}/.local/bin/uv"
+fi
+if [[ -z "$uv_command" ]]; then
+  echo '桌寵需要 uv 與已安裝的專案 Python 環境；請先完成安裝。' >&2
+  exit 2
+fi
 # Validate the existing backend without exposing its short-lived token.
 export SIRO_DESKTOP_URL="${SIRO_DESKTOP_URL:-http://127.0.0.1:8000/desktop}"
-.venv/bin/python - <<'CHECK'
+"$uv_command" run --no-sync python - <<'CHECK'
 import json, os, urllib.parse, urllib.request
 url=os.environ["SIRO_DESKTOP_URL"]
 p=urllib.parse.urlsplit(url)
@@ -33,5 +41,28 @@ if [[ "${XDG_SESSION_TYPE:-}" == wayland && -z "${SIRO_DESKTOP_BACKEND:-}" ]]; t
   echo 'SIRO 桌寵使用 XWayland 相容模式（不更改目前 Wayland 桌面）。'
 elif [[ -n "${SIRO_DESKTOP_BACKEND:-}" ]]; then
   export GDK_BACKEND="$SIRO_DESKTOP_BACKEND"
+fi
+if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+  if ! command -v ibus >/dev/null || ! command -v ibus-daemon >/dev/null; then
+    echo 'WSL 桌寵缺少注音輸入引擎；請在 Ubuntu 安裝 ibus 與 ibus-chewing。' >&2
+    exit 2
+  fi
+  if ! ibus engine >/dev/null 2>&1; then
+    ibus-daemon --daemonize --xim
+  fi
+  chewing_ready=0
+  for ((attempt=0; attempt<20; attempt++)); do
+    if ibus list-engine 2>/dev/null | grep '^  chewing -' >/dev/null && ibus engine chewing >/dev/null 2>&1; then
+      chewing_ready=1
+      break
+    fi
+    sleep .1
+  done
+  if ((chewing_ready == 0)); then
+    echo '注音輸入引擎缺少或無法啟動；請檢查 Ubuntu 的 ibus、ibus-chewing 與 x11-xkb-utils。' >&2
+    exit 2
+  fi
+  export GTK_IM_MODULE=ibus
+  export XMODIFIERS=@im=ibus
 fi
 exec gjs -m desktop/host.js

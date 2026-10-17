@@ -245,6 +245,8 @@ def write_cache(
 def main() -> int:
     if len(sys.argv) != 5:
         raise SystemExit("usage: qwen_tts_worker.py MODEL REF_WAV REF_TEXT CACHE_DIR")
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
     import soundfile as sf  # type: ignore[import-untyped]
     import torch  # type: ignore[import-not-found]
     from qwen_tts import Qwen3TTSModel  # type: ignore[import-not-found]
@@ -257,6 +259,7 @@ def main() -> int:
         device_map=device,
         dtype=torch.bfloat16,
         attn_implementation=attention,
+        local_files_only=True,
     )
     voice = model.create_voice_clone_prompt(
         ref_audio=reference_wav,

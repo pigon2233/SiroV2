@@ -167,8 +167,11 @@ async def test_partial_output_survives_protocol_failure_without_retry(
             chunks.append(chunk)
     assert type(failure.value).__name__ == "ProviderResponseInvalid"
     assert failure.value.__context__ is failure.value.__cause__ is None
-    assert len(chunks) == 1
-    assert chunks[0].kind == ("text" if "partial" in first else "tool_request")
+    if "partial" in first:
+        assert len(chunks) == 1 and chunks[0].kind == "text"
+    else:
+        assert chunks == []
+        assert "siro: provider tool intent emitted" in getattr(failure.value, "__notes__", ())
     assert "synthetic" not in str(failure.value)
     assert not fallback.requests
     assert transport.closed

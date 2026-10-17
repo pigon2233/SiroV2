@@ -1,0 +1,739 @@
+{
+  "status": "LOCAL_VERIFIED_WITH_MANUAL_LIMITS",
+  "date": "2026-10-17",
+  "scope": "D64 user-reported desktop, microphone, playback and foreground stop defects",
+  "formal_release": false,
+  "code_identity": {
+    "status": "PASS",
+    "checked_source_files": 371,
+    "source_id": "218c21940570879309dd02dce5d9f16022ead89d70c97639088e461f0fd0e014",
+    "documentation_excluded": true,
+    "reason": "Status and acceptance notes are updated after runtime validation"
+  },
+  "preparation": [
+    {
+      "argv": [
+        "uv",
+        "sync",
+        "--locked",
+        "--all-groups",
+        "--python",
+        "3.12",
+        "--compile-bytecode"
+      ],
+      "exit": 0,
+      "seconds": 11.638778329011984
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "--no-sync",
+        "--python",
+        "3.12",
+        "python",
+        "-m",
+        "compileall",
+        "-q",
+        "src",
+        "scripts",
+        "tests"
+      ],
+      "exit": 0,
+      "seconds": 0.4736349849990802
+    },
+    {
+      "argv": [
+        "cargo",
+        "build",
+        "--workspace",
+        "--locked"
+      ],
+      "exit": 0,
+      "seconds": 21.579037265008083
+    }
+  ],
+  "tests": {
+    "snapshot_related": {
+      "source_id": "218c21940570879309dd02dce5d9f16022ead89d70c97639088e461f0fd0e014",
+      "command": [
+        "uv",
+        "run",
+        "--python",
+        "3.12",
+        "pytest",
+        "-q",
+        "tests/integration/test_operational_cli.py",
+        "tests/integration/test_companion_launcher.py",
+        "tests/integration/test_desktop_entry_scripts.py",
+        "tests/integration/test_desktop_host.py",
+        "tests/integration/test_desktop_web.py",
+        "tests/integration/test_signed_companion_launcher.py",
+        "tests/contract/test_rate_limit_recovery.py",
+        "tests/integration/test_rate_limit_recovery_main.py",
+        "tests/integration/test_speech_plan.py",
+        "tests/contract/test_model_adapters.py",
+        "tests/contract/test_failover_policy.py",
+        "tests/integration/test_provider_completion.py",
+        "tests/integration/test_conversation.py",
+        "tests/integration/test_gateway_terminal_fence.py",
+        "tests/integration/test_model_protocol_recovery.py",
+        "tests/contract/test_ollama_completion.py",
+        "tests/contract/test_http_stream_cancel_phases.py",
+        "tests/integration/test_gateway.py",
+        "tests/integration/test_local_whisper.py",
+        "tests/integration/test_frontend_microphone.py",
+        "tests/integration/test_frontend_stop_race.py"
+      ],
+      "exit": 0,
+      "seconds": 21.954,
+      "original_five_second_test_unchanged": true,
+      "passed": 327,
+      "warnings": 1,
+      "pytest_seconds": 21.01
+    },
+    "frontend_session": {
+      "command": [
+        "/home/pepepig/.local/share/siro/venv-py312/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_frontend_browser_result.py",
+        "tests/integration/test_frontend_companion.py",
+        "tests/integration/test_frontend_control.py",
+        "tests/integration/test_frontend_goal_tasks.py",
+        "tests/integration/test_frontend_improvement_proposal.py",
+        "tests/integration/test_frontend_microphone.py",
+        "tests/integration/test_frontend_navigation.py",
+        "tests/integration/test_frontend_rate_limit_notice.py",
+        "tests/integration/test_frontend_session.py",
+        "tests/integration/test_frontend_skill_activation.py",
+        "tests/integration/test_frontend_skill_candidate.py",
+        "tests/integration/test_frontend_speech_cancel.py",
+        "tests/integration/test_frontend_speech_queue.py",
+        "tests/integration/test_frontend_stop_race.py",
+        "tests/integration/test_frontend_unknown_effect.py",
+        "tests/integration/test_browser_sessions.py",
+        "tests/integration/test_session_restore.py",
+        "tests/integration/test_session_tokens.py"
+      ],
+      "exit": 0,
+      "passed": 381,
+      "warnings": 1,
+      "pytest_seconds": 54.28
+    },
+    "counts_overlap": true
+  },
+  "real_model_and_haru_integration": {
+    "source_id": "218c21940570879309dd02dce5d9f16022ead89d70c97639088e461f0fd0e014",
+    "model": "qwen3:4b-instruct",
+    "fixture": "synthetic local-only integration",
+    "errors": [],
+    "readiness_seconds": 0.808,
+    "routes": {
+      "model": "ollama:qwen3:4b-instruct",
+      "audio": "local:faster-whisper-small",
+      "body": "websocket",
+      "tts": "local:kokoro-82m-zf-xiaobei"
+    },
+    "stage": "cleanup_completed",
+    "renderer": {
+      "emotion": "neutral",
+      "expression": "F01",
+      "canvas": 1
+    },
+    "model_terminal": "completed",
+    "tool_effects": 0,
+    "synthetic_reply": "你好呀！😊",
+    "real_model_cancel": {
+      "state": "cancelled",
+      "seconds": 0.072,
+      "tool_effects": 0
+    },
+    "native": {
+      "protocol": 1,
+      "toolkit": "GTK3/WebKitGTK4.1",
+      "backend": "default",
+      "sandbox": true,
+      "ready": true,
+      "alpha": true,
+      "input_regions": 46,
+      "host_source_sha256": "cd43ef16e4892cb4fc29484df06b8f114840f62b9747a72e25835bd4c365a8f8",
+      "layout": {
+        "width": 360,
+        "height": 697,
+        "petX": 0,
+        "petWidth": 360,
+        "petHeight": 570,
+        "chatX": 372,
+        "chatY": 8,
+        "chatWidth": 380,
+        "chatHeight": 681,
+        "paneX": 0,
+        "paneWidth": 360,
+        "controlsY": 580,
+        "scale": 1
+      },
+      "scale": 1,
+      "chat_open": false,
+      "occupied_fraction": 0.31305595408895265,
+      "snapshots": 3,
+      "width": 360,
+      "height": 697,
+      "position": [
+        0,
+        0
+      ]
+    },
+    "native_exit": 0,
+    "native_closed": true,
+    "status": "PASS",
+    "stop_exit": 0,
+    "backend_exit": 143,
+    "pid_removed": true,
+    "snapshot_private_dir_created": false
+  },
+  "native_ui": {
+    "status": "PASS",
+    "chromium": {
+      "status": "PASS",
+      "geometry": {
+        "role": {
+          "x": 0,
+          "y": 0,
+          "width": 360,
+          "height": 570
+        },
+        "chat": {
+          "x": 372,
+          "y": 8,
+          "width": 380,
+          "height": 704
+        },
+        "separate": true
+      },
+      "real_dom_pointer_drag_messages": 1,
+      "ordinary_click_opens_chat": true,
+      "same_nodes": true
+    },
+    "native_layouts": [
+      {
+        "stage": "native_chat",
+        "role": {
+          "x": 0,
+          "y": 0,
+          "width": 360,
+          "height": 570
+        },
+        "chat": {
+          "x": 372,
+          "y": 8,
+          "width": 380,
+          "height": 681
+        },
+        "controls": {
+          "x": 10,
+          "y": 580,
+          "width": 340,
+          "height": 107
+        },
+        "separate": true,
+        "controlsSeparate": true,
+        "controlsInside": true,
+        "viewport": {
+          "width": 752,
+          "height": 697
+        },
+        "scale": "100%",
+        "iframeCount": 1
+      },
+      {
+        "stage": "native_large",
+        "role": {
+          "x": 0,
+          "y": 0,
+          "width": 540,
+          "height": 855
+        },
+        "chat": {
+          "x": 552,
+          "y": 8,
+          "width": 380,
+          "height": 966
+        },
+        "controls": {
+          "x": 10,
+          "y": 865,
+          "width": 520,
+          "height": 107
+        },
+        "separate": true,
+        "controlsSeparate": true,
+        "controlsInside": true,
+        "viewport": {
+          "width": 932,
+          "height": 982
+        },
+        "scale": "150%",
+        "iframeCount": 1
+      },
+      {
+        "stage": "native_small",
+        "role": {
+          "x": 33,
+          "y": 0,
+          "width": 216,
+          "height": 342
+        },
+        "chat": {
+          "x": 294,
+          "y": 8,
+          "width": 380,
+          "height": 504
+        },
+        "controls": {
+          "x": 10,
+          "y": 352,
+          "width": 262,
+          "height": 145
+        },
+        "separate": true,
+        "controlsSeparate": true,
+        "controlsInside": true,
+        "viewport": {
+          "width": 674,
+          "height": 520
+        },
+        "scale": "60%",
+        "iframeCount": 1
+      },
+      {
+        "stage": "native_done",
+        "status": "PASS",
+        "singleOwnerNodes": true,
+        "physicalMouseDrag": "NOT_RUN",
+        "role": {
+          "x": 0,
+          "y": 0,
+          "width": 360,
+          "height": 570
+        },
+        "chat": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "controls": {
+          "x": 10,
+          "y": 580,
+          "width": 340,
+          "height": 107
+        },
+        "separate": true,
+        "controlsSeparate": true,
+        "controlsInside": true,
+        "viewport": {
+          "width": 360,
+          "height": 697
+        },
+        "scale": "100%",
+        "iframeCount": 1
+      }
+    ],
+    "native_state": {
+      "protocol": 1,
+      "toolkit": "GTK3/WebKitGTK4.1",
+      "backend": "default",
+      "sandbox": true,
+      "ready": true,
+      "alpha": true,
+      "input_regions": 40,
+      "host_source_sha256": "cd43ef16e4892cb4fc29484df06b8f114840f62b9747a72e25835bd4c365a8f8",
+      "layout": {
+        "width": 360,
+        "height": 697,
+        "petX": 0,
+        "petWidth": 360,
+        "petHeight": 570,
+        "chatX": 372,
+        "chatY": 8,
+        "chatWidth": 380,
+        "chatHeight": 681,
+        "paneX": 0,
+        "paneWidth": 360,
+        "controlsY": 580,
+        "scale": 1
+      },
+      "scale": 1,
+      "chat_open": false,
+      "occupied_fraction": 0.31319942611190815,
+      "snapshots": 14,
+      "width": 360,
+      "height": 697,
+      "position": [
+        0,
+        0
+      ],
+      "closed": true
+    },
+    "physical_mouse_drag": "NOT_RUN",
+    "gateway_thread_stopped": true
+  },
+  "speech_output": {
+    "scope": "real speech HTTP + production index playback functions + native WebKit, synthetic only",
+    "http": [
+      {
+        "method": "GET",
+        "path": "/probe",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/session",
+        "status": 200,
+        "content_type": "application/json"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/audio/speech/plan",
+        "status": 200,
+        "content_type": "application/json"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "status": 200,
+        "content_type": "audio/wav"
+      }
+    ],
+    "native": {
+      "final": true,
+      "status": "PASS",
+      "uiStatus": "全文朗讀完成（1/1 段）",
+      "observedAudio": true,
+      "maxTime": 0.826868
+    },
+    "pulse_sink_input_observed": true,
+    "sandbox": true,
+    "server_joined": true,
+    "human_heard_audio": "NOT_VERIFIED"
+  },
+  "capture_device": {
+    "scope": "open audio-only device, read selected nonidentifying settings, stop immediately",
+    "native": {
+      "final": true,
+      "status": "PASS",
+      "track_count": 1,
+      "tracks": [
+        {
+          "kind": "audio",
+          "state_after_stop": "ended",
+          "settings": {
+            "sampleRate": 0,
+            "echoCancellation": true
+          }
+        }
+      ]
+    },
+    "permission": {
+      "audio_only": true,
+      "type": "WebKit2_UserMediaPermissionRequest"
+    },
+    "recorded_or_read_samples": false
+  },
+  "synthetic_recorder": {
+    "scope": "WebAudio oscillator -> MediaStreamDestination -> MediaRecorder -> decodeAudioData",
+    "microphone_opened": false,
+    "speaker_connected": false,
+    "ambient_samples_read": false,
+    "audio_file_saved": false,
+    "native_exit": 0,
+    "native": {
+      "sandbox": true,
+      "events": [
+        {
+          "final": true,
+          "status": "PASS",
+          "supported": {
+            "audio/webm;codecs=opus": true,
+            "audio/ogg;codecs=opus": true,
+            "audio/mp4": true
+          },
+          "selected_mime": "audio/webm;codecs=opus",
+          "recommended_mime": "audio/webm; codecs=opus",
+          "attempts": [
+            {
+              "requested_mime": "audio/webm;codecs=opus",
+              "synthetic_seconds": 0.3,
+              "mime": "audio/webm; codecs=opus",
+              "bytes": 7779,
+              "status": "PASS",
+              "sample_rate": 44100,
+              "channels": 2,
+              "frames": 12061,
+              "duration": 0.2734920634920635,
+              "synthetic_peak": 1.0234782695770264
+            },
+            {
+              "requested_mime": "(browser default)",
+              "synthetic_seconds": 0.3,
+              "mime": "audio/mp4; codecs=mp4a",
+              "bytes": 7980,
+              "status": "FAIL",
+              "name": "EncodingError",
+              "error": "Decoding failed"
+            }
+          ]
+        }
+      ],
+      "purpose": "isolated native WebKit synthetic playback, no microphone",
+      "website_autoplay_policy": 0,
+      "media_requires_user_gesture": false,
+      "final": {
+        "final": true,
+        "status": "PASS",
+        "supported": {
+          "audio/webm;codecs=opus": true,
+          "audio/ogg;codecs=opus": true,
+          "audio/mp4": true
+        },
+        "selected_mime": "audio/webm;codecs=opus",
+        "recommended_mime": "audio/webm; codecs=opus",
+        "attempts": [
+          {
+            "requested_mime": "audio/webm;codecs=opus",
+            "synthetic_seconds": 0.3,
+            "mime": "audio/webm; codecs=opus",
+            "bytes": 7779,
+            "status": "PASS",
+            "sample_rate": 44100,
+            "channels": 2,
+            "frames": 12061,
+            "duration": 0.2734920634920635,
+            "synthetic_peak": 1.0234782695770264
+          },
+          {
+            "requested_mime": "(browser default)",
+            "synthetic_seconds": 0.3,
+            "mime": "audio/mp4; codecs=mp4a",
+            "bytes": 7980,
+            "status": "FAIL",
+            "name": "EncodingError",
+            "error": "Decoding failed"
+          }
+        ]
+      }
+    }
+  },
+  "synthetic_speech_input": {
+    "scope": "original index capture/MediaRecorder/decode/WAV -> real offline Whisper HTTP -> mock submit, synthetic only",
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/probe",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/v1/session",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/fixture.wav",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/v1/audio/transcriptions",
+        "status": 200
+      }
+    ],
+    "native": {
+      "final": true,
+      "status": "PASS",
+      "uiStatus": "辨識：你好 这是本集语音测试",
+      "submissions": [
+        {
+          "text": "你好 这是本集语音测试",
+          "source": "speech"
+        }
+      ],
+      "mockedCaptureCalls": 1,
+      "realMicrophoneCalled": false,
+      "speakerConnected": false,
+      "syntheticDuration": 2.431972789115646,
+      "recorderState": "inactive",
+      "trackStates": [
+        "ended"
+      ],
+      "captureDetached": true,
+      "transcriptionDetached": true
+    },
+    "versions": {
+      "faster-whisper": "1.2.1",
+      "av": "16.1.0"
+    },
+    "microphone_opened": false,
+    "raw_audio_persisted": false,
+    "worker_busy_after_join": false,
+    "server_joined": true
+  },
+  "offline_asr": {
+    "status": "PASS",
+    "fixture": "existing synthetic Mandarin TTS, no microphone or private recording",
+    "transcript": "你好 这是本集语音测试",
+    "language": "zh",
+    "seconds": 9.094,
+    "sdk": "1.2.1",
+    "device": "cpu",
+    "precision": "int8",
+    "audio_sha256": "7fa96e265ec100c37a060290e345fefbd992ab8b392d5a033f179f3e4600226c",
+    "audio_persisted_by_recognizer": false,
+    "runtime_downloads": false
+  },
+  "asr_assets": {
+    "repo": "Systran/faster-whisper-small",
+    "revision": "536b0662742c02347bc0e980a01041f333bce120",
+    "license": "MIT",
+    "sdk": "faster-whisper==1.2.1",
+    "model_directory": "/home/pepepig/.local/share/siro/data/models/faster-whisper-small",
+    "validation_environment": "/home/pepepig/.local/share/siro/voice-validation-py312",
+    "assets": [
+      {
+        "path": "config.json",
+        "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/config.json",
+        "bytes": 2370,
+        "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828",
+        "official_blob": "e5047537059bd8f182d9ca64c470201585015187"
+      },
+      {
+        "path": "model.bin",
+        "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin",
+        "bytes": 483546902,
+        "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671",
+        "official_blob": "504a7fe023f19460564a623887a9f77ea53ac708"
+      },
+      {
+        "path": "tokenizer.json",
+        "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/tokenizer.json",
+        "bytes": 2203239,
+        "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab",
+        "official_blob": "7818adb6de9fa3064d3ff81226fdd675be1f6344"
+      },
+      {
+        "path": "vocabulary.txt",
+        "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/vocabulary.txt",
+        "bytes": 459861,
+        "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913",
+        "official_blob": "c9074644d9d1205686f16d411564729461324b75"
+      },
+      {
+        "path": "README.md",
+        "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/README.md",
+        "bytes": 1998,
+        "sha256": "329373481008c7c38654aff8ecdcf0163c211557cc7ba8e2ef6f2f84b4f75ec8",
+        "official_blob": "16511f6106ead2fbc3a1480957a217c2661a5a98"
+      }
+    ]
+  },
+  "installed_running_entry": {
+    "status": "PASS",
+    "entry": "Windows Start-SIRO.cmd -> WSL siro-companion",
+    "source_id": "218c21940570879309dd02dce5d9f16022ead89d70c97639088e461f0fd0e014",
+    "health": {
+      "state": "healthy"
+    },
+    "routes": {
+      "model": "ollama:qwen3:4b-instruct",
+      "audio": "local:faster-whisper-small",
+      "body": "websocket",
+      "tts": "local:kokoro-82m-zf-xiaobei"
+    },
+    "native_pids": [
+      59504
+    ],
+    "snapshot_private_directory_created": false,
+    "doctor": {
+      "siro_version": "0.1.0.dev0",
+      "profile": "minimal",
+      "checks": [
+        {
+          "name": "python",
+          "state": "available",
+          "detail": "3.12.14",
+          "required_for": "minimal"
+        },
+        {
+          "name": "data-directory",
+          "state": "available",
+          "detail": "/home/pepepig/.local/share/siro/data",
+          "required_for": "minimal"
+        },
+        {
+          "name": "config",
+          "state": "unavailable",
+          "detail": "/home/pepepig/.config/siro/config.json",
+          "required_for": "companion"
+        },
+        {
+          "name": "gateway",
+          "state": "available",
+          "detail": "http://127.0.0.1:8000/health/ready",
+          "required_for": "companion"
+        },
+        {
+          "name": "wpctl",
+          "state": "unavailable",
+          "detail": "not found on PATH",
+          "required_for": "companion audio"
+        },
+        {
+          "name": "docker",
+          "state": "unavailable",
+          "detail": "not found on PATH",
+          "required_for": "broker integration tests"
+        },
+        {
+          "name": "rustc",
+          "state": "available",
+          "detail": "/home/pepepig/.cargo/bin/rustc",
+          "required_for": "runtime"
+        },
+        {
+          "name": "node",
+          "state": "available",
+          "detail": "/usr/bin/node",
+          "required_for": "presentation UI"
+        },
+        {
+          "name": "nvidia",
+          "state": "available",
+          "detail": "NVIDIA GeForce RTX 3050, 8192 MiB",
+          "required_for": "local-ai"
+        }
+      ]
+    },
+    "left_running_for_owner": true
+  },
+  "backup_metadata": {
+    "backup_directory": "/home/pepepig/.local/share/siro/backups/before-D64-20261017T110039Z",
+    "configuration_saved": true,
+    "consistent_database_backup": true,
+    "inspected_conversations": false,
+    "copied_private_data_to_workspace_or_git": false
+  },
+  "not_verified": [
+    "human microphone speech quality",
+    "human speaker audibility",
+    "physical Windows mouse drag",
+    "voice semantic/latency SLO",
+    "full scripts/check on this dirty candidate",
+    "remote CI",
+    "24h soak",
+    "formal release",
+    "original personal Qwen voice"
+  ]
+}

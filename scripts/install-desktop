@@ -3,24 +3,71 @@
 set -euo pipefail
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_root"
-.venv/bin/python - <<'PY'
+uv_command="$(command -v uv || true)"
+if [[ -z "$uv_command" && -x "${HOME}/.local/bin/uv" ]]; then
+  uv_command="${HOME}/.local/bin/uv"
+fi
+if [[ -z "$uv_command" ]]; then
+  echo '桌寵需要 uv 與已安裝的專案 Python 環境；請先完成安裝。' >&2
+  exit 2
+fi
+SIRO_DESKTOP_UV_COMMAND="$uv_command" "$uv_command" run --no-sync python - <<'PY'
 import os
+import sys
 from pathlib import Path
 root=Path.cwd()
 destination=Path(os.environ.get('XDG_DATA_HOME',str(Path.home()/'.local/share')))/'applications/org.siro.Companion.desktop'
-destination.parent.mkdir(parents=True,exist_ok=True)
-command=str(root/'scripts/start-companion').replace('\\','\\\\').replace('"','\\"').replace('%','%%')
-destination.write_text(f'''[Desktop Entry]
+
+def value(text):
+    if any(ord(character)<32 or ord(character)==127 for character in text):
+        raise SystemExit('桌面入口的路徑與環境值不能包含換行或控制字元。')
+    return text.replace('\\','\\\\')
+
+def argument(text):
+    # Exec quoting is applied after the Desktop Entry string escape layer.
+    quoted=''.join('\\'+character if character in '\\"`$' else character for character in text)
+    return '"'+value(quoted).replace('%','%%')+'"'
+
+# Keep the selected Python environment when the menu has no login-shell PATH.
+# Save execution paths and the explicit token policy, never provider credentials.
+environment={
+    'PATH':str(Path(os.environ['SIRO_DESKTOP_UV_COMMAND']).absolute().parent)+os.pathsep+os.environ.get('PATH','/usr/bin:/bin'),
+    'UV_PROJECT_ENVIRONMENT':sys.prefix,
+    'UV_PYTHON':sys.executable,
+}
+for name in ('UV_CACHE_DIR','UV_PYTHON_INSTALL_DIR','CARGO_TARGET_DIR','SIRO_RUNTIME_BINARY','PYTHONPYCACHEPREFIX','SIRO_DATA_DIR','SIRO_LOG_DIR','SIRO_LIVE2D_DIST','SIRO_WHISPER_MODEL_DIR','SIRO_QWEN_VOICE_PROFILE'):
+    if name in os.environ:
+        environment[name]=os.environ[name]
+if 'SIRO_CONTEXT_TOKEN_BUDGET_ENABLED' in os.environ:
+    setting=os.environ['SIRO_CONTEXT_TOKEN_BUDGET_ENABLED']
+    if setting not in {'0','1'}:
+        raise SystemExit('SIRO_CONTEXT_TOKEN_BUDGET_ENABLED 必須明確為 0 或 1。')
+    environment['SIRO_CONTEXT_TOKEN_BUDGET_ENABLED']=setting
+if 'SIRO_GATEWAY_PORT' in os.environ:
+    setting=os.environ['SIRO_GATEWAY_PORT']
+    if not 4<=len(setting)<=5 or not setting.isascii() or not setting.isdecimal() or not 1024<=int(setting)<=65535 or setting!=str(int(setting)):
+        raise SystemExit('SIRO_GATEWAY_PORT 必須是 1024..65535 的十進位整數。')
+    environment['SIRO_GATEWAY_PORT']=setting
+if 'SIRO_OLLAMA_MODEL' in os.environ:
+    setting=os.environ['SIRO_OLLAMA_MODEL']
+    if not setting.strip():
+        raise SystemExit('SIRO_OLLAMA_MODEL 必須是明確的非空本機模型名稱。')
+    environment['SIRO_OLLAMA_MODEL']=setting
+command=' '.join(argument(item) for item in ['/usr/bin/env',*(name+'='+setting for name,setting in environment.items()),str(root/'scripts/start-companion')])
+entry=f'''[Desktop Entry]
 Type=Application
 Name=SIRO 桌寵
 Comment=獨立角色、對話與 SIRO 控制台
-Exec="{command}"
-Path={root}
-Icon={root}/desktop/siro.svg
+Exec={command}
+Path={value(str(root))}
+Icon={value(str(root/'desktop/siro.svg'))}
 Terminal=false
 Categories=Utility;
 StartupNotify=true
 StartupWMClass=org.siro.Companion
-''')
+'''
+value(str(destination))
+destination.parent.mkdir(parents=True,exist_ok=True)
+destination.write_text(entry,encoding='utf-8')
 print(f'已建立應用程式選單入口：{destination}')
 PY

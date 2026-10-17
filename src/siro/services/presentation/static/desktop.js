@@ -43,11 +43,26 @@
     conversation.id = "desktop-conversation";
     conversation.inert = true;
     const forward = id => document.querySelector(id)?.click();
+    const microphoneButton = button("desktop-microphone", "麥克風：關", "開啟或關閉麥克風；不會自動開始錄音", () => forward("#microphone-toggle"));
     const voiceButton = button("desktop-voice", "說話", "沿用對話的麥克風與語音輸入", () => {
       setChat(true);
       forward("#voice");
     });
     button("desktop-stop", "停止", "停止回覆、工具與語音", () => forward("#cancel"));
+    const output = document.querySelector("#voice-output");
+    const speechButton = button("desktop-speech", "朗讀：關", "朗讀 SIRO 的回覆", () => {
+      if (!output || output.disabled) return;
+      output.checked = !output.checked;
+      output.dispatchEvent(new Event("change", {bubbles: true}));
+      updateStatus();
+    });
+    speechButton.setAttribute("aria-pressed", String(Boolean(output?.checked)));
+    speechButton.disabled = !output || output.disabled;
+    button("desktop-smaller", "－", "縮小角色", () => nativeCommand({type: "desktop.scale", step: -1}))
+      .setAttribute("aria-label", "縮小角色");
+    const scaleButton = button("desktop-scale", "100%", "還原角色大小", () => nativeCommand({type: "desktop.scale", step: 0}));
+    button("desktop-larger", "＋", "放大角色", () => nativeCommand({type: "desktop.scale", step: 1}))
+      .setAttribute("aria-label", "放大角色");
     const moveButton = button("desktop-move", "移動", "按住這裡拖曳桌寵視窗", () => {});
     moveButton.addEventListener("pointerdown", event => {
       if (event.button !== 0) return;
@@ -64,6 +79,55 @@
     status.setAttribute("role", "status");
     controls.appendChild(status);
     document.body.appendChild(controls);
+    let roleDocument, pressed, roleDragged = false;
+    const roleDown = event => {
+      roleDragged = false;
+      pressed = event.button === 0 ? {x: event.screenX, y: event.screenY, id: event.pointerId} : null;
+    };
+    const roleMove = event => {
+      if (typeof event.buttons === "number" && !(event.buttons & 1)) { pressed = null; return; }
+      if (!pressed || event.pointerId !== pressed.id || Math.hypot(event.screenX - pressed.x, event.screenY - pressed.y) < 7) return;
+      if (nativeCommand({type: "desktop.move", button: 1, screenX: event.screenX, screenY: event.screenY})) {
+        roleDragged = true;
+        pressed = null;
+        event.preventDefault();
+      }
+    };
+    const roleUp = () => { pressed = null; };
+    const roleClick = event => {
+      if (!roleDragged) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const roleEvents = {pointerdown: roleDown, pointermove: roleMove, pointerup: roleUp, pointercancel: roleUp, click: roleClick};
+    const detachRole = () => {
+      if (roleDocument) for (const [name, handler] of Object.entries(roleEvents)) roleDocument.removeEventListener(name, handler, true);
+      roleDocument = null;
+      pressed = null;
+    };
+    const attachRole = () => {
+      let next;
+      try { next = frame.contentDocument; } catch (_) { return; }
+      if (!next || roleDocument === next) return;
+      detachRole();
+      roleDocument = next;
+      for (const [name, handler] of Object.entries(roleEvents)) roleDocument.addEventListener(name, handler, true);
+    };
+    frame.addEventListener("load", attachRole);
+    attachRole();
+    let reportedControlsHeight;
+    const setLayout = incoming => {
+      const layout = incoming && {...incoming, paneX: incoming.paneX ?? incoming.petX, paneWidth: incoming.paneWidth ?? incoming.petWidth, controlsY: incoming.controlsY ?? incoming.petHeight + 10};
+      const geometry = {petWidth: "pet-width", petHeight: "pet-height", petX: "pet-left", chatX: "chat-x", chatY: "chat-y", chatWidth: "chat-width", chatHeight: "chat-height", paneX: "pane-left", paneWidth: "pane-width", controlsY: "controls-y"};
+      if (!layout || !Object.keys(geometry).every(key => Number.isSafeInteger(layout[key]) && layout[key] >= 0 && layout[key] <= 4096) ||
+          !Number.isFinite(layout.scale) || layout.scale <= 0 || layout.scale > 1.5) return;
+      for (const [key, name] of Object.entries(geometry)) document.documentElement.style?.setProperty(`--desktop-${name}`, `${layout[key]}px`);
+      scaleButton.textContent = `${Math.round(layout.scale * 100)}%`;
+      if (controls.getBoundingClientRect) {
+        const height = Math.min(320, Math.max(64, Math.ceil(controls.getBoundingClientRect().height + 20)));
+        if (height !== reportedControlsHeight) { reportedControlsHeight = height; nativeCommand({type: "desktop.controls", height}); }
+      }
+    };
     let detached = false;
     const updateStatus = () => {
       const source = id => document.querySelector(id)?.textContent?.trim() || "";
@@ -72,14 +136,21 @@
       const activity = document.querySelector("#activity-notice");
       consoleButton.textContent = activity && !activity.hidden ? "控制台 · 有更新" : "控制台";
       voiceButton.textContent = source("#voice") || "說話";
+      const microphone = document.querySelector("#microphone-toggle");
+      microphoneButton.textContent = source("#microphone-toggle") || "麥克風：未提供";
+      microphoneButton.disabled = !microphone || microphone.disabled;
+      microphoneButton.setAttribute("aria-pressed", microphone?.getAttribute?.("aria-pressed") || "false");
+      speechButton.textContent = output?.checked ? "朗讀：開" : "朗讀：關";
+      speechButton.setAttribute("aria-pressed", String(Boolean(output?.checked)));
       status.textContent = detached ? "角色顯示已交接；重新啟動桌寵可取回。" :
         notice ? notice.textContent.trim() :
           [source("#connection"), source("#voice-status"), source("#tts-status")].filter(Boolean).join(" · ");
     };
     const observer = new MutationObserver(updateStatus);
-    for (const id of ["#connection", "#voice", "#voice-status", "#tts-status", "#activity-notice", "#service-notice", "#runtime-notice"]) {
+    output?.addEventListener("change", updateStatus);
+    for (const id of ["#connection", "#voice", "#microphone-toggle", "#voice-status", "#tts-status", "#activity-notice", "#service-notice", "#runtime-notice"]) {
       const node = document.querySelector(id);
-      if (node) observer.observe(node, {childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden"]});
+      if (node) observer.observe(node, {childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden", "disabled", "aria-pressed"]});
     }
     const messages = document.querySelector("#messages");
     const unreadObserver = new MutationObserver(() => {
@@ -98,12 +169,16 @@
       forward("#cancel");
       setChat(false);
     });
-    window.addEventListener("pagehide", () => { observer.disconnect(); unreadObserver.disconnect(); }, {once: true});
-    window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false)});
+    window.addEventListener("pagehide", () => {
+      observer.disconnect(); unreadObserver.disconnect(); detachRole();
+      frame.removeEventListener("load", attachRole);
+      output?.removeEventListener("change", updateStatus);
+    }, {once: true});
+    window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false), setLayout});
     window.addEventListener("message", event => {
       if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
       if (event.data?.type === "siro.renderer.ready") nativeCommand({type: "desktop.ready"});
-      if (event.data?.type === "siro.renderer.interact") setChat(true);
+      if (event.data?.type === "siro.renderer.interact" && !roleDragged) setChat(true);
     });
     updateStatus();
   }

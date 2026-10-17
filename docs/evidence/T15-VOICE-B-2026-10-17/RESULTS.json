@@ -1,0 +1,520 @@
+{
+  "status": "B_VOICE_INSTALLED_RUNNING_LOCAL_VERIFIED",
+  "date": "2026-10-17",
+  "user_selection": "B sweet anime character voice",
+  "formal_release": false,
+  "code_identity": {
+    "status": "PASS",
+    "source_id": "80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e",
+    "checked_non_document_files": 372,
+    "documentation_updated_after_validation": true
+  },
+  "preparation": [
+    {
+      "argv": [
+        "uv",
+        "sync",
+        "--locked",
+        "--all-groups",
+        "--python",
+        "3.12",
+        "--compile-bytecode"
+      ],
+      "exit": 0,
+      "seconds": 8.245258907001698
+    },
+    {
+      "argv": [
+        "uv",
+        "run",
+        "--no-sync",
+        "--python",
+        "3.12",
+        "python",
+        "-m",
+        "compileall",
+        "-q",
+        "src",
+        "scripts",
+        "tests"
+      ],
+      "exit": 0,
+      "seconds": 0.563115569006186
+    },
+    {
+      "argv": [
+        "cargo",
+        "build",
+        "--workspace",
+        "--locked"
+      ],
+      "exit": 0,
+      "seconds": 15.426137222006219
+    }
+  ],
+  "selected_assets": {
+    "status": "STAGED_NOT_ACTIVATED",
+    "repo": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+    "revision": "5d83992436eae1d760afd27aff78a71d676296fc",
+    "license": "apache-2.0",
+    "all_upstream_hashes_verified": true,
+    "model_directory": "/home/pepepig/.local/share/siro/data/models/qwen3-tts-0.6b-base",
+    "reference_sha256": "bd86b4bcc838652ed9a723cdd21e6d1bd2fb5d666e6be20ef7b1c1bb3822144d",
+    "profile": {
+      "version": 1,
+      "voice_id": "siro-sweet-b-v1",
+      "reference_wav": "/home/pepepig/.local/share/siro/data/voices/siro-sweet-b-v1.wav",
+      "reference_text": "嘿，你回來啦！我是希洛，今天也要元氣滿滿喔！有什麼新鮮事，快來跟我分享吧！"
+    },
+    "model_files": [
+      {
+        "rfilename": ".gitattributes",
+        "blobId": "a6344aac8c09253b3b630fb776ae94478aa0275b",
+        "size": 1519
+      },
+      {
+        "rfilename": "README.md",
+        "blobId": "50931da8c9b34f7233394b5c3063a47ef3285acf",
+        "size": 3640
+      },
+      {
+        "rfilename": "config.json",
+        "blobId": "4e923f500f5c3eeb78d44072e7049b28817c2e04",
+        "size": 4494
+      },
+      {
+        "rfilename": "generation_config.json",
+        "blobId": "1872b16d4535564abf2db5d6debe6cddd82b7f2e",
+        "size": 245
+      },
+      {
+        "rfilename": "merges.txt",
+        "blobId": "20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0",
+        "size": 1671839
+      },
+      {
+        "rfilename": "model.safetensors",
+        "blobId": "401a365c4572f09f44d48bb336fdbf94cd1e3ad2",
+        "size": 1829344272,
+        "lfs": {
+          "sha256": "180b3b10eb1c9f1b4db7806d5475bae3071c0243c299d49926bab1da3b6946f6",
+          "size": 1829344272,
+          "pointerSize": 135
+        }
+      },
+      {
+        "rfilename": "preprocessor_config.json",
+        "blobId": "0525dd953bb9241912f7147666f0d535165d5d4f",
+        "size": 127
+      },
+      {
+        "rfilename": "speech_tokenizer/config.json",
+        "blobId": "06cc8dc4c5ec8a1929086b71b98c313020d9268b",
+        "size": 2336
+      },
+      {
+        "rfilename": "speech_tokenizer/configuration.json",
+        "blobId": "ab58e2eaf53cd14a1a2a7527d9261ceea93a24cd",
+        "size": 76
+      },
+      {
+        "rfilename": "speech_tokenizer/model.safetensors",
+        "blobId": "026d66bfb5d730dcfd56450c5e9e51b3ef4e0712",
+        "size": 682293092,
+        "lfs": {
+          "sha256": "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258",
+          "size": 682293092,
+          "pointerSize": 134
+        }
+      },
+      {
+        "rfilename": "speech_tokenizer/preprocessor_config.json",
+        "blobId": "ba40914f4f49ab98a8ca545d4892ef7291a39592",
+        "size": 234
+      },
+      {
+        "rfilename": "tokenizer_config.json",
+        "blobId": "6ff9fd60cc623bb54bbd603cbd418c97a11528d7",
+        "size": 7344
+      },
+      {
+        "rfilename": "vocab.json",
+        "blobId": "4783fe10ac3adce15ac8f358ef5462739852c569",
+        "size": 2776833
+      }
+    ]
+  },
+  "snapshot_tests": {
+    "source_id": "80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e",
+    "command": [
+      "uv",
+      "run",
+      "--python",
+      "3.12",
+      "pytest",
+      "-q",
+      "tests/integration/test_operational_cli.py",
+      "tests/integration/test_companion_launcher.py",
+      "tests/integration/test_desktop_entry_scripts.py",
+      "tests/integration/test_desktop_host.py",
+      "tests/integration/test_desktop_web.py",
+      "tests/integration/test_signed_companion_launcher.py",
+      "tests/contract/test_rate_limit_recovery.py",
+      "tests/integration/test_rate_limit_recovery_main.py",
+      "tests/integration/test_speech_plan.py",
+      "tests/contract/test_model_adapters.py",
+      "tests/contract/test_failover_policy.py",
+      "tests/integration/test_provider_completion.py",
+      "tests/integration/test_conversation.py",
+      "tests/integration/test_gateway_terminal_fence.py",
+      "tests/integration/test_model_protocol_recovery.py",
+      "tests/contract/test_ollama_completion.py",
+      "tests/contract/test_http_stream_cancel_phases.py",
+      "tests/integration/test_gateway.py",
+      "tests/integration/test_local_whisper.py",
+      "tests/integration/test_frontend_microphone.py",
+      "tests/integration/test_frontend_stop_race.py",
+      "tests/integration/test_selected_voice_profile.py",
+      "tests/integration/test_qwen_lifecycle.py",
+      "tests/test_qwen_worker_completion.py",
+      "tests/integration/test_speech_completion_edges.py",
+      "tests/integration/test_tts_import_boundary.py"
+    ],
+    "exit": 0,
+    "seconds": 27.195,
+    "original_five_second_test_unchanged": true,
+    "passed": 431,
+    "warnings": 1,
+    "pytest_seconds": 26.54
+  },
+  "initial_snapshot_test_failure": {
+    "passed": 426,
+    "failed": 5,
+    "cause": "Third-party Jieba SyntaxWarnings in env-cleared subprocesses without canonical bytecode",
+    "fix": {
+      "command": [
+        "/home/pepepig/.local/share/siro/deployment-envs/80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e-py312/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "/home/pepepig/.local/share/siro/deployment-envs/80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e-py312/lib/python3.12/site-packages/jieba"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": "/home/pepepig/.local/share/siro/deployment-envs/80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e-py312/lib/python3.12/site-packages/jieba/__init__.py:44: SyntaxWarning: invalid escape sequence '\\.'\n  re_han_default = re.compile(\"([\\u4E00-\\u9FD5a-zA-Z0-9+#&\\._%\\-]+)\", re.U)\n/home/pepepig/.local/share/siro/deployment-envs/80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e-py312/lib/python3.12/site-packages/jieba/__init__.py:46: SyntaxWarning: invalid escape sequence '\\s'\n  re_skip_default = re.compile(\"(\\r\\n|\\s)\", re.U)\n/home/pepepig/.local/share/siro/deployment-envs/80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e-py312/lib/python3.12/site-packages/jieba/finalseg/__init__.py:78: SyntaxWarning: invalid escape sequence '\\.'\n  re_skip = re.compile(\"([a-zA-Z0-9]+(?:\\.\\d+)?%?)\")\n/home/pepepig/.local/share/siro/deployment-envs/80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e-py312/lib/python3.12/site-packages/jieba/posseg/__init__.py:16: SyntaxWarning: invalid escape sequence '\\.'\n  re_skip_detail = re.compile(\"([\\.0-9]+|[a-zA-Z0-9]+)\")\n/home/pepepig/.local/share/siro/deployment-envs/80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e-py312/lib/python3.12/site-packages/jieba/posseg/__init__.py:17: SyntaxWarning: invalid escape sequence '\\.'\n  re_han_internal = re.compile(\"([\\u4E00-\\u9FD5a-zA-Z0-9+#&\\._]+)\")\n/home/pepepig/.local/share/siro/deployment-envs/80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e-py312/lib/python3.12/site-packages/jieba/posseg/__init__.py:18: SyntaxWarning: invalid escape sequence '\\s'\n  re_skip_internal = re.compile(\"(\\r\\n|\\s)\")\n/home/pepepig/.local/share/siro/deployment-envs/80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e-py312/lib/python3.12/site-packages/jieba/posseg/__init__.py:21: SyntaxWarning: invalid escape sequence '\\.'\n  re_num = re.compile(\"[\\.0-9]+\")\n",
+      "reason": "uv install used external PYTHONPYCACHEPREFIX; original isolated subprocess tests clear it",
+      "test_assertions_or_warning_filters_changed": false,
+      "third_party_source_changed": false
+    }
+  },
+  "worker_and_cancel": {
+    "scope": "real selected-B Base clone, synthetic file-level render/cancel/cache only",
+    "voice_id": "siro-sweet-b-v1",
+    "samples": [
+      {
+        "iteration": 0,
+        "seconds": 18.848,
+        "audio_seconds": 3.68,
+        "peak": 0.35546875,
+        "pcm_saturation": 0
+      },
+      {
+        "iteration": 1,
+        "seconds": 0.003,
+        "audio_seconds": 3.68,
+        "peak": 0.35546875,
+        "pcm_saturation": 0
+      }
+    ],
+    "production_activated": false,
+    "cancel": {
+      "seconds": 0.093,
+      "old_worker_reaped": true,
+      "owner_cleared": true
+    },
+    "restart_after_cancel": true,
+    "closed": true,
+    "status": "PASS"
+  },
+  "native_http_playback": {
+    "scope": "real speech HTTP + production index playback functions + native WebKit, synthetic only",
+    "human_heard_audio": "NOT_VERIFIED",
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/probe",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/session",
+        "status": 200,
+        "content_type": "application/json"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/audio/speech/plan",
+        "status": 200,
+        "content_type": "application/json"
+      },
+      {
+        "method": "POST",
+        "path": "/v1/audio/speech",
+        "status": 200,
+        "content_type": "audio/wav"
+      }
+    ],
+    "sink_input_observations": [
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz",
+      "37\t1\t323\tprotocol-native.c\ts16le 1ch 24000Hz"
+    ],
+    "native_exit": 0,
+    "native": {
+      "sandbox": true,
+      "events": [
+        {
+          "final": true,
+          "status": "PASS",
+          "uiStatus": "全文朗讀完成（1/1 段）",
+          "observedAudio": true,
+          "maxTime": 3.68
+        }
+      ],
+      "purpose": "isolated native WebKit synthetic playback, no microphone",
+      "website_autoplay_policy": 0,
+      "media_requires_user_gesture": false,
+      "final": {
+        "final": true,
+        "status": "PASS",
+        "uiStatus": "全文朗讀完成（1/1 段）",
+        "observedAudio": true,
+        "maxTime": 3.68
+      }
+    },
+    "server_joined": true
+  },
+  "selected_model_haru_integration": {
+    "source_id": "80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e",
+    "model": "qwen3:4b-instruct",
+    "fixture": "synthetic local-only integration",
+    "errors": [],
+    "readiness_seconds": 1.018,
+    "routes": {
+      "model": "ollama:qwen3:4b-instruct",
+      "audio": "local:faster-whisper-small",
+      "body": "websocket",
+      "tts": "local:qwen3-tts-0.6b-base:siro-sweet-b-v1"
+    },
+    "stage": "cleanup_completed",
+    "renderer": {
+      "emotion": "neutral",
+      "expression": "F01",
+      "canvas": 1
+    },
+    "model_terminal": "completed",
+    "tool_effects": 0,
+    "synthetic_reply": "你好呀！😊",
+    "real_model_cancel": {
+      "state": "cancelled",
+      "seconds": 0.076,
+      "tool_effects": 0
+    },
+    "native": {
+      "protocol": 1,
+      "toolkit": "GTK3/WebKitGTK4.1",
+      "backend": "default",
+      "sandbox": true,
+      "ready": true,
+      "alpha": true,
+      "input_regions": 38,
+      "host_source_sha256": "cd43ef16e4892cb4fc29484df06b8f114840f62b9747a72e25835bd4c365a8f8",
+      "layout": {
+        "width": 360,
+        "height": 697,
+        "petX": 0,
+        "petWidth": 360,
+        "petHeight": 570,
+        "chatX": 372,
+        "chatY": 8,
+        "chatWidth": 380,
+        "chatHeight": 681,
+        "paneX": 0,
+        "paneWidth": 360,
+        "controlsY": 580,
+        "scale": 1
+      },
+      "scale": 1,
+      "chat_open": false,
+      "occupied_fraction": 0.3126255380200861,
+      "snapshots": 3,
+      "width": 360,
+      "height": 697,
+      "position": [
+        0,
+        0
+      ]
+    },
+    "native_exit": 0,
+    "native_closed": true,
+    "status": "PASS",
+    "stop_exit": 0,
+    "backend_exit": 143,
+    "pid_removed": true,
+    "snapshot_private_dir_created": false
+  },
+  "live_synthetic_speech": {
+    "status": "PASS",
+    "route": "local:qwen3-tts-0.6b-base:siro-sweet-b-v1",
+    "scope": "live authenticated speech HTTP, synthetic text only",
+    "seconds": 12.44,
+    "audio_seconds": 3.68,
+    "sample_rate": 24000,
+    "peak": 0.35546875,
+    "pcm_saturation": 0,
+    "created_conversation_turn": false,
+    "microphone_opened": false,
+    "speaker_playback": false,
+    "worker_left_warm_for_owner": true
+  },
+  "installed_entry": {
+    "status": "PASS",
+    "entry": "Windows Start-SIRO.cmd -> WSL siro-companion",
+    "source_id": "80c1ebe93ae2731cbdd3f1d65a65bac933a0bb8f99333bed9009e4f2df21543e",
+    "health": {
+      "state": "healthy"
+    },
+    "routes": {
+      "model": "ollama:qwen3:4b-instruct",
+      "audio": "local:faster-whisper-small",
+      "body": "websocket",
+      "tts": "local:qwen3-tts-0.6b-base:siro-sweet-b-v1"
+    },
+    "native_pids": [
+      70998
+    ],
+    "snapshot_private_directory_created": false,
+    "doctor": {
+      "siro_version": "0.1.0.dev0",
+      "profile": "minimal",
+      "checks": [
+        {
+          "name": "python",
+          "state": "available",
+          "detail": "3.12.14",
+          "required_for": "minimal"
+        },
+        {
+          "name": "data-directory",
+          "state": "available",
+          "detail": "/home/pepepig/.local/share/siro/data",
+          "required_for": "minimal"
+        },
+        {
+          "name": "config",
+          "state": "unavailable",
+          "detail": "/home/pepepig/.config/siro/config.json",
+          "required_for": "companion"
+        },
+        {
+          "name": "gateway",
+          "state": "available",
+          "detail": "http://127.0.0.1:8000/health/ready",
+          "required_for": "companion"
+        },
+        {
+          "name": "wpctl",
+          "state": "unavailable",
+          "detail": "not found on PATH",
+          "required_for": "companion audio"
+        },
+        {
+          "name": "docker",
+          "state": "unavailable",
+          "detail": "not found on PATH",
+          "required_for": "broker integration tests"
+        },
+        {
+          "name": "rustc",
+          "state": "available",
+          "detail": "/home/pepepig/.cargo/bin/rustc",
+          "required_for": "runtime"
+        },
+        {
+          "name": "node",
+          "state": "available",
+          "detail": "/usr/bin/node",
+          "required_for": "presentation UI"
+        },
+        {
+          "name": "nvidia",
+          "state": "available",
+          "detail": "NVIDIA GeForce RTX 3050, 8192 MiB",
+          "required_for": "local-ai"
+        }
+      ]
+    },
+    "left_running_for_owner": true
+  },
+  "backup_metadata": {
+    "backup_directory": "/home/pepepig/.local/share/siro/backups/before-D66-20261017T124905Z",
+    "configuration_saved": true,
+    "consistent_database_backup": true,
+    "inspected_conversations": false,
+    "copied_private_data_to_workspace_or_git": false
+  },
+  "manual_limits": [
+    "new generated speech similarity and subjective listening quality",
+    "user-reported crackle across physical Windows speaker/headphone devices",
+    "first-audio latency SLO",
+    "full scripts/check and remote CI",
+    "formal release"
+  ],
+  "source_tests": {
+    "focused": "158 passed in 28.09s",
+    "final_profile_and_menu": "53 passed in 10.27s",
+    "counts_overlap": true
+  },
+  "static_checks": {
+    "ruff_check": "PASS, 5 affected files",
+    "ruff_format": "PASS, 5 affected files",
+    "mypy": "PASS, 5 affected files"
+  }
+}

@@ -14,6 +14,54 @@ from siro.services.presentation.gateway import create_app
 ORIGIN = "http://127.0.0.1:8000"
 
 
+def test_native_microphone_gi_properties_keep_dialog_and_reject_other_devices() -> None:
+    source = Path("desktop/host.js").read_text()
+    start = source.index("function restrict(view)")
+    end = source.index("\nfunction evaluate(", start)
+    script = (
+        r"""
+const assert=require('node:assert/strict'), dialogs=[], handlers=new Map(), window={};
+let allowedOrigin=true;
+const permitted=()=>allowedOrigin;
+class Request {
+ constructor(audio,video){this.is_for_audio_device=audio;this.is_for_video_device=video;this.allowed=0;this.denied=0;}
+ allow(){this.allowed++;} deny(){this.denied++;}
+}
+const WebKit={UserMediaPermissionRequest:Request};
+const Gtk={MessageType:{QUESTION:1},ButtonsType:{NONE:0},ResponseType:{CANCEL:0,ACCEPT:1},
+ MessageDialog:class {
+  constructor(options){this.options=options;dialogs.push(this);}
+  add_button(){} connect(_name,callback){this.response=callback;}
+  show_all(){} destroy(){this.closed=true;}
+ }};
+const view={connect:(name,fn)=>handlers.set(name,fn),get_uri:()=> 'http://127.0.0.1/desktop'};
+"""
+        + source[start:end]
+        + r"""
+restrict(view);
+const permission=handlers.get('permission-request');
+const audio=new Request(true,false);
+assert.equal(permission(view,audio),true);
+assert.equal(dialogs.length,1);assert.equal(audio.allowed,0);assert.equal(audio.denied,0);
+dialogs[0].response(dialogs[0],Gtk.ResponseType.ACCEPT);
+assert.equal(audio.allowed,1);assert.equal(dialogs[0].closed,true);
+for(const [a,v] of [[true,true],[false,true],[false,false],[undefined,undefined]]){
+ const request=new Request(a,v);permission(view,request);
+ assert.equal(request.denied,1);assert.equal(request.allowed,0);
+}
+const unknown={denied:0,deny(){this.denied++;}};
+permission(view,unknown);assert.equal(unknown.denied,1);
+allowedOrigin=false;
+const foreign=new Request(true,false);permission(view,foreign);assert.equal(foreign.denied,1);
+allowedOrigin=true;
+const moved=new Request(true,false);permission(view,moved);allowedOrigin=false;
+dialogs.at(-1).response(dialogs.at(-1),Gtk.ResponseType.ACCEPT);
+assert.equal(moved.denied,1);assert.equal(moved.allowed,0);
+"""
+    )
+    subprocess.run(["node", "-e", script], check=True, timeout=10)
+
+
 def test_native_mask_passes_clear_pixels_and_keeps_odd_edge() -> None:
     source = Path(__file__).parents[2] / "desktop/input-mask.mjs"
     script = f"""

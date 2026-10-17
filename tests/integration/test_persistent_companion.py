@@ -11,7 +11,7 @@ from siro.adapters.runtime import LocalRuntimeClient
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.companion import CompanionCore
 from siro.core.conversation import ConversationEngine, TurnState
-from siro.core.identity import IdentityService, ImmutableCore
+from siro.core.identity import IdentityService, IdentityState, ImmutableCore
 from siro.core.memory import Memory, MemoryService, WorkingMemory, assemble_prompt
 from siro.persistence.conversation import SQLiteConversationRepository
 from siro.persistence.memory import SQLiteMemoryRepository
@@ -107,6 +107,28 @@ def test_working_memory_is_session_scoped_and_bounded() -> None:
 
     assert [message.text for message in memory.recent("one")] == ["second", "third"]
     assert [message.text for message in memory.recent("two")] == ["private"]
+
+
+def test_prompt_sets_short_default_and_respects_explicit_detail_request() -> None:
+    now = datetime.now(UTC)
+    identity = IdentityState(
+        identity_id="siro",
+        core=ImmutableCore(
+            name="SIRO",
+            baseline_identity="persistent companion",
+            core_values=("honesty",),
+            creator_relationship="owner",
+        ),
+        created_at=now,
+        updated_at=now,
+    )
+
+    prompt = assemble_prompt(identity, "你好", ())
+
+    assert "one to three short sentences" in prompt
+    assert "within 120 Chinese characters" in prompt
+    assert "when the owner asks for it or the task needs it" in prompt
+    assert "Do not pad, repeat, or announce that you will continue" in prompt
 
 
 @pytest.mark.asyncio

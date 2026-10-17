@@ -8,15 +8,17 @@ if [[ ! "$port" =~ ^[0-9]+$ ]] || ((port < 1024 || port > 65535)); then
   echo 'SIRO_GATEWAY_PORT must be 1024..65535' >&2; exit 2
 fi
 if ! curl --fail --silent --max-time 2 "http://127.0.0.1:$port/health/ready" >/dev/null; then
-  mkdir -p .siro-data
-  scripts/start .siro-data/companion-service.pid >> .siro-data/companion-service.log 2>&1 </dev/null &
+  data_dir="${SIRO_DATA_DIR:-.siro-data}"
+  log_dir="${SIRO_LOG_DIR:-$data_dir}"
+  mkdir -p "$data_dir" "$log_dir"
+  scripts/start "$data_dir/companion-service.pid" >> "$log_dir/companion-service.log" 2>&1 </dev/null &
   ready=0
   for ((attempt=0; attempt<60; attempt++)); do
     if curl --fail --silent --max-time 1 "http://127.0.0.1:$port/health/ready" >/dev/null; then ready=1; break; fi
     sleep .5
   done
   if ((ready == 0)); then
-    echo '正式 SIRO 尚未啟動；請檢查 .siro-data/companion-service.log。未開啟替身桌寵。' >&2
+    echo "正式 SIRO 尚未啟動；請檢查 $log_dir/companion-service.log。未開啟替身桌寵。" >&2
     exit 1
   fi
 fi

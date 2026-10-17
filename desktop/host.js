@@ -9,6 +9,7 @@ import GLibUnix from 'gi://GLibUnix';
 import WebKit from 'gi://WebKit2?version=4.1';
 import Cairo from 'cairo';
 import {inputMask} from './input-mask.mjs';
+import {desktopLayout} from './layout.mjs';
 
 const url = GLib.getenv('SIRO_DESKTOP_URL') || 'http://127.0.0.1:8000/desktop';
 const parsed = GLib.Uri.parse(url, GLib.UriFlags.NONE);
@@ -18,7 +19,7 @@ const origin = `http://${parsed.get_host()}:${parsed.get_port() > 0 ? parsed.get
 const reportDirectory = GLib.getenv('SIRO_DESKTOP_REPORT_DIR');
 const app = new Gtk.Application({application_id: 'org.siro.Companion', flags: Gio.ApplicationFlags.FLAGS_NONE});
 let window, web, center, pendingSnapshot = false, timer = 0, ready = false, lastChat = false;
-let samples = 0, lastRegion = 0;
+let samples = 0, lastRegion = 0, scale = 1, layoutTimer = 0, controlsHeight = 132;
 const disposable = GLib.dir_make_tmp('siro-desktop-XXXXXX');
 const scratch = GLib.build_filenamev([disposable, 'alpha.png']);
 const state = {protocol: 1, toolkit: 'GTK3/WebKitGTK4.1', backend: GLib.getenv('GDK_BACKEND') || 'default', sandbox: false, ready: false, alpha: false, input_regions: 0};
@@ -42,7 +43,7 @@ function restrict(view) {
     });
     view.connect('permission-request', (_view, request) => {
         const audioOnly = request instanceof WebKit.UserMediaPermissionRequest &&
-            request.is_for_audio_device() && !request.is_for_video_device();
+            request.is_for_audio_device && !request.is_for_video_device;
         if (!audioOnly || !permitted(view.get_uri() || '')) { request.deny(); return true; }
         const dialog = new Gtk.MessageDialog({transient_for: window, modal: true,
             message_type: Gtk.MessageType.QUESTION, buttons: Gtk.ButtonsType.NONE,
@@ -63,6 +64,32 @@ function evaluate(script) {
     web.evaluate_javascript(script, -1, null, null, null, (_view, result) => {
         try { web.evaluate_javascript_finish(result); } catch (_) { /* closed/reloading view */ }
     });
+}
+function queueShape() {
+    if (layoutTimer) GLib.source_remove(layoutTimer);
+    layoutTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 160, () => {
+        layoutTimer = 0; updateShape(); return GLib.SOURCE_REMOVE;
+    });
+}
+function applyLayout() {
+    if (!window || !web) return;
+    const display = Gdk.Display.get_default();
+    const monitor = window.get_window() ? display.get_monitor_at_window(window.get_window()) : display.get_primary_monitor();
+    const area = (monitor || display.get_monitor(0))?.get_workarea();
+    if (!area) return;
+    const previous = state.layout, [x, y] = window.get_position();
+    const roleX = x + (previous?.petX || 0), roleBottom = y + (previous?.petHeight || 570);
+    const layout = desktopLayout(scale, lastChat, Math.min(4096, area.width), Math.min(4096, area.height), controlsHeight);
+    // Keep the role anchored when the panel fits to its left near a screen edge.
+    if (lastChat && layout.chatY === 8 && roleX + layout.width > area.x + area.width && roleX - layout.chatWidth - 12 >= area.x) {
+        layout.paneX = layout.chatWidth + 12; layout.petX += layout.paneX; layout.chatX = 0;
+    }
+    window.resize(layout.width, layout.height);
+    window.move(Math.max(area.x, Math.min(roleX - layout.petX, area.x + area.width - layout.width)),
+        Math.max(area.y, Math.min(roleBottom - layout.petHeight, area.y + area.height - layout.height)));
+    state.layout = layout; state.scale = layout.scale; state.chat_open = lastChat;
+    evaluate(`window.siroDesktopView?.setLayout(${JSON.stringify(layout)})`);
+    saveState(); queueShape();
 }
 function openCenter() {
     if (!center) {
@@ -96,7 +123,7 @@ function updateShape() {
             state.input_regions = lastRegion; state.occupied_fraction = occupied / (width * height);
             state.alpha = image.get_has_alpha() && occupied < width * height * .95;
             state.snapshots = samples; state.width = width; state.height = height; state.position = window.get_position(); state.chat_open = lastChat;
-            if (reportDirectory && !lastChat && samples <= 9 && samples % 3 === 0) surface.writeToPNG(GLib.build_filenamev([reportDirectory, 'pet.png']));
+            if (reportDirectory && samples % 3 === 0) surface.writeToPNG(GLib.build_filenamev([reportDirectory, lastChat ? 'chat.png' : 'pet.png']));
             saveState();
         } catch (error) { state.snapshot_error = String(error); saveState(); }
     });
@@ -122,8 +149,13 @@ function activate() {
         else if (message.type === 'desktop.console') openCenter();
         else if (message.type === 'desktop.chat' && typeof message.open === 'boolean') {
             lastChat = message.open; window.set_accept_focus(lastChat);
+            applyLayout();
             if (lastChat) window.present();
-            updateShape();
+        } else if (message.type === 'desktop.scale' && Number.isInteger(message.step) && [-1, 0, 1].includes(message.step)) {
+            scale = message.step === 0 ? 1 : Math.max(.6, Math.min(1.5, Math.round((scale + message.step * .1) * 10) / 10));
+            applyLayout();
+        } else if (message.type === 'desktop.controls' && Number.isInteger(message.height) && message.height >= 64 && message.height <= 320 && message.height !== controlsHeight) {
+            controlsHeight = message.height; applyLayout();
         } else if (message.type === 'desktop.move' && message.button === 1 && Number.isFinite(message.screenX) && Number.isFinite(message.screenY)) {
             const display = Gdk.Display.get_default();
             let insideMonitor = false;
@@ -132,9 +164,9 @@ function activate() {
                 if (message.screenX >= area.x && message.screenX <= area.x + area.width && message.screenY >= area.y && message.screenY <= area.y + area.height) insideMonitor = true;
             }
             if (insideMonitor) window.begin_move_drag(1, Math.round(message.screenX), Math.round(message.screenY), Gdk.CURRENT_TIME);
-        } else if (message.type === 'desktop.ready') { ready = true; state.ready = true; saveState(); }
+        } else if (message.type === 'desktop.ready') { ready = true; state.ready = true; applyLayout(); }
     });
-    window = new Gtk.ApplicationWindow({application: app, title: `SIRO 桌寵 · ${GLib.getenv('GDK_BACKEND') === 'x11' ? 'XWayland/X11 相容' : '原生顯示'}`, default_width: 360, default_height: 570, decorated: false, resizable: false});
+    window = new Gtk.ApplicationWindow({application: app, title: `SIRO 桌寵 · ${GLib.getenv('GDK_BACKEND') === 'x11' ? 'XWayland/X11 相容' : '原生顯示'}`, default_width: 360, default_height: 570, decorated: false, resizable: true});
     window.set_app_paintable(true);
     const rgba = window.get_screen().get_rgba_visual();
     if (!rgba) throw new Error('RGBA compositing visual is unavailable');
@@ -144,10 +176,14 @@ function activate() {
     const provider = new Gtk.CssProvider();
     provider.load_from_data('window { background-color: transparent; }');
     window.get_style_context().add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
-    web = new WebKit.WebView({web_context: context, user_content_manager: manager});
+    const policies = new WebKit.WebsitePolicies({autoplay: WebKit.AutoplayPolicy.ALLOW});
+    web = new WebKit.WebView({web_context: context, user_content_manager: manager, website_policies: policies});
+    web.set_size_request(1, 1);
     const transparent = new Gdk.RGBA(); transparent.parse('rgba(0,0,0,0)'); web.set_background_color(transparent);
     const settings = web.get_settings(); settings.set_enable_write_console_messages_to_stdout(Boolean(reportDirectory)); settings.set_enable_webgl(true); settings.set_enable_developer_extras(false); settings.set_media_playback_requires_user_gesture(false);
     restrict(web); window.add(web);
+    web.connect('load-changed', (_view, event) => { if (event === WebKit.LoadEvent.FINISHED) applyLayout(); });
+    web.connect('size-allocate', queueShape);
     web.connect('web-process-terminated', () => { state.ready = false; saveState(); });
     web.connect('load-failed', () => { state.ready = false; state.load_failed = true; saveState(); return false; });
     window.connect('delete-event', () => { app.quit(); return true; });
@@ -158,8 +194,7 @@ function activate() {
         if (!window) return;
         const d = Gdk.Display.get_default(), m = d.get_monitor_at_window(window.get_window()) || d.get_primary_monitor() || d.get_monitor(0);
         if (!m) return;
-        const area = m.get_workarea(), [x, y] = window.get_position(), [width, height] = window.get_size();
-        window.move(Math.max(area.x, Math.min(x, area.x + area.width - width)), Math.max(area.y, Math.min(y, area.y + area.height - height)));
+        applyLayout();
     });
     web.load_uri(url);
     timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, updateShape);
@@ -168,6 +203,7 @@ function activate() {
 app.connect('activate', activate);
 app.connect('shutdown', () => {
     if (timer) GLib.source_remove(timer);
+    if (layoutTimer) GLib.source_remove(layoutTimer);
     state.closed = true; saveState(); center?.destroy(); window?.destroy(); window = null; web = null;
     try { GLib.unlink(scratch); GLib.rmdir(disposable); } catch (_) { /* temporary cleanup */ }
 });

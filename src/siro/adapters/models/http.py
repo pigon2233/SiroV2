@@ -7,6 +7,7 @@ import json
 import logging
 import urllib.request
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -55,34 +56,51 @@ class HttpxStreamingTransport:
         timeout: float,
         cancellation: CancellationToken,
     ) -> AsyncIterator[str]:
+        if cancellation.cancelled:
+            return
         request_headers = {"User-Agent": "siro-core/0.1", **headers}
-        async with (
-            httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client,
-            client.stream("POST", url, json=payload, headers=request_headers) as response,
-        ):
-            if response.is_error:
-                # Status only: never log provider bodies, URLs, credentials or prompts.
-                logging.getLogger(__name__).warning(
-                    "model provider HTTP failure status=%d", response.status_code
-                )
-            response.raise_for_status()
-            iterator = response.aiter_lines().__aiter__()
-            while not cancellation.cancelled:
-                next_line: asyncio.Future[str] = asyncio.ensure_future(anext(iterator))
-                cancelled = asyncio.create_task(cancellation.wait())
-                done, _ = await asyncio.wait(
-                    (next_line, cancelled), return_when=asyncio.FIRST_COMPLETED
-                )
-                if cancelled in done:
-                    next_line.cancel()
-                    await asyncio.gather(next_line, return_exceptions=True)
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
+            request = client.build_request("POST", url, json=payload, headers=request_headers)
+            opening = asyncio.create_task(client.send(request, stream=True))
+            cancelled = asyncio.create_task(cancellation.wait())
+            response: httpx.Response | None = None
+            next_line: asyncio.Future[str] | None = None
+            try:
+                await asyncio.wait((opening, cancelled), return_when=asyncio.FIRST_COMPLETED)
+                # The flag also covers a same-tick response/error before the watcher wakes.
+                if cancellation.cancelled:
                     return
-                cancelled.cancel()
-                await asyncio.gather(cancelled, return_exceptions=True)
-                try:
-                    yield next_line.result()
-                except StopAsyncIteration:
-                    return
+                response = opening.result()
+                if response.is_error:
+                    # Status only: never log provider bodies, URLs, credentials or prompts.
+                    logging.getLogger(__name__).warning(
+                        "model provider HTTP failure status=%d", response.status_code
+                    )
+                response.raise_for_status()
+                iterator = response.aiter_lines().__aiter__()
+                while not cancellation.cancelled:
+                    next_line = asyncio.ensure_future(anext(iterator))
+                    await asyncio.wait((next_line, cancelled), return_when=asyncio.FIRST_COMPLETED)
+                    if cancellation.cancelled:
+                        return
+                    try:
+                        line = next_line.result()
+                    except StopAsyncIteration:
+                        return
+                    next_line = None
+                    yield line
+            finally:
+                owned = tuple(task for task in (opening, cancelled, next_line) if task is not None)
+                for task in owned:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*owned, return_exceptions=True)
+                # Opening can finish in the same tick cancellation wins. Still close it.
+                if response is None and not opening.cancelled():
+                    with suppress(Exception):
+                        response = opening.result()
+                if response is not None:
+                    await response.aclose()
 
 
 @dataclass(frozen=True, slots=True)

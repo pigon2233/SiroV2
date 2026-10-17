@@ -1,5 +1,87 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-18 — T10 WSLg 注音引擎修復 LOCAL_VERIFIED，真人按鍵待驗
+
+使用者確認「注音根本打不出來」後，發現上一輪 Enter 組字修正只處理送出競爭，真正缺口是 WSLg 未轉送 Windows 注音且 E 槽 Ubuntu 沒有注音引擎。已安裝 IBus／Chewing／`setxkbmap` 所需 Ubuntu 套件，並把 Chewing 啟動、選用及 GTK IME 環境接進桌寵入口；缺服務時顯示可理解錯誤。原有 Windows 輸入法不更動。[驗收及失敗修復過程](evidence/T10-ZHUYIN-2026-10-18/REPORT.md)。
+
+最終快照 `27a4c652b551` locked sync／compileall／Cargo build與來源同一性核對通過；桌面入口及 HTML IME 聚焦回歸 **42 PASS／7.10s**，Ruff、格式與 Bash 語法檢查通過。合成 IBus 鍵產生注音 preedit 與「北市」commit。關閉 IBus daemon 後，Windows `Start-SIRO.cmd` 真冷啟 PASS：healthy、唯一 native PID 102270、`ibus engine=chewing`、原生程序有 `GTK_IM_MODULE=ibus` 和 `XMODIFIERS=@im=ibus`，原模型／STT／B 聲線路由正常；目前留給使用者使用。
+
+限制：尚未由真人在 WebKit 視窗按實體注音鍵、檢查候選字位置與選字手感；合成探針與環境檢查不能代替此項。完整 `scripts/check`／remote CI 未跑，T10-UI-01 仍 PARTIAL。下一步是使用者在「聊聊」輸入框試打一段注音；若仍有特定按鍵問題，沿原生焦點與候選字顯示追查，不再把 Enter 回歸當成全部修復。
+
+## 2026-10-18 — T10 中文 IME 輸入修復 LOCAL_VERIFIED
+
+修正聊天輸入框把部分輸入法的選字 Enter 當成送出的問題：明確追蹤 compositionstart/end，並兼容 `isComposing`、舊版 `keyCode/which=229`；composition 中不攔截 Enter，正常 Enter 送出、Shift+Enter 保持換行。回歸測試在新部署快照 **3f50058d4538** 通過，所有 `test_frontend_*.py` **352 PASS／39.30s**；Ruff、格式、source hash、locked uv sync、compileall、Cargo build 均通過。8000 正式頁確認送出修正版，Windows `Start-SIRO.cmd` 重啟後 ready healthy，唯一 native PID **87599**；模型、音訊、Live2D、TTS 路由沿用原設定。報告：[T10 IME 驗收](evidence/T10-IME-2026-10-18/REPORT.md)。
+
+限制：測試使用合成 composition/keyboard events，尚未由真人在原生視窗輸入法選字驗收；Windows 本機 `uv` 無可用 Python 3.14 且設定為 offline，因此驗收都在實際執行產品的 WSL Python 3.12 部署副本完成。請使用者在新視窗試打中文確認體感；若仍無法輸入，再依輸入法與按鍵時序追查。未跑完整 `scripts/check`／remote CI，未操作私人對話或開啟麥克風。
+
+## 2026-10-17 — D67 / T08 一般對話避免冗長並實際部署 LOCAL_VERIFIED
+
+依使用者反映回覆太長、常生成到上限，補強 `assemble_prompt` 的日常回覆規則：普通聊天直接回答 1–3 句、通常最多 120 個中文字；只有明確要求或任務需要時才展開，答完即停，不重複或自行續寫。保持 512 token 上限、`done_reason=length` 未完成標記、partial 保留與不自動重送；停止按鈕沿用 D64 已驗取消路徑。
+
+真實本機 `qwen3:4b-instruct` 候選訊息格式、合成問題「你可以做什麼？」、相同 seed／temperature／512 預算的單次前後 probe：既有提示 115 tokens／120中文字／4句；更新提示 23 tokens／30中文字／2句；兩者皆 `done=true`、`done_reason=stop`，沒有到生成上限。這是合成單題的提示效果驗證，不代表每一題都固定長度，也未讀取或寫入私人對話。
+
+語意提示更新後相關副本回歸 **436 PASS／1既有 Starlette warning／34.73s**。新環境首輪431 PASS／5 FAIL 是 Jieba 初次編譯產生原有 SyntaxWarning；保留失敗，照標準 compileall 後原命令通過。再修正單純英文字元以符合 Ruff 後，最終實際部署副本 `7f8a0034fb1d` 完成 locked uv sync／compileall／Cargo build；精確最終副本人格回歸 **5 PASS／0.19s**，Ruff、format、mypy均通過。兩份報告均不把初輪失敗說成成功。
+
+已由 Windows `Start-SIRO.cmd` 重新啟動此副本：正式8000 healthy、唯一native桌寵 PID 80741、模型 `ollama:qwen3:4b-instruct`、Live2D及 B 聲線路由正確。另以合成文字經授權 speech API 預熱 B worker 20.616s，產生3.68秒 WAV；沒有建立對話、開啟麥克風或播放喇叭。驗收與命令見 [D67 報告](evidence/T08-REPLY-LENGTH-2026-10-17/REPORT.md)／[機讀結果](evidence/T08-REPLY-LENGTH-2026-10-17/RESULTS.json)。完整 `scripts/check`、remote CI 與更多真人長回覆體驗未跑；真人再試後可回報是否仍常碰到上限。未commit／push。
+
+## 2026-10-17 — D66 / T15 使用者選定 B 聲線已套用 LOCAL_VERIFIED
+
+使用者聽選 B「甜柔、親切」後，已固定該原創合成音檔及對應台詞，以官方 Qwen3-TTS0.6B Base／既有可取消 worker 產生新對話語音。新增有界嚴格本機 voice profile、明確 voice_id/cache 分流、無錯誤靜默退回 Kokoro；selected profile 在 legacy 模式同樣啟用 owned lifecycle。worker固定本機模型／offline，Origin、session、唯一播放owner、舊completion／cap裁決保持。原始B不是私人錄音或既有原個人聲線。
+
+已建立並啟動新 ext4 副本 `80c1ebe93ae2`：locked sync／compileall／Cargo build成功，372份非文件來源與manifest一致。最終相關 **431 PASS／1既有warning／26.54s／exit0**，保留原5秒啟動gate；來源聚焦158PASS、最後profile／選單53PASS（有重疊）。Ruff／format／mypy五檔通過。初次副本426PASS／5FAIL來自第三方Jieba在清空環境的subprocess缺canonical bytecode而發出SyntaxWarnings；只補正常dependency compileall，保留stderr要求／原tests／warning filter／第三方source，失敗留證後重跑全431通過。
+
+真新台詞 clone3.68s、PCM peak0.3555／削波0；cold18.848s，同句cache0.003s；真推論中取消0.093s、舊worker已reap／owner清空、取消後可重啟及close。真原生WebKit經speech HTTP播放至ended／全文完成，Pulse sink被觀察、sandbox保持、server及worker關閉。新副本真Ollama／Haru整合PASS：ready1.018s、正確B route、短句completed、長文取消0.076s、0工具效果，native及backend清理完成。
+
+私有設定與SQLite一致備份後，僅正常TERM關閉舊指定桌寵，更新wrapper／選單並經Windows入口重開。**目前healthy且唯一新副本gjs，tts=`local:qwen3-tts-0.6b-base:siro-sweet-b-v1`**；另經正式8000授權speech API合成合成台詞PASS（12.44s含模型啟動，未建立對話／未開麥／未播喇叭），保留worker warm供使用者。第一次入口檢查早於ready連線被拒，隨後正常PASS，未將初次拒連說成通過。
+
+完整來源／命令／模型revision／結果／限制見 [B套用報告](evidence/T15-VOICE-B-2026-10-17/REPORT.md)／[RESULTS](evidence/T15-VOICE-B-2026-10-17/RESULTS.json)。下一步是使用者實際新對話聽感、破碎聲及設備聽驗；目前數位檔案無削波不代表所有主觀破音已解決。Cold與新句合成較慢，首音SLO仍未通過；全scripts/check／remoteCI／硬體與正式發布未跑，未commit／push。D65試聽歷史保留，其「未套用」由本節後續結果取代。
+
+## 2026-10-17 — D65 / T15 三段角色聲試聽已產出，待真人聽選
+
+使用者真人回報 D64 Kokoro 備用聲線機械、音色不好且破碎；希望動漫感、可愛活潑。D64 只代表功能／取消的驗證，**聲音品質未通過**。沿 D65 先做本機元氣／甜柔／俏皮三種角色聲試聽，待真人聽選後才接入；正式入口暫仍保持 D64 副本，不修改私人資料或正在使用的聲線。
+
+已用合成台詞檢查舊 Kokoro raw float／PCM16，energy0.5及1.0皆 finite、over-full-scale0／PCM saturation0；不能由此排除原生播放、分段接縫或感知失真，未宣稱破音已解決。官方 Qwen VoiceDesign 固定 revision 與所有檔案已核對上游 SHA／Git blob，獨立 E 槽 WSL 模型及環境；首次 CUDA index 的 cuDNN 下載 timeout 留證，改同版本官方 PyPI wheel 後成功。未外送真人錄音／私人文字，未改 production 或專案 lockfile。
+
+隔離 SDK0.1.1／Torch2.8.0／Transformers4.57.3 在 RTX3050 成功載入；三段真 offline 24kHz PCM16 試聽已產出，A元氣8.56s／B甜柔8.00s／C俏皮7.84s。生成14.599／11.498／12.089s、各一個 EOS、未達512 cap、無非有限值／削波，實際連線嘗試0；5ms頭尾fade，沒有改音高。真本機 ASR 三段都有 coherent final（仍有省略／同音差異，不稱品質通過），worker均回收；GPU推論程序已退出並釋放顯存。
+
+本機腳本 `.siro-data/wsl-setup/prepare_anime_voice.py`、`inspect_voice_quality.py`、`audition_anime_voice.py`、`check_anime_auditions.py`；三個音檔及freeze留同目錄 `voice-quality`（Git ignored），只公開合成 metadata。[證據及重現命令](evidence/T15-VOICE-2026-10-17/REPORT.md)。下一步：使用者聽 A／B／C 選音色及回報是否仍破音，選定後接入可重用角色聲及重驗原播放／取消契約；正式 D64 聲線尚未替換。生成耗時不是首音 SLO，本輪沒有跑全 pytest／CI、沒有將未驗品質寫成 DONE。
+
+## 2026-10-17 — D64 桌寵／語音／長回答停止 LOCAL_VERIFIED，真人操作待驗
+
+依使用者回報及「繼續」，完成同一 T12 桌面體驗修復切片：麥克風可見開關、原生 audio-only 許可、WebM Opus 錄製與本機 Whisper small 辨識；修 WebKit 有聲播放政策，保留既有 Kokoro 朗讀。聊天改獨立側欄，控制列位於角色下方；可直接拖角色、用－／＋／百分比還原作 60%–150% 有界縮放。單一 WebView／session／renderer／audio owner、sandbox／Origin／kill switches 保持。[使用方式](WSL_SETUP.md)。
+
+停止修復涵蓋 HTTP 尚未回 headers、UI 提交尚未取得 turn_id、晚到串流／terminal、錄音／辨識／播放的取消。取消 ACK 不當作完成，未確認時保持明確狀態及提交阻擋，不自動重送；既有 512 輸出上限與 D63 截斷失敗裁決保持。真 Chromium／Ollama 長回答途中按停止：**cancelled／0.072s／0 工具效果**，後續文字穩定且顯示已停止；這不是模型 GPU 資源釋放 SLO 的量測。
+
+最終 ext4 副本 `218c21940570` 相關 **327 PASS／1 既有 warning／21.01s／exit0**，包含未修改的 5 秒啟動 gate；來源前端／session 全回歸 **381 PASS／1 warning／54.28s／exit0**，兩組有重疊、不加總。HTTP 新 7、前端停止新 10、麥克風新 5 與本機 STT 新 14 案例均通過，各有實作前失敗證據。相關 Ruff／format／mypy、locked sync／compileall／Cargo build 通過；沒有冒稱本輪完整 scripts/check 或 remote CI。
+
+真 native WebKit：audio-only 裝置開啟後立即停止、未錄音；合成語音經原錄製／轉 WAV／真本機 ASR／stub submit 全程通過，tracks／controller／worker 回收；真 speech HTTP→原播放器→Pulse sink／ended 通過。Whisper small CPU 冷辨識 9.094s，合成「本機」被辨為「本集」，保留品質缺口。GTK／Haru 實測聊天與角色／控制列分離，60%／100%／150% 均可見，唯一 iframe；Chromium 真 pointer events 送一次拖曳請求，**實體 Windows 滑鼠拖動、真人收音及聽感未驗**。
+
+補 Ubuntu 官方 GStreamer Bad Plug-ins（缺 uritranscodebin），診斷用 Pulse／GStreamer tools；模型與依賴官方來源／授權核對，新增 faster-whisper 1.2.1、PyAV 相容鎖 16.1.0，uv.lock 103 packages。模型僅顯式設定的本機路徑、offline、單一短生命 worker、原音不保存；未配置仍 disabled，不新增 cloud key。詳 [依賴](DEPENDENCIES.md) 與 D64 決策。
+
+本機設定與 SQLite 先以一致備份保存在 Ubuntu 私有目錄，沒有讀取對話或複製到 Git。更新本機 wrapper／選單後，**已經 Windows `Start-SIRO.cmd` 實際啟動並留給使用者操作**：healthy、model／audio／tts 路由正確、唯一指定副本 gjs。371 份非文件來源與副本 manifest 再核對一致，驗收後文件更新不冒稱已進入舊副本。完整命令、根因、失敗與證據見 [D64 報告](evidence/WSL-UX-2026-10-17/REPORT.md)／[機讀結果](evidence/WSL-UX-2026-10-17/RESULTS.json)。
+
+下一步是使用者實際說一句／聽回覆及操作拖曳，沿 T12／語音品質 gate 補真人證據；原個人聲線、Haru 新動作／自由漫遊、24h／其他硬體／完整 CI／正式發布仍未驗。未改 Core／Policy／DB schema、未 commit／push；前輪變更保持。本項限定 local 修復通過，不代表全產品或 L3 體驗完成。
+
+## 2026-10-17 — E 槽 WSL 本機補齊 LOCAL_VERIFIED；文字／角色可啟動
+
+依使用者「幫我補好／繼續」，完成本機 Ollama0.34.3＋官方qwen3:4b-instruct、已明確同意授權的Cubism Web5-r.5／Haru、GJS／GTK／WebKit與中文字型、Kokoro本機備用素材。原source留E槽，執行副本／專用Python3.12.14／cache／資料位於E槽Ubuntu VHD。新增`Start-SIRO.cmd`、本機wrapper／設定／開始選單；**已實際經Windows入口開啟並留在執行中**，healthy、正確模型／TTS路由、唯一gjs，未退回offline demo。[啟動說明](WSL_SETUP.md)。
+
+修Windows腳本換行、外置venv桌寵入口及data/log路徑；以hash核對ext4副本解原DrvFS載入問題，未改DB或放寬5秒gate。真QA另發現Ollama截斷假completed，依D63先RED後修唯一adapter葉節點：length／EOF失敗、partial保留、工具完整終止及cleanup後才下放，取消／重試邊界保持；一處舊測試工具chunk預期經審核調整，其他原安全斷言保持。
+
+最終副本`8fb7636d6e98`的`check_ext4.py`實跑 **261 PASS／1既有warning／17.34s／exit0**，含原未改5秒測試。adapter來源回退31FAIL／6PASS→新37PASS，相鄰177PASS；桌面腳本51PASS，相關Ruff／format／mypy／Bash syntax通過。最終副本locked安裝／compile／Cargo build exit0；較早Rust24PASS，不冒稱最終再跑。真Chromium／Ollama／Haru／GJS合成整合 **PASS**：ready0.913s、回覆「你好呀！😊」、completed、0工具／0pageerror；原生ready／alpha／sandbox均true、snapshots3，關閉／stop／PID／source資料隔離通過。完整本機manifest、精確命令與機讀結果見 [驗收報告](evidence/WSL-SETUP-2026-10-17/REPORT.md)。
+
+SDK外置build lock相容修補後audit0／build成功；原archive pin／renderer source不變。Kokoro合成中文24kHz、2.432s、cold4.7425s、連線嘗試0；非真人聽驗，原Qwen reference未提供。現有native worker取消限制、原生EGL warnings及minimal doctor缺項均如實留證。最初兩輪QA診斷路徑／metadata複製EPERM及程序檢查fixture錯誤保留，不將其當產品PASS或刪掉。
+
+**仍待配置／驗收**：語音辨識provider（目前audio disabled，可打字）、原個人聲線、真人播放／麥克風／語意／首音SLO、Haru新動作與自由漫遊、24h／硬體／完整check／remoteCI／正式發布。未新增cloud key、改Core／Policy／schema／Python或Cargo lock；使用者與其他工作變更保留，未commit／push。下一步：使用者試用文字／角色操作與備用語音，沿T12／桌面體驗卡補互動證據，再獨立配置語音辨識／原聲線；其餘既有產品gates保持。
+
+## 2026-10-17 — Windows／WSL 新版執行驗證 PARTIAL
+
+本機dc7382e起始clean；新版Windows checkout重新帶入scripts CRLF，首輪62PASS／2FAIL，實際bash\\r啟動拒絕。僅補scripts/* eol=lf並正規化換行，無production邏輯變動；外置WSL helper沿既有override設定Rust binary。修後相關Python **73PASS／1FAIL**，限流／桌面交接／語音計畫為合成；原5秒啟動gate兩次重驗仍失敗，根因UNKNOWN，依runbook停止並留blocker，未放寬門檻。
+
+真Cargo build exit0、Rust **24PASS**；Python3.12.14的99套件相容。隔離合成資料真scripts/start --demo＋HTTP／Chromium：4.084s ready200、JS errors0、離線訊息收送PASS，stop／PID清、事後無程序或listener殘留；不冒稱真provider或完整graceful log驗收。正式入口實測缺模型exit1，桌寵缺GJS／GTK／WebKit exit2、無renderer的/desktop503。使用者確認目前沒有模型設定或Live2D素材，**完整Companion BLOCKED-EXTERNAL**。
+
+尚缺provider設定、合法Cubism／Live2D資產、native桌寵依賴與其外置venv接入、原聲線／真音訊驗收；5秒gate另待定位。未跑完整check／全Python／remoteCI／硬體／發布，不改Core／DB／權限或私有資料。[本輪命令與限制](evidence/WSL-RUN-2026-10-17/REPORT.md)／[啟動blocker](evidence/WSL-RUN-2026-10-17/blocker.md)。
+
 ## 2026-10-16 — FIX-026 / D62 掃描誤報 DONE / CLOUD_VERIFIED
 
 已重現940bdb7的真cloud失敗：2129 Python／24 Rust與靜態／schema皆PASS，末secret gate1332項誤報。只在原helper加入13個已審核歷史檔的exact path＋完整blob SHA256＋完整detector tuple batch SHA256/count綁定；保留所有檔案bytes／links、原六pins／scanner範圍／excludes與production。不將一般hex或整個資料夾放行。
@@ -383,7 +465,7 @@ T00–T34 已完成相應 L1/L2、限定平台 L3 或 simulator/mock gate；其�
 | T05 | DONE | identity/world、35-test gate、`evidence/T05/README.md` |
 | T06 | DONE | conversation/mock/CLI、A01/A02 L1、100-race、`evidence/T06/README.md` |
 | T07 | DONE | 兩 adapter/L1、Groq L2、Ollama L2、A03 backend swap，見 `evidence/T07/README.md` |
-| T08 | DONE (L1) | persistent memory/persona/demo、A03 L1、`evidence/T08/README.md` |
+| T08 | DONE (L1) | persistent memory/persona/demo、A03 L1；D67一般回覆長度修正見 `evidence/T08-REPLY-LENGTH-2026-10-17/REPORT.md` |
 | T09 | DONE | JetStream/outbox/redelivery/quarantine/replay、A04 L2、`evidence/T09/README.md` |
 | T10 | DONE | loopback gateway/control UI/single writer、A05/A06 L2、`evidence/T10/README.md` |
 | T11 | DONE (research + L1) | AIRI commit/license/API 阻礙、body contract、最小 Web adapter，見 `ADR-embodiment.md` 與 `evidence/T11/README.md` |

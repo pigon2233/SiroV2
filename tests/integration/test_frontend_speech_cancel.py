@@ -13,7 +13,7 @@ import pytest
 def test_actual_frontend_speech_cancel(scenario: str) -> None:
     html = Path("src/siro/services/presentation/static/index.html").read_text()
     functions = html[
-        html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        html.index("function createForegroundControl(") : html.index("function wavFromBuffer(")
     ]
     cancel = html[
         html.index('document.querySelector("#cancel").onclick =') : html.index(
@@ -24,7 +24,7 @@ def test_actual_frontend_speech_cancel(scenario: str) -> None:
     setup = r"""
 const assert = require('node:assert/strict');
 const mode = process.argv[1];
-const button = {}, status = {}, replay = {}, voice = {checked:true};
+const button = {}, status = {}, service = {}, replay = {}, voice = {checked:true};
 const calls = [], audios = [], revoked = [];
 let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
 let assistantBubble, lastSpeech;
@@ -34,7 +34,8 @@ let submissionGeneration = 0, pendingSubmission;
 const acceptRunEvent = () => true;
 const headers = () => ({});
 const document = {querySelector: selector => selector === '#cancel' ? button :
- selector === '#voice-output' ? voice : selector === '#replay-speech' ? replay : status};
+ selector === '#voice-output' ? voice : selector === '#replay-speech' ? replay :
+ selector === '#service-notice' ? service : status};
 const URL = {createObjectURL: () => 'blob:'+audios.length, revokeObjectURL: s => revoked.push(s)};
 const pending = () => {
  let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});
@@ -54,7 +55,7 @@ const authorizedFetch = (url, options) => {
  if(url==='/v1/audio/speech/plan' && !['pending','turn'].includes(mode))
   return Promise.resolve(plan());
  if(url==='/v1/audio/speech'||url==='/v1/audio/speech/plan')return call.promise;
- return Promise.resolve({ok:true});
+ return Promise.resolve({ok:true,json:async()=>({active_turns:{browser:{state:'cancelled'}}})});
 };
 const response = blob => ({ok:true,blob:()=>Promise.resolve(blob)});
 const tick = async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
@@ -76,6 +77,7 @@ const speeches = () => calls.filter(call=>call.url==='/v1/audio/speech');
   assistantBubble={textContent:'late answer'};
   socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});
   await tick();assert.equal(calls.filter(c=>c.url==='/v1/audio/speech/plan').length,0);
+  foregroundControl.begin(new AbortController()); // A new explicit submission owns the next turn.
   socket.onmessage({data:JSON.stringify({type:'turn_started',turn_id:'new-turn'})});
   assistantBubble={textContent:'new answer'};
   socket.onmessage({data:JSON.stringify({type:'assistant_terminal',state:'completed'})});

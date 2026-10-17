@@ -42,7 +42,13 @@ from siro.services.audio.protocol import (
     PlaybackOwnership,
 )
 from siro.services.audio.stt import SpeechToText
-from siro.services.audio.tts import EdgeNeuralTTS, KokoroLocalTTS, QwenReferenceTTS, plan_speech
+from siro.services.audio.tts import (
+    EdgeNeuralTTS,
+    KokoroLocalTTS,
+    QwenReferenceTTS,
+    QwenVoiceProfile,
+    plan_speech,
+)
 from siro.services.tools.execution import (
     ExecutionCancelled,
     ExecutionCleanupError,
@@ -766,13 +772,41 @@ def create_app(
         audio = await request.body()
         if not audio or len(audio) > 10 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="audio must be between 1 byte and 10 MiB")
+        recognition_finished = asyncio.Event()
+
+        async def input_closed() -> int:
+            while not recognition_finished.is_set() and gateway_state.kill_switches.get(
+                "microphone", False
+            ):
+                if await request.is_disconnected():
+                    return 499
+                await asyncio.sleep(0.05)
+            return 403
+
+        transcription = asyncio.create_task(speech_to_text.transcribe(audio, language=language))
+        disconnected = asyncio.create_task(input_closed())
         try:
-            transcript = await speech_to_text.transcribe(audio, language=language)
+            done, _ = await asyncio.wait(
+                (transcription, disconnected), return_when=asyncio.FIRST_COMPLETED
+            )
+            if disconnected in done:
+                raise HTTPException(status_code=disconnected.result(), detail="capture cancelled")
+            transcript = transcription.result()
+            if not gateway_state.kill_switches.get("microphone", False):
+                raise HTTPException(status_code=403, detail="microphone is disabled")
+        except HTTPException:
+            raise
         except Exception as error:
             logging.getLogger(__name__).warning(
                 "speech recognition failed: %s", type(error).__name__
             )
             raise HTTPException(status_code=502, detail="speech recognition failed") from error
+        finally:
+            recognition_finished.set()
+            for task in (transcription, disconnected):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(transcription, disconnected, return_exceptions=True)
         return {
             "text": transcript.text,
             "language": transcript.language,
@@ -1729,7 +1763,14 @@ def _run_gateway(
     state.routes["model"] = backend
     state.kill_switches["cloud"] = privacy is ModelPrivacy.CLOUD_ALLOWED
     state.routes["body"] = "websocket"
-    speech_to_text = GroqWhisper(cloud_key) if cloud_key else None
+    local_whisper = os.environ.get("SIRO_WHISPER_MODEL_DIR")
+    speech_to_text: SpeechToText | None
+    if local_whisper:
+        from siro.services.audio.local_stt import LocalWhisper
+
+        speech_to_text = LocalWhisper(Path(local_whisper))
+    else:
+        speech_to_text = GroqWhisper(cloud_key) if cloud_key else None
     kokoro_dir = data_dir / "models" / "kokoro"
     kokoro_model = kokoro_dir / "kokoro-v1.0-q4.onnx"
     kokoro_voices = kokoro_dir / "voices-v1.0.bin"
@@ -1738,6 +1779,14 @@ def _run_gateway(
     qwen_python = data_dir / "qwen-tts-venv" / "bin" / "python"
     qwen_model = data_dir / "models" / "qwen3-tts-0.6b-base"
     qwen_reference = data_dir / "qwen3-siro-anime-daughter-v1.wav"
+    qwen_text = "爸爸，你回來啦？我等你好久了。今天有沒有發生什麼有趣的事？"  # noqa: RUF001
+    qwen_voice_id = "anime-daughter-v1"
+    voice_profile_path = os.environ.get("SIRO_QWEN_VOICE_PROFILE")
+    voice_profile = QwenVoiceProfile.load(Path(voice_profile_path)) if voice_profile_path else None
+    if voice_profile is not None:
+        qwen_reference = voice_profile.reference_wav
+        qwen_text = voice_profile.reference_text
+        qwen_voice_id = voice_profile.voice_id
     qwen_worker = project_root / "scripts" / "qwen_tts_worker.py"
     if all(path.exists() for path in (qwen_python, qwen_model, qwen_reference, qwen_worker)):
         text_to_speech = QwenReferenceTTS(
@@ -1745,18 +1794,28 @@ def _run_gateway(
             qwen_worker,
             qwen_model,
             qwen_reference,
-            "爸爸，你回來啦？我等你好久了。今天有沒有發生什麼有趣的事？",  # noqa: RUF001
-            data_dir / "tts-cache" / "qwen3-siro-anime-daughter-v1",
-            lifecycle=runtime_profile == "candidate",
+            qwen_text,
+            data_dir
+            / "tts-cache"
+            / (qwen_voice_id if voice_profile else "qwen3-siro-anime-daughter-v1"),
+            lifecycle=runtime_profile == "candidate" or voice_profile is not None,
         )
-        state.routes["tts"] = "local:qwen3-tts-0.6b-base:anime-daughter-v1"
+        state.routes["tts"] = "local:qwen3-tts-0.6b-base:" + qwen_voice_id
+    elif voice_profile is not None:
+        raise ValueError("configured Qwen voice assets are unavailable")
     elif kokoro_model.is_file() and kokoro_voices.is_file():
         text_to_speech = KokoroLocalTTS(str(kokoro_model), str(kokoro_voices))
         state.routes["tts"] = "local:kokoro-82m-zf-xiaobei"
     else:
         text_to_speech = EdgeNeuralTTS()
         state.routes["tts"] = "edge:zh-TW-HsiaoChenNeural"
-    state.routes["audio"] = "groq:whisper-large-v3-turbo" if speech_to_text else "disabled"
+    state.routes["audio"] = (
+        "local:faster-whisper-small"
+        if local_whisper
+        else "groq:whisper-large-v3-turbo"
+        if speech_to_text
+        else "disabled"
+    )
     shared_store = SQLiteStore(data_dir / "siro.db")
     asyncio.run(shared_store.initialize(), loop_factory=loop_factory)
     memory_service = MemoryService(SQLiteMemoryRepository(shared_store))

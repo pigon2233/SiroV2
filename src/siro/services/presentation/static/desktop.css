@@ -35,10 +35,11 @@ body.siro-desktop .page-view:not([data-page="chat"]) {
 }
 body.siro-desktop .stage {
   position: fixed;
-  inset: 0;
-  height: 100dvh;
+  left: var(--desktop-pet-left, 0px);
+  top: 0;
+  height: var(--desktop-pet-height, 570px);
   min-height: 0;
-  width: 100%;
+  width: var(--desktop-pet-width, 360px);
   border-radius: 0;
   background: transparent;
 }
@@ -52,11 +53,12 @@ body.siro-desktop .conversation {
   display: none;
   position: fixed;
   z-index: 4;
-  left: 12px;
-  right: 12px;
-  top: 40px;
-  height: min(66dvh, 450px);
-  min-height: 200px;
+  left: var(--desktop-chat-x, 372px);
+  top: var(--desktop-chat-y, 8px);
+  width: var(--desktop-chat-width, 380px);
+  height: var(--desktop-chat-height, 554px);
+  min-height: 0;
+  box-sizing: border-box;
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, .85);
   border-radius: 18px;
@@ -78,9 +80,10 @@ body.siro-desktop .conversation-actions { gap: 6px; padding-top: 6px; }
 body.siro-desktop .desktop-controls {
   position: fixed;
   z-index: 5;
-  bottom: 10px;
-  left: 10px;
-  right: 10px;
+  top: var(--desktop-controls-y, 580px);
+  left: calc(var(--desktop-pane-left, 0px) + 10px);
+  width: calc(var(--desktop-pane-width, 360px) - 20px);
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -99,6 +102,8 @@ body.siro-desktop .desktop-controls button {
   border-radius: 8px;
 }
 body.siro-desktop #desktop-move { cursor: move; touch-action: none; }
+body.siro-desktop #desktop-scale { min-width: 48px; font-variant-numeric: tabular-nums; }
+body.siro-desktop #desktop-speech[aria-pressed="true"] { background: var(--tint); border-color: var(--action); }
 body.siro-desktop #desktop-stop { color: var(--warning); }
 body.siro-desktop #desktop-chat.desktop-unread { border-color: var(--action); background: var(--tint); }
 body.siro-desktop #desktop-status {

@@ -108,9 +108,8 @@ process.on('beforeExit', () => {
 });
 """
     result = subprocess.run(
-        [
-            "node",
-            "-e",
+        ["node"],
+        input=(
             setup
             + initialize
             + script
@@ -118,8 +117,8 @@ process.on('beforeExit', () => {
             + "\n(async () => {\n"
             + checks
             + "\n})().then(() => { finished = true; }, error => {"
-            + " finished = true; console.error(error); process.exitCode = 1; });",
-        ],
+            + " finished = true; console.error(error); process.exitCode = 1; });"
+        ),
         capture_output=True,
         text=True,
         timeout=10,

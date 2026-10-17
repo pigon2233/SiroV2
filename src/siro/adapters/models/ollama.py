@@ -13,6 +13,11 @@ from siro.adapters.models.http import (
     StreamingJsonTransport,
     _decode_json_response,
 )
+from siro.adapters.models.openai_compatible import (
+    _TOOL_INTENT_EMITTED,
+    ProviderOutputIncomplete,
+    ProviderOutputTruncated,
+)
 from siro.ports.models import CancellationToken, ModelChunk, ModelMessage, ModelRequest, ToolCall
 
 
@@ -26,6 +31,16 @@ def _serialize_message(message: ModelMessage) -> dict[str, object]:
     if message.tool_call_id is not None:
         serialized["tool_call_id"] = message.tool_call_id
     return serialized
+
+
+def _completion_error(reason: object) -> ProviderOutputIncomplete | None:
+    if reason is None or reason == "stop":
+        return None
+    if reason == "length":
+        return ProviderOutputTruncated(
+            "provider returned no usable reply: provider output reached its limit"
+        )
+    return ProviderOutputIncomplete("provider output has an unsupported termination")
 
 
 class OllamaAdapter:
@@ -94,9 +109,18 @@ class OllamaAdapter:
         text = message.get("content")
         if isinstance(text, str) and text:
             yield ModelChunk("text", text)
+        if cancellation.cancelled:
+            return
+        completion_error = _completion_error(response.get("done_reason"))
+        if completion_error is not None:
+            raise completion_error
+        # Preserve old atomic transports that omit done, but reject explicit incompletion.
+        if "done" in response and response["done"] is not True:
+            raise ProviderOutputIncomplete("provider output ended without completion")
         tool_calls = message.get("tool_calls", [])
         if not isinstance(tool_calls, list):
             raise ValueError("Ollama tool_calls is not a list")
+        calls: list[ToolCall] = []
         for index, raw_call in enumerate(tool_calls):
             if not isinstance(raw_call, dict) or not isinstance(raw_call.get("function"), dict):
                 raise ValueError("Ollama tool call is malformed")
@@ -104,15 +128,20 @@ class OllamaAdapter:
             name, arguments = function.get("name"), function.get("arguments")
             if not isinstance(name, str) or not isinstance(arguments, dict):
                 raise ValueError("Ollama tool call has invalid name or arguments")
-            yield ModelChunk(
-                "tool_request",
-                tool_call=ToolCall(f"ollama-{request.generation_id}-{index}", name, arguments),
+            calls.append(ToolCall(f"ollama-{request.generation_id}-{index}", name, arguments))
+        if not (isinstance(text, str) and text) and not calls:
+            raise ProviderOutputIncomplete(
+                "provider returned no usable reply (no text or tool calls)"
             )
-        if not isinstance(text, str) and not tool_calls:
-            raise ValueError("Ollama message has neither text nor tool calls")
+        for call in calls:
+            yield ModelChunk("tool_request", tool_call=call)
+            if cancellation.cancelled:
+                return
         prompt_count, output_count = response.get("prompt_eval_count"), response.get("eval_count")
         if isinstance(prompt_count, int) and isinstance(output_count, int):
             yield ModelChunk("usage", usage_tokens=prompt_count + output_count)
+        if cancellation.cancelled:
+            return
         yield ModelChunk("finished")
 
     async def _stream_response(
@@ -122,7 +151,9 @@ class OllamaAdapter:
         cancellation: CancellationToken,
     ) -> AsyncIterator[ModelChunk]:
         transport = cast(StreamingJsonTransport, self._transport)
-        call_index = 0
+        calls: list[ToolCall] = []
+        has_text = False
+        done = False
         lines = transport.stream_lines(self._url, payload, {}, self._timeout, cancellation)
         primary_error: Exception | None = None
         try:
@@ -141,7 +172,13 @@ class OllamaAdapter:
                     raise ValueError("Ollama stream message is invalid")
                 content = message.get("content")
                 if isinstance(content, str) and content:
+                    has_text = True
                     yield ModelChunk("text", content)
+                if cancellation.cancelled:
+                    return
+                completion_error = _completion_error(event.get("done_reason"))
+                if completion_error is not None:
+                    raise completion_error
                 tool_calls = message.get("tool_calls", [])
                 if not isinstance(tool_calls, list):
                     raise ValueError("Ollama stream tool_calls is not a list")
@@ -154,18 +191,24 @@ class OllamaAdapter:
                     name, arguments = function.get("name"), function.get("arguments")
                     if not isinstance(name, str) or not isinstance(arguments, dict):
                         raise ValueError("Ollama stream tool call is invalid")
-                    yield ModelChunk(
-                        "tool_request",
-                        tool_call=ToolCall(
-                            f"ollama-{request.generation_id}-{call_index}", name, arguments
-                        ),
+                    calls.append(
+                        ToolCall(f"ollama-{request.generation_id}-{len(calls)}", name, arguments)
                     )
-                    call_index += 1
                 if event.get("done") is True:
+                    done = True
                     prompt_count = event.get("prompt_eval_count")
                     output_count = event.get("eval_count")
                     if isinstance(prompt_count, int) and isinstance(output_count, int):
                         yield ModelChunk("usage", usage_tokens=prompt_count + output_count)
+                    break
+            if cancellation.cancelled:
+                return
+            if not done:
+                raise ProviderOutputIncomplete("provider output ended without completion")
+            if not has_text and not calls:
+                raise ProviderOutputIncomplete(
+                    "provider returned no usable reply (no text or tool calls)"
+                )
         except (json.JSONDecodeError, UnicodeDecodeError):
             if cancellation.cancelled:
                 return
@@ -175,17 +218,25 @@ class OllamaAdapter:
         except Exception as error:
             primary_error = error
         finally:
+            if primary_error is not None and calls:
+                primary_error.add_note(_TOOL_INTENT_EMITTED)
             close = getattr(lines, "aclose", None)
             if close is not None:
                 try:
                     await close()
-                except Exception:
+                except Exception as cleanup_error:
                     if not cancellation.cancelled:
                         if primary_error is None:
+                            if calls:
+                                cleanup_error.add_note(_TOOL_INTENT_EMITTED)
                             raise
                         primary_error.add_note("siro: provider stream cleanup failed")
         if cancellation.cancelled:
             return
         if primary_error is not None:
             raise primary_error
+        for call in calls:
+            yield ModelChunk("tool_request", tool_call=call)
+            if cancellation.cancelled:
+                return
         yield ModelChunk("finished")

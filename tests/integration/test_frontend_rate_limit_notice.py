@@ -44,11 +44,15 @@ assert.equal(notice.hidden, false);
 if (terminalState === 'cancelled') await document.querySelector('#cancel').onclick();
 owner.message({type:'assistant_terminal', session_id:'browser', stream_id:'stream-one',
   state:terminalState, error:terminalState === 'failed' ? 'HTTPStatusError' : null});
-assert.equal(notice.hidden, true);
+if (terminalState === 'cancelled') assert(!notice.dataset.retryWait);
+else assert.equal(notice.hidden, true);
+const stoppedNotice = notice.textContent;
 owner.message({type:'assistant_retry_wait', session_id:'browser',
   stream_id:'stream-one', retry_after_seconds:1});
-assert.equal(notice.hidden, true);
-assert.equal(targetCalls().length, terminalState === 'cancelled' ? 1 : 0);
+assert.equal(notice.textContent, stoppedNotice);
+assert(!notice.dataset.retryWait);
+assert.equal(targetCalls().filter(call=>call.options.method==='POST').length,
+ terminalState === 'cancelled' ? 1 : 0);
 if (terminalState === 'cancelled')
   assert.equal(targetCalls()[0].url, '/v1/turns/turn-one/cancel');
 assert.equal(targetCalls().filter(call => call.url.includes('/conversations/')).length, 0);

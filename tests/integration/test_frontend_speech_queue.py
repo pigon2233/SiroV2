@@ -356,7 +356,7 @@ _CHECKS = r"""
 def test_actual_frontend_speech_queue(scenario: str) -> None:
     html = Path("src/siro/services/presentation/static/index.html").read_text()
     functions = html[
-        html.index("function formatAssistantMessage(") : html.index("function wavFromBuffer(")
+        html.index("function createForegroundControl(") : html.index("function wavFromBuffer(")
     ]
     handler = html[html.index("socket.onmessage =") : html.index("socket.onclose =")]
     result = subprocess.run(

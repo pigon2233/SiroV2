@@ -1,0 +1,61 @@
+{
+  "task": "T10 Chinese IME input repair",
+  "date": "2026-10-18",
+  "status": "LOCAL_VERIFIED",
+  "change": {
+    "source": "src/siro/services/presentation/static/index.html",
+    "test": "tests/integration/test_frontend_ime.py",
+    "guards": [
+      "compositionstart/compositionend state",
+      "KeyboardEvent.isComposing",
+      "legacy keyCode 229",
+      "legacy which 229"
+    ],
+    "normal_enter_submits": true,
+    "shift_enter_remains_newline": true
+  },
+  "snapshot": {
+    "source_id": "3f50058d45381eedf0093322991760408708327682d4bbabe296d45b78bd5e07",
+    "source_identity_verified": true,
+    "commands": [
+      {"command": "uv sync --locked --all-groups --python 3.12 --compile-bytecode", "exit": 0},
+      {"command": "uv run --no-sync --python 3.12 python -m compileall -q src scripts tests", "exit": 0},
+      {"command": "cargo build --workspace --locked", "exit": 0}
+    ]
+  },
+  "tests": {
+    "focused": {"command": "pytest -p no:cacheprovider -q tests/integration/test_frontend_ime.py", "passed": 1, "seconds": 0.16, "exit": 0},
+    "frontend_integration": {"command": "pytest -p no:cacheprovider -q tests/integration/test_frontend_*.py", "passed": 352, "seconds": 39.30, "exit": 0},
+    "ruff_check": "PASS",
+    "ruff_format_check": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "served_page": {
+    "path": "/desktop",
+    "status": 200,
+    "bytes": 119236,
+    "contains_composition_guard": true,
+    "contains_legacy_ime_guard": true
+  },
+  "deployment": {
+    "entry": "Windows Start-SIRO.cmd -> WSL siro-companion",
+    "status": "PASS",
+    "health": "healthy",
+    "native_pid": 87599,
+    "routes": {
+      "model": "ollama:qwen3:4b-instruct",
+      "audio": "local:faster-whisper-small",
+      "body": "websocket",
+      "tts": "local:qwen3-tts-0.6b-base:siro-sweet-b-v1"
+    },
+    "private_dialogue_accessed": false,
+    "microphone_opened": false,
+    "left_running_for_owner": true
+  },
+  "limitations": {
+    "physical_native_ime_input_tested": false,
+    "windows_python_3_14_available_offline": false,
+    "full_scripts_check_run": false,
+    "remote_ci_run": false
+  }
+}

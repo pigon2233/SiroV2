@@ -155,6 +155,7 @@
           <span id="page-title">對話</span>
           <div class="toolbar-actions">
             <button id="connection" class="connection-pill" type="button" title="重新連線，不會重新執行工作">連線中</button>
+            <button id="microphone-toggle" type="button" aria-pressed="false">麥克風：關</button>
             <button id="voice" type="button">開始說話</button>
             <button id="cancel" type="button">停止回覆與語音</button>
           </div>
@@ -279,7 +280,9 @@
           const send = token => {
             check();
             const requestHeaders = new Headers(options.headers); requestHeaders.set("Authorization", `Bearer ${token}`);
-            return fetcher(url, {...options, redirect: "error", headers: requestHeaders});
+            const {onDispatch, onRejected, ...wireOptions} = options;
+            onDispatch?.();
+            return fetcher(url, {...wireOptions, redirect: "error", headers: requestHeaders});
           };
           check();
           const usedToken = await getToken();
@@ -288,6 +291,7 @@
           if (response.status !== 401) return response;
           const body = await response.clone().json().catch(() => null);
           if (body?.detail !== "session token is invalid or expired") return response;
+          options.onRejected?.();
           check();
           if (session?.token === usedToken) session = undefined;
           const renewed = await getToken();
@@ -410,10 +414,16 @@
           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
           const data = JSON.parse(event.data);
           if (!acceptRunEvent(data)) return;
+          if (!foregroundControl.event(data)) return;
           if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();
           if (["turn_started", "assistant_started"].includes(data.type) && typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
           log(data);
           if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }
+          if (data.type === "kill_switch" && data.name === "microphone" && typeof data.enabled === "boolean") {
+            microphoneEnabled = data.enabled;
+            if (!microphoneEnabled) document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop"));
+            updateMicrophoneControls();
+          }
           if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);
           if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean" && typeof applyGoalTaskTools === "function") applyGoalTaskTools(data.enabled);
           if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
@@ -491,6 +501,7 @@
         if (typeof clearGoalTasks === "function") clearGoalTasks("頁面已關閉。", true);
         submissionGeneration += 1; pendingSubmission?.abort();
         clearTimeout(reconnectTimer); sessionAccess.dispose(); stopTts(); socket?.close();
+        foregroundControl.dispose();
       });
       function renderAffect(data) {
         const emotions = data.mixed_emotions.map(item => `${item.name} ${item.intensity.toFixed(2)}`).join("、") || "neutral";
@@ -1118,7 +1129,8 @@
         document.querySelector("#snapshot").textContent = JSON.stringify({identity: data.identity, health: data.health, routes: data.routes, authorization_mode: authorizationMode}, null, 2);
         const root = document.querySelector("#switches"); root.textContent = "";
         microphoneEnabled = Boolean(data.kill_switches.microphone);
-        document.querySelector("#voice-status").textContent = microphoneEnabled ? "麥克風待命" : "請先開啟 microphone switch";
+        if (!microphoneEnabled) document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop"));
+        updateMicrophoneControls();
         Object.entries(data.kill_switches).forEach(([name, enabled]) => {
           const button = document.createElement("button"); button.textContent = `${name}: ${enabled ? "ON" : "OFF"}`;
           button.onclick = async () => { await authorizedFetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})}); location.reload(); };
@@ -1193,6 +1205,7 @@
         updateToolProposal(data.proposal_id, `完成：${JSON.stringify(result, null, 2)}`);
       }
       async function submitText(value, inputMode = "text") {
+        if (foregroundControl.blocked()) return false;
         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         if (typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
         const submission = ++submissionGeneration;
@@ -1202,15 +1215,127 @@
         catch (error) { appendMessage("assistant", "連線尚未完成，這則訊息沒有送出。請按右上角重新連線。"); return false; }
         if (pageClosing || submission !== submissionGeneration) return false;
         const controller = new AbortController(); pendingSubmission = controller;
+        const dispatch = foregroundControl.begin(controller);
         appendMessage("user", value);
         try {
-          const response = await authorizedFetch("/v1/conversations/browser/turns", {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify({text: value, input_mode: inputMode})});
+          const response = await authorizedFetch("/v1/conversations/browser/turns", {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify({text: value, input_mode: inputMode}), onDispatch: () => foregroundControl.dispatch(dispatch), onRejected: () => { dispatch.dispatched = false; }});
+          if (response.ok) {
+            const accepted = await response.json();
+            foregroundControl.accepted(dispatch, accepted.turn_id);
+          }
           if (!response.ok) appendMessage("assistant", response.status === 403 ? "對話目前被停用。請到能力開關確認雲端對話設定。" : `訊息結果未確認（${response.status}），沒有自動重送；請先確認工作結果。`);
-        } catch (error) { appendMessage("assistant", "連線中斷，訊息結果未確認。我沒有自動重送，請先確認工作結果。"); }
-        finally { if (pendingSubmission === controller) pendingSubmission = undefined; }
+        } catch (error) { if (!controller.signal.aborted) appendMessage("assistant", "連線中斷，訊息結果未確認。我沒有自動重送，請先確認工作結果。"); }
+        finally { foregroundControl.settled(dispatch); if (pendingSubmission === controller) pendingSubmission = undefined; }
         // The ordered control stream owns currentTurn, including completion before HTTP returns.
         return true;
       }
+      function createForegroundControl() {
+        let stopping = false, blocked = false, uncertain = false, observed = false, pending, turn, stream, deadline, stopEpoch = 0;
+        const cancelled = new Set(), retired = new Set(), requests = new Set();
+        const remember = (set, value) => {
+          if (typeof value !== "string") return;
+          set.add(value); if (set.size > 1024) set.delete(set.values().next().value);
+        };
+        const notice = text => {
+          if (pageClosing) return;
+          const node = document.querySelector("#service-notice"); node.hidden = false; node.textContent = text;
+        };
+        const confirm = () => {
+          if (stopping && !uncertain && observed && (!pending || pending.settled)) {
+            blocked = false; clearTimeout(deadline); deadline = undefined;
+            notice("已停止這次回覆，可以輸入下一則訊息。");
+          }
+        };
+        const unconfirmed = (epoch = stopEpoch) => {
+          if (epoch !== stopEpoch || !stopping || pageClosing) return;
+          uncertain = true; blocked = true;
+          notice("停止尚未確認，沒有重送操作；請先確認服務狀態。");
+        };
+        const cancelTurn = id => {
+          if (typeof id !== "string" || cancelled.has(id) || pageClosing) return;
+          remember(cancelled, id);
+          const epoch = stopEpoch;
+          const controller = new AbortController();
+          const timer = setTimeout(() => { controller.abort(); unconfirmed(epoch); }, 5000);
+          const owned = {controller, timer}; requests.add(owned);
+          (async () => {
+            try {
+              const response = await authorizedFetch(`/v1/turns/${encodeURIComponent(id)}/cancel`, {method:"POST", headers:headers(), body:JSON.stringify({reason:"user"}), signal:controller.signal});
+              if (!response.ok) throw new Error("cancel unavailable");
+              if (epoch !== stopEpoch || uncertain || pageClosing) return;
+              const check = await authorizedFetch("/v1/snapshot", {signal:controller.signal});
+              if (!check.ok) throw new Error("readback unavailable");
+              const snapshot = await check.json(), active = snapshot.active_turns?.browser;
+              if (epoch !== stopEpoch) return;
+              if (!active || active.turn_id !== id || !["responding","awaiting_approval"].includes(active.state)) { observed = true; confirm(); }
+            } catch (_) { unconfirmed(epoch); }
+            finally { clearTimeout(timer); requests.delete(owned); }
+          })();
+        };
+        return {
+          blocked: () => blocked,
+          begin(controller) {
+            stopEpoch++; clearTimeout(deadline);
+            for (const owned of requests) { clearTimeout(owned.timer); owned.controller.abort(); }
+            stopping = false; uncertain = false; observed = false;
+            pending = {controller, dispatched:false, settled:false}; return pending;
+          },
+          dispatch(record) {
+            if (stopping || record !== pending) throw new DOMException("已取消", "AbortError");
+            record.dispatched = true;
+          },
+          accepted(record, id) { record.id = id; if (stopping) cancelTurn(id); },
+          settled(record) {
+            record.settled = true;
+            if (stopping && record === pending) {
+              if (!record.dispatched && !turn) observed = true;
+              confirm();
+            }
+          },
+          stop() {
+            if (stopping) return;
+            stopping = true; blocked = true; uncertain = false; observed = false;
+            notice("正在停止回覆與語音…");
+            deadline = setTimeout(() => {
+              pending?.controller.abort();
+              for (const owned of requests) owned.controller.abort();
+              unconfirmed();
+            }, 5000);
+            if (pending && !pending.dispatched) pending.controller.abort();
+            if (turn || currentTurn) cancelTurn(turn || currentTurn);
+            else if (!pending || pending.settled) { observed = true; confirm(); }
+            remember(retired, stream); currentTurn = undefined; assistantBubble = undefined;
+          },
+          event(data) {
+            if (data.type === "turn_started") {
+              if (turn !== data.turn_id) remember(retired, stream);
+              turn = data.turn_id; stream = undefined;
+              if (stopping) { cancelTurn(turn); return false; }
+            }
+            if (data.type === "assistant_started") {
+              if (stopping) { stream = data.stream_id; remember(retired, data.stream_id); return false; }
+              stream = data.stream_id;
+            }
+            if (data.type === "assistant_terminal" && stopping) {
+              if (data.stream_id && retired.has(data.stream_id) && data.stream_id !== stream) return false;
+              observed = true; remember(retired, data.stream_id); currentTurn = undefined; assistantBubble = undefined; confirm(); return false;
+            }
+            if (typeof data.stream_id === "string" && retired.has(data.stream_id)) return false;
+            if (stopping && ["assistant_delta","assistant_retry_wait","affect_state"].includes(data.type)) return false;
+            if (data.type === "assistant_terminal") {
+              if (stream && data.stream_id && stream !== data.stream_id) return false;
+              remember(retired, stream); turn = undefined; stream = undefined;
+            }
+            return true;
+          },
+          dispose() {
+            clearTimeout(deadline); pending?.controller.abort();
+            for (const owned of requests) { clearTimeout(owned.timer); owned.controller.abort(); }
+            requests.clear();
+          }
+        };
+      }
+      const foregroundControl = createForegroundControl();
       function formatAssistantMessage(message) {
         const source = message.textContent || "", doc = message.ownerDocument;
         if (!doc) return source;
@@ -1356,7 +1481,7 @@
         }
       }
       function wavFromBuffer(buffer) {
-        const samples = buffer.getChannelData(0), data = new ArrayBuffer(44 + samples.length * 2);
+        const samples = buffer.getChannelData(0).subarray(0, Math.floor(buffer.sampleRate * 30)), data = new ArrayBuffer(44 + samples.length * 2);
         const view = new DataView(data), write = (offset, text) => [...text].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
         write(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); write(8, "WAVE"); write(12, "fmt ");
         view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
@@ -1365,20 +1490,53 @@
         samples.forEach((sample, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sample)) * (sample < 0 ? 32768 : 32767), true));
         return new Blob([data], {type: "audio/wav"});
       }
-      async function transcribeRecording() {
+      let microphoneEpoch = 0, microphoneCapture, transcriptionController, permissionPending = false;
+      function updateMicrophoneControls() {
+        const toggle = document.querySelector("#microphone-toggle");
+        toggle.textContent = microphoneEnabled ? "麥克風：開" : "麥克風：關";
+        toggle.setAttribute?.("aria-pressed", String(microphoneEnabled));
+        document.querySelector("#voice-status").textContent = microphoneEnabled ? "麥克風待命，按「開始說話」錄音" : "麥克風已關閉";
+      }
+      function cancelRecording() {
+        microphoneEpoch++; permissionPending = false;
+        transcriptionController?.abort(); transcriptionController = undefined;
+        if (microphoneCapture) {
+          const capture = microphoneCapture; microphoneCapture = undefined;
+          clearTimeout(capture.timer);
+          capture.recorder.onstop = null; capture.recorder.ondataavailable = null;
+          if (capture.recorder.state === "recording") capture.recorder.stop();
+          capture.stream.getTracks().forEach(track => track.stop());
+        }
+        recorder = undefined;
+        const button = document.querySelector("#voice");
+        button.disabled = false; button.textContent = "開始說話";
+        document.querySelector("#voice-status").textContent = "錄音與辨識已停止";
+      }
+      async function transcribeRecording(chunks, epoch) {
+        const current = () => epoch === microphoneEpoch && !pageClosing && microphoneEnabled;
+        if (!current()) return;
+        const controller = new AbortController(); transcriptionController = controller;
+        const deadline = setTimeout(() => controller.abort(), 45000);
         const status = document.querySelector("#voice-status"); status.textContent = "辨識中…";
-        const encoded = await new Blob(recordedChunks).arrayBuffer();
-        const context = new AudioContext();
+        let context;
         try {
+          const encoded = await new Blob(chunks).arrayBuffer();
+          context = new AudioContext();
           const decoded = await context.decodeAudioData(encoded);
-          const response = await authorizedFetch("/v1/audio/transcriptions?language=zh", {method: "POST", headers: {"Content-Type": "audio/wav"}, body: wavFromBuffer(decoded)});
+          if (!current() || controller.signal.aborted) return;
+          const response = await authorizedFetch("/v1/audio/transcriptions?language=zh", {method: "POST", headers: {"Content-Type": "audio/wav"}, signal: controller.signal, body: wavFromBuffer(decoded)});
+          if (!current() || controller.signal.aborted) return;
           if (!response.ok) throw new Error((await response.json()).detail || `HTTP ${response.status}`);
           const result = await response.json();
+          if (!current() || controller.signal.aborted) return;
           if (!result.text) throw new Error("沒有辨識到語音");
           document.querySelector("#text").value = result.text;
           status.textContent = `辨識：${result.text}`; status.className = "ok";
           await submitText(result.text, "speech");
-        } finally { await context.close(); }
+        } finally {
+          clearTimeout(deadline); await context?.close();
+          if (transcriptionController === controller) transcriptionController = undefined;
+        }
       }
       document.querySelector("#chat").onsubmit = async event => {
         event.preventDefault(); const input = document.querySelector("#text");
@@ -1387,18 +1545,52 @@
       };
       document.querySelector("#voice").onclick = async () => {
         const button = document.querySelector("#voice"), status = document.querySelector("#voice-status");
-        if (!microphoneEnabled) { status.textContent = "請先開啟 microphone switch"; return; }
+        if (!microphoneEnabled) { status.textContent = "請先按「麥克風：關」開啟，再開始說話"; return; }
         if (navigationInitialized) navigateToPage("chat", false);
         if (recorder?.state === "recording") { recorder.stop(); button.textContent = "開始說話"; return; }
+        if (permissionPending) return;
+        cancelRecording(); const epoch = microphoneEpoch;
+        permissionPending = true; button.disabled = true; status.textContent = "正在請求麥克風權限…";
         try {
           const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, channelCount: 1}});
-          recordedChunks = []; recorder = new MediaRecorder(stream);
-          recorder.ondataavailable = event => { if (event.data.size) recordedChunks.push(event.data); };
-          recorder.onstop = async () => { stream.getTracks().forEach(track => track.stop()); try { await transcribeRecording(); } catch (error) { status.textContent = `語音失敗：${error.message}`; status.className = "warn"; } };
-          recorder.start(); button.textContent = "停止並送出"; status.textContent = "正在聆聽…"; status.className = "ok";
-        } catch (error) { status.textContent = `無法使用麥克風：${error.message}`; status.className = "warn"; }
+          if (epoch !== microphoneEpoch || pageClosing || !microphoneEnabled) { stream.getTracks().forEach(track => track.stop()); return; }
+          const chunks = [];
+          try {
+            const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"].find(type => MediaRecorder.isTypeSupported?.(type));
+            recorder = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream);
+          } catch (error) { stream.getTracks().forEach(track => track.stop()); throw error; }
+          const capture = {recorder, stream, timer: undefined}; microphoneCapture = capture;
+          recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+          recorder.onstop = async () => {
+            clearTimeout(capture.timer); stream.getTracks().forEach(track => track.stop());
+            if (microphoneCapture === capture) microphoneCapture = undefined;
+            button.textContent = "開始說話";
+            try { await transcribeRecording(chunks, epoch); }
+            catch (error) { if (epoch === microphoneEpoch && !pageClosing) { status.textContent = `語音失敗：${error.message}`; status.className = "warn"; } }
+          };
+          recorder.start();
+          capture.timer = setTimeout(() => { if (capture.recorder.state === "recording") capture.recorder.stop(); }, 30000);
+          button.textContent = "停止並送出"; status.textContent = "正在聆聽（最長30秒）…"; status.className = "ok";
+        } catch (error) {
+          if (epoch === microphoneEpoch) { cancelRecording(); status.textContent = `無法使用麥克風：${error.message}`; status.className = "warn"; }
+        } finally {
+          if (epoch === microphoneEpoch) { permissionPending = false; button.disabled = false; }
+        }
       };
-      document.querySelector("#cancel").onclick = async () => { clearRetryNotice(); submissionGeneration += 1; pendingSubmission?.abort(); speechCancelled = true; stopTts(); if (currentTurn) await authorizedFetch(`/v1/turns/${currentTurn}/cancel`, {method: "POST", headers: headers(), body: JSON.stringify({reason: "user"})}); };
+      document.querySelector("#voice").addEventListener("siro:microphone-stop", cancelRecording);
+      window.addEventListener("pagehide", cancelRecording, {once: true});
+      document.querySelector("#microphone-toggle").onclick = async () => {
+        const toggle = document.querySelector("#microphone-toggle"), enabled = !microphoneEnabled;
+        if (!enabled) cancelRecording();
+        toggle.disabled = true;
+        try {
+          const response = await authorizedFetch("/v1/kill-switches/microphone", {method: "PUT", headers: headers(), body: JSON.stringify({enabled})});
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          microphoneEnabled = enabled; updateMicrophoneControls();
+        } catch (error) { document.querySelector("#voice-status").textContent = `麥克風開關未確認：${error.message}`; }
+        finally { toggle.disabled = false; }
+      };
+      document.querySelector("#cancel").onclick = async () => { clearRetryNotice(); submissionGeneration += 1; document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop")); speechCancelled = true; stopTts(); foregroundControl.stop(); };
       document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };
       document.querySelector("#replay-speech").onclick = async () => {
         if (!lastSpeech || pageClosing) return;
@@ -1425,7 +1617,16 @@
         document.querySelector("#renderer-status").textContent = "Live2D 已就緒 · 情緒與對話同步";
       });
       document.querySelectorAll(".computer-prompt").forEach(button => button.onclick = () => { if (navigationInitialized) navigateToPage("chat", false); document.querySelector("#text").value = button.dataset.prompt; document.querySelector("#text").focus(); document.querySelector("#chat").scrollIntoView({behavior:"smooth",block:"center"}); });
-      document.querySelector("#text").addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); document.querySelector("#chat").requestSubmit(); } });
+      let chatInputComposing = false;
+      const chatInput = document.querySelector("#text");
+      chatInput.addEventListener("compositionstart", () => { chatInputComposing = true; });
+      chatInput.addEventListener("compositionend", () => { chatInputComposing = false; });
+      chatInput.addEventListener("blur", () => { chatInputComposing = false; });
+      chatInput.addEventListener("keydown", event => {
+        // Some WebKit/Chromium IMEs omit isComposing while committing a candidate.
+        const isImeEvent = chatInputComposing || event.isComposing || event.keyCode === 229 || event.which === 229;
+        if (event.key === "Enter" && !event.shiftKey && !isImeEvent) { event.preventDefault(); document.querySelector("#chat").requestSubmit(); }
+      });
       boot().catch(() => { document.querySelector("#connection").textContent = "連線未完成"; const notice = document.querySelector("#service-notice"); notice.hidden = false; notice.textContent = "目前無法連接 SIRO。請確認服務已啟動，再按重新連線；已送出的工作不會自動重送。"; });
     </script>
   </body>

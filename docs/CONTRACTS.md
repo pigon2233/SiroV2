@@ -1,5 +1,21 @@
 # SIRO 2 介面與資料契約
 
+## D66 — 顯式本機角色聲線（2026-10-17）
+
+`SIRO_QWEN_VOICE_PROFILE` 可指向本機絕對 JSON 路徑，version=1及voice_id／reference_wav／reference_text為唯一欄位，限16KiB、安全有界ID、絕對既存reference與非空500字內台詞。選定reference必須使用其對應台詞，cache沿原模型／reference／SDK／completion指紋並按voice_id分流。錯誤設定或缺資產明確拒啟動，無配置才沿既有路由；不能靜默退回另一聲線。顯式profile啟用既有owned Qwen worker取消／回收，不受legacy／candidate模式影響；推論offline／local-files-only，Origin／session／停止／唯一播放owner不變。使用者選擇B只確立聲線偏好，其他品質及SLO仍需各自驗收。
+
+## D64 — 桌寵操作及本機音訊補充（2026-10-17）
+
+角色與對話不重疊；直接拖曳／有界縮放仍沿唯一renderer及audio owner。麥克風預設關閉，只有明確操作才向WebKit請求audio-only權限；可見開關與停止須終止錄音tracks及未提交轉錄，無late speech turn。現有Origin／token／kill-switch gate保持。
+
+可選本機Whisper adapter沿SpeechToText，僅固定本機模型、offline CPU、原音只在記憶體／worker stdin，30秒單聲道PCM WAV；單worker／有界timeout／取消terminate→kill→join，無自動cloud fallback、無worker內容log或原音檔。既有Groq route保持，未配置仍disabled。設定與依賴要記lock及來源。本機缺模型不得假裝已辨識；播放須依真播放器完成，stop及過期generation fence保持。
+
+## D63 — Ollama 終止判定補充（2026-10-17）
+
+沿 FIX-003 的未完成裁決，Ollama `done_reason=length` 為 `ProviderOutputTruncated`；未知原因、明確未完成、stream 沒有 `done:true` 的 EOF，以及無文字／工具的回覆，為 `ProviderOutputIncomplete`。已收到的文字保留為 partial；取消優先，不因截斷重送。舊 atomic response 省略 done／reason、舊 stream `done:true` 省略 reason 可相容；缺 terminal 不能相容為成功。
+
+工具意圖暫存至完整終止及 owned stream cleanup 成功才下放；失敗時沿既有註記阻擋 failover，沒有新工具批准、Core 或 journal schema。原 protocol failure 測試的 partial 文字仍保留，工具 chunk 預期改為零；錯誤分類／安全訊息／零 fallback／stream close 仍需通過。這是模型完整性要求，不能以改模型或增加 token 上限代替。
+
 ## D61 — 局部失敗與資源所有權補充（2026-10-16）
 
 MQTT tracker `acknowledge(id,status="applied")` 僅applied受理；unknown id回None，pending拒絕標FAILED，已確認／失敗terminal不復活，已受理不能被晚到重複ACK降級。state只有ACKNOWLEDGED可確認。RAM追蹤預設1024，new issue清terminal／expired，滿active拒新而非丟棄；prune提供顯式清理，非journal。舊一參數只供trusted compatibility caller；wire caller必須傳實際status。

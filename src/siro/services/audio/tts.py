@@ -121,6 +121,48 @@ class TextToSpeech(Protocol):
     def synthesize(self, text: str) -> AsyncIterator[bytes]: ...
 
 
+@dataclass(frozen=True)
+class QwenVoiceProfile:
+    voice_id: str
+    reference_wav: Path
+    reference_text: str
+
+    @classmethod
+    def load(cls, path: Path) -> QwenVoiceProfile:
+        try:
+            if not path.is_absolute():
+                raise ValueError
+            with path.open("rb") as source:
+                payload = source.read(16_385)
+            value = json.loads(payload) if len(payload) <= 16_384 else None
+            if not isinstance(value, dict) or set(value) != {
+                "version",
+                "voice_id",
+                "reference_wav",
+                "reference_text",
+            }:
+                raise ValueError
+            identity, wav, text = (
+                value[key] for key in ("voice_id", "reference_wav", "reference_text")
+            )
+            if (
+                type(value["version"]) is not int
+                or value["version"] != 1
+                or not isinstance(identity, str)
+                or re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", identity) is None
+                or not isinstance(wav, str)
+                or not Path(wav).is_absolute()
+                or not Path(wav).is_file()
+                or not isinstance(text, str)
+                or not 1 <= len(text.strip()) <= 500
+                or any(ord(character) < 32 or ord(character) == 127 for character in text)
+            ):
+                raise ValueError
+            return cls(identity, Path(wav), text)
+        except (OSError, ValueError, TypeError):
+            raise ValueError("invalid Qwen voice profile") from None
+
+
 class EdgeNeuralTTS:
     """Natural Taiwanese Mandarin speech rendered by Microsoft Edge's online service."""
 
