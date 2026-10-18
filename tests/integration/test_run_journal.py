@@ -317,7 +317,7 @@ def test_http_approval_uses_dispatch_and_observation_journal(tmp_path: Path) -> 
 
 def test_actual_frontend_recovery_notice() -> None:
     html = Path("src/siro/services/presentation/static/index.html").read_text()
-    function = html[html.index("function recoveryNotice(") : html.index("async function boot()")]
+    function = html[html.index("function recoveryNotice(") : html.index("const pageTitles")]
     boot = html[html.index("async function boot()") : html.index("function connectControl()")]
     assert "/v1/agent-runs/browser" in boot and "recoveryNotice(run)" in boot
     script = (

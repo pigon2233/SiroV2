@@ -82,7 +82,9 @@ async def test_real_writer_buffers_100_cancelled_streams(terminal_urgent: bool) 
 
 def test_actual_frontend_terminal_consumer() -> None:
     html = Path("src/siro/services/presentation/static/index.html").read_text()
-    block = html[html.index("function createTerminalFence") : html.index("async function boot")]
+    block = html[
+        html.index("function createTerminalFence") : html.index("function recoveryNotice(")
+    ]
     script = (
         block
         + """
