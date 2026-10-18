@@ -5,8 +5,15 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from typing import Protocol
+from uuid import uuid4
 
+from siro.adapters.body.visual_pack import VisualPack
 from siro.ports.body import BodyConnection, BodyStatus, EmotionIntent, SpeechIntent
+
+# Rough speaking-pose lifetime; the parent page owns audio and reports no end-of-playback here.
+SPEAKING_SECONDS_PER_CHAR = 0.22
+SPEAKING_MIN_SECONDS = 2.0
+SPEAKING_MAX_SECONDS = 30.0
 
 
 class BodyTransport(Protocol):
@@ -33,6 +40,7 @@ class WebSocketBodyTransport:
         self._queue: asyncio.Queue[dict[str, object]] | None = None
         self._writer: asyncio.Task[None] | None = None
         self._emotion: dict[str, object] | None = None
+        self._activity: dict[str, object] | None = None
 
     @property
     def connected(self) -> bool:
@@ -45,6 +53,9 @@ class WebSocketBodyTransport:
         self._writer = asyncio.create_task(self._write_loop(socket), name="body-renderer-writer")
         if self._emotion is not None:
             self._queue.put_nowait(dict(self._emotion))
+        if self._activity is not None:
+            # Same ids, so a renderer that kept running keeps its phase; nothing one-shot replays.
+            self._queue.put_nowait(dict(self._activity))
 
     async def detach(
         self, *, reason: str = "renderer disconnected", socket: JsonBodySocket | None = None
@@ -65,6 +76,9 @@ class WebSocketBodyTransport:
     def remember_emotion(self, message: dict[str, object]) -> None:
         if message.get("type") == "body.emotion":
             self._emotion = dict(message)
+
+    def remember_activity(self, message: dict[str, object] | None) -> None:
+        self._activity = None if message is None else dict(message)
 
     async def send(self, message: dict[str, object]) -> None:
         self.remember_emotion(message)
@@ -96,11 +110,15 @@ class MinimalWebBodyAdapter:
 
     name = "minimal-web-v1"
 
-    def __init__(self, transport: BodyTransport) -> None:
+    def __init__(
+        self, transport: BodyTransport, *, activity_pack: VisualPack | None = None
+    ) -> None:
         self._transport = transport
+        self._activity_pack = activity_pack
+        self._activity: tuple[str, str] | None = None
 
     async def speak(self, intent: SpeechIntent) -> bool:
-        return await self._send(
+        sent = await self._send(
             {
                 "v": 1,
                 "type": "body.speech",
@@ -112,6 +130,59 @@ class MinimalWebBodyAdapter:
                     "pitch": intent.pitch,
                     "energy": intent.energy,
                 },
+            }
+        )
+        if sent:
+            seconds = len(intent.text) * SPEAKING_SECONDS_PER_CHAR
+            await self.set_activity(
+                "speaking_pose",
+                generation_id=intent.generation_id,
+                ttl_seconds=min(SPEAKING_MAX_SECONDS, max(SPEAKING_MIN_SECONDS, seconds)),
+            )
+        return sent
+
+    async def set_activity(
+        self, activity: str, *, generation_id: str, ttl_seconds: float | None = None
+    ) -> bool:
+        """Send a presentation-only activity cue; disabled or unsupported cues are dropped."""
+        pack = self._activity_pack
+        if pack is None or activity not in pack.activities or not generation_id:
+            return False
+        if ttl_seconds is not None and not 0 < ttl_seconds <= 120:
+            raise ValueError("activity ttl must be within (0, 120] seconds")
+        message: dict[str, object] = {
+            "v": 1,
+            "type": "body.activity",
+            "op": "start",
+            "instance_id": str(uuid4()),
+            "generation_id": generation_id,
+            "activity": activity,
+            "pack_version": pack.version,
+        }
+        if ttl_seconds is not None:
+            message["ttl_s"] = ttl_seconds
+        durable = ttl_seconds is None and pack.activities[activity].loop
+        if isinstance(self._transport, WebSocketBodyTransport):
+            self._transport.remember_activity(message if durable else None)
+        self._activity = (str(message["instance_id"]), generation_id)
+        return await self._send(message)
+
+    async def stop_activity(self) -> bool:
+        """Stop the activity this adapter last started; the renderer rests in idle afterwards."""
+        current, self._activity = self._activity, None
+        if current is None or self._activity_pack is None:
+            return False
+        if isinstance(self._transport, WebSocketBodyTransport):
+            self._transport.remember_activity(None)
+        instance_id, generation_id = current
+        return await self._send(
+            {
+                "v": 1,
+                "type": "body.activity",
+                "op": "stop",
+                "instance_id": instance_id,
+                "generation_id": generation_id,
+                "pack_version": self._activity_pack.version,
             }
         )
 

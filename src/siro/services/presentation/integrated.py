@@ -84,6 +84,16 @@ def _local_status_command(text: str) -> tuple[str, str] | None:
     return None
 
 
+# Low-frequency presentation cues from real turn events; the renderer animates them locally.
+# reading_pose only follows an already started tool; it never claims a tool has run.
+_STREAM_ACTIVITIES = {
+    "assistant_started": "thinking",
+    "tool_started": "reading_pose",
+    "tool_result": "thinking",
+    "assistant_terminal": "idle",
+}
+
+
 class IntegratedCompanion:
     def __init__(
         self,
@@ -190,9 +200,12 @@ class IntegratedCompanion:
     async def _broadcast_stream(
         self, stream_id: str, message: dict[str, object], *, urgent: bool = False
     ) -> None:
+        activity = _STREAM_ACTIVITIES.get(str(message.get("type")))
         if self._runtime_profile == "candidate":
             message = {**message, "stream_id": stream_id}
         await self._hub.broadcast(message, urgent=urgent)
+        if activity is not None:
+            await self._body.set_activity(activity, generation_id=stream_id)
 
     async def model_retry_wait(self, generation_id: str, seconds: float) -> None:
         """Notify only the active run that owns this already-started model generation."""

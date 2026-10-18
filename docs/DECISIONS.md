@@ -1,5 +1,17 @@
 # 決策紀錄
 
+## D76 / 2026-10-18 / accepted / CP-P01 body.activity：可停用的附加呈現訊息
+
+Companion 計畫 CP-P01 接 Codex V02 的 `siro.haru.upperbody@0.1.0`。不升 Body v1，也不改 `BodyAdapter` port、`BodyAssetManifest` v1、DB 或既有事件：body WS 只多一種 `v:1` 訊息 `body.activity`（op start／stop、instance_id、generation_id、activity、pack_version、可選 ttl_s）。舊 renderer 的 renderSiro 會忽略未知 type，所以新後端配舊 renderer 不會壞；新 renderer 拿不到 pack 時維持原角色並回 unsupported。
+
+素材包只當資料：gateway 啟動時用 `adapters/body/visual_pack.py` 驗 pack.json 結構、檔名不得含路徑、大小上限、逐檔 SHA-256、模型 moc3／model3 hash、曲線只能寫 6 個 body ID、段落格式／時間順序／有限值，以及必須有 idle。任何失敗都只記原因並停用活動，不換角色。驗過的資料由公開的 `GET /v1/body/pack` 提供（與 `/live2d` 同為靜態呈現資料；失敗原因只在 runtime feature status 顯示）。`SIRO_BODY_ACTIVITIES=0` 是 kill switch，`SIRO_BODY_PACK` 可指定其他已驗包。
+
+權責：runtime 只依真實 turn 事件低頻選意圖（assistant_started→thinking、tool_started→reading_pose、tool_result→thinking、assistant_terminal→idle；body.speech 成功後送 speaking_pose，壽命以字數估 2–30 秒，因為音訊 owner 在父頁且不回報播放結束）。動畫在 renderer 本地逐幀；reading_pose 只跟隨已開始的工具，不能代表工具已執行。renderer 只覆寫 6 個 body ID（在 stock motion 之後、breath／drag／physics 之前），不 stopAllMotions、不動 expression／眨眼／呼吸。gaze cue 本版不套用（SDK drag 仍是唯一視線來源），標 unsupported。
+
+嘴型：沒有音訊能量來源，所以 renderer 不再強制 ParamMouthOpenY。取消改為解除覆寫，修正 V01-D01「取消後永久閉嘴」；真 lip sync 仍 unsupported，不造假嘴型。
+
+重連只重送最後一個無 ttl 的循環活動且沿用原 id，renderer 視為 duplicate 保留 phase；speaking_pose（ttl）與 nod（一次性）不重送。回退：設 `SIRO_BODY_ACTIVITIES=0`，或撤回 repair 腳本的 overlay／bridge 區塊後重建 renderer；不需 migration，表情、記憶與人格資料不受影響。
+
 ## D62 / 2026-10-16 / accepted / FIX-026 歷史驗證快照的精確掃描綁定
 
 940bdb7 新追蹤的歷史驗證資料使原 secret gate 出現1332項誤報：12份metadata檔的1331個來源摘要／指紋，及1份舊獨立測試的synthetic literal。檔案皆已核對，保留其原始bytes、位置與報告連結；不改原scanner範圍或六個public tokenizer pins，不把一般hex／JSON欄位／資料夾視為可信。

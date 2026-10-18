@@ -7,6 +7,65 @@ import re
 import subprocess
 from pathlib import Path
 
+ACTIVITY_SOURCE = Path(__file__).with_name("companion_renderer") / "siroactivity.ts"
+ACTIVITY_IMPORT = "import { siroActivity } from './siroactivity'; // SIRO activity overlay v1\n"
+ACTIVITY_FRAME = """    // SIRO activity overlay v1: body IDs after stock motion.
+    siroActivity.tick(
+      deltaTimeSeconds,
+      id => this._model.getParameterValueById(CubismFramework.getIdManager().getId(id)),
+      (id, value) => {
+        const index = this._model.getParameterIndex(CubismFramework.getIdManager().getId(id));
+        const low = this._model.getParameterMinimumValue(index);
+        const high = this._model.getParameterMaximumValue(index);
+        this._model.setParameterValueByIndex(index, Math.max(low, Math.min(high, value)));
+      }
+    );
+"""
+ACTIVITY_BIND = """
+            siroActivity.bindModel(id => {
+              const index = this._model.getParameterIndex(CubismFramework.getIdManager().getId(id));
+              return index >= 0 && index < this._model.getParameterCount();
+            });"""
+ACTIVITY_BRIDGE = """// SIRO activity bridge v1
+// No audio-energy lip sync exists yet, so the renderer never forces ParamMouthOpenY:
+// expression and motion keep it. Forcing 0 on cancel pinned it shut for later speech (V01-D01).
+function releaseMouth(): void {
+  LAppDelegate.getInstance().getSiroManager()?.setSiroMouthOpen(null);
+}
+function stopSpeaking(): void {
+  releaseMouth();
+  siroActivity.cancelSpeech();
+}
+siroActivity.onEvent = event => {
+  document.documentElement.dataset.siroActivity = siroActivity.snapshot().activity ?? 'stock';
+  window.parent.postMessage({...event, type: 'siro.renderer.activity', event: event.type},
+    location.origin);
+};
+void fetch('/v1/body/pack')
+  .then(response => (response.ok ? response.json() : null))
+  .catch((): null => null)
+  .then(pack => {
+    const error = siroActivity.load(pack);
+    document.documentElement.dataset.siroPack = error
+      ? `unsupported:${error}` : `${pack.pack_id}@${pack.version}`;
+  });
+function renderSiro(message: Record<string, unknown>): void {
+  if (message.v !== 1) return;
+  const manager = LAppDelegate.getInstance().getSiroManager();
+  if (message.type === 'body.emotion') desiredEmotion = String(message.name);
+  else if (message.type === 'body.look') {
+    manager?.onDrag(Number(message.x) || 0, Number(message.y) || 0);
+  }
+  else if (message.type === 'body.speech') releaseMouth();
+  else if (message.type === 'body.cancel') stopSpeaking();
+  else if (message.type === 'body.activity') {
+    siroActivity.request(message as unknown as ActivityIntent);
+  }
+  // Audible speech has one owner in the parent page. Never synthesize twice or fake lip motion.
+}
+// End SIRO activity bridge v1
+"""
+
 
 def repair(demo: Path) -> bool:
     changed = False
@@ -14,7 +73,7 @@ def repair(demo: Path) -> bool:
     def write(name: str, text: str) -> None:
         nonlocal changed
         path = demo / "src" / name
-        if path.read_text() != text:
+        if not path.is_file() or path.read_text() != text:
             path.write_text(text)
             changed = True
 
@@ -36,7 +95,16 @@ def repair(demo: Path) -> bool:
         "this._wavFileHandler.start(path);",
         "// Audible speech is owned by the parent page, not sample motion sounds.",
     )
+    if "// SIRO activity overlay v1" not in model:
+        frame = "    this._model.saveParameters(); // 状態を保存"
+        setup = "            this._state = LoadStep.CompleteSetup;"
+        if model.count(frame) != 1 or model.count(setup) != 1:
+            raise RuntimeError("unsupported SDK model update loop for activity overlay")
+        model = ACTIVITY_IMPORT + model.replace(frame, ACTIVITY_FRAME + frame).replace(
+            setup, setup + ACTIVITY_BIND
+        )
     write("lappmodel.ts", model)
+    write("siroactivity.ts", ACTIVITY_SOURCE.read_text())
     manager = (demo / "src/lapplive2dmanager.ts").read_text()
     if "private _siroAppliedModel" not in manager:
         manager = manager.replace(
@@ -106,6 +174,27 @@ window.setInterval(() => {
 """
             + main[end:]
         )
+    if "// SIRO activity bridge v1" in main:
+        main = re.sub(
+            r"// SIRO activity bridge v1.*?// End SIRO activity bridge v1\n",
+            lambda _: ACTIVITY_BRIDGE,
+            main,
+            count=1,
+            flags=re.S,
+        )
+    else:
+        start = main.index("function stopSpeaking(): void {")
+        end = main.index("window.setInterval(() => {", start)
+        main = main[:start] + ACTIVITY_BRIDGE + main[end:]
+    activity_import = "import { siroActivity, type ActivityIntent } from './siroactivity';\n"
+    if activity_import not in main:
+        main = main.replace(
+            "import * as LAppDefine from './lappdefine';\n",
+            "import * as LAppDefine from './lappdefine';\n" + activity_import,
+            1,
+        )
+        if activity_import not in main:
+            main = activity_import + main
     # Keep reconnect ownership independent of the emotion/mouth projection above.
     # An explicitly replaced renderer must never reclaim the one body socket.
     connection = """// SIRO renderer ownership v3

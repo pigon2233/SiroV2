@@ -335,7 +335,9 @@ def synthetic_sdk(tmp_path: Path) -> Path:
     sources = {
         "main.ts": bridge + "\nwindow.onload = () => {};\n",
         "lappmodel.ts": "  public setExpression(expressionId: string): void {}\n"
-        "this._wavFileHandler.start(path);",
+        "this._wavFileHandler.start(path);\n"
+        "            this._state = LoadStep.CompleteSetup;\n"
+        "    this._model.saveParameters(); // 状態を保存\n",
         "lapplive2dmanager.ts": "  public setSiroExpression(expressionId: string): void {}\n"
         "model.setRandomExpression();",
         "lappdefine.ts": "export const ModelDir: string[] = ['Haru', 'Other'];",

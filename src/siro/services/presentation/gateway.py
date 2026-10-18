@@ -23,11 +23,12 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from siro.adapters.body.visual_pack import VisualPack, VisualPackError, load_visual_pack
 from siro.adapters.body.web import WebSocketBodyTransport
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.memory import Memory, MemoryService
@@ -522,6 +523,30 @@ async def _ignore_tool_result(_proposal: ToolProposal) -> None:
     return None
 
 
+DEFAULT_BODY_PACK = Path(__file__).resolve().parents[4] / "assets/companion/haru-upperbody/0.1.0"
+
+
+def load_body_pack(live2d_dist: Path | None) -> tuple[VisualPack | None, str]:
+    """Validate the optional activity pack; any failure keeps the existing character."""
+    setting = os.environ.get("SIRO_BODY_ACTIVITIES", "1")
+    if setting not in {"0", "1"}:
+        raise ValueError("SIRO_BODY_ACTIVITIES must be 0 or 1")
+    if setting == "0":
+        return None, "disabled"
+    if live2d_dist is None:
+        return None, "no_renderer"
+    configured = os.environ.get("SIRO_BODY_PACK")
+    pack_dir = Path(configured).resolve() if configured else DEFAULT_BODY_PACK
+    try:
+        return load_visual_pack(pack_dir, live2d_dist), "ready"
+    except VisualPackError as error:
+        reason = str(error)
+    except OSError as error:
+        reason = f"unreadable ({type(error).__name__})"
+    logging.getLogger(__name__).warning("body activity pack unavailable: %s", reason)
+    return None, f"unsupported: {reason}"
+
+
 def create_app(
     *,
     allowed_origins: set[str] | None = None,
@@ -556,6 +581,7 @@ def create_app(
     skill_activation: SkillActivationOwner | None = None,
     verified_release: VerifiedRelease | None = None,
     read_task_owner: ReadTaskOwner | None = None,
+    body_pack: VisualPack | None = None,
 ) -> FastAPI:
     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
     gateway_state = state or GatewayState()
@@ -726,6 +752,13 @@ def create_app(
     async def audio_field_test() -> HTMLResponse:
         path = Path(__file__).with_name("static") / "audio-field-test.html"
         return HTMLResponse(path.read_text(encoding="utf-8"))
+
+    @app.get("/v1/body/pack")
+    async def body_activity_pack() -> Response:
+        # Static presentation data like /live2d; failure reasons stay in the runtime status.
+        if body_pack is None:
+            return JSONResponse({"state": "unavailable"}, status_code=404)
+        return JSONResponse(body_pack.renderer_payload(), headers={"Cache-Control": "no-store"})
 
     @app.get("/health/live")
     async def live() -> dict[str, str]:
@@ -1658,6 +1691,7 @@ def _run_gateway(
     runtime_profile = os.environ.get("SIRO_RUNTIME_PROFILE", "legacy")
     configured = os.environ.get("SIRO_LIVE2D_DIST")
     live2d_dist = Path(configured).resolve() if configured else None
+    body_pack, body_pack_state = load_body_pack(live2d_dist)
     hub = GatewayHub()
     body_transport = WebSocketBodyTransport()
     backend = "offline"
@@ -2206,7 +2240,7 @@ def _run_gateway(
         data_dir,
         model,
         hub,
-        MinimalWebBodyAdapter(body_transport),
+        MinimalWebBodyAdapter(body_transport, activity_pack=body_pack),
         privacy=privacy,
         tool_orchestrator=tool_orchestrator,
         runtime_profile=runtime_profile,
@@ -2283,6 +2317,13 @@ def _run_gateway(
                 "error": workspace.error if workspace is not None else None,
             },
             "goal_tasks": {"enabled": read_tasks is not None, "profile": "document-checklist-v1"},
+            "body_activities": {
+                "enabled": body_pack is not None,
+                "state": body_pack_state,
+                "pack": None if body_pack is None else f"{body_pack.pack_id}@{body_pack.version}",
+                "gaze": "unsupported",
+                "lip_sync": "unsupported",
+            },
         }
 
     async def cancel_controller(turn_id: str, reason: str) -> None:
@@ -2332,6 +2373,7 @@ def _run_gateway(
             speech_to_text=speech_to_text,
             text_to_speech=text_to_speech,
             live2d_dist=live2d_dist,
+            body_pack=body_pack,
             on_startup=start_controller,
             on_shutdown=stop_controller,
             feature_status=product_features,
