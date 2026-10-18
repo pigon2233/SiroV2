@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from siro.adapters.browser import BrowserScopeReason, BrowserScopeViolation
 from siro.core.authorization import argument_hash
+from siro.persistence.activity_events import record_event
 from siro.persistence.sqlite import SQLiteStore
 from siro.ports.models import ToolCall, ToolDefinition
 from siro.services.tools.execution import (
@@ -365,6 +366,13 @@ class SQLiteToolProposalRepository:
                     now,
                 ),
             )
+            record_event(
+                connection,
+                session_id=proposal.session_id,
+                entity="tool",
+                entity_id=proposal.proposal_id,
+                state=proposal.state.value,
+            )
 
             if run_id is not None:
                 call = connection.execute(
@@ -543,6 +551,14 @@ class SQLiteToolProposalRepository:
                 raise ValueError("tool proposal state changed or does not exist")
             row = self._read_row(connection, proposal_id)
             assert row is not None
+            record_event(
+                connection,
+                session_id=str(row["session_id"]),
+                entity="tool",
+                entity_id=proposal_id,
+                state=target.value,
+                phase=error,
+            )
             return row
 
         return self._from_row(await self._store.run_transaction(write))

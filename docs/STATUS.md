@@ -1,3 +1,11 @@
+# Companion CP-P02：活動與網路實際紀錄 — 2026-10-19，PARTIAL
+
+新增 migration 015 `activity_events`：只記變更順序，與 proposal、run、journal dispatch、reconcile 的寫入在同一個 transaction，審計寫不進去就不執行工具。唯讀投影 `GET /v1/activities`（快照＋cursor）與 `/v1/activities/changes`（增量、has_more、gap），提供契約狀態（取消但已 dispatch → unknown）、網路覆蓋（browser adapter／shell unobserved）與脫敏。順帶修正 browser adapter：連線被拒原本會卡 30 秒並關閉整個 browser pool。見 D78、[REPORT](evidence/CP-P02-2026-10-19/REPORT.md)。
+
+命令與結果：新測試 33 PASS（真 Chrome HTTP 故障、競態停止、重送、cursor 補讀／gap、真 SIGKILL 重啟、審計寫入故障、脫敏、分頁上限、舊 schema 相容）；突變檢查 3 種都被抓到；browser 相關 71 PASS；全套 2443 PASS／1 FAIL（origin/main 既有，另一對話修正中）／5 SKIP；Ruff／mypy／export_schemas／diff check PASS。
+
+限制：沒有 UI（P03）；HTTP status／method／子資源與 shell 網路拿不到，標 unknown／unobserved；連線失敗的錯誤類別仍是通用 `Error`；使用中 8000 服務跑 P01 分支，沒有這些 API；schema 15 之後 `max_schema` 14 的 release 需先還原備份。下一步：CP-P03 需要 Codex 的 V05 畫面稿。
+
 # CI 修復 — 2026-10-18
 
 使用者回報 push 後 Actions 紅燈。查閱 run 39102841020：scripts/check 的 pytest 為 2406 passed、3 failed、5 skipped；三項皆是前端測試擷取範圍過廣，帶入導航 DOM 註冊或記憶搜尋事件並污染測試 harness。縮小 capability、terminal fence、recovery notice 的擷取範圍，保留原行為斷言，未更改產品程式。

@@ -788,9 +788,12 @@ def test_schema13_upgrade_preserves_legacy_goal_and_refuses_old_release_approval
             ).fetchall()
             == migrations_before
         )
-        assert connection.execute("SELECT max(version) FROM schema_migrations").fetchone() == (14,)
+        latest = len(load_migrations())  # schema 14 added task_json; later migrations may follow
+        assert connection.execute("SELECT max(version) FROM schema_migrations").fetchone() == (
+            latest,
+        )
         before = tuple(connection.iterdump())
-    for maximum in (13, 14):
+    for maximum in (13, latest):
         with pytest.raises(ReleaseLaunchError) as error:
             ReleaseManager(
                 root, key, current_schema=maximum, database=database

@@ -10,6 +10,7 @@ from enum import StrEnum
 from typing import cast
 from uuid import UUID, uuid4
 
+from siro.persistence.activity_events import record_event
 from siro.persistence.sqlite import SQLiteStore
 from siro.ports.models import ModelMessage
 
@@ -94,6 +95,13 @@ class SQLiteAgentRunRepository:
                 "created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)",
                 (run.run_id, session_id, run.goal, run.state.value, max_steps, now, now),
             )
+            record_event(
+                connection,
+                session_id=session_id,
+                entity="run",
+                entity_id=run.run_id,
+                state=run.state.value,
+            )
             if runtime_backend is not None:
                 connection.execute(
                     "INSERT INTO run_journal VALUES "
@@ -167,6 +175,15 @@ class SQLiteAgentRunRepository:
                     run_id,
                 ),
             )
+            if (state or current.state) != current.state:
+                record_event(
+                    connection,
+                    session_id=current.session_id,
+                    entity="run",
+                    entity_id=run_id,
+                    state=(state or current.state).value,
+                    phase=error,
+                )
             updated = connection.execute(
                 "SELECT * FROM agent_runs WHERE run_id = ?", (run_id,)
             ).fetchone()
@@ -291,6 +308,20 @@ class SQLiteAgentRunRepository:
             ).rowcount
             if changed != 1:
                 raise ValueError("dispatch intent is duplicate or fenced")
+            # The real dispatch boundary: recorded before the handler runs, or it never runs.
+            row = c.execute(
+                "SELECT r.session_id, j.proposal_id FROM run_journal_calls j "
+                "JOIN agent_runs r ON r.run_id=j.run_id WHERE j.run_id=? AND j.call_id=?",
+                (run_id, call_id),
+            ).fetchone()
+            record_event(
+                c,
+                session_id=str(row["session_id"]),
+                entity="tool" if row["proposal_id"] is not None else "run",
+                entity_id=str(row["proposal_id"] or run_id),
+                state="running",
+                phase="dispatched",
+            )
 
         await self._store.run_transaction(write)
 
@@ -447,22 +478,43 @@ class SQLiteAgentRunRepository:
                     ).fetchone()
                     is not None
                 )
-                c.execute(
+                reason = "outcome_unknown" if unknown else "interrupted_restart"
+                if c.execute(
                     "UPDATE agent_runs SET state='failed',error=?,current_proposal_id=NULL,"
                     "updated_at=? WHERE run_id=? AND state IN ('running','waiting_tool')",
-                    (
-                        "outcome_unknown" if unknown else "interrupted_restart",
-                        datetime.now(UTC).isoformat(),
-                        run_id,
-                    ),
-                )
+                    (reason, datetime.now(UTC).isoformat(), run_id),
+                ).rowcount:
+                    record_event(
+                        c,
+                        session_id=str(
+                            c.execute(
+                                "SELECT session_id FROM agent_runs WHERE run_id=?", (run_id,)
+                            ).fetchone()[0]
+                        ),
+                        entity="run",
+                        entity_id=run_id,
+                        state="failed",
+                        phase=reason,
+                    )
             for proposal_id in fenced_proposals:
-                c.execute(
+                if c.execute(
                     "UPDATE tool_proposals SET state=CASE WHEN state='running' THEN 'failed' "
                     "ELSE 'denied' END,error='interrupted_restart' WHERE proposal_id=? "
                     "AND state IN ('pending','approved','running')",
                     (proposal_id,),
-                )
+                ).rowcount:
+                    fenced = c.execute(
+                        "SELECT session_id, state FROM tool_proposals WHERE proposal_id=?",
+                        (proposal_id,),
+                    ).fetchone()
+                    record_event(
+                        c,
+                        session_id=str(fenced[0]),
+                        entity="tool",
+                        entity_id=proposal_id,
+                        state=str(fenced[1]),
+                        phase="interrupted_restart",
+                    )
             return len(rows)
 
         return await self._store.run_transaction(write)

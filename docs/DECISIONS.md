@@ -1,5 +1,21 @@
 # 決策紀錄
 
+## D78 / 2026-10-19 / accepted / CP-P02 活動紀錄：同交易事件流＋唯讀投影
+
+（編號跳過 D76／D77：已由未合併的 CP-P01 分支使用。）
+
+不新增第二個業務狀態 owner。agent_runs、tool_proposals、run_journal_calls 仍是唯一真相；新增 migration 015 `activity_events`（seq AUTOINCREMENT、session、entity run／tool、entity_id、state、phase、時間）只當變更順序。事件在原寫入點的**同一個 transaction** 寫入：proposal 建立與每次狀態轉換、run 開始與狀態改變、journal dispatch（phase=dispatched，是 handler 真正執行前的邊界），以及 reconcile 的 run／proposal 收斂。審計寫不進去時，原轉換一起失敗；dispatch 失敗則 handler 不執行。這讓「audit 不可用就不開始外部操作」對前景與未來的自主工作一體適用。沿用既有 migration 規則不用 trigger（切分器以分號切 SQL）。
+
+讀取由 `services/activity/monitor.py` 投影：`GET /v1/activities`（快照，≤100，附 high-water cursor 與 retained_from）與 `GET /v1/activities/changes?after=`（≤100，has_more、gap）。兩者需 session token，只讀，不初始化／遷移 store，不重送或重播任何東西。cursor 落在已清理範圍或超過目前 high-water 時回 gap，client 要重取快照。保留：7 天或最新 10,000 筆，取先到者；只清事件，不刪 run、proposal 或 journal。
+
+狀態對映（契約 view）：pending→proposed、approved→queued、denied→cancelled；被取消的工具只有在 journal 確認**未 dispatch** 時才算 cancelled，已 dispatch 或無 journal 一律 unknown，因為副作用可能已發生；run 以 outcome_unknown 失敗時為 unknown。終態由既有 expected-state 轉換保證不回退，重送轉換或重複 dispatch 都會被拒，也不會產生事件。
+
+網路 metadata 誠實標示覆蓋：browser.navigate+read 記請求與最終 URL（可判斷 redirect）、子資源被擋與否；HTTP status 與方法 adapter 拿不到，標 unknown；`computer.execute` 標 unobserved，不解析命令字串。脫敏：URL 去掉 query、fragment、帳密，非 http(s) 只留 scheme；shell 只留程式名與參數數量；填寫值與頁面文字不進 view。
+
+順帶修正 browser adapter：route.fetch 遇到連線拒絕等錯誤時，原本 handler 丟出例外，導覽會卡滿 30 秒；例外又在 Browser.close 重新出現，導致整個 browser pool 關閉。改為以 `connectionfailed` abort 且不 raise：導覽立刻以網路錯誤失敗（錯誤仍可見），pool 可繼續使用。`test_live_route_fetch_error_remains_visible` 依此改名並改斷言。
+
+舊版相容：舊 build 只套用它認得的 migration，會忽略新表；它寫入的變更沒有事件，但快照仍正確。但已簽署 release 照既有規則檢查 schema：資料庫升到 15 之後，`max_schema` 14 的 release 會回 incompatible_schema，要回到那種 release 得先還原備份（任何新 migration 都一樣）。`test_goal_task_api` 原本把「最新 schema」寫死為 14，改成 `len(load_migrations())`，13→14 升級的驗證內容不變。回退：撤回程式後保留 `activity_events` 表也無害；不需要反向 migration。
+
 ## D62 / 2026-10-16 / accepted / FIX-026 歷史驗證快照的精確掃描綁定
 
 940bdb7 新追蹤的歷史驗證資料使原 secret gate 出現1332項誤報：12份metadata檔的1331個來源摘要／指紋，及1份舊獨立測試的synthetic literal。檔案皆已核對，保留其原始bytes、位置與報告連結；不改原scanner範圍或六個public tokenizer pins，不把一般hex／JSON欄位／資料夾視為可信。
