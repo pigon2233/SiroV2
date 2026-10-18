@@ -8,13 +8,14 @@
       :root {
         color-scheme: light; font-family: "Noto Sans TC", system-ui, sans-serif;
         --page:#f3f6fa; --surface:#ffffff; --text:#27344a; --muted:#53627a;
-        --action:#365d8d; --pink:#e5b6c8; --line:#dce3ed; --tint:#eaf0f8;
+        --action:#365d8d; --pink:#e5b6c8; --line:#dce3ed; --field-line:#77849a; --tint:#eaf0f8;
         --soft:#f8fafc; --success:#2e6655; --warning:#8a4a27; --focus:#365d8d;
-        --stage:#e5eaf3; --user:#e6edf7; --assistant:#f2f5f9;
+        --stage:#2b2638; --user:#e6edf7; --assistant:#f2f5f9;
         background:var(--page); color:var(--text); line-height:1.6;
       }
       * { box-sizing:border-box; }
       html, body { margin:0; min-width:0; overflow-x:clip; }
+      html { scroll-padding-top:100px; }
       [hidden] { display:none !important; }
       button, input, textarea { font:inherit; }
       a { color:var(--action); text-underline-offset:4px; }
@@ -24,13 +25,15 @@
       button:active, .button-link:active { transform:translateY(1px); }
       button:disabled { opacity:.55; cursor:not-allowed; transform:none; }
       :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+      .skip-link { position:fixed; top:12px; left:16px; z-index:20; padding:12px 16px; background:var(--surface); color:var(--action); border:1px solid var(--action); border-radius:8px; transform:translateY(calc(-100% - 24px)); }
+      .skip-link:focus { transform:none; }
       h1, h2, h3, p { overflow-wrap:anywhere; }
       h1 { font-size:30px; font-weight:650; letter-spacing:-.5px; line-height:1.4; margin:0 0 10px; }
       h2 { font-size:20px; font-weight:650; margin:0 0 14px; }
       h3 { font-size:17px; font-weight:600; margin:0 0 12px; }
       p { margin:0 0 16px; color:var(--muted); }
       small { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
-      input, textarea { color:var(--text); border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:12px; max-width:100%; }
+      input, textarea { color:var(--text); border:1px solid var(--field-line); background:var(--surface); border-radius:10px; padding:12px; max-width:100%; }
       textarea { width:100%; resize:vertical; min-height:88px; }
       .app-shell { display:grid; grid-template-columns:204px minmax(0,1fr); min-height:100dvh; }
       .sidebar { position:sticky; top:0; height:100dvh; display:flex; flex-direction:column; padding:30px 18px 20px; background:var(--surface); border-right:1px solid var(--line); }
@@ -60,8 +63,8 @@
       .companion-layout { display:grid; grid-template-columns:minmax(240px,.8fr) minmax(0,1.35fr); gap:26px; }
       .stage { position:relative; min-height:610px; overflow:hidden; border-radius:24px; background:var(--stage); }
       .stage-title { position:absolute; z-index:1; top:28px; left:26px; right:20px; pointer-events:none; }
-      .stage-title h2 { font-size:23px; font-weight:500; }
-      .stage-title p { font-size:13px; }
+      .stage-title h2 { font-size:23px; font-weight:500; color:#f3f6fa; text-shadow:0 1px 3px rgba(25,28,42,.85); }
+      .stage-title p { font-size:13px; color:#d3d9e4; text-shadow:0 1px 3px rgba(25,28,42,.85); }
       #companion { border:0; width:100%; height:100%; min-height:610px; display:block; }
       .stage-footer { position:absolute; bottom:20px; left:20px; right:20px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 16px; }
       #renderer-status { font-size:12px; margin:0; } #companion-state { color:var(--text); font-size:14px; margin:0 0 4px; }
@@ -82,7 +85,7 @@
       .user { background:var(--user); margin-left:14%; border-bottom-right-radius:4px; }
       .assistant { background:var(--surface); margin-right:4%; border-bottom-left-radius:4px; }
       .assistant:empty::after { content:"正在想…"; color:var(--muted); }
-      #chat { display:flex; gap:8px; align-items:flex-end; padding:8px; background:var(--surface); border:1px solid var(--line); border-radius:14px; }
+      #chat { display:flex; gap:8px; align-items:flex-end; padding:8px; background:var(--surface); border:1px solid var(--field-line); border-radius:14px; }
       #text { border:0; background:transparent; min-height:70px; resize:vertical; flex:1; min-width:0; font-size:15px; }
       #chat button { background:var(--action); color:var(--surface); border-color:var(--action); }
       .conversation-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding-top:12px; color:var(--muted); font-size:12px; }
@@ -114,6 +117,12 @@
       .destination-list strong { display:block; color:var(--text); font-size:16px; }
       .destination-list small { display:block; margin-top:5px; }
       #switches { display:flex; gap:10px; flex-wrap:wrap; }
+      #memory-search-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; margin:14px 0 8px; }
+      #memory-search-form label { flex-basis:100%; font-size:14px; font-weight:600; }
+      #memory-query { flex:1 1 220px; min-width:0; }
+      #memory-items .message button { margin:8px 8px 0 0; }
+      #memory-items .message small { display:block; }
+      #switches button { max-width:100%; white-space:normal; overflow-wrap:anywhere; text-align:left; }
       @media(max-width:1100px) { .app-shell { grid-template-columns:174px minmax(0,1fr); } .sidebar { padding-inline:12px; } .toolbar { padding-inline:24px; } .page-content { padding:24px; } .companion-layout { gap:18px; grid-template-columns:minmax(200px,.75fr) minmax(0,1fr); } }
       @media(max-width:900px) {
         .app-shell { grid-template-columns:minmax(0,1fr); } .sidebar { position:static; height:auto; padding:18px 20px 12px; border-right:0; border-bottom:1px solid var(--line); }
@@ -125,6 +134,7 @@
         .stage-title { top:20px; left:20px; } .stage-title h2 { font-size:20px; } .conversation { height:570px; }
       }
       @media(max-width:480px) {
+        html { scroll-padding-top:160px; }
         h1 { font-size:25px; } .page-content { padding:24px 16px 32px; } .page-heading { margin-bottom:22px; }
         .toolbar-actions { width:100%; } .toolbar-actions button { font-size:12px; padding:8px 10px; }
         .content-section { padding:18px; } .destination-list a { padding:18px; } .empty-state { padding-top:48px; }
@@ -134,6 +144,7 @@
     </style>
   </head>
   <body>
+    <a id="skip-to-content" class="skip-link" href="#main-content">跳到主要內容</a>
     <div class="app-shell">
       <aside class="sidebar" aria-label="主要導覽">
         <a class="brand" href="#/chat" data-nav="chat" aria-label="SIRO 對話"><span class="brand-mark" aria-hidden="true"></span>SIRO</a>
@@ -164,13 +175,13 @@
         <div aria-live="polite"><a id="activity-notice" class="activity-notice" href="#/computer" data-nav="computer" hidden>電腦操作有更新，查看授權與結果</a></div>
         <p id="service-notice" class="activity-notice" role="status" hidden></p>
         <p id="runtime-notice" class="activity-notice" role="status" __SIRO_SETUP_NOTICE_HIDDEN__>__SIRO_SETUP_NOTICE__</p>
-        <main class="page-content" id="main-content">
+        <main class="page-content" id="main-content" tabindex="-1">
           <section class="page-view" data-page="chat" aria-labelledby="chat-heading">
             <div class="page-heading"><h1 id="chat-heading" data-page-heading tabindex="-1">和 SIRO 聊聊</h1><p>有想說的，慢慢說。需要一起處理的事，也可以交給我。</p></div>
             <div class="companion-layout">
               <section class="stage" aria-label="SIRO 角色">
                 <div class="stage-title"><h2>今天，也陪著你。</h2><p>同一個 SIRO，同一段相處。</p></div>
-                <iframe id="companion" src="__SIRO_RENDERER_PATH__" title="SIRO Live2D 角色"></iframe>
+                <iframe id="companion" src="__SIRO_RENDERER_PATH__" title="SIRO Live2D 角色" tabindex="-1"></iframe>
                 <div class="stage-footer"><p id="companion-state">正在與角色連線</p><p id="renderer-status">__SIRO_RENDERER_STATUS__</p></div>
               </section>
               <section class="conversation" aria-label="對話內容與輸入">
@@ -189,11 +200,16 @@
           <section class="page-view reading-width" data-page="tasks" hidden inert aria-labelledby="tasks-heading">
             <div class="page-heading"><h1 id="tasks-heading" data-page-heading tabindex="-1">任務</h1><p>先確認要做的事，再看進度與來源。離開這個畫面，任務狀態仍會保存。</p></div>
             <section class="content-section" id="goal-task-panel">
+              <button id="goal-task-back" type="button" hidden>返回任務清單</button>
+              <p id="goal-task-detail-status" role="status" hidden></p>
+              <div id="goal-task-compose">
               <h2>交給 SIRO 的任務</h2>
               <p>指定工作目錄內 1–5 份文字檔，每行一個相對路徑。我會唯讀整理尚未勾選的待辦與 TODO／FIXME，保留來源、行數與時間。先建立待審任務，再明確批准；讀取完成不表示待辦已執行。</p>
               <label class="field-label" for="goal-task-paths">要讀取的檔案</label>
               <textarea id="goal-task-paths" rows="3" maxlength="2560" placeholder="notes.md&#10;project/tasks.txt" aria-label="任務要讀取的工作目錄內相對路徑"></textarea>
-              <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button><button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button></div>
+              <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button></div>
+              </div>
+              <button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button>
               <p id="goal-task-status" aria-live="polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>
               <div id="goal-task-items" aria-live="polite"></div>
             </section>
@@ -206,7 +222,7 @@
           </section>
           <section class="page-view reading-width" id="memories-panel" data-page="memory" hidden inert aria-labelledby="memory-heading">
             <div class="page-heading"><h1 id="memory-heading" data-page-heading tabindex="-1">共同記憶</h1><p>留下的事情可以查來源，也能更正與刪除。對我說「記住：…」即可新增。</p></div>
-            <section class="content-section"><h2>記住的事情</h2><p class="section-note">更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p><button id="product-refresh" type="button">重新整理記憶</button><div id="memory-items"></div></section>
+            <section class="content-section"><h2>記住的事情</h2><p class="section-note">更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p><form id="memory-search-form" role="search" aria-label="搜尋共同記憶"><label for="memory-query">搜尋記憶內容</label><input id="memory-query" type="search" maxlength="4096" placeholder="輸入想找的事情" autocomplete="off"><button type="submit">搜尋記憶</button><button id="memory-search-clear" type="button">清除搜尋</button></form><p id="memory-search-status" role="status" aria-live="polite">每次最多顯示 100 筆記憶。</p><button id="product-refresh" type="button">重新整理記憶</button><div id="memory-items"></div></section>
             <details><summary>閒置記憶整理</summary><p>只在本機整理已記住的內容，將相同內容放在一起；保留原記憶，不推測新的事實，也不主動打擾。</p><p id="organization-status" aria-live="polite">讀取狀態中…</p><div class="quick-actions"><button id="organization-on" type="button">開啟閒置整理</button><button id="organization-off" type="button">暫停整理</button><button id="organization-refresh" type="button">現在整理</button></div><div id="organization-items"></div></details>
           </section>
           <section class="page-view reading-width" data-page="capabilities" hidden inert aria-labelledby="capabilities-heading">
@@ -220,7 +236,7 @@
           </section>
           <section class="page-view reading-width" data-page="permissions" hidden inert aria-labelledby="permissions-heading">
             <div class="page-heading"><h1 id="permissions-heading" data-page-heading tabindex="-1">權限與停止開關</h1><p>開關直接作用於現有控制路徑，不需要模型同意。完整權限模式的操作仍受實際帳戶與工具範圍限制。</p></div>
-            <section class="content-section"><h2>能力開關</h2><div id="switches"></div></section><a href="#/settings" data-nav="settings">返回設定</a>
+            <section class="content-section"><h2>操作模式</h2><p id="permissions-authorization-status">正在確認目前模式…</p><h2>功能開關</h2><p>「已開啟」表示允許使用這項功能；按下開關可開啟或關閉。開啟功能不會取得額外的操作權限。</p><div id="switches"></div><p id="switch-status" role="status" aria-live="polite"></p></section><a href="#/settings" data-nav="settings">返回設定</a>
           </section>
           <section class="page-view reading-width" data-page="system" hidden inert aria-labelledby="system-heading">
             <div class="page-heading"><h1 id="system-heading" data-page-heading tabindex="-1">系統與診斷</h1><p>這些是目前服務的實際狀態。診斷資料與日常聊天分開，不代表缺少的產品能力已完成。</p></div>
@@ -297,7 +313,9 @@
           const renewed = await getToken();
           return send(renewed); // Only this verified pre-accept rejection permits one retry.
         }
-        return {getToken, request, dispose: () => { closed = true; session = undefined; bootstrap?.abort(); }};
+        // A control socket rejected before authentication with this exact reason drops only that cached token.
+        const invalidate = token => { if (session?.token === token) session = undefined; };
+        return {getToken, request, invalidate, dispose: () => { closed = true; session = undefined; bootstrap?.abort(); }};
       }
       const sessionAccess = createSessionAccess();
       const authorizedFetch = (url, options) => sessionAccess.request(url, options);
@@ -322,9 +340,11 @@
           : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
       }
       const pageTitles = Object.freeze({chat:"對話", tasks:"任務", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
-      let activePage = "chat", navigationInitialized = false;
+      let activePage = "chat", navigationInitialized = false, selectedGoalTaskId = null;
       function showPage(hash = location.hash, moveFocus = false) {
-        const requested = typeof hash === "string" && /^#\/[a-z]+$/.test(hash) ? hash.slice(2) : "chat";
+        const detail = typeof hash === "string" ? /^#\/tasks\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.exec(hash) : null;
+        selectedGoalTaskId = detail ? detail[1] : null;
+        const requested = detail ? "tasks" : typeof hash === "string" && /^#\/[a-z]+$/.test(hash) ? hash.slice(2) : "chat";
         const page = Object.hasOwn(pageTitles, requested) ? requested : "chat";
         let heading;
         for (const pane of document.querySelectorAll("[data-page]")) {
@@ -337,12 +357,20 @@
           else link.removeAttribute("aria-current");
         }
         activePage = page;
-        document.querySelector("#page-title").textContent = pageTitles[page];
-        document.title = `SIRO · ${pageTitles[page]}`;
+        const title = selectedGoalTaskId ? "任務詳情" : pageTitles[page];
+        document.querySelector("#page-title").textContent = title;
+        document.querySelector("#tasks-heading").textContent = selectedGoalTaskId ? "任務詳情" : "任務";
+        document.title = `SIRO · ${title}`;
+        renderGoalTasks();
         if (page === "computer") document.querySelector("#activity-notice").hidden = true;
         if (moveFocus) heading.focus();
         return page;
       }
+      document.querySelector("#skip-to-content").onclick = event => {
+        event.preventDefault();
+        const pane = Array.from(document.querySelectorAll("[data-page]")).find(item => !item.hidden);
+        (pane?.querySelector("[data-page-heading]") || document.querySelector("#main-content")).focus();
+      };
       function navigateToPage(name, moveFocus = true) {
         const page = Object.hasOwn(pageTitles, name) ? name : "chat";
         const hash = `#/${page}`;
@@ -404,7 +432,7 @@
           socket = owner; controlAuthenticated = false;
           let retired = false;
           const abandon = message => {
-            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); ready.reject(new Error(message));
+            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); if (typeof clearMemorySearch === "function") clearMemorySearch(); ready.reject(new Error(message));
           };
           controlDispose = abandon;
           const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
@@ -474,8 +502,9 @@
           document.querySelector("#connection").textContent = "已連線";
           document.querySelector("#connection").className = "connection-pill ok";
         };
-          socket.onclose = () => {
+          socket.onclose = event => {
             if (socket !== owner || epoch !== controlEpoch) return;
+            if (!controlAuthenticated && event?.code === 1008 && event.reason === "invalid session token") sessionAccess.invalidate(token);
             abandon("連線中斷，已送出的工作不會自動重送。"); stopTts();
             document.querySelector("#connection").textContent = "連線中斷 · 點此重新連線";
             document.querySelector("#connection").className = "connection-pill warn";
@@ -496,6 +525,7 @@
         connectControl().catch(error => { document.querySelector("#connection").textContent = error.message; });
       };
       window.addEventListener("beforeunload", () => {
+        clearMemorySearch("頁面已關閉。");
         pageClosing = true; controlDispose?.("頁面已關閉"); controlDispose = undefined; controlEpoch += 1;
         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         if (typeof clearGoalTasks === "function") clearGoalTasks("頁面已關閉。", true);
@@ -798,14 +828,15 @@
           }
         }
       }
+      let goalTaskHasSnapshot = false;
       function clearGoalTasks(message = "狀態快照已清除；請重新查詢保存狀態。", requireReadback = goalTaskNeedsReadback) {
         goalTaskEpoch += 1; goalTaskController?.abort(); goalTaskController = undefined;
         clearTimeout(goalTaskTimeout); goalTaskTimeout = undefined;
         clearTimeout(goalTaskPollTimer); goalTaskPollTimer = undefined;
-        goalTaskBusy = false; goalTaskViews = []; goalTaskNeedsReadback = requireReadback;
+        goalTaskBusy = false; goalTaskViews = []; goalTaskNeedsReadback = requireReadback; goalTaskHasSnapshot = false;
         document.querySelector("#goal-task-items").textContent = "";
         document.querySelector("#goal-task-status").textContent = message;
-        updateGoalTaskControls();
+        renderGoalTasks();
       }
       function applyGoalTaskTools(enabled) {
         goalTaskAvailable = enabled;
@@ -813,15 +844,27 @@
       }
       function renderGoalTasks() {
         const root = document.querySelector("#goal-task-items"); root.textContent = "";
+        const detail = selectedGoalTaskId !== null;
+        const compose = document.querySelector("#goal-task-compose"); compose.hidden = detail; compose.inert = detail;
+        document.querySelector("#goal-task-back").hidden = !detail;
+        const notice = document.querySelector("#goal-task-detail-status"); notice.hidden = !detail;
+        notice.textContent = !goalTaskHasSnapshot ? "請重新查詢保存狀態，再審查這項任務；沒有自動繼續或執行。"
+          : goalTaskViews.some(goal => goal.goal_id === selectedGoalTaskId) ? "此頁只顯示這項任務的保存快照；閱讀完成不表示待辦已執行。"
+          : "目前保存快照中沒有這項任務（每次最多 20 筆）。請重新查詢或返回清單；無法據此判斷是否已刪除。";
         const labels = {proposed:"待批准（尚未執行）", ready:"已批准，等待讀取", running:"讀取中", waiting_external:"已暫停，等待你繼續", completed:"閱讀完成", failed:"任務未完成", cancelled:"已取消"};
         const pauses = {foreground:"先回應你", tools_disabled:"電腦操作已暫停", shutdown:"服務停止", interrupted_restart:"重新啟動後沒有自動重讀", paused:"你已暫停"};
         const errors = {read_failed:"讀取失敗", path_denied:"路徑不符合批准範圍", invalid_result:"無法確認讀取結果", timeout:"讀取逾時"};
         for (const goal of goalTaskViews) {
+          if (detail && goal.goal_id !== selectedGoalTaskId) continue;
           const card = document.createElement("div"); card.className = "proposal";
           const title = document.createElement("strong"); title.textContent = `${labels[goal.state]} · 版本 ${goal.revision}`;
           const scope = document.createElement("p"); scope.textContent = `唯讀範圍：${goal.task.paths.join("、")}。待辦尚未執行。`;
           const budget = document.createElement("small"); budget.textContent = `保存任務 ${goal.goal_id} · 已使用 ${goal.steps_used}/${goal.max_steps} 次讀取 · 期限 ${goal.deadline}`;
           card.append(title, scope, budget);
+          if (!detail) {
+            const link = document.createElement("a"); link.href = `#/tasks/${goal.goal_id}`;
+            link.textContent = "查看任務詳情"; card.appendChild(link);
+          }
           const approval = document.createElement("p"); approval.textContent = goal.task.approved_at ? `批准時間：${goal.task.approved_at}` : "尚未批准；建立待審任務沒有開始讀取。"; card.appendChild(approval);
           if (goal.task.pause_reason) { const reason = document.createElement("p"); reason.textContent = pauses[goal.task.pause_reason]; card.appendChild(reason); }
           const details = document.createElement("pre"); details.style = "white-space:pre-wrap;overflow-wrap:anywhere";
@@ -851,6 +894,7 @@
         }
         updateGoalTaskControls();
       }
+      document.querySelector("#goal-task-back").onclick = () => navigateToPage("tasks");
       async function goalTaskRequest(url, options, epoch, connection, session) {
         const current = () => !pageClosing && controlAuthenticated && epoch === goalTaskEpoch
           && connection === controlEpoch && session === goalTaskSessionId && !options.signal.aborted;
@@ -895,7 +939,7 @@
           }, epoch, connection, session);
           if (pageClosing || epoch !== goalTaskEpoch || connection !== controlEpoch || controller.signal.aborted) return;
           if (!accept(data, previous)) throw new Error("invalid task view");
-          goalTaskNeedsReadback = false; valid = true;
+          goalTaskNeedsReadback = false; goalTaskHasSnapshot = true; valid = true;
           document.querySelector("#goal-task-status").textContent = goalTaskAvailable
             ? `${new Date().toLocaleString()} 保存狀態快照；批准與繼續需要你明確按一次。`
             : "已讀取保存紀錄；目前不能開工，可取消或清除已結束任務。";
@@ -1036,6 +1080,68 @@
         catch { document.querySelector("#capability-items").textContent = "目前無法更新能力狀態，請稍後重試。"; }
       }
       document.querySelector("#capabilities-refresh").onclick = refreshCapabilities;
+      let memorySearchEpoch = 0, memorySearchController, memorySearchTimeout;
+      function clearMemorySearch(message = "連線已改變；請重新搜尋記憶。") {
+        memorySearchEpoch += 1; memorySearchController?.abort(); memorySearchController = undefined;
+        clearTimeout(memorySearchTimeout); memorySearchTimeout = undefined;
+        document.querySelector("#memory-items").textContent = "";
+        document.querySelector("#memory-search-status").textContent = message;
+      }
+      async function refreshMemories() {
+        const query = (document.querySelector("#memory-query").value || "").trim();
+        clearMemorySearch("正在查詢記憶…");
+        if (pageClosing) return;
+        if (query.length > 4096) {
+          document.querySelector("#memory-search-status").textContent = "搜尋內容太長，請縮短後重試。";
+          return;
+        }
+        const epoch = memorySearchEpoch, connection = controlEpoch;
+        const controller = new AbortController(); memorySearchController = controller;
+        const current = () => !pageClosing && epoch === memorySearchEpoch
+          && connection === controlEpoch && !controller.signal.aborted;
+        const timeout = setTimeout(() => {
+          if (current()) clearMemorySearch("查詢逾時，請重新搜尋記憶。");
+        }, 5000); memorySearchTimeout = timeout;
+        try {
+          const memories = await productRequest("/v1/memories?limit=100" + (query ? `&query=${encodeURIComponent(query)}` : ""), {signal:controller.signal});
+          if (!current()) return;
+          if (!Array.isArray(memories.items)) throw new Error("invalid memory results");
+          const root = document.querySelector("#memory-items"); root.textContent = "";
+          document.querySelector("#memory-search-status").textContent = memories.items.length
+            ? `顯示 ${memories.items.length} 筆${query ? "符合的" : ""}記憶（每次最多 100 筆）。`
+            : query ? "沒有符合的記憶。可以換個詞，或清除搜尋查看最近記憶。" : "還沒有記憶。可以先說：記住：我喜歡喝無糖茶。";
+          for (const memory of memories.items) {
+            const card = document.createElement("div"); card.className = "message";
+            const text = document.createElement("p"); text.textContent = memory.text;
+            const source = document.createElement("small"); source.textContent = `第 ${memory.revision} 版 · 來源 ${(memory.source_event_ids || []).join(", ")}`;
+            const correct = document.createElement("button"); correct.textContent = "更正";
+            const remove = document.createElement("button"); remove.textContent = "刪除記憶";
+            const change = async (pending, failed, send) => {
+              const status = document.querySelector("#memory-search-status");
+              correct.disabled = true; remove.disabled = true; status.textContent = pending;
+              try { await send(); await refreshProduct(); }
+              catch (error) { status.textContent = `${failed}：${error.message}。沒有自動重送；請重新整理記憶確認結果。`; correct.disabled = false; remove.disabled = false; }
+            };
+            correct.onclick = async () => {
+              const value = window.prompt("更正這筆記憶", memory.text);
+              if (!value || value === memory.text) return;
+              await change("正在更正記憶…", "更正未確認", () => productRequest(`/v1/memories/${memory.memory_id}/correct`, {method:"POST", body:JSON.stringify({text:value, reason:"owner correction from memory panel"})}));
+            };
+            remove.onclick = async () => {
+              if (!window.confirm("刪除這筆記憶及其已連結的衍生內容？原始對話與備份不會一併刪除。")) return;
+              await change("正在刪除記憶…", "刪除未確認", () => productRequest(`/v1/memories/${memory.memory_id}`, {method:"DELETE"}));
+            };
+            card.append(text, source, correct, remove); root.appendChild(card);
+          }
+        } catch {
+          if (current()) clearMemorySearch("目前無法查詢記憶，請稍後重試。");
+        } finally {
+          clearTimeout(timeout);
+          if (epoch === memorySearchEpoch) { memorySearchController = undefined; memorySearchTimeout = undefined; }
+        }
+      }
+      document.querySelector("#memory-search-form").onsubmit = event => { event.preventDefault(); return refreshMemories(); };
+      document.querySelector("#memory-search-clear").onclick = () => { document.querySelector("#memory-query").value = ""; return refreshMemories(); };
       async function refreshProduct() {
         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         try {
@@ -1065,29 +1171,11 @@
             source.textContent = "來源：" + group.sources.map(s => `${s.memory_id} · 第 ${s.revision} 版`).join("；");
             groups.append(item, source);
           }
-          const memories = await productRequest("/v1/memories?limit=100");
-          const root = document.querySelector("#memory-items"); root.textContent = "";
-          if (!memories.items.length) root.textContent = "還沒有記憶。可以先說：記住：我喜歡喝無糖茶。";
-          for (const memory of memories.items) {
-            const card = document.createElement("div"); card.className = "message";
-            const text = document.createElement("p"); text.textContent = memory.text;
-            const source = document.createElement("small"); source.textContent = `第 ${memory.revision} 版 · 來源 ${(memory.source_event_ids || []).join(", ")}`;
-            const correct = document.createElement("button"); correct.textContent = "更正";
-            correct.onclick = async () => {
-              const value = window.prompt("更正這筆記憶", memory.text);
-              if (!value || value === memory.text) return;
-              try { await productRequest(`/v1/memories/${memory.memory_id}/correct`, {method:"POST", body:JSON.stringify({text:value, reason:"owner correction from memory panel"})}); await refreshProduct(); }
-              catch (error) { document.querySelector("#organization-status").textContent = error.message; }
-            };
-            const remove = document.createElement("button"); remove.textContent = "刪除記憶";
-            remove.onclick = async () => {
-              if (!window.confirm("刪除這筆記憶及其已連結的衍生內容？原始對話與備份不會一併刪除。")) return;
-              try { await productRequest(`/v1/memories/${memory.memory_id}`, {method:"DELETE"}); await refreshProduct(); }
-              catch (error) { document.querySelector("#organization-status").textContent = error.message; }
-            };
-            card.append(text, source, correct, remove); root.appendChild(card);
-          }
-        } catch (error) { document.querySelector("#organization-status").textContent = error.message; }
+          await refreshMemories();
+        } catch (error) {
+          document.querySelector("#organization-status").textContent = error.message;
+          document.querySelector("#memory-search-status").textContent = "目前無法更新記憶，請稍後按「重新整理記憶」重試。";
+        }
       }
       async function setOrganization(enabled, refresh = false) {
         try { await productRequest(`/v1/memory-organization?enabled=${enabled}&refresh=${refresh}`, {method:"POST"}); await refreshProduct(); if (refresh) setTimeout(refreshProduct, 1000); }
@@ -1123,18 +1211,36 @@
           currentTurn = nextTurn;
         }
         authorizationMode = data.authorization_mode || "safe";
-        document.querySelector("#authorization-status").textContent = authorizationMode === "full"
-          ? "完整權限模式：目前支援的一般使用者操作會自動授權；tools kill switch 可立即停用新操作。"
+        const authorizationDescription = authorizationMode === "full"
+          ? "完整權限模式：目前支援的一般使用者操作會自動授權；可到「權限與停止開關」關閉電腦與工具操作。"
           : "安全模式：操作需要逐次授權。";
+        document.querySelector("#authorization-status").textContent = authorizationDescription;
+        document.querySelector("#permissions-authorization-status").textContent = authorizationDescription;
         document.querySelector("#snapshot").textContent = JSON.stringify({identity: data.identity, health: data.health, routes: data.routes, authorization_mode: authorizationMode}, null, 2);
         const root = document.querySelector("#switches"); root.textContent = "";
         microphoneEnabled = Boolean(data.kill_switches.microphone);
         if (!microphoneEnabled) document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop"));
         updateMicrophoneControls();
+        const switchLabels = {cloud:"雲端功能", tools:"電腦與工具操作", microphone:"麥克風輸入"};
+        const switchButtons = [];
         Object.entries(data.kill_switches).forEach(([name, enabled]) => {
-          const button = document.createElement("button"); button.textContent = `${name}: ${enabled ? "ON" : "OFF"}`;
-          button.onclick = async () => { await authorizedFetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})}); location.reload(); };
-          root.appendChild(button);
+          const label = Object.hasOwn(switchLabels, name) ? switchLabels[name] : name;
+          const button = document.createElement("button"); button.textContent = `${label}：${enabled ? "已開啟" : "已關閉"}`;
+          button.title = `按一下${enabled ? "關閉" : "開啟"}${label}`;
+          button.onclick = async () => {
+            const status = document.querySelector("#switch-status");
+            switchButtons.forEach(item => { item.disabled = true; });
+            status.textContent = `正在${enabled ? "關閉" : "開啟"}${label}…`;
+            try {
+              const response = await authorizedFetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})});
+              if (!response.ok) throw new Error("switch not applied");
+              location.reload();
+            } catch {
+              status.textContent = `${label}可能尚未${enabled ? "關閉" : "開啟"}，沒有自動重送。請重新整理頁面確認目前狀態，再決定是否重試。`;
+              switchButtons.forEach(item => { item.disabled = false; });
+            }
+          };
+          switchButtons.push(button); root.appendChild(button);
         });
       }
       function appendMessage(role, text) {

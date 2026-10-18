@@ -1,0 +1,111 @@
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -189,16 +189,11 @@
+           <section class="page-view reading-width" data-page="tasks" hidden inert aria-labelledby="tasks-heading">
+             <div class="page-heading"><h1 id="tasks-heading" data-page-heading tabindex="-1">任務</h1><p>先確認要做的事，再看進度與來源。離開這個畫面，任務狀態仍會保存。</p></div>
+             <section class="content-section" id="goal-task-panel">
+-              <button id="goal-task-back" type="button" hidden>返回任務清單</button>
+-              <p id="goal-task-detail-status" role="status" hidden></p>
+-              <div id="goal-task-compose">
+               <h2>交給 SIRO 的任務</h2>
+               <p>指定工作目錄內 1–5 份文字檔，每行一個相對路徑。我會唯讀整理尚未勾選的待辦與 TODO／FIXME，保留來源、行數與時間。先建立待審任務，再明確批准；讀取完成不表示待辦已執行。</p>
+               <label class="field-label" for="goal-task-paths">要讀取的檔案</label>
+               <textarea id="goal-task-paths" rows="3" maxlength="2560" placeholder="notes.md&#10;project/tasks.txt" aria-label="任務要讀取的工作目錄內相對路徑"></textarea>
+-              <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button></div>
+-              </div>
+-              <button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button>
++              <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button><button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button></div>
+               <p id="goal-task-status" aria-live="polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>
+               <div id="goal-task-items" aria-live="polite"></div>
+             </section>
+@@ -327,11 +322,9 @@
+           : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
+       }
+       const pageTitles = Object.freeze({chat:"對話", tasks:"任務", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
+-      let activePage = "chat", navigationInitialized = false, selectedGoalTaskId = null;
++      let activePage = "chat", navigationInitialized = false;
+       function showPage(hash = location.hash, moveFocus = false) {
+-        const detail = typeof hash === "string" ? /^#\/tasks\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.exec(hash) : null;
+-        selectedGoalTaskId = detail ? detail[1] : null;
+-        const requested = detail ? "tasks" : typeof hash === "string" && /^#\/[a-z]+$/.test(hash) ? hash.slice(2) : "chat";
++        const requested = typeof hash === "string" && /^#\/[a-z]+$/.test(hash) ? hash.slice(2) : "chat";
+         const page = Object.hasOwn(pageTitles, requested) ? requested : "chat";
+         let heading;
+         for (const pane of document.querySelectorAll("[data-page]")) {
+@@ -344,11 +337,8 @@
+           else link.removeAttribute("aria-current");
+         }
+         activePage = page;
+-        const title = selectedGoalTaskId ? "任務詳情" : pageTitles[page];
+-        document.querySelector("#page-title").textContent = title;
+-        document.querySelector("#tasks-heading").textContent = selectedGoalTaskId ? "任務詳情" : "任務";
+-        document.title = `SIRO · ${title}`;
+-        renderGoalTasks();
++        document.querySelector("#page-title").textContent = pageTitles[page];
++        document.title = `SIRO · ${pageTitles[page]}`;
+         if (page === "computer") document.querySelector("#activity-notice").hidden = true;
+         if (moveFocus) heading.focus();
+         return page;
+@@ -809,15 +799,14 @@
+           }
+         }
+       }
+-      let goalTaskHasSnapshot = false;
+       function clearGoalTasks(message = "狀態快照已清除；請重新查詢保存狀態。", requireReadback = goalTaskNeedsReadback) {
+         goalTaskEpoch += 1; goalTaskController?.abort(); goalTaskController = undefined;
+         clearTimeout(goalTaskTimeout); goalTaskTimeout = undefined;
+         clearTimeout(goalTaskPollTimer); goalTaskPollTimer = undefined;
+-        goalTaskBusy = false; goalTaskViews = []; goalTaskNeedsReadback = requireReadback; goalTaskHasSnapshot = false;
++        goalTaskBusy = false; goalTaskViews = []; goalTaskNeedsReadback = requireReadback;
+         document.querySelector("#goal-task-items").textContent = "";
+         document.querySelector("#goal-task-status").textContent = message;
+-        renderGoalTasks();
++        updateGoalTaskControls();
+       }
+       function applyGoalTaskTools(enabled) {
+         goalTaskAvailable = enabled;
+@@ -825,27 +814,15 @@
+       }
+       function renderGoalTasks() {
+         const root = document.querySelector("#goal-task-items"); root.textContent = "";
+-        const detail = selectedGoalTaskId !== null;
+-        const compose = document.querySelector("#goal-task-compose"); compose.hidden = detail; compose.inert = detail;
+-        document.querySelector("#goal-task-back").hidden = !detail;
+-        const notice = document.querySelector("#goal-task-detail-status"); notice.hidden = !detail;
+-        notice.textContent = !goalTaskHasSnapshot ? "請重新查詢保存狀態，再審查這項任務；沒有自動繼續或執行。"
+-          : goalTaskViews.some(goal => goal.goal_id === selectedGoalTaskId) ? "此頁只顯示這項任務的保存快照；閱讀完成不表示待辦已執行。"
+-          : "目前保存快照中沒有這項任務（每次最多 20 筆）。請重新查詢或返回清單；無法據此判斷是否已刪除。";
+         const labels = {proposed:"待批准（尚未執行）", ready:"已批准，等待讀取", running:"讀取中", waiting_external:"已暫停，等待你繼續", completed:"閱讀完成", failed:"任務未完成", cancelled:"已取消"};
+         const pauses = {foreground:"先回應你", tools_disabled:"電腦操作已暫停", shutdown:"服務停止", interrupted_restart:"重新啟動後沒有自動重讀", paused:"你已暫停"};
+         const errors = {read_failed:"讀取失敗", path_denied:"路徑不符合批准範圍", invalid_result:"無法確認讀取結果", timeout:"讀取逾時"};
+         for (const goal of goalTaskViews) {
+-          if (detail && goal.goal_id !== selectedGoalTaskId) continue;
+           const card = document.createElement("div"); card.className = "proposal";
+           const title = document.createElement("strong"); title.textContent = `${labels[goal.state]} · 版本 ${goal.revision}`;
+           const scope = document.createElement("p"); scope.textContent = `唯讀範圍：${goal.task.paths.join("、")}。待辦尚未執行。`;
+           const budget = document.createElement("small"); budget.textContent = `保存任務 ${goal.goal_id} · 已使用 ${goal.steps_used}/${goal.max_steps} 次讀取 · 期限 ${goal.deadline}`;
+           card.append(title, scope, budget);
+-          if (!detail) {
+-            const link = document.createElement("a"); link.href = `#/tasks/${goal.goal_id}`;
+-            link.textContent = "查看任務詳情"; card.appendChild(link);
+-          }
+           const approval = document.createElement("p"); approval.textContent = goal.task.approved_at ? `批准時間：${goal.task.approved_at}` : "尚未批准；建立待審任務沒有開始讀取。"; card.appendChild(approval);
+           if (goal.task.pause_reason) { const reason = document.createElement("p"); reason.textContent = pauses[goal.task.pause_reason]; card.appendChild(reason); }
+           const details = document.createElement("pre"); details.style = "white-space:pre-wrap;overflow-wrap:anywhere";
+@@ -875,7 +852,6 @@
+         }
+         updateGoalTaskControls();
+       }
+-      document.querySelector("#goal-task-back").onclick = () => navigateToPage("tasks");
+       async function goalTaskRequest(url, options, epoch, connection, session) {
+         const current = () => !pageClosing && controlAuthenticated && epoch === goalTaskEpoch
+           && connection === controlEpoch && session === goalTaskSessionId && !options.signal.aborted;
+@@ -920,7 +896,7 @@
+           }, epoch, connection, session);
+           if (pageClosing || epoch !== goalTaskEpoch || connection !== controlEpoch || controller.signal.aborted) return;
+           if (!accept(data, previous)) throw new Error("invalid task view");
+-          goalTaskNeedsReadback = false; goalTaskHasSnapshot = true; valid = true;
++          goalTaskNeedsReadback = false; valid = true;
+           document.querySelector("#goal-task-status").textContent = goalTaskAvailable
+             ? `${new Date().toLocaleString()} 保存狀態快照；批准與繼續需要你明確按一次。`
+             : "已讀取保存紀錄；目前不能開工，可取消或清除已結束任務。";

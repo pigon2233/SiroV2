@@ -1,5 +1,89 @@
 # Runtime evolution roadmap
 
+## T10-UI-01 — 整體介面整合（2026-10-18）
+
+- Status：PARTIAL（2026-10-18更新）；可自動驗證項目全部LOCAL_VERIFIED（見下方REFLOW與INTEGRATION），剩真人三輪15分鐘／讀屏／WSLg實機／真聲音與模型／跨機，需依[手動驗收指南](../evidence/T10-INTEGRATION-2026-10-18/MANUAL_TEST_GUIDE.md)完成後才可DONE。使用者明確要求整張T10完成，不再逐微切片停下。
+- Scope：整合原T10 Gateway／UI／single writer與T10-UI-01九頁／detail／memory／permissions，補窄窗／200% reflow、對比、鍵盤、錯誤／等待／取消狀態與三條日常流程；真現有Live2D切頁／重繪／唯一owner納入軟體整合。T12新素材／完整自由活動不是T10功能，不在本卡重做。
+- Dependencies：現有T09／T10／D57／D69–72皆已有功能及局部證據；本輪以整體矩陣驗收，不以舊PASS自動宣稱新整合PASS。
+- MUST NOT CHANGE：Core／DB／wire／API／授權與配置格式、provider／voice路由、使用中部署／另一台電腦；只對實證UI缺口做局部修復。
+- Acceptance：九頁與detail可達；320／375／414／768及200%等效reflow不遮必要控制；文字／功能對比和keyboard／focus符合本卡檢查；chat→task→結果→chat、memory搜尋更正刪除、settings停止工具均可用；無導航重送／body重啟／舊音；舊transport／cancel／session相容。真人三輪15分鐘及跨機／讀屏條件若缺保留PARTIAL，不能假完成。
+- Validation：production-path fixtures與真隔離main／SQLite／Rust／browser，採現有合法本機Live2D與明示合成loopback模型；真人／provider品質／GPU／硬體不得由fixture代證。
+
+
+## T10-UI-01-INTEGRATION — 對比／鍵盤／狀態／日常流程整合（2026-10-18）
+
+- Status：DONE / LOCAL_VERIFIED（completion date：2026-10-18；自動可驗範圍）。T10-UI-01整體PARTIAL，缺人工項目。
+- Selection：使用者要求整張T10一次做完；接續REFLOW，依Acceptance剩餘子項連續處理：對比、keyboard／focus、錯誤／等待／取消、三條日常流程、導航不重送／body不重啟、真Live2D。
+- Actual path／MUST NOT CHANGE：只改static/index.html（CSS、前端回饋、控制WS重連token）；Core／Gateway／DB／wire／API／config／授權／provider／voice／renderer資產／desktop／WSL與使用中8000／Ollama不改不連。
+- 修正：輸入框外框對比1.19→3.78:1；真renderer上標語不可讀→深色stage＋淺色字；iframe移出Tab；scroll-padding防遮焦點；停止開關處理中／失敗可見且不reload；記憶更正刪除錯誤改顯示於記憶頁並防連點；main重啟後控制WS持續用舊token（約5分鐘無法重連）→只在認證前確切1008 invalid session token時丟該token；記憶搜尋表單間距。
+- Files changed：static/index.html；tests/integration/test_frontend_accessibility.py、test_frontend_state_feedback.py；DECISIONS D74、STATUS、TASKS、INTERFACE_REDESIGN_PLAN、REGRESSION_BASELINE與evidence（REPORT、MANUAL_TEST_GUIDE、acceptance.py、STEPS／截圖）。
+- Tests passed：新accessibility 2＋state_feedback 8 PASS（修改前8 FAIL，2例守原行為）；相關525 PASS、桌寵69 PASS（各3既有warnings）；Ruff／format／mypy／node --check／diff check／detect-secrets PASS。真main＋合成loopback模型＋授權本機Haru Live2D整合9/9 PASS（流程1–3、取消、同頁斷線重連、重啟375、無重送／socket／renderer重載／音訊、0 JS錯誤）；修改前版本重連步驟重現失敗。[REPORT](../evidence/T10-INTEGRATION-2026-10-18/REPORT.md)。
+- Known limitations：真人三輪／讀屏／WSLg WebKit／真TTS麥克風／真模型取消／跨機NOT_VERIFIED；SwiftShader非GPU；停用按鈕3.24:1為WCAG豁免未調；full scripts/check／部署rollback／soak NOT_RUN。
+- Rollback：只撤index.html本輪增量與兩個新測試／evidence；無DB／API／部署變更。
+
+## T10-UI-01-REFLOW — 窄窗與200%等效reflow（2026-10-18）
+
+- Status：DONE / LOCAL_VERIFIED（completion date：2026-10-18；只限水平reflow，T10-UI-01整體PARTIAL）。
+- Selection／Dependencies：KEYBOARD／SETTINGS／DETAIL／搜尋限定DONE；T10-UI-01 Scope下一個無證據子項為窄窗／200% reflow。九頁／detail路由與既有斷點已存在，無後端依賴。
+- Objective／Scope：320／375／414／768及640×400、960×540（1280×800／1920×1080於200%）九頁＋detail無水平溢出、不裁必要控制；長中文／路徑／未知key。只修實測缺口。
+- Actual path：production index.html CSS斷點；html/body overflow-x:clip使溢出被裁而非可捲動，全域button nowrap。實測唯一缺陷：權限頁未知長kill-switch key按鈕超出視窗被裁。
+- MUST NOT CHANGE：Core／Gateway／DB／wire／config／授權、JS行為／導航／session、body／audio／desktop／WSL與其他未提交工作。
+- Files changed：static/index.html（一行#switches button CSS）、tests/integration/test_frontend_reflow.py；STATUS／TASKS／DECISIONS D73／INTERFACE_REDESIGN_PLAN／REGRESSION_BASELINE與evidence。
+- Tests passed：新2 PASS（原版stress 1 FAIL）；相關514 PASS（含2）、桌寵69 PASS（各3既有warnings）；Ruff／format／mypy新測試、diff --check PASS；source-only移除→FAIL、還原逐byte相同→PASS。量測base／stress各60組0溢出。[REPORT](../evidence/T10-REFLOW-2026-10-18/REPORT.md)。
+- Known limitations：file://預覽量測，未在真main服務頁重跑；只驗水平方向，sticky toolbar高度／固定高對話區未做真人評估；對比／讀屏／文字間距／真人WSLg／Live2D／full scripts/check／部署rollback未驗。只完成本卡並停止。
+
+## T10-UI-01-KEYBOARD — 鍵盤略過導覽（2026-10-18）
+
+- Status：DONE / LOCAL_VERIFIED（completion date：2026-10-18；只限keyboard bypass，T10-UI-01整體PARTIAL）。
+- Selection／Dependencies：SETTINGS／DETAIL／搜尋限定DONE；roadmap第一個未完成且依賴齊全的產品項仍為T10-UI-01可及性。九頁navigation／heading焦點已存在；本卡只補缺少的鍵盤bypass入口，不把全可及性重定義為一個link。
+- Objective／Scope：第一個Tab可見「跳到主要內容」，Enter把焦點送到目前visible頁heading（含task detail），不更改hash／history、不觸發readback／工具／語音；未辨識頁heading時焦點回main landmark。
+- Actual path：既有index body／目前hidden+inert頁→skip onclick→focus；不呼叫showPage／render／API，不另造router。
+- MUST NOT CHANGE：頁面導航、session／single writer／授權、Core／Gateway／DB／config／wire、body／audio／desktop／WSL與其他未提交工作。
+- Acceptance／Tests：九頁與detail的目標正確，防default anchor造成hash回chat；缺heading有fallback；路由／calls／socket／timer與draft保持。真browser鍵盤Tab／Enter及焦點截圖，相關frontend regressions。
+- Rollback：只撤本卡HTML與新測試／文件，保留先前search／detail／settings與最新資料；無migration或部署。
+- Files changed：static/index.html、test_frontend_keyboard_skip.py；D72／STATUS／TASKS／Interface plan／REGRESSION_BASELINE及evidence。
+- Tests passed：新3 PASS（原版3 FAIL）；相關512 PASS（含3）、桌寵69 PASS；scoped Ruff／format／mypy兩檔／inline JS syntax／diff PASS；真browser Tab/Return的四份AX與三JPEG、後端read0；source-only回退／重套PASS。[REPORT](../evidence/T10-KEYBOARD-2026-10-18/REPORT.md)。
+- Known limitations：全可及性／對比／窄窗／讀屏／真人WSLg未完成，T10整體PARTIAL；真voice／Live2D／硬體／soak／正式deployment rollback與full scripts/check未跑，不列PASS。只完成本卡並停止。
+
+
+
+## T10-UI-01-SETTINGS — 設定與權限用語（2026-10-18）
+
+- Status：DONE / LOCAL_VERIFIED（completion date：2026-10-18；只限設定與權限用語，T10-UI-01整體PARTIAL）。
+- Selection／Dependencies：DETAIL獨立驗證無本切片必要修復；T10-UI-01仍是roadmap第一個依賴滿足的未完成產品項。D69搜尋／D70詳情完成後，沿原plan補設定用語；既有T10 session／snapshot／kill-switch API／九畫面皆可用。
+- Objective／Scope：permissions頁顯示既有授權模式；三個既有開關以中文名稱／開關狀態／下一操作說明呈現，移除面向使用者的tools kill switch術語。只改目前HTML的文字及既有狀態投影。
+- Actual path：control snapshot→renderSnapshot→原三個按鈕→authorizedFetch PUT /v1/kill-switches/{原key}→既有Gateway；不新增mode切換／API／owner／設定保存。
+- Acceptance：cloud／tools／microphone語意明確，enabled對應中文狀態與下一動作；permissions與computer顯示相同來源的mode；原key／PUT／body／session／reload保持；導航不觸發操作。
+- MUST NOT CHANGE：Core／Gateway／API／wire／schema／state／config／預設授權、取消／reload政策、provider／voice／body／WSL／desktop及先前未提交工作。
+- Tests：現有frontend／gateway／goal regression；真隔離browser snapshot／切頁／明確按一次tools關閉／readback；低影響用語不新增鏡像實作的測試。
+- Rollback：只撤本卡HTML增量，保留D69搜尋／D70詳情與最新資料，無DB或部署回退。
+- Files changed：static/index.html；DECISIONS D71、STATUS、TASKS、INTERFACE_REDESIGN_PLAN、REGRESSION_BASELINE與本卡evidence；既有tests及其他production不改。
+- Tests passed：最終相關509 PASS／3既有warnings；Python3.12 navigation/control/gateway 64 PASS（重疊）；Ruff／287格式檔／明確3.12無增量mypy287／JS syntax／diff PASS；真CUA3步與一次tools PUT/readback PASS；精確source-only單步及串接DETAIL rollback/reapply PASS。
+- Known limitations：未知額外key保持原名；原reload／error handling保持，無新增權限功能。未驗真語音／Live2D／跨機／設備／soak／正式部署rollback；full scripts/check NOT_RUN。原local mypy缺faster_whisper與初次3.12診斷保留，隔離locked明確interpreter檢查PASS，未改deps／ignore。[完整驗收](../evidence/T10-SETTINGS-WORDING-2026-10-18/REPORT.md)。只完成本卡並停止。
+
+
+
+## T10-UI-01-DETAIL — 任務詳情（2026-10-18）
+
+- Status：DONE / LOCAL_VERIFIED（2026-10-18 evidence repair完成；本切片限定，T10-UI-01整體PARTIAL；使用者回報獨立驗證無必要修復）。
+- Selection：原RT-001–015皆scoped DONE；本roadmap前段T10-UI-01為第一個依賴滿足的未完成產品項目。D69記憶搜尋已在STATUS／TASKS完成，roadmap未同步為DOCUMENTATION_DRIFT；本次補記，不重開舊RT／解除RI gates。
+- Dependencies：T10現有session／single writer、D57 goal task readback／controls、D59九畫面路由均已驗。無新後端需求。
+- Objective／Scope：list→單一UUID詳情路由→保存狀態／來源／版本／預算／批准狀態與既有控制→返回list；直接開啟／reload後先手動readback、不自動批准／重播。只處理目前session最多20筆保存snapshot中的任務。
+- Actual path：index.html showPage／renderGoalTasks→既有goalTaskRequest→authenticated Gateway→GoalTaskService→原SQLite；詳情與清單共用同一validated snapshot及mutation callbacks。
+- Acceptance：有效UUID顯示獨立detail；其他任務／建立表單不在目前工作中；back/forward/reload有效；未查／not-in-snapshot／disconnect／unknown明示且舊控制不復活；manual approve／cancel／revision／source／restart semantics保持；navigation零POST／工具／audio副作用。
+- MUST NOT CHANGE：Core／Gateway／DB／schema／state／protocol／權限、模型／語音／renderer／desktop／WSL配置；先前D68／D69未提交變更保持，不納入本卡patch回退。
+- Tests：實際production page functions＋navigation／goal fixtures、main／SQLite／Rust相關基線；隔離真瀏覽器detail／返回／reload／readback；只對本卡scope稱DONE。
+- Rollback：只撤本卡HTML／tests／docs增量；保留D69搜尋、D68桌寵、最新DB與任務；無migration／部署。
+- Files changed：static/index.html；test_frontend_task_detail.py；DECISIONS D70、STATUS、TASKS、INTERFACE_REDESIGN_PLAN及本roadmap／evidence。
+- Verification follow-up：接獲PARTIAL先降級；本輪只修證據，production未變。重跑8步真CUA／AX／JPEG（含missing snapshot），public receipt browser_acceptance=PASS與步驟一致；baseline commit＋dirty before/after＋checksum＋方向明確rollback package對目前checkout check/rehearsal PASS，drift/tamper拒絕；專屬REGRESSION_BASELINE新增，107相關tests PASS。本輪不重稱原480／150新跑；真active-child cancel／部署rollback仍NOT VERIFIED。
+- Tests passed：新11 PASS；相關480 PASS（含新11）、桌寵／voice／memory相容150 PASS；Ruff／format／mypy／inline JS syntax／diff PASS。真CUA→main／SQLite／Rust：detail／reload／restart零read→明確批准一次read→back/forward不重播；source-only精確reverse/reapply PASS。
+- Known limitations：只讀本session最多20筆snapshot；整體UI、真人WSLg／voice／Live2D／設備／soak／發布原gate保持；本輪full scripts/check及正式部署rollback NOT_RUN。無已確認本切片缺陷；[完整驗收](../evidence/T10-TASK-DETAIL-2026-10-18/REPORT.md)。本輪停止，不開下一卡。
+
+
+## 2026-10-18 — D69記憶搜尋補記
+
+T10-UI-01記憶搜尋限定切片已LOCAL_VERIFIED；相關476 PASS、新專項12 PASS、Python3.12相容54 PASS（重疊）。[證據](../evidence/T10-MEMORY-SEARCH-2026-10-18/REPORT.md)。整卡PARTIAL；不以本補記撤銷其餘UI／真人／發布gate。
+
 ## 2026-10-16 — D61 既有底座局部修復，不改 RT 歷史
 
 **KEEP** 已有 RT-009 的有界重試／每request cloud attempt預算、D43/D46明確strict sandbox profile，以及D60 ISO／epoch與NTP修復。SQLite原WAL／NORMAL／5000ms已存在，無須重做；其他Python／OS sandbox profile未認證，不以動態host interpreter假稱完成。

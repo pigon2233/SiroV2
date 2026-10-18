@@ -1,0 +1,36 @@
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -225,7 +225,7 @@
+           </section>
+           <section class="page-view reading-width" data-page="permissions" hidden inert aria-labelledby="permissions-heading">
+             <div class="page-heading"><h1 id="permissions-heading" data-page-heading tabindex="-1">權限與停止開關</h1><p>開關直接作用於現有控制路徑，不需要模型同意。完整權限模式的操作仍受實際帳戶與工具範圍限制。</p></div>
+-            <section class="content-section"><h2>能力開關</h2><div id="switches"></div></section><a href="#/settings" data-nav="settings">返回設定</a>
++            <section class="content-section"><h2>操作模式</h2><p id="permissions-authorization-status">正在確認目前模式…</p><h2>功能開關</h2><p>「已開啟」表示允許使用這項功能；按下開關可開啟或關閉。開啟功能不會取得額外的操作權限。</p><div id="switches"></div></section><a href="#/settings" data-nav="settings">返回設定</a>
+           </section>
+           <section class="page-view reading-width" data-page="system" hidden inert aria-labelledby="system-heading">
+             <div class="page-heading"><h1 id="system-heading" data-page-heading tabindex="-1">系統與診斷</h1><p>這些是目前服務的實際狀態。診斷資料與日常聊天分開，不代表缺少的產品能力已完成。</p></div>
+@@ -1185,16 +1185,21 @@
+           currentTurn = nextTurn;
+         }
+         authorizationMode = data.authorization_mode || "safe";
+-        document.querySelector("#authorization-status").textContent = authorizationMode === "full"
+-          ? "完整權限模式：目前支援的一般使用者操作會自動授權；tools kill switch 可立即停用新操作。"
++        const authorizationDescription = authorizationMode === "full"
++          ? "完整權限模式：目前支援的一般使用者操作會自動授權；可到「權限與停止開關」關閉電腦與工具操作。"
+           : "安全模式：操作需要逐次授權。";
++        document.querySelector("#authorization-status").textContent = authorizationDescription;
++        document.querySelector("#permissions-authorization-status").textContent = authorizationDescription;
+         document.querySelector("#snapshot").textContent = JSON.stringify({identity: data.identity, health: data.health, routes: data.routes, authorization_mode: authorizationMode}, null, 2);
+         const root = document.querySelector("#switches"); root.textContent = "";
+         microphoneEnabled = Boolean(data.kill_switches.microphone);
+         if (!microphoneEnabled) document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop"));
+         updateMicrophoneControls();
++        const switchLabels = {cloud:"雲端功能", tools:"電腦與工具操作", microphone:"麥克風輸入"};
+         Object.entries(data.kill_switches).forEach(([name, enabled]) => {
+-          const button = document.createElement("button"); button.textContent = `${name}: ${enabled ? "ON" : "OFF"}`;
++          const label = Object.hasOwn(switchLabels, name) ? switchLabels[name] : name;
++          const button = document.createElement("button"); button.textContent = `${label}：${enabled ? "已開啟" : "已關閉"}`;
++          button.title = `按一下${enabled ? "關閉" : "開啟"}${label}`;
+           button.onclick = async () => { await authorizedFetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})}); location.reload(); };
+           root.appendChild(button);
+         });

@@ -2,7 +2,6 @@
 // Native presentation only; the existing loopback server owns identity, audio and tools.
 import Gtk from 'gi://Gtk?version=3.0';
 import Gdk from 'gi://Gdk?version=3.0';
-import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GLibUnix from 'gi://GLibUnix';
@@ -20,8 +19,6 @@ const reportDirectory = GLib.getenv('SIRO_DESKTOP_REPORT_DIR');
 const app = new Gtk.Application({application_id: 'org.siro.Companion', flags: Gio.ApplicationFlags.FLAGS_NONE});
 let window, web, center, pendingSnapshot = false, timer = 0, ready = false, lastChat = false;
 let samples = 0, lastRegion = 0, scale = 1, layoutTimer = 0, controlsHeight = 132;
-const disposable = GLib.dir_make_tmp('siro-desktop-XXXXXX');
-const scratch = GLib.build_filenamev([disposable, 'alpha.png']);
 const state = {protocol: 1, toolkit: 'GTK3/WebKitGTK4.1', backend: GLib.getenv('GDK_BACKEND') || 'default', sandbox: false, ready: false, alpha: false, input_regions: 0};
 const hostFile = Gio.File.new_for_uri(import.meta.url);
 state.host_source_sha256 = GLib.compute_checksum_for_data(GLib.ChecksumType.SHA256, hostFile.load_contents(null)[1]);
@@ -109,8 +106,8 @@ function updateShape() {
         if (!window) return;
         try {
             const surface = web.get_snapshot_finish(result);
-            surface.writeToPNG(scratch);
-            const image = GdkPixbuf.Pixbuf.new_from_file(scratch);
+            const image = Gdk.pixbuf_get_from_surface(surface, 0, 0, surface.getWidth(), surface.getHeight());
+            if (!image) throw new Error('Desktop snapshot pixels are unavailable');
             const pixels = image.get_pixels(), channels = image.get_n_channels(), stride = image.get_rowstride();
             const width = image.get_width(), height = image.get_height();
             const region = new Cairo.Region();
@@ -123,7 +120,6 @@ function updateShape() {
             state.input_regions = lastRegion; state.occupied_fraction = occupied / (width * height);
             state.alpha = image.get_has_alpha() && occupied < width * height * .95;
             state.snapshots = samples; state.width = width; state.height = height; state.position = window.get_position(); state.chat_open = lastChat;
-            if (reportDirectory && samples % 3 === 0) surface.writeToPNG(GLib.build_filenamev([reportDirectory, lastChat ? 'chat.png' : 'pet.png']));
             saveState();
         } catch (error) { state.snapshot_error = String(error); saveState(); }
     });
@@ -205,7 +201,6 @@ app.connect('shutdown', () => {
     if (timer) GLib.source_remove(timer);
     if (layoutTimer) GLib.source_remove(layoutTimer);
     state.closed = true; saveState(); center?.destroy(); window?.destroy(); window = null; web = null;
-    try { GLib.unlink(scratch); GLib.rmdir(disposable); } catch (_) { /* temporary cleanup */ }
 });
 GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, 15, () => { app.quit(); return GLib.SOURCE_REMOVE; });
 GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, 2, () => { app.quit(); return GLib.SOURCE_REMOVE; });

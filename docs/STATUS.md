@@ -1,5 +1,61 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-18 — T10-UI-01 整體整合：自動可驗項目完成，整卡PARTIAL待人工
+
+使用者要求整張T10做完，本輪連續處理REFLOW之後的對比、鍵盤／焦點、錯誤／等待／取消、三條日常流程與真Live2D整合。實測修正9項，皆只在static/index.html：輸入框外框對比、真renderer上不可讀的標語、iframe佔Tab、焦點被sticky工具列遮、停止開關失敗被吞且照樣reload、記憶更正／刪除錯誤寫在看不到的收合區、**main重啟後已開頁面約5分鐘無法重連（控制WS沿用舊token）**、記憶搜尋表單間距。
+
+新accessibility 2＋state_feedback 8 PASS（修改前8 FAIL）；相關525 PASS、桌寵69 PASS；lint／type／JS syntax／secret scan PASS。真main（合成loopback模型、授權本機Haru Live2D、自有Rust／SQLite）9/9 PASS：三條日常流程、取消不復活、同頁斷線重連不重送、重啟保留狀態、換頁零重送／socket／renderer重載。[REPORT](evidence/T10-INTEGRATION-2026-10-18/REPORT.md)。
+
+T10-UI-01仍PARTIAL：真人三輪15分鐘、讀屏、WSLg桌寵實機、真TTS／麥克風／真模型、跨機需人工，步驟見[手動驗收指南](evidence/T10-INTEGRATION-2026-10-18/MANUAL_TEST_GUIDE.md)。full scripts/check與部署rollback未跑；未推送、未改使用中服務。下一步：依指南人工驗收，回報結果後再決定DONE或修正。
+
+## 2026-10-18 — T10-UI-01-REFLOW DONE／LOCAL_VERIFIED
+
+沿T10 Scope選窄窗／200%等效reflow切片：真Chrome量production HTML六viewport（320／375／414／768／640×400／960×540）×九頁＋detail。預設內容0溢出；以production renderer灌合成長資料，只發現權限頁未知長kill-switch key按鈕超出視窗，且因html/body overflow-x:clip被直接裁掉。新增一行`#switches button`換行CSS，無JS／API／授權變更。
+
+新test_frontend_reflow.py 2 PASS（原版stress FAIL）；相關514 PASS、桌寵69 PASS（各3既有warnings）；Ruff／format／mypy／diff check PASS；source-only回退→FAIL、還原逐byte相同→PASS。修正前後截圖與量測JSON在[證據](evidence/T10-REFLOW-2026-10-18/REPORT.md)。
+
+限制：file://預覽量測，未在真main服務頁重跑；只驗水平reflow；對比／讀屏／完整真人流程、真WSLg／Live2D、full scripts/check與部署rollback未跑。T10整體PARTIAL，下一卡未開始。
+
+## 2026-10-18 — T10-UI-01-KEYBOARD DONE／LOCAL_VERIFIED
+
+沿T10剩餘可及性選keyboard bypass切片：首個Tab顯示「跳到主要內容」，Enter focus目前visible heading（含detail UUID），缺heading回既有main。preventDefault防hash誤切chat，沒有新增router／request／owner／授權；原search／detail／settings／desktop工作保持。
+
+原版新3 FAIL→3 PASS，相關512 PASS／桌寵69 PASS（各3既有warnings）；scoped lint／format／mypy兩檔、inline syntax／diff PASS。真CUA tasks與直接detail的Tab／Return、四AX／三JPEG確認focus與route保持；後端read0、無goal mutation／switch PUT／speech request；owned程序／temp／tab已清理。精確source-only rollback/reapply保先前功能與資料。[完整驗收](evidence/T10-KEYBOARD-2026-10-18/REPORT.md)。
+
+T10整體PARTIAL；對比／窄窗／讀屏／完整真人流程仍待各自驗收，真WSLg／voice／Live2D／設備／soak／部署rollback與full scripts/check未在本輪跑。不推送、不改另一台運行服務，下一卡未開始。
+
+## 2026-10-18 — T10-UI-01-SETTINGS DONE／LOCAL_VERIFIED
+
+沿roadmap選下一有界切片「設定與權限用語」：permissions顯示既有mode，與computer共用說明；原cloud／tools／microphone按鈕改中文名稱／已開啟關閉／下一操作title，原PUT／body／session／reload完全保持。沒有後端／DB／protocol／config／預設授權變更，先前D68／D69／D70保留。
+
+最終相關509 PASS／3既有warnings；Python3.12相容64 PASS（重疊），Ruff／format／明確3.12 no-incremental mypy287／inline syntax／diff PASS。初次local type檢查缺faster_whisper的診斷保留，僅在自有locked3.12環境重驗，沒有放寬ignore或改依賴。真CUA三步：中文labels與mode→tools一次PUT後關閉→computer同mode，後端snapshot保持cloud/mic=false、full不變，Rust read0，所有owned資源已清理。source-only本卡與串接DETAIL回退／重套通過。[證據](evidence/T10-SETTINGS-WORDING-2026-10-18/REPORT.md)。
+
+T10整體PARTIAL；完整可及性／真人流程仍未完成，不啟動下一卡。真Live2D／語音／WSLg／設備／soak／正式部署回退與full scripts/check未於本輪驗，不推送、不改另一台運行配置。
+
+## 2026-10-18 — T10-UI-01-DETAIL 驗證證據修補完成
+
+收到獨立PARTIAL後先降級，未改production。重跑真CUA detail／reload／back／forward／missing snapshot等8步，AX與原始JPEG逐步保存並重驗；public product-receipt現為PASS且指向同批證據。真main／SQLite／Rust navigation後零read，明確批准一次read1；owned程序／temp／tab已清理。
+
+回退package提供baseline commit、D69 dirty before／DETAIL after、標準checksums與兩方向patch；目前checkout正常rollback --check與隔離實撤／重套PASS，drift／tamper負例拒絕且不寫checkout。REGRESSION_BASELINE加入專項；本輪107 PASS／7.24s，verifier lint／format／mypy PASS。原480／150沒有重跑，歷史結果保持。[修補報告](evidence/T10-TASK-DETAIL-2026-10-18/REPORT.md)／[回退操作](evidence/T10-TASK-DETAIL-2026-10-18/rollback/README.md)。
+
+僅恢復本切片DONE／LOCAL_VERIFIED供獨立重驗，T10整體PARTIAL不變。真active child動態取消、正式部署rollback／真人跨機／GPU與soak仍NOT VERIFIED；沒有新增功能、推送或改動另一台運行設定。
+
+## 2026-10-18 — T10-UI-01-DETAIL DONE／LOCAL_VERIFIED
+
+自動選中roadmap第一個依賴滿足的未完成產品項T10-UI-01，續作其單任務詳情。新增#/tasks/<UUID>、返回清單、標題／焦點／history，詳情只見所選任務並隱藏建立表單。沿既有validated snapshot／readback／revision-bound controls，直接開啟或reload不自動批准／執行；缺ID只稱目前20筆快照未提供。Core／Gateway／DB／protocol／owner／模型／語音／WSL不改，D68／D69舊修改保持。
+
+功能後新11 PASS、相關480 PASS（含11）與桌寵／語音／記憶150 PASS；Ruff／format／mypy／JS syntax／diff及source-only精確reverse/reapply通過。真CUA→main/Core/SQLite/Rust：proposed零read→詳情reload／後端重啟仍零read→明確批准一次read→完成來源顯示→返回／back／forward無重播。兩輪owned程序／temp／分頁已清理。[完整證據及限制](evidence/T10-TASK-DETAIL-2026-10-18/REPORT.md)。
+
+T10-UI-01整體仍PARTIAL；下一具體切片是設定用語或完整可及性／真人流程，未開始。本輪未跑full scripts/check／真GPU與owner WSLg／正式部署，原硬體、品質與release gate不解除。沒有推送或重啟私人服務。
+
+## 2026-10-18 — T／RT盤點與T10記憶搜尋切片 LOCAL_VERIFIED
+
+依使用者要求先核對未完成範圍再實作；RT-001–015均有scoped DONE，不重開歷史DEFER。尚缺T10任務詳情／設定、T12追加完整素材與自由活動、T15品質速度、T27–29真設備、T35／39／40及RI-003–006剩餘整合，見 [完整盤點](evidence/T10-MEMORY-SEARCH-2026-10-18/OPEN_TASKS.md)。舊「本機缺口全清」段落是歷史敘述，不能當目前全產品完成結論。
+
+本輪只新增T10-UI-01記憶搜尋：重用既有authenticated memory API／SQLite，保留來源、revision、更正／刪除；清除／零結果／5s逾時／斷線／latest-query fence。功能後相關回歸476 PASS，新專項12 PASS（有重疊）；Python3.12目前source相容54 PASS，最終合併專項20 PASS；Ruff／format／mypy通過。真瀏覽器連隔離main／SQLite顯示2筆→搜尋1筆→清除2筆→無匹配0筆。未改正在另一台運行的配置／服務；T10-UI-01整體仍PARTIAL。[驗收與回退](evidence/T10-MEMORY-SEARCH-2026-10-18/REPORT.md)。下一切片：任務詳情，未開始。
+
+前段已做D68桌寵影像隱私修復，獨立證據見 [REPORT](evidence/T12-SNAPSHOT-PRIVACY-2026-10-18/REPORT.md)。原先隔離完整Python3.12 check在MQTT階段中止，1212 PASS後exit2，不列全check通過；使用者澄清驗證應在功能修改之後。真WSLg／B聲線聽感、設備、soak與正式部署原gate保持。
+
 ## 2026-10-18 — T27 ESP32 HTTP 光度／PIR 現場驗收 PARTIAL
 
 使用者提供實際 ESP32 草稿並回報已完成遮光及 PIR 動作測試、結果正常。草稿以 HTTP POST 向電腦端 `/event` 送 `light_update`（含 lux）、`motion_detected`／`motion_cleared`；這是使用者的現場回報，尚未取得序列埠 HTTP 狀態碼或接收器保存的 payload。電腦端實測 8765 有 Python 程序監聽、LAN 位址可連通；30 秒觀測窗內有 7 筆來自同一區網對端的新連線。這些是連線證據，尚不能證明接收器成功解析 lux 或動作事件。

@@ -1,0 +1,40 @@
+--- a/src/siro/services/presentation/static/index.html
++++ b/src/siro/services/presentation/static/index.html
+@@ -24,8 +24,6 @@
+       button:active, .button-link:active { transform:translateY(1px); }
+       button:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+       :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+-      .skip-link { position:fixed; top:12px; left:16px; z-index:20; padding:12px 16px; background:var(--surface); color:var(--action); border:1px solid var(--action); border-radius:8px; transform:translateY(calc(-100% - 24px)); }
+-      .skip-link:focus { transform:none; }
+       h1, h2, h3, p { overflow-wrap:anywhere; }
+       h1 { font-size:30px; font-weight:650; letter-spacing:-.5px; line-height:1.4; margin:0 0 10px; }
+       h2 { font-size:20px; font-weight:650; margin:0 0 14px; }
+@@ -136,7 +134,6 @@
+     </style>
+   </head>
+   <body>
+-    <a id="skip-to-content" class="skip-link" href="#main-content">跳到主要內容</a>
+     <div class="app-shell">
+       <aside class="sidebar" aria-label="主要導覽">
+         <a class="brand" href="#/chat" data-nav="chat" aria-label="SIRO 對話"><span class="brand-mark" aria-hidden="true"></span>SIRO</a>
+@@ -167,7 +164,7 @@
+         <div aria-live="polite"><a id="activity-notice" class="activity-notice" href="#/computer" data-nav="computer" hidden>電腦操作有更新，查看授權與結果</a></div>
+         <p id="service-notice" class="activity-notice" role="status" hidden></p>
+         <p id="runtime-notice" class="activity-notice" role="status" __SIRO_SETUP_NOTICE_HIDDEN__>__SIRO_SETUP_NOTICE__</p>
+-        <main class="page-content" id="main-content" tabindex="-1">
++        <main class="page-content" id="main-content">
+           <section class="page-view" data-page="chat" aria-labelledby="chat-heading">
+             <div class="page-heading"><h1 id="chat-heading" data-page-heading tabindex="-1">和 SIRO 聊聊</h1><p>有想說的，慢慢說。需要一起處理的事，也可以交給我。</p></div>
+             <div class="companion-layout">
+@@ -356,11 +353,6 @@
+         if (moveFocus) heading.focus();
+         return page;
+       }
+-      document.querySelector("#skip-to-content").onclick = event => {
+-        event.preventDefault();
+-        const pane = Array.from(document.querySelectorAll("[data-page]")).find(item => !item.hidden);
+-        (pane?.querySelector("[data-page-heading]") || document.querySelector("#main-content")).focus();
+-      };
+       function navigateToPage(name, moveFocus = true) {
+         const page = Object.hasOwn(pageTitles, name) ? name : "chat";
+         const hash = `#/${page}`;

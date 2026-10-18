@@ -543,3 +543,41 @@ D64 實作收斂：HTTP opening／body read都race同一取消token，回收owne
 D63 已將 `done_reason=length` 判為未完成，保留 partial 並禁止自動重送；D64 已驗證前景停止及晚到輸出隔離。程式檢查發現 SIRO 的人格提示僅籠統要求簡潔，缺少日常短答長度與明確展開條件。一般聊天現在預設直接回答 1–3 句，通常不超過 120 個中文字，省略無助回答的背景、例子與重述；只有使用者要求詳解或任務需要時才展開，答完停止，不填字、不重複、不自行宣布續寫。
 
 保持現有 512 輸出 token 硬上限、`ProviderOutputTruncated`／UI 未完成狀態、partial 保留、停止及重送政策；不增加上限、不硬截文字冒稱完成、不建立自動續寫或第二次模型呼叫。提示只影響回答風格，真實生成仍需使用者體驗驗收。依據 T08 Persona prompt，以合成身分驗提示傳遞與既有取消／截斷回歸。
+
+## D68 — 2026-10-18 / T12 桌寵透明命中分析不落盤影像
+
+續讀 c1727e5／bd63f28 發現 `updateShape` 的診斷由少量角色圖改為每三次 snapshot 保存 pet.png／chat.png，且透明命中分析仍把完整 WebView 畫面寫入暫存 PNG。診斷目錄不等於允許保存私人對話；依 SECURITY_PRIVACY §4，改為只在記憶體把自有 WebView 的 Cairo snapshot 轉為 GdkPixbuf，再沿既有 inputMask 計算命中區，不建立影像暫存或診斷截圖。SIRO_DESKTOP_REPORT_DIR 保留不含對話內容的 native-state.json 與固定錯誤狀態。
+
+沿已安裝 GTK3 的 Gdk.pixbuf_get_from_surface，不新增依賴；以實際 GI 合成像素比較原 PNG 路徑及新記憶體路徑的命中結果。production updateShape 的動態回歸需驗證聊天開關／非同步交錯、無報告模式、長時間取樣、失敗及關閉時零影像寫入。保留縮放／側欄／拖曳／麥克風／IME／原生沙箱與唯一 owner；B 聲線、本機模型／Whisper、資料與 HTTP/MQTT 設備路徑不變。舊影像不讀取、不自動刪除；本卡不把原生 WSL 真人按鍵或新聲線品質標成已驗。
+
+## D69 — 2026-10-18 / T10-UI-01 記憶搜尋入口
+
+依使用者要求檢查 T／RT 後續作，RT-001–015 已各有 scoped DONE，不重開歷史能力；選 T10-UI-01 未完成的記憶搜尋切片。重用 authenticated GET /v1/memories 的既有 query／limit=100，由 owner 提交搜尋或清除，不新增 Core、索引、DB、provider 或外送路由。搜尋字只留目前頁面記憶體，不寫 hash／localStorage；明示最多100筆，零結果不等於沒有記憶。沿既有來源、更正／刪除入口，變更後用目前條件重新查詢。
+
+前端新增有界、可取消的搜尋 request 與 latest-query／connection fence；新查詢、斷線、關頁撤過時結果，失敗不保留可誤操作的舊卡。結果以 textContent 呈現。新增功能後驗實際頁面函式、API／SQLite、原前端與記憶／取消相容；真人 B 聲線、WSLg實體輸入、ESP32、長期soak與發布gate不由此卡代證。先前 D68 桌寵隱私修復留為獨立diff／證據，不擴張本卡。
+
+## D70 — 2026-10-18 / T10-UI-01 單任務詳情
+
+沿既有hash導航新增#/tasks/<canonical UUID>，只讀目前session的validated bounded list snapshot，無新HTTP／schema／owner。詳情只呈現所選任務及其原控制，建立表單與其他任務hidden＋inert；返回清單／瀏覽器歷史不觸發GET/POST或重建renderer／audio。直接開啟／reload先顯示需手動查詢；未在目前快照中的ID不視為刪除、不讀其他session、不直接依URL執行動作。失效連線／未知結果清除舊詳情並沿原readback gate。
+
+既有renderGoalTasks與changeGoalTask為唯一內容／授權callback，詳情不複製批准邏輯或新增poller。保持所有先前未提交修改及D69搜尋。本卡新增T10-UI-01-DETAIL子切片是原計畫拆分，不重排RT或擴權；原T10-UI-01整體PARTIAL保持。
+
+## D71 — 2026-10-18 / T10-UI-01 設定與權限用語
+
+只把既有cloud／tools／microphone snapshot翻成「雲端功能／電腦與工具操作／麥克風輸入」及中文狀態與下一操作title，未知key仍textContent照原key呈現，不猜新增能力。permissions與computer共用同一份既有authorization_mode說明；模式不變、沒有新增切換功能。原PUT key／enabled反轉／session／reload／取消政策完全保持，不借用語卡擴cloud封鎖或權限功能。這是既有T10計畫的文字／狀態呈現切片，整體UI與真平台gate保持。
+
+## D72 — 2026-10-18 / T10-UI-01 鍵盤略過導覽
+
+在既有單HTML入口首位放標準anchor，focus時才顯示；activation preventDefault，直接focus目前非hidden的page heading，缺heading則focus既有main landmark。避免用showPage或location.hash作焦點跳轉，保留task detail／draft／單一socket與callback。這是原可及性計畫的有界keyboard bypass切片，不取代對比、窄窗、screen reader與真人驗收；無新router／runtime／權限。
+
+## D73 — 2026-10-18 / T10-UI-01 窄窗reflow只修實測缺口
+
+真Chrome量測production HTML於320／375／414／768與200%等效寬度，九頁＋detail預設內容無水平溢出。html/body overflow-x:clip會把溢出裁掉而非捲動，故以元素邊界自動檢查取代目視。唯一缺陷是權限頁由後端key決定標籤的開關按鈕受全域nowrap限制而被裁；只對`#switches button`允許換行，不改全域button（避免非換行flex列如送出鈕被壓縮），不改JS、API、key或授權。新增瀏覽器回歸test_frontend_reflow.py固定此檢查。對比、讀屏、真人流程與真平台gate保持。
+
+## D74 — 2026-10-18 / T10-UI-01 整合：對比、焦點、狀態回饋與重啟重連
+
+使用者要求整張T10一次完成。只修實測缺口，全在static/index.html。對比：文字輸入框外框採新token `--field-line`（≥3:1），不改其他邊線；角色stage底色與SIRO renderer深色背景一致，標語改淺色，避免真Live2D上不可讀。鍵盤：renderer iframe只有canvas，移出Tab順序；scroll-padding避免焦點落在sticky工具列下。
+
+狀態回饋：kill switch PUT改為處理中鎖定、只有確認2xx才reload，失敗明示「可能尚未套用、沒有自動重送」；key／body／API不變。記憶更正／刪除的處理中與錯誤改顯示在記憶頁狀態列並防連點，不改endpoint或確認對話框。
+
+重連：伺服器以1008「invalid session token」拒絕控制WS時，前端原本保留快取token直到本地renewAt（約5分鐘），導致main重啟後已開頁面無法重連。比照D34既有HTTP「僅確切pre-accept拒絕可換一次token」規則，只在認證完成前收到這個確切reason時丟掉該token；其他關閉原因不換token，任何已送出的工作仍不重送。renderer自行每次重取session，不受影響。新增瀏覽器a11y、狀態回饋單元測試與真main整合腳本；人工項目（真人、讀屏、WSLg、真聲音／模型、跨機）保留PARTIAL。

@@ -97,6 +97,20 @@
 
 #### T10-UI-01 介面重設計與獨立工作畫面
 
+- 2026-10-18 **T10-UI-01-INTEGRATION DONE／LOCAL_VERIFIED（自動可驗範圍）**：對比／鍵盤／狀態回饋／重啟重連修正9項；新10、相關525、桌寵69 PASS；真main＋真Live2D整合9/9。[證據](evidence/T10-INTEGRATION-2026-10-18/REPORT.md)。整卡PARTIAL，剩人工項目見[手動驗收指南](evidence/T10-INTEGRATION-2026-10-18/MANUAL_TEST_GUIDE.md)。
+
+- 2026-10-18 **T10-UI-01-REFLOW DONE／LOCAL_VERIFIED**：六viewport×九頁＋detail（含200%等效）水平reflow實測；修權限頁未知長開關按鈕被裁。新2、相關514、桌寵69 PASS，source-only回退驗證。[證據](evidence/T10-REFLOW-2026-10-18/REPORT.md)。只完成水平reflow，整卡PARTIAL；對比／讀屏／完整真人流程未完。
+
+- 2026-10-18 **T10-UI-01-KEYBOARD DONE／LOCAL_VERIFIED**：首Tab可見skip link，Enter focus目前heading／main fallback，路由／draft／snapshot／工具不變。新3、相關512（重疊）、桌寵69 PASS；真CUA focus與source-only回退驗證。[證據](evidence/T10-KEYBOARD-2026-10-18/REPORT.md)。只完成keyboard bypass，整卡仍PARTIAL，窄窗／對比／讀屏／完整真人流程未完。
+
+- 2026-10-18 **T10-UI-01-SETTINGS DONE／LOCAL_VERIFIED**：permissions補既有mode，三個功能開關中文名稱／狀態／下一動作；原API／callback／授權不變。相關509、Python3.12相容64 PASS（重疊）、真CUA3步／backend readback與source-only回退通過。[證據](evidence/T10-SETTINGS-WORDING-2026-10-18/REPORT.md)。整體仍PARTIAL；完整可及性／真人流程未完。
+
+- 2026-10-18 DETAIL證據修補：獨立PARTIAL後重跑8步真CUA含missing snapshot，receipt與AX／JPEG一致；baseline commit／dirty snapshot回退package可對目前checkout正常check，107相關tests PASS，專屬REGRESSION_BASELINE已補。只恢復DETAIL限定DONE供重驗，整卡PARTIAL；production未變，真active-child取消／部署rollback未驗。[修補報告](evidence/T10-TASK-DETAIL-2026-10-18/REPORT.md)。
+
+- 2026-10-18 **T10-UI-01-DETAIL DONE／LOCAL_VERIFIED**：單UUID詳情／返回／history／explicit readback，沿原批准及取消；新11、相關480、相容150 PASS，真CUA＋main／SQLite／Rust與source-only rollback通過。[證據](evidence/T10-TASK-DETAIL-2026-10-18/REPORT.md)。僅本切片DONE，整卡PARTIAL；設定用語／完整可及性與真人流程仍未完。
+
+- 2026-10-18 搜尋切片 **LOCAL_VERIFIED**：既有記憶query API接入前端搜尋／清除／結果狀態、取消與晚到fence；相關476 PASS、新專項12 PASS（重疊）、真瀏覽器→main→SQLite搜尋通過。[證據](evidence/T10-MEMORY-SEARCH-2026-10-18/REPORT.md)／[未完成盤點](evidence/T10-MEMORY-SEARCH-2026-10-18/OPEN_TASKS.md)。整卡仍PARTIAL；下一切片任務詳情未開始。
+
 - 狀態：**PARTIAL**（2026-10-15）。首個網頁分頁／視覺切片 LOCAL_VERIFIED：九工作畫面、333前端PASS、真main／Rust／SQLite三次啟動與24 CUA檢查；[證據／限制](evidence/T10-UI-01-2026-10-15/REPORT.md)。真Live2D切頁、任務詳情／記憶搜尋等補完及真人體驗未完，原 T10 傳輸驗收及 T／RT 編號保持。
 - 依賴：T10 現有 session／Origin／single writer 與 D34 續期；各畫面重用現有 API。桌面外殼／動作沿 T12 及既有 Companion plan，不阻擋先交付網頁分頁。
 - 輸入與產出：[INTERFACE_REDESIGN_PLAN](runtime-evolution/INTERFACE_REDESIGN_PLAN.md) 的入口對照、視覺草案、分開的可操作原型、逐頁移轉與回退；參考 frontend-design／Hallmark／VPet。

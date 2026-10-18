@@ -1,0 +1,1708 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIRO · 對話</title>
+    <style>
+      :root {
+        color-scheme: light; font-family: "Noto Sans TC", system-ui, sans-serif;
+        --page:#f3f6fa; --surface:#ffffff; --text:#27344a; --muted:#53627a;
+        --action:#365d8d; --pink:#e5b6c8; --line:#dce3ed; --tint:#eaf0f8;
+        --soft:#f8fafc; --success:#2e6655; --warning:#8a4a27; --focus:#365d8d;
+        --stage:#e5eaf3; --user:#e6edf7; --assistant:#f2f5f9;
+        background:var(--page); color:var(--text); line-height:1.6;
+      }
+      * { box-sizing:border-box; }
+      html, body { margin:0; min-width:0; overflow-x:clip; }
+      [hidden] { display:none !important; }
+      button, input, textarea { font:inherit; }
+      a { color:var(--action); text-underline-offset:4px; }
+      button, a { -webkit-tap-highlight-color:transparent; }
+      button, .button-link { border:1px solid var(--line); border-radius:10px; background:var(--surface); color:var(--text); padding:9px 14px; cursor:pointer; font-size:14px; text-decoration:none; white-space:nowrap; }
+      button:hover, .button-link:hover { background:var(--tint); border-color:var(--action); }
+      button:active, .button-link:active { transform:translateY(1px); }
+      button:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+      :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+      .skip-link { position:fixed; top:12px; left:16px; z-index:20; padding:12px 16px; background:var(--surface); color:var(--action); border:1px solid var(--action); border-radius:8px; transform:translateY(calc(-100% - 24px)); }
+      .skip-link:focus { transform:none; }
+      h1, h2, h3, p { overflow-wrap:anywhere; }
+      h1 { font-size:30px; font-weight:650; letter-spacing:-.5px; line-height:1.4; margin:0 0 10px; }
+      h2 { font-size:20px; font-weight:650; margin:0 0 14px; }
+      h3 { font-size:17px; font-weight:600; margin:0 0 12px; }
+      p { margin:0 0 16px; color:var(--muted); }
+      small { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+      input, textarea { color:var(--text); border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:12px; max-width:100%; }
+      textarea { width:100%; resize:vertical; min-height:88px; }
+      .app-shell { display:grid; grid-template-columns:204px minmax(0,1fr); min-height:100dvh; }
+      .sidebar { position:sticky; top:0; height:100dvh; display:flex; flex-direction:column; padding:30px 18px 20px; background:var(--surface); border-right:1px solid var(--line); }
+      .brand { display:flex; align-items:center; gap:12px; font-size:27px; font-weight:750; letter-spacing:3px; text-decoration:none; color:var(--text); padding:0 12px; }
+      .brand-mark { width:23px; height:30px; border-radius:50% 50% 40% 40%; background:var(--pink); display:inline-block; transform:rotate(-12deg); }
+      .sidebar-note { margin:10px 12px 30px; font-size:12px; }
+      .primary-nav { display:flex; flex-direction:column; gap:6px; }
+      .primary-nav a { display:flex; align-items:center; gap:12px; padding:11px 13px; border-radius:10px; color:var(--muted); text-decoration:none; white-space:nowrap; font-size:15px; }
+      .nav-mark { width:20px; text-align:center; font-size:18px; }
+      .primary-nav a:hover { color:var(--text); background:var(--soft); }
+      .primary-nav a[aria-current="page"] { background:var(--tint); color:var(--action); font-weight:650; }
+      .nav-divider { height:1px; background:var(--line); margin:12px; }
+      .sidebar-footer { margin-top:auto; padding:24px 12px 0; font-size:12px; color:var(--muted); }
+      .workspace { min-width:0; }
+      .toolbar { position:sticky; top:0; z-index:3; display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:86px; padding:18px 32px; background:var(--surface); border-bottom:1px solid var(--line); }
+      #page-title { font-size:15px; font-weight:600; white-space:nowrap; }
+      .toolbar-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+      .connection-pill { font-size:12px; color:var(--action); background:var(--soft); }
+      #cancel { color:var(--warning); }
+      .live-status { display:flex; gap:16px; flex-wrap:wrap; padding:10px 32px; font-size:12px; color:var(--muted); border-bottom:1px solid var(--line); }
+      .activity-notice { display:block; margin:16px 32px 0; padding:12px 16px; border-left:3px solid var(--action); background:var(--tint); border-radius:0 8px 8px 0; font-size:14px; }
+      .page-content { max-width:1370px; margin:0 auto; padding:30px 32px 44px; }
+      .page-view { min-width:0; }
+      .page-heading { margin-bottom:26px; max-width:760px; }
+      [data-page-heading] { scroll-margin-top:110px; }
+      .page-heading p { margin:0; max-width:65ch; font-size:14px; }
+      .companion-layout { display:grid; grid-template-columns:minmax(240px,.8fr) minmax(0,1.35fr); gap:26px; }
+      .stage { position:relative; min-height:610px; overflow:hidden; border-radius:24px; background:var(--stage); }
+      .stage-title { position:absolute; z-index:1; top:28px; left:26px; right:20px; pointer-events:none; }
+      .stage-title h2 { font-size:23px; font-weight:500; }
+      .stage-title p { font-size:13px; }
+      #companion { border:0; width:100%; height:100%; min-height:610px; display:block; }
+      .stage-footer { position:absolute; bottom:20px; left:20px; right:20px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 16px; }
+      #renderer-status { font-size:12px; margin:0; } #companion-state { color:var(--text); font-size:14px; margin:0 0 4px; }
+      .conversation { display:flex; flex-direction:column; height:610px; min-width:0; }
+      .conversation-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:4px 0 16px; border-bottom:1px solid var(--line); }
+      .conversation-heading h2 { margin:0; font-size:17px; }
+      #model-status { font-size:12px; color:var(--muted); }
+      #messages { flex:1; min-height:160px; overflow:auto; padding:24px 0 12px; }
+      .empty-state { padding:80px 8px 28px; }
+      .empty-state strong { font-size:26px; font-weight:500; }
+      .empty-state p { font-size:14px; margin-top:14px; }
+      #messages:has(.message) .empty-state { display:none; }
+      .message { padding:14px 16px; margin:0 0 16px; border-radius:14px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:15px; line-height:1.85; }
+      .message strong { color:var(--text); font-weight:650; }
+      .message code { font-family:ui-monospace,monospace; font-size:.92em; background:var(--tint); padding:2px 5px; border-radius:4px; }
+      .message pre { max-width:100%; overflow:auto; margin:10px 0; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--soft); white-space:pre; overflow-wrap:normal; }
+      .message pre code { padding:0; background:none; }
+      .user { background:var(--user); margin-left:14%; border-bottom-right-radius:4px; }
+      .assistant { background:var(--surface); margin-right:4%; border-bottom-left-radius:4px; }
+      .assistant:empty::after { content:"正在想…"; color:var(--muted); }
+      #chat { display:flex; gap:8px; align-items:flex-end; padding:8px; background:var(--surface); border:1px solid var(--line); border-radius:14px; }
+      #text { border:0; background:transparent; min-height:70px; resize:vertical; flex:1; min-width:0; font-size:15px; }
+      #chat button { background:var(--action); color:var(--surface); border-color:var(--action); }
+      .conversation-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding-top:12px; color:var(--muted); font-size:12px; }
+      body.siro-control .stage { display:none; }
+      body.siro-control .companion-layout { grid-template-columns:minmax(0,1fr); }
+      .conversation-actions label { display:flex; align-items:center; gap:6px; }
+      .conversation-actions input { margin:0; width:auto; }
+      .conversation-actions button { font-size:12px; padding:6px 10px; }
+      .content-section { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:24px; margin-bottom:22px; min-width:0; }
+      .reading-width { max-width:900px; }
+      .quick-actions { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+      .field-label { display:block; margin:18px 0 8px; font-size:14px; font-weight:600; }
+      .section-note { font-size:13px; }
+      details { border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:20px; margin:0 0 20px; }
+      summary { cursor:pointer; font-size:15px; font-weight:600; }
+      details[open]>summary { margin-bottom:18px; }
+      details .content-section { padding:0; border:0; }
+      #events, #snapshot, #workspace-result, #skill-candidate-review, #skill-candidate-files, #improvement-proposal-review { white-space:pre-wrap; overflow-wrap:anywhere; max-height:340px; overflow:auto; font-size:12px; color:var(--muted); }
+      #affect-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+      .affect-card { font-size:12px; background:var(--soft); border-radius:8px; padding:12px; }
+      .meter { height:4px; background:var(--line); margin-top:6px; } .meter span { display:block; height:100%; background:var(--action); }
+      .proposal { border:1px solid var(--line); border-radius:10px; padding:18px; margin:12px 0; font-size:14px; overflow-wrap:anywhere; }
+      .proposal p { white-space:pre-wrap; }
+      .ok { color:var(--success); } .warn { color:var(--warning); }
+      .destination-list { display:grid; grid-template-columns:minmax(0,1fr); gap:0; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+      .destination-list a { display:flex; gap:18px; align-items:center; justify-content:space-between; padding:22px 24px; text-decoration:none; border-bottom:1px solid var(--line); }
+      .destination-list a:last-child { border-bottom:0; }
+      .destination-list a:hover { background:var(--soft); }
+      .destination-list strong { display:block; color:var(--text); font-size:16px; }
+      .destination-list small { display:block; margin-top:5px; }
+      #switches { display:flex; gap:10px; flex-wrap:wrap; }
+      @media(max-width:1100px) { .app-shell { grid-template-columns:174px minmax(0,1fr); } .sidebar { padding-inline:12px; } .toolbar { padding-inline:24px; } .page-content { padding:24px; } .companion-layout { gap:18px; grid-template-columns:minmax(200px,.75fr) minmax(0,1fr); } }
+      @media(max-width:900px) {
+        .app-shell { grid-template-columns:minmax(0,1fr); } .sidebar { position:static; height:auto; padding:18px 20px 12px; border-right:0; border-bottom:1px solid var(--line); }
+        .brand { padding:0; font-size:23px; } .brand-mark { width:18px; height:24px; } .sidebar-note, .sidebar-footer, .nav-divider, .nav-mark { display:none; }
+        .primary-nav { flex-direction:row; flex-wrap:wrap; gap:4px; margin-top:14px; } .primary-nav a { font-size:13px; padding:7px 10px; }
+        .toolbar { padding:14px 20px; min-height:76px; flex-wrap:wrap; gap:10px; } .toolbar-actions { gap:6px; }
+        .live-status { padding:10px 20px; gap:8px 16px; } .activity-notice { margin-inline:20px; }
+        .companion-layout { grid-template-columns:minmax(0,1fr); } .stage { min-height:330px; height:330px; } #companion { min-height:330px; }
+        .stage-title { top:20px; left:20px; } .stage-title h2 { font-size:20px; } .conversation { height:570px; }
+      }
+      @media(max-width:480px) {
+        h1 { font-size:25px; } .page-content { padding:24px 16px 32px; } .page-heading { margin-bottom:22px; }
+        .toolbar-actions { width:100%; } .toolbar-actions button { font-size:12px; padding:8px 10px; }
+        .content-section { padding:18px; } .destination-list a { padding:18px; } .empty-state { padding-top:48px; }
+        .stage { height:290px; min-height:290px; } #companion { min-height:290px; } .stage-title p { display:none; }
+      }
+      @media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; } button:active, .button-link:active { transform:none; } }
+    </style>
+  </head>
+  <body>
+    <a id="skip-to-content" class="skip-link" href="#main-content">跳到主要內容</a>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主要導覽">
+        <a class="brand" href="#/chat" data-nav="chat" aria-label="SIRO 對話"><span class="brand-mark" aria-hidden="true"></span>SIRO</a>
+        <p class="sidebar-note">一起生活，也一起把事情做好。</p>
+        <nav class="primary-nav" aria-label="工作畫面">
+          <a href="#/chat" data-nav="chat" aria-current="page"><span class="nav-mark" aria-hidden="true">◌</span>對話</a>
+          <a href="#/tasks" data-nav="tasks"><span class="nav-mark" aria-hidden="true">☑</span>任務</a>
+          <a href="#/memory" data-nav="memory"><span class="nav-mark" aria-hidden="true">◇</span>記憶</a>
+          <a href="#/capabilities" data-nav="capabilities"><span class="nav-mark" aria-hidden="true">✧</span>能力</a>
+          <div class="nav-divider" aria-hidden="true"></div>
+          <a href="#/computer" data-nav="computer"><span class="nav-mark" aria-hidden="true">⌘</span>電腦</a>
+          <a href="#/skills" data-nav="skills"><span class="nav-mark" aria-hidden="true">▧</span>技能</a>
+          <a href="#/settings" data-nav="settings"><span class="nav-mark" aria-hidden="true">⚙</span>設定</a>
+        </nav>
+        <div class="sidebar-footer">角色桌面活動與新動作<br>仍在製作規劃中。</div>
+      </aside>
+      <div class="workspace">
+        <header class="toolbar">
+          <span id="page-title">對話</span>
+          <div class="toolbar-actions">
+            <button id="connection" class="connection-pill" type="button" title="重新連線，不會重新執行工作">連線中</button>
+            <button id="microphone-toggle" type="button" aria-pressed="false">麥克風：關</button>
+            <button id="voice" type="button">開始說話</button>
+            <button id="cancel" type="button">停止回覆與語音</button>
+          </div>
+        </header>
+        <div class="live-status" aria-live="polite"><span id="voice-status">麥克風待命</span><span id="tts-status">TTS 待命</span></div>
+        <div aria-live="polite"><a id="activity-notice" class="activity-notice" href="#/computer" data-nav="computer" hidden>電腦操作有更新，查看授權與結果</a></div>
+        <p id="service-notice" class="activity-notice" role="status" hidden></p>
+        <p id="runtime-notice" class="activity-notice" role="status" __SIRO_SETUP_NOTICE_HIDDEN__>__SIRO_SETUP_NOTICE__</p>
+        <main class="page-content" id="main-content" tabindex="-1">
+          <section class="page-view" data-page="chat" aria-labelledby="chat-heading">
+            <div class="page-heading"><h1 id="chat-heading" data-page-heading tabindex="-1">和 SIRO 聊聊</h1><p>有想說的，慢慢說。需要一起處理的事，也可以交給我。</p></div>
+            <div class="companion-layout">
+              <section class="stage" aria-label="SIRO 角色">
+                <div class="stage-title"><h2>今天，也陪著你。</h2><p>同一個 SIRO，同一段相處。</p></div>
+                <iframe id="companion" src="__SIRO_RENDERER_PATH__" title="SIRO Live2D 角色"></iframe>
+                <div class="stage-footer"><p id="companion-state">正在與角色連線</p><p id="renderer-status">__SIRO_RENDERER_STATUS__</p></div>
+              </section>
+              <section class="conversation" aria-label="對話內容與輸入">
+                <div class="conversation-heading"><h2>我們的對話</h2><span id="model-status">確認對話連線中</span></div>
+                <div id="messages" aria-live="polite"><div class="empty-state"><strong>嗨，我在這裡。</strong><p>從一句「你好」開始。<br>想讓我留下的事，可以說「記住：…」。</p></div></div>
+                <form id="chat"><textarea id="text" required maxlength="32768" placeholder="想和 SIRO 說什麼？" aria-label="對話內容"></textarea><button type="submit">送出</button></form>
+                <div class="conversation-actions"><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
+              </section>
+            </div>
+          </section>
+          <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
+            <div class="page-heading"><h1 id="computer-heading" data-page-heading tabindex="-1">電腦協助</h1><p>查看檔案、開啟程式或瀏覽網頁。每個操作都保留授權與結果，範圍以實際能力為準。</p></div>
+            <details id="computer-panel" open><summary>操作與授權</summary><p id="authorization-status"></p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><div id="tool-proposals"></div></details>
+            <section class="content-section"><h2>指定工作目錄讀取</h2><p id="workspace-status">讀取狀態中…</p><p class="section-note">這個入口只允許讀取指定工作目錄內的文字檔，每份最多 8 KiB；一般電腦操作仍依操作授權。</p><label class="field-label" for="workspace-file">檔案相對路徑</label><input id="workspace-file" placeholder="例如 notes.txt"><div class="quick-actions"><button id="workspace-list" type="button">列出檔案</button><button id="workspace-read" type="button">讀取檔案</button></div><pre id="workspace-result" aria-live="polite"></pre></section>
+          </section>
+          <section class="page-view reading-width" data-page="tasks" hidden inert aria-labelledby="tasks-heading">
+            <div class="page-heading"><h1 id="tasks-heading" data-page-heading tabindex="-1">任務</h1><p>先確認要做的事，再看進度與來源。離開這個畫面，任務狀態仍會保存。</p></div>
+            <section class="content-section" id="goal-task-panel">
+              <button id="goal-task-back" type="button" hidden>返回任務清單</button>
+              <p id="goal-task-detail-status" role="status" hidden></p>
+              <div id="goal-task-compose">
+              <h2>交給 SIRO 的任務</h2>
+              <p>指定工作目錄內 1–5 份文字檔，每行一個相對路徑。我會唯讀整理尚未勾選的待辦與 TODO／FIXME，保留來源、行數與時間。先建立待審任務，再明確批准；讀取完成不表示待辦已執行。</p>
+              <label class="field-label" for="goal-task-paths">要讀取的檔案</label>
+              <textarea id="goal-task-paths" rows="3" maxlength="2560" placeholder="notes.md&#10;project/tasks.txt" aria-label="任務要讀取的工作目錄內相對路徑"></textarea>
+              <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button></div>
+              </div>
+              <button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button>
+              <p id="goal-task-status" aria-live="polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>
+              <div id="goal-task-items" aria-live="polite"></div>
+            </section>
+          </section>
+          <section class="page-view reading-width" data-page="skills" hidden inert aria-labelledby="skills-heading">
+            <div class="page-heading"><h1 id="skills-heading" data-page-heading tabindex="-1">技能與改善</h1><p>從可追溯的來源準備新能力。驗證、審查與啟用，各有清楚的界線。</p></div>
+            <section class="content-section" id="skill-candidate-panel"><h2>學習新能力</h2><p>解析貼上的 Markdown 待辦清單。先準備一份待審技能與隔離測試紀錄，再由你檢查；這一步不會安裝或啟用技能。</p><div class="quick-actions"><button id="skill-candidate-prepare" type="button" disabled>準備待審技能</button><button id="skill-candidate-cancel" type="button" disabled>取消準備</button><button id="skill-candidate-export" type="button" disabled>匯出審查資料 JSON</button></div><p id="skill-candidate-status" aria-live="polite">確認準備功能狀態中…</p><details><summary>來源與驗證紀錄</summary><pre id="skill-candidate-review"></pre></details><details><summary>待審技能內容</summary><pre id="skill-candidate-files"></pre></details></section>
+            <section class="content-section" id="skill-activation-panel"><h2>批准與使用待辦清單技能</h2><p>先閱讀上方來源、程式內容與驗證紀錄。確認後可安裝，初始保持停用；啟用需要你再按一次。技能只解析你貼上的文字，使用時仍沿用對話中的操作授權。</p><div class="quick-actions"><button id="skill-activation-install" type="button" disabled>安裝（保持停用）</button><button id="skill-activation-enable" type="button" disabled>啟用已批准技能</button><button id="skill-activation-revoke" type="button" disabled>撤銷啟用</button><button id="skill-activation-fill" type="button" disabled>將待辦範例填入對話</button><button id="skill-activation-refresh" type="button">確認技能狀態</button></div><p id="skill-activation-status" aria-live="polite">確認技能狀態中…</p></section>
+            <section class="content-section" id="improvement-proposal-panel"><h2>改善建議</h2><p>查看這段對話最近的可追溯失敗，先整理需要調查與驗證的地方。來源不足時會明說；確認原因後才討論修復。</p><button id="improvement-proposal-refresh" type="button" disabled>查看這段對話的改善建議</button><p id="improvement-proposal-status" aria-live="polite">連線完成後可手動查詢；建議只供審閱。</p><pre id="improvement-proposal-review" aria-live="polite"></pre></section>
+          </section>
+          <section class="page-view reading-width" id="memories-panel" data-page="memory" hidden inert aria-labelledby="memory-heading">
+            <div class="page-heading"><h1 id="memory-heading" data-page-heading tabindex="-1">共同記憶</h1><p>留下的事情可以查來源，也能更正與刪除。對我說「記住：…」即可新增。</p></div>
+            <section class="content-section"><h2>記住的事情</h2><p class="section-note">更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p><form id="memory-search-form" role="search" aria-label="搜尋共同記憶"><label for="memory-query">搜尋記憶內容</label><input id="memory-query" type="search" maxlength="4096" placeholder="輸入想找的事情" autocomplete="off"><button type="submit">搜尋記憶</button><button id="memory-search-clear" type="button">清除搜尋</button></form><p id="memory-search-status" role="status" aria-live="polite">每次最多顯示 100 筆記憶。</p><button id="product-refresh" type="button">重新整理記憶</button><div id="memory-items"></div></section>
+            <details><summary>閒置記憶整理</summary><p>只在本機整理已記住的內容，將相同內容放在一起；保留原記憶，不推測新的事實，也不主動打擾。</p><p id="organization-status" aria-live="polite">讀取狀態中…</p><div class="quick-actions"><button id="organization-on" type="button">開啟閒置整理</button><button id="organization-off" type="button">暫停整理</button><button id="organization-refresh" type="button">現在整理</button></div><div id="organization-items"></div></details>
+          </section>
+          <section class="page-view reading-width" data-page="capabilities" hidden inert aria-labelledby="capabilities-heading">
+            <div class="page-heading"><h1 id="capabilities-heading" data-page-heading tabindex="-1">現在能做什麼</h1><p>以目前註冊與實際就緒狀態為準。查看能力不會執行操作，也不代表已授權。</p></div>
+            <div class="quick-actions"><a class="button-link" href="#/computer" data-nav="computer">開啟電腦協助</a><a class="button-link" href="#/skills" data-nav="skills">管理技能</a><button id="capabilities-refresh" type="button">更新能力狀態</button></div><div id="capability-items" aria-live="polite">讀取狀態中…</div>
+          </section>
+          <section class="page-view reading-width" data-page="settings" hidden inert aria-labelledby="settings-heading">
+            <div class="page-heading"><h1 id="settings-heading" data-page-heading tabindex="-1">相處與設定</h1><p>資料、權限與系統狀態分開查看。語音開關與全文重聽在對話畫面。</p></div>
+            <div class="destination-list"><a href="#/permissions" data-nav="permissions"><span><strong>權限與停止開關</strong><small>查看目前模式，控制工具與資料外送</small></span><span aria-hidden="true">›</span></a><a href="#/system" data-nav="system"><span><strong>系統與診斷</strong><small>長對話續作、內在狀態與連線紀錄</small></span><span aria-hidden="true">›</span></a><a href="#/chat" data-nav="chat"><span><strong>回到對話</strong><small>語音播放與全文重聽</small></span><span aria-hidden="true">›</span></a></div>
+            <p class="section-note" style="margin-top:22px">桌面自由活動、新角色與動作包尚未完成。此版本沿用目前角色，不提供未驗證的角色切換。</p>
+          </section>
+          <section class="page-view reading-width" data-page="permissions" hidden inert aria-labelledby="permissions-heading">
+            <div class="page-heading"><h1 id="permissions-heading" data-page-heading tabindex="-1">權限與停止開關</h1><p>開關直接作用於現有控制路徑，不需要模型同意。完整權限模式的操作仍受實際帳戶與工具範圍限制。</p></div>
+            <section class="content-section"><h2>操作模式</h2><p id="permissions-authorization-status">正在確認目前模式…</p><h2>功能開關</h2><p>「已開啟」表示允許使用這項功能；按下開關可開啟或關閉。開啟功能不會取得額外的操作權限。</p><div id="switches"></div></section><a href="#/settings" data-nav="settings">返回設定</a>
+          </section>
+          <section class="page-view reading-width" data-page="system" hidden inert aria-labelledby="system-heading">
+            <div class="page-heading"><h1 id="system-heading" data-page-heading tabindex="-1">系統與診斷</h1><p>這些是目前服務的實際狀態。診斷資料與日常聊天分開，不代表缺少的產品能力已完成。</p></div>
+            <section class="content-section"><h2>長對話續作</h2><p id="summary-status">讀取狀態中…</p><p class="section-note">較舊的長回覆採摘錄摘要，省略處會標示；目標、授權與尚未完成的工具結果保留。摘要不是永久記憶。</p></section>
+            <details><summary>內在狀態</summary><p id="affect-summary">尚無事件評估</p><div id="affect-grid"></div></details><details><summary>連線資訊</summary><pre id="snapshot"></pre></details><details><summary>事件紀錄</summary><pre id="events"></pre></details><div class="quick-actions"><a class="button-link" href="/audio-field-test">音訊驗收工具</a><a class="button-link" href="#/settings" data-nav="settings">返回設定</a></div>
+          </section>
+        </main>
+      </div>
+    </div>
+    <script>
+      let socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
+      let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
+      let submissionGeneration = 0, pendingSubmission;
+      let improvementEpoch = 0, improvementController, improvementTimeout;
+      let goalTaskEpoch = 0, goalTaskController, goalTaskTimeout, goalTaskPollTimer, goalTaskPolls = 0;
+      let goalTaskViews = [], goalTaskBusy = false, goalTaskAvailable = true, goalTaskNeedsReadback = false;
+      const goalTaskSessionId = "browser", goalTaskProfile = "document-checklist-v1";
+      let recorder, recordedChunks = [], ttsAudio;
+      let ttsController, ttsGeneration = 0, speechCancelled = false;
+      let lastSpeech;
+      const headers = () => ({"Content-Type": "application/json"});
+      const log = data => { document.querySelector("#events").textContent += JSON.stringify(data) + "\n"; };
+      function createSessionAccess({fetcher = fetch, now = () => performance.now(), origin = location.origin} = {}) {
+        let session, pending, retryAfter = 0, closed = false, bootstrap;
+        async function getToken() {
+          if (closed) throw new Error("頁面已關閉");
+          if (session && now() < session.renewAt) return session.token;
+          if (pending) return pending;
+          if (now() < retryAfter) throw new Error("連線暫時無法恢復，請稍後按重新連線。");
+          pending = (async () => {
+            bootstrap = new AbortController();
+            const timeout = setTimeout(() => bootstrap.abort(), 5000);
+            try {
+              const response = await fetcher("/v1/session", {method: "POST", redirect: "error", headers: {Origin: origin}, signal: bootstrap.signal});
+              if (!response.ok) throw new Error("無法建立連線，請稍後按重新連線。");
+              const data = await response.json(), ttl = data.expires_in_seconds * 1000;
+              if (typeof data.token !== "string" || !data.token || !Number.isFinite(ttl) || ttl <= 0) throw new Error("連線資料無效，請重新連線。");
+              if (closed) throw new Error("頁面已關閉");
+              session = {token: data.token, renewAt: now() + ttl - Math.min(ttl * 0.1, 15000)};
+              retryAfter = 0;
+              return session.token;
+            } catch (error) {
+              retryAfter = now() + 3000;
+              throw error;
+            } finally { clearTimeout(timeout); bootstrap = undefined; }
+          })().finally(() => { pending = undefined; });
+          return pending;
+        }
+        async function request(url, options = {}) {
+          if (typeof url !== "string" || !url.startsWith("/v1/")) throw new Error("不允許的連線目標");
+          const target = new URL(url, origin);
+          if (target.origin !== origin || !target.pathname.startsWith("/v1/")) throw new Error("不允許的連線目標");
+          const check = () => {
+            if (closed) throw new Error("頁面已關閉");
+            if (options.signal?.aborted) throw new DOMException("已取消", "AbortError");
+          };
+          const send = token => {
+            check();
+            const requestHeaders = new Headers(options.headers); requestHeaders.set("Authorization", `Bearer ${token}`);
+            const {onDispatch, onRejected, ...wireOptions} = options;
+            onDispatch?.();
+            return fetcher(url, {...wireOptions, redirect: "error", headers: requestHeaders});
+          };
+          check();
+          const usedToken = await getToken();
+          const response = await send(usedToken);
+          if (response.url && new URL(response.url, origin).origin !== origin) throw new Error("不允許的連線回應");
+          if (response.status !== 401) return response;
+          const body = await response.clone().json().catch(() => null);
+          if (body?.detail !== "session token is invalid or expired") return response;
+          options.onRejected?.();
+          check();
+          if (session?.token === usedToken) session = undefined;
+          const renewed = await getToken();
+          return send(renewed); // Only this verified pre-accept rejection permits one retry.
+        }
+        return {getToken, request, dispose: () => { closed = true; session = undefined; bootstrap?.abort(); }};
+      }
+      const sessionAccess = createSessionAccess();
+      const authorizedFetch = (url, options) => sessionAccess.request(url, options);
+      function createTerminalFence(limit = 1024) {
+        const ended = new Set(), order = [];
+        const progress = new Set(["assistant_started", "assistant_delta", "assistant_retry_wait", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
+        return data => {
+          if (typeof data.stream_id !== "string") return true;
+          if (ended.has(data.stream_id) && (progress.has(data.type) || data.type === "assistant_terminal")) return false;
+          if (data.type === "assistant_terminal") {
+            ended.add(data.stream_id); order.push(data.stream_id);
+            if (order.length > limit) ended.delete(order.shift());
+          }
+          return true;
+        };
+      }
+      const acceptRunEvent = createTerminalFence();
+      function recoveryNotice(run) {
+        if (run.recovery_status !== "interrupted") return null;
+        return run.error === "outcome_unknown"
+          ? "上次工作中斷，有些操作的結果未知。我沒有重新執行；請先確認實際結果。"
+          : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
+      }
+      const pageTitles = Object.freeze({chat:"對話", tasks:"任務", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
+      let activePage = "chat", navigationInitialized = false, selectedGoalTaskId = null;
+      function showPage(hash = location.hash, moveFocus = false) {
+        const detail = typeof hash === "string" ? /^#\/tasks\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.exec(hash) : null;
+        selectedGoalTaskId = detail ? detail[1] : null;
+        const requested = detail ? "tasks" : typeof hash === "string" && /^#\/[a-z]+$/.test(hash) ? hash.slice(2) : "chat";
+        const page = Object.hasOwn(pageTitles, requested) ? requested : "chat";
+        let heading;
+        for (const pane of document.querySelectorAll("[data-page]")) {
+          pane.hidden = pane.dataset.page !== page;
+          pane.inert = pane.hidden;
+          if (!pane.hidden) heading = pane.querySelector("[data-page-heading]");
+        }
+        for (const link of document.querySelectorAll("[data-nav]")) {
+          if (link.dataset.nav === page) link.setAttribute("aria-current", "page");
+          else link.removeAttribute("aria-current");
+        }
+        activePage = page;
+        const title = selectedGoalTaskId ? "任務詳情" : pageTitles[page];
+        document.querySelector("#page-title").textContent = title;
+        document.querySelector("#tasks-heading").textContent = selectedGoalTaskId ? "任務詳情" : "任務";
+        document.title = `SIRO · ${title}`;
+        renderGoalTasks();
+        if (page === "computer") document.querySelector("#activity-notice").hidden = true;
+        if (moveFocus) heading.focus();
+        return page;
+      }
+      document.querySelector("#skip-to-content").onclick = event => {
+        event.preventDefault();
+        const pane = Array.from(document.querySelectorAll("[data-page]")).find(item => !item.hidden);
+        (pane?.querySelector("[data-page-heading]") || document.querySelector("#main-content")).focus();
+      };
+      function navigateToPage(name, moveFocus = true) {
+        const page = Object.hasOwn(pageTitles, name) ? name : "chat";
+        const hash = `#/${page}`;
+        if (location.hash !== hash) window.history.pushState(null, "", hash);
+        return showPage(hash, moveFocus);
+      }
+      function initializePageNavigation() {
+        if (navigationInitialized) return;
+        navigationInitialized = true;
+        for (const link of document.querySelectorAll("[data-nav]")) {
+          link.onclick = event => {
+            if (event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault(); navigateToPage(link.dataset.nav);
+          };
+        }
+        window.addEventListener("hashchange", () => showPage(location.hash, true));
+        window.addEventListener("popstate", () => showPage(location.hash, true));
+        showPage();
+      }
+      function notifyComputerActivity() {
+        document.querySelector("#activity-notice").hidden = activePage === "computer";
+      }
+      async function boot() {
+        initializePageNavigation();
+        if (location.protocol === "file:") {
+          const notice = document.querySelector("#service-notice"); notice.hidden = false;
+          notice.textContent = "這是介面預覽，尚未連接 SIRO。請使用 SIRO 服務啟動後提供的網址，才能對話、查看記憶或執行任務。";
+          document.querySelector("#connection").textContent = "介面預覽";
+          document.querySelector("#model-status").textContent = "尚未連接服務";
+          document.querySelector("#companion-state").textContent = "角色尚未連線";
+          document.querySelector("#renderer-status").textContent = "請從 SIRO 服務開啟角色";
+          document.querySelector("#voice-status").textContent = "語音尚未連線";
+          document.querySelector("#tts-status").textContent = "預覽不會執行操作";
+          for (const control of document.querySelectorAll("button, input, textarea")) control.disabled = true;
+          return;
+        }
+        await connectControl();
+        await refreshProduct();
+        const recovery = await authorizedFetch("/v1/agent-runs/browser", {headers: headers()});
+        if (recovery.ok) {
+          const run = await recovery.json();
+          const notice = recoveryNotice(run);
+          if (notice) appendMessage("assistant", notice);
+        }
+      }
+      function connectControl() {
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
+        if (typeof clearGoalTasks === "function") clearGoalTasks();
+        if (pageClosing) return Promise.reject(new Error("頁面已關閉"));
+        if (controlAuthenticated && socket?.readyState === 1) return Promise.resolve();
+        if (controlAttempt) return controlAttempt;
+        const epoch = ++controlEpoch;
+        controlAttempt = (async () => {
+          const token = await sessionAccess.getToken();
+          if (pageClosing || epoch !== controlEpoch) throw new Error("頁面已關閉或連線已交接");
+          const ready = {};
+          const authenticated = new Promise((resolve, reject) => { ready.resolve = resolve; ready.reject = reject; });
+          const owner = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/control`);
+          socket = owner; controlAuthenticated = false;
+          let retired = false;
+          const abandon = message => {
+            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); if (typeof clearMemorySearch === "function") clearMemorySearch(); ready.reject(new Error(message));
+          };
+          controlDispose = abandon;
+          const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
+          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); ready.resolve(); };
+          socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
+        socket.onmessage = event => {
+          if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
+          const data = JSON.parse(event.data);
+          if (!acceptRunEvent(data)) return;
+          if (!foregroundControl.event(data)) return;
+          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();
+          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
+          log(data);
+          if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }
+          if (data.type === "kill_switch" && data.name === "microphone" && typeof data.enabled === "boolean") {
+            microphoneEnabled = data.enabled;
+            if (!microphoneEnabled) document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop"));
+            updateMicrophoneControls();
+          }
+          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);
+          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean" && typeof applyGoalTaskTools === "function") applyGoalTaskTools(data.enabled);
+          if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
+          if (data.type === "affect_state") { renderAffect(data); }
+          if (data.type === "assistant_started") {
+            assistantBubble = appendMessage("assistant", "");
+          }
+          if (data.type === "assistant_retry_wait") {
+            const notice = document.querySelector("#service-notice");
+            const seconds = Math.max(0, Math.min(60, Number(data.retry_after_seconds) || 0));
+            notice.hidden = false; notice.dataset.retryWait = "1";
+            notice.textContent = `對話服務暫時限流，約 ${Math.ceil(seconds)} 秒後重試這段回覆。已完成的工具不會重做，可隨時停止。`;
+          }
+          if (data.type === "assistant_delta") {
+            clearRetryNotice();
+            if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
+            assistantBubble.textContent += data.text;
+            document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;
+          }
+          if (data.type === "assistant_terminal") {
+            clearRetryNotice();
+            const canonicalText = assistantBubble?.textContent || "";
+            if (data.state === "completed" && assistantBubble) formatAssistantMessage(assistantBubble);
+            if (data.state !== "completed") {
+              if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
+              const reasons = {
+                ProviderOutputTruncated: "這次回覆未完成，文字生成已達上限。已收到的內容保留，沒有自動重送操作。",
+                ProviderOutputFiltered: "這次回覆未完成，對話服務停止了這段輸出。",
+                ProviderOutputIncomplete: "這次回覆未完成，沒有收到完整結束資訊。已收到的內容保留，沒有自動重送操作。"
+              };
+              const notice = document.createElement("p"); notice.className = "warn";
+              notice.textContent = data.state === "cancelled" ? "已停止這次回覆。"
+                : reasons[data.error] || "這次回覆未完成。已執行的操作結果會保留在電腦協助，請確認後再試。";
+              if (data.error && !reasons[data.error]) notice.textContent += `（${data.error}）`;
+              assistantBubble.appendChild(notice);
+            }
+            if (data.state !== "completed") stopTts();
+            if (data.state === "completed" && canonicalText) {
+              lastSpeech = {text: canonicalText, prosody: data.prosody || {}};
+              document.querySelector("#replay-speech").disabled = false;
+              if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);
+            }
+            assistantBubble = undefined; currentTurn = undefined;
+          }
+          if (data.type === "tool_proposal") renderToolProposal(data);
+          if (data.type === "tool_started") updateToolProposal(data.proposal_id, "執行中…");
+          if (data.type === "tool_result") renderToolResult(data);
+          document.querySelector("#connection").textContent = "已連線";
+          document.querySelector("#connection").className = "connection-pill ok";
+        };
+          socket.onclose = () => {
+            if (socket !== owner || epoch !== controlEpoch) return;
+            abandon("連線中斷，已送出的工作不會自動重送。"); stopTts();
+            document.querySelector("#connection").textContent = "連線中斷 · 點此重新連線";
+            document.querySelector("#connection").className = "connection-pill warn";
+            if (!pageClosing && reconnectAttempts < 3 && !reconnectTimer) {
+              reconnectAttempts += 1;
+              reconnectTimer = setTimeout(() => {
+                reconnectTimer = undefined;
+                connectControl().catch(() => {});
+              }, 250 * 2 ** reconnectAttempts);
+            }
+          };
+          try { await authenticated; } finally { clearTimeout(timeout); }
+        })().finally(() => { controlAttempt = undefined; });
+        return controlAttempt;
+      }
+      document.querySelector("#connection").onclick = () => {
+        clearTimeout(reconnectTimer); reconnectTimer = undefined; reconnectAttempts = 0;
+        connectControl().catch(error => { document.querySelector("#connection").textContent = error.message; });
+      };
+      window.addEventListener("beforeunload", () => {
+        clearMemorySearch("頁面已關閉。");
+        pageClosing = true; controlDispose?.("頁面已關閉"); controlDispose = undefined; controlEpoch += 1;
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
+        if (typeof clearGoalTasks === "function") clearGoalTasks("頁面已關閉。", true);
+        submissionGeneration += 1; pendingSubmission?.abort();
+        clearTimeout(reconnectTimer); sessionAccess.dispose(); stopTts(); socket?.close();
+        foregroundControl.dispose();
+      });
+      function renderAffect(data) {
+        const emotions = data.mixed_emotions.map(item => `${item.name} ${item.intensity.toFixed(2)}`).join("、") || "neutral";
+        document.querySelector("#affect-summary").textContent =
+          `主要：${data.dominant}｜混合：${emotions}｜調節：${data.coping}｜原因：${data.reason}`;
+        const values = {...data.drives, "mood pleasure": (data.mood.pleasure + 1) / 2,
+          "mood arousal": data.mood.arousal, "mood dominance": (data.mood.dominance + 1) / 2,
+          "relationship trust": data.relationship.trust,
+          "relationship familiarity": data.relationship.familiarity,
+          "relationship attachment": data.relationship.attachment,
+          "relationship rupture": data.relationship.rupture};
+        const root = document.querySelector("#affect-grid"); root.textContent = "";
+        Object.entries(values).forEach(([name, value]) => {
+          const card = document.createElement("div"); card.className = "affect-card";
+          const label = document.createElement("div"); label.textContent = `${name}: ${value.toFixed(2)}`;
+          const meter = document.createElement("div"); meter.className = "meter";
+          const fill = document.createElement("span"); fill.style.width = `${Math.max(0, Math.min(1, value)) * 100}%`;
+          meter.appendChild(fill); card.append(label, meter); root.appendChild(card);
+        });
+      }
+      let skillCandidateAvailable = false, skillCandidateServiceBusy = false;
+      let skillCandidateBusy = false, skillCandidateUnknown = false, skillCandidateCancelling = false;
+      let skillCandidateEpoch = 0, skillCandidateReview;
+      function updateSkillCandidateControls() {
+        document.querySelector("#skill-candidate-prepare").disabled = !skillCandidateAvailable || skillCandidateServiceBusy || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling;
+        document.querySelector("#skill-candidate-cancel").disabled = skillCandidateCancelling || !(skillCandidateBusy || skillCandidateUnknown || skillCandidateServiceBusy);
+        document.querySelector("#skill-candidate-export").disabled = !skillCandidateReview || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling;
+      }
+      function renderSkillCandidateAvailability(runtime = {}) {
+        const state = runtime.skill_candidates;
+        skillCandidateAvailable = state?.available === true && state.authorizes_execution === false && runtime.runtime_profile !== "legacy" && runtime.kill_switches?.tools !== false;
+        skillCandidateServiceBusy = state?.busy === true;
+        if (!skillCandidateBusy && !skillCandidateUnknown && !skillCandidateCancelling && !skillCandidateReview) {
+          document.querySelector("#skill-candidate-status").textContent = skillCandidateServiceBusy
+            ? "已有技能正在準備，請等待或取消準備。"
+            : skillCandidateAvailable ? "可準備待審技能；尚未安裝或啟用。"
+            : "目前無法準備待審技能；請確認執行模式與電腦操作開關。";
+        }
+        updateSkillCandidateControls();
+      }
+      function acceptedSkillCandidateReview(data) {
+        if (!data || !["awaiting_review", "verification_failed"].includes(data.status) || data.enabled !== false || data.installed !== false || data.authorizes_execution !== false || data.approval_required !== true || data.trust_level !== "unreviewed" || data.source !== "siro_builtin_template:markdown-checklist-v1") return undefined;
+        if (!/^siro-skill-package-v1:[0-9a-f]{64}$/.test(data.package_hash || "") || !/^[0-9a-f]{64}$/.test(data.tests_sha256 || "")) return undefined;
+        const names = ["manifest.json", "input.json", "output.json", "plugin.py"];
+        if (!data.files || typeof data.files !== "object" || Object.keys(data.files).length !== names.length || names.some(name => typeof data.files[name] !== "string" || data.files[name].length > 65536)) return undefined;
+        const verification = data.verification;
+        if (!verification || typeof verification.status !== "string" || verification.workspace_removed !== true) return undefined;
+        const failures = ["failed_checks", "unsupported_sandbox", "unsupported_platform", "rejected_profile", "rejected_source", "rejected_policy_change", "rejected_invalid_diff", "rejected_unappliable", "binding_mismatch"];
+        if (data.status === "awaiting_review" ? verification.status !== "passed" : !failures.includes(verification.status)) return undefined;
+        const serialized = JSON.stringify(data);
+        if (serialized.length > 262144) return undefined;
+        return JSON.parse(serialized);
+      }
+      function renderSkillCandidateResult(data) {
+        const status = document.querySelector("#skill-candidate-status");
+        const details = document.querySelector("#skill-candidate-review"), files = document.querySelector("#skill-candidate-files");
+        skillCandidateReview = undefined; details.textContent = ""; files.textContent = "";
+        forgetSkillActivationReview();
+        const existing = {
+          existing_available: "已有相同能力，目前可用；沒有準備新技能。操作仍依原授權。",
+          existing_unavailable: "已有相同能力，目前尚未就緒；沒有另造技能繞過限制。",
+          existing_unknown: "已有相同能力，目前狀態未知；沒有準備新技能。",
+          unsupported_capability: "這個入口尚不支援所要求的能力；沒有準備新技能。"
+        };
+        if (existing[data?.status] && data.enabled === false && data.installed === false && data.authorizes_execution === false) {
+          status.textContent = existing[data.status]; return;
+        }
+        const review = acceptedSkillCandidateReview(data);
+        if (!review) { status.textContent = "無法確認審查資料或驗證狀態；尚未安裝或啟用。"; return; }
+        skillCandidateReview = review;
+        rememberSkillActivationReview(review);
+        status.textContent = review.status === "awaiting_review"
+          ? "待你審查；尚未安裝或啟用。"
+          : "驗證未通過；尚未安裝或啟用。可匯出紀錄供檢查。";
+        const record = {...review}; delete record.files;
+        details.textContent = "測試通過不等於人工審查或啟用批准；仍需獨立安全審查與明確批准。\n" + JSON.stringify(record, null, 2);
+        files.textContent = Object.entries(review.files).map(([name, text]) => `${name}\n${text}`).join("\n\n");
+      }
+      async function prepareSkillCandidate() {
+        if (!skillCandidateAvailable || skillCandidateServiceBusy || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling) return;
+        const epoch = ++skillCandidateEpoch;
+        skillCandidateBusy = true; skillCandidateReview = undefined;
+        forgetSkillActivationReview();
+        document.querySelector("#skill-candidate-review").textContent = "";
+        document.querySelector("#skill-candidate-files").textContent = "";
+        document.querySelector("#skill-candidate-status").textContent = "正在準備待審技能與隔離測試紀錄…";
+        updateSkillCandidateControls();
+        try {
+          const data = await productRequest("/v1/skills/candidates", {method: "POST", body: JSON.stringify({capability: "text.checklist.parse"})});
+          if (epoch !== skillCandidateEpoch) return;
+          renderSkillCandidateResult(data); skillCandidateBusy = false; skillCandidateServiceBusy = false;
+        } catch {
+          if (epoch !== skillCandidateEpoch) return;
+          skillCandidateUnknown = true;
+          document.querySelector("#skill-candidate-status").textContent = "準備結果未知；沒有自動重送。請按取消準備，確認停止後再試。";
+        } finally { updateSkillCandidateControls(); }
+      }
+      async function cancelSkillCandidate() {
+        if (skillCandidateCancelling || !(skillCandidateBusy || skillCandidateUnknown || skillCandidateServiceBusy)) return;
+        ++skillCandidateEpoch; skillCandidateCancelling = true; skillCandidateReview = undefined;
+        forgetSkillActivationReview();
+        document.querySelector("#skill-candidate-status").textContent = "正在取消準備，等待停止確認…";
+        updateSkillCandidateControls();
+        try {
+          const acknowledgement = await productRequest("/v1/skills/candidates/cancel", {method: "POST"});
+          if (typeof acknowledgement?.cancelled !== "boolean") throw new Error("取消回應無效");
+          skillCandidateBusy = false; skillCandidateUnknown = false; skillCandidateServiceBusy = false;
+          document.querySelector("#skill-candidate-review").textContent = "";
+          document.querySelector("#skill-candidate-files").textContent = "";
+          document.querySelector("#skill-candidate-status").textContent = "已取消準備；尚未安裝或啟用。";
+        } catch {
+          skillCandidateUnknown = true;
+          document.querySelector("#skill-candidate-status").textContent = "無法確認取消；準備可能仍在進行。沒有重送準備，可再次手動取消。";
+        } finally { skillCandidateCancelling = false; updateSkillCandidateControls(); }
+      }
+      document.querySelector("#skill-candidate-prepare").onclick = prepareSkillCandidate;
+      document.querySelector("#skill-candidate-cancel").onclick = cancelSkillCandidate;
+      document.querySelector("#skill-candidate-export").onclick = () => {
+        if (!skillCandidateReview || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling) return;
+        const accepted = acceptedSkillCandidateReview(skillCandidateReview);
+        if (!accepted) return;
+        const url = URL.createObjectURL(new Blob([JSON.stringify(accepted, null, 2)], {type: "application/json"}));
+        const link = document.createElement("a"); link.href = url; link.download = "siro-markdown-checklist-review.json";
+        link.click(); URL.revokeObjectURL(url);
+      };
+      let skillActivationState, skillActivationReview;
+      let skillActivationTools = false, skillActivationBusy = false, skillActivationUnknown = false;
+      let skillActivationEpoch = 0;
+      function acceptedSkillActivation(data) {
+        if (!data || ["available", "installed", "enabled", "busy"].some(key => typeof data[key] !== "boolean") || data.authorizes_execution !== false || data.profile !== "markdown-checklist-v1" || data.capability !== "text.checklist.parse") return undefined;
+        if (data.installed ? typeof data.package_hash !== "string" || !/^siro-skill-package-v1:[0-9a-f]{64}$/.test(data.package_hash) : data.package_hash !== null || data.enabled) return undefined;
+        if (data.enabled && !data.available) return undefined;
+        return {available:data.available, installed:data.installed, enabled:data.enabled, busy:data.busy, package_hash:data.package_hash, authorizes_execution:false, profile:"markdown-checklist-v1", capability:"text.checklist.parse"};
+      }
+      function updateSkillActivationControls() {
+        const state = skillActivationState;
+        const idle = state?.available === true && !state.busy && !skillActivationBusy && !skillActivationUnknown;
+        document.querySelector("#skill-activation-install").disabled = !(idle && skillActivationTools && !state.installed && skillActivationReview);
+        document.querySelector("#skill-activation-enable").disabled = !(idle && skillActivationTools && state.installed && !state.enabled);
+        document.querySelector("#skill-activation-revoke").disabled = !(idle && state.installed);
+        document.querySelector("#skill-activation-fill").disabled = !(idle && skillActivationTools && state.enabled);
+        document.querySelector("#skill-activation-refresh").disabled = skillActivationBusy;
+      }
+      function skillActivationDescription() {
+        const state = skillActivationState;
+        if (!state?.available) return "目前無法安裝或啟用技能；請確認執行模式與連線。";
+        if (state.busy) return "技能狀態正在更新，請等待確認。";
+        if (!skillActivationTools) return "電腦操作已暫停；技能不可使用，你仍可撤銷已安裝技能的啟用。";
+        if (state.enabled) return "待辦清單技能已啟用。可將範例填入對話，再由你送出；每次操作仍依授權。";
+        if (state.installed) return "待辦清單技能已安裝，目前停用；啟用需要你明確批准。";
+        return skillActivationReview ? "待你確認上方審查資料；安裝後保持停用。" : "尚未安裝；先準備並檢查上方技能內容與驗證紀錄。";
+      }
+      function renderSkillActivation(runtime = {}, confirmed = false) {
+        const state = runtime.runtime_profile === "candidate" ? acceptedSkillActivation(runtime.skill_activation) : undefined;
+        skillActivationTools = runtime.kill_switches?.tools === true;
+        if (!state?.available || !skillActivationTools) {
+          ++skillActivationEpoch; skillActivationBusy = false; skillActivationReview = undefined;
+        }
+        skillActivationState = state;
+        labelSkillCandidateHistory(state);
+        if (confirmed && state && !state.busy) skillActivationUnknown = false;
+        if (!skillActivationBusy && !skillActivationUnknown) document.querySelector("#skill-activation-status").textContent = skillActivationDescription();
+        updateSkillActivationControls();
+      }
+      function forgetSkillActivationReview() {
+        skillActivationReview = undefined; updateSkillActivationControls();
+      }
+      function labelSkillCandidateHistory(state) {
+        if (state?.installed === true && skillCandidateReview?.package_hash === state.package_hash) {
+          document.querySelector("#skill-candidate-status").textContent = "這是準備時的審查紀錄；目前已安裝。使用狀態見下方。";
+        }
+      }
+      function applySkillActivationTools(enabled) {
+        if (skillActivationState) {
+          renderSkillActivation({runtime_profile:"candidate",kill_switches:{tools:enabled},skill_activation:{...skillActivationState,enabled:enabled && skillActivationState.enabled,busy:enabled && skillActivationState.busy}});
+        } else {
+          skillActivationTools = enabled; updateSkillActivationControls();
+        }
+      }
+      function rememberSkillActivationReview(review) {
+        if (review.status === "awaiting_review" && review.verification.status === "passed" && typeof review.review_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(review.review_id)) {
+          skillActivationReview = {review_id:review.review_id,package_hash:review.package_hash};
+        }
+        if (!skillActivationBusy && !skillActivationUnknown) document.querySelector("#skill-activation-status").textContent = skillActivationDescription();
+        updateSkillActivationControls();
+      }
+      async function changeSkillActivation(action) {
+        updateSkillActivationControls();
+        if (document.querySelector(`#skill-activation-${action}`).disabled) return;
+        const request = action === "install" ? {...skillActivationReview} : {package_hash:skillActivationState.package_hash};
+        const epoch = ++skillActivationEpoch;
+        skillActivationBusy = true; skillActivationReview = undefined;
+        document.querySelector("#skill-activation-status").textContent = "正在更新技能，等待結果確認…";
+        updateSkillActivationControls();
+        try {
+          const data = await productRequest(`/v1/skills/activation/${action}`, {method:"POST",body:JSON.stringify(request)});
+          if (epoch !== skillActivationEpoch) return;
+          const state = acceptedSkillActivation(data);
+          if (!state || !state.available || !state.installed || state.busy || state.package_hash !== request.package_hash || state.enabled !== (action === "enable")) throw new Error("unconfirmed skill state");
+          skillActivationState = state;
+          labelSkillCandidateHistory(state);
+          document.querySelector("#skill-activation-status").textContent = skillActivationDescription();
+        } catch {
+          if (epoch !== skillActivationEpoch) return;
+          skillActivationUnknown = true;
+          document.querySelector("#skill-activation-status").textContent = "技能操作結果未知；沒有自動重送。請按確認技能狀態，再決定下一步。";
+        } finally {
+          if (epoch === skillActivationEpoch) skillActivationBusy = false;
+          updateSkillActivationControls();
+        }
+      }
+      document.querySelector("#skill-activation-install").onclick = () => changeSkillActivation("install");
+      document.querySelector("#skill-activation-enable").onclick = () => changeSkillActivation("enable");
+      document.querySelector("#skill-activation-revoke").onclick = () => changeSkillActivation("revoke");
+      document.querySelector("#skill-activation-refresh").onclick = async () => {
+        if (skillActivationBusy) return;
+        try { renderSkillActivation(await productRequest("/v1/runtime"), true); }
+        catch { document.querySelector("#skill-activation-status").textContent = "目前無法確認技能狀態；沒有重新執行先前操作。"; }
+      };
+      document.querySelector("#skill-activation-fill").onclick = () => {
+        updateSkillActivationControls();
+        if (document.querySelector("#skill-activation-fill").disabled) return;
+        const field = document.querySelector("#text");
+        field.value = "請用待辦清單技能整理這段文字，列出待辦與已完成項目：\n- [ ] 整理今天的筆記\n- [x] 喝一杯水";
+        if (navigationInitialized) navigateToPage("chat", false);
+        field.focus?.();
+      };
+      async function productRequest(url, options = {}) {
+        const response = await authorizedFetch(url, {...options, headers: headers()});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "操作未完成");
+        return data;
+      }
+      function goalTaskExactKeys(value, keys) {
+        return value && !Array.isArray(value) && typeof value === "object"
+          && Object.keys(value).sort().join("|") === keys.slice().sort().join("|");
+      }
+      function validGoalTaskPath(value) {
+        return typeof value === "string" && value.length > 0 && new TextEncoder().encode(value).length <= 512
+          && !/[\\\u0000-\u001f\u007f-\u009f]/u.test(value) && !value.startsWith("/")
+          && value.split("/").every(part => part && part !== "." && part !== "..");
+      }
+      function acceptedGoalTask(goal) {
+        const keys = ["goal_id", "state", "next_step", "revision", "steps_used", "max_steps", "deadline", "task"];
+        const states = ["proposed", "ready", "running", "waiting_external", "completed", "failed", "cancelled"];
+        const timestamp = value => typeof value === "string" && value.length <= 64
+          && /^\d{4}-\d{2}-\d{2}T/.test(value) && /(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+        if (!goalTaskExactKeys(goal, keys) || typeof goal.goal_id !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(goal.goal_id)
+          || !states.includes(goal.state) || !Number.isSafeInteger(goal.revision) || goal.revision < 1
+          || !Number.isSafeInteger(goal.steps_used) || goal.steps_used < 0 || goal.steps_used > 8
+          || goal.max_steps !== 8 || !timestamp(goal.deadline)
+          || !(goal.next_step === null || (typeof goal.next_step === "string" && goal.next_step.length <= 512))) return false;
+        const task = goal.task;
+        if (!goalTaskExactKeys(task, ["profile", "paths", "approved_at", "pause_reason", "intent_path", "observations"])
+          || task.profile !== goalTaskProfile || !Array.isArray(task.paths) || task.paths.length < 1 || task.paths.length > 5
+          || !task.paths.every(validGoalTaskPath) || new Set(task.paths).size !== task.paths.length
+          || !(goal.next_step === null || task.paths.includes(goal.next_step))
+          || !(task.approved_at === null || timestamp(task.approved_at))
+          || ![null, "foreground", "tools_disabled", "shutdown", "interrupted_restart", "paused"].includes(task.pause_reason)
+          || !(task.intent_path === null || task.paths.includes(task.intent_path))
+          || !Array.isArray(task.observations) || task.observations.length > task.paths.length) return false;
+        const observed = new Set();
+        for (const item of task.observations) {
+          if (!goalTaskExactKeys(item, ["path", "status", "sha256", "read_at", "matches", "truncated", "error"])
+            || !task.paths.includes(item.path) || observed.has(item.path) || !timestamp(item.read_at)
+            || !["completed", "failed"].includes(item.status) || typeof item.truncated !== "boolean"
+            || !Array.isArray(item.matches) || item.matches.length > 20
+            || !item.matches.every(match => goalTaskExactKeys(match, ["line", "text"])
+              && Number.isSafeInteger(match.line) && match.line > 0 && typeof match.text === "string"
+              && Array.from(match.text).length <= 256)) return false;
+          if (item.status === "completed" && (typeof item.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(item.sha256) || item.error !== null)) return false;
+          if (item.status === "failed" && (item.sha256 !== null || !["read_failed", "path_denied", "invalid_result", "timeout"].includes(item.error) || item.matches.length !== 0)) return false;
+          observed.add(item.path);
+        }
+        return true;
+      }
+      function acceptedGoalTaskList(data) {
+        if (!goalTaskExactKeys(data, ["available", "profile", "max_tasks", "active_goal_id", "goals"])
+          || typeof data.available !== "boolean" || data.profile !== goalTaskProfile || data.max_tasks !== 20
+          || !Array.isArray(data.goals) || data.goals.length > 20 || !data.goals.every(acceptedGoalTask)
+          || new Set(data.goals.map(goal => goal.goal_id)).size !== data.goals.length
+          || !(data.active_goal_id === null || data.goals.some(goal => goal.goal_id === data.active_goal_id))) return false;
+        return true;
+      }
+      function updateGoalTaskControls() {
+        const ready = !pageClosing && controlAuthenticated && !goalTaskBusy;
+        document.querySelector("#goal-task-refresh").disabled = !ready;
+        document.querySelector("#goal-task-create").disabled = !ready || !goalTaskAvailable || goalTaskNeedsReadback || goalTaskViews.length >= 20;
+        document.querySelector("#goal-task-paths").disabled = !ready;
+        for (const goal of goalTaskViews) {
+          for (const action of ["approve", "resume", "pause", "cancel", "remove"]) {
+            const button = document.getElementById(`goal-${goal.goal_id}-${action}`);
+            if (button) button.disabled = !ready || goalTaskNeedsReadback || (["approve", "resume"].includes(action) && !goalTaskAvailable);
+          }
+        }
+      }
+      let goalTaskHasSnapshot = false;
+      function clearGoalTasks(message = "狀態快照已清除；請重新查詢保存狀態。", requireReadback = goalTaskNeedsReadback) {
+        goalTaskEpoch += 1; goalTaskController?.abort(); goalTaskController = undefined;
+        clearTimeout(goalTaskTimeout); goalTaskTimeout = undefined;
+        clearTimeout(goalTaskPollTimer); goalTaskPollTimer = undefined;
+        goalTaskBusy = false; goalTaskViews = []; goalTaskNeedsReadback = requireReadback; goalTaskHasSnapshot = false;
+        document.querySelector("#goal-task-items").textContent = "";
+        document.querySelector("#goal-task-status").textContent = message;
+        renderGoalTasks();
+      }
+      function applyGoalTaskTools(enabled) {
+        goalTaskAvailable = enabled;
+        clearGoalTasks(enabled ? "電腦操作已開啟；請重新查詢任務，再明確繼續。" : "電腦操作已暫停；請重新查詢保存紀錄。", true);
+      }
+      function renderGoalTasks() {
+        const root = document.querySelector("#goal-task-items"); root.textContent = "";
+        const detail = selectedGoalTaskId !== null;
+        const compose = document.querySelector("#goal-task-compose"); compose.hidden = detail; compose.inert = detail;
+        document.querySelector("#goal-task-back").hidden = !detail;
+        const notice = document.querySelector("#goal-task-detail-status"); notice.hidden = !detail;
+        notice.textContent = !goalTaskHasSnapshot ? "請重新查詢保存狀態，再審查這項任務；沒有自動繼續或執行。"
+          : goalTaskViews.some(goal => goal.goal_id === selectedGoalTaskId) ? "此頁只顯示這項任務的保存快照；閱讀完成不表示待辦已執行。"
+          : "目前保存快照中沒有這項任務（每次最多 20 筆）。請重新查詢或返回清單；無法據此判斷是否已刪除。";
+        const labels = {proposed:"待批准（尚未執行）", ready:"已批准，等待讀取", running:"讀取中", waiting_external:"已暫停，等待你繼續", completed:"閱讀完成", failed:"任務未完成", cancelled:"已取消"};
+        const pauses = {foreground:"先回應你", tools_disabled:"電腦操作已暫停", shutdown:"服務停止", interrupted_restart:"重新啟動後沒有自動重讀", paused:"你已暫停"};
+        const errors = {read_failed:"讀取失敗", path_denied:"路徑不符合批准範圍", invalid_result:"無法確認讀取結果", timeout:"讀取逾時"};
+        for (const goal of goalTaskViews) {
+          if (detail && goal.goal_id !== selectedGoalTaskId) continue;
+          const card = document.createElement("div"); card.className = "proposal";
+          const title = document.createElement("strong"); title.textContent = `${labels[goal.state]} · 版本 ${goal.revision}`;
+          const scope = document.createElement("p"); scope.textContent = `唯讀範圍：${goal.task.paths.join("、")}。待辦尚未執行。`;
+          const budget = document.createElement("small"); budget.textContent = `保存任務 ${goal.goal_id} · 已使用 ${goal.steps_used}/${goal.max_steps} 次讀取 · 期限 ${goal.deadline}`;
+          card.append(title, scope, budget);
+          if (!detail) {
+            const link = document.createElement("a"); link.href = `#/tasks/${goal.goal_id}`;
+            link.textContent = "查看任務詳情"; card.appendChild(link);
+          }
+          const approval = document.createElement("p"); approval.textContent = goal.task.approved_at ? `批准時間：${goal.task.approved_at}` : "尚未批准；建立待審任務沒有開始讀取。"; card.appendChild(approval);
+          if (goal.task.pause_reason) { const reason = document.createElement("p"); reason.textContent = pauses[goal.task.pause_reason]; card.appendChild(reason); }
+          const details = document.createElement("pre"); details.style = "white-space:pre-wrap;overflow-wrap:anywhere";
+          const lines = [];
+          for (const path of goal.task.paths) {
+            const item = goal.task.observations.find(value => value.path === path);
+            if (!item) { lines.push(`${path}：${goal.task.intent_path === path ? "讀取結果未知（曾開始，尚無保存結果）" : "尚未讀取"}`); continue; }
+            if (item.status === "failed") { lines.push(`${path}：${errors[item.error]} · ${item.read_at}`); continue; }
+            lines.push(`${path}：已讀取 · ${item.read_at}`, `SHA256：${item.sha256}`);
+            for (const match of item.matches) lines.push(`第 ${match.line} 行：${match.text}`);
+            if (!item.matches.length) lines.push("這次讀取未找到未勾選待辦／TODO／FIXME。");
+            if (item.truncated) lines.push("清單有截短；不是完整待辦內容。");
+          }
+          details.textContent = lines.join("\n"); card.appendChild(details);
+          const actions = ["completed", "failed", "cancelled"].includes(goal.state) ? ["remove"]
+            : goal.state === "proposed" ? ["approve", "cancel"]
+            : goal.state === "waiting_external" ? ["resume", "cancel"] : ["pause", "cancel"];
+          const names = {approve:"批准這些檔案的唯讀任務", resume:"明確繼續保存任務", pause:"暫停任務", cancel:"取消任務", remove:"清除這項任務紀錄"};
+          const controls = document.createElement("div"); controls.className = "quick-actions";
+          for (const action of actions) {
+            const button = document.createElement("button"); button.type = "button";
+            button.id = `goal-${goal.goal_id}-${action}`; button.textContent = names[action];
+            button.onclick = () => changeGoalTask(action, goal.goal_id, goal.revision);
+            controls.appendChild(button);
+          }
+          card.appendChild(controls); root.appendChild(card);
+        }
+        updateGoalTaskControls();
+      }
+      document.querySelector("#goal-task-back").onclick = () => navigateToPage("tasks");
+      async function goalTaskRequest(url, options, epoch, connection, session) {
+        const current = () => !pageClosing && controlAuthenticated && epoch === goalTaskEpoch
+          && connection === controlEpoch && session === goalTaskSessionId && !options.signal.aborted;
+        let response;
+        if (options.method === "GET") response = await authorizedFetch(url, {...options, headers:headers()});
+        else {
+          const token = await sessionAccess.getToken();
+          if (!current()) throw new Error("retired task request");
+          const requestHeaders = new Headers(headers()); requestHeaders.set("Authorization", `Bearer ${token}`);
+          response = await fetch(url, {...options, headers:requestHeaders, redirect:"error"});
+        }
+        if (!current()) throw new Error("retired task request");
+        if (!response.ok || (response.url && new URL(response.url, location.origin).origin !== location.origin)) throw new Error("unconfirmed task request");
+        const data = await response.json();
+        if (!current() || new TextEncoder().encode(JSON.stringify(data)).length > 2 * 1024 * 1024) throw new Error("invalid task response");
+        return data;
+      }
+      function scheduleGoalTaskPoll() {
+        if (!goalTaskViews.some(goal => ["ready", "running"].includes(goal.state))) return;
+        if (goalTaskPolls >= 30) { document.querySelector("#goal-task-status").textContent = "自動查詢已達上限；請手動重新查詢保存狀態。沒有重送操作。"; return; }
+        const epoch = goalTaskEpoch, connection = controlEpoch, session = goalTaskSessionId;
+        goalTaskPollTimer = setTimeout(() => {
+          goalTaskPollTimer = undefined;
+          if (pageClosing || !controlAuthenticated || epoch !== goalTaskEpoch || connection !== controlEpoch || session !== goalTaskSessionId) return;
+          goalTaskPolls += 1; refreshGoalTasks(true);
+        }, 1000);
+      }
+      async function performGoalTaskRequest(method, suffix, body, accept) {
+        if (pageClosing || !controlAuthenticated || (method !== "GET" && (goalTaskBusy || goalTaskNeedsReadback))) return;
+        const previous = goalTaskViews.slice();
+        clearGoalTasks(method === "GET" ? "正在查詢保存狀態…" : "正在提交；連線中斷時請先重新查詢結果。", goalTaskNeedsReadback);
+        goalTaskBusy = true; updateGoalTaskControls();
+        const epoch = goalTaskEpoch, connection = controlEpoch, session = goalTaskSessionId, controller = new AbortController();
+        goalTaskController = controller;
+        const unknown = method === "GET" ? "目前無法確認任務，請手動重新查詢。" : "提交結果未確認；沒有自動重送。請先重新查詢保存狀態。";
+        const timeout = setTimeout(() => { if (epoch === goalTaskEpoch) clearGoalTasks(unknown, true); }, 5000);
+        goalTaskTimeout = timeout;
+        let valid = false;
+        try {
+          const data = await goalTaskRequest(`/v1/goal-tasks/${encodeURIComponent(session)}${suffix}`, {
+            method, cache:"no-store", signal:controller.signal, ...(body === undefined ? {} : {body:JSON.stringify(body)})
+          }, epoch, connection, session);
+          if (pageClosing || epoch !== goalTaskEpoch || connection !== controlEpoch || controller.signal.aborted) return;
+          if (!accept(data, previous)) throw new Error("invalid task view");
+          goalTaskNeedsReadback = false; goalTaskHasSnapshot = true; valid = true;
+          document.querySelector("#goal-task-status").textContent = goalTaskAvailable
+            ? `${new Date().toLocaleString()} 保存狀態快照；批准與繼續需要你明確按一次。`
+            : "已讀取保存紀錄；目前不能開工，可取消或清除已結束任務。";
+          renderGoalTasks();
+        } catch {
+          if (epoch === goalTaskEpoch && !pageClosing) clearGoalTasks(unknown, true);
+        } finally {
+          clearTimeout(timeout);
+          if (epoch === goalTaskEpoch) { goalTaskController = undefined; goalTaskTimeout = undefined; goalTaskBusy = false; updateGoalTaskControls(); }
+        }
+        if (valid && epoch === goalTaskEpoch) scheduleGoalTaskPoll();
+      }
+      async function refreshGoalTasks(poll = false) {
+        if (!poll) goalTaskPolls = 0;
+        await performGoalTaskRequest("GET", "", undefined, data => {
+          if (!acceptedGoalTaskList(data)) return false;
+          goalTaskViews = data.goals; goalTaskAvailable = data.available; return true;
+        });
+      }
+      async function changeGoalTask(action, goalId, revision) {
+        const old = goalTaskViews.find(goal => goal.goal_id === goalId && goal.revision === revision);
+        if (!old || goalTaskBusy || goalTaskNeedsReadback || !controlAuthenticated || pageClosing) return;
+        const allowed = ["completed", "failed", "cancelled"].includes(old.state) ? ["remove"]
+          : old.state === "proposed" ? ["approve", "cancel"]
+          : old.state === "waiting_external" ? ["resume", "cancel"] : ["pause", "cancel"];
+        if (!allowed.includes(action) || (["approve", "resume"].includes(action) && !goalTaskAvailable)) return;
+        goalTaskPolls = 0;
+        await performGoalTaskRequest(action === "remove" ? "DELETE" : "POST", `/${encodeURIComponent(goalId)}${action === "remove" ? "" : `/${action}`}`, {revision}, (data, previous) => {
+          if (action === "remove") {
+            if (!goalTaskExactKeys(data, ["removed"]) || data.removed !== true) return false;
+            goalTaskViews = previous.filter(goal => goal.goal_id !== goalId); return true;
+          }
+          if (!goalTaskExactKeys(data, ["goal"]) || !acceptedGoalTask(data.goal) || data.goal.goal_id !== goalId
+            || data.goal.revision < revision || (["approve", "resume"].includes(action) && data.goal.revision === revision)
+            || JSON.stringify(data.goal.task.paths) !== JSON.stringify(old.task.paths)
+            || (action !== "approve" && data.goal.task.approved_at !== old.task.approved_at)
+            || (action === "approve" && (data.goal.task.approved_at === null || data.goal.state === "proposed"))
+            || (action === "cancel" && !["completed", "failed", "cancelled"].includes(data.goal.state))
+            || (action === "pause" && !["waiting_external", "completed", "failed", "cancelled"].includes(data.goal.state))) return false;
+          goalTaskViews = previous.map(goal => goal.goal_id === goalId ? data.goal : goal); return true;
+        });
+      }
+      document.querySelector("#goal-task-refresh").onclick = () => refreshGoalTasks();
+      document.querySelector("#goal-task-create").onclick = async () => {
+        if (pageClosing || !controlAuthenticated || goalTaskBusy || goalTaskNeedsReadback || !goalTaskAvailable || goalTaskViews.length >= 20) return;
+        const paths = document.querySelector("#goal-task-paths").value.split(/\r?\n/);
+        if (paths.length < 1 || paths.length > 5 || !paths.every(path => validGoalTaskPath(path) && path === path.trim()) || new Set(paths).size !== paths.length) {
+          document.querySelector("#goal-task-status").textContent = "請填 1–5 個不同的工作目錄內相對路徑，每行一個；不要加入首尾空白、上層路徑或完整電腦路徑。"; return;
+        }
+        goalTaskPolls = 0;
+        await performGoalTaskRequest("POST", "", {paths}, (data, previous) => {
+          if (!goalTaskExactKeys(data, ["goal"]) || !acceptedGoalTask(data.goal) || data.goal.state !== "proposed"
+            || data.goal.task.approved_at !== null || data.goal.steps_used !== 0 || data.goal.task.intent_path !== null
+            || data.goal.task.observations.length !== 0 || JSON.stringify(data.goal.task.paths) !== JSON.stringify(paths)
+            || previous.some(goal => goal.goal_id === data.goal.goal_id) || previous.length >= 20) return false;
+          goalTaskViews = [data.goal, ...previous]; return true;
+        });
+      };
+      function clearImprovementProposal(message = "快照已清除；請重新查詢最新來源。") {
+        improvementEpoch += 1; improvementController?.abort(); improvementController = undefined;
+        clearTimeout(improvementTimeout); improvementTimeout = undefined;
+        document.querySelector("#improvement-proposal-review").textContent = "";
+        document.querySelector("#improvement-proposal-status").textContent = message;
+        document.querySelector("#improvement-proposal-refresh").disabled = pageClosing || !controlAuthenticated;
+      }
+      function acceptedImprovementProposal(data) {
+        const exactKeys = (value, keys) => value && !Array.isArray(value) && typeof value === "object"
+          && Object.keys(value).sort().join("|") === keys.slice().sort().join("|");
+        if (!exactKeys(data, ["status", "proposal"])) return undefined;
+        if (data.status === "no_supported_evidence" && data.proposal === null) return null;
+        if (data.status !== "awaiting_investigation") return undefined;
+        const p = data.proposal;
+        const texts = ["problem", "expected_behavior", "actual_behavior", "scope", "compatibility_requirements", "proposed_repair", "rollback_method", "risk"];
+        const lists = ["files_must_not_change", "tests_required", "regression_tests", "acceptance_criteria"];
+        if (!exactKeys(p, ["schema_version", "proposal_id", "source_task", "classification", "evidence", "root_cause", "files_expected_to_change", "patch", "approval_required", "authorizes_execution", ...texts, ...lists])) return undefined;
+        if (new TextEncoder().encode(JSON.stringify(data)).length > 8192) return undefined;
+        const e = p.evidence;
+        if (!exactKeys(e, ["source_run_id", "state", "error_class", "tool_dispatch_recorded", "root_cause"])) return undefined;
+        if (typeof e.source_run_id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(e.source_run_id)
+          || e.state !== "failed" || e.error_class !== "HTTPStatusError" || e.root_cause !== "UNKNOWN" || typeof e.tool_dispatch_recorded !== "boolean") return undefined;
+        if (p.schema_version !== 1 || p.source_task !== "RI-006" || p.classification !== "DEFER"
+          || p.proposal_id !== `RI-006:${e.source_run_id}:http-status-v1`
+          || p.root_cause !== "UNKNOWN — NEEDS INVESTIGATION" || p.patch !== null
+          || p.approval_required !== true || p.authorizes_execution !== false
+          || !Array.isArray(p.files_expected_to_change) || p.files_expected_to_change.length !== 0) return undefined;
+        const validText = value => typeof value === "string" && value.trim().length > 0 && value.length <= 4096;
+        if (!texts.every(key => validText(p[key])) || !lists.every(key => Array.isArray(p[key]) && p[key].length > 0 && p[key].length <= 8 && p[key].every(validText))) return undefined;
+        return p;
+      }
+      document.querySelector("#improvement-proposal-refresh").onclick = async () => {
+        if (pageClosing || !controlAuthenticated) return;
+        clearImprovementProposal("正在查詢最新來源…");
+        const epoch = improvementEpoch, controller = new AbortController();
+        improvementController = controller;
+        const timeout = setTimeout(() => {
+          if (epoch === improvementEpoch) clearImprovementProposal("查詢逾時，請稍後重新查詢。沒有執行修復。")
+        }, 5000);
+        improvementTimeout = timeout;
+        try {
+          const data = await productRequest("/v1/conversations/browser/improvement-proposal", {method:"GET", cache:"no-store", signal:controller.signal});
+          if (pageClosing || epoch !== improvementEpoch || controller.signal.aborted) return;
+          const p = acceptedImprovementProposal(data);
+          if (p === undefined) throw new Error("invalid investigation view");
+          const time = new Date().toLocaleString();
+          document.querySelector("#improvement-proposal-status").textContent = p === null
+            ? `${time} 查詢快照：目前沒有符合的近期來源；重新查詢可確認最新狀態。`
+            : `${time} 查詢快照：待調查，根因未知。來源可能變更，請重新查詢；這份建議沒有執行修復。`;
+          if (p) {
+            const labels = {problem:"問題", expected_behavior:"預期行為", actual_behavior:"已知狀態", scope:"最小調查範圍", proposed_repair:"下一步", compatibility_requirements:"相容要求", files_must_not_change:"保持原樣", tests_required:"需要驗證", regression_tests:"回歸驗證", acceptance_criteria:"驗收條件", rollback_method:"回退方式", risk:"風險與限制"};
+            const lines = [`來源：${p.evidence.source_run_id}`, "根因：未知，需調查。"];
+            for (const [key, label] of Object.entries(labels)) lines.push(`${label}：${Array.isArray(p[key]) ? p[key].join("\n") : p[key]}`);
+            document.querySelector("#improvement-proposal-review").textContent = lines.join("\n\n");
+          }
+        } catch {
+          if (epoch === improvementEpoch && !pageClosing) document.querySelector("#improvement-proposal-status").textContent = "目前無法確認改善建議，請稍後重新查詢。沒有執行修復。";
+        } finally {
+          clearTimeout(timeout);
+          if (epoch === improvementEpoch) { improvementController = undefined; improvementTimeout = undefined; }
+        }
+      };
+      function renderCapabilities(tools = []) {
+        const root = document.querySelector("#capability-items"); root.textContent = "";
+        const reasons = {tools_disabled:"你已暫停電腦操作", browser_executable_missing:"尚未找到可用的瀏覽器", workspace_unavailable:"工作目錄讀取服務尚未就緒", not_ready:"目前尚未就緒", availability_check_failed:"目前無法確認狀態"};
+        if (!tools.length) root.textContent = "目前沒有已註冊的電腦能力。";
+        for (const tool of tools) {
+          const card = document.createElement("div"); card.className = "proposal";
+          const title = document.createElement("strong"); title.textContent = tool.display_name || tool.name;
+          const status = document.createElement("p");
+          status.textContent = tool.availability === "available" ? "目前可用；操作時仍需檢查授權與目標。" : (reasons[tool.reason_code] || "此執行模式尚未提供即時狀態。");
+          const detail = document.createElement("small");
+          detail.textContent = (tool.risk_level === "observe/read-only" ? "讀取用途" : tool.risk_level === "computer" ? "可能改變電腦或網頁狀態" : "操作風險尚未宣告") + (tool.model_visible === false ? " · 相容入口，不會提供給模型選擇" : "");
+          card.append(title, status, detail); root.appendChild(card);
+        }
+      }
+      async function refreshCapabilities() {
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
+        try { renderCapabilities((await productRequest("/v1/runtime")).tools); }
+        catch { document.querySelector("#capability-items").textContent = "目前無法更新能力狀態，請稍後重試。"; }
+      }
+      document.querySelector("#capabilities-refresh").onclick = refreshCapabilities;
+      let memorySearchEpoch = 0, memorySearchController, memorySearchTimeout;
+      function clearMemorySearch(message = "連線已改變；請重新搜尋記憶。") {
+        memorySearchEpoch += 1; memorySearchController?.abort(); memorySearchController = undefined;
+        clearTimeout(memorySearchTimeout); memorySearchTimeout = undefined;
+        document.querySelector("#memory-items").textContent = "";
+        document.querySelector("#memory-search-status").textContent = message;
+      }
+      async function refreshMemories() {
+        const query = (document.querySelector("#memory-query").value || "").trim();
+        clearMemorySearch("正在查詢記憶…");
+        if (pageClosing) return;
+        if (query.length > 4096) {
+          document.querySelector("#memory-search-status").textContent = "搜尋內容太長，請縮短後重試。";
+          return;
+        }
+        const epoch = memorySearchEpoch, connection = controlEpoch;
+        const controller = new AbortController(); memorySearchController = controller;
+        const current = () => !pageClosing && epoch === memorySearchEpoch
+          && connection === controlEpoch && !controller.signal.aborted;
+        const timeout = setTimeout(() => {
+          if (current()) clearMemorySearch("查詢逾時，請重新搜尋記憶。");
+        }, 5000); memorySearchTimeout = timeout;
+        try {
+          const memories = await productRequest("/v1/memories?limit=100" + (query ? `&query=${encodeURIComponent(query)}` : ""), {signal:controller.signal});
+          if (!current()) return;
+          if (!Array.isArray(memories.items)) throw new Error("invalid memory results");
+          const root = document.querySelector("#memory-items"); root.textContent = "";
+          document.querySelector("#memory-search-status").textContent = memories.items.length
+            ? `顯示 ${memories.items.length} 筆${query ? "符合的" : ""}記憶（每次最多 100 筆）。`
+            : query ? "沒有符合的記憶。可以換個詞，或清除搜尋查看最近記憶。" : "還沒有記憶。可以先說：記住：我喜歡喝無糖茶。";
+          for (const memory of memories.items) {
+            const card = document.createElement("div"); card.className = "message";
+            const text = document.createElement("p"); text.textContent = memory.text;
+            const source = document.createElement("small"); source.textContent = `第 ${memory.revision} 版 · 來源 ${(memory.source_event_ids || []).join(", ")}`;
+            const correct = document.createElement("button"); correct.textContent = "更正";
+            correct.onclick = async () => {
+              const value = window.prompt("更正這筆記憶", memory.text);
+              if (!value || value === memory.text) return;
+              try { await productRequest(`/v1/memories/${memory.memory_id}/correct`, {method:"POST", body:JSON.stringify({text:value, reason:"owner correction from memory panel"})}); await refreshProduct(); }
+              catch (error) { document.querySelector("#organization-status").textContent = error.message; }
+            };
+            const remove = document.createElement("button"); remove.textContent = "刪除記憶";
+            remove.onclick = async () => {
+              if (!window.confirm("刪除這筆記憶及其已連結的衍生內容？原始對話與備份不會一併刪除。")) return;
+              try { await productRequest(`/v1/memories/${memory.memory_id}`, {method:"DELETE"}); await refreshProduct(); }
+              catch (error) { document.querySelector("#organization-status").textContent = error.message; }
+            };
+            card.append(text, source, correct, remove); root.appendChild(card);
+          }
+        } catch {
+          if (current()) clearMemorySearch("目前無法查詢記憶，請稍後重試。");
+        } finally {
+          clearTimeout(timeout);
+          if (epoch === memorySearchEpoch) { memorySearchController = undefined; memorySearchTimeout = undefined; }
+        }
+      }
+      document.querySelector("#memory-search-form").onsubmit = event => { event.preventDefault(); return refreshMemories(); };
+      document.querySelector("#memory-search-clear").onclick = () => { document.querySelector("#memory-query").value = ""; return refreshMemories(); };
+      async function refreshProduct() {
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
+        try {
+          const runtime = await productRequest("/v1/runtime");
+          renderCapabilities(runtime.tools);
+          renderSkillCandidateAvailability(runtime);
+          renderSkillActivation(runtime);
+          const features = runtime.features || {}, workspace = features.workspace || {};
+          const backend = runtime.routes?.model || "offline";
+          document.querySelector("#model-status").textContent = backend === "offline" ? "離線示範 · 固定規則回覆" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
+          document.querySelector("#workspace-status").textContent = workspace.available
+            ? `可讀取：${workspace.directory}` : `工作目錄尚未就緒${workspace.directory ? "：" + workspace.directory : "（此執行模式未啟用）"}`;
+          document.querySelector("#workspace-list").disabled = !workspace.available;
+          document.querySelector("#workspace-read").disabled = !workspace.available;
+          const summary = features.summary || {};
+          document.querySelector("#summary-status").textContent = summary.enabled
+            ? `已啟用摘錄摘要，可帶入最近 ${summary.history_pairs} 組對話；本次啟動已縮減 ${summary.budget_compactions} 次超限請求。`
+            : "目前使用原始近期對話，未啟用摘要。";
+          const report = await productRequest("/v1/memory-organization");
+          const labels = {ready:"已整理", waiting:"等待閒置", foreground:"先回應你", organizing:"整理中", disabled:"已暫停", unavailable:"此執行模式未啟用", error:"整理未完成，稍後重試", stopped:"已停止"};
+          document.querySelector("#organization-status").textContent = (labels[report.state] || report.state) + (report.updated_at ? ` · ${new Date(report.updated_at).toLocaleString()}` : "");
+          const groups = document.querySelector("#organization-items"); groups.textContent = "";
+          for (const group of report.groups || []) {
+            const item = document.createElement("p");
+            item.textContent = group.text + (group.truncated ? "…（摘錄）" : "") + (group.duplicates ? `（${group.duplicates + 1} 筆相同內容）` : "");
+            const source = document.createElement("small");
+            source.textContent = "來源：" + group.sources.map(s => `${s.memory_id} · 第 ${s.revision} 版`).join("；");
+            groups.append(item, source);
+          }
+          await refreshMemories();
+        } catch (error) { document.querySelector("#organization-status").textContent = error.message; }
+      }
+      async function setOrganization(enabled, refresh = false) {
+        try { await productRequest(`/v1/memory-organization?enabled=${enabled}&refresh=${refresh}`, {method:"POST"}); await refreshProduct(); if (refresh) setTimeout(refreshProduct, 1000); }
+        catch (error) { document.querySelector("#organization-status").textContent = error.message; }
+      }
+      document.querySelector("#organization-on").onclick = () => setOrganization(true);
+      document.querySelector("#organization-off").onclick = () => setOrganization(false);
+      document.querySelector("#organization-refresh").onclick = () => setOrganization(true, true);
+      document.querySelector("#product-refresh").onclick = refreshProduct;
+      async function readWorkspace(action, path) {
+        const output = document.querySelector("#workspace-result"); output.textContent = "讀取中…";
+        try {
+          const data = await productRequest(`/v1/workspace/${action}?path=${encodeURIComponent(path)}`, {method:"POST"});
+          output.textContent = typeof data.result?.text === "string" ? data.result.text : JSON.stringify(data.result, null, 2);
+        } catch (error) { output.textContent = error.message; }
+      }
+      document.querySelector("#workspace-list").onclick = () => readWorkspace("list", ".");
+      document.querySelector("#workspace-read").onclick = () => {
+        const path = document.querySelector("#workspace-file").value.trim();
+        if (path) readWorkspace("read", path);
+      };
+      function renderSnapshot(data) {
+        renderSkillCandidateAvailability(data.runtime || data);
+        renderSkillActivation(data.runtime || data);
+        if (data.active_turns) {
+          const active = data.active_turns.browser;
+          const nextTurn = active && ["responding", "awaiting_approval"].includes(active.state) ? active.turn_id : undefined;
+          if (currentTurn && currentTurn !== nextTurn && assistantBubble) {
+            const notice = document.createElement("p"); notice.className = "warn";
+            notice.textContent = "連線已恢復。先前工作已不在執行中，請確認保存的結果；我沒有重新執行或重播語音。";
+            assistantBubble.appendChild(notice); assistantBubble = undefined;
+          }
+          currentTurn = nextTurn;
+        }
+        authorizationMode = data.authorization_mode || "safe";
+        const authorizationDescription = authorizationMode === "full"
+          ? "完整權限模式：目前支援的一般使用者操作會自動授權；可到「權限與停止開關」關閉電腦與工具操作。"
+          : "安全模式：操作需要逐次授權。";
+        document.querySelector("#authorization-status").textContent = authorizationDescription;
+        document.querySelector("#permissions-authorization-status").textContent = authorizationDescription;
+        document.querySelector("#snapshot").textContent = JSON.stringify({identity: data.identity, health: data.health, routes: data.routes, authorization_mode: authorizationMode}, null, 2);
+        const root = document.querySelector("#switches"); root.textContent = "";
+        microphoneEnabled = Boolean(data.kill_switches.microphone);
+        if (!microphoneEnabled) document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop"));
+        updateMicrophoneControls();
+        const switchLabels = {cloud:"雲端功能", tools:"電腦與工具操作", microphone:"麥克風輸入"};
+        Object.entries(data.kill_switches).forEach(([name, enabled]) => {
+          const label = Object.hasOwn(switchLabels, name) ? switchLabels[name] : name;
+          const button = document.createElement("button"); button.textContent = `${label}：${enabled ? "已開啟" : "已關閉"}`;
+          button.title = `按一下${enabled ? "關閉" : "開啟"}${label}`;
+          button.onclick = async () => { await authorizedFetch(`/v1/kill-switches/${name}`, {method: "PUT", headers: headers(), body: JSON.stringify({enabled: !enabled})}); location.reload(); };
+          root.appendChild(button);
+        });
+      }
+      function appendMessage(role, text) {
+        document.querySelector(".empty-state")?.remove();
+        const item = document.createElement("div"); item.className = `message ${role}`;
+        item.textContent = text; document.querySelector("#messages").appendChild(item); return item;
+      }
+      function renderToolProposal(data) {
+        const root = document.querySelector("#tool-proposals");
+        document.querySelector("#computer-panel").open = true;
+        if (typeof notifyComputerActivity === "function") notifyComputerActivity();
+        if (document.getElementById(`tool-${data.proposal_id}`)) return;
+        const card = document.createElement("div"); card.className = "proposal"; card.id = `tool-${data.proposal_id}`;
+        const description = document.createElement("p");
+        const operation = data.capability === "process.start" ? "啟動應用程式" :
+          data.capability === "browser.navigate+read" ? "開啟並讀取頁面" : data.capability;
+        description.textContent = `操作：${operation}\n範圍：${data.scope}\n目標：${data.target}\n風險：${data.risk}`;
+        const button = document.createElement("button"); button.textContent = "授權這一次";
+        const unknownPriorOutcome = data.automatic_approval_blocked === "prior_outcome_unknown";
+        if (unknownPriorOutcome) button.textContent = "確認結果後，授權這一次";
+        button.onclick = async () => {
+          button.disabled = true;
+          try {
+            await connectControl();
+            const response = await authorizedFetch(`/v1/tool-proposals/${data.proposal_id}/approve`, {
+              method: "POST", headers: headers(), body: JSON.stringify({approved: true})
+            });
+            if (!response.ok) updateToolProposal(data.proposal_id, `授權結果未確認：${(await response.json()).detail}。沒有自動重送。`);
+          } catch (error) { updateToolProposal(data.proposal_id, "連線未完成，操作結果未確認。沒有自動重送，請先確認保存的結果。"); }
+        };
+        card.append(description);
+        if (authorizationMode !== "full" || unknownPriorOutcome) card.appendChild(button);
+        root.appendChild(card);
+        if (unknownPriorOutcome) updateToolProposal(data.proposal_id, "先前操作的結果未確認，重做可能造成重複。請先確認實際結果，再決定是否授權這一次。");
+        else if (authorizationMode === "full") updateToolProposal(data.proposal_id, "已自動授權，等待執行…");
+      }
+      function updateToolProposal(id, status) {
+        const card = document.querySelector(`#tool-${id}`); if (!card) return;
+        let node = card.querySelector(".tool-status");
+        if (!node) { node = document.createElement("p"); node.className = "tool-status"; card.appendChild(node); }
+        node.textContent = status;
+        if (typeof notifyComputerActivity === "function") notifyComputerActivity();
+      }
+      function renderToolResult(data) {
+        const reasons = {invalid_url: "網址格式不正確，請使用完整的 HTTP 或 HTTPS 網址。", main_origin_denied: "主頁不在這次授權的網站範圍。", redirect_denied: "網站轉往未授權的來源，已停止讀取。", subresource_denied: "部分跨站資源已阻擋，以下內容可能不完整。"};
+        if (data.error) {
+          const reason = data.error === "ScopeViolation" && Object.hasOwn(reasons, data.result?.reason) ? reasons[data.result.reason] : "";
+          updateToolProposal(data.proposal_id, `失敗：${data.error}${reason ? "\n" + reason : ""}`); return;
+        }
+        const result = data.result;
+        if (data.capability === "process.start") {
+          const detail = result.pid ? `PID ${result.pid}` : "桌面啟動器已確認";
+          const message = `${result.application} 已啟動（${detail}）`;
+          updateToolProposal(data.proposal_id, `完成：${message}`);
+          appendMessage("assistant", message); return;
+        }
+        if (["browser.navigate+read", "browser.read", "browser.fill", "browser.click"].includes(data.capability)) {
+          const partial = result.load_status === "partial";
+          const warning = result.reason === "subresource_denied" ? reasons.subresource_denied : "頁面僅部分載入，內容可能不完整。";
+          updateToolProposal(data.proposal_id, `${partial ? "已讀取主頁（部分載入）：" : "完成："}${result.title}\n${result.url}${partial ? "\n" + warning : ""}\n\n${result.text}`);
+          return;
+        }
+        if (data.capability === "computer.execute") {
+          const output = result.stdout || result.stderr || "程式已結束，沒有文字輸出。";
+          updateToolProposal(data.proposal_id, `${result.returncode === 0 ? "完成" : "程式結束"}（結束碼 ${result.returncode}）\n${output}${result.truncated ? "\n輸出過長，已截短。" : ""}`);
+          return;
+        }
+        updateToolProposal(data.proposal_id, `完成：${JSON.stringify(result, null, 2)}`);
+      }
+      async function submitText(value, inputMode = "text") {
+        if (foregroundControl.blocked()) return false;
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
+        if (typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
+        const submission = ++submissionGeneration;
+        pendingSubmission?.abort(); pendingSubmission = undefined;
+        stopTts(); speechCancelled = false;
+        try { await connectControl(); }
+        catch (error) { appendMessage("assistant", "連線尚未完成，這則訊息沒有送出。請按右上角重新連線。"); return false; }
+        if (pageClosing || submission !== submissionGeneration) return false;
+        const controller = new AbortController(); pendingSubmission = controller;
+        const dispatch = foregroundControl.begin(controller);
+        appendMessage("user", value);
+        try {
+          const response = await authorizedFetch("/v1/conversations/browser/turns", {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify({text: value, input_mode: inputMode}), onDispatch: () => foregroundControl.dispatch(dispatch), onRejected: () => { dispatch.dispatched = false; }});
+          if (response.ok) {
+            const accepted = await response.json();
+            foregroundControl.accepted(dispatch, accepted.turn_id);
+          }
+          if (!response.ok) appendMessage("assistant", response.status === 403 ? "對話目前被停用。請到能力開關確認雲端對話設定。" : `訊息結果未確認（${response.status}），沒有自動重送；請先確認工作結果。`);
+        } catch (error) { if (!controller.signal.aborted) appendMessage("assistant", "連線中斷，訊息結果未確認。我沒有自動重送，請先確認工作結果。"); }
+        finally { foregroundControl.settled(dispatch); if (pendingSubmission === controller) pendingSubmission = undefined; }
+        // The ordered control stream owns currentTurn, including completion before HTTP returns.
+        return true;
+      }
+      function createForegroundControl() {
+        let stopping = false, blocked = false, uncertain = false, observed = false, pending, turn, stream, deadline, stopEpoch = 0;
+        const cancelled = new Set(), retired = new Set(), requests = new Set();
+        const remember = (set, value) => {
+          if (typeof value !== "string") return;
+          set.add(value); if (set.size > 1024) set.delete(set.values().next().value);
+        };
+        const notice = text => {
+          if (pageClosing) return;
+          const node = document.querySelector("#service-notice"); node.hidden = false; node.textContent = text;
+        };
+        const confirm = () => {
+          if (stopping && !uncertain && observed && (!pending || pending.settled)) {
+            blocked = false; clearTimeout(deadline); deadline = undefined;
+            notice("已停止這次回覆，可以輸入下一則訊息。");
+          }
+        };
+        const unconfirmed = (epoch = stopEpoch) => {
+          if (epoch !== stopEpoch || !stopping || pageClosing) return;
+          uncertain = true; blocked = true;
+          notice("停止尚未確認，沒有重送操作；請先確認服務狀態。");
+        };
+        const cancelTurn = id => {
+          if (typeof id !== "string" || cancelled.has(id) || pageClosing) return;
+          remember(cancelled, id);
+          const epoch = stopEpoch;
+          const controller = new AbortController();
+          const timer = setTimeout(() => { controller.abort(); unconfirmed(epoch); }, 5000);
+          const owned = {controller, timer}; requests.add(owned);
+          (async () => {
+            try {
+              const response = await authorizedFetch(`/v1/turns/${encodeURIComponent(id)}/cancel`, {method:"POST", headers:headers(), body:JSON.stringify({reason:"user"}), signal:controller.signal});
+              if (!response.ok) throw new Error("cancel unavailable");
+              if (epoch !== stopEpoch || uncertain || pageClosing) return;
+              const check = await authorizedFetch("/v1/snapshot", {signal:controller.signal});
+              if (!check.ok) throw new Error("readback unavailable");
+              const snapshot = await check.json(), active = snapshot.active_turns?.browser;
+              if (epoch !== stopEpoch) return;
+              if (!active || active.turn_id !== id || !["responding","awaiting_approval"].includes(active.state)) { observed = true; confirm(); }
+            } catch (_) { unconfirmed(epoch); }
+            finally { clearTimeout(timer); requests.delete(owned); }
+          })();
+        };
+        return {
+          blocked: () => blocked,
+          begin(controller) {
+            stopEpoch++; clearTimeout(deadline);
+            for (const owned of requests) { clearTimeout(owned.timer); owned.controller.abort(); }
+            stopping = false; uncertain = false; observed = false;
+            pending = {controller, dispatched:false, settled:false}; return pending;
+          },
+          dispatch(record) {
+            if (stopping || record !== pending) throw new DOMException("已取消", "AbortError");
+            record.dispatched = true;
+          },
+          accepted(record, id) { record.id = id; if (stopping) cancelTurn(id); },
+          settled(record) {
+            record.settled = true;
+            if (stopping && record === pending) {
+              if (!record.dispatched && !turn) observed = true;
+              confirm();
+            }
+          },
+          stop() {
+            if (stopping) return;
+            stopping = true; blocked = true; uncertain = false; observed = false;
+            notice("正在停止回覆與語音…");
+            deadline = setTimeout(() => {
+              pending?.controller.abort();
+              for (const owned of requests) owned.controller.abort();
+              unconfirmed();
+            }, 5000);
+            if (pending && !pending.dispatched) pending.controller.abort();
+            if (turn || currentTurn) cancelTurn(turn || currentTurn);
+            else if (!pending || pending.settled) { observed = true; confirm(); }
+            remember(retired, stream); currentTurn = undefined; assistantBubble = undefined;
+          },
+          event(data) {
+            if (data.type === "turn_started") {
+              if (turn !== data.turn_id) remember(retired, stream);
+              turn = data.turn_id; stream = undefined;
+              if (stopping) { cancelTurn(turn); return false; }
+            }
+            if (data.type === "assistant_started") {
+              if (stopping) { stream = data.stream_id; remember(retired, data.stream_id); return false; }
+              stream = data.stream_id;
+            }
+            if (data.type === "assistant_terminal" && stopping) {
+              if (data.stream_id && retired.has(data.stream_id) && data.stream_id !== stream) return false;
+              observed = true; remember(retired, data.stream_id); currentTurn = undefined; assistantBubble = undefined; confirm(); return false;
+            }
+            if (typeof data.stream_id === "string" && retired.has(data.stream_id)) return false;
+            if (stopping && ["assistant_delta","assistant_retry_wait","affect_state"].includes(data.type)) return false;
+            if (data.type === "assistant_terminal") {
+              if (stream && data.stream_id && stream !== data.stream_id) return false;
+              remember(retired, stream); turn = undefined; stream = undefined;
+            }
+            return true;
+          },
+          dispose() {
+            clearTimeout(deadline); pending?.controller.abort();
+            for (const owned of requests) { clearTimeout(owned.timer); owned.controller.abort(); }
+            requests.clear();
+          }
+        };
+      }
+      const foregroundControl = createForegroundControl();
+      function formatAssistantMessage(message) {
+        const source = message.textContent || "", doc = message.ownerDocument;
+        if (!doc) return source;
+        message.replaceChildren();
+        function inline(parent, text) {
+          const tokens = /\*\*([^\n]+?)\*\*|(?<!`)`([^`\n]+)`(?!`)/g;
+          let start = 0;
+          for (const match of text.matchAll(tokens)) {
+            parent.appendChild(doc.createTextNode(text.slice(start, match.index)));
+            const node = doc.createElement(match[1] === undefined ? "code" : "strong");
+            node.textContent = match[1] ?? match[2]; parent.appendChild(node);
+            start = match.index + match[0].length;
+          }
+          parent.appendChild(doc.createTextNode(text.slice(start)));
+        }
+        const fences = /^```[^\n]*\n([\s\S]*?)^```[ \t]*(?:\n|$)/gm;
+        let start = 0;
+        for (const match of source.matchAll(fences)) {
+          inline(message, source.slice(start, match.index));
+          const block = doc.createElement("pre"), code = doc.createElement("code");
+          code.textContent = match[1]; block.appendChild(code); message.appendChild(block);
+          start = match.index + match[0].length;
+        }
+        inline(message, source.slice(start));
+        return message.textContent;
+      }
+      function clearRetryNotice() {
+        const notice = document.querySelector("#service-notice");
+        if (!notice?.dataset?.retryWait) return;
+        delete notice.dataset.retryWait;
+        notice.hidden = true;
+      }
+      function stopTts() {
+        const active = Boolean(ttsController || ttsAudio);
+        ttsGeneration++;
+        ttsController?.abort(); ttsController = undefined;
+        if (ttsAudio) {
+          ttsAudio.onplay = null; ttsAudio.onended = null; ttsAudio.onerror = null;
+          ttsAudio.pause(); URL.revokeObjectURL(ttsAudio.src);
+          ttsAudio.removeAttribute?.("src"); ttsAudio.load?.(); ttsAudio = undefined;
+        }
+        const status = document.querySelector("#tts-status");
+        status.textContent = active ? "朗讀已停止" : "TTS 待命"; status.className = "warn";
+      }
+      async function playTts(text, prosody) {
+        stopTts();
+        if (document.body?.classList?.contains("siro-control") || document.querySelector("#voice-output")?.checked === false) return;
+        const generation = ttsGeneration;
+        const controller = new AbortController(); ttsController = controller;
+        const current = () => generation === ttsGeneration && !controller.signal.aborted;
+        const status = document.querySelector("#tts-status"); status.textContent = "準備全文朗讀…";
+        const started = performance.now();
+        let played = 0, total = 0, deadlineReached = false;
+        let timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, 1200000);
+        const aborted = () => new DOMException("朗讀已停止", "AbortError");
+        const assertCurrent = () => { if (!current()) throw aborted(); };
+        const waitFor = promise => new Promise((resolve, reject) => {
+          const cancel = () => reject(aborted());
+          controller.signal.addEventListener("abort", cancel, {once: true});
+          Promise.resolve(promise).then(resolve, reject).finally(() => controller.signal.removeEventListener("abort", cancel));
+          if (!current()) cancel();
+        });
+        const request = async (url, body) => {
+          assertCurrent();
+          const response = await waitFor(authorizedFetch(url, {method: "POST", headers: headers(), signal: controller.signal, body: JSON.stringify(body)}));
+          assertCurrent();
+          if (!response.ok) throw new Error((await waitFor(response.json())).detail || `HTTP ${response.status}`);
+          return response;
+        };
+        const loadSegment = async segment => {
+          try {
+            const response = await request("/v1/audio/speech", {text: segment, ...prosody});
+            const blob = await waitFor(response.blob()); assertCurrent();
+            return {blob};
+          } catch (error) { return {error}; } // A prefetched rejection always has an owner.
+        };
+        const playSegment = async blob => {
+          assertCurrent();
+          const url = URL.createObjectURL(blob);
+          let audio;
+          try { audio = new Audio(url); } catch (error) { URL.revokeObjectURL(url); throw error; }
+          ttsAudio = audio;
+          let cancel;
+          try {
+            await new Promise((resolve, reject) => {
+              cancel = () => reject(aborted());
+              controller.signal.addEventListener("abort", cancel, {once: true});
+              audio.onplay = () => {
+                if (current()) { status.textContent = `SIRO 正在說話（已播 ${played}/${total} 段）`; status.className = "ok"; }
+              };
+              audio.onended = () => { if (current()) resolve(); else reject(aborted()); };
+              audio.onerror = () => reject(new Error("音訊播放失敗"));
+              try {
+                Promise.resolve(audio.play()).then(() => { if (!current()) audio.pause(); }, reject);
+              } catch (error) { reject(error); }
+            });
+            assertCurrent();
+          } finally {
+            controller.signal.removeEventListener("abort", cancel);
+            audio.onplay = null; audio.onended = null; audio.onerror = null; audio.pause();
+            if (ttsAudio === audio) {
+              URL.revokeObjectURL(audio.src); audio.removeAttribute?.("src"); audio.load?.(); ttsAudio = undefined;
+            }
+          }
+        };
+        try {
+          const response = await request("/v1/audio/speech/plan", {text});
+          const plan = await waitFor(response.json()); assertCurrent();
+          if (!Array.isArray(plan.segments) || !plan.segments.length || plan.segments.length > 128 ||
+              plan.max_chars !== 80 || plan.max_segments !== 128 || plan.max_total_chars !== 8000 ||
+              typeof plan.version !== "string" || !plan.version || typeof plan.spoken_text !== "string" ||
+              !plan.spoken_text.trim() || Array.from(plan.spoken_text).length > 8000 ||
+              plan.segments.some(segment => typeof segment !== "string" || !segment.trim() || Array.from(segment).length > 80) ||
+              plan.segments.reduce((sum, segment) => sum + Array.from(segment).length, 0) > 8000 ||
+              plan.segments.join("") !== plan.spoken_text ||
+              !Number.isFinite(plan.deadline_seconds) || plan.deadline_seconds <= 0 || plan.deadline_seconds > 1200)
+            throw new Error("朗讀計畫超出上限或內容無效，沒有截短播放");
+          total = plan.segments.length;
+          clearTimeout(timer);
+          const remaining = plan.deadline_seconds * 1000 - (performance.now() - started);
+          if (remaining <= 0) { deadlineReached = true; controller.abort(); throw aborted(); }
+          timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, remaining);
+          let next = loadSegment(plan.segments[0]);
+          for (let index = 0; index < total; index++) {
+            status.textContent = `語音準備中（已播 ${played}/${total} 段）`; status.className = "warn";
+            const result = await next; assertCurrent();
+            if (result.error) throw result.error;
+            const playback = playSegment(result.blob);
+            next = index + 1 < total ? loadSegment(plan.segments[index + 1]) : undefined;
+            await playback; assertCurrent();
+            played++;
+          }
+          status.textContent = `全文朗讀完成（${played}/${total} 段）`; status.className = "ok";
+        } catch (error) {
+          if (generation === ttsGeneration && (deadlineReached || !controller.signal.aborted)) {
+            status.textContent = deadlineReached ? `已達朗讀時限（已播 ${played}/${total} 段），全文未完成。`
+              : `朗讀失敗（已播 ${played}/${total} 段）：${error.message}。全文未完成。`;
+            status.className = "warn";
+          }
+        } finally {
+          clearTimeout(timer); controller.abort();
+          if (ttsController === controller) ttsController = undefined;
+        }
+      }
+      function wavFromBuffer(buffer) {
+        const samples = buffer.getChannelData(0).subarray(0, Math.floor(buffer.sampleRate * 30)), data = new ArrayBuffer(44 + samples.length * 2);
+        const view = new DataView(data), write = (offset, text) => [...text].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+        write(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); write(8, "WAVE"); write(12, "fmt ");
+        view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+        view.setUint32(24, buffer.sampleRate, true); view.setUint32(28, buffer.sampleRate * 2, true);
+        view.setUint16(32, 2, true); view.setUint16(34, 16, true); write(36, "data"); view.setUint32(40, samples.length * 2, true);
+        samples.forEach((sample, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sample)) * (sample < 0 ? 32768 : 32767), true));
+        return new Blob([data], {type: "audio/wav"});
+      }
+      let microphoneEpoch = 0, microphoneCapture, transcriptionController, permissionPending = false;
+      function updateMicrophoneControls() {
+        const toggle = document.querySelector("#microphone-toggle");
+        toggle.textContent = microphoneEnabled ? "麥克風：開" : "麥克風：關";
+        toggle.setAttribute?.("aria-pressed", String(microphoneEnabled));
+        document.querySelector("#voice-status").textContent = microphoneEnabled ? "麥克風待命，按「開始說話」錄音" : "麥克風已關閉";
+      }
+      function cancelRecording() {
+        microphoneEpoch++; permissionPending = false;
+        transcriptionController?.abort(); transcriptionController = undefined;
+        if (microphoneCapture) {
+          const capture = microphoneCapture; microphoneCapture = undefined;
+          clearTimeout(capture.timer);
+          capture.recorder.onstop = null; capture.recorder.ondataavailable = null;
+          if (capture.recorder.state === "recording") capture.recorder.stop();
+          capture.stream.getTracks().forEach(track => track.stop());
+        }
+        recorder = undefined;
+        const button = document.querySelector("#voice");
+        button.disabled = false; button.textContent = "開始說話";
+        document.querySelector("#voice-status").textContent = "錄音與辨識已停止";
+      }
+      async function transcribeRecording(chunks, epoch) {
+        const current = () => epoch === microphoneEpoch && !pageClosing && microphoneEnabled;
+        if (!current()) return;
+        const controller = new AbortController(); transcriptionController = controller;
+        const deadline = setTimeout(() => controller.abort(), 45000);
+        const status = document.querySelector("#voice-status"); status.textContent = "辨識中…";
+        let context;
+        try {
+          const encoded = await new Blob(chunks).arrayBuffer();
+          context = new AudioContext();
+          const decoded = await context.decodeAudioData(encoded);
+          if (!current() || controller.signal.aborted) return;
+          const response = await authorizedFetch("/v1/audio/transcriptions?language=zh", {method: "POST", headers: {"Content-Type": "audio/wav"}, signal: controller.signal, body: wavFromBuffer(decoded)});
+          if (!current() || controller.signal.aborted) return;
+          if (!response.ok) throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+          const result = await response.json();
+          if (!current() || controller.signal.aborted) return;
+          if (!result.text) throw new Error("沒有辨識到語音");
+          document.querySelector("#text").value = result.text;
+          status.textContent = `辨識：${result.text}`; status.className = "ok";
+          await submitText(result.text, "speech");
+        } finally {
+          clearTimeout(deadline); await context?.close();
+          if (transcriptionController === controller) transcriptionController = undefined;
+        }
+      }
+      document.querySelector("#chat").onsubmit = async event => {
+        event.preventDefault(); const input = document.querySelector("#text");
+        const value = input.value; input.value = "";
+        if (await submitText(value) === false && !input.value) input.value = value;
+      };
+      document.querySelector("#voice").onclick = async () => {
+        const button = document.querySelector("#voice"), status = document.querySelector("#voice-status");
+        if (!microphoneEnabled) { status.textContent = "請先按「麥克風：關」開啟，再開始說話"; return; }
+        if (navigationInitialized) navigateToPage("chat", false);
+        if (recorder?.state === "recording") { recorder.stop(); button.textContent = "開始說話"; return; }
+        if (permissionPending) return;
+        cancelRecording(); const epoch = microphoneEpoch;
+        permissionPending = true; button.disabled = true; status.textContent = "正在請求麥克風權限…";
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, channelCount: 1}});
+          if (epoch !== microphoneEpoch || pageClosing || !microphoneEnabled) { stream.getTracks().forEach(track => track.stop()); return; }
+          const chunks = [];
+          try {
+            const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"].find(type => MediaRecorder.isTypeSupported?.(type));
+            recorder = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream);
+          } catch (error) { stream.getTracks().forEach(track => track.stop()); throw error; }
+          const capture = {recorder, stream, timer: undefined}; microphoneCapture = capture;
+          recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+          recorder.onstop = async () => {
+            clearTimeout(capture.timer); stream.getTracks().forEach(track => track.stop());
+            if (microphoneCapture === capture) microphoneCapture = undefined;
+            button.textContent = "開始說話";
+            try { await transcribeRecording(chunks, epoch); }
+            catch (error) { if (epoch === microphoneEpoch && !pageClosing) { status.textContent = `語音失敗：${error.message}`; status.className = "warn"; } }
+          };
+          recorder.start();
+          capture.timer = setTimeout(() => { if (capture.recorder.state === "recording") capture.recorder.stop(); }, 30000);
+          button.textContent = "停止並送出"; status.textContent = "正在聆聽（最長30秒）…"; status.className = "ok";
+        } catch (error) {
+          if (epoch === microphoneEpoch) { cancelRecording(); status.textContent = `無法使用麥克風：${error.message}`; status.className = "warn"; }
+        } finally {
+          if (epoch === microphoneEpoch) { permissionPending = false; button.disabled = false; }
+        }
+      };
+      document.querySelector("#voice").addEventListener("siro:microphone-stop", cancelRecording);
+      window.addEventListener("pagehide", cancelRecording, {once: true});
+      document.querySelector("#microphone-toggle").onclick = async () => {
+        const toggle = document.querySelector("#microphone-toggle"), enabled = !microphoneEnabled;
+        if (!enabled) cancelRecording();
+        toggle.disabled = true;
+        try {
+          const response = await authorizedFetch("/v1/kill-switches/microphone", {method: "PUT", headers: headers(), body: JSON.stringify({enabled})});
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          microphoneEnabled = enabled; updateMicrophoneControls();
+        } catch (error) { document.querySelector("#voice-status").textContent = `麥克風開關未確認：${error.message}`; }
+        finally { toggle.disabled = false; }
+      };
+      document.querySelector("#cancel").onclick = async () => { clearRetryNotice(); submissionGeneration += 1; document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop")); speechCancelled = true; stopTts(); foregroundControl.stop(); };
+      document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };
+      document.querySelector("#replay-speech").onclick = async () => {
+        if (!lastSpeech || pageClosing) return;
+        document.querySelector("#voice-output").checked = true;
+        speechCancelled = false;
+        await playTts(lastSpeech.text, lastSpeech.prosody);
+      };
+      if (document.body?.classList?.contains("siro-control")) {
+        document.querySelector("#voice-output").checked = false;
+        document.querySelector("#voice-output").disabled = true;
+      }
+      window.addEventListener("message", event => {
+        if (event.origin !== location.origin || event.source !== document.querySelector("#companion").contentWindow) return;
+        if (event.data?.type === "siro.renderer.detached") {
+          stopTts();
+          document.querySelector("#companion").hidden = true;
+          document.querySelector("#renderer-status").textContent = "角色已交給獨立桌寵視窗；此頁保留控制功能";
+          document.querySelector("#voice-output").checked = false;
+          return;
+        }
+        if (event.data?.type !== "siro.renderer.ready") return;
+        const labels = {neutral:"平靜地陪著你", happy:"開心", sad:"有點難過", angry:"認真表達不滿", surprised:"好奇、留意著"};
+        document.querySelector("#companion-state").textContent = labels[event.data.emotion] || "陪著你";
+        document.querySelector("#renderer-status").textContent = "Live2D 已就緒 · 情緒與對話同步";
+      });
+      document.querySelectorAll(".computer-prompt").forEach(button => button.onclick = () => { if (navigationInitialized) navigateToPage("chat", false); document.querySelector("#text").value = button.dataset.prompt; document.querySelector("#text").focus(); document.querySelector("#chat").scrollIntoView({behavior:"smooth",block:"center"}); });
+      let chatInputComposing = false;
+      const chatInput = document.querySelector("#text");
+      chatInput.addEventListener("compositionstart", () => { chatInputComposing = true; });
+      chatInput.addEventListener("compositionend", () => { chatInputComposing = false; });
+      chatInput.addEventListener("blur", () => { chatInputComposing = false; });
+      chatInput.addEventListener("keydown", event => {
+        // Some WebKit/Chromium IMEs omit isComposing while committing a candidate.
+        const isImeEvent = chatInputComposing || event.isComposing || event.keyCode === 229 || event.which === 229;
+        if (event.key === "Enter" && !event.shiftKey && !isImeEvent) { event.preventDefault(); document.querySelector("#chat").requestSubmit(); }
+      });
+      boot().catch(() => { document.querySelector("#connection").textContent = "連線未完成"; const notice = document.querySelector("#service-notice"); notice.hidden = false; notice.textContent = "目前無法連接 SIRO。請確認服務已啟動，再按重新連線；已送出的工作不會自動重送。"; });
+    </script>
+  </body>
+</html>

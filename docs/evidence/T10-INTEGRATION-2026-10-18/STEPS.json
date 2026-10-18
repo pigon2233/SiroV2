@@ -1,0 +1,91 @@
+[
+ {
+  "step": "real_live2d_renderer_and_single_body_owner",
+  "result": "PASS",
+  "at_utc": "2026-10-18T05:25:25.142590+00:00",
+  "renderer_status": "Live2D 已就緒 · 情緒與對話同步",
+  "canvas_present": true,
+  "renderer_png_bytes": 136114,
+  "sockets": [
+   "ws://127.0.0.1:57555/ws/control",
+   "ws://127.0.0.1:57555/ws/body"
+  ],
+  "renderer_loads": 1
+ },
+ {
+  "step": "navigation_has_no_resend_socket_renderer_restart_or_audio",
+  "result": "PASS",
+  "at_utc": "2026-10-18T05:25:26.182786+00:00",
+  "before": [
+   0,
+   2,
+   1
+  ],
+  "after": [
+   0,
+   2,
+   1
+  ],
+  "renderer_still_ready": true
+ },
+ {
+  "step": "flow1_chat_task_result_chat",
+  "result": "PASS",
+  "at_utc": "2026-10-18T05:25:27.993178+00:00",
+  "goal_state": "completed",
+  "runtime_reads": 1,
+  "sources_visible": [
+   "第 2 行",
+   "第 4 行"
+  ],
+  "chat_history_kept": true
+ },
+ {
+  "step": "flow2_memory_search_correct_delete",
+  "result": "PASS",
+  "at_utc": "2026-10-18T05:25:28.616570+00:00",
+  "first_card_has_source": true,
+  "corrected_revision": 2,
+  "remaining_after_delete": 0
+ },
+ {
+  "step": "flow3_settings_stop_tools",
+  "result": "PASS",
+  "at_utc": "2026-10-18T05:25:30.592690+00:00",
+  "puts": [
+   "PUT http://127.0.0.1:57555/v1/kill-switches/tools",
+   "PUT http://127.0.0.1:57555/v1/kill-switches/tools"
+  ],
+  "create_disabled_while_stopped": true,
+  "server_tasks_unavailable_while_stopped": true,
+  "server_tasks_available_after_restore": true,
+  "runtime_reads": 1
+ },
+ {
+  "step": "cancel_stops_reply_without_late_output",
+  "result": "PASS",
+  "at_utc": "2026-10-18T05:25:35.799740+00:00",
+  "model_calls_for_turn": 1
+ },
+ {
+  "step": "disconnect_visible_reconnect_without_resend",
+  "result": "PASS",
+  "at_utc": "2026-10-18T05:25:40.889252+00:00",
+  "turn_posts": 4,
+  "model_calls_during_reconnect": 0
+ },
+ {
+  "step": "restart_keeps_state_without_replay",
+  "result": "PASS",
+  "at_utc": "2026-10-18T05:25:42.393533+00:00",
+  "runtime_reads_after_restart": 0,
+  "memories": 0,
+  "renderer_status": "Live2D 已就緒 · 情緒與對話同步"
+ },
+ {
+  "step": "no_page_errors",
+  "result": "PASS",
+  "at_utc": "2026-10-18T05:25:42.394244+00:00",
+  "errors": []
+ }
+]

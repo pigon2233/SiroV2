@@ -1,5 +1,49 @@
 # Regression baseline
 
+## 2026-10-18 — T10-UI-01-INTEGRATION baseline
+
+新test_frontend_accessibility.py（真Chrome：九頁＋detail文字／輸入框外框／placeholder對比；1280與320整圈Tab可見焦點、不在隱藏頁、不被完全遮、iframe不在Tab順序）2 PASS；test_frontend_state_feedback.py（開關處理中／確認後reload／失敗不reload且單次PUT；記憶更正刪除錯誤顯示於記憶頁且單次請求；取消對話框不送出；重啟後只換被拒token）8 PASS。修改前8 FAIL、2例守原行為。相關frontend／gateway／main／goal／memory-search 525 PASS、desktop 69 PASS，無新skip／xfail。
+
+真main整合[acceptance.py](../evidence/T10-INTEGRATION-2026-10-18/acceptance.py)需本機Chrome、target/debug/siro-runtime與授權本機Live2D（gitignored models/）；不在pytest內執行。9/9 PASS。[證據](../evidence/T10-INTEGRATION-2026-10-18/REPORT.md)。
+
+## 2026-10-18 — T10-UI-01-REFLOW baseline
+
+新test_frontend_reflow.py兩例：真Chrome六viewport（320／375／414／768／640×400／960×540）×九頁＋detail，預設內容與production renderer合成長資料皆無可見元素超出視窗（排除可捲動容器內）、page／detail heading正確、導航零/v1/ request。原版stress FAIL，最終2 PASS。相關frontend/gateway/main/goal 514 PASS（含2）、desktop 69 PASS，無新skip／xfail。需要本機google-chrome或chromium。[證據](../evidence/T10-REFLOW-2026-10-18/REPORT.md)。
+
+## 2026-10-18 — T10-UI-01-KEYBOARD baseline
+
+新test_frontend_keyboard_skip.py三例：九工作頁skip focus、preventDefault且零hash/history/request/socket/timer改變、draft保持；detail UUID及已顯示card物件保持；missing heading回main。原版3 FAIL，最終3 PASS。相關frontend/gateway/main/goal suite512 PASS（含3）、desktop69 PASS，沒有新skip／xfail。
+
+真CUA tasks與detail Tab/Return：首焦點skip且可見，Enter focus tasks-heading，URL不變；四AX／三JPEG與backend read0、無相關mutation／speech log，receipt一致。[證據](../evidence/T10-KEYBOARD-2026-10-18/REPORT.md)。scoped lint／type／syntax及source-only rollback PASS；完整可及性／真人WSLg／voice／Live2D／硬體／部署rollback及full scripts/check未驗。
+
+
+## 2026-10-18 — T10-UI-01-SETTINGS baseline
+
+本切片僅文字／snapshot投影，不改後端或設定格式。原frontend navigation／control／speech／IME／goal、gateway／main與goal API/loop最終509 PASS；Python3.12 navigation/control/gateway64 PASS（重疊）。保持三個原key、PUT、enabled反轉、session與reload；中文label不能改wire或授權。
+
+真CUA3步AX/JPEG：permissions顯示三個中文開關／title與mode；tools按一次後後端false、其餘flags不變；computer同一mode說明。backend僅一筆PUT /v1/kill-switches/tools（200），原mode full保持、Rust讀取0。receipt與browser-steps一致；合成renderer不代證真Live2D／語音。
+
+Ruff／format／JS syntax／明確Python3.12 no-incremental mypy287 PASS；local缺套件診斷另存。source-only新切片單步與串接DETAIL回退／重套PASS，正式部署rollback NOT VERIFIED。低影響用語重用既有測試，不造逐字鏡像測試。[完整證據](../evidence/T10-SETTINGS-WORDING-2026-10-18/REPORT.md)。
+
+
+## 2026-10-18 — T10-UI-01-DETAIL evidence repair baseline
+
+範圍只限#/tasks/<UUID>單任務詳情，不代表T10-UI-01整體完成。無production code改動；本輪修正browser receipt與rollback方向／baseline封裝。
+
+| Regression case | 固定驗證／本輪結果 |
+|---|---|
+| selected UUID／no cross-task controls／plain source | test_frontend_task_detail.py實際page script與body階層，其他任務不可見；PASS |
+| direct／reload／back／forward／missing snapshot | 同檔synthetic導航＋[8步真CUA AX/JPEG](../evidence/T10-TASK-DETAIL-2026-10-18/browser-reverify/steps.json)；PASS。reload不自執行；缺ID不視為刪除 |
+| expired control／unknown／revision／session | 原test_frontend_goal_tasks.py；disconnect／foreground／token／timeout／hash-bound controls；PASS |
+| pending GET換選擇 | 新detail專項；零額外request與錯任務控制；PASS |
+| 真main／SQLite／Rust caller | 隔離合成notes.md，所有導航後read=0，明確批准一次後read=1；PASS。不冒充真Live2D／provider |
+| source-only rollback | 本checkout rollback.patch正常forward --check PASS；有baseline commit／dirty before／after與SHA256SUMS的package，temp reverse/reapply PASS；drift／tamper拒絕且零checkout寫入 |
+
+本輪命令：`pytest -q tests/integration/test_frontend_task_detail.py tests/integration/test_frontend_goal_tasks.py tests/integration/test_frontend_navigation.py`：**107 PASS／7.24s／0 skip／0 xfail**。原480／150為上一輪結果，未全套重跑，不與107相加。本輪rollback verifier Ruff／format／mypy與限定secret scan另見報告。
+
+[報告](../evidence/T10-TASK-DETAIL-2026-10-18/REPORT.md)／[一致receipt](../evidence/T10-TASK-DETAIL-2026-10-18/product-receipt.json)／[可重現回退](../evidence/T10-TASK-DETAIL-2026-10-18/rollback/README.md)。真active child動態cancel、正式部署rollback、真人WSLg／聲線／GPU／Live2D及soak仍 **NOT VERIFIED**。
+
+
 ## 2026-10-15 — D57/D58 final local baseline VERIFIED
 
 完整clean public fetchedGit `scripts/check` **EXIT0 /578.090s**：**1,994PASS /5原opt-inSKIP /7既有warnings /259.88s**（collected1,999）；Rust13/fmt/build/clippy、Ruff328、mypy261、schema、原scanner/strictgate全部實際完成。15source/testhash保持，134原Python與13SQL不變，唯一journalfixture固定13slot/name、其餘原assert保留；495observedownedprocess全gone、rootsremoved。

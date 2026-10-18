@@ -1,5 +1,15 @@
 # SIRO 介面重設計與角色存在形式
 
+2026-10-18現況補充：D74／T10-UI-01-INTEGRATION自動可驗範圍LOCAL_VERIFIED：對比、鍵盤／焦點、錯誤／等待／取消、三條日常流程、真Live2D換頁不重載與重啟重連，真main整合9/9。[證據](../evidence/T10-INTEGRATION-2026-10-18/REPORT.md)。真人／讀屏／WSLg／真聲音／跨機待[手動驗收](../evidence/T10-INTEGRATION-2026-10-18/MANUAL_TEST_GUIDE.md)，整體PARTIAL。
+
+2026-10-18現況補充：D73／T10-UI-01-REFLOW水平reflow限定切片LOCAL_VERIFIED；320／375／414／768與200%等效寬度九頁＋detail無溢出，修權限頁長開關按鈕被裁。[證據](../evidence/T10-REFLOW-2026-10-18/REPORT.md)。對比／讀屏／真人／平台gate保持。
+
+2026-10-18現況補充：D72／T10-UI-01-KEYBOARD的鍵盤bypass限定切片LOCAL_VERIFIED；第一Tab入口與目前heading focus、detail路由保持已以production JS與真CUA驗證。[證據](../evidence/T10-KEYBOARD-2026-10-18/REPORT.md)。原全可及性／真人／平台gate保持，沒有把本link替代整體驗收。
+
+2026-10-18現況補充：D71／T10-UI-01-SETTINGS設定與權限用語已LOCAL_VERIFIED，沿原三開關／授權模式只補中文與目前模式投影；[驗收](../evidence/T10-SETTINGS-WORDING-2026-10-18/REPORT.md)。D69搜尋與D70詳情保持。完整可及性／真人流程與平台／素材門檻仍未完，T10整體PARTIAL；不把下文歷史「設定用語未完」當作本切片現況。
+
+2026-10-18現況補充：D69記憶搜尋與D70／T10-UI-01-DETAIL單UUID詳情已LOCAL_VERIFIED；詳情使用#/tasks/<UUID>與目前session bounded snapshot，reload需明確readback，不自動執行。[詳情驗收](../evidence/T10-TASK-DETAIL-2026-10-18/REPORT.md)。下文10-15「尚未實作詳情／搜尋」保留為規劃歷史，現況以此補充及STATUS為準；整體介面／平台／真人gate仍PARTIAL。
+
 日期：2026-10-15（Asia/Taipei）。任務：**T10-UI-01 — PARTIAL**。首個網頁分頁／視覺切片已 LOCAL_VERIFIED：333前端PASS、真產品三次啟動與24 CUA檢查，[完整結果與限制](../evidence/T10-UI-01-2026-10-15/REPORT.md)。下文保留需求與後續驗收目標；真Live2D切頁、桌面宿主、素材製作及完整真人驗收仍未完成。原 T／RT 編號與已驗證切片保持。
 
 ## 需求與現況
