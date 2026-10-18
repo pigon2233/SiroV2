@@ -50,3 +50,11 @@ V01 mouth pin 問題也沒有由本輪修復。完整 80 葉件與全身 rig 仍
 
 下一步：完整下眼皮與五官葉件輸出、衣物／四肢關節補圖；Editor 主機仍待確認。
 依 owner 指示直接推分支，不建立 PR、不合併 main、不改使用中角色。回退撤本輪素材 commit。
+
+
+## 最終 SVG 檢查修補
+
+逐檔 unique-ID 檢查發現眉毛圖層與 clipPath 同名，當次交付命令未因檢查失敗停止而已產生提交。
+後續追加修補將 clipPath 與引用改為 brow_crop_L／R，圖層保留 brow_L／R，六個 SVG 均已重驗 ID 唯一。
+重新渲染五姿態與總覽，六張 PNG 與修補前逐像素相同；見 namespace-fix-readback.json。
+原始失敗保留為已修補紀錄，不列為第一次就通過。
