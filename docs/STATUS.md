@@ -6,6 +6,21 @@
 
 # SIRO 2 目前進度與接續點
 
+## 2026-10-18 — T10-UI-01 真人驗收後修正，整卡PARTIAL待重測
+
+使用者真人驗收（測試分支`62064cf`）為PARTIAL。依建議順序處理：
+- **取消後工具卡停在「執行中…」**：已重現並修正。run非完成結束時，前端依stream把卡片改成「已停止」或「未完成、請確認」。
+- **刷新後出現舊「等待完成」**：隔離main三種情境都無法重現，取消後程序在1.5秒內終止。
+- **200%縮放時技能／設定按不到**：960×470重現，原因是sticky側邊欄不能捲動，已改為可捲動。
+- **雲端模型說沒有記憶**：local-only記憶依設計不送雲端，但NO_SOURCE提示與雲端說明衝突。改為照實說明看不到，隱私邊界不變。
+- **上一輪漏掉的3個回歸**：只搬移程式位置，已修正。
+
+注意：8000服務自10/17未重啟，實測時是新前端配舊後端，需重啟後依[手動指南第二輪](evidence/T10-INTEGRATION-2026-10-18/MANUAL_TEST_GUIDE.md)重測。
+
+命令與結果：前端相關＋桌寵485 PASS；記憶12 PASS；全套2410 PASS／5 SKIP／1 flaky（browser_sessions TTL，單獨3/3 PASS）；真main整合9/9；Ruff／mypy／node --check／diff check／detect-secrets PASS。[REPORT](evidence/T10-OWNER-FIXES-2026-10-18/REPORT.md)。
+
+限制：舊輸出在舊後端上的根因未定；Firefox與真Groq未自動驗；full scripts/check與部署rollback未跑；未commit／未push、未重啟使用中服務。下一步：重啟服務後人工重測第二輪與其餘人工項目。
+
 ## 2026-10-18 — T10-UI-01 整體整合：自動可驗項目完成，整卡PARTIAL待人工
 
 使用者要求整張T10做完，本輪連續處理REFLOW之後的對比、鍵盤／焦點、錯誤／等待／取消、三條日常流程與真Live2D整合。實測修正9項，皆只在static/index.html：輸入框外框對比、真renderer上不可讀的標語、iframe佔Tab、焦點被sticky工具列遮、停止開關失敗被吞且照樣reload、記憶更正／刪除錯誤寫在看不到的收合區、**main重啟後已開頁面約5分鐘無法重連（控制WS沿用舊token）**、記憶搜尋表單間距。

@@ -291,6 +291,9 @@ def test_actual_main_local_memory_not_disclosed_to_cloud(
         )
         assert "source automatically" in model.requests[-1].prompt
         assert "This cloud model cannot" in model.requests[-1].prompt
+        # Owner report 2026-10-18: the memory slot itself must not read as "nothing saved".
+        assert "NO_SOURCE (cloud route)" in model.requests[-1].prompt
+        assert "Never say nothing is saved" in model.requests[-1].prompt
         assert "Runtime dialogue continuity" in model.requests[-1].prompt
         assert "synthetic private tulip" not in model.requests[-1].prompt
         assert "synthetic private tulip" not in " ".join(

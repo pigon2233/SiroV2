@@ -131,3 +131,32 @@ def test_every_page_reflows_at_narrow_and_200_percent_widths() -> None:
 
 def test_long_synthetic_content_from_production_renderers_stays_inside_viewport() -> None:
     assert_reflows(measure(stress=True))
+
+
+# Owner report 2026-10-18: at 200% zoom the sticky sidebar cut off the skills/settings links.
+SHORT_VIEWPORTS = [(1280, 600), (1100, 500), (960, 470), (960, 400), (901, 420), (640, 400)]
+NAV_REACH = """() => [...document.querySelectorAll('.primary-nav a')].flatMap(a => {
+  a.scrollIntoView({block: 'nearest'}); const r = a.getBoundingClientRect();
+  const x = r.left + r.width / 2, y = r.top + r.height / 2, hit = document.elementFromPoint(x, y);
+  const side = document.querySelector('.sidebar');
+  const wide = side.scrollWidth > side.clientWidth + 1 ? ['sidebar-horizontal-scroll'] : [];
+  return (hit && a.contains(hit) && y >= 0 && y <= innerHeight ? [] : [a.dataset.nav]).concat(wide);
+})"""
+
+
+def test_every_navigation_link_is_reachable_on_short_zoomed_viewports() -> None:
+    executable = shutil.which("google-chrome") or shutil.which("chromium")
+    assert executable, "reflow check needs a local Chrome/Chromium"
+    failures: dict[str, list[str]] = {}
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(executable_path=executable, headless=True)
+        try:
+            for width, height in SHORT_VIEWPORTS:
+                page = browser.new_page(viewport={"width": width, "height": height})
+                page.goto(INDEX.as_uri() + "#/chat")
+                if missing := sorted(set(page.evaluate(NAV_REACH))):
+                    failures[f"{width}x{height}"] = missing
+                page.close()
+        finally:
+            browser.close()
+    assert failures == {}, json.dumps(failures)

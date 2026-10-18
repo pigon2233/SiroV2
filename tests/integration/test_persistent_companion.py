@@ -96,6 +96,8 @@ async def test_adapter_swap_keeps_identity_and_unknown_has_no_fake_source(
     assert after is not None and after.identity_id == before.identity_id
     assert "不知道" in result.text
     assert "NO_SOURCE" in assemble_prompt(after, "missing", ())
+    assert "do not claim the owner has saved nothing" in assemble_prompt(after, "missing", ())
+    assert "cloud" not in assemble_prompt(after, "missing", ()).split("Verified memories:")[1]
 
 
 def test_working_memory_is_session_scoped_and_bounded() -> None:

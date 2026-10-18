@@ -124,3 +124,35 @@ assert.equal(controlAuthenticated, true);
 assert.equal(targetCalls().length, 0);
 """
     )
+
+
+def test_uncompleted_run_settles_only_its_own_running_tool_cards() -> None:
+    run_control(
+        r"""
+const owner = await readyControl();
+const tool = (id, stream) => ({proposal_id:id, stream_id:stream, session_id:'browser',
+  call_id:`call-${id}`, capability:'computer.execute', arguments:{argv:['sleep', '20']},
+  risk:'computer', scope:'model-selected tool call', target:'synthetic'});
+const status = id =>
+  document.querySelector(`#tool-${id}`).querySelector('.tool-status').textContent;
+for (const [id, stream] of [['a', 's1'], ['b', 's2'], ['c', 's1']]) {
+  owner.message({type:'tool_proposal', status:'approved', ...tool(id, stream)});
+  owner.message({type:'tool_started', status:'running', ...tool(id, stream)});
+}
+owner.message({type:'tool_result', status:'completed', result:{returncode:0, stdout:'', stderr:''},
+  error:null, ...tool('c', 's1')});
+const finished = status('c');
+owner.message({type:'assistant_terminal', session_id:'browser', stream_id:'s1',
+  state:'cancelled', error:'user'});
+assert(status('a').startsWith('已停止'));
+assert(status('a').includes('不會自動重送'));
+assert.equal(status('b'), '執行中…');
+assert.equal(status('c'), finished);
+owner.message({type:'assistant_terminal', session_id:'browser', stream_id:'s2',
+  state:'failed', error:'ExecutionCleanupError'});
+assert(status('b').startsWith('未完成'));
+assert(status('b').includes('ExecutionCleanupError'));
+assert(status('b').includes('請先確認實際狀態'));
+assert.equal(targetCalls().length, 0);
+"""
+    )

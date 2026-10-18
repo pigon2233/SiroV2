@@ -52,6 +52,7 @@ class CompanionCore:
                 memories,
                 self._working.recent(session_id) if recent_messages is None else (),
                 verified_context,
+                cloud_route=memory_route_privacy is EventPrivacy.CLOUD_ALLOWED,
             )
             self._working.append(session_id, "user", user_text)
             if message_history is not None:

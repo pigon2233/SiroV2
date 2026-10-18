@@ -36,7 +36,7 @@
       input, textarea { color:var(--text); border:1px solid var(--field-line); background:var(--surface); border-radius:10px; padding:12px; max-width:100%; }
       textarea { width:100%; resize:vertical; min-height:88px; }
       .app-shell { display:grid; grid-template-columns:204px minmax(0,1fr); min-height:100dvh; }
-      .sidebar { position:sticky; top:0; height:100dvh; display:flex; flex-direction:column; padding:30px 18px 20px; background:var(--surface); border-right:1px solid var(--line); }
+      .sidebar { position:sticky; top:0; height:100dvh; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; padding:30px 18px 20px; background:var(--surface); border-right:1px solid var(--line); }
       .brand { display:flex; align-items:center; gap:12px; font-size:27px; font-weight:750; letter-spacing:3px; text-decoration:none; color:var(--text); padding:0 12px; }
       .brand-mark { width:23px; height:30px; border-radius:50% 50% 40% 40%; background:var(--pink); display:inline-block; transform:rotate(-12deg); }
       .sidebar-note { margin:10px 12px 30px; font-size:12px; }
@@ -366,11 +366,6 @@
         if (moveFocus) heading.focus();
         return page;
       }
-      document.querySelector("#skip-to-content").onclick = event => {
-        event.preventDefault();
-        const pane = Array.from(document.querySelectorAll("[data-page]")).find(item => !item.hidden);
-        (pane?.querySelector("[data-page-heading]") || document.querySelector("#main-content")).focus();
-      };
       function navigateToPage(name, moveFocus = true) {
         const page = Object.hasOwn(pageTitles, name) ? name : "chat";
         const hash = `#/${page}`;
@@ -380,6 +375,11 @@
       function initializePageNavigation() {
         if (navigationInitialized) return;
         navigationInitialized = true;
+        document.querySelector("#skip-to-content").onclick = event => {
+          event.preventDefault();
+          const pane = Array.from(document.querySelectorAll("[data-page]")).find(item => !item.hidden);
+          (pane?.querySelector("[data-page-heading]") || document.querySelector("#main-content")).focus();
+        };
         for (const link of document.querySelectorAll("[data-nav]")) {
           link.onclick = event => {
             if (event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -442,6 +442,7 @@
           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
           const data = JSON.parse(event.data);
           if (!acceptRunEvent(data)) return;
+          if (data.type === "assistant_terminal" && data.state !== "completed") settleRunningTools(data);
           if (!foregroundControl.event(data)) return;
           if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();
           if (["turn_started", "assistant_started"].includes(data.type) && typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
@@ -497,8 +498,8 @@
             assistantBubble = undefined; currentTurn = undefined;
           }
           if (data.type === "tool_proposal") renderToolProposal(data);
-          if (data.type === "tool_started") updateToolProposal(data.proposal_id, "執行中…");
-          if (data.type === "tool_result") renderToolResult(data);
+          if (data.type === "tool_started") { runningTools.set(data.proposal_id, data.stream_id); updateToolProposal(data.proposal_id, "執行中…"); }
+          if (data.type === "tool_result") { runningTools.delete(data.proposal_id); renderToolResult(data); }
           document.querySelector("#connection").textContent = "已連線";
           document.querySelector("#connection").className = "connection-pill ok";
         };
@@ -1060,26 +1061,6 @@
           if (epoch === improvementEpoch) { improvementController = undefined; improvementTimeout = undefined; }
         }
       };
-      function renderCapabilities(tools = []) {
-        const root = document.querySelector("#capability-items"); root.textContent = "";
-        const reasons = {tools_disabled:"你已暫停電腦操作", browser_executable_missing:"尚未找到可用的瀏覽器", workspace_unavailable:"工作目錄讀取服務尚未就緒", not_ready:"目前尚未就緒", availability_check_failed:"目前無法確認狀態"};
-        if (!tools.length) root.textContent = "目前沒有已註冊的電腦能力。";
-        for (const tool of tools) {
-          const card = document.createElement("div"); card.className = "proposal";
-          const title = document.createElement("strong"); title.textContent = tool.display_name || tool.name;
-          const status = document.createElement("p");
-          status.textContent = tool.availability === "available" ? "目前可用；操作時仍需檢查授權與目標。" : (reasons[tool.reason_code] || "此執行模式尚未提供即時狀態。");
-          const detail = document.createElement("small");
-          detail.textContent = (tool.risk_level === "observe/read-only" ? "讀取用途" : tool.risk_level === "computer" ? "可能改變電腦或網頁狀態" : "操作風險尚未宣告") + (tool.model_visible === false ? " · 相容入口，不會提供給模型選擇" : "");
-          card.append(title, status, detail); root.appendChild(card);
-        }
-      }
-      async function refreshCapabilities() {
-        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
-        try { renderCapabilities((await productRequest("/v1/runtime")).tools); }
-        catch { document.querySelector("#capability-items").textContent = "目前無法更新能力狀態，請稍後重試。"; }
-      }
-      document.querySelector("#capabilities-refresh").onclick = refreshCapabilities;
       let memorySearchEpoch = 0, memorySearchController, memorySearchTimeout;
       function clearMemorySearch(message = "連線已改變；請重新搜尋記憶。") {
         memorySearchEpoch += 1; memorySearchController?.abort(); memorySearchController = undefined;
@@ -1142,6 +1123,26 @@
       }
       document.querySelector("#memory-search-form").onsubmit = event => { event.preventDefault(); return refreshMemories(); };
       document.querySelector("#memory-search-clear").onclick = () => { document.querySelector("#memory-query").value = ""; return refreshMemories(); };
+      function renderCapabilities(tools = []) {
+        const root = document.querySelector("#capability-items"); root.textContent = "";
+        const reasons = {tools_disabled:"你已暫停電腦操作", browser_executable_missing:"尚未找到可用的瀏覽器", workspace_unavailable:"工作目錄讀取服務尚未就緒", not_ready:"目前尚未就緒", availability_check_failed:"目前無法確認狀態"};
+        if (!tools.length) root.textContent = "目前沒有已註冊的電腦能力。";
+        for (const tool of tools) {
+          const card = document.createElement("div"); card.className = "proposal";
+          const title = document.createElement("strong"); title.textContent = tool.display_name || tool.name;
+          const status = document.createElement("p");
+          status.textContent = tool.availability === "available" ? "目前可用；操作時仍需檢查授權與目標。" : (reasons[tool.reason_code] || "此執行模式尚未提供即時狀態。");
+          const detail = document.createElement("small");
+          detail.textContent = (tool.risk_level === "observe/read-only" ? "讀取用途" : tool.risk_level === "computer" ? "可能改變電腦或網頁狀態" : "操作風險尚未宣告") + (tool.model_visible === false ? " · 相容入口，不會提供給模型選擇" : "");
+          card.append(title, status, detail); root.appendChild(card);
+        }
+      }
+      async function refreshCapabilities() {
+        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
+        try { renderCapabilities((await productRequest("/v1/runtime")).tools); }
+        catch { document.querySelector("#capability-items").textContent = "目前無法更新能力狀態，請稍後重試。"; }
+      }
+      document.querySelector("#capabilities-refresh").onclick = refreshCapabilities;
       async function refreshProduct() {
         if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         try {
@@ -1276,6 +1277,17 @@
         root.appendChild(card);
         if (unknownPriorOutcome) updateToolProposal(data.proposal_id, "先前操作的結果未確認，重做可能造成重複。請先確認實際結果，再決定是否授權這一次。");
         else if (authorizationMode === "full") updateToolProposal(data.proposal_id, "已自動授權，等待執行…");
+      }
+      // A run that ends without completing sends no later tool_result; its cards must not stay "running".
+      const runningTools = new Map();
+      function settleRunningTools(data) {
+        for (const [id, stream] of runningTools) {
+          if (typeof data.stream_id === "string" && stream !== data.stream_id) continue;
+          runningTools.delete(id);
+          updateToolProposal(id, data.state === "cancelled"
+            ? "已停止：這次工作已取消，這個操作沒有完成，也不會自動重送。"
+            : `未完成：沒有收到這個操作的結果${data.error ? `（${data.error}）` : ""}，不會自動重送；請先確認實際狀態。`);
+        }
       }
       function updateToolProposal(id, status) {
         const card = document.querySelector(`#tool-${id}`); if (!card) return;

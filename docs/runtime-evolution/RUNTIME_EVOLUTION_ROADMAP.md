@@ -2,13 +2,24 @@
 
 ## T10-UI-01 — 整體介面整合（2026-10-18）
 
-- Status：PARTIAL（2026-10-18更新）；可自動驗證項目全部LOCAL_VERIFIED（見下方REFLOW與INTEGRATION），剩真人三輪15分鐘／讀屏／WSLg實機／真聲音與模型／跨機，需依[手動驗收指南](../evidence/T10-INTEGRATION-2026-10-18/MANUAL_TEST_GUIDE.md)完成後才可DONE。使用者明確要求整張T10完成，不再逐微切片停下。
+- Status：PARTIAL（2026-10-18更新）；真人驗收（測試分支`62064cf`）發現的取消卡片／200%導覽／雲端記憶回答已修，待重啟服務後人工重測（見OWNER-FIXES）；可自動驗證項目全部LOCAL_VERIFIED（見下方REFLOW與INTEGRATION），剩真人三輪15分鐘／讀屏／WSLg實機／真聲音與模型／跨機，需依[手動驗收指南](../evidence/T10-INTEGRATION-2026-10-18/MANUAL_TEST_GUIDE.md)完成後才可DONE。使用者明確要求整張T10完成，不再逐微切片停下。
 - Scope：整合原T10 Gateway／UI／single writer與T10-UI-01九頁／detail／memory／permissions，補窄窗／200% reflow、對比、鍵盤、錯誤／等待／取消狀態與三條日常流程；真現有Live2D切頁／重繪／唯一owner納入軟體整合。T12新素材／完整自由活動不是T10功能，不在本卡重做。
 - Dependencies：現有T09／T10／D57／D69–72皆已有功能及局部證據；本輪以整體矩陣驗收，不以舊PASS自動宣稱新整合PASS。
 - MUST NOT CHANGE：Core／DB／wire／API／授權與配置格式、provider／voice路由、使用中部署／另一台電腦；只對實證UI缺口做局部修復。
 - Acceptance：九頁與detail可達；320／375／414／768及200%等效reflow不遮必要控制；文字／功能對比和keyboard／focus符合本卡檢查；chat→task→結果→chat、memory搜尋更正刪除、settings停止工具均可用；無導航重送／body重啟／舊音；舊transport／cancel／session相容。真人三輪15分鐘及跨機／讀屏條件若缺保留PARTIAL，不能假完成。
 - Validation：production-path fixtures與真隔離main／SQLite／Rust／browser，採現有合法本機Live2D與明示合成loopback模型；真人／provider品質／GPU／硬體不得由fixture代證。
 
+
+## T10-UI-01-OWNER-FIXES — 真人驗收後修正（2026-10-18）
+
+- Status：PARTIAL（completion date：2026-10-18）。三項已修，且修正前FAIL、修正後PASS；需在重啟後的服務人工重測。「刷新後舊輸出」在目前程式碼上無法重現，待重測。
+- Selection：使用者真人驗收FAIL，建議順序為取消後舊輸出→200%導覽→記憶回答。依AGENTS先修實測失敗再重測。
+- 發現：8000服務自10/17 00:21未重啟，實測時是新前端配舊後端（`c1727e5`前）。
+- 修正：①run非完成結束時，前端依stream把執行中工具卡改為「已停止」或「未完成、請確認」；②`.sidebar`可垂直捲動（960×470時技能／設定按不到）；③NO_SOURCE依路由說明雲端看不到本機記憶，不宣稱沒有記憶，隱私過濾不變；④搬移跳過連結綁定與記憶搜尋區塊，修正上一輪漏掉的3個回歸。
+- Files changed：static/index.html、core/memory.py、core/companion.py；tests：test_frontend_state_feedback.py、test_frontend_reflow.py、test_memory_ingress.py、test_persistent_companion.py；DECISIONS D75、STATUS、MANUAL_TEST_GUIDE第二輪、evidence。
+- Tests passed：前端相關＋桌寵485 PASS；記憶12 PASS；全套2410 PASS／5 SKIP／1 flaky（browser_sessions TTL，單獨3/3 PASS）；真main整合9/9 PASS；取消重現三情境修正後卡片PASS、0舊輸出；Ruff／format／mypy／node --check／diff check／detect-secrets PASS。[REPORT](../evidence/T10-OWNER-FIXES-2026-10-18/REPORT.md)。
+- Known limitations：舊輸出根因在舊後端上未定；Firefox未自動化，以Chromium量測；真Groq是否遵循新提示未驗；full scripts/check與部署rollback NOT_RUN。
+- Rollback：撤本輪index.html／core兩檔增量與測試；無DB／API／wire／config變更。
 
 ## T10-UI-01-INTEGRATION — 對比／鍵盤／狀態／日常流程整合（2026-10-18）
 
@@ -17,7 +28,7 @@
 - Actual path／MUST NOT CHANGE：只改static/index.html（CSS、前端回饋、控制WS重連token）；Core／Gateway／DB／wire／API／config／授權／provider／voice／renderer資產／desktop／WSL與使用中8000／Ollama不改不連。
 - 修正：輸入框外框對比1.19→3.78:1；真renderer上標語不可讀→深色stage＋淺色字；iframe移出Tab；scroll-padding防遮焦點；停止開關處理中／失敗可見且不reload；記憶更正刪除錯誤改顯示於記憶頁並防連點；main重啟後控制WS持續用舊token（約5分鐘無法重連）→只在認證前確切1008 invalid session token時丟該token；記憶搜尋表單間距。
 - Files changed：static/index.html；tests/integration/test_frontend_accessibility.py、test_frontend_state_feedback.py；DECISIONS D74、STATUS、TASKS、INTERFACE_REDESIGN_PLAN、REGRESSION_BASELINE與evidence（REPORT、MANUAL_TEST_GUIDE、acceptance.py、STEPS／截圖）。
-- Tests passed：新accessibility 2＋state_feedback 8 PASS（修改前8 FAIL，2例守原行為）；相關525 PASS、桌寵69 PASS（各3既有warnings）；Ruff／format／mypy／node --check／diff check／detect-secrets PASS。真main＋合成loopback模型＋授權本機Haru Live2D整合9/9 PASS（流程1–3、取消、同頁斷線重連、重啟375、無重送／socket／renderer重載／音訊、0 JS錯誤）；修改前版本重連步驟重現失敗。[REPORT](../evidence/T10-INTEGRATION-2026-10-18/REPORT.md)。
+- Tests passed：新accessibility 2＋state_feedback 8 PASS（修改前8 FAIL，2例守原行為）；相關525 PASS（更正：未含test_capability_product／test_gateway_terminal_fence／test_run_journal，其中3例已因本輪移位FAIL，於OWNER-FIXES修正）、桌寵69 PASS（各3既有warnings）；Ruff／format／mypy／node --check／diff check／detect-secrets PASS。真main＋合成loopback模型＋授權本機Haru Live2D整合9/9 PASS（流程1–3、取消、同頁斷線重連、重啟375、無重送／socket／renderer重載／音訊、0 JS錯誤）；修改前版本重連步驟重現失敗。[REPORT](../evidence/T10-INTEGRATION-2026-10-18/REPORT.md)。
 - Known limitations：真人三輪／讀屏／WSLg WebKit／真TTS麥克風／真模型取消／跨機NOT_VERIFIED；SwiftShader非GPU；停用按鈕3.24:1為WCAG豁免未調；full scripts/check／部署rollback／soak NOT_RUN。
 - Rollback：只撤index.html本輪增量與兩個新測試／evidence；無DB／API／部署變更。
 

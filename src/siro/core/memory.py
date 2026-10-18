@@ -249,13 +249,25 @@ def assemble_prompt(
     memories: Sequence[Memory],
     working: Sequence[WorkingMessage] = (),
     verified_context: Sequence[str] = (),
+    *,
+    cloud_route: bool = False,
 ) -> str:
     values = ", ".join(identity.core.core_values)
     evidence = "\n".join(
         f"- {memory.text} [source:{memory.source_event_ids[0]}]" for memory in memories
     )
     if not evidence:
-        evidence = "- NO_SOURCE: If the answer needs memory, say you do not know."
+        # Cloud routes never receive local-only memories; say so where the model reads memory.
+        evidence = (
+            "- NO_SOURCE (cloud route): local-only saved memories are withheld from this cloud "
+            "model, so none appear here. Saved memories may still exist: say you cannot see them "
+            "from this cloud model and that the owner can review them on the memory page. Never "
+            "say nothing is saved."
+            if cloud_route
+            else "- NO_SOURCE: no relevant saved memory was provided for this reply. If the "
+            "answer needs memory, say you could not find it here; do not claim the owner has "
+            "saved nothing. The owner can review saved memories on the memory page."
+        )
     recent = "\n".join(f"{message.role}: {message.text}" for message in working)
     if not recent:
         recent = "(none)"
