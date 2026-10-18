@@ -1,3 +1,9 @@
+# CI 修復 — 2026-10-18
+
+使用者回報 push 後 Actions 紅燈。查閱 run 39102841020：scripts/check 的 pytest 為 2406 passed、3 failed、5 skipped；三項皆是前端測試擷取範圍過廣，帶入導航 DOM 註冊或記憶搜尋事件並污染測試 harness。縮小 capability、terminal fence、recovery notice 的擷取範圍，保留原行為斷言，未更改產品程式。
+
+驗證：使用相鄰 SiroV2 既有 Python 3.14 環境執行三個完整測試檔，25 passed／3 既有 warnings（6.60s）；相關 Ruff check／format 與 git diff --check 通過。完整 scripts/check 未在本機重跑；推送後須以新 remote CI 結果確認完整檢查。T10 人工驗收狀態不變。下一步：確認修正提交的 Actions 結果。
+
 # SIRO 2 目前進度與接續點
 
 ## 2026-10-18 — T10-UI-01 整體整合：自動可驗項目完成，整卡PARTIAL待人工
