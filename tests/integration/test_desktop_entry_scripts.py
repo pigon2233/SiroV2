@@ -85,9 +85,9 @@ def test_menu_uses_external_python_without_login_shell_or_provider_secrets(
         CARGO_TARGET_DIR=runtime.rsplit("/", 1)[0],
         SIRO_RUNTIME_BINARY=runtime,
         UV_CACHE_DIR=str(project / "cache"),
-        SIRO_OPENAI_API_KEY="synthetic-secret-must-not-be-persisted",
+        SIRO_OPENAI_API_KEY="synthetic-secret-must-not-be-persisted",  # pragma: allowlist secret
         SIRO_OPENAI_MODEL="synthetic-model-must-not-be-persisted",
-        GROQ_API_KEY="synthetic-groq-key-must-not-be-persisted",
+        GROQ_API_KEY="synthetic-groq-key-must-not-be-persisted",  # pragma: allowlist secret
         SIRO_RELEASE_SIGNING_KEY="synthetic-signing-key-must-not-be-persisted",
         SIRO_CONTEXT_TOKEN_BUDGET_ENABLED=token_budget,
         SIRO_DATA_DIR=str(project / "external data"),
@@ -387,7 +387,7 @@ def test_wsl_desktop_selects_chewing_and_passes_ibus_to_native_host(
         "{base}/desktop#fragment",
         "{base}/desktop/other",
         "http://example.invalid/desktop",
-        "http://synthetic:credential@127.0.0.1/desktop",
+        "http://synthetic:credential@127.0.0.1/desktop",  # pragma: allowlist secret
         "https://127.0.0.1/desktop",
     ],
 )
