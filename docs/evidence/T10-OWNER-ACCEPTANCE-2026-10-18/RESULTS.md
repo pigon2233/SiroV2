@@ -1,0 +1,59 @@
+# T10 真人與實機驗收紀錄
+
+日期：2026-10-18（Asia/Taipei）。整體狀態：IN_PROGRESS；未新增通過宣告。
+
+## 認領與版本
+
+- Owner：Codex 協助使用者實測；本卡僅記錄人工驗收，不接手 Claude 的 T10 功能開發。
+- Source baseline：`3c7ee58de4f53129ed35be5d9877979d7efc586c`；已核對本機 HEAD 與 origin/main 一致。
+- Branch：`test/t10-owner-acceptance-20261018`；獨立 worktree。
+- Owned path：本目錄；不修改 production、部署設定、共享 STATUS／roadmap 或 Claude 的檔案。
+- GitHub open Issues／PRs 查詢沒有結果；前輪建立 Issue／PR 的 integration 403 尚未證明解除。
+  此次是在使用者明確要求下準備不重疊的測試紀錄，不宣稱取得 GitHub Issue 鎖。
+- 參考：[既有人工指南](../T10-INTEGRATION-2026-10-18/MANUAL_TEST_GUIDE.md)、
+  [整合報告](../T10-INTEGRATION-2026-10-18/REPORT.md)。歷史 PASS 不當作此次重測結果。
+
+## 已知環境與前置核對
+
+- 使用者回覆：在目前這台 Linux 電腦測試；尚未設定跨機使用。
+- 唯讀檢查：Linux、`/usr/bin/orca` 存在、127.0.0.1:8000 有 listener。
+  不據此判斷 Orca 正在運作、SIRO healthy、服務為最新 source、模型／TTS 已就緒。
+- 目前未確認實際服務版本、桌面環境、輸入法、provider／聲線、耳機／喇叭與瀏覽器。
+- 此主機沒有檢出 `/mnt/wslg`；Linux 桌寵通過也不能替代 Windows／WSLg 驗收。
+- 不為跨機測試另開 LAN／外網，不改 bind、防火牆或認證。
+- 不提交真錄音、私人對話、token、完整使用者 log；只記錄合成測試內容與必要觀察。
+
+## 分項結果（尚待真人執行）
+
+| 項目 | 結果 | 證據／待確認 |
+| --- | --- | --- |
+| 服務版本與就緒 | NOT VERIFIED | 確認實際頁面、角色與真模型；listener 不等於健康 |
+| 引導日常流程 | NOT VERIFIED | 聊天→任務→來源→回聊天；記憶更正／刪除；停止工具後恢復原值 |
+| 無提示真人三輪，每輪至少 15 分鐘 | NOT VERIFIED | 與本次引導流程分開；記錄時間、提示、失敗與使用者評分 |
+| Linux Orca 真讀屏 | NOT VERIFIED | 跳轉內容、heading、按鈕名稱、狀態通知；以使用者實際聽到的內容為證 |
+| Linux 桌寵／輸入法 | NOT VERIFIED | 原生宿主、選字 Enter 不誤送、焦點與可讀性 |
+| Windows／WSLg | NOT VERIFIED | 目前 Linux 測試環境不適用；需另到實際 Windows／WSLg 主機測 |
+| 真 TTS 換頁／停止／無舊音復活 | NOT VERIFIED | 真服務和實際聽感；記錄冷啟等待，不以 cache 代表新句速度 |
+| 真麥克風／ASR | NOT VERIFIED | 使用者開錄後講合成句，停止送出；記錄誤字、空白、誤觸發 |
+| 真模型串流取消 | NOT VERIFIED | 取消文字與聲音後等候觀察，下一 turn 正常，不重播工具 |
+| 實際縮放／減少動態 | NOT VERIFIED | 真瀏覽器縮放與系統設定，與既有等效 viewport 證據分開 |
+| 服務重啟自動重連 | NOT VERIFIED | 測試前保存工作；本輪尚未停止或重啟正在使用的服務 |
+| 跨機同服務 | NOT APPLICABLE（目前使用方式） | 使用者尚未設定；不算跨機 PASS，若仍列 release 必要條件則保持未驗 |
+| 另一台獨立安裝可用 | NOT VERIFIED | 與跨機連同服務不同，不互相替代 |
+
+## 第一段合成操作
+
+先確認平常使用的 SIRO 頁面能連線、真角色可見。輸入：
+「這是 T10 真人驗收，請只回答：你好，測試開始。」
+記錄畫面實際回覆、路由與角色狀態，不要求模型逐字符合才算傳輸成功；
+若固定回覆／替身／錯誤／限流，記錄現象並先定位，不繼續冒稱前置通過。
+
+後續每個步驟由使用者回報後追加觀察、時間與 PASS／FAIL；未回覆保持未驗。
+引導不能取代無提示可用性測試，DOM／AX 名稱不能取代 Orca 真實朗讀。
+
+## 交付與回退
+
+本輪僅驗收準備，沒有執行 runtime suite 或取得真人通過結果。
+文件以明確路徑 commit 並推送任務分支；同步結果以 Git 遠端與交付回覆為準。
+整合者在驗收完成後更新共享 STATUS／roadmap；不得依此準備紀錄把 T10 標 DONE。
+若需撤回，只 revert 本卡文件 commit，沒有資料／設定 migration 或服務變更。
