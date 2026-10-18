@@ -30,6 +30,7 @@ REVIEWED_PATHS = (
     "docs/runtime-evolution/verification/RT014_2026-10-05/source-snapshot.json",
     "docs/runtime-evolution/verification/architecture_review_2026-10-03/source-digests.json",
     "docs/runtime-evolution/verification/architecture_review_2026-10-05/source-digests.json",
+    "assets/companion/haru-upperbody/0.1.0/pack.json",
 )
 
 
@@ -66,7 +67,7 @@ def audited_snapshot(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, di
         shutil.copyfile(REPOSITORY / name, target)
     report = scan(directory)
     assert set(report["results"]) == set(REVIEWED_PATHS)
-    assert sum(map(len, report["results"].values())) == 1332
+    assert sum(map(len, report["results"].values())) == 1343
     return directory, report
 
 

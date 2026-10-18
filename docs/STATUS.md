@@ -2,9 +2,9 @@
 
 接 Codex V02 `siro.haru.upperbody@0.1.0`（原樣帶入）。新增素材包驗證器、`body.activity` 附加訊息（D76）、runtime 依真實 turn 事件選 thinking／reading_pose／idle／speaking_pose、renderer 本地逐幀控制器（只寫 6 個 body ID），並修正取消後嘴型永久固定為 0（V01-D01）。`SIRO_BODY_ACTIVITIES=0` 可停用。[REPORT](evidence/CP-P01-2026-10-18/REPORT.md)。
 
-命令與結果：新 contract 16 PASS／1 SKIP、新 integration 6 PASS；相鄰 body／desktop／integrated／fence／agent 回歸 80 PASS；全套 2391 PASS／41 FAIL／7 SKIP：其中 40 項在 origin/main 等價工作樹同樣失敗（新 worktree 缺 tokenizer、Rust runtime build 與 skill worker 環境），另 1 項 test_gateway_main 單獨重跑 PASS（負載下計時 flaky）；真 renderer probe（真 gateway＋Haru build＋headless Chrome）pageerror 0、10 次切換無跳變、21 次重送皆 duplicate、嘴型不再固定；Ruff／mypy／repair 實 SDK tsc＋build／git diff --check PASS；secret gate 見限制。
+命令與結果：新 contract 16 PASS／1 SKIP、新 integration 6 PASS；相鄰 body／desktop／integrated／fence／agent 回歸 80 PASS；全套 2391 PASS／41 FAIL／7 SKIP：其中 40 項在 origin/main 等價工作樹同樣失敗（新 worktree 缺 tokenizer、Rust runtime build 與 skill worker 環境），另 1 項 test_gateway_main 單獨重跑 PASS（負載下計時 flaky）；真 renderer probe（真 gateway＋Haru build＋headless Chrome）pageerror 0、10 次切換無跳變、21 次重送皆 duplicate、嘴型不再固定；Ruff／mypy／repair 實 SDK tsc＋build／git diff --check／secret gate PASS。
 
-限制：使用中 renderer 未重建、服務未重啟；真人自然度、桌寵、真音訊、跨平台未驗；gaze／lip sync unsupported。secret gate 對 pack.json 的 11 個檔案摘要報 Hex High Entropy，需決定是否比照 D62 綁定；`test_desktop_entry_scripts.py` 3 項在 origin/main 上已失敗。下一步：owner 同意後重建 renderer 並重啟服務做真人驗收；CP-P02 可並行開始。
+限制：使用中 renderer 未重建、服務未重啟；真人自然度、桌寵、真音訊、跨平台未驗；gaze／lip sync unsupported。secret gate 已依 D77 綁定 pack.json 摘要並補合成測試值註記，現為 PASS。已重建 renderer，8000 服務改從本分支工作樹啟動（`body_activities: ready`）；未含主 checkout 另一對話未提交的 index.html 修改。下一步：owner 實際對話看自然度；CP-P02 可並行開始。
 
 # CI 修復 — 2026-10-18
 

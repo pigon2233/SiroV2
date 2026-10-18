@@ -1,5 +1,11 @@
 # 決策紀錄
 
+## D77 / 2026-10-18 / accepted / CP-P01 素材包摘要的 secret gate 精確綁定
+
+使用者同意後處理。`assets/companion/haru-upperbody/0.1.0/pack.json` 的 11 項 Hex High Entropy 都是實際檔案的 SHA-256 摘要（6 個 motion3、channel／gaze、Haru moc3／model3、Codex 測試時的 renderer bundle），逐項重算吻合，見 `docs/evidence/CP-P01-2026-10-18/secret-audit.json`。沿用 D62 機制加入 `REVIEWED_SNAPSHOTS`：finding 數、完整檔案 SHA-256 與排序後 finding 批次 SHA-256 全符才放行；不改 scanner 範圍，不信任一般 hex 或整個 assets 目錄。新版本的 pack 是新路徑，需重新審核。既有 gate 測試的 REVIEWED_PATHS 加入此檔（總 finding 1332→1343），改 bytes／finding／路徑／symlink 仍拒絕。
+
+另：`tests/integration/test_desktop_entry_scripts.py`（c1727e5）的 3 個合成測試值補上 repo 慣用的 `# pragma: allowlist secret`，origin/main 的 gate 因此由 FAIL 轉 PASS；不改測試行為。回退：撤回這兩處，gate 回到原先的失敗狀態。
+
 ## D76 / 2026-10-18 / accepted / CP-P01 body.activity：可停用的附加呈現訊息
 
 Companion 計畫 CP-P01 接 Codex V02 的 `siro.haru.upperbody@0.1.0`。不升 Body v1，也不改 `BodyAdapter` port、`BodyAssetManifest` v1、DB 或既有事件：body WS 只多一種 `v:1` 訊息 `body.activity`（op start／stop、instance_id、generation_id、activity、pack_version、可選 ttl_s）。舊 renderer 的 renderSiro 會忽略未知 type，所以新後端配舊 renderer 不會壞；新 renderer 拿不到 pack 時維持原角色並回 unsupported。

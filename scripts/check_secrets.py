@@ -168,6 +168,19 @@ REVIEWED_SNAPSHOTS = {
             "edfae74bc08ee262dc6c338fc26515c4"  # pragma: allowlist secret
         ),
     ),
+    # CP-P01: versioned visual pack; the 11 hex values are SHA-256 digests of real files.
+    # See docs/evidence/CP-P01-2026-10-18/secret-audit.json. A new pack version needs review.
+    "assets/companion/haru-upperbody/0.1.0/pack.json": (
+        11,
+        (
+            "d9b65f71da57f3699996049a6df51386"  # pragma: allowlist secret
+            "1bae884d0c9ddb82da62c2e5f8858137"  # pragma: allowlist secret
+        ),
+        (
+            "aed0f7dcc863a7889bff89c8004c253a"  # pragma: allowlist secret
+            "88c12becf46cef0202199b0461d05456"  # pragma: allowlist secret
+        ),
+    ),
 }
 
 

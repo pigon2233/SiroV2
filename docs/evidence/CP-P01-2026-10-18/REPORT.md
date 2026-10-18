@@ -52,12 +52,15 @@ headless Chrome（SwiftShader），每幀讀 Core 參數。唯一診斷 hook 是
 
 ## 未做／限制
 
-- 主 checkout 的 `models/.../Demo/dist`（使用中服務）未重建；8000 服務未重啟。要啟用需 owner 同意後執行 repair 腳本並重啟。
+- 已啟用（使用者同意）：主 checkout 的 renderer 以本分支 repair 腳本重建（bundle 與 probe 驗證版相同），
+  8000 服務改從本分支工作樹啟動（`.env.local` symlink、沿用原資料目錄／tokenizer／runtime），`/v1/runtime` 顯示
+  `body_activities: ready`，live renderer 載入 pack、pageerror 0。原 renderer 備份在本機 scratch。
+  此服務跑的是本分支程式，不含主 checkout 中另一個對話未提交的 index.html 修改。
 - 真人自然度、桌寵視窗（24fps frame budget）、WSLg／Windows、真音訊、200% 下的表現都還沒驗。
 - gaze cue 未套用；lip sync unsupported。speaking_pose 壽命是字數估計，不是實際播放結束。
 - renderer 事件（accepted／started／finished…）只 postMessage 給父頁與寫 dataset，後端尚未消費。
-- secret gate：`pack.json` 的 11 個 SHA-256 摘要被判為 Hex High Entropy（已逐一確認都是實際檔案的摘要）。
-  是否比照 D62 綁定為已審核快照需另行決定，本卡未改 gate。另外 `tests/integration/test_desktop_entry_scripts.py` 的 3 項在 origin/main 上就已失敗，與本卡無關。
+- secret gate：`pack.json` 的 11 個摘要已依 D77 精確綁定（[secret-audit.json](secret-audit.json)）；
+  `test_desktop_entry_scripts.py` 3 個合成值補 allowlist 註記。detect-secrets＋check_secrets 現為 PASS，gate 測試 63 PASS。
 
 ## 回退
 
