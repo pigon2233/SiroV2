@@ -1,5 +1,32 @@
 # SIRO 2 執行規則
 
+## GitHub 多 AI 協作（開始修改前必讀）
+
+適用 Codex、Claude 與其他 AI／人工貢獻者。完整流程見
+[`docs/AI_COLLABORATION.md`](docs/AI_COLLABORATION.md)。使用者當前明確指示優先；
+偏離流程須在交接中寫明原因，不能假稱已完成認領、推送或驗證。
+
+- **先認領，再修改**：讀 GitHub 未結 Issues、未合併 PR、最新遠端提交及本機 dirty 狀態。
+  在 Issue 或 Draft PR 記錄任務、執行者、分支、base SHA、允許修改的路徑與驗收；
+  再查一次有無競爭認領。GitHub 評論不是原子鎖；範圍重疊須先取得交接，不能搶寫。
+- **一任務一分支一工作區**：從已確認的基線建立獨立 branch/worktree，禁止多個 AI
+  同時在同一 checkout 寫入。使用者的 dirty checkout 不切分支、不 stash、不清理。
+- **檔案也要分工**：`STATUS.md`、`TASKS.md`、roadmap、lockfile 等共享檔同樣需要 owner；
+  不同任務碰同檔時先拆範圍或序列整合。未取得共享文件寫入權時，先寫本任務專屬交接文件，
+  在 PR 交給整合者更新共享狀態，不自行覆寫。
+- **每次工作都留 commit**：結束前把自己已完成的修改或可接續成果與真實驗證狀態 commit；
+  明確指定暫存路徑，不使用 `git add .`／`git add -A` 收進別人的修改。
+  commit 不代表 DONE；未過驗收仍標 PARTIAL／FAILED_VERIFICATION。
+- **同步到 GitHub 才能交接**：推送任務分支並建立／更新 Draft PR，記錄 commit SHA、
+  測試結果、限制與下一步。只在本機 commit 不等於 GitHub 已可讀。
+  未獲授權不自行合併、直推 main、force push、發布或部署。
+- **衝突保留雙方意圖**：禁止用 reset/clean、整檔 ours/theirs 或刪掉他人測試來消除衝突；
+  先核對雙方 diff 與任務證據，在自己的整合分支處理並重跑相關回歸。
+- **無法連 GitHub 就降級**：說明權限／連線阻礙，不宣稱成功認領；可繼續唯讀調查或使用者
+  明確授權且範圍不重疊的隔離準備，不能把離線紀錄當共享鎖。
+
+本文件與模板是協作規則，不是自動鎖或 CI／branch protection；實際保護設定須另驗。
+
 ## 先讀與續作
 
 1. 讀 `docs/STATUS.md`、`docs/SOL_RUNBOOK.md`、目前任務卡及其引用的契約、體驗、安全與驗收規格。
