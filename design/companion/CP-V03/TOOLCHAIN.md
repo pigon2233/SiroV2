@@ -1,6 +1,8 @@
 # Cubism 工具鏈確認／匯出往返 gate
 
-2026-10-18 Asia/Taipei。**BLOCKED_EXTERNAL：尚無已確認可操作的 Windows／macOS Editor 主機。**
+2026-10-19 Asia/Taipei。**PARTIAL：Wine 已成功啟動 Editor；工程編輯／匯出往返尚未驗收。**
+
+使用者確認只有 Linux，並明確授權嘗試 Wine。已在獨立 prefix 安裝官方 Windows Cubism 5.2.03；主視窗與 OpenGL 4.6 初始化有證據，見 [Wine 實測](wine-2026-10-19/README.md)。這條路徑可繼續測試，不能再把「沒有 Windows／macOS 主機」單獨當作無法嘗試的理由；亦不將相容層啟動等同官方 Linux 支援或完整往返成功。
 
 ## 已取得的證據
 
@@ -9,7 +11,7 @@
 - 在專案樹查找 *.cmo3／*.can3／*.psd／Cubism executable 未找到；查既有 Wine Program Files 的兩層目錄亦未找到 Cubism。
 - 本機有 wine 指令，但沒有已驗 Editor 安裝／GPU／授權／PSD 匯入證據；不把 Wine 存在當作 Editor 可用。
 - /mnt/c、/mnt/d、/mnt/e 在本輪未取得可用 Editor；不代表使用者沒有另一台 Windows 電腦。
-- 尚未下載、安裝或啟用任何 Editor，不作憑證或付費操作。
+- 前輪未安裝 Editor；2026-10-19 已透過 Wine 安裝並啟動，尚未啟用 PRO／試用或付費。
 
 官方列 Editor 支援 Windows 與 macOS；本機 Linux renderer 能播放不代表能產出可編輯 rig。
 [官方系統需求，2026-10-18 核對](https://www.live2d.com/cubism/download/spec/)
@@ -36,7 +38,7 @@ PSD 的 RGB／8bit 與 sRGB、命名與合層處理由素材製作者確認；Ed
 6. 在工程改同一 key 再匯出；確認 renderer 可看到不同結果。保留兩版工程／執行包與 hash。
 
 驗收不是只看匯出檔存在，而是「重開可編輯→修改→再匯出→真播放」；
-目前每步都 PENDING，不借用 V02 的 Haru motion 解析結果冒充本實驗成功。
+目前僅安裝／啟動有證據，工程往返各步仍 PENDING，不借用 V02 的 Haru motion 解析結果冒充本實驗成功。
 
 ## 哪些可自動，哪些仍需實際工具
 
@@ -49,4 +51,4 @@ PSD 的 RGB／8bit 與 sRGB、命名與合層處理由素材製作者確認；Ed
 | 正式 loader／renderer 工具接線 | Claude 負責；Codex 提供資料與驗收，不雙寫程式 |
 | 外觀確認與自然度評估 | owner 看具體圖稿後確認，不以自動測試代替 |
 
-最小缺項：可用主機與 Editor 精確版本／操作方式。外觀確認與此環境確認彼此獨立。
+下一步：在已開啟的 Editor 選擇 FREE 模式，執行兩層測試工程的匯入、保存重開、匯出與真 renderer 播放；再修改並重做一次。Wine 版本與啟動已確認，後續仍需實測。
