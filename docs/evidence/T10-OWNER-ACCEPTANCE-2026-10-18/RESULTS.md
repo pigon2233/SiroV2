@@ -140,3 +140,17 @@
   取消、跨步修正或副作用控制全部可用。
 - 下一步：在 SIRO「電腦」頁核對這次操作的工具名稱、完成／失敗狀態與結果。
   不重送原任務、不由 Codex 自行執行 curl 來替代 SIRO 的執行證據。
+
+## 使用者提供：終端工具紀錄與回答吻合（2026-10-18）
+
+- 使用者貼出四筆 `computer.execute`，範圍皆為 `model-selected tool call`：
+  `bash -lc` 執行 `uname -a`、`which curl`、curl 讀取網頁並擷取 title、curl 輸出 HTTP code。
+- 四筆紀錄皆顯示完成、結束碼 0；結果依序為 Linux 系統資訊、`/usr/bin/curl`、
+  含 `Example Domain` title 的 HTML、`200`，與先前 SIRO 回答一致。
+  本紀錄不重貼個人 hostname／home 路徑；使用者貼文的 URL／跳脫格式不作原始 argv 位元組證據。
+- 此案例判 PASS（使用者提供的實際 UI 工具紀錄＋回答交叉核對），可確認對話有接入
+  model-selected 通用終端工具，並消費多筆結果整理回答；不是只有固定讀檔任務入口。
+- 此次沒有由 Codex 執行這些 probe，也未獨立查驗 durable journal。通過範圍僅限本次
+  唯讀成功路徑；不延伸為任意任務、錯誤修正、工具取消、安裝或跨機能力全部通過。
+- curl 兩次分開取得 title 與狀態碼，並非同一 HTTP response 的原子快照；本案例無需
+  據此新增 blocker。已知記憶回答問題與其餘未驗項目仍保持。
