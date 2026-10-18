@@ -184,3 +184,18 @@
   未提供實際工具狀態、argv、PID、terminal journal 或精確時序；因此程序真正終止、
   child reap、取消耗時及新 turn 的逐字輸出仍 NOT VERIFIED，不將此當作程序層量測。
 - 此案例未由 Codex 在終端另行執行；未修改 production，整體驗收狀態不變。
+
+## 後續更正：取消後工具卡仍顯示執行中（2026-10-18）
+
+- 使用者隨後提供同次 `computer.execute` 卡片：argv 為 `sleep 20`、cwd `/`、
+  timeout_seconds 30，狀態仍為「執行中…」。因此先前「成功」不能當完整取消驗收通過。
+- 更新判定：新對話繼續／沒有舊回覆保留原使用者回報；工具狀態終結 FAIL（使用者回報），
+  整體取消 UI 案例改 PARTIAL。程序真正終止仍 NOT VERIFIED。
+- 唯讀 source 稽核（原 checkout `3c7ee58`）：index.html 的 tool_started 更新「執行中」，
+  tool_result 才更新工具結果；assistant_terminal 非完成分支只處理對話／TTS，沒有
+  同步終結工具卡。Gateway approve 路徑在 orchestrator is_fenced 時不送 tool_result。
+  這是可能造成殘留卡片的接線缺口，尚未動態重現或證實本次 model-selected 路徑的完整根因。
+- 當下 `ps -C sleep` 未見 `sleep 20`，但測試開始時間與經過時長未量測，20 秒也可能
+  已自然到期；不能以目前查無程序證明取消成功。沒有終止或重送任何使用者程序。
+- 已提醒使用者勿重送 sleep；不修改 production、不移除既有 terminal fence 或放行舊輸出。
+  修復時需針對受取消 run 的卡片做真實／unknown 結果更新，並保持新 run 隔離與 late UI 防線。
