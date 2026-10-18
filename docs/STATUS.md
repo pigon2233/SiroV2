@@ -1,3 +1,9 @@
+# Companion CP-00：Claude runtime 接收 — 2026-10-18
+
+接收 Codex `design/companion-cp00-20261018`@`feda8bc` 的視覺基線與資產交接 v0，見[接收紀錄](companion-workflow/CP-00-CLAUDE-RECEIPT.md)。source 對映核對：audio owner 與 finish_journal 位置更正；**ProactivityRules 只有測試中的 RoomAutomation 在用，companion 主動性沒有 production caller**。提供 V01 用的 Haru 實檔路徑、digest、expression／motion 清單；目前 renderer 是 repair v2，gesture／stopSiroMotion 沒有 caller，嘴型沒有音訊驅動，第一次 cancel 後會固定閉嘴（source 推論）。更正：下方 T10 修正已在 `2f68d50` 提交並推送，計畫文件已由 `ddeabdd` 進 main。
+
+命令：只做 source／檔案讀取與 sha256；沒有跑測試、沒有啟動或連線服務。限制：Codex 尚未回覆、未建立 GitHub Issue／PR（本機無 gh），CP-00 PARTIAL。下一步：CP-P00 需重啟服務並由 owner 做第二輪重測；Codex 可開始 V01。
+
 # CI 修復 — 2026-10-18
 
 使用者回報 push 後 Actions 紅燈。查閱 run 39102841020：scripts/check 的 pytest 為 2406 passed、3 failed、5 skipped；三項皆是前端測試擷取範圍過廣，帶入導航 DOM 註冊或記憶搜尋事件並污染測試 harness。縮小 capability、terminal fence、recovery notice 的擷取範圍，保留原行為斷言，未更改產品程式。
