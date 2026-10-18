@@ -1,5 +1,11 @@
 # SIRO 2 目前進度與接續點
 
+## 2026-10-18 — T27 ESP32 HTTP 光度／PIR 現場驗收 PARTIAL
+
+使用者提供實際 ESP32 草稿並回報已完成遮光及 PIR 動作測試、結果正常。草稿以 HTTP POST 向電腦端 `/event` 送 `light_update`（含 lux）、`motion_detected`／`motion_cleared`；這是使用者的現場回報，尚未取得序列埠 HTTP 狀態碼或接收器保存的 payload。電腦端實測 8765 有 Python 程序監聽、LAN 位址可連通；30 秒觀測窗內有 7 筆來自同一區網對端的新連線。這些是連線證據，尚不能證明接收器成功解析 lux 或動作事件。
+
+目前專案 T27/T29 正式設備路徑為 MQTT；本次 HTTP 接收器來源／事件紀錄未定位，不能宣稱感測值已進入 SIRO World State，也不能將此驗收視為 A18 L3 ESP32+HA 或 LED/actuator 閉環通過。沒有對設備發送指令或合成 POST。證據與可重現檢查見 [T27 HTTP 感測器驗收](evidence/T27-HTTP-SENSORS-2026-10-18/REPORT.md)。下一步：取得電腦端接收器路徑或事件紀錄，核對實際 lux 數值、時間與動作事件，再決定 HTTP ingress 契約或沿既有 MQTT 路徑接入 World State。
+
 ## 2026-10-18 — T10 WSLg 注音引擎修復 LOCAL_VERIFIED，真人按鍵待驗
 
 使用者確認「注音根本打不出來」後，發現上一輪 Enter 組字修正只處理送出競爭，真正缺口是 WSLg 未轉送 Windows 注音且 E 槽 Ubuntu 沒有注音引擎。已安裝 IBus／Chewing／`setxkbmap` 所需 Ubuntu 套件，並把 Chewing 啟動、選用及 GTK IME 環境接進桌寵入口；缺服務時顯示可理解錯誤。原有 Windows 輸入法不更動。[驗收及失敗修復過程](evidence/T10-ZHUYIN-2026-10-18/REPORT.md)。
