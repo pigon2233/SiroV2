@@ -1,0 +1,39 @@
+name: AI task coordination
+description: Claim scope and files before editing; coordinate overlapping work.
+title: "[Task] "
+body:
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Owner and state
+      description: Executor/session, state, updated date and timezone; do not assume an AI name is a separate GitHub account.
+    validations:
+      required: true
+  - type: textarea
+    id: baseline
+    attributes:
+      label: Base, branch and isolated workspace
+      description: Full base SHA, target branch, task branch and independent checkout.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and owned paths
+      description: List production, tests and shared docs; identify excluded areas and dependencies.
+    validations:
+      required: true
+  - type: textarea
+    id: coordination
+    attributes:
+      label: Overlap check and handoff
+      description: Related open Issues/PRs, overlap resolution and explicit ownership handoff if applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Validation and completion
+      description: Acceptance criteria, relevant regression checks, rollback and remaining limits.
+    validations:
+      required: true
