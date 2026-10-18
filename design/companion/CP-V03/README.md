@@ -33,3 +33,9 @@ V01 真音訊／實機與 V02 P01 接線仍未完整驗收，本卡不解除它�
 
 回退：撤本卡文件 commit；本機生成圖依 receipt 保留或移除，舊模型與原圖 source 不受影響。
 下一步：owner 確認或修改外觀，並確認可用 Editor 主機／版本；再做最小往返及正式分層精稿。
+
+## 同步紀錄
+
+草案／規格 commit `001be614690c5a33a0902615647ba928c606137e` 已推送。
+本輪建立 Issue 與 Draft PR 均回 403 `Resource not accessible by integration`；沒有遠端認領或 PR URL。
+狀態 PUSHED／BLOCKED_PR，原圖仍僅為本機 artifact；未合併 main、未發訊息到另一 AI 聊天。
