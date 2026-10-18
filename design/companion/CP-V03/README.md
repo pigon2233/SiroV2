@@ -1,7 +1,7 @@
 # CP-V03：原創全身設定草案與工具鏈前置
 
 2026-10-18 Asia/Taipei。**PARTIAL／DRAFT，Editor 往返 BLOCKED_EXTERNAL。**
-本卡 source parent：f58c4d4；延續 design/companion-cp00-20261018。
+本卡最初 source parent：f58c4d4；延續 design/companion-cp00-20261018。
 Owned paths 僅 design/companion/CP-V03/；保留既有 TASKS.md dirty 修改，不改 production 或使用中 Haru。
 
 ## 已交付
@@ -13,7 +13,9 @@ Owned paths 僅 design/companion/CP-V03/；保留既有 TASKS.md dirty 修改，
 - [PROMPT.md](PROMPT.md)：built-in image_gen.imagegen 的完整原始生成 prompt，無輸入圖。
 - [concept-artifact.json](concept-artifact.json)：原圖版本、尺寸、hash、來源與存放／取得方式。
 
-圖稿為 1536×1024 PNG、1,780,151 bytes。專案本機檔：
+### 0.1.0 歷史原圖（當前修訂請見文末 0.2.0）
+
+初稿為 1536×1024 PNG、1,780,151 bytes。當時的專案本機檔：
 `design/companion/CP-V03/artifacts/0.1.0/siro-concept-sheet.png`。
 原圖以版本化本機 artifact 保存，artifacts/ 被本目錄 .gitignore 排除，尚未上傳共享儲存。
 另一台電腦須轉移原圖並驗 hash，不能只靠 pushed 文件宣稱已取得視覺資產。
@@ -39,3 +41,17 @@ V01 真音訊／實機與 V02 P01 接線仍未完整驗收，本卡不解除它�
 草案／規格 commit `001be614690c5a33a0902615647ba928c606137e` 已推送。
 本輪建立 Issue 與 Draft PR 均回 403 `Resource not accessible by integration`；沒有遠端認領或 PR URL。
 狀態 PUSHED／BLOCKED_PR，原圖仍僅為本機 artifact；未合併 main、未發訊息到另一 AI 聊天。
+
+
+## 最新修訂 0.2.0
+
+Owner 指出正面臀胯外擴過大；已用內建 ImageGen 編修原圖，收窄下身輪廓並改較直筒的短褲，
+各視圖保持同一角色與服裝。當前圖稿：
+[SIRO 0.2.0](references/0.2.0/siro-concept-sheet.png)，完整 prompt 見
+[PROMPT-0.2.0.md](PROMPT-0.2.0.md)，digest 見 concept-artifact.json。
+先前尺寸／本機 artifact 段落描述的是 0.1.0；歷史 receipt 保留於 concept-artifact-0.1.0.json。
+最新修訂 PNG 隨 Git 推送，可以跨機 fetch 取得，不再只放本機 ignored artifact。
+
+Owner 已指定後續直接推 branch，由 owner 自行合併；不再嘗試建立 PR。
+此分支的新交付依該指示辦理，既有 PR 403 記錄僅保留為歷史。
+外觀仍待 owner 看修訂圖後回覆；Editor 往返限制保持。
