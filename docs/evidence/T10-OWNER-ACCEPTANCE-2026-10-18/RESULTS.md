@@ -96,3 +96,15 @@
   accessible name／skip link 缺陷。需先確認 Orca 與 Firefox 的實際主機、作業系統及
   desktop session、讀屏是否啟用與焦點位置，再重測。原讀屏驗收保持 NOT VERIFIED。
 - 不自動修改 Firefox 可及性、作業系統或讀屏設定；未把這項略過為 PASS。
+
+## 任務唯讀測試準備（2026-10-18）
+
+- 使用者確認 Firefox 與 Orca 都在目前電腦，要求先略過讀屏；仍保持未驗，不因跳過而通過。
+- 使用者要求準備測試檔。唯讀檢查目前 8000 listener 的 cwd 為原 SiroV2 checkout，
+  其 process environment 未設 SIRO_WORKSPACE_DIR／SIRO_DATA_DIR；原 gateway 預設指向
+  `.siro-data/workspace`，該目錄存在。未讀取其他環境欄位、私人檔案或對話資料。
+- 本目錄新增純合成 fixture `t10-test-20261018.md`，用 exclusive create 放入目前服務的
+  `.siro-data/workspace/t10-test-20261018.md`；既有同名檔內容不同時拒絕覆寫。
+  執行目錄副本留在 gitignored data，Git 僅提交本目錄 fixture 與紀錄。
+- 預期讀取結果：第 2 行未勾待辦、第 3 行 TODO；第 4 行已勾項目不得列為未完成待辦。
+- 建立待審／詳情／批准／完成來源／返回流程尚待使用者執行，沒有自動批准或執行工具。
