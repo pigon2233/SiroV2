@@ -1,6 +1,6 @@
 # CP-V03：原創全身設定草案與工具鏈前置
 
-2026-10-18 Asia/Taipei。**PARTIAL／DRAFT，Editor 往返 BLOCKED_EXTERNAL。**
+2026-10-18 Asia/Taipei。**外觀 0.2.0 ACCEPTED；CP-V03 整卡 PARTIAL，Editor 往返 BLOCKED_EXTERNAL。**
 本卡最初 source parent：f58c4d4；延續 design/companion-cp00-20261018。
 Owned paths 僅 design/companion/CP-V03/；保留既有 TASKS.md dirty 修改，不改 production 或使用中 Haru。
 
@@ -22,9 +22,9 @@ Owned paths 僅 design/companion/CP-V03/；保留既有 TASKS.md dirty 修改，
 
 ## Gate 與限制
 
-已把具體候選呈現給 owner，正在等待外觀方向確認；repo 中未找到已核准的原創外觀標準。
+Owner 已接受 0.2.0 為外觀製作基準；先前初稿待確認的紀錄保留於歷史。
 V01 真音訊／實機與 V02 P01 接線仍未完整驗收，本卡不解除它們。
-依本卡「外觀草案先給使用者看，再大量製作」要求，在確認前不批量切件、補圖或 rig。
+本卡「外觀草案先給使用者看，再大量製作」的外觀確認已取得；Editor 與 rig gate 仍保持。
 這個確認來自本專案 CP-V03 工作卡，不是 ImageGen 工具額外要求。
 
 未確認 Windows／macOS Editor 主機，未產 cmo3／can3／PSD，也沒有新的 moc3。
@@ -34,7 +34,7 @@ V01 真音訊／實機與 V02 P01 接線仍未完整驗收，本卡不解除它�
 本卡僅生成一張候選與製作規格，未換模型、改身份／記憶、安裝軟體、重啟服務或部署。
 
 回退：撤本卡文件 commit；本機生成圖依 receipt 保留或移除，舊模型與原圖 source 不受影響。
-下一步：owner 確認或修改外觀，並確認可用 Editor 主機／版本；再做最小往返及正式分層精稿。
+下一步：依已接受外觀細化分層精稿，確認可用 Editor 主機／版本，完成最小工程往返。
 
 ## 同步紀錄
 
@@ -54,4 +54,4 @@ Owner 指出正面臀胯外擴過大；已用內建 ImageGen 編修原圖，收�
 
 Owner 已指定後續直接推 branch，由 owner 自行合併；不再嘗試建立 PR。
 此分支的新交付依該指示辦理，既有 PR 403 記錄僅保留為歷史。
-外觀仍待 owner 看修訂圖後回覆；Editor 往返限制保持。
+Owner 後續已接受這版作外觀基準，並指出修訂差異不明顯；Editor 往返限制保持。
