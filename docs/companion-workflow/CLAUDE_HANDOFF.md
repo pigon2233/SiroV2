@@ -53,6 +53,9 @@ Codex 只寫專屬交接以避免共享文件撞檔。每卡檢查 diff，精確
   無循環，自主執行的修復／監測前置 gate 保持；git diff --check PASS。
 - commit／push／Draft PR 結果以本分支實際 Git 歷史及最終交付回覆為準；
   如 PR 仍 403，請有權限的整合者開 PR。
+- 同步結果：計畫 commit `e840a26` 已成功推送；建立 Draft PR 同樣回 integration 403。
+  目前為 PUSHED／BLOCKED_PR，沒有 PR URL，尚未合併 main，也尚無 Claude 接收回覆。
+  取得文件可用 `git fetch origin` 後讀此分支；不要將整份分支直接覆蓋到現有 dirty checkout。
 - source／asset／硬體／實作測試本輪未跑；不能把 PLANNED 改 DONE。
 
 ## 何時請使用者協助
