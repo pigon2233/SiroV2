@@ -300,12 +300,14 @@ class FailingRoute:
 
 
 @pytest.mark.asyncio
-async def test_live_route_fetch_error_remains_visible() -> None:
+async def test_live_route_fetch_error_fails_the_request_instead_of_the_handler() -> None:
     driver = ScopedBrowserDriver(("http://127.0.0.1:12345",))
     route = FailingRoute()
-    with pytest.raises(Error, match="synthetic active fetch failure"):
-        await driver._route_request(cast(Route, route))
-    assert route.calls == ["fetch"]
+    await driver._route_request(cast(Route, route))
+    # CP-P02: answered as a network failure, so the navigation fails visibly right away.
+    # Raising here stalled navigation for 30 s and resurfaced at Browser.close, which
+    # closed the whole browser pool after one unreachable site.
+    assert route.calls == ["fetch", "abort:connectionfailed"]
 
 
 @pytest.mark.asyncio

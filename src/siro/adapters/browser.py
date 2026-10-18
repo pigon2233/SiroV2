@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import shutil
 from dataclasses import dataclass
@@ -297,7 +298,16 @@ class ScopedBrowserDriver:
                 await route.abort("blockedbyclient")
                 return
             if self._url_allowed(route.request.url):
-                response = await route.fetch(max_redirects=0)
+                try:
+                    response = await route.fetch(max_redirects=0)
+                except Error:
+                    # Refused/reset/DNS failures must fail the request now: an unanswered
+                    # route stalls navigation until the session timeout, and an error
+                    # raised from this handler resurfaces at Browser.close and closes the
+                    # whole pool. The navigation itself still fails visibly.
+                    with contextlib.suppress(Error):
+                        await route.abort("connectionfailed")
+                    return
                 location = response.headers.get("location")
                 if 300 <= response.status < 400 and location:
                     target = urljoin(route.request.url, location)
