@@ -19,3 +19,7 @@
   無資料、設定、public API 或 runtime 格式變更。
 - 交接與同步：最終 SHA 與遠端／PR 結果以本分支 Git 歷史及交付回覆為準，
   不在同一 commit 內放自我引用 SHA。未獲授權不合併、不部署。
+- 同步結果：規則 commit `3256449` 已成功推送任務分支；後續建立 Draft PR 也收到
+  GitHub integration 403。因此目前是 **PUSHED / BLOCKED_PR**，沒有 Issue 或 PR URL，
+  main 尚未納入規則；不能宣稱其他 AI 已取得新入口。
+  可由具有權限的整合者在 GitHub 為此分支建立 PR，再審查合併。
