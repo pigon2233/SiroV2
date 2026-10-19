@@ -39,6 +39,7 @@ from siro.persistence.sqlite import SQLiteStore
 from siro.persistence.state import SQLiteIdentityRepository
 from siro.ports.body import EmotionIntent, SpeechIntent
 from siro.ports.models import LanguageModel, ModelMessage, Privacy, ToolCall, ToolDefinition
+from siro.services.activity.monitor import ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
 from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
 from siro.services.presentation.gateway import GatewayHub
@@ -1113,6 +1114,17 @@ class IntegratedCompanion:
     async def startup(self) -> None:
         if self._runtime_profile == "candidate":
             await self._ensure_core()
+
+    async def activity_snapshot(self, limit: int) -> dict[str, object]:
+        # A monitor view must not initialize, migrate or reconcile the store on demand.
+        if self._store is None:
+            return {"status": "unavailable"}
+        return await ActivityMonitor(self._store).snapshot(limit=limit)
+
+    async def activity_changes(self, after: int, limit: int) -> dict[str, object]:
+        if self._store is None:
+            return {"status": "unavailable"}
+        return await ActivityMonitor(self._store).changes(after=after, limit=limit)
 
     async def recovery_readback(self, session_id: str) -> dict[str, object] | None:
         await self._ensure_core()

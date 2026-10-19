@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -547,6 +547,8 @@ def create_app(
     on_startup: Callable[[], Awaitable[None]] | None = None,
     on_shutdown: Callable[[], Awaitable[None]] | None = None,
     on_recovery: Callable[[str], Awaitable[dict[str, object] | None]] | None = None,
+    on_activity_snapshot: Callable[[int], Awaitable[dict[str, object]]] | None = None,
+    on_activity_changes: Callable[[int, int], Awaitable[dict[str, object]]] | None = None,
     on_improvement_proposal: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     feature_status: Callable[[], dict[str, object]] | None = None,
     memory_organizer: MemoryOrganizer | None = None,
@@ -1242,6 +1244,34 @@ def create_app(
             raise HTTPException(
                 status_code=503, detail="improvement evidence is unavailable", headers=no_store
             ) from error
+
+    @app.get("/v1/activities")
+    async def activity_snapshot(
+        limit: int = Query(default=50, ge=1, le=100),
+        authorization: str | None = Header(default=None),
+    ) -> Response:
+        require_token(authorization)
+        # Viewing activity never grants execution; it only reads durable owners.
+        result = (
+            await on_activity_snapshot(limit)
+            if on_activity_snapshot is not None
+            else {"status": "unavailable"}
+        )
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+    @app.get("/v1/activities/changes")
+    async def activity_changes(
+        after: int = Query(ge=0),
+        limit: int = Query(default=100, ge=1, le=100),
+        authorization: str | None = Header(default=None),
+    ) -> Response:
+        require_token(authorization)
+        result = (
+            await on_activity_changes(after, limit)
+            if on_activity_changes is not None
+            else {"status": "unavailable"}
+        )
+        return JSONResponse(result, headers={"Cache-Control": "no-store"})
 
     @app.get("/v1/agent-runs/{session_id}")
     async def agent_run_readback(
@@ -2336,6 +2366,8 @@ def _run_gateway(
             on_shutdown=stop_controller,
             feature_status=product_features,
             on_recovery=controller.recovery_readback,
+            on_activity_snapshot=controller.activity_snapshot,
+            on_activity_changes=controller.activity_changes,
             on_improvement_proposal=controller.improvement_proposal,
             on_turn=controller.respond,
             memory_organizer=organizer,
