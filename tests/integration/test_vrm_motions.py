@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import math
 import struct
 from pathlib import Path
 from types import ModuleType
@@ -88,6 +89,14 @@ def test_mocap_clips_credit_their_source_and_rebuild_when_cached() -> None:
         "think",
         "attention",
         "sit_loop",
+        "idle_happy",
+        "idle_sad",
+        "idle_angry",
+        "idle_relaxed",
+        "clap",
+        "sigh",
+        "stretch",
+        "yawn",
     }
     for entry in captured.values():
         assert entry["license"] and entry["attribution"]
@@ -123,7 +132,7 @@ def rotation_keys(name: str) -> dict[str, list[tuple[float, ...]]]:
 def test_layered_gestures_hand_back_to_the_idle_loop_exactly() -> None:
     idle = rotation_keys("idle")
     fingers = ("Thumb", "Index", "Middle", "Ring", "Little")
-    for name in ("think", "attention"):
+    for name in ("think", "attention", "clap", "yawn"):
         clip = rotation_keys(name)
         body = [bone for bone in idle if not any(f in bone for f in fingers)]
         assert set(body) <= set(clip)
@@ -131,10 +140,34 @@ def test_layered_gestures_hand_back_to_the_idle_loop_exactly() -> None:
             last, first = clip[bone][-1], idle[bone][0]
             dot = abs(sum(a * b for a, b in zip(last, first, strict=True)))
             assert dot > 1 - 1e-6, f"{name} ends off the idle loop at {bone}"
-        # and the pose really leaves the idle in between: the right hand comes up to the face
+        # and the pose really leaves the idle in between: the right hand comes up
         middle = clip["rightLowerArm"][len(clip["rightLowerArm"]) // 2]
         dot = abs(sum(a * b for a, b in zip(middle, idle["rightLowerArm"][0], strict=True)))
         assert dot < 0.7, f"{name} never raises the right forearm"
+
+
+def test_mood_idles_hold_their_own_pose_over_the_captured_idle() -> None:
+    idle = rotation_keys("idle")
+
+    def angle(clip: dict[str, list[tuple[float, ...]]], bone: str) -> float:
+        frames = clip[bone]
+        middle = frames[len(frames) // 2]
+        dot = abs(sum(a * b for a, b in zip(middle, idle[bone][0], strict=True)))
+        return 2 * math.degrees(math.acos(min(1.0, dot)))
+
+    happy, sad, angry = (
+        rotation_keys("idle_happy"),
+        rotation_keys("idle_sad"),
+        rotation_keys("idle_angry"),
+    )
+    assert angle(happy, "leftUpperArm") > 30, "happy idle keeps the hands at the sides"
+    assert angle(sad, "head") > 8, "sad idle never lowers the head"
+    assert angle(angry, "rightLowerArm") > 60, "angry idle never folds the arms"
+    for name in ("sigh", "stretch"):  # one-shots that never raise a forearm still end on the idle
+        clip = rotation_keys(name)
+        for bone in ("hips", "spine", "chest", "head", "leftUpperArm", "rightUpperArm"):
+            dot = abs(sum(a * b for a, b in zip(clip[bone][-1], idle[bone][0], strict=True)))
+            assert dot > 1 - 1e-6, f"{name} ends off the idle loop at {bone}"
 
 
 def test_spring_tuning_assigns_body_colliders_to_clothing_chains() -> None:

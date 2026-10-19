@@ -632,9 +632,12 @@ def layer(
     weight: Weight,
     absolute: tuple[str, ...] = (),
     additive: tuple[str, ...] = (),
+    trail: bool = True,
 ) -> Clip:
     """Blend ``absolute`` bones to the target pose and add the target's offset from the stand
-    pose to ``additive`` ones; each bone trails its parent by the authored overlap delay."""
+    pose to ``additive`` ones (build those targets with ``on_stand``); each bone trails its
+    parent by the authored overlap delay (``trail=False`` keeps a fast beat, like a clap,
+    in sync along the arm)."""
 
     rotations, hips = base
     t = np.arange(len(hips)) / FPS
@@ -642,7 +645,7 @@ def layer(
     for bone in (*absolute, *additive):
         stand = motions.STAND.get(bone, [])
         goal = np.broadcast_to(np.array(motions.compose(target.get(bone, stand))), out[bone].shape)
-        w = weight(t - motions.overlap(bone))
+        w = weight(t - motions.overlap(bone)) if trail else weight(t)
         if bone in absolute:
             out[bone] = arc(out[bone], goal, w)
         else:
@@ -650,6 +653,12 @@ def layer(
             offset = qmul(goal, qinv(np.array(motions.compose(stand))))
             out[bone] = qmul(arc(identity, offset, w), out[bone])
     return out, hips
+
+
+def on_stand(motions: ModuleType, **extra: list[tuple[str, object]]) -> dict[str, Any]:
+    """A target whose offset from the stand pose is exactly ``extra``."""
+
+    return motions.add(motions.STAND, **extra)
 
 
 def held_shape(curl: float, spread: float, weight: np.ndarray) -> np.ndarray:
@@ -667,7 +676,7 @@ def think(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
 
     clip = idle_tail(idle, 4.2)
     pose = motions.THINK
-    deeper = motions.add(pose, neck=[("z", 4)], head=[("x", 3), ("z", 2)])
+    deeper = on_stand(motions, neck=[("z", 7)], head=[("x", 3), ("z", 3)])
     clip = layer(motions, clip, pose, envelope((0.0, 0.9), (3.2, 3.95)), additive=TORSO)
     clip = layer(motions, clip, deeper, envelope((1.0, 2.6), (2.9, 3.6)), additive=("neck", "head"))
     clip = layer(motions, clip, pose, envelope((0.1, 0.85), (3.3, 3.95), 0.6), RIGHT_ARM)
@@ -678,11 +687,8 @@ def think(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
     return clip, {"right": held_shape(1.6, 0.3, hand), "left": held_shape(1.1, 0.6, support(t))}
 
 
+FLINCH = {"spine": [("x", -4)], "chest": [("x", -4)], "neck": [("x", -5)], "head": [("x", -4)]}
 SURPRISE = {
-    "spine": [("x", -4)],
-    "chest": [("x", -4)],
-    "neck": [("x", -5)],
-    "head": [("x", -4)],
     "leftShoulder": [("z", 7)],
     "rightShoulder": [("z", -7)],
     # A gasp: the right hand flies up to the mouth, the left lands across the chest.
@@ -699,7 +705,8 @@ def surprise(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
     """A startle: a quick flinch back with a gasp, a beat of held breath, then relaxing."""
 
     clip = idle_tail(idle, 1.9)
-    clip = layer(motions, clip, SURPRISE, envelope((0.0, 0.18), (0.8, 1.55), 1.8), additive=TORSO)
+    flinch = on_stand(motions, **FLINCH)
+    clip = layer(motions, clip, flinch, envelope((0.0, 0.18), (0.8, 1.55), 1.8), additive=TORSO)
     arms = envelope((0.03, 0.24), (0.85, 1.6), 1.4)
     clip = layer(motions, clip, SURPRISE, arms, (*LEFT_ARM, *RIGHT_ARM))
     w = arms(np.arange(len(clip[1])) / FPS)
@@ -728,8 +735,20 @@ MOCAP = {
         " an idle foot swing; loops until stand_up.",
         True,
     ),
+    "idle_happy": (
+        "Happy idle: livelier sway, chest up, hands behind the back, small bounce.",
+        True,
+    ),
+    "idle_sad": ("Sad idle: slower, head and shoulders down, hands together low in front.", True),
+    "idle_angry": ("Angry idle: arms folded, chin down, an impatient foot tap.", True),
+    "idle_relaxed": ("Relaxed idle: slower and looser, shoulders down, head at a tilt.", True),
+    "clap": ("Three quick claps in front of the chest with a happy lift.", False),
+    "sigh": ("A breath in, shoulders up, then a long breath out that lets everything drop.", False),
+    "stretch": ("Both arms up overhead, leaning back; needs headroom above the head.", False),
+    "yawn": ("Head back, shoulders up, right hand over the mouth.", False),
 }
-LAYERED = {"think", "attention", "sit_loop"}
+MOODS = {"idle_happy", "idle_sad", "idle_angry", "idle_relaxed"}
+LAYERED = {"think", "attention", "sit_loop", *MOODS, "clap", "sigh", "stretch", "yawn"}
 SEATED = {"sit_loop"}
 
 
@@ -761,6 +780,14 @@ def build_clips(
     out["think"] = think(motions, idle)
     out["attention"] = surprise(motions, idle)
     out["sit_loop"] = (seated(motions, idle, skeleton), None)
+    out["idle_happy"] = mood_happy(motions, idle)
+    out["idle_sad"] = mood_sad(motions, idle, offset_pose(xbot, "sad_pose", skeleton))
+    out["idle_angry"] = mood_angry(motions, idle)
+    out["idle_relaxed"] = mood_relaxed(motions, idle)
+    out["clap"] = clap(motions, idle)
+    out["sigh"] = sigh(motions, idle)
+    out["stretch"] = stretch(motions, idle)
+    out["yawn"] = yawn(motions, idle)
     return out
 
 
@@ -792,6 +819,279 @@ def seated(
         out[bone] = qmul(sway, out.get(bone, identity))
     hips = np.array([h for _p, h in samples]) + np.array(skeleton["hips"]["world"])
     return out, hips
+
+
+# --- moods: emotion-specific idle loops and small one-shots ----------------------------------
+#
+# Each mood loop is the captured idle re-timed and re-scaled (slower and smaller when sad,
+# quicker and bigger when happy), with an authored arm pose and torso offset on top. They are
+# drop-in replacements for the idle loop. Rhythmic extras use whole cycles per loop.
+
+
+def retime(loop: Clip, factor: float) -> Clip:
+    """The loop played ``factor`` times slower, resampled; it stays seamless."""
+
+    rotations, hips = loop
+    period = len(hips) - 1
+    frames = round(period * factor)
+    src = np.arange(frames + 1) * period / frames
+    i0 = np.minimum(np.floor(src).astype(int), period - 1)
+    u = src - i0
+    out = {bone: slerp(q[i0], q[i0 + 1], u) for bone, q in rotations.items()}
+    return out, hips[i0] + (hips[i0 + 1] - hips[i0]) * u[:, None]
+
+
+def rescale(loop: Clip, amount: float) -> Clip:
+    """Scale every bone's motion about its average pose: below 1 calmer, above 1 livelier."""
+
+    rotations, hips = loop
+    out = {}
+    for bone, q in rotations.items():
+        q = np.where((q * q[:1]).sum(-1, keepdims=True) < 0, -q, q)
+        mean = np.broadcast_to(q.mean(0) / np.linalg.norm(q.mean(0)), q.shape)
+        out[bone] = arc(mean, q, np.full(len(q), amount))
+    centre = hips.mean(0)
+    return out, centre + (hips - centre) * amount
+
+
+def offset_pose(xbot: Path, name: str, skeleton: dict[str, Any]) -> Quats:
+    """A Mixamo additive pose clip as per-bone offsets: its last frame against its first."""
+
+    rotations, _hips = load_mixamo(xbot, name, skeleton)
+    return {bone: qmul(q[-1], qinv(q[0])) for bone, q in rotations.items()}
+
+
+def add_offsets(clip: Clip, offsets: Quats, bones: tuple[str, ...], amount: float) -> Clip:
+    rotations, hips = clip
+    out = dict(rotations)
+    identity = np.array([0.0, 0, 0, 1])
+    for bone in bones:
+        scaled = arc(identity[None], offsets[bone][None], np.array([amount]))[0]
+        out[bone] = qmul(np.broadcast_to(scaled, out[bone].shape), out[bone])
+    return out, hips
+
+
+def wobble(clip: Clip, bone: str, axis: str, degrees: np.ndarray) -> Clip:
+    """Add a per-frame rotation about one axis (parent frame) to a bone."""
+
+    rotations, hips = clip
+    half = np.radians(degrees) / 2
+    q = np.zeros((len(half), 4))
+    q[:, "xyz".index(axis)] = np.sin(half)
+    q[:, 3] = np.cos(half)
+    return {**rotations, bone: qmul(q, rotations[bone])}, hips
+
+
+def cycles(clip: Clip, count: int, phase: float = 0.0) -> np.ndarray:
+    """A sine with a whole number of cycles over the loop, one value per frame."""
+
+    frames = len(clip[1])
+    return np.sin(2 * np.pi * count * np.arange(frames) / (frames - 1) + phase)
+
+
+def always(_t: np.ndarray) -> np.ndarray:
+    return np.ones_like(_t)
+
+
+HANDS_BEHIND = {
+    "leftUpperArm": [("x", 95), ("z", -80), ("x", 14)],
+    "rightUpperArm": [("x", 95), ("z", 80), ("x", 14)],
+    "leftLowerArm": [("y", -70)],
+    "rightLowerArm": [("y", 70)],
+    "leftHand": [("z", 0)],
+    "rightHand": [("z", 0)],
+}
+HANDS_FRONT = {
+    "leftUpperArm": [("x", 45), ("z", -80), ("x", -2)],
+    "rightUpperArm": [("x", 45), ("z", 80), ("x", -2)],
+    "leftLowerArm": [("y", -64)],
+    "rightLowerArm": [("y", 64)],
+    "leftHand": [("z", 10)],
+    "rightHand": [("z", -10)],
+}
+ARMS_FOLDED = {
+    "leftUpperArm": [("x", 70), ("z", -68), ("x", -28)],
+    "rightUpperArm": [("x", 70), ("z", 68), ("x", -22)],
+    "leftLowerArm": [("y", -118)],
+    "rightLowerArm": [("y", 112)],
+    "leftHand": [("z", 0)],
+    "rightHand": [("z", 0)],
+}
+ARMS = (*LEFT_ARM, *RIGHT_ARM)  # with the shoulders, which the arm poses are measured from
+SLUMP = ("spine", "chest", "upperChest", "neck", "head")
+
+
+def mood_happy(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Quicker and bigger than the idle, chest up, hands behind the back, a small bounce."""
+
+    clip = rescale(retime(idle, 0.85), 1.3)
+    lift = on_stand(motions, spine=[("x", -2)], chest=[("x", -2)], head=[("x", -2)])
+    clip = layer(motions, clip, lift, always, additive=("spine", "chest", "head"))
+    clip = layer(motions, clip, HANDS_BEHIND, always, ARMS)
+    clip = wobble(clip, "neck", "z", 4 * cycles(clip, 1))  # head sways side to side
+    bounce = (1 - cycles(clip, 4, np.pi / 2)) / 2  # 0..1, four soft bounces per loop
+    for side in ("left", "right"):
+        clip = wobble(clip, f"{side}UpperLeg", "x", -4 * bounce)
+        clip = wobble(clip, f"{side}LowerLeg", "x", 8 * bounce)
+        clip = wobble(clip, f"{side}Foot", "x", -4 * bounce)
+    rotations, hips = clip
+    hips = hips.copy()
+    hips[:, 1] -= 0.008 * bounce
+    w = np.ones(len(hips))
+    return (rotations, hips), {"left": held_shape(1.1, 0.6, w), "right": held_shape(1.1, 0.6, w)}
+
+
+def mood_sad(motions: ModuleType, idle: Clip, slump: Quats) -> tuple[Clip, Shapes]:
+    """Slower and smaller, head and shoulders down, hands held together low in front."""
+
+    clip = rescale(retime(idle, 1.3), 0.6)
+    clip = add_offsets(clip, slump, SLUMP, 0.3)
+    clip = layer(motions, clip, HANDS_FRONT, always, ARMS)
+    droop = on_stand(motions, leftShoulder=[("z", -3)], rightShoulder=[("z", 3)])
+    clip = layer(motions, clip, droop, always, additive=("leftShoulder", "rightShoulder"))
+    clip = wobble(clip, "chest", "x", -1.5 * cycles(clip, 1))  # one slow, deep breath per loop
+    w = np.ones(len(clip[1]))
+    return clip, {"left": held_shape(0.9, 0.3, w), "right": held_shape(0.9, 0.3, w)}
+
+
+def mood_angry(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Arms folded, chin down, sharper shifts and an impatient tap of the left foot."""
+
+    clip = rescale(retime(idle, 0.9), 1.1)
+    chin = on_stand(motions, neck=[("x", 3)], head=[("x", 4)], spine=[("x", -1)])
+    clip = layer(motions, clip, chin, always, additive=("neck", "head", "spine"))
+    clip = layer(motions, clip, ARMS_FOLDED, always, ARMS)
+    frames = len(clip[1])
+    phase = np.arange(frames) / (frames - 1)
+    taps = sum(np.exp(-(((phase - c) / 0.025) ** 2)) for c in (0.55, 0.64, 0.73))
+    clip = wobble(clip, "leftFoot", "x", -10 * taps)  # toes lift and drop three times
+    w = np.ones(frames)
+    return clip, {"left": held_shape(1.5, 0.3, w), "right": held_shape(1.5, 0.3, w)}
+
+
+def mood_relaxed(motions: ModuleType, idle: Clip) -> tuple[Clip, None]:
+    """Slower, a little looser, shoulders down and the head resting at a tilt."""
+
+    clip = rescale(retime(idle, 1.35), 1.15)
+    loose = {
+        "neck": [("z", 3)],
+        "head": [("x", -1), ("z", 2)],
+        "leftShoulder": [("z", -2)],
+        "rightShoulder": [("z", 2)],
+    }
+    clip = layer(motions, clip, on_stand(motions, **loose), always, additive=tuple(loose))
+    clip = wobble(clip, "head", "z", 2 * cycles(clip, 1, 1.0))
+    return clip, None
+
+
+CLAP_OPEN = {
+    "leftUpperArm": [("x", 26), ("z", -72), ("x", -28)],
+    "rightUpperArm": [("x", 26), ("z", 72), ("x", -28)],
+    "leftLowerArm": [("x", -65), ("y", -95)],
+    "rightLowerArm": [("x", -65), ("y", 95)],
+    "leftHand": [("z", 0)],
+    "rightHand": [("z", 0)],
+}
+CLAP_SHUT = {
+    **CLAP_OPEN,
+    "leftUpperArm": [("x", 40), ("z", -72), ("x", -28)],
+    "rightUpperArm": [("x", 40), ("z", 72), ("x", -28)],
+}
+STRETCH = {
+    "leftShoulder": [("z", 10)],
+    "rightShoulder": [("z", -10)],
+    "leftUpperArm": [("z", 72), ("x", -10)],
+    "rightUpperArm": [("z", -72), ("x", -10)],
+    "leftLowerArm": [("y", -50)],
+    "rightLowerArm": [("y", 50)],
+    "leftHand": [("z", 0)],
+    "rightHand": [("z", 0)],
+}
+YAWN = {
+    "rightShoulder": [("z", -5)],
+    "rightUpperArm": [("x", 30), ("z", 90), ("x", -50)],
+    "rightLowerArm": [("y", 150), ("z", -18)],
+    "rightHand": [("z", 0), ("x", -10)],
+}
+
+
+def pulses(centres: tuple[float, ...], width: float) -> Weight:
+    def weight(t: np.ndarray) -> np.ndarray:
+        return np.minimum(1, sum(np.exp(-(((t - c) / width) ** 2)) for c in centres))
+
+    return weight
+
+
+def clap(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Hands up in front of the chest, three quick claps, a happy lift; back to the idle."""
+
+    clip = idle_tail(idle, 2.2)
+    lift = on_stand(motions, chest=[("x", -2)], head=[("x", -3)])
+    clip = layer(motions, clip, lift, envelope((0.0, 0.3), (1.6, 2.0)), additive=("chest", "head"))
+    ready = envelope((0.05, 0.4), (1.5, 1.95), 0.5)
+    clip = layer(motions, clip, CLAP_OPEN, ready, ARMS)
+    beats = pulses((0.6, 0.9, 1.2), 0.055)
+    clip = layer(motions, clip, CLAP_SHUT, beats, ARMS, trail=False)
+    w = ready(np.arange(len(clip[1])) / FPS)
+    return clip, {"left": held_shape(0.4, 0.5, w), "right": held_shape(0.4, 0.5, w)}
+
+
+def sigh(motions: ModuleType, idle: Clip) -> tuple[Clip, None]:
+    """A breath in with the shoulders rising, then a long breath out that lets everything drop."""
+
+    clip = idle_tail(idle, 3.0)
+    inhale = on_stand(
+        motions,
+        leftShoulder=[("z", 5)],
+        rightShoulder=[("z", -5)],
+        chest=[("x", -3)],
+        head=[("x", -3)],
+    )
+    exhale = on_stand(
+        motions,
+        leftShoulder=[("z", -3)],
+        rightShoulder=[("z", 3)],
+        spine=[("x", 4)],
+        chest=[("x", 3)],
+        neck=[("x", 4)],
+        head=[("x", 6)],
+    )
+    bones = ("leftShoulder", "rightShoulder", "spine", "chest", "neck", "head")
+    clip = layer(motions, clip, inhale, envelope((0.1, 1.0), (1.0, 1.6)), additive=bones)
+    clip = layer(motions, clip, exhale, envelope((1.0, 1.8), (2.1, 2.75)), additive=bones)
+    return clip, None
+
+
+def stretch(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Both arms up overhead, leaning back with the face up, held a moment; back to the idle.
+    The hands go well above the head, so the desktop framing needs headroom for it."""
+
+    clip = idle_tail(idle, 3.6)
+    arms = envelope((0.2, 1.1), (2.2, 3.25))
+    back = on_stand(motions, spine=[("x", -5)], chest=[("x", -3)], head=[("x", -8)])
+    clip = layer(motions, clip, back, arms, additive=("spine", "chest", "head"))
+    clip = layer(motions, clip, STRETCH, arms, ARMS)
+    w = arms(np.arange(len(clip[1])) / FPS)
+    return clip, {"left": held_shape(0.3, 2.5, w), "right": held_shape(0.3, 2.5, w)}
+
+
+def yawn(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Head tipping back with the shoulders up, the right hand covering the mouth.
+    The face (mouth open, eyes shut) is the renderer's part."""
+
+    clip = idle_tail(idle, 3.2)
+    tip = on_stand(
+        motions,
+        neck=[("x", -3)],
+        head=[("x", -8)],
+        leftShoulder=[("z", 5)],
+        rightShoulder=[("z", -5)],
+    )
+    bones = ("neck", "head", "leftShoulder", "rightShoulder")
+    clip = layer(motions, clip, tip, envelope((0.2, 1.0), (2.2, 2.95)), additive=bones)
+    hand = envelope((0.5, 1.1), (2.3, 2.95))
+    clip = layer(motions, clip, YAWN, hand, tuple(YAWN))
+    return clip, {"right": held_shape(0.7, 0.6, hand(np.arange(len(clip[1])) / FPS))}
 
 
 # ---- Hands: none of the sources capture fingers, so they get their own layer ----
