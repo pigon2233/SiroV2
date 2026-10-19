@@ -744,7 +744,7 @@ MOCAP = {
     "idle_relaxed": ("Relaxed idle: slower and looser, shoulders down, head at a tilt.", True),
     "clap": ("Three quick claps in front of the chest with a happy lift.", False),
     "sigh": ("A breath in, shoulders up, then a long breath out that lets everything drop.", False),
-    "stretch": ("Both arms up overhead, leaning back; needs headroom above the head.", False),
+    "stretch": ("Arms raised forward to overhead, leaning back; needs headroom above.", False),
     "yawn": ("Head back, shoulders up, right hand over the mouth.", False),
     "pat": ("Patted on the head: shoulders up, head dipping into the hand at each pat.", False),
     "poke": ("Poked: a quick jump back with both hands up in front of the chest.", False),
@@ -1063,13 +1063,13 @@ CLAP_SHUT = {
     "leftUpperArm": [("x", 40), ("z", -72), ("x", -28)],
     "rightUpperArm": [("x", 40), ("z", 72), ("x", -28)],
 }
-STRETCH = {
+STRETCH = {  # raised forward and up, not out to the sides: a narrow window keeps both hands
     "leftShoulder": [("z", 10)],
     "rightShoulder": [("z", -10)],
-    "leftUpperArm": [("z", 72), ("x", -10)],
-    "rightUpperArm": [("z", -72), ("x", -10)],
-    "leftLowerArm": [("y", -50)],
-    "rightLowerArm": [("y", 50)],
+    "leftUpperArm": [("z", -71), ("x", -158)],
+    "rightUpperArm": [("z", 71), ("x", -158)],
+    "leftLowerArm": [("y", -25)],
+    "rightLowerArm": [("y", 25)],
     "leftHand": [("z", 0)],
     "rightHand": [("z", 0)],
 }
@@ -1130,7 +1130,8 @@ def sigh(motions: ModuleType, idle: Clip) -> tuple[Clip, None]:
 
 def stretch(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
     """Both arms up overhead, leaning back with the face up, held a moment; back to the idle.
-    The hands go well above the head, so the desktop framing needs headroom for it."""
+    The arms swing up in front of her, so the hands go well above the head (the desktop framing
+    keeps headroom for it) but never wider than the shoulders."""
 
     clip = idle_tail(idle, 3.6)
     arms = envelope((0.2, 1.1), (2.2, 3.25))
@@ -1370,9 +1371,10 @@ BOOK = {  # both palms up in front of the chest, a notebook's width apart
     "rightUpperArm": [("x", 25), ("z", 80), ("x", -25)],
     "leftLowerArm": [("x", -100), ("y", -85)],
     "rightLowerArm": [("x", -100), ("y", 85)],
-    "leftHand": [("z", 0)],
-    "rightHand": [("z", 0)],
+    "leftHand": [("z", 25)],  # wrists eased back: palms flat under the notebook
+    "rightHand": [("z", -25)],
 }
+UNDER_BOOK = (0.2, 0.15)  # fingers nearly straight, hidden under the notebook's front edge
 PAGE = {  # the right hand reaching over to turn a page
     "rightUpperArm": [("x", 50), ("z", 76), ("x", -32)],
     "rightLowerArm": [("x", -70), ("y", 100)],
@@ -1447,7 +1449,7 @@ def notebook_out(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
     up = envelope((0.15, 1.2), (99, 100))
     clip = holding(motions, clip, up)
     w = up(frames_of(clip))
-    return clip, {"left": held_shape(0.7, 0.2, w), "right": held_shape(0.7, 0.2, w)}
+    return clip, {"left": held_shape(*UNDER_BOOK, w), "right": held_shape(*UNDER_BOOK, w)}
 
 
 def notebook_read(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
@@ -1464,9 +1466,9 @@ def notebook_read(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
     clip = layer(motions, clip, PAGE, page, RIGHT_ARM)
     w = np.ones(len(clip[1]))
     turn = page(frames_of(clip))
-    right = held_shape(0.7, 0.2, w)
-    right[:, 0] -= 0.4 * turn  # the fingers open a little to take the page
-    return clip, {"left": held_shape(0.7, 0.2, w), "right": right}
+    right = held_shape(*UNDER_BOOK, w)
+    right[:, 0] += 0.4 * turn  # the fingers close a little to take the page
+    return clip, {"left": held_shape(*UNDER_BOOK, w), "right": right}
 
 
 def notebook_away(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
@@ -1476,7 +1478,7 @@ def notebook_away(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
     down = envelope((-1, 0), (0.1, 1.3))
     clip = holding(motions, clip, down)
     w = down(frames_of(clip))
-    return clip, {"left": held_shape(0.7, 0.2, w), "right": held_shape(0.7, 0.2, w)}
+    return clip, {"left": held_shape(*UNDER_BOOK, w), "right": held_shape(*UNDER_BOOK, w)}
 
 
 # --- walking --------------------------------------------------------------------------------
@@ -1487,6 +1489,7 @@ def notebook_away(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
 # few small steps in place while the renderer turns the model.
 
 ROOT_MOTION: dict[str, str] = {}  # filled by build_clips: the travel each walking clip implies
+ROOT_SPEED: dict[str, float] = {}  # and its full speed in m/s, for the window to move by
 
 
 def symmetric(loop: Clip) -> Clip:
@@ -1538,8 +1541,9 @@ def captured_walk(xbot: Path, skeleton: dict[str, Any]) -> Clip:
     walk = symmetric(retime(walk, (period + 1) / period))  # an even period, exactly 1 s
     speed = stride_speed(walk, skeleton)
     ROOT_MOTION["walk"] = f"in place; the stride travels {speed:.2f} m/s forward (+Z)"
-    ROOT_MOTION["walk_start"] = f"in place; travel eases in from 0 to {speed:.2f} m/s"
-    ROOT_MOTION["walk_stop"] = f"in place; travel eases out from {speed:.2f} m/s to 0"
+    ROOT_MOTION["walk_start"] = f"in place; travel eases in from 0 to {speed:.2f} m/s (cubic)"
+    ROOT_MOTION["walk_stop"] = f"in place; travel eases out from {speed:.2f} m/s to 0 (cubic)"
+    ROOT_SPEED.update(dict.fromkeys(("walk", "walk_start", "walk_stop"), round(speed, 3)))
     ROOT_MOTION["turn_step"] = "in place; the renderer turns the model while the feet step"
     return walk
 
@@ -1724,6 +1728,7 @@ def main() -> None:
             "root_motion": ROOT_MOTION.get(
                 name, "none (hips height only; desktop window owns travel)"
             ),
+            **({"root_speed_mps": ROOT_SPEED[name]} if name in ROOT_SPEED else {}),
             "ground_contact": GROUND.get(name, "feet"),
             "interrupt": "any_frame",
             "crossfade_seconds": 0.3,

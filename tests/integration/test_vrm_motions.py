@@ -124,6 +124,8 @@ def test_mocap_clips_credit_their_source_and_rebuild_when_cached() -> None:
     assert captured["notebook_read"]["entry_pose"] == captured["notebook_out"]["exit_pose"]
     assert captured["notebook_read"]["exit_pose"] == captured["notebook_away"]["entry_pose"]
     assert "m/s" in captured["walk"]["root_motion"]  # the window travels at the stride speed
+    speeds = {captured[name].get("root_speed_mps") for name in ("walk", "walk_start", "walk_stop")}
+    assert len(speeds) == 1 and 0.5 < next(iter(speeds)) < 2.0
     mocap = load("build_vrm_mocap")
     if not all((mocap.CACHE / name).exists() for name in mocap.SOURCES):
         pytest.skip("motion-capture sources not cached; run scripts/build_vrm_mocap.py")
@@ -212,6 +214,21 @@ def test_mood_idles_hold_their_own_pose_over_the_captured_idle() -> None:
         for bone in ("hips", "spine", "chest", "head", "leftUpperArm", "rightUpperArm"):
             dot = abs(sum(a * b for a, b in zip(clip[bone][-1], idle[bone][0], strict=True)))
             assert dot > 1 - 1e-6, f"{name} ends off the idle loop at {bone}"
+
+
+def test_stretch_raises_the_arms_in_front_not_out_to_the_sides() -> None:
+    # The desktop pane is narrow: arms swung up through a T put both hands past its side edges.
+    mocap = load("build_vrm_mocap")
+    np = mocap.np
+    skeleton = json.loads((PACK / "skeleton.json").read_text(encoding="utf-8"))
+    keys = rotation_keys("stretch")
+    rotations = {bone: np.array(frames) for bone, frames in keys.items()}
+    hips = np.tile(skeleton["hips"]["world"], (len(keys["hips"]), 1))
+    crown = skeleton["head"]["world"][1] + 0.15
+    for side in ("left", "right"):
+        tip = mocap.world_positions((rotations, hips), skeleton, f"{side}MiddleDistal")
+        assert np.abs(tip[:, 0]).max() < 0.3, f"stretch swings the {side} hand out sideways"
+        assert tip[:, 1].max() > crown, f"stretch never lifts the {side} hand above the head"
 
 
 @pytest.mark.parametrize(
