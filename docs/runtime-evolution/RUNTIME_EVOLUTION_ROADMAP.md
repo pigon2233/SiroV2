@@ -18,7 +18,9 @@
 - 修正：①run非完成結束時，前端依stream把執行中工具卡改為「已停止」或「未完成、請確認」；②`.sidebar`可垂直捲動（960×470時技能／設定按不到）；③NO_SOURCE依路由說明雲端看不到本機記憶，不宣稱沒有記憶，隱私過濾不變；④搬移跳過連結綁定與記憶搜尋區塊，修正上一輪漏掉的3個回歸。
 - Files changed：static/index.html、core/memory.py、core/companion.py；tests：test_frontend_state_feedback.py、test_frontend_reflow.py、test_memory_ingress.py、test_persistent_companion.py；DECISIONS D75、STATUS、MANUAL_TEST_GUIDE第二輪、evidence。
 - Tests passed：前端相關＋桌寵485 PASS；記憶12 PASS；全套2410 PASS／5 SKIP／1 flaky（browser_sessions TTL，單獨3/3 PASS）；真main整合9/9 PASS；取消重現三情境修正後卡片PASS、0舊輸出；Ruff／format／mypy／node --check／diff check／detect-secrets PASS。[REPORT](../evidence/T10-OWNER-FIXES-2026-10-18/REPORT.md)。
-- Known limitations：舊輸出根因在舊後端上未定；Firefox未自動化，以Chromium量測；真Groq是否遵循新提示未驗；full scripts/check與部署rollback NOT_RUN。
+- 第二輪：使用者回報側邊欄仍按不到；真Firefox重現「可捲動但看不到捲軸」，改為短視窗使用頂部導覽列，Firefox／Chromium皆PASS。服務仍未重啟，記憶與「等待完成」需重啟後重測。
+- 第二輪重測（使用者回報）：側邊欄／記憶回答／按停止後無舊輸出 PASS。「刷新後等待完成」實為未按停止時的正常完成，非缺陷。記憶需重啟服務後再確認。
+- Known limitations：真Groq是否遵循新提示未驗；full scripts/check與部署rollback NOT_RUN。
 - Rollback：撤本輪index.html／core兩檔增量與測試；無DB／API／wire／config變更。
 
 ## T10-UI-01-INTEGRATION — 對比／鍵盤／狀態／日常流程整合（2026-10-18）

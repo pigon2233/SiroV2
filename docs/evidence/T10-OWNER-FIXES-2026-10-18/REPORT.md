@@ -62,3 +62,14 @@
 ## Rollback
 
 撤回本輪對 `static/index.html` 的增量（`runningTools`／`settleRunningTools`、`.sidebar` 一行、兩處程式搬移）、`core/memory.py` 的 NO_SOURCE 文字與 `cloud_route` 參數、`core/companion.py` 一行、測試新增內容與本目錄。沒有 DB、migration、API、wire 或設定變更。
+
+## 第二輪使用者回報與補修（2026-10-18 下午）
+
+使用者回報：側邊欄按鈕仍然按不到；記憶回答已正常；用「請用終端執行 sleep 20，完成後回覆「等待完成」。不要放到背景，也不要執行其他操作。」測試，開新對話後仍會出現「等待完成」，但不影響功能。
+
+- **服務仍未重啟**：唯讀查 `ps`，8000 仍是 10/17 00:21 啟動的程序。前端每次請求都從磁碟讀 `index.html`，所以側邊欄修正已生效；但 `core/memory.py` 的記憶提示與所有後端程式仍是舊版。因此**這次記憶回答正常不能歸功於本輪修改**，可能來自模型本身的變異或提問方式不同；要重啟後再確認。「等待完成」也仍是在舊後端上觀察到的。
+- **側邊欄（根因修正）**：用 geckodriver 驅動真 headless Firefox 158，在不捲動的情況下點擊測試導覽連結（`firefox/probe.py`、`firefox/RESULTS.txt`）。`3c7ee58` 與上一輪的 `2f68d50` 在 960×486、960×426、960×386、1000×346、1100×326 的可視範圍內，「電腦／技能／設定」都按不到。上一輪只讓側邊欄可以捲動，但 Linux 的 Firefox 會隱藏捲軸，使用者看不出要捲，等於沒修好。這次改成：寬度大於 900、高度不超過 600 時，改用既有窄窗版的頂部導覽列，七個連結全部直接可見、可點。Firefox 五種尺寸都 PASS。Chromium 測試也改為不捲動、加入 1100×326 與 1920×540：`3c7ee58`、`2f68d50` FAIL，現版 PASS。
+- **測試衝突**：`22ddae7`（從其他分支 squash 進來）把 `test_capability_product` 的擷取終點改成 `let memorySearchEpoch`，和本輪搬移程式碼的修法重疊，導致該測試 FAIL。已把終點恢復為原本的 `async function refreshProduct(`，與目前的程式順序相容。
+- 測試：前端相關＋桌寵＋記憶 497 PASS；新的導覽測試在修正前後皆已驗證（如上）；Ruff、`git diff --check` PASS。
+
+「等待完成」仍待重啟後重測，目前沒有新的定位結果。

@@ -133,6 +133,12 @@
         .companion-layout { grid-template-columns:minmax(0,1fr); } .stage { min-height:330px; height:330px; } #companion { min-height:330px; }
         .stage-title { top:20px; left:20px; } .stage-title h2 { font-size:20px; } .conversation { height:570px; }
       }
+      /* Short windows (e.g. 200% zoom): the tall sticky rail hid lower links, so use the narrow top-row nav. */
+      @media(min-width:901px) and (max-height:600px) {
+        .app-shell { grid-template-columns:minmax(0,1fr); } .sidebar { position:static; height:auto; overflow:visible; padding:14px 24px 10px; border-right:0; border-bottom:1px solid var(--line); }
+        .brand { padding:0; font-size:23px; } .brand-mark { width:18px; height:24px; } .sidebar-note, .sidebar-footer, .nav-divider, .nav-mark { display:none; }
+        .primary-nav { flex-direction:row; flex-wrap:wrap; gap:4px; margin-top:10px; } .primary-nav a { font-size:14px; padding:7px 10px; }
+      }
       @media(max-width:480px) {
         html { scroll-padding-top:160px; }
         h1 { font-size:25px; } .page-content { padding:24px 16px 32px; } .page-heading { margin-bottom:22px; }

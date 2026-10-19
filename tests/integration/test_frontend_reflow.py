@@ -135,8 +135,9 @@ def test_long_synthetic_content_from_production_renderers_stays_inside_viewport(
 
 # Owner report 2026-10-18: at 200% zoom the sticky sidebar cut off the skills/settings links.
 SHORT_VIEWPORTS = [(1280, 600), (1100, 500), (960, 470), (960, 400), (901, 420), (640, 400)]
+SHORT_VIEWPORTS += [(1100, 326), (1920, 540)]
 NAV_REACH = """() => [...document.querySelectorAll('.primary-nav a')].flatMap(a => {
-  a.scrollIntoView({block: 'nearest'}); const r = a.getBoundingClientRect();
+  const r = a.getBoundingClientRect(); // visible without scrolling: hidden scrollbars give no cue
   const x = r.left + r.width / 2, y = r.top + r.height / 2, hit = document.elementFromPoint(x, y);
   const side = document.querySelector('.sidebar');
   const wide = side.scrollWidth > side.clientWidth + 1 ? ['sidebar-horizontal-scroll'] : [];
