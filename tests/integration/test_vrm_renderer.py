@@ -475,6 +475,54 @@ def test_renderer_follows_body_protocol_without_owning_speech(tmp_path: Path) ->
             browser.close()
 
 
+def test_framing_gaze_and_pointer_reactions(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway, "?presentation=desktop")
+        try:
+            page.wait_for_function("window.__siroVrm && window.__siroVrm.loaded()", timeout=60000)
+            page.wait_for_function("window.__siroVrm.frames() > 3")
+            # Every clip's reach fits in the frame, so a raised hand is never cut off.
+            framing = page.evaluate("window.__siroVrm.framing()")
+            assert framing["reachTop"] is not None
+            assert framing["centerY"] + framing["height"] / 2 >= framing["reachTop"]
+
+            # The page points her at the chat box while the user types; she looks over there.
+            before = page.evaluate("window.__siroVrm.lookTarget()")
+            page.evaluate(
+                "window.postMessage({type: 'siro.view.focus', v: 1, x: 2, y: 0.3}, location.origin)"
+            )
+            page.wait_for_function(f"window.__siroVrm.lookTarget()[0] > {before[0] + 0.3}")
+
+            # Stroking her head is a pat: a brief smile over Core's emotion, then back.
+            head = page.evaluate("window.__siroVrm.head()")
+            sweep = max(8, head["radius"] * 0.6)
+            for i in range(10):
+                page.mouse.move(head["x"] + (sweep if i % 2 else -sweep), head["y"], steps=3)
+                page.wait_for_timeout(40)
+            page.wait_for_function("window.__siroVrm.reaction() === 'happy'")
+            page.wait_for_function("window.__siroVrm.reaction() === null", timeout=6000)
+
+            # Poking her again and again makes her pout; each click still asks for the chat.
+            for _ in range(4):
+                page.mouse.click(head["x"], head["y"] + 3 * head["radius"])
+                page.wait_for_timeout(100)
+            assert page.evaluate("window.__siroVrm.reaction()") == "angry"
+            assert any(
+                m.get("type") == "siro.renderer.interact" for m in page.evaluate("window.__posted")
+            )
+            assert not gateway.received[1:], "pointer reactions stay in the renderer"
+        finally:
+            browser.close()
+
+
+def test_chat_input_shares_its_position_with_the_character() -> None:
+    html = (ROOT / "src/siro/services/presentation/static/index.html").read_text(encoding="utf-8")
+    hook = html[html.index("const shareFocus") : html.index('chatInput.addEventListener("focus"')]
+    assert '"siro.view.focus", v: 1' in hook and "location.origin" in hook
+    assert 'chatInput.addEventListener("input", shareFocus)' in html
+
+
 def test_desktop_owner_replacement_detaches_without_reconnect(tmp_path: Path) -> None:
     gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
     with sync_playwright() as playwright:

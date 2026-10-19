@@ -1794,6 +1794,19 @@
         const isImeEvent = chatInputComposing || event.isComposing || event.keyCode === 229 || event.which === 229;
         if (event.key === "Enter" && !event.shiftKey && !isImeEvent) { event.preventDefault(); document.querySelector("#chat").requestSubmit(); }
       });
+      // The character watches what you type: tell her where the input sits relative to her frame.
+      let focusSentAt = -Infinity;
+      const shareFocus = () => {
+        const frame = document.querySelector("#companion"), now = performance.now();
+        if (!frame?.contentWindow || frame.hidden || now - focusSentAt < 400) return;
+        const a = frame.getBoundingClientRect(), b = chatInput.getBoundingClientRect();
+        if (!a.width || !a.height || !b.width) return;
+        focusSentAt = now;
+        const x = (b.left + b.width / 2 - a.left - a.width / 2) / a.width, y = (b.top + b.height / 2 - a.top - a.height / 2) / a.height;
+        try { frame.contentWindow.postMessage({type: "siro.view.focus", v: 1, x, y}, location.origin); } catch (_) { /* renderer gone */ }
+      };
+      chatInput.addEventListener("input", shareFocus);
+      chatInput.addEventListener("focus", shareFocus);
       boot().catch(() => { document.querySelector("#connection").textContent = "連線未完成"; const notice = document.querySelector("#service-notice"); notice.hidden = false; notice.textContent = "目前無法連接 SIRO。請確認服務已啟動，再按重新連線；已送出的工作不會自動重送。"; });
     </script>
   </body>

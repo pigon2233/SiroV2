@@ -75,7 +75,7 @@ function applyLayout() {
     const area = (monitor || display.get_monitor(0))?.get_workarea();
     if (!area) return;
     const previous = state.layout, [x, y] = window.get_position();
-    const roleX = x + (previous?.petX || 0), roleBottom = y + (previous?.petHeight || 570);
+    const roleX = x + (previous?.petX || 0), roleBottom = y + (previous?.petHeight || 640);
     const layout = desktopLayout(scale, lastChat, Math.min(4096, area.width), Math.min(4096, area.height), controlsHeight);
     // Keep the role anchored when the panel fits to its left near a screen edge.
     if (lastChat && layout.chatY === 8 && roleX + layout.width > area.x + area.width && roleX - layout.chatWidth - 12 >= area.x) {
@@ -162,7 +162,7 @@ function activate() {
             if (insideMonitor) window.begin_move_drag(1, Math.round(message.screenX), Math.round(message.screenY), Gdk.CURRENT_TIME);
         } else if (message.type === 'desktop.ready') { ready = true; state.ready = true; applyLayout(); }
     });
-    window = new Gtk.ApplicationWindow({application: app, title: `SIRO 桌寵 · ${GLib.getenv('GDK_BACKEND') === 'x11' ? 'XWayland/X11 相容' : '原生顯示'}`, default_width: 360, default_height: 570, decorated: false, resizable: true});
+    window = new Gtk.ApplicationWindow({application: app, title: `SIRO 桌寵 · ${GLib.getenv('GDK_BACKEND') === 'x11' ? 'XWayland/X11 相容' : '原生顯示'}`, default_width: 360, default_height: 640, decorated: false, resizable: true});
     window.set_app_paintable(true);
     const rgba = window.get_screen().get_rgba_visual();
     if (!rgba) throw new Error('RGBA compositing visual is unavailable');
@@ -185,7 +185,7 @@ function activate() {
     window.connect('delete-event', () => { app.quit(); return true; });
     window.show_all();
     const display = Gdk.Display.get_default(), monitor = display.get_primary_monitor() || display.get_monitor(0);
-    if (monitor) { const area = monitor.get_workarea(); window.move(area.x + area.width - 390, area.y + area.height - 600); }
+    if (monitor) { const area = monitor.get_workarea(); window.move(area.x + area.width - 390, area.y + area.height - 670); }
     window.get_screen().connect('monitors-changed', () => {
         if (!window) return;
         const d = Gdk.Display.get_default(), m = d.get_monitor_at_window(window.get_window()) || d.get_primary_monitor() || d.get_monitor(0);
