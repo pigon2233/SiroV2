@@ -527,6 +527,40 @@ def test_framing_gaze_and_pointer_reactions(tmp_path: Path) -> None:
             browser.close()
 
 
+def test_drag_dangles_and_lands_and_the_notebook_is_a_held_state(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway, "?presentation=desktop")
+        try:
+            page.wait_for_function("window.__siroVrm && window.__siroVrm.loaded()", timeout=60000)
+            page.wait_for_function("window.__siroVrm.activity() !== null", timeout=30000)
+            head = page.evaluate("window.__siroVrm.head()")
+            x, y = head["x"], head["y"] + 3 * head["radius"]
+
+            # Dragging the desktop window picks her up; letting go sets her down.
+            page.mouse.move(x, y)
+            page.mouse.down()
+            page.mouse.move(x + 20, y + 10, steps=4)
+            page.wait_for_function("window.__siroVrm.activity() === 'dangle'")
+            page.wait_for_timeout(800)
+            assert page.evaluate("window.__siroVrm.activity()") == "dangle"
+            page.mouse.up()
+            page.wait_for_function("window.__siroVrm.activity() === 'land'", timeout=5000)
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
+
+            # The notebook: out, read (a held loop with the prop in her hands), then away.
+            page.mouse.click(x, y, button="right")
+            page.locator("#gesture-menu button", has_text="看筆記").click()
+            page.wait_for_function("window.__siroVrm.activity() === 'notebook_read'", timeout=10000)
+            assert page.evaluate("window.__siroVrm.notebook()")
+            # A gesture from Core waits while she reads.
+            gateway.send({"v": 1, "type": "body.gesture", "name": "wave"})
+            page.wait_for_timeout(300)
+            assert page.evaluate("window.__siroVrm.activity()") == "notebook_read"
+        finally:
+            browser.close()
+
+
 def test_chat_input_shares_its_position_with_the_character() -> None:
     html = (ROOT / "src/siro/services/presentation/static/index.html").read_text(encoding="utf-8")
     hook = html[html.index("const shareFocus") : html.index('chatInput.addEventListener("focus"')]

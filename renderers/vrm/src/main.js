@@ -12,11 +12,20 @@ import {
 const MODEL_URL = '/vrm-model/model.vrm';
 const PACK_URL = './motions/pack.json';
 const CROSSFADE = 0.35;
-// Emotions that also get a small body reaction when they arrive (the first clip the pack has);
-// the face is driven separately. While an emotion holds, an idle_EMOTION loop replaces the idle.
+// A new emotion gets one body reaction as it arrives, scaled by how strongly it is felt: tiers of
+// [minimum intensity, clips to try]. Core maps plain interest to surprised as well, so only a
+// strong one startles her; anger shows in the face and the idle loop, not a one-shot.
 const EMOTION_GESTURES = {
-  happy: ['clap', 'nod'], sad: ['sigh'], surprised: ['attention'], relaxed: ['stretch'],
+  happy: [[0.6, ['clap', 'nod']], [0.35, ['nod']]],
+  surprised: [[0.6, ['attention']]],
+  sad: [[0.3, ['sigh']]],
 };
+// While an emotion holds at least this strongly, its idle_EMOTION loop replaces the idle. Core
+// never sends relaxed: that loop is hers when it has been calm for a while or late in the evening.
+const MOOD_IDLE_INTENSITY = 0.45;
+const CALM_SECONDS = 180;
+// With no word from Core for this long, an emotion fades back to neutral.
+const EMOTION_FADE_SECONDS = 120;
 // How each emotion carries the head, the chest and the eyes, blended by how strongly it shows.
 // pitch: head down (+) or up (-), tilt: head roll, chest: slump (+), gaze: eyes lowered (+), all
 // in degrees; away: chance a glance leaves the viewer; pace: speed and size of idle motion;
@@ -38,15 +47,29 @@ const REACH_BONES = [
   'rightIndexDistal', 'leftLittleDistal', 'rightLittleDistal', 'leftThumbDistal', 'rightThumbDistal',
 ];
 const REACH_MARGIN = 0.045; // metres past the last finger joint: the fingertip and its skin
-// Left alone for this long, she finds something to do: looks around, stretches, sits down.
-const BORED_SECONDS = 45;
+// Left alone for this long, she finds something to do now and then (fixes her hair, hums, looks
+// around, reads her notebook, stretches, yawns at night); after a long quiet she sits down.
+const BORED_SECONDS = 20;
 const SETTLE_SECONDS = 240;
+// Held states: an entry clip, a loop held for a while, and an exit clip back to the idle.
+const HOLDS = {
+  sit: ['sit_down', 'sit_loop', 'stand_up'],
+  notebook: ['notebook_out', 'notebook_read', 'notebook_away'],
+};
+const NOTEBOOK_SECONDS = 25;
+// Hand gestures she makes now and then while talking, never the same twice in a row.
+const TALK_GESTURES = ['talk_offer', 'talk_both', 'talk_explain', 'talk_self'];
 // Faces that belong to some clips, as [from, to, weight] in seconds into the clip.
 const GESTURE_FACES = {
   yawn: { aa: [0.5, 2.4, 0.7], blink: [0.6, 2.3, 1] },
   stretch: { blink: [0.9, 2.1, 0.85], aa: [1.0, 2.0, 0.2] },
   sigh: { relaxed: [0.2, 2.8, 0.6], blink: [1.2, 2.4, 0.6] },
   clap: { happy: [0, 2.2, 0.8] },
+  pat: { happy: [0, 2.4, 1], blink: [0.3, 2.2, 0.9] },
+  poke: { surprised: [0, 0.7, 0.8] },
+  land: { surprised: [0, 0.35, 0.5], relaxed: [0.4, 1.3, 0.5] },
+  hum: { happy: [0.4, 3.8, 0.45], blink: [0.7, 3.6, 0.75] },
+  fix_hair: { happy: [0.3, 2.4, 0.25] },
 };
 // Speech cues for a body gesture. Greetings and answers count only at the start of a reply,
 // farewells and thanks also at the end. One gesture per reply, and only from the idle loop.
@@ -62,6 +85,7 @@ const SPEECH_GESTURES = [
 const MENU_GESTURES = [
   ['wave', '揮手'], ['bow', '鞠躬'], ['bye', '掰掰'], ['nod', '點頭'],
   ['shake', '搖頭'], ['think', '思考'], ['attention', '注意'], ['sit', '坐下'],
+  ['clap', '拍手'], ['stretch', '伸懶腰'], ['hum', '哼歌'], ['notebook', '看筆記'],
 ];
 const SIT_SECONDS = 8;
 const desktop = new URLSearchParams(location.search).get('presentation') === 'desktop';
@@ -92,7 +116,7 @@ let lastAnnounced = '';
 let lookUntil = 0;
 let gestureStart = -1;
 let speechGeneration;
-let sitUntil = -1;
+let hold = null; // the held state she is in: { kind, until, auto }
 let nextBlink = 2;
 let blinkStart = -1;
 let elapsed = 0;
@@ -114,8 +138,10 @@ const interest = { point: new THREE.Vector3(), until: -1 };
 let reach; // world-space box every clip's hands reach, for framing
 const view = { centerY: 1, height: 2, width: 1 };
 let lastActive = 0;
+let lastEmotionAt = 0;
 let nextIdleBehaviour = 90;
-let autoSit = false;
+let nextTalkGesture = Infinity;
+let lastTalkGesture = '';
 // Mouth: the parent page owns speech audio and sends its loudness and tone on the playback clock
 // (siro.speech.mouth). Nothing here invents mouth motion without heard audio.
 const mouth = { level: 0, tone: 0.5, target: 0, targetTone: 0.5, at: -1, slow: 0, beat: 0, lastBeat: -1, voiced: -1, talk: 0 };
@@ -161,8 +187,8 @@ window.addEventListener('message', event => {
 function engage() {
   lastActive = elapsed;
   if (nextIdleBehaviour < elapsed + 20) nextIdleBehaviour = elapsed + 20;
-  // If she sat down out of boredom, she gets up when you come back.
-  if (autoSit && sitUntil > elapsed + 1) sitUntil = elapsed;
+  // If she sat down or got her notebook out on her own, she stops when you come back.
+  if (hold?.auto && hold.until > elapsed + 1) hold.until = elapsed;
 }
 
 function fitCamera() {
@@ -353,6 +379,8 @@ const lifeEuler = new THREE.Euler();
 const lifeQuat = new THREE.Quaternion();
 const headPos = new THREE.Vector3();
 const gazeDir = new THREE.Vector3();
+const headAhead = new THREE.Vector3();
+const headTurn = new THREE.Quaternion();
 
 // Critically damped spring toward a target (Game Programming Gems 4, 1.10).
 function smoothDamp(key, target, time, delta) {
@@ -414,13 +442,22 @@ function turn(name, x, y, z) {
   node.quaternion.multiply(lifeQuat);
 }
 
-// Where she looks, by priority: a body.look from Core, then whatever interests her (the pointer,
-// the chat box while you type), otherwise the viewer, with glances away whose size and direction
-// follow her mood (sad eyes drop, angry ones hold) and small saccades so the eyes never freeze.
+// Where she looks, by priority: a body.look from Core; then what her own body is doing (looking
+// around: the eyes go with the head; reading: the notebook); then whatever interests her (the
+// pointer, the chat box while you type); otherwise the viewer, with glances away whose size and
+// direction follow her mood (sad eyes drop, angry ones hold) and saccades so the eyes never freeze.
 function updateLife(delta) {
   if (!vrm) return;
   const free = elapsed > lookUntil;
-  const curious = free && elapsed < interest.until;
+  const leading = free && playing('look_around');
+  const reading = free && notebook.visible && !playing('notebook_away');
+  let focus = null;
+  if (leading && bone('head')) {
+    bone('head').getWorldQuaternion(headTurn);
+    focus = bone('head').getWorldPosition(headAhead).add(gazeDir.set(0, -0.1, 2).applyQuaternion(headTurn));
+  } else if (reading) focus = notebook.position;
+  else if (free && elapsed < interest.until) focus = interest.point;
+  const curious = Boolean(focus);
   const talking = mouth.talk > 0.5;
   if (free && !curious && elapsed >= life.nextGlance) {
     // Mostly back at the viewer; sometimes a glance away and back. Big glances often blink.
@@ -434,7 +471,7 @@ function updateLife(delta) {
     if (Math.abs(life.glanceYaw) > 15 * DEG && blinkStart < 0) nextBlink = elapsed;
   }
   bone('head')?.getWorldPosition(headPos);
-  const target = !free ? lookTarget.position : curious ? interest.point : camera.position;
+  const target = !free ? lookTarget.position : focus ?? camera.position;
   gazeDir.subVectors(target, headPos);
   let yaw = Math.atan2(gazeDir.x, gazeDir.z);
   let pitch = Math.atan2(gazeDir.y, Math.hypot(gazeDir.x, gazeDir.z));
@@ -469,8 +506,9 @@ function updateLife(delta) {
   smoothDamp('pitchPose', style.pitch, 0.9, delta);
   smoothDamp('tiltPose', style.tilt, 0.9, delta);
   smoothDamp('chestPose', style.chest, 1.2, delta);
-  smoothDamp('pat', elapsed < pat.until ? 1 : 0, 0.25, delta);
-  smoothDamp('carried', elapsed < carriedUntil ? 1 : 0, 0.2, delta);
+  // The pat clip has its own head dip; the lean toward the hand stays, smaller, on top of it.
+  smoothDamp('pat', elapsed < pat.until ? (playing('pat') ? 0.4 : 1) : 0, 0.25, delta);
+  smoothDamp('carried', carry.active && !playing('dangle') ? 1 : 0, 0.2, delta);
 
   if (elapsed >= life.nextShift) {
     life.shiftGoal = (Math.random() * 2 - 1) * (Math.abs(life.shiftGoal) > 0.4 ? 0.4 : 1);
@@ -489,8 +527,10 @@ function updateLife(delta) {
   const s = life.standing * 0.5 * THREE.MathUtils.clamp(style.pace, 0.6, 1.4);
   const shift = life.shift * s;
   // Head turn is shared down the chain so the neck never twists alone; pitch is nod-down positive.
-  // With the chin in her hand (thinking) mostly the eyes move, so the head stays on the hand.
-  smoothDamp('follow', currentAction === actions.think ? 0.35 : 1, 0.3, delta);
+  // With the chin in her hand (thinking) or a notebook in front of her mostly the eyes move; when
+  // a clip turns the head itself (looking around) the life layer leaves it alone.
+  const follow = leading ? 0 : playing('think') ? 0.35 : reading ? 0.3 : 1;
+  smoothDamp('follow', follow, 0.3, delta);
   const yawTurn = life.yaw * life.follow;
   const pitchTurn = life.pitch * life.follow;
   turn('chest', 0, yawTurn * 0.12, 0);
@@ -557,11 +597,15 @@ function loop(now) {
     if (mixer) {
       restoreLifeBones();
       mixer.update(delta);
-      updateSit();
+      updateEmotionFade();
+      updateHold();
+      updateCarry();
       updateIdle();
+      updateTalkGestures();
       updatePastimes();
       saveLifeBones();
     } else idlePose(elapsed);
+    updateNotebook();
     updateLife(delta);
     updateFace(delta);
     updateLook();
@@ -581,6 +625,7 @@ function renderSiro(message) {
     desiredEmotion = EMOTIONS.includes(name) ? name : 'neutral';
     const intensity = Number(message.intensity);
     desiredIntensity = Number.isFinite(intensity) ? Math.max(0, Math.min(1, intensity)) : 1;
+    lastEmotionAt = elapsed;
   } else if (message.type === 'body.look' && vrm) {
     const x = Math.max(-1, Math.min(1, Number(message.x) || 0));
     const y = Math.max(-1, Math.min(1, Number(message.y) || 0));
@@ -588,7 +633,7 @@ function renderSiro(message) {
     lookTarget.position.set(head.x + x * 0.8, head.y + y * 0.5, head.z + 1.2);
     lookUntil = elapsed + LOOK_HOLD_SECONDS;
   } else if (message.type === 'body.gesture') {
-    if (!playGesture(String(message.name || 'nod'))) gestureStart = elapsed;
+    if (!perform(String(message.name || 'nod'))) gestureStart = elapsed;
   } else if (message.type === 'body.speech') {
     const generation = String(message.generation_id ?? '');
     if (generation !== speechGeneration || !generation) {
@@ -598,7 +643,8 @@ function renderSiro(message) {
   }
   // A new emotion gets one body reaction as it arrives; the same emotion again stays quiet.
   if (message.type === 'body.emotion' && desiredEmotion !== previousEmotion) {
-    const gesture = (EMOTION_GESTURES[desiredEmotion] ?? []).find(name => actions[name]);
+    const tier = (EMOTION_GESTURES[desiredEmotion] ?? []).find(([min]) => desiredIntensity >= min);
+    const gesture = tier?.[1].find(name => actions[name]);
     if (gesture && currentAction === idleAction) playGesture(gesture);
   }
   // body.speech / body.cancel: audible speech has one owner in the parent page.
@@ -670,11 +716,12 @@ window.addEventListener('pointerup', event => {
 });
 
 // ---- Interaction layer: the pointer on the character (presentation only; Core is not told) ----
-// Her eyes follow the pointer while it moves over her; stroking her head is a pat (she leans
-// into it, smiling); a click gets a smile and a look; poking her again and again makes her pout;
-// dragging the desktop window startles her. All of it is a brief reaction over Core's emotion.
+// Her eyes follow the pointer while it moves over her. Stroking her head, or clicking it, is a
+// pat: she dips into the hand with her eyes shut, smiling. A click on her body gets a smile; a
+// second one is a poke (she jumps back, then looks at you); a fourth makes her pout and shake her
+// head. Dragging the desktop window picks her up: she dangles until she is set down, then lands.
 const pat = { until: -1, strokes: [], lastX: null, direction: 0, travel: 0 };
-let carriedUntil = -1;
+const carry = { active: false, since: 0, lastMove: 0, x: 0, y: 0, moved: false, touched: -1 };
 let pokes = [];
 let press;
 const screenPoint = new THREE.Vector3();
@@ -711,12 +758,11 @@ function onHead(event) {
 window.addEventListener('pointermove', event => {
   if (!vrm || !gestureMenu.hidden) return;
   engage();
+  // Hovering again after a drag means she has been put down; moves with the button held do not.
+  if (carry.active && !(event.buttons & 1)) carry.touched = elapsed;
   if (press && event.buttons & 1) {
     // The desktop host starts moving the window past the same 7-pixel threshold.
-    if (desktop && Math.hypot(event.screenX - press.x, event.screenY - press.y) >= 7 && carriedUntil < elapsed) {
-      carriedUntil = elapsed + 1.6;
-      react('surprised', 0.7, 1.4);
-    }
+    if (desktop && Math.hypot(event.screenX - press.x, event.screenY - press.y) >= 7) startCarry();
     return;
   }
   if (pointerPoint(event, interest.point)) interest.until = elapsed + 1.2;
@@ -746,14 +792,17 @@ function patted(event) {
   pat.until = elapsed + 1.2;
   react('happy', 1, 1.8);
   interest.until = -1;
+  if (currentAction === idleAction) playGesture('pat');
 }
 
 window.addEventListener('pointerdown', event => {
+  if (carry.active) carry.touched = elapsed;
   if (event.button !== 0 || !vrm || !gestureMenu.hidden) return;
   press = { x: event.screenX, y: event.screenY };
 });
 
 window.addEventListener('pointerup', event => {
+  if (carry.active) carry.touched = elapsed;
   const down = press;
   press = undefined;
   if (event.button !== 0 || !down || !vrm || Math.hypot(event.screenX - down.x, event.screenY - down.y) >= 7) return;
@@ -772,28 +821,59 @@ window.addEventListener('pointerup', event => {
   if (pokes.length >= 4) {
     pokes = [];
     react('angry', 0.65, 2.2);
-    if (currentAction === idleAction) playGesture('shake');
+    if (currentAction === idleAction || playing('poke')) playGesture('shake');
+  } else if (pokes.length >= 2) {
+    // Poked: she jumps back, then looks at where it came from.
+    react('surprised', 0.6, 0.7);
+    if (currentAction === idleAction) playGesture('poke');
+    if (pointerPoint(event, interest.point)) interest.until = elapsed + 1.4;
   } else react('happy', 0.45, 1.4);
 });
 
-// ---- Pastimes: left alone for a while she looks around, stretches, yawns late at night, and
-// after a long quiet sits down until someone comes back. Never while talking or mid-gesture.
+// Picked up: the window is being dragged. She dangles until it stops moving (or the pointer
+// comes back after the drag), then lands on her feet.
+function startCarry() {
+  if (carry.active) return;
+  Object.assign(carry, {
+    active: true, since: elapsed, lastMove: elapsed, x: window.screenX, y: window.screenY, moved: false, touched: -1,
+  });
+  react('surprised', 0.7, 1.4);
+  hold = null;
+  if (mixer && actions.dangle) playLoop('dangle', 0.25);
+}
+
+function updateCarry() {
+  if (!carry.active) return;
+  if (window.screenX !== carry.x || window.screenY !== carry.y) {
+    Object.assign(carry, { x: window.screenX, y: window.screenY, moved: true, lastMove: elapsed });
+  }
+  const settled = carry.moved && elapsed - carry.lastMove > 0.4;
+  const back = carry.touched > carry.since + 0.5;
+  if (!settled && !back && elapsed - carry.since < 8) return;
+  carry.active = false;
+  if (playing('dangle') && !playGesture('land')) returnToIdle(currentAction);
+}
+
+// ---- Pastimes: left alone she does small things now and then; after a long quiet she sits
+// down until someone comes back. Never while talking, mid-gesture or held up.
 function updatePastimes() {
   if (!mixer || elapsed < nextIdleBehaviour) return;
-  nextIdleBehaviour = elapsed + 25 + Math.random() * 35;
+  nextIdleBehaviour = elapsed + 20 + Math.random() * 40;
   const quiet = elapsed - lastActive;
-  if (quiet < BORED_SECONDS || currentAction !== idleAction || mouth.talk > 0.1 || sitUntil >= 0) return;
-  const hour = new Date().getHours();
-  const late = hour >= 23 || hour < 5;
+  if (quiet < BORED_SECONDS || currentAction !== idleAction || mouth.talk > 0.1 || hold || carry.active) return;
   const choices = [];
-  if (quiet > SETTLE_SECONDS && actions.sit_down && actions.sit_loop) choices.push('sit');
-  if (late && actions.yawn) choices.push('yawn');
-  if (actions.stretch) choices.push('stretch');
-  choices.push('look', 'look');
+  const add = (name, weight) => { for (let i = 0; i < weight; i++) choices.push(name); };
+  const hour = clockHour();
+  if (quiet > SETTLE_SECONDS && actions.sit_down && actions.sit_loop) add('sit', 3);
+  if (actions.yawn) add('yawn', hour >= 23 || hour < 5 ? 4 : 0);
+  for (const name of ['fix_hair', 'hum', 'look_around']) if (actions[name]) add(name, 2);
+  if (actions.stretch) add('stretch', 1);
+  if (actions.notebook_out && actions.notebook_read) add('notebook', 1);
+  if (!actions.look_around) add('look', 2);
   const choice = choices[Math.floor(Math.random() * choices.length)];
-  if (choice === 'sit') {
-    autoSit = sitDown(40 + Math.random() * 50);
-  } else if (choice === 'look') {
+  if (choice === 'sit') startHold('sit', 40 + Math.random() * 50, true);
+  else if (choice === 'notebook') startHold('notebook', 20 + Math.random() * 20, true);
+  else if (choice === 'look') {
     // A slow look to one side and back, as if something caught her eye.
     life.glanceYaw = (Math.random() < 0.5 ? -1 : 1) * (22 + Math.random() * 10) * DEG;
     life.glancePitch = (Math.random() * 10 - 4) * DEG;
@@ -801,9 +881,42 @@ function updatePastimes() {
   } else playGesture(choice);
 }
 
-// While an emotion holds, its own idle loop (idle_happy, idle_sad...) replaces the plain one.
+// The local hour, read at most every half minute.
+let hourReadAt = -Infinity;
+let hourNow = 12;
+function clockHour() {
+  if (elapsed - hourReadAt > 30) {
+    hourNow = new Date().getHours();
+    hourReadAt = elapsed;
+  }
+  return hourNow;
+}
+
+// Talking: now and then a hand gesture, less often when her arms are folded or clasped.
+function updateTalkGestures() {
+  if (mouth.talk < 0.5) {
+    nextTalkGesture = Infinity;
+    return;
+  }
+  if (nextTalkGesture === Infinity) nextTalkGesture = elapsed + 2 + Math.random() * 2.5;
+  if (elapsed < nextTalkGesture) return;
+  const armsBusy = [actions.idle_angry, actions.idle_happy].some(action => action && action === idleAction);
+  nextTalkGesture = elapsed + (4 + Math.random() * 3) * (armsBusy ? 2 : 1);
+  if (currentAction !== idleAction || hold) return;
+  const options = TALK_GESTURES.filter(name => actions[name] && name !== lastTalkGesture);
+  if (!options.length) return;
+  lastTalkGesture = options[Math.floor(Math.random() * options.length)];
+  playGesture(lastTalkGesture);
+}
+
+// While an emotion holds strongly enough, its own idle loop (idle_happy, idle_sad...) replaces
+// the plain one; when all has been calm for a while, or late in the evening, she relaxes.
 function updateIdle() {
-  const wanted = (desiredIntensity >= 0.3 && actions[`idle_${desiredEmotion}`]) || actions.idle;
+  const hour = clockHour();
+  const quiet = elapsed - lastActive;
+  const calm = desiredEmotion === 'neutral' && (quiet > CALM_SECONDS || ((hour >= 22 || hour < 5) && quiet > 45));
+  const wanted = (desiredIntensity >= MOOD_IDLE_INTENSITY && actions[`idle_${desiredEmotion}`])
+    || (calm && actions.idle_relaxed) || actions.idle;
   if (!wanted || wanted === idleAction) return;
   const previous = idleAction;
   idleAction = wanted;
@@ -811,6 +924,52 @@ function updateIdle() {
   wanted.reset().play();
   previous.crossFadeTo(wanted, 0.8, false);
   currentAction = wanted;
+}
+
+// Core sends an emotion with each turn; without one for a while, she settles back to neutral.
+function updateEmotionFade() {
+  if (desiredEmotion === 'neutral' || elapsed - lastEmotionAt < EMOTION_FADE_SECONDS) return;
+  desiredEmotion = 'neutral';
+  desiredIntensity = 1;
+}
+
+// ---- The notebook: a prop, not part of the model, placed on her palms each frame. It grows in
+// as she brings it up (notebook_out) and shrinks away as she puts it down (notebook_away).
+const notebook = new THREE.Group();
+{
+  const cover = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.012, 0.21), new THREE.MeshLambertMaterial({ color: 0x26305a }));
+  const pages = new THREE.Mesh(new THREE.BoxGeometry(0.142, 0.006, 0.202), new THREE.MeshLambertMaterial({ color: 0xf7f4ec }));
+  pages.position.y = 0.008;
+  notebook.add(cover, pages);
+  notebook.visible = false;
+  scene.add(notebook);
+}
+const leftPalm = new THREE.Vector3();
+const rightPalm = new THREE.Vector3();
+const chestTurn = new THREE.Quaternion();
+const chestEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+function updateNotebook() {
+  let size = 0;
+  if (playing('notebook_read')) size = 1;
+  else if (playing('notebook_out')) size = clamp01((actions.notebook_out.time - 0.3) / 0.6);
+  else if (playing('notebook_away')) size = 1 - clamp01((actions.notebook_away.time - 0.1) / 0.5);
+  const left = bone('leftHand');
+  const right = bone('rightHand');
+  notebook.visible = size > 0.01 && Boolean(left && right);
+  if (!notebook.visible) return;
+  left.getWorldPosition(leftPalm);
+  right.getWorldPosition(rightPalm);
+  // The hand bones sit at the wrists; the palms are a hand's length further out. Rest it on them.
+  bone('chest')?.getWorldQuaternion(chestTurn);
+  chestEuler.setFromQuaternion(chestTurn, 'YXZ');
+  notebook.position.addVectors(leftPalm, rightPalm).multiplyScalar(0.5);
+  notebook.position.x += Math.sin(chestEuler.y) * 0.07;
+  notebook.position.z += Math.cos(chestEuler.y) * 0.07;
+  notebook.position.y += 0.035;
+  // Turned with her chest and tipped about 30 degrees toward her face.
+  notebook.rotation.set(-30 * DEG, chestEuler.y, 0, 'YXZ');
+  notebook.scale.setScalar(size);
 }
 
 // Read-only diagnostics for automated renderer checks.
@@ -825,6 +984,7 @@ window.__siroVrm = Object.freeze({
   reaction: () => (reaction && elapsed < reaction.end ? reaction.name : null),
   framing: () => ({ ...view, reachTop: reach?.max.y ?? null }),
   head: () => headOnScreen(),
+  notebook: () => notebook.visible,
   activity: () => Object.keys(actions).find(name => actions[name] === currentAction) ?? null,
 });
 
@@ -860,7 +1020,10 @@ document.body.append(gestureMenu);
 window.addEventListener('contextmenu', event => {
   event.preventDefault();
   if (!mixer) return;
-  for (const item of gestureMenu.children) item.disabled = !(item.dataset.gesture === 'sit' ? actions.sit_down : actions[item.dataset.gesture]);
+  for (const item of gestureMenu.children) {
+    const name = item.dataset.gesture;
+    item.disabled = !(HOLDS[name] ? actions[HOLDS[name][0]] && actions[HOLDS[name][1]] : actions[name]);
+  }
   gestureMenu.hidden = false;
   const x = Math.min(event.clientX, window.innerWidth - gestureMenu.offsetWidth - 4);
   const y = Math.min(event.clientY, window.innerHeight - gestureMenu.offsetHeight - 4);
@@ -886,39 +1049,61 @@ function speechGesture(text) {
   return null;
 }
 
-// Sitting: sit_down, hold sit_loop, then stand_up back to idle.
-function sitDown(seconds = SIT_SECONDS) {
-  const down = actions.sit_down;
-  const hold = actions.sit_loop;
-  if (!mixer || !down || !hold || sitUntil >= 0) return false;
-  sitUntil = elapsed + down.getClip().duration + seconds;
-  return playGesture('sit_down');
+// Held states (sitting, reading the notebook): the entry clip, its loop held for a while, then
+// the exit clip back to the idle. `auto` marks one she started herself; she ends it when engaged.
+function startHold(kind, seconds, auto = false) {
+  const [enter, loop] = HOLDS[kind];
+  if (!mixer || !actions[enter] || !actions[loop] || hold || carry.active) return false;
+  hold = { kind, until: elapsed + actions[enter].getClip().duration + seconds, auto };
+  if (playGesture(enter)) return true;
+  hold = null;
+  return false;
 }
 
-function updateSit() {
-  if (sitUntil < 0 || elapsed < sitUntil || currentAction !== actions.sit_loop) return;
-  sitUntil = -1;
-  autoSit = false;
-  if (!playGesture('stand_up')) {
-    idleAction.reset().play();
-    currentAction.crossFadeTo(idleAction, CROSSFADE, false);
-    currentAction = idleAction;
-  }
+function updateHold() {
+  if (!hold || elapsed < hold.until || currentAction !== actions[HOLDS[hold.kind][1]]) return;
+  const exit = HOLDS[hold.kind][2];
+  hold = null;
+  if (!playGesture(exit)) returnToIdle(currentAction);
+}
+
+function returnToIdle(from) {
+  idleAction.reset().play();
+  from?.crossFadeTo(idleAction, CROSSFADE, false);
+  currentAction = idleAction;
+}
+
+function playLoop(name, fade = CROSSFADE) {
+  const action = actions[name];
+  if (!action) return false;
+  action.reset().setLoop(THREE.LoopRepeat, Infinity).play();
+  currentAction?.crossFadeTo(action, fade, false);
+  currentAction = action;
+  gestureFace = null;
+  return true;
 }
 
 function perform(name) {
-  if (name === 'sit') return sitDown();
-  if (sitUntil >= 0) return false;
+  if (name === 'sit') return startHold('sit', SIT_SECONDS);
+  if (name === 'notebook') return startHold('notebook', NOTEBOOK_SECONDS);
+  if (hold) return false;
   return playGesture(name);
+}
+
+// Whether a clip the pack may or may not have is the one playing now.
+function playing(name) {
+  return Boolean(currentAction) && currentAction === actions[name];
 }
 
 // One-shot gestures cross-fade in over the idle loop and hand control back to it when done.
 function playGesture(name) {
   const action = actions[name];
   if (!mixer || !action || looping.has(action)) return false;
-  // Seated, other gestures wait until she has stood up again.
-  const seated = sitUntil >= 0 || currentAction === actions.sit_loop || currentAction === actions.sit_down;
-  if (seated && name !== 'sit_down' && name !== 'stand_up') return false;
+  // Seated, reading or held up, other gestures wait until she is back on her feet.
+  const steps = Object.values(HOLDS).flat();
+  const busy = hold || playing('dangle')
+    || Object.values(HOLDS).some(([enter, loop]) => playing(enter) || playing(loop));
+  if (busy && !steps.includes(name) && name !== 'land') return false;
   if (currentAction === action && action.isRunning()) return true;
   action.reset().setLoop(THREE.LoopOnce, 1);
   action.clampWhenFinished = true;
@@ -982,15 +1167,11 @@ async function loadMotions(loader) {
   reach = measureReach(mix);
   mix.addEventListener('finished', event => {
     if (event.action !== currentAction || event.action === idleAction) return;
-    if (event.action === actions.sit_down && sitUntil >= 0) {
-      actions.sit_loop.reset().setLoop(THREE.LoopRepeat, Infinity).play();
-      event.action.crossFadeTo(actions.sit_loop, CROSSFADE, false);
-      currentAction = actions.sit_loop;
+    if (hold && event.action === actions[HOLDS[hold.kind][0]]) {
+      playLoop(HOLDS[hold.kind][1]);
       return;
     }
-    idleAction.reset().play();
-    event.action.crossFadeTo(idleAction, CROSSFADE, false);
-    currentAction = idleAction;
+    returnToIdle(event.action);
   });
   idleAction = actions.idle;
   idleAction.play();
