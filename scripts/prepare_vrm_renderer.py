@@ -53,13 +53,19 @@ def vrm_spec_version(path: Path) -> str:
     raise ValueError(f"glTF file has no VRM extension: {path}")
 
 
-def build_renderer(output: Path, *, force: bool) -> None:
+def build_renderer(output: Path, *, force: bool) -> bool:
+    """Build into ``output``; an existing build is reused unless ``force`` is set."""
+
+    if (output / "index.html").is_file() and not force:
+        return False
+    # Windows ships npm as npm.cmd, which CreateProcess cannot find by bare name.
+    npm = shutil.which("npm")
+    if npm is None:
+        raise SystemExit("npm was not found; install Node.js LTS to build the VRM renderer")
     if output.exists():
-        if not force:
-            raise SystemExit(f"{output} already exists; pass --force to rebuild")
         shutil.rmtree(output)
     subprocess.run(
-        ["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=SOURCE, check=True
+        [npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=SOURCE, check=True
     )
     output.mkdir(parents=True)
     shutil.copy2(SOURCE / "index.html", output / "index.html")
@@ -82,6 +88,7 @@ def build_renderer(output: Path, *, force: bool) -> None:
     (output / "build-manifest.json").write_text(
         json.dumps(record, indent=2) + "\n", encoding="utf-8"
     )
+    return True
 
 
 def register_model(
@@ -132,8 +139,8 @@ def main() -> None:
     parser.add_argument("--accepted-by", default="owner")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
-    build_renderer(args.out.resolve(), force=args.force)
-    print(f"Built VRM renderer: {args.out.resolve()}")
+    built = build_renderer(args.out.resolve(), force=args.force)
+    print(f"{'Built' if built else 'Reusing'} VRM renderer: {args.out.resolve()}")
     manifest = args.asset_dir.resolve() / "asset-manifest.json"
     if args.model is not None:
         if not args.license_url:
