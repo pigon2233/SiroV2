@@ -183,7 +183,8 @@ function updateFace(delta) {
       const phase = (elapsed - blinkStart) / 0.16;
       if (phase >= 1) {
         blinkStart = -1;
-        nextBlink = elapsed + 2.5 + Math.random() * 3.5;
+        // Now and then a quick double blink.
+        nextBlink = elapsed + (Math.random() < 0.12 ? 0.12 : 2.5 + Math.random() * 3.5);
       } else blink = Math.sin(phase * Math.PI);
     }
     manager.setValue('blink', blink);
@@ -198,6 +199,7 @@ function updateFace(delta) {
 const life = {
   yaw: 0, yawV: 0, pitch: 0, pitchV: 0, shift: 0, shiftV: 0, shiftGoal: 0, standing: 1, standingV: 0,
   glanceYaw: 0, glancePitch: 0, nextGlance: 2.5, nextShift: 6,
+  saccadeYaw: 0, saccadePitch: 0, nextSaccade: 1,
 };
 const DEG = Math.PI / 180;
 const lifeEuler = new THREE.Euler();
@@ -272,12 +274,20 @@ function updateLife(delta) {
   if (free) {
     yaw += life.glanceYaw;
     pitch += life.glancePitch;
+    // Small saccades, like looking between someone's eyes and mouth; the eyes only, not the head.
+    if (elapsed >= life.nextSaccade) {
+      life.saccadeYaw = (Math.random() * 2 - 1) * 1.8 * DEG;
+      life.saccadePitch = (Math.random() * 2 - 1) * 1.0 * DEG;
+      life.nextSaccade = elapsed + 0.35 + Math.random() * 1.4;
+    }
+    const eyeYaw = yaw + life.saccadeYaw;
+    const eyePitch = pitch + life.saccadePitch;
     // Eyes lead: they jump to the glance now, the head arrives a few hundred ms later.
     const reach = gazeDir.length();
     lookTarget.position.set(
-      headPos.x + Math.sin(yaw) * Math.cos(pitch) * reach,
-      headPos.y + Math.sin(pitch) * reach,
-      headPos.z + Math.cos(yaw) * Math.cos(pitch) * reach,
+      headPos.x + Math.sin(eyeYaw) * Math.cos(eyePitch) * reach,
+      headPos.y + Math.sin(eyePitch) * reach,
+      headPos.z + Math.cos(eyeYaw) * Math.cos(eyePitch) * reach,
     );
   }
   smoothDamp('yaw', THREE.MathUtils.clamp(yaw, -35 * DEG, 35 * DEG), 0.35, delta);
