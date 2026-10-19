@@ -231,7 +231,8 @@ function updateLife(delta) {
   if (!mixer) return;
 
   const t = elapsed;
-  const s = life.standing;
+  // The captured idle already shifts weight and breathes; keep the extra layer at half strength.
+  const s = life.standing * 0.5;
   const shift = life.shift * s;
   // Head turn is shared down the chain so the neck never twists alone; pitch is nod-down positive.
   turn('chest', 0, life.yaw * 0.12, 0);

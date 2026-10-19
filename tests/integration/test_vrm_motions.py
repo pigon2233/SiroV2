@@ -8,6 +8,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+import pytest
+
 ROOT = Path(__file__).parents[2]
 PACK = ROOT / "assets/companion/siro-vrm/0.1.0"
 
@@ -33,6 +35,8 @@ def test_pack_matches_committed_clips_and_rebuilds_identically(tmp_path: Path) -
     for activity in pack["activities"]:
         data = (PACK / activity["file"]).read_bytes()
         assert hashlib.sha256(data).hexdigest() == activity["sha256"]
+        if activity.get("source") == "mocap":
+            continue  # rebuilt from fetched captures by build_vrm_mocap.py
         spec = motions.ACTIVITIES[activity["activity"]]
         rebuilt = motions.build_vrma(
             json.loads((tmp_path / "skeleton.json").read_text()),
@@ -47,6 +51,7 @@ def test_clips_are_vrm_animation_with_hips_root_and_seamless_loops() -> None:
     pack = json.loads((PACK / "pack.json").read_text(encoding="utf-8"))
     names = {a["activity"] for a in pack["activities"]}
     assert {"idle", "nod", "wave", "think", "walk", "sit_down", "sit_loop", "stand_up"} <= names
+    assert {"bow", "bye", "shake"} <= names
     for activity in pack["activities"]:
         document, blob = glb((PACK / activity["file"]).read_bytes())
         bones = document["extensions"]["VRMC_vrm_animation"]["humanoid"]["humanBones"]
@@ -67,6 +72,23 @@ def test_clips_are_vrm_animation_with_hips_root_and_seamless_loops() -> None:
                     f"<{accessor['count'] * width}f", blob, view["byteOffset"]
                 )
                 assert values[:width] == values[-width:]
+
+
+def test_mocap_clips_credit_their_source_and_rebuild_when_cached() -> None:
+    pack = json.loads((PACK / "pack.json").read_text(encoding="utf-8"))
+    captured = {a["activity"]: a for a in pack["activities"] if a.get("source") == "mocap"}
+    assert set(captured) == {"idle", "nod", "shake", "wave", "bow", "bye"}
+    for entry in captured.values():
+        assert entry["license"] and entry["attribution"]
+    assert "non-commercial" in captured["wave"]["license"]
+    mocap = load("build_vrm_mocap")
+    if not all((mocap.CACHE / name).exists() for name in mocap.SOURCES):
+        pytest.skip("motion-capture sources not cached; run scripts/build_vrm_mocap.py")
+    skeleton = json.loads((PACK / "skeleton.json").read_text(encoding="utf-8"))
+    motions = mocap.load_motions()
+    for name, clip in mocap.build_clips(mocap.CACHE, skeleton).items():
+        data = mocap.encode(motions, skeleton, clip, mocap.MOCAP[name][1])
+        assert hashlib.sha256(data).hexdigest() == captured[name]["sha256"], name
 
 
 def test_spring_tuning_assigns_body_colliders_to_clothing_chains() -> None:
