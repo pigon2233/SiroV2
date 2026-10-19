@@ -11,7 +11,8 @@ const EMOTIONS = ['happy', 'sad', 'angry', 'surprised', 'relaxed'];
 const LOOK_HOLD_SECONDS = 4;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// Supersample at least 2x: the character is small in the stage card and blurs at 1x.
+renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 2), 3));
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.prepend(renderer.domElement);
@@ -43,12 +44,23 @@ function fitCamera() {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   if (modelBox) {
+    // Desktop shows the whole body; the stage card frames head to thigh below its title
+    // overlay so the face stays legible. Outstretched arms may be cropped by the card.
+    // Frame from humanoid bones: the mesh bounding box of VRoid exports is much taller than
+    // the body. VRM puts the feet on y = 0; anime heads reach about 1/3 of hips-to-head above it.
+    const hips = bone('hips')?.getWorldPosition(new THREE.Vector3());
+    const head = bone('head')?.getWorldPosition(new THREE.Vector3());
+    const top = hips && head ? head.y + (head.y - hips.y) * 0.34 : modelBox.max.y;
+    let bottom = hips ? 0 : modelBox.min.y;
+    if (!desktop && hips) bottom = hips.y - (top - hips.y) * 0.5;
     const size = modelBox.getSize(new THREE.Vector3());
-    const center = modelBox.getCenter(new THREE.Vector3());
-    const visibleHeight = Math.max(size.y, size.x / camera.aspect) * 1.08;
+    const [headroom, share] = desktop ? [0.03, 0.94] : [0.2, 0.68];
+    const widthLimit = desktop ? 0 : (size.x * 0.75) / camera.aspect;
+    const visibleHeight = Math.max((top - bottom) / share, widthLimit);
+    const centerY = top + headroom * visibleHeight - visibleHeight / 2;
     const distance = visibleHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    camera.position.set(0, center.y, distance + size.z);
-    camera.lookAt(0, center.y, 0);
+    camera.position.set(0, centerY, distance + size.z / 2);
+    camera.lookAt(0, centerY, 0);
   }
   camera.updateProjectionMatrix();
 }
