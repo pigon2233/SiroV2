@@ -111,6 +111,10 @@ def test_mocap_clips_credit_their_source_and_rebuild_when_cached() -> None:
         "notebook_out",
         "notebook_read",
         "notebook_away",
+        "walk",
+        "walk_start",
+        "walk_stop",
+        "turn_step",
     }
     for entry in captured.values():
         assert entry["license"] and entry["attribution"]
@@ -119,6 +123,7 @@ def test_mocap_clips_credit_their_source_and_rebuild_when_cached() -> None:
     assert captured["dangle"]["loop"] and captured["dangle"]["ground_contact"].startswith("none")
     assert captured["notebook_read"]["entry_pose"] == captured["notebook_out"]["exit_pose"]
     assert captured["notebook_read"]["exit_pose"] == captured["notebook_away"]["entry_pose"]
+    assert "m/s" in captured["walk"]["root_motion"]  # the window travels at the stride speed
     mocap = load("build_vrm_mocap")
     if not all((mocap.CACHE / name).exists() for name in mocap.SOURCES):
         pytest.skip("motion-capture sources not cached; run scripts/build_vrm_mocap.py")
@@ -200,6 +205,8 @@ def test_mood_idles_hold_their_own_pose_over_the_captured_idle() -> None:
         "look_around",
         "hum",
         "notebook_away",
+        "walk_stop",
+        "turn_step",
     ):
         clip = rotation_keys(name)
         for bone in ("hips", "spine", "chest", "head", "leftUpperArm", "rightUpperArm"):
@@ -207,15 +214,18 @@ def test_mood_idles_hold_their_own_pose_over_the_captured_idle() -> None:
             assert dot > 1 - 1e-6, f"{name} ends off the idle loop at {bone}"
 
 
-def test_notebook_out_hands_over_to_the_reading_loop_exactly() -> None:
-    out, read = rotation_keys("notebook_out"), rotation_keys("notebook_read")
-    assert set(out) == set(read)
+@pytest.mark.parametrize(
+    ("into", "loop"), [("notebook_out", "notebook_read"), ("walk_start", "walk")]
+)
+def test_lead_ins_hand_over_to_their_loop_exactly(into: str, loop: str) -> None:
+    out, looped = rotation_keys(into), rotation_keys(loop)
+    assert set(out) == set(looped)
     fingers = ("Thumb", "Index", "Middle", "Ring", "Little")
     for bone in out:
         if any(f in bone for f in fingers):
             continue  # the hand layer drifts the fingers on each clip's own clock
-        dot = abs(sum(a * b for a, b in zip(out[bone][-1], read[bone][0], strict=True)))
-        assert dot > 1 - 1e-6, f"notebook_out ends off notebook_read's first frame at {bone}"
+        dot = abs(sum(a * b for a, b in zip(out[bone][-1], looped[bone][0], strict=True)))
+        assert dot > 1 - 1e-6, f"{into} ends off {loop}'s first frame at {bone}"
 
 
 def test_spring_tuning_assigns_body_colliders_to_clothing_chains() -> None:

@@ -760,12 +760,17 @@ MOCAP = {
     "notebook_out": ("Brings the notebook up and opens it in both hands (prop: renderer).", False),
     "notebook_read": ("Reading the notebook held in both hands; turns a page; loops.", True),
     "notebook_away": ("Puts the notebook away and returns to the idle.", False),
+    "walk": ("Mixamo walk, made left-right symmetric; a 1 s in-place loop.", True),
+    "walk_start": ("Into the walk: the stride grows from standing over one cycle.", False),
+    "walk_stop": ("Out of the walk: the stride dies away into the idle over one cycle.", False),
+    "turn_step": ("Small steps in place while the renderer turns the model.", False),
 }
 MOODS = {"idle_happy", "idle_sad", "idle_angry", "idle_relaxed"}
 REACTIONS = {"pat", "poke", "dangle", "land"}
 TALK = {"talk_offer", "talk_both", "talk_explain", "talk_self"}
 IDLE_VARIETY = {"fix_hair", "look_around", "hum"}
 NOTEBOOK = {"notebook_out", "notebook_read", "notebook_away"}
+STEPS = {"walk_start", "walk_stop", "turn_step"}
 LAYERED = {
     "think",
     "attention",
@@ -779,6 +784,7 @@ LAYERED = {
     *TALK,
     *IDLE_VARIETY,
     *NOTEBOOK,
+    *STEPS,
 }
 GROUND = {"sit_loop": "seat_edge_and_feet", "dangle": "none (held up while dragged)"}
 ENTRY = {"sit_loop": "seated", "notebook_read": "notebook", "notebook_away": "notebook"}
@@ -832,6 +838,10 @@ def build_clips(
     out["hum"] = hum(motions, idle, skeleton)
     for book in (notebook_out, notebook_read, notebook_away):
         out[book.__name__] = book(motions, idle)
+    walk = captured_walk(xbot, skeleton)
+    out["walk"] = (walk, None)
+    for step in (walk_start, walk_stop, turn_step):
+        out[step.__name__] = step(idle, walk)
     return out
 
 
@@ -1469,6 +1479,102 @@ def notebook_away(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
     return clip, {"left": held_shape(0.7, 0.2, w), "right": held_shape(0.7, 0.2, w)}
 
 
+# --- walking --------------------------------------------------------------------------------
+#
+# The captured Mixamo walk replaces the hand-keyed gait. It is in place: the desktop window
+# travels, at the stride speed recorded in pack.json, so the planted foot doesn't skate.
+# walk_start and walk_stop grow the stride from the idle and settle it back; turn_step is a
+# few small steps in place while the renderer turns the model.
+
+ROOT_MOTION: dict[str, str] = {}  # filled by build_clips: the travel each walking clip implies
+
+
+def symmetric(loop: Clip) -> Clip:
+    """Average a gait loop with its own mirror image half a cycle later, so both legs match."""
+
+    rotations, hips = loop
+    period = len(hips) - 1
+    index = (np.arange(period + 1) + period // 2) % period
+    flipped, flipped_hips = mirror(loop)
+    out = {
+        bone: slerp(q, flipped[bone][index], np.full(len(q), 0.5)) for bone, q in rotations.items()
+    }
+    return out, (hips + flipped_hips[index]) / 2
+
+
+def world_positions(clip: Clip, skeleton: dict[str, Any], bone: str) -> np.ndarray:
+    rotations, hips = clip
+    chain = []
+    while bone:
+        chain.append(bone)
+        bone = skeleton[bone]["parent"]
+    chain.reverse()
+    world = np.broadcast_to(np.eye(3), (len(hips), 3, 3))
+    position = hips.astype(float).copy()
+    for parent, child in zip([None, *chain], chain, strict=False):
+        if parent is not None:
+            offset = np.subtract(skeleton[child]["world"], skeleton[parent]["world"])
+            position = position + np.einsum("nij,j->ni", world, offset)
+        if child in rotations:
+            world = world @ to_matrix(rotations[child])
+    return position
+
+
+def stride_speed(clip: Clip, skeleton: dict[str, Any]) -> float:
+    """Walking speed implied by the planted feet: how fast each slides back while it's down."""
+
+    speeds = []
+    for side in ("left", "right"):
+        foot = world_positions(clip, skeleton, f"{side}Foot")
+        planted = foot[:, 1] < foot[:, 1].min() + 0.02
+        speeds.append(-np.gradient(foot[:, 2])[planted].mean() * FPS)
+    return float(np.mean(speeds))
+
+
+def captured_walk(xbot: Path, skeleton: dict[str, Any]) -> Clip:
+    rotations, hips = load_mixamo(xbot, "walk", skeleton)
+    walk = (open_arms(narrow_stance(rotations), 4), hips)
+    period = len(hips) - 1
+    walk = symmetric(retime(walk, (period + 1) / period))  # an even period, exactly 1 s
+    speed = stride_speed(walk, skeleton)
+    ROOT_MOTION["walk"] = f"in place; the stride travels {speed:.2f} m/s forward (+Z)"
+    ROOT_MOTION["walk_start"] = f"in place; travel eases in from 0 to {speed:.2f} m/s"
+    ROOT_MOTION["walk_stop"] = f"in place; travel eases out from {speed:.2f} m/s to 0"
+    ROOT_MOTION["turn_step"] = "in place; the renderer turns the model while the feet step"
+    return walk
+
+
+def walk_start(idle: Clip, walk: Clip) -> tuple[Clip, None]:
+    """From the idle's first frame into the walk: one cycle in which the stride grows from
+    standing to full, ending exactly on the walk loop's first frame."""
+
+    rotations, hips = walk
+    w = in_out(np.linspace(0, 1, len(hips)))
+    start = {bone: np.broadcast_to(q[0], rotations[bone].shape) for bone, q in idle[0].items()}
+    out = {bone: arc(start[bone], q, w) for bone, q in rotations.items()}
+    return (out, idle[1][0] * (1 - w[:, None]) + hips * w[:, None]), None
+
+
+def walk_stop(idle: Clip, walk: Clip) -> tuple[Clip, None]:
+    """From the walk loop's first frame, one cycle in which the stride dies away into the idle,
+    ending on the idle loop's first frame."""
+
+    rotations, hips = walk
+    w = in_out(np.linspace(0, 1, len(hips)))
+    rest, rest_hips = idle_tail(idle, (len(hips) - 1) / FPS)
+    out = {bone: arc(q, rest[bone], w) for bone, q in rotations.items()}
+    return (out, hips * (1 - w[:, None]) + rest_hips * w[:, None]), None
+
+
+def turn_step(idle: Clip, walk: Clip) -> tuple[Clip, None]:
+    """A few small steps in place on the idle, for the renderer to turn the model over."""
+
+    rest, rest_hips = idle_tail(idle, (len(walk[1]) - 1) / FPS)
+    w = 0.4 * envelope((0.0, 0.25), (0.6, 0.85))(frames_of((rest, rest_hips)))
+    out = {bone: arc(rest[bone], q, w) for bone, q in walk[0].items()}
+    return (out, rest_hips * (1 - w[:, None]) + walk[1] * w[:, None]), None
+
+
 # ---- Hands: none of the sources capture fingers, so they get their own layer ----
 
 # Hand shapes as (curl, spread) for build_vrm_motions.hands(): relaxed and slightly cupped,
@@ -1615,7 +1721,9 @@ def main() -> None:
             "description": description,
             "entry_pose": ENTRY.get(name, "stand"),
             "exit_pose": EXIT.get(name, "stand"),
-            "root_motion": "none (hips height only; desktop window owns travel)",
+            "root_motion": ROOT_MOTION.get(
+                name, "none (hips height only; desktop window owns travel)"
+            ),
             "ground_contact": GROUND.get(name, "feet"),
             "interrupt": "any_frame",
             "crossfade_seconds": 0.3,
