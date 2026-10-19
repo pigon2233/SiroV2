@@ -984,7 +984,8 @@ function updateNotebook() {
 // steps, the native window travels while she walks (at her stride speed, so the planted foot
 // doesn't skate), then she settles and turns back to face you. The host decides how far there is
 // room to go; being spoken to or clicked stops her early, a drag hands her over to the dangle.
-const WALK_SPEED = 1.26; // m/s the captured stride covers at full speed (pack.json root_motion)
+// m/s the captured stride covers at full speed: the walk clip's root_speed_mps in pack.json
+let walkSpeed = 1.26;
 const WALK_PACE = 0.7; // a stroll: clips and travel both at 70 %
 let stroll = null; // { id, phase, since, direction, ramp, cruise, delay, from }
 let facing = 0; // radians the body is turned from the viewer; + is toward screen right
@@ -1008,7 +1009,7 @@ function startStroll() {
   window.parent.postMessage({
     type: 'siro.desktop.walk', v: 1, action: 'start', id: stroll.id, direction: 0,
     distance: (0.8 + Math.random() * 1.4) * pxPerMetre,
-    speed: WALK_SPEED * WALK_PACE * pxPerMetre,
+    speed: walkSpeed * WALK_PACE * pxPerMetre,
     ramp: actions.walk_start.getClip().duration / WALK_PACE,
     delay: actions.turn_step.getClip().duration / WALK_PACE,
   }, location.origin);
@@ -1126,6 +1127,7 @@ window.__siroVrm = Object.freeze({
   head: () => headOnScreen(),
   notebook: () => notebook.visible,
   stroll: () => stroll?.phase ?? null,
+  walkSpeed: () => walkSpeed,
   facing: () => facing,
   activity: () => Object.keys(actions).find(name => actions[name] === currentAction) ?? null,
 });
@@ -1320,6 +1322,8 @@ async function loadMotions(loader) {
     const action = mix.clipAction(createVRMAnimationClip(animation, vrm));
     if (item.loop) looping.add(action);
     actions[item.activity] = action;
+    const speed = Number(item.root_speed_mps);
+    if (item.activity === 'walk' && Number.isFinite(speed) && speed > 0) walkSpeed = speed;
   }
   if (!actions.idle) throw new Error('motion pack has no idle loop');
   reach = measureReach(mix);

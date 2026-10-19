@@ -15,14 +15,14 @@
 | 步速數學 | `desktop/wander.mjs` | 起步／停步速度曲線與 walk_start／walk_stop 的步幅混合曲線相同（4u³／1−(2−2u)³/2），各走半個 ramp；中途停下從當下速度再走一個 ramp；工作區內可走距離（離邊 8 px；方向 0 選空間大的一邊） |
 | 原生視窗 | `desktop/host.js` | `desktop.walk`（驗證 id、方向、距離 ≤4096 px、速度 10–2000 px/s、ramp 0.2–5 s、轉身前導 0–5 s）→ 依計畫每 16 ms 移動視窗並夾在工作區內；`desktop.walk.stop` 從當下速度停下；拖曳、聊天、版面、縮放、最小化／unmap／withdrawn、關閉都先停住；狀態寫入 native-state.json |
 | 頁面橋接 | `src/siro/services/presentation/static/desktop.js` | 只轉送角色 iframe、同源、`v:1` 且欄位合法的請求；聊天開著時直接拒絕；host 回報只轉送合法狀態（started／stopping／ended／refused） |
-| renderer | `renderers/vrm/src/main.js` | 只在桌寵模式：向 host 要空間 → `turn_step` 轉 90° → `walk_start` → `walk` → `walk_stop` → `turn_step` 轉回；片段與位移同速（1.26 m/s × 0.7，px/m＝窗格高度／畫面高度）；側身時把步伐中心移回窗格中央；說話、Core 訊息、點擊會叫住她；拖曳交給 dangle；host 一秒內沒回應就不走並取消遲到的開始；右鍵選單「散步」與閒置時偶爾散步 |
+| renderer | `renderers/vrm/src/main.js` | 只在桌寵模式：向 host 要空間 → `turn_step` 轉 90° → `walk_start` → `walk` → `walk_stop` → `turn_step` 轉回；片段與位移同速（pack.json `walk` 的 `root_speed_mps`＝1.262 m/s × 0.7，px/m＝窗格高度／畫面高度）；側身時把步伐中心移回窗格中央；說話、Core 訊息、點擊會叫住她；拖曳交給 dangle；host 一秒內沒回應就不走並取消遲到的開始；右鍵選單「散步」與閒置時偶爾散步 |
 
 ## 驗收對照
 
 | 驗收要求 | 狀態 | 證據 |
 | --- | --- | --- |
 | 走→停→（坐→起身）→被叫住→恢復連貫 | 自動測試 PASS | `test_desktop_stroll_turns_walks_with_the_window_and_stops_when_called`：轉身、起步、走、停、轉回、回 idle；走到一半點擊→送出 stop、立刻 walk_stop、回 idle；之後可再散步。坐下與散步互斥（保持狀態中不開始散步，散步中不開始坐下），兩者結束後都回 idle |
-| 腳步與位移一致 | 數學 PASS；真視窗未驗 | `test_walk_travel_follows_the_stride_curve_and_stays_in_the_work_area`：曲線面積＝0.5、位置連續不倒退、速度不超過步速、終點精確、停步距離正確。速度 1.26 m/s 取自 pack.json；px/m 由 renderer 依目前取景換算 |
+| 腳步與位移一致 | 數學 PASS；真視窗未驗 | `test_walk_travel_follows_the_stride_curve_and_stays_in_the_work_area`：曲線面積＝0.5、位置連續不倒退、速度不超過步速、終點精確、停步距離正確。速度讀 pack.json 的 `root_speed_mps`（測試核對 renderer 讀到的值）；px/m 由 renderer 依目前取景換算 |
 | 不出畫面 | 測試 PASS＋實測 | 工作區夾限（host 每步再夾一次）；用 owner 模型、360×640 窗格整段走路取樣，左右最少 11／22 px，沒有碰到邊 |
 | 不搶輸入焦點 | 設計上 | 走路只用 `window.move`，不 present／不改 accept-focus（桌寵預設 accept_focus=false） |
 | 不攔住別的程式 | 沿用 | 透明區域不收輸入（既有 input mask）；走完立即重算 mask（`queueShape`） |

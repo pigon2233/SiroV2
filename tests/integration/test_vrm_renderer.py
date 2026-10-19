@@ -589,6 +589,10 @@ def test_desktop_stroll_turns_walks_with_the_window_and_stops_when_called(tmp_pa
             request = menu_stroll()
             assert request["action"] == "start" and request["direction"] == 0
             assert request["speed"] > 0 and request["distance"] > 0
+            # The window travels at the stride speed the pack records for the walk.
+            pack = json.loads((PREPARE.MOTIONS / "pack.json").read_text(encoding="utf-8"))
+            walk = next(a for a in pack["activities"] if a["activity"] == "walk")
+            assert page.evaluate("window.__siroVrm.walkSpeed()") == walk["root_speed_mps"]
             assert abs(request["ramp"] - 1 / 0.7) < 0.05 and abs(request["delay"] - 1 / 0.7) < 0.05
             host(
                 {
