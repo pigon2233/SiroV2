@@ -14,6 +14,22 @@ const PACK_URL = './motions/pack.json';
 const CROSSFADE = 0.35;
 // Emotions that also get a small body reaction; the face is driven separately.
 const EMOTION_GESTURES = { happy: 'nod', surprised: 'attention' };
+// Speech cues for a body gesture. Greetings and answers count only at the start of a reply,
+// farewells and thanks also at the end. One gesture per reply, and only from the idle loop.
+const SPEECH_GESTURES = [
+  ['bye', /(再見|掰掰|拜拜|晚安|下次見|明天見|\bbye\b|see you|good ?night)/i, 'both'],
+  ['wave', /^(你好|您好|嗨|哈囉|早安|午安|早啊|hello|hi\b|hey\b|good morning)/i, 'head'],
+  ['bow', /(謝謝|感謝|多謝|抱歉|對不起|不好意思|請多指教|thank|sorry)/i, 'both'],
+  ['shake', /^(不是|不對|不行|不可以|不會吧|才不|no\b|nope)/i, 'head'],
+  ['think', /^(嗯+|讓我想想|我想想|想一下|這個嘛|hmm+|let me think)/i, 'head'],
+  ['nod', /^(對|是的|沒錯|好啊|好的|當然|可以|yes\b|sure\b|ok\b|okay\b)/i, 'head'],
+];
+// Manual menu (right click on the character); sit holds for a while, then stands up.
+const MENU_GESTURES = [
+  ['wave', '揮手'], ['bow', '鞠躬'], ['bye', '掰掰'], ['nod', '點頭'],
+  ['shake', '搖頭'], ['think', '思考'], ['attention', '注意'], ['sit', '坐下'],
+];
+const SIT_SECONDS = 8;
 const desktop = new URLSearchParams(location.search).get('presentation') === 'desktop';
 const statusLine = document.querySelector('#status');
 const EMOTIONS = ['happy', 'sad', 'angry', 'surprised', 'relaxed'];
@@ -41,6 +57,8 @@ let desiredIntensity = 1;
 let lastAnnounced = '';
 let lookUntil = 0;
 let gestureStart = -1;
+let speechGeneration;
+let sitUntil = -1;
 let nextBlink = 2;
 let blinkStart = -1;
 let elapsed = 0;
@@ -281,6 +299,7 @@ function loop(now) {
     if (mixer) {
       resetLifeBones();
       mixer.update(delta);
+      updateSit();
     } else idlePose(elapsed);
     updateLife(delta);
     updateFace(delta);
@@ -307,6 +326,12 @@ function renderSiro(message) {
     lookUntil = elapsed + LOOK_HOLD_SECONDS;
   } else if (message.type === 'body.gesture') {
     if (!playGesture(String(message.name || 'nod'))) gestureStart = elapsed;
+  } else if (message.type === 'body.speech') {
+    const generation = String(message.generation_id ?? '');
+    if (generation !== speechGeneration || !generation) {
+      const gesture = speechGesture(String(message.text ?? ''));
+      if (gesture && currentAction === idleAction && playGesture(gesture)) speechGeneration = generation;
+    }
   }
   if (message.type === 'body.emotion' && EMOTION_GESTURES[desiredEmotion]) {
     playGesture(EMOTION_GESTURES[desiredEmotion]);
@@ -389,6 +414,89 @@ window.__siroVrm = Object.freeze({
   activity: () => Object.keys(actions).find(name => actions[name] === currentAction) ?? null,
 });
 
+// Right click on the character opens a small gesture menu (manual testing and play).
+const menuStyle = document.createElement('style');
+menuStyle.textContent = `
+#gesture-menu { position: fixed; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+  padding: 6px; border-radius: 10px; background: rgba(28, 30, 44, 0.94);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); z-index: 10; }
+#gesture-menu[hidden] { display: none; }
+#gesture-menu button { font: 13px system-ui, sans-serif; color: #eef1ff; background: #3a3d57;
+  border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+#gesture-menu button:hover { background: #565a80; }
+#gesture-menu button:disabled { opacity: 0.4; cursor: default; }`;
+document.head.append(menuStyle);
+const gestureMenu = document.createElement('div');
+gestureMenu.id = 'gesture-menu';
+gestureMenu.hidden = true;
+for (const [name, label] of MENU_GESTURES) {
+  const item = document.createElement('button');
+  item.type = 'button';
+  item.textContent = label;
+  item.dataset.gesture = name;
+  item.addEventListener('pointerdown', event => event.stopPropagation());
+  item.addEventListener('pointerup', event => event.stopPropagation());
+  item.addEventListener('click', () => {
+    gestureMenu.hidden = true;
+    perform(name);
+  });
+  gestureMenu.append(item);
+}
+document.body.append(gestureMenu);
+window.addEventListener('contextmenu', event => {
+  event.preventDefault();
+  if (!mixer) return;
+  for (const item of gestureMenu.children) item.disabled = !(item.dataset.gesture === 'sit' ? actions.sit_down : actions[item.dataset.gesture]);
+  gestureMenu.hidden = false;
+  const x = Math.min(event.clientX, window.innerWidth - gestureMenu.offsetWidth - 4);
+  const y = Math.min(event.clientY, window.innerHeight - gestureMenu.offsetHeight - 4);
+  gestureMenu.style.left = `${Math.max(4, x)}px`;
+  gestureMenu.style.top = `${Math.max(4, y)}px`;
+});
+window.addEventListener('pointerdown', event => {
+  if (!gestureMenu.hidden && !gestureMenu.contains(event.target)) gestureMenu.hidden = true;
+}, true);
+window.addEventListener('keydown', event => {
+  if (event.key === 'Escape') gestureMenu.hidden = true;
+});
+
+function speechGesture(text) {
+  const clauses = text.trim().split(/[，。！？、,.!?~～…\n]+/).filter(Boolean);
+  if (!clauses.length) return null;
+  const head = clauses[0].trim();
+  const tail = clauses[clauses.length - 1].trim();
+  for (const [name, pattern, where] of SPEECH_GESTURES) {
+    if (!actions[name]) continue;
+    if (pattern.test(head) || (where === 'both' && pattern.test(tail))) return name;
+  }
+  return null;
+}
+
+// Sitting: sit_down, hold sit_loop, then stand_up back to idle.
+function sitDown() {
+  const down = actions.sit_down;
+  const hold = actions.sit_loop;
+  if (!mixer || !down || !hold || sitUntil >= 0) return false;
+  sitUntil = elapsed + down.getClip().duration + SIT_SECONDS;
+  return playGesture('sit_down');
+}
+
+function updateSit() {
+  if (sitUntil < 0 || elapsed < sitUntil || currentAction !== actions.sit_loop) return;
+  sitUntil = -1;
+  if (!playGesture('stand_up')) {
+    idleAction.reset().play();
+    currentAction.crossFadeTo(idleAction, CROSSFADE, false);
+    currentAction = idleAction;
+  }
+}
+
+function perform(name) {
+  if (name === 'sit') return sitDown();
+  if (sitUntil >= 0) return false;
+  return playGesture(name);
+}
+
 // One-shot gestures cross-fade in over the idle loop and hand control back to it when done.
 function playGesture(name) {
   const action = actions[name];
@@ -423,6 +531,12 @@ async function loadMotions(loader) {
   if (!actions.idle) throw new Error('motion pack has no idle loop');
   mix.addEventListener('finished', event => {
     if (event.action !== currentAction || event.action === idleAction) return;
+    if (event.action === actions.sit_down && sitUntil >= 0) {
+      actions.sit_loop.reset().setLoop(THREE.LoopRepeat, Infinity).play();
+      event.action.crossFadeTo(actions.sit_loop, CROSSFADE, false);
+      currentAction = actions.sit_loop;
+      return;
+    }
     idleAction.reset().play();
     event.action.crossFadeTo(idleAction, CROSSFADE, false);
     currentAction = idleAction;

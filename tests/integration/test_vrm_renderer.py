@@ -419,6 +419,28 @@ def test_renderer_follows_body_protocol_without_owning_speech(tmp_path: Path) ->
             page.wait_for_function("window.__siroVrm.neckPitch() > 0.05")
             page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
 
+            # Speech cues pick one gesture per reply; the menu triggers any gesture by hand.
+            gateway.send({"v": 1, "type": "body.speech", "text": "你好呀!", "generation_id": "g0"})
+            page.wait_for_function("window.__siroVrm.activity() === 'wave'")
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
+            gateway.send(
+                {"v": 1, "type": "body.speech", "text": "嗨 再說一次", "generation_id": "g0"}
+            )
+            page.wait_for_timeout(300)
+            assert page.evaluate("window.__siroVrm.activity()") == "idle"
+            assert page.locator("#gesture-menu").is_hidden()
+            page.mouse.click(180, 320, button="right")
+            page.locator("#gesture-menu button", has_text="鞠躬").click()
+            assert page.locator("#gesture-menu").is_hidden()
+            page.wait_for_function("window.__siroVrm.activity() === 'bow'")
+            assert not any(
+                m.get("type") == "siro.renderer.interact" for m in page.evaluate("window.__posted")
+            )
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
+            page.mouse.click(180, 320, button="right")
+            page.locator("#gesture-menu button", has_text="坐下").click()
+            page.wait_for_function("window.__siroVrm.activity() === 'sit_loop'", timeout=5000)
+
             gateway.send({"v": 1, "type": "body.speech", "text": "合成測試", "generation_id": "g1"})
             gateway.send({"v": 1, "type": "body.cancel", "generation_id": "g1"})
             page.wait_for_timeout(300)
