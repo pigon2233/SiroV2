@@ -446,6 +446,10 @@ def test_renderer_follows_body_protocol_without_owning_speech(tmp_path: Path) ->
             page.mouse.click(180, 320, button="right")
             page.locator("#gesture-menu button", has_text="坐下").click()
             page.wait_for_function("window.__siroVrm.activity() === 'sit_loop'", timeout=5000)
+            # A held pose keeps its arms: the mixer skips unchanged values, so the life layer
+            # must not zero bones it then never gets back.
+            page.wait_for_timeout(500)
+            assert abs(page.evaluate("window.__siroVrm.bone('rightUpperArm')")[3]) < 0.95
 
             gateway.send({"v": 1, "type": "body.speech", "text": "合成測試", "generation_id": "g1"})
             gateway.send({"v": 1, "type": "body.cancel", "generation_id": "g1"})

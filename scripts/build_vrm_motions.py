@@ -387,9 +387,9 @@ THINK = pose(
     rightUpperArm=[("x", 30), ("z", 90), ("x", -38)],
     rightLowerArm=[("y", 138), ("z", -18)],
     rightHand=[("z", 0), ("x", -10)],
-    # the free arm folds across the waist to support the raised elbow
-    leftUpperArm=[("z", -74), ("x", -22)],
-    leftLowerArm=[("y", -70), ("z", -10)],
+    # the free arm folds across the waist to support the raised elbow (turned in at the shoulder)
+    leftUpperArm=[("x", 60), ("z", -72), ("x", -12)],
+    leftLowerArm=[("y", -90), ("z", 0)],
 )
 
 

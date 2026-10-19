@@ -35,7 +35,7 @@ def test_pack_matches_committed_clips_and_rebuilds_identically(tmp_path: Path) -
     for activity in pack["activities"]:
         data = (PACK / activity["file"]).read_bytes()
         assert hashlib.sha256(data).hexdigest() == activity["sha256"]
-        if activity.get("source") == "mocap":
+        if str(activity.get("source", "")).startswith("mocap"):
             continue  # rebuilt from fetched captures by build_vrm_mocap.py
         spec = motions.ACTIVITIES[activity["activity"]]
         rebuilt = motions.build_vrma(
@@ -76,19 +76,65 @@ def test_clips_are_vrm_animation_with_hips_root_and_seamless_loops() -> None:
 
 def test_mocap_clips_credit_their_source_and_rebuild_when_cached() -> None:
     pack = json.loads((PACK / "pack.json").read_text(encoding="utf-8"))
-    captured = {a["activity"]: a for a in pack["activities"] if a.get("source") == "mocap"}
-    assert set(captured) == {"idle", "nod", "shake", "wave", "bow", "bye"}
+    entries = pack["activities"]
+    captured = {a["activity"]: a for a in entries if str(a.get("source")).startswith("mocap")}
+    assert set(captured) == {
+        "idle",
+        "nod",
+        "shake",
+        "wave",
+        "bow",
+        "bye",
+        "think",
+        "attention",
+        "sit_loop",
+    }
     for entry in captured.values():
         assert entry["license"] and entry["attribution"]
     assert "non-commercial" in captured["wave"]["license"]
+    assert captured["sit_loop"]["entry_pose"] == captured["sit_loop"]["exit_pose"] == "seated"
     mocap = load("build_vrm_mocap")
     if not all((mocap.CACHE / name).exists() for name in mocap.SOURCES):
         pytest.skip("motion-capture sources not cached; run scripts/build_vrm_mocap.py")
     skeleton = json.loads((PACK / "skeleton.json").read_text(encoding="utf-8"))
     motions = mocap.load_motions()
-    for name, clip in mocap.build_clips(mocap.CACHE, skeleton).items():
-        data = mocap.encode(motions, skeleton, clip, mocap.MOCAP[name][1])
+    for name, (clip, shapes) in mocap.build_clips(mocap.CACHE, skeleton, motions).items():
+        data = mocap.encode(motions, skeleton, clip, mocap.MOCAP[name][1], shapes)
         assert hashlib.sha256(data).hexdigest() == captured[name]["sha256"], name
+
+
+def rotation_keys(name: str) -> dict[str, list[tuple[float, ...]]]:
+    document, blob = glb((PACK / f"{name}.vrma").read_bytes())
+    nodes = document["nodes"]
+    animation = document["animations"][0]
+    out = {}
+    for channel in animation["channels"]:
+        if channel["target"]["path"] != "rotation":
+            continue
+        accessor = document["accessors"][animation["samplers"][channel["sampler"]]["output"]]
+        view = document["bufferViews"][accessor["bufferView"]]
+        values = struct.unpack_from(f"<{accessor['count'] * 4}f", blob, view["byteOffset"])
+        out[nodes[channel["target"]["node"]]["name"]] = [
+            values[i : i + 4] for i in range(0, len(values), 4)
+        ]
+    return out
+
+
+def test_layered_gestures_hand_back_to_the_idle_loop_exactly() -> None:
+    idle = rotation_keys("idle")
+    fingers = ("Thumb", "Index", "Middle", "Ring", "Little")
+    for name in ("think", "attention"):
+        clip = rotation_keys(name)
+        body = [bone for bone in idle if not any(f in bone for f in fingers)]
+        assert set(body) <= set(clip)
+        for bone in body:
+            last, first = clip[bone][-1], idle[bone][0]
+            dot = abs(sum(a * b for a, b in zip(last, first, strict=True)))
+            assert dot > 1 - 1e-6, f"{name} ends off the idle loop at {bone}"
+        # and the pose really leaves the idle in between: the right hand comes up to the face
+        middle = clip["rightLowerArm"][len(clip["rightLowerArm"]) // 2]
+        dot = abs(sum(a * b for a, b in zip(middle, idle["rightLowerArm"][0], strict=True)))
+        assert dot < 0.7, f"{name} never raises the right forearm"
 
 
 def test_spring_tuning_assigns_body_colliders_to_clothing_chains() -> None:

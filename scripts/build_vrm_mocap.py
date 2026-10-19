@@ -8,6 +8,7 @@ pinned by sha256; only the retargeted ``.vrma`` clips are committed.
   wave, bow and bye.
 - Mixamo animations shipped with the three.js examples (``Xbot.glb``, three.js r169): idle,
   nod and head shake.
+- Think and a surprised start: authored arm and torso layers over the captured idle.
 
 Run after ``build_vrm_motions.py`` (which rewrites pack.json): this replaces the authored
 entries it supersedes and appends the rest, marking each with its source and licence.
@@ -28,6 +29,7 @@ import json
 import re
 import struct
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -80,6 +82,7 @@ def load_motions() -> ModuleType:
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    module.overlap = module.delay  # kept for the authored layers over captured motion
     module.delay = lambda bone: 0.0  # captured motion already has its own overlap
     return module
 
@@ -173,6 +176,20 @@ def qinv(q: np.ndarray) -> np.ndarray:
 def slerp(a: np.ndarray, b: np.ndarray, t: np.ndarray) -> np.ndarray:
     b = np.where((a * b).sum(-1, keepdims=True) < 0, -b, b)
     q = a + (b - a) * t[..., None]  # nlerp: the blends are short and between close poses
+    return q / np.linalg.norm(q, axis=-1, keepdims=True)
+
+
+def arc(a: np.ndarray, b: np.ndarray, t: np.ndarray) -> np.ndarray:
+    """True slerp at constant angular speed, for wide swings; ``t`` may overshoot past 1."""
+
+    b = np.where((a * b).sum(-1, keepdims=True) < 0, -b, b)
+    theta = np.arccos(np.clip((a * b).sum(-1), -1, 1))
+    s = np.sin(theta)
+    near = s < 1e-6
+    s = np.where(near, 1, s)
+    wa = np.where(near, 1 - t, np.sin((1 - t) * theta) / s)
+    wb = np.where(near, t, np.sin(t * theta) / s)
+    q = wa[..., None] * a + wb[..., None] * b
     return q / np.linalg.norm(q, axis=-1, keepdims=True)
 
 
@@ -570,6 +587,125 @@ def in_place(clip: Clip) -> Clip:
     return clip[0], hips
 
 
+# --- authored layers over the captured idle -------------------------------------------------
+#
+# None of the sources capture thinking or a surprised start, so those are authored poses laid
+# over the captured idle: the arms swing to the pose outright, the torso and head add only the
+# pose's offset from the stand, and the body underneath keeps breathing and shifting its weight.
+
+Weight = Callable[[np.ndarray], np.ndarray]
+Shapes = dict[str, np.ndarray]  # side -> (frames, 3): curl, spread, override weight
+
+
+def in_out(u: np.ndarray) -> np.ndarray:
+    return np.where(u < 0.5, 4 * u**3, 1 - (-2 * u + 2) ** 3 / 2)
+
+
+def out_back(u: np.ndarray, overshoot: float) -> np.ndarray:
+    v = u - 1
+    return 1 + (overshoot + 1) * v**3 + overshoot * v**2
+
+
+def envelope(rise: tuple[float, float], fall: tuple[float, float], overshoot: float = 0) -> Weight:
+    """0 -> 1 over ``rise`` (seconds), back to 0 over ``fall``; overshoot makes the arrival land."""
+
+    def weight(t: np.ndarray) -> np.ndarray:
+        up = np.clip((t - rise[0]) / (rise[1] - rise[0]), 0, 1)
+        down = np.clip((t - fall[0]) / (fall[1] - fall[0]), 0, 1)
+        return (out_back(up, overshoot) if overshoot else in_out(up)) * (1 - in_out(down))
+
+    return weight
+
+
+def idle_tail(loop: Clip, seconds: float) -> Clip:
+    """The idle loop leading up to its first frame, so a layered clip hands back seamlessly."""
+
+    rotations, hips = loop
+    index = np.arange(-round(seconds * FPS), 1) % (len(hips) - 1)
+    return {bone: q[index] for bone, q in rotations.items()}, hips[index]
+
+
+def layer(
+    motions: ModuleType,
+    base: Clip,
+    target: dict[str, list[tuple[str, object]]],
+    weight: Weight,
+    absolute: tuple[str, ...] = (),
+    additive: tuple[str, ...] = (),
+) -> Clip:
+    """Blend ``absolute`` bones to the target pose and add the target's offset from the stand
+    pose to ``additive`` ones; each bone trails its parent by the authored overlap delay."""
+
+    rotations, hips = base
+    t = np.arange(len(hips)) / FPS
+    out = dict(rotations)
+    for bone in (*absolute, *additive):
+        stand = motions.STAND.get(bone, [])
+        goal = np.broadcast_to(np.array(motions.compose(target.get(bone, stand))), out[bone].shape)
+        w = weight(t - motions.overlap(bone))
+        if bone in absolute:
+            out[bone] = arc(out[bone], goal, w)
+        else:
+            identity = np.broadcast_to(np.array([0.0, 0, 0, 1]), goal.shape)
+            offset = qmul(goal, qinv(np.array(motions.compose(stand))))
+            out[bone] = qmul(arc(identity, offset, w), out[bone])
+    return out, hips
+
+
+def held_shape(curl: float, spread: float, weight: np.ndarray) -> np.ndarray:
+    lag = lagged(np.clip(weight, 0, 1), loop=False)
+    return np.stack([np.full_like(lag, curl), np.full_like(lag, spread), lag], -1)
+
+
+RIGHT_ARM = ("rightShoulder", "rightUpperArm", "rightLowerArm", "rightHand")
+LEFT_ARM = ("leftShoulder", "leftUpperArm", "leftLowerArm", "leftHand")
+TORSO = ("hips", "spine", "chest", "neck", "head")
+
+
+def think(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Chin in hand, the other arm folded under the elbow, head tilting further as she thinks."""
+
+    clip = idle_tail(idle, 4.2)
+    pose = motions.THINK
+    deeper = motions.add(pose, neck=[("z", 4)], head=[("x", 3), ("z", 2)])
+    clip = layer(motions, clip, pose, envelope((0.0, 0.9), (3.2, 3.95)), additive=TORSO)
+    clip = layer(motions, clip, deeper, envelope((1.0, 2.6), (2.9, 3.6)), additive=("neck", "head"))
+    clip = layer(motions, clip, pose, envelope((0.1, 0.85), (3.3, 3.95), 0.6), RIGHT_ARM)
+    support = envelope((0.22, 0.95), (3.2, 3.9))
+    clip = layer(motions, clip, pose, support, LEFT_ARM)
+    t = np.arange(len(clip[1])) / FPS
+    hand = envelope((0.3, 0.85), (3.3, 3.7))(t)  # a loose fist under the chin, not an open hand
+    return clip, {"right": held_shape(1.6, 0.3, hand), "left": held_shape(1.1, 0.6, support(t))}
+
+
+SURPRISE = {
+    "spine": [("x", -4)],
+    "chest": [("x", -4)],
+    "neck": [("x", -5)],
+    "head": [("x", -4)],
+    "leftShoulder": [("z", 7)],
+    "rightShoulder": [("z", -7)],
+    # A gasp: the right hand flies up to the mouth, the left lands across the chest.
+    "rightUpperArm": [("x", 30), ("z", 90), ("x", -46)],
+    "rightLowerArm": [("y", 146), ("z", -18)],
+    "rightHand": [("z", 0), ("x", -10)],
+    "leftUpperArm": [("x", 55), ("z", -70), ("x", -14)],
+    "leftLowerArm": [("y", -112)],
+    "leftHand": [("z", 0)],
+}
+
+
+def surprise(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """A startle: a quick flinch back with a gasp, a beat of held breath, then relaxing."""
+
+    clip = idle_tail(idle, 1.9)
+    clip = layer(motions, clip, SURPRISE, envelope((0.0, 0.18), (0.8, 1.55), 1.8), additive=TORSO)
+    arms = envelope((0.03, 0.24), (0.85, 1.6), 1.4)
+    clip = layer(motions, clip, SURPRISE, arms, (*LEFT_ARM, *RIGHT_ARM))
+    w = arms(np.arange(len(clip[1])) / FPS)
+    return clip, {"right": held_shape(0.6, 1.6, w), "left": held_shape(0.7, 1.0, w)}
+
+
 # --- pack -----------------------------------------------------------------------------------
 
 MOCAP = {
@@ -579,10 +715,27 @@ MOCAP = {
     "wave": ("Captured right-hand wave, trimmed to two sweeps; returns to the stand pose.", False),
     "bow": ("Captured polite bow with hands together; returns to the stand pose.", False),
     "bye": ("Captured small hand-by-the-face hello/bye; returns to the stand pose.", False),
+    "think": (
+        "Chin in hand over the captured idle, head tilting further; returns to the idle.",
+        False,
+    ),
+    "attention": (
+        "Startle over the captured idle: flinch back, a hand to the mouth, held breath, relax.",
+        False,
+    ),
+    "sit_loop": (
+        "Seated on an edge with the captured idle's breathing and sway in the upper body,"
+        " an idle foot swing; loops until stand_up.",
+        True,
+    ),
 }
+LAYERED = {"think", "attention", "sit_loop"}
+SEATED = {"sit_loop"}
 
 
-def build_clips(cache: Path, skeleton: dict[str, Any]) -> dict[str, Clip]:
+def build_clips(
+    cache: Path, skeleton: dict[str, Any], motions: ModuleType
+) -> dict[str, tuple[Clip, Shapes | None]]:
     xbot = fetch("Xbot.glb", cache)
 
     def mixamo(name: str) -> Clip:
@@ -592,10 +745,11 @@ def build_clips(cache: Path, skeleton: dict[str, Any]) -> dict[str, Clip]:
     def bvh(name: str) -> Clip:
         return in_place(load_bvh(fetch(f"{name}.bvh", cache), skeleton))
 
-    idle = mixamo("idle")
+    captured = mixamo("idle")
+    idle = close_loop(join(captured, mirror(captured)))
     wave = bvh("dataset-2_wave-right-hand_normal_001")
-    return {
-        "idle": close_loop(join(idle, mirror(idle))),
+    clips = {
+        "idle": idle,
         "nod": mixamo("agree"),
         "shake": mixamo("headShake"),
         # raise and one and a half sweeps, then the matching sweep before the arm comes down
@@ -603,6 +757,41 @@ def build_clips(cache: Path, skeleton: dict[str, Any]) -> dict[str, Clip]:
         "bow": bvh("dataset-1_bow_normal_001"),
         "bye": bvh("dataset-1_bye_normal_001"),
     }
+    out: dict[str, tuple[Clip, Shapes | None]] = {name: (c, None) for name, c in clips.items()}
+    out["think"] = think(motions, idle)
+    out["attention"] = surprise(motions, idle)
+    out["sit_loop"] = (seated(motions, idle, skeleton), None)
+    return out
+
+
+UPPER_BODY = ("spine", "chest", "upperChest", "neck", "head", "leftShoulder", "rightShoulder")
+
+
+def seated(
+    motions: ModuleType, idle: Clip, skeleton: dict[str, Any], strength: float = 0.8
+) -> Clip:
+    """The authored seated loop with the captured idle's breathing and sway in the upper body.
+
+    Two idle cycles long; the authored loop is stretched to match so both stay seamless.
+    """
+
+    period = len(idle[1]) - 1
+    index = np.arange(2 * period + 1) % period
+    duration = 2 * period / FPS
+    samples = [motions.sit_loop(i / FPS * 8.0 / duration) for i in range(len(index))]
+    fingers = (*motions.FINGERS, "Thumb")
+    # fingers are left to the hand layer, which keeps them drifting
+    bones = {b for p, _h in samples for b in p if not any(f in b for f in fingers)}
+    out = {b: np.array([motions.compose(p.get(b, [])) for p, _h in samples]) for b in bones}
+    identity = np.broadcast_to(np.array([0.0, 0, 0, 1]), (len(index), 4))
+    for bone in UPPER_BODY:
+        q = idle[0][bone]
+        q = np.where((q * q[:1]).sum(-1, keepdims=True) < 0, -q, q)
+        mean = q.mean(0) / np.linalg.norm(q.mean(0))
+        sway = arc(identity, qmul(q[index], qinv(mean)), np.full(len(index), strength))
+        out[bone] = qmul(sway, out.get(bone, identity))
+    hips = np.array([h for _p, h in samples]) + np.array(skeleton["hips"]["world"])
+    return out, hips
 
 
 # ---- Hands: none of the sources capture fingers, so they get their own layer ----
@@ -660,15 +849,21 @@ def hand_weights(clip: Clip, skeleton: dict[str, Any], loop: bool) -> dict[str, 
     return out
 
 
-def finger_pose(
-    motions: ModuleType, side: str, raised: float, flat: float, t: float, period: float
-) -> dict[str, list[tuple[str, object]]]:
-    """Blend the hand shapes, plus a slow, small curl drift per finger so hands never freeze."""
+def auto_shape(raised: float, flat: float) -> tuple[float, float, float]:
+    """(curl, spread, drift amount) from how raised and how flat the hand should be."""
 
     curl = RELAXED[0] + (OPEN[0] - RELAXED[0]) * raised
     spread = RELAXED[1] + (OPEN[1] - RELAXED[1]) * raised
     curl += (FLAT[0] - curl) * flat * (1 - raised)
     spread += (FLAT[1] - spread) * flat * (1 - raised)
+    return curl, spread, 1 - 0.6 * max(raised, flat)
+
+
+def finger_pose(
+    motions: ModuleType, side: str, curl: float, spread: float, calm: float, t: float, period: float
+) -> dict[str, list[tuple[str, object]]]:
+    """The hand shape, plus a slow, small curl drift per finger so hands never freeze."""
+
     shape = motions.hands(curl, spread)
     # the thumb stays tucked alongside the palm; a fully opened thumb splays out like a claw
     shape.update({b: r for b, r in motions.hands(max(curl, 0.75), spread).items() if "Thumb" in b})
@@ -681,7 +876,7 @@ def finger_pose(
         # whole cycles per clip keep loops seamless; amplitude fades on open/flat hands
         cycles = max(1, round(period / (3.5 + 0.9 * finger)))
         drift = np.sin(2 * np.pi * cycles * t / period + phase + 1.3 * finger)
-        drift_deg = (2.5 + 0.8 * finger) * drift * (1 - 0.6 * max(raised, flat))
+        drift_deg = (2.5 + 0.8 * finger) * drift * calm
         sign = -1 if side == "left" else 1
         bent = [
             (axis, value + sign * drift_deg if axis == "z" else value) for axis, value in rotations
@@ -690,7 +885,15 @@ def finger_pose(
     return out
 
 
-def encode(motions: ModuleType, skeleton: dict[str, Any], clip: Clip, loop: bool) -> bytes:
+def encode(
+    motions: ModuleType,
+    skeleton: dict[str, Any],
+    clip: Clip,
+    loop: bool,
+    shapes: Shapes | None = None,
+) -> bytes:
+    """``shapes`` overrides the automatic hand shape where a layered gesture holds its own."""
+
     rotations, hips = clip
     rest = np.array(skeleton["hips"]["world"])
     frames = len(hips)
@@ -701,7 +904,12 @@ def encode(motions: ModuleType, skeleton: dict[str, Any], clip: Clip, loop: bool
         f = min(frames - 1, round(t * FPS))
         pose: dict[str, list[tuple[str, object]]] = {}
         for side, w in weights.items():
-            pose.update(finger_pose(motions, side, float(w[f, 0]), float(w[f, 1]), t, period))
+            curl, spread, calm = auto_shape(float(w[f, 0]), float(w[f, 1]))
+            if shapes and side in shapes:
+                held_curl, held_spread, k = (float(x) for x in shapes[side][f])
+                curl, spread = curl + (held_curl - curl) * k, spread + (held_spread - spread) * k
+                calm += (0.5 - calm) * k
+            pose.update(finger_pose(motions, side, curl, spread, calm, t, period))
         for bone, q in rotations.items():
             pose[bone] = [("q", tuple(float(x) for x in q[f]))]
         return pose, tuple(float(x) for x in hips[f] - rest)
@@ -718,9 +926,9 @@ def main() -> None:
     motions = load_motions()
     pack = json.loads((args.out / "pack.json").read_text(encoding="utf-8"))
     entries = {entry["activity"]: entry for entry in pack["activities"]}
-    for name, clip in build_clips(args.cache, skeleton).items():
+    for name, (clip, shapes) in build_clips(args.cache, skeleton, motions).items():
         description, loop = MOCAP[name]
-        data = encode(motions, skeleton, clip, loop)
+        data = encode(motions, skeleton, clip, loop, shapes)
         (args.out / f"{name}.vrma").write_bytes(data)
         bandai = name in {"wave", "bow", "bye"}
         entries[name] = {
@@ -730,13 +938,13 @@ def main() -> None:
             "duration": (len(clip[1]) - 1) / FPS,
             "loop": loop,
             "description": description,
-            "entry_pose": "stand",
-            "exit_pose": "stand",
+            "entry_pose": "seated" if name in SEATED else "stand",
+            "exit_pose": "seated" if name in SEATED else "stand",
             "root_motion": "none (hips height only; desktop window owns travel)",
-            "ground_contact": "feet",
+            "ground_contact": "seat_edge_and_feet" if name in SEATED else "feet",
             "interrupt": "any_frame",
             "crossfade_seconds": 0.3,
-            "source": "mocap",
+            "source": "mocap_layered" if name in LAYERED else "mocap",
             "license": BANDAI_LICENSE if bandai else MIXAMO_LICENSE,
             "attribution": BANDAI_CREDIT if bandai else MIXAMO_CREDIT,
         }

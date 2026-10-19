@@ -155,13 +155,14 @@ function updateMouth(delta, manager) {
   mouth.beat *= Math.exp(-delta / 0.16);
   const speaking = elapsed - mouth.voiced < 0.6 ? 1 : 0;
   mouth.talk += (speaking - mouth.talk) * (1 - Math.exp(-delta / 0.35));
-  const open = mouth.level;
+  const open = clamp01(mouth.level * 1.15);
   const t = mouth.tone;
-  // Bright frames (high zero-crossing rate: i, e, s) narrow the mouth; dark ones round it.
+  // Bright frames (high zero-crossing rate: i, e, s) narrow the mouth; dark ones round it. The
+  // jaw (aa) always carries most of the opening; the vowel shapes only colour it.
   const shapes = {
-    aa: open * (0.35 + 0.65 * clamp01(1 - Math.abs(t - 0.5) * 1.6)),
-    ih: open * clamp01((t - 0.55) * 2.2) * 0.7,
-    ou: open * clamp01((0.45 - t) * 2.2) * 0.7,
+    aa: open * (0.6 + 0.4 * clamp01(1 - Math.abs(t - 0.5) * 1.6)),
+    ih: open * clamp01((t - 0.55) * 2.2) * 0.5,
+    ou: open * clamp01((0.45 - t) * 2.2) * 0.5,
   };
   for (const [name, value] of Object.entries(shapes)) if (hasExpression(name)) manager.setValue(name, value);
 }
@@ -198,7 +199,7 @@ function updateFace(delta) {
 // intervals and low-frequency micro-motion that never repeats.
 const life = {
   yaw: 0, yawV: 0, pitch: 0, pitchV: 0, shift: 0, shiftV: 0, shiftGoal: 0, standing: 1, standingV: 0,
-  glanceYaw: 0, glancePitch: 0, nextGlance: 2.5, nextShift: 6,
+  glanceYaw: 0, glancePitch: 0, nextGlance: 2.5, nextShift: 6, follow: 1, followV: 0,
   saccadeYaw: 0, saccadePitch: 0, nextSaccade: 1,
 };
 const DEG = Math.PI / 180;
@@ -238,12 +239,26 @@ const LIFE_BONES = [
   'hips', 'spine', 'chest', 'neck', 'head', 'leftUpperArm', 'rightUpperArm',
   'leftLowerArm', 'rightLowerArm', 'leftLowerLeg', 'rightLowerLeg',
 ];
-let restHips;
+const lifeBase = new Map();
+const hipsBase = new THREE.Vector3();
 
-// Clips do not write every bone; reset the ones the life layer touches so it never accumulates.
-function resetLifeBones() {
-  for (const name of LIFE_BONES) bone(name)?.quaternion.identity();
-  if (restHips) bone('hips')?.position.copy(restHips);
+// The life layer adds to what the clips wrote, so each frame starts from the clips' pose again.
+// The mixer only writes a bone when its clip value changes, so a held pose (a constant track)
+// keeps whatever is left on the bone: restore what the clips last left, never zero it.
+function restoreLifeBones() {
+  for (const [name, quaternion] of lifeBase) bone(name)?.quaternion.copy(quaternion);
+  if (lifeBase.size) bone('hips')?.position.copy(hipsBase);
+}
+
+function saveLifeBones() {
+  for (const name of LIFE_BONES) {
+    const node = bone(name);
+    if (!node) continue;
+    if (!lifeBase.has(name)) lifeBase.set(name, new THREE.Quaternion());
+    lifeBase.get(name).copy(node.quaternion);
+  }
+  const hips = bone('hips');
+  if (hips) hipsBase.copy(hips.position);
 }
 
 function turn(name, x, y, z) {
@@ -308,9 +323,13 @@ function updateLife(delta) {
   const s = life.standing * 0.5;
   const shift = life.shift * s;
   // Head turn is shared down the chain so the neck never twists alone; pitch is nod-down positive.
-  turn('chest', 0, life.yaw * 0.12, 0);
-  turn('neck', -life.pitch * 0.4, life.yaw * 0.35, 0);
-  turn('head', -life.pitch * 0.5 + drift(1, t) * 1.5 * DEG, life.yaw * 0.45, drift(2, t) * 2.5 * DEG);
+  // With the chin in her hand (thinking) mostly the eyes move, so the head stays on the hand.
+  smoothDamp('follow', currentAction === actions.think ? 0.35 : 1, 0.3, delta);
+  const yawTurn = life.yaw * life.follow;
+  const pitchTurn = life.pitch * life.follow;
+  turn('chest', 0, yawTurn * 0.12, 0);
+  turn('neck', -pitchTurn * 0.4, yawTurn * 0.35, 0);
+  turn('head', -pitchTurn * 0.5 + drift(1, t) * 1.5 * DEG, yawTurn * 0.45, drift(2, t) * 2.5 * DEG);
   // Speaking: a small nod on stressed syllables, livelier head motion and a slight lean in.
   const talk = mouth.talk;
   turn('neck', mouth.beat * 1.2 * DEG, 0, 0);
@@ -358,9 +377,10 @@ function loop(now) {
   elapsed += delta;
   if (vrm) {
     if (mixer) {
-      resetLifeBones();
+      restoreLifeBones();
       mixer.update(delta);
       updateSit();
+      saveLifeBones();
     } else idlePose(elapsed);
     updateLife(delta);
     updateFace(delta);
@@ -472,6 +492,7 @@ window.__siroVrm = Object.freeze({
   expression: name => vrm?.expressionManager?.getValue(name) ?? null,
   lookTarget: () => lookTarget.position.toArray(),
   neckPitch: () => bone('neck')?.rotation.x ?? null,
+  bone: name => bone(name)?.quaternion.toArray() ?? null,
   activity: () => Object.keys(actions).find(name => actions[name] === currentAction) ?? null,
 });
 
@@ -568,6 +589,12 @@ function playGesture(name) {
   action.play();
   currentAction?.crossFadeTo(action, CROSSFADE, false);
   currentAction = action;
+  if (name === 'think') {
+    // People look up and away while they think, and back once they have it.
+    life.glanceYaw = (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 8) * DEG;
+    life.glancePitch = (7 + Math.random() * 5) * DEG;
+    life.nextGlance = elapsed + action.getClip().duration - 0.5;
+  }
   return true;
 }
 
@@ -620,7 +647,6 @@ async function loadModel() {
   VRMUtils.rotateVRM0(loaded);
   scene.add(loaded.scene);
   vrm = loaded;
-  restHips = bone('hips')?.position.clone();
   try {
     await loadMotions(loader);
   } catch (error) {
