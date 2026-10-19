@@ -1,0 +1,109 @@
+{
+  "objective": "done v03",
+  "audit_date": "2026-10-19 Asia/Taipei",
+  "previous_turn_classification": "PROGRESS_ON_OWNER_SELECTED_3D_PROTOTYPE; V03 checkpoint was retained. This resumed goal turn makes actual V03 progress.",
+  "current_turn_classification": "PROGRESS",
+  "local_card_acceptance": "VERIFIED",
+  "full_objective": "INCOMPLETE_REMOTE_DELIVERY",
+  "requirements": [
+    {
+      "id": "V03.1",
+      "requirement": "比例／左右朝向／服裝／色票",
+      "status": "LOCAL_VERIFIED",
+      "evidence": [
+        "../DESIGN.md",
+        "../references/0.2.0/siro-concept-sheet.png"
+      ],
+      "scope": "比例數值為設計目標，不宣稱生成圖已精確量測"
+    },
+    {
+      "id": "V03.2",
+      "requirement": "至少站立與坐姿參考",
+      "status": "LOCAL_VERIFIED",
+      "evidence": [
+        "../references/0.2.0/siro-concept-sheet.png",
+        "../concept-artifact.json"
+      ],
+      "scope": "Git tracked 1536x1024 圖，owner 已接受0.2.0；digest本輪核對"
+    },
+    {
+      "id": "V03.3",
+      "requirement": "遮擋關係與分層計畫",
+      "status": "LOCAL_VERIFIED",
+      "evidence": [
+        "../LAYERING.md",
+        "../layer-plan.csv"
+      ],
+      "scope": "80個唯一layer_id；分層計畫不是80件成品"
+    },
+    {
+      "id": "V03.4",
+      "requirement": "草案先確認再大量製作／身份與可綁定性檢查",
+      "status": "LOCAL_VERIFIED",
+      "evidence": [
+        "../DESIGN.md",
+        "../material-study/README.md"
+      ],
+      "scope": "owner接受外觀；左右衣著及髮夾核對、頭髮耳洞錯誤已作廢，正式rig可綁定性屬V04後續"
+    },
+    {
+      "id": "V03.5",
+      "requirement": "確認可操作Editor、工程取得與匯出往返",
+      "status": "LOCAL_VERIFIED",
+      "evidence": [
+        "README.md",
+        "siro-v03-model-reopened.png",
+        "siro-v03-model-reopened-angle30.png",
+        "siro-v03-reopened-v2-key15.png"
+      ],
+      "scope": "user指定Wine與xdotool；Windows版Editor在Linux相容層，非原生Win/Mac驗收"
+    },
+    {
+      "id": "V03.6",
+      "requirement": "列清楚可自動與人工步驟",
+      "status": "LOCAL_VERIFIED",
+      "evidence": [
+        "../TOOLCHAIN.md",
+        "README.md"
+      ],
+      "scope": "GUI操作已測，MCP編輯API缺失；離線驗證可重跑"
+    },
+    {
+      "id": "V03.7",
+      "requirement": "簡單工程可編輯→匯出→真renderer播放",
+      "status": "LOCAL_VERIFIED",
+      "evidence": [
+        "v1-final/report.json",
+        "v2-final/report.json",
+        "comparison.json",
+        "archived-comparison.json"
+      ],
+      "scope": "兩版各19項、比較8項；SDK peak30vs15，畫面位移64vs32；不是手動設參數替代motion"
+    },
+    {
+      "id": "V03.8",
+      "requirement": "回退保留現有角色、不以假模型替代",
+      "status": "LOCAL_VERIFIED",
+      "evidence": [
+        "README.md"
+      ],
+      "scope": "兩層自有測試件只驗工具鏈，production_usable=false；未更動runtime"
+    },
+    {
+      "id": "OWNER.DELIVERY",
+      "requirement": "推至既有branch，owner自行合併、不再建PR",
+      "status": "PENDING_EXTERNAL_AUTH",
+      "evidence": [
+        "README.md"
+      ],
+      "scope": "HTTPS缺憑證；GitHub Connector requires reauthentication；SSH agent無identity。沒有force push/merge/PR"
+    }
+  ],
+  "out_of_scope": [
+    "CP-V04 full character rig/activities",
+    "production renderer integration",
+    "native Win/macOS and real GPU",
+    "3D prototype cannot substitute Live2D evidence"
+  ],
+  "pending": "GitHub reauthentication; user question already sent. Goal remains active, not marked complete."
+}
