@@ -1738,7 +1738,7 @@
         if (event.data?.type !== "siro.renderer.ready") return;
         const labels = {neutral:"平靜地陪著你", happy:"開心", sad:"有點難過", angry:"認真表達不滿", surprised:"好奇、留意著"};
         document.querySelector("#companion-state").textContent = labels[event.data.emotion] || "陪著你";
-        document.querySelector("#renderer-status").textContent = "Live2D 已就緒 · 情緒與對話同步";
+        document.querySelector("#renderer-status").textContent = `${event.data.renderer === "VRM" ? "VRM" : "Live2D"} 已就緒 · 情緒與對話同步`;
       });
       document.querySelectorAll(".computer-prompt").forEach(button => button.onclick = () => { if (navigationInitialized) navigateToPage("chat", false); document.querySelector("#text").value = button.dataset.prompt; document.querySelector("#text").focus(); document.querySelector("#chat").scrollIntoView({behavior:"smooth",block:"center"}); });
       let chatInputComposing = false;

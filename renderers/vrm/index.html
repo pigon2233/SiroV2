@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SIRO VRM Renderer</title>
+  <script>
+    if (new URLSearchParams(location.search).get('presentation') === 'desktop') {
+      document.documentElement.dataset.siroPresentation = 'desktop';
+    }
+  </script>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    /* SIRO stage */
+    html, body { background: radial-gradient(ellipse at 50% 45%, #49394e, #191c2a 75%); }
+    /* SIRO desktop transparency */
+    html[data-siro-presentation="desktop"],
+    html[data-siro-presentation="desktop"] body { background: transparent !important; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #status { position: fixed; inset: auto 0 12px; text-align: center; color: #cfd6f2;
+      font: 13px system-ui, sans-serif; pointer-events: none; }
+    #status:empty { display: none; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/jsm/",
+        "@pixiv/three-vrm": "./vendor/three-vrm.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <p id="status" role="status">角色載入中…</p>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

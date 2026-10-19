@@ -47,3 +47,13 @@ def load_verified_manifest(path: Path) -> BodyAssetManifest:
         if digest != item.sha256:
             raise ValueError(f"asset checksum mismatch: {item.path}")
     return manifest
+
+
+def verified_vrm_model(manifest_path: Path) -> Path:
+    """Return the single VRM file declared by a verified body asset manifest."""
+
+    manifest = load_verified_manifest(manifest_path)
+    models = [item.path for item in manifest.files if item.path.lower().endswith(".vrm")]
+    if len(models) != 1:
+        raise ValueError("VRM asset manifest must declare exactly one .vrm file")
+    return (manifest_path.parent / models[0]).resolve()

@@ -11,7 +11,7 @@ import secrets
 import shutil
 import time
 from collections import deque
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -23,11 +23,12 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from siro.adapters.body.assets import verified_vrm_model
 from siro.adapters.body.web import WebSocketBodyTransport
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.memory import Memory, MemoryService
@@ -522,6 +523,21 @@ async def _ignore_tool_result(_proposal: ToolProposal) -> None:
     return None
 
 
+def vrm_renderer_from_env(environ: Mapping[str, str]) -> tuple[Path | None, Path | None]:
+    """Resolve the optional VRM renderer; both variables are required together."""
+
+    dist_text = environ.get("SIRO_VRM_DIST")
+    manifest_text = environ.get("SIRO_VRM_MODEL_MANIFEST")
+    if not dist_text and not manifest_text:
+        return None, None
+    if not dist_text or not manifest_text:
+        raise ValueError("SIRO_VRM_DIST and SIRO_VRM_MODEL_MANIFEST must be set together")
+    dist = Path(dist_text).resolve()
+    if not (dist / "index.html").is_file():
+        raise ValueError("SIRO_VRM_DIST does not contain a prepared renderer index.html")
+    return dist, verified_vrm_model(Path(manifest_text).resolve())
+
+
 def create_app(
     *,
     allowed_origins: set[str] | None = None,
@@ -534,6 +550,8 @@ def create_app(
     speech_to_text: SpeechToText | None = None,
     text_to_speech: SpeechSynthesizer | None = None,
     live2d_dist: Path | None = None,
+    vrm_dist: Path | None = None,
+    vrm_model: Path | None = None,
     on_turn: TurnHandler = _ignore_turn,
     on_cancel: CancelHandler = _ignore_cancel,
     on_memory_correction: MemoryCorrectionHandler = _ignore_memory_correction,
@@ -559,6 +577,8 @@ def create_app(
     verified_release: VerifiedRelease | None = None,
     read_task_owner: ReadTaskOwner | None = None,
 ) -> FastAPI:
+    if (vrm_dist is None) != (vrm_model is None):
+        raise ValueError("vrm_dist and vrm_model must be configured together")
     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
     gateway_state = state or GatewayState()
     gateway_hub = hub or GatewayHub()
@@ -665,7 +685,10 @@ def create_app(
     def render_index(*, desktop: bool = False, controls: bool = False) -> HTMLResponse:
         path = Path(__file__).with_name("static") / "index.html"
         html = path.read_text(encoding="utf-8")
-        if live2d_dist is not None:
+        if vrm_dist is not None:
+            renderer_path = "/vrm/?presentation=desktop" if desktop else "/vrm/"
+            renderer_status = "VRM 角色載入中…"
+        elif live2d_dist is not None:
             renderer_path = "/live2d/?presentation=desktop" if desktop else "/live2d/"
             renderer_status = "Live2D 載入中…"
         else:
@@ -674,7 +697,7 @@ def create_app(
         setup_notices = []
         if gateway_state.routes.get("model") == "offline":
             setup_notices.append("目前是離線示範。未連接正式對話模型。回覆來自固定示範規則。")
-        if live2d_dist is None:
+        if live2d_dist is None and vrm_dist is None:
             setup_notices.append("角色目前顯示替身。尚未載入 Live2D。")
         if setup_notices:
             setup_notices.append("請使用 scripts/start-runtime-product 啟動正式產品入口。")
@@ -701,7 +724,7 @@ def create_app(
 
     @app.get("/desktop", response_class=HTMLResponse)
     async def desktop_index() -> HTMLResponse:
-        if live2d_dist is None:
+        if live2d_dist is None and vrm_dist is None:
             raise HTTPException(status_code=503, detail="desktop requires prepared Live2D")
         return render_index(desktop=True)
 
@@ -1626,6 +1649,16 @@ def create_app(
             if opened is not None:
                 audio_owners.release(opened[1].session_id, opened[0])
 
+    if vrm_dist is not None and vrm_model is not None:
+
+        @app.get("/vrm-model/model.vrm")
+        async def vrm_model_file() -> FileResponse:
+            # Only the manifest-verified owner model is ever served; no path parameter.
+            return FileResponse(
+                vrm_model, media_type="model/gltf-binary", headers={"Cache-Control": "no-store"}
+            )
+
+        app.mount("/vrm", StaticFiles(directory=vrm_dist, html=True), name="vrm")
     if live2d_dist is not None:
         app.mount("/live2d", StaticFiles(directory=live2d_dist, html=True), name="live2d")
 
@@ -1688,6 +1721,7 @@ def _run_gateway(
     runtime_profile = os.environ.get("SIRO_RUNTIME_PROFILE", "legacy")
     configured = os.environ.get("SIRO_LIVE2D_DIST")
     live2d_dist = Path(configured).resolve() if configured else None
+    vrm_dist, vrm_model = vrm_renderer_from_env(os.environ)
     hub = GatewayHub()
     body_transport = WebSocketBodyTransport()
     backend = "offline"
@@ -2362,6 +2396,8 @@ def _run_gateway(
             speech_to_text=speech_to_text,
             text_to_speech=text_to_speech,
             live2d_dist=live2d_dist,
+            vrm_dist=vrm_dist,
+            vrm_model=vrm_model,
             on_startup=start_controller,
             on_shutdown=stop_controller,
             feature_status=product_features,
