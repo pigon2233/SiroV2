@@ -231,6 +231,22 @@ def test_stretch_raises_the_arms_in_front_not_out_to_the_sides() -> None:
         assert tip[:, 1].max() > crown, f"stretch never lifts the {side} hand above the head"
 
 
+def test_walk_holds_the_planted_foot_still_at_the_pack_speed() -> None:
+    # The window travels at root_speed_mps; the hips take up the uneven slide of the planted foot.
+    mocap = load("build_vrm_mocap")
+    if not all((mocap.CACHE / name).exists() for name in mocap.SOURCES):
+        pytest.skip("motion-capture sources not cached; run scripts/build_vrm_mocap.py")
+    np = mocap.np
+    skeleton = json.loads((PACK / "skeleton.json").read_text(encoding="utf-8"))
+    walk, speed = mocap.captured_walk(mocap.CACHE / "Xbot.glb", skeleton)
+    pack = json.loads((PACK / "pack.json").read_text(encoding="utf-8"))
+    entry = next(a for a in pack["activities"] if a["activity"] == "walk")
+    assert entry["root_speed_mps"] == round(speed, 3)
+    slip = mocap.planted_steps(walk, skeleton) + speed / mocap.FPS
+    assert np.nanmax(np.abs(slip)) < 1e-4, "the planted foot slides against the window"
+    assert abs(walk[1][:, 2].mean()) < 0.02, "the walk is not centred over the idle's spot"
+
+
 @pytest.mark.parametrize(
     ("into", "loop"), [("notebook_out", "notebook_read"), ("walk_start", "walk")]
 )

@@ -838,10 +838,11 @@ def build_clips(
     out["hum"] = hum(motions, idle, skeleton)
     for book in (notebook_out, notebook_read, notebook_away):
         out[book.__name__] = book(motions, idle)
-    walk = captured_walk(xbot, skeleton)
+    walk, speed = captured_walk(xbot, skeleton)
     out["walk"] = (walk, None)
-    for step in (walk_start, walk_stop, turn_step):
-        out[step.__name__] = step(idle, walk)
+    out["walk_start"] = walk_start(idle, walk, skeleton, speed)
+    out["walk_stop"] = walk_stop(idle, walk, skeleton, speed)
+    out["turn_step"] = turn_step(idle, walk)
     return out
 
 
@@ -1523,51 +1524,105 @@ def world_positions(clip: Clip, skeleton: dict[str, Any], bone: str) -> np.ndarr
     return position
 
 
-def stride_speed(clip: Clip, skeleton: dict[str, Any]) -> float:
-    """Walking speed implied by the planted feet: how fast each slides back while it's down."""
+def planted_steps(clip: Clip, skeleton: dict[str, Any]) -> np.ndarray:
+    """How far forward (+Z) the feet on the ground move over each frame, averaged over the feet
+    that stay down through it: the heel while it is down, then the toes as it peels off. NaN
+    where neither foot stays down. Down means within 8 mm of its height standing and not
+    moving forward: a short step at the start of a walk barely leaves the ground."""
 
-    speeds = []
+    def down(part: np.ndarray, rest: float) -> tuple[np.ndarray, np.ndarray]:
+        step = np.diff(part[:, 2])
+        low = part[:, 1] < rest + 0.008
+        return low[:-1] & low[1:] & (step < 0.002), step
+
+    steps = []
     for side in ("left", "right"):
-        foot = world_positions(clip, skeleton, f"{side}Foot")
-        planted = foot[:, 1] < foot[:, 1].min() + 0.02
-        speeds.append(-np.gradient(foot[:, 2])[planted].mean() * FPS)
-    return float(np.mean(speeds))
+        heel_down, heel = down(
+            world_positions(clip, skeleton, f"{side}Foot"), skeleton[f"{side}Foot"]["world"][1]
+        )
+        toe_down, toe = down(
+            world_positions(clip, skeleton, f"{side}Toes"), skeleton[f"{side}Toes"]["world"][1]
+        )
+        steps.append(np.where(heel_down, heel, np.where(toe_down, toe, np.nan)))
+    both = np.array(steps)
+    out = np.full(both.shape[1], np.nan)
+    planted = ~np.isnan(both).all(0)
+    out[planted] = np.nanmean(both[:, planted], axis=0)
+    return out
 
 
-def captured_walk(xbot: Path, skeleton: dict[str, Any]) -> Clip:
+def stride_speed(clip: Clip, skeleton: dict[str, Any]) -> float:
+    """Walking speed implied by the planted feet: how fast they slide back while they're down."""
+
+    return float(-np.nanmean(planted_steps(clip, skeleton)) * FPS)
+
+
+def ramp_distance(u: np.ndarray) -> np.ndarray:
+    """Distance covered at full speed 1 over a ramp of length 1 whose speed follows in_out."""
+
+    return np.where(u < 0.5, u**4, 0.0625 + (u - 0.5) + ((2 - 2 * u) ** 4 - 1) / 16)
+
+
+def anchor(clip: Clip, skeleton: dict[str, Any], travel: np.ndarray) -> Clip:
+    """Shift the hips forward and back so that, while the window carries her ``travel`` metres
+    over each frame, the feet on the ground stay put. The shift starts and ends at zero; what the
+    planted feet can't account for is spread over the frames in proportion to the travel."""
+
+    rotations, hips = clip
+    steps = planted_steps(clip, skeleton)
+    residual = np.where(np.isnan(steps), 0.0, -(steps + travel))
+    shift = np.concatenate([[0.0], np.cumsum(residual)])
+    share = np.concatenate([[0.0], np.cumsum(travel)]) / travel.sum()
+    hips = hips.copy()
+    hips[:, 2] += shift - shift[-1] * share
+    return rotations, hips
+
+
+def captured_walk(xbot: Path, skeleton: dict[str, Any]) -> tuple[Clip, float]:
     rotations, hips = load_mixamo(xbot, "walk", skeleton)
     walk = (open_arms(narrow_stance(rotations), 4), hips)
     period = len(hips) - 1
     walk = symmetric(retime(walk, (period + 1) / period))  # an even period, exactly 1 s
     speed = stride_speed(walk, skeleton)
+    # The planted foot slides back a little unevenly; the hips take up the difference so it
+    # stays put while the window travels at a steady speed. Centred over the idle's spot, so
+    # starting and stopping don't drag her back and forth.
+    walk = in_place(anchor(walk, skeleton, np.full(len(walk[1]) - 1, speed / FPS)))
     ROOT_MOTION["walk"] = f"in place; the stride travels {speed:.2f} m/s forward (+Z)"
     ROOT_MOTION["walk_start"] = f"in place; travel eases in from 0 to {speed:.2f} m/s (cubic)"
     ROOT_MOTION["walk_stop"] = f"in place; travel eases out from {speed:.2f} m/s to 0 (cubic)"
     ROOT_SPEED.update(dict.fromkeys(("walk", "walk_start", "walk_stop"), round(speed, 3)))
     ROOT_MOTION["turn_step"] = "in place; the renderer turns the model while the feet step"
-    return walk
+    return walk, speed
 
 
-def walk_start(idle: Clip, walk: Clip) -> tuple[Clip, None]:
+def walk_start(idle: Clip, walk: Clip, skeleton: dict[str, Any], speed: float) -> tuple[Clip, None]:
     """From the idle's first frame into the walk: one cycle in which the stride grows from
-    standing to full, ending exactly on the walk loop's first frame."""
+    standing to full, ending exactly on the walk loop's first frame. The window speeds up on
+    the same curve, and the planted foot is held still against it."""
 
     rotations, hips = walk
-    w = in_out(np.linspace(0, 1, len(hips)))
+    u = np.linspace(0, 1, len(hips))
+    w = in_out(u)
     start = {bone: np.broadcast_to(q[0], rotations[bone].shape) for bone, q in idle[0].items()}
     out = {bone: arc(start[bone], q, w) for bone, q in rotations.items()}
-    return (out, idle[1][0] * (1 - w[:, None]) + hips * w[:, None]), None
+    clip = (out, idle[1][0] * (1 - w[:, None]) + hips * w[:, None])
+    travel = speed * (len(hips) - 1) / FPS * np.diff(ramp_distance(u))
+    return anchor(clip, skeleton, travel), None
 
 
-def walk_stop(idle: Clip, walk: Clip) -> tuple[Clip, None]:
+def walk_stop(idle: Clip, walk: Clip, skeleton: dict[str, Any], speed: float) -> tuple[Clip, None]:
     """From the walk loop's first frame, one cycle in which the stride dies away into the idle,
-    ending on the idle loop's first frame."""
+    ending on the idle loop's first frame, while the window slows on the mirrored curve."""
 
     rotations, hips = walk
-    w = in_out(np.linspace(0, 1, len(hips)))
+    u = np.linspace(0, 1, len(hips))
+    w = in_out(u)
     rest, rest_hips = idle_tail(idle, (len(hips) - 1) / FPS)
     out = {bone: arc(q, rest[bone], w) for bone, q in rotations.items()}
-    return (out, hips * (1 - w[:, None]) + rest_hips * w[:, None]), None
+    clip = (out, hips * (1 - w[:, None]) + rest_hips * w[:, None])
+    travel = speed * (len(hips) - 1) / FPS * np.diff(u - ramp_distance(u))
+    return anchor(clip, skeleton, travel), None
 
 
 def turn_step(idle: Clip, walk: Clip) -> tuple[Clip, None]:
