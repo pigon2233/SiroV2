@@ -131,23 +131,24 @@ def hands(curl: float = 1.0, spread: float = 1.0) -> Pose:
 
 # Relaxed contrapposto: weight on the right leg, left knee eased, shoulders countering the hips.
 STAND: Pose = {
-    **hands(),
+    **hands(curl=1.3, spread=0.4),
     "hips": [("z", 2.0), ("y", -3.0)],
     "spine": [("z", -1.5), ("y", 1.5)],
     "chest": [("z", -1.0)],
     "neck": [("z", 1.5)],
-    "leftUpperLeg": [("x", -3.0), ("z", 1.0)],
-    "leftLowerLeg": [("x", 7.0)],
-    "leftFoot": [("x", -3.0)],
-    "rightUpperLeg": [("x", 1.0), ("z", 1.5)],
+    "leftUpperLeg": [("x", -6.0), ("z", 2.0)],
+    "leftLowerLeg": [("x", 11.0)],
+    "leftFoot": [("x", -5.0)],
+    "rightUpperLeg": [("x", 1.0), ("z", 2.0)],
     "leftShoulder": [("z", 1.0)],
     "rightShoulder": [("z", -2.0)],
-    "leftUpperArm": [("z", -68), ("x", 5)],
-    "rightUpperArm": [("z", 71), ("x", -2)],
-    "leftLowerArm": [("y", -16), ("z", 0)],
-    "rightLowerArm": [("y", 11), ("z", 0)],
-    "leftHand": [("z", -8), ("x", 6)],
-    "rightHand": [("z", 6), ("x", 4)],
+    # Arms hang close to the body with soft elbows; wider angles read as a mannequin A-pose.
+    "leftUpperArm": [("z", -79), ("x", -4)],
+    "rightUpperArm": [("z", 80), ("x", -6)],
+    "leftLowerArm": [("y", -14), ("z", 0)],
+    "rightLowerArm": [("y", 10), ("z", 0)],
+    "leftHand": [("z", 4), ("x", 4)],
+    "rightHand": [("z", -3), ("x", 3)],
 }
 
 

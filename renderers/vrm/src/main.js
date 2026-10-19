@@ -130,9 +130,129 @@ function updateFace(delta) {
   }
 }
 
+// Procedural life layer, added on top of whatever clip the mixer wrote this frame. Clips loop
+// exactly, so without it the character repeats the same 8 s forever; this adds what a loop
+// cannot: eyes that glance first with the head following late, weight shifts at irregular
+// intervals and low-frequency micro-motion that never repeats.
+const life = {
+  yaw: 0, yawV: 0, pitch: 0, pitchV: 0, shift: 0, shiftV: 0, shiftGoal: 0, standing: 1, standingV: 0,
+  glanceYaw: 0, glancePitch: 0, nextGlance: 2.5, nextShift: 6,
+};
+const DEG = Math.PI / 180;
+const lifeEuler = new THREE.Euler();
+const lifeQuat = new THREE.Quaternion();
+const headPos = new THREE.Vector3();
+const gazeDir = new THREE.Vector3();
+
+// Critically damped spring toward a target (Game Programming Gems 4, 1.10).
+function smoothDamp(key, target, time, delta) {
+  const omega = 2 / time;
+  const x = omega * delta;
+  const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const change = life[key] - target;
+  const temp = (life[`${key}V`] + omega * change) * delta;
+  life[`${key}V`] = (life[`${key}V`] - omega * temp) * decay;
+  life[key] = target + (change + temp) * decay;
+}
+
+// Smooth 1D value noise in [-1, 1]; two octaves at unrelated rates never line up into a loop.
+function hash(n) {
+  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return (s - Math.floor(s)) * 2 - 1;
+}
+function noise(seed, t) {
+  const i = Math.floor(t);
+  const f = t - i;
+  const u = f * f * (3 - 2 * f);
+  const a = hash(i + seed * 71.3);
+  return a + (hash(i + 1 + seed * 71.3) - a) * u;
+}
+function drift(seed, t) {
+  return noise(seed, t * 0.23) * 0.7 + noise(seed + 9, t * 0.61) * 0.3;
+}
+
+const LIFE_BONES = [
+  'hips', 'spine', 'chest', 'neck', 'head', 'leftUpperArm', 'rightUpperArm',
+  'leftLowerArm', 'rightLowerArm', 'leftLowerLeg', 'rightLowerLeg',
+];
+let restHips;
+
+// Clips do not write every bone; reset the ones the life layer touches so it never accumulates.
+function resetLifeBones() {
+  for (const name of LIFE_BONES) bone(name)?.quaternion.identity();
+  if (restHips) bone('hips')?.position.copy(restHips);
+}
+
+function turn(name, x, y, z) {
+  const node = bone(name);
+  if (!node) return;
+  lifeQuat.setFromEuler(lifeEuler.set(x, y, z));
+  node.quaternion.multiply(lifeQuat);
+}
+
+function updateLife(delta) {
+  if (!vrm) return;
+  const free = elapsed > lookUntil;
+  if (free && elapsed >= life.nextGlance) {
+    // Mostly back at the viewer; sometimes a glance away and back. Big glances often blink.
+    const away = life.glanceYaw === 0 && Math.random() < 0.6;
+    life.glanceYaw = away ? (Math.random() < 0.5 ? -1 : 1) * (8 + Math.random() * 20) * DEG : 0;
+    life.glancePitch = away ? (-8 + Math.random() * 14) * DEG : 0;
+    life.nextGlance = elapsed + (away ? 0.8 + Math.random() * 1.8 : 2.5 + Math.random() * 5);
+    if (Math.abs(life.glanceYaw) > 15 * DEG && blinkStart < 0) nextBlink = elapsed;
+  }
+  bone('head')?.getWorldPosition(headPos);
+  const target = free ? camera.position : lookTarget.position;
+  gazeDir.subVectors(target, headPos);
+  let yaw = Math.atan2(gazeDir.x, gazeDir.z);
+  let pitch = Math.atan2(gazeDir.y, Math.hypot(gazeDir.x, gazeDir.z));
+  if (free) {
+    yaw += life.glanceYaw;
+    pitch += life.glancePitch;
+    // Eyes lead: they jump to the glance now, the head arrives a few hundred ms later.
+    const reach = gazeDir.length();
+    lookTarget.position.set(
+      headPos.x + Math.sin(yaw) * Math.cos(pitch) * reach,
+      headPos.y + Math.sin(pitch) * reach,
+      headPos.z + Math.cos(yaw) * Math.cos(pitch) * reach,
+    );
+  }
+  smoothDamp('yaw', THREE.MathUtils.clamp(yaw, -35 * DEG, 35 * DEG), 0.35, delta);
+  smoothDamp('pitch', THREE.MathUtils.clamp(pitch, -20 * DEG, 15 * DEG), 0.4, delta);
+
+  if (elapsed >= life.nextShift) {
+    life.shiftGoal = (Math.random() * 2 - 1) * (Math.abs(life.shiftGoal) > 0.4 ? 0.4 : 1);
+    life.nextShift = elapsed + 5 + Math.random() * 9;
+  }
+  smoothDamp('shift', life.shiftGoal, 1.1, delta);
+  // Weight shifts and torso drift only while standing in the idle loop, not mid-gesture or seated.
+  smoothDamp('standing', currentAction === idleAction ? 1 : 0, 0.4, delta);
+  // The fallback pose only resets some bones each frame; there the eyes glance but the body stays.
+  if (!mixer) return;
+
+  const t = elapsed;
+  const s = life.standing;
+  const shift = life.shift * s;
+  // Head turn is shared down the chain so the neck never twists alone; pitch is nod-down positive.
+  turn('chest', 0, life.yaw * 0.12, 0);
+  turn('neck', -life.pitch * 0.4, life.yaw * 0.35, 0);
+  turn('head', -life.pitch * 0.5 + drift(1, t) * 1.5 * DEG, life.yaw * 0.45, drift(2, t) * 2.5 * DEG);
+  turn('hips', 0, drift(3, t) * 1.2 * DEG * s, shift * 2 * DEG);
+  turn('spine', drift(4, t) * 1.0 * DEG * s, drift(5, t) * 1.5 * DEG * s, -shift * 1.6 * DEG);
+  turn('chest', drift(6, t) * 0.8 * DEG * s, 0, -shift * 0.6 * DEG + drift(7, t) * 0.8 * DEG * s);
+  turn('leftUpperArm', drift(8, t) * 2 * DEG * s, 0, drift(9, t) * 1.5 * DEG * s);
+  turn('rightUpperArm', drift(10, t) * 2 * DEG * s, 0, drift(11, t) * 1.5 * DEG * s);
+  turn('leftLowerArm', 0, drift(12, t) * 3 * DEG * s, 0);
+  turn('rightLowerArm', 0, drift(13, t) * 3 * DEG * s, 0);
+  // The free (left) knee eases as weight moves onto the right leg, and stiffens the other way.
+  turn('leftLowerLeg', Math.max(0, -shift) * 5 * DEG, 0, 0);
+  turn('rightLowerLeg', Math.max(0, shift) * 5 * DEG, 0, 0);
+  const hips = bone('hips');
+  if (hips) hips.position.x += shift * 0.012 * s;
+}
+
 function updateLook() {
   if (!vrm?.lookAt) return;
-  if (elapsed > lookUntil) lookTarget.position.copy(camera.position);
   vrm.lookAt.target = lookTarget;
 }
 
@@ -157,8 +277,11 @@ function loop(now) {
   const delta = Math.min(clock.getDelta(), 0.1);
   elapsed += delta;
   if (vrm) {
-    if (mixer) mixer.update(delta);
-    else idlePose(elapsed);
+    if (mixer) {
+      resetLifeBones();
+      mixer.update(delta);
+    } else idlePose(elapsed);
+    updateLife(delta);
     updateFace(delta);
     updateLook();
     vrm.update(delta);
@@ -321,6 +444,7 @@ async function loadModel() {
   VRMUtils.rotateVRM0(loaded);
   scene.add(loaded.scene);
   vrm = loaded;
+  restHips = bone('hips')?.position.clone();
   try {
     await loadMotions(loader);
   } catch (error) {
