@@ -395,9 +395,13 @@ def test_renderer_follows_body_protocol_without_owning_speech(tmp_path: Path) ->
                 page.wait_for_timeout(50)
             assert gateway.received[0] == {"type": "authenticate", "token": "synthetic-token"}
             assert page.evaluate("document.documentElement.dataset.siroRenderer") == "vrm"
+            page.wait_for_function("window.__siroVrm.activity() !== null", timeout=30000)
 
             gateway.send({"v": 1, "type": "body.emotion", "name": "happy", "intensity": 0.8})
             page.wait_for_function("window.__siroVrm.expression('happy') > 0.5")
+            # A new emotion gets one body reaction, then its own idle loop while it holds.
+            page.wait_for_function("window.__siroVrm.activity() === 'clap'")
+            page.wait_for_function("window.__siroVrm.activity() === 'idle_happy'", timeout=10000)
             page.wait_for_function(
                 "window.__posted.some(m => m.type === 'siro.renderer.ready'"
                 " && m.emotion === 'happy')"
@@ -414,12 +418,18 @@ def test_renderer_follows_body_protocol_without_owning_speech(tmp_path: Path) ->
             page.wait_for_timeout(300)
             assert page.evaluate("document.documentElement.dataset.siroEmotion") == "happy"
 
-            before = page.evaluate("window.__siroVrm.lookTarget()")
+            # body.look holds the target 0.8 m to her right of the head (glances can't fake it:
+            # they keep the far viewer distance, this one sits 1.2 m in front of her).
             gateway.send({"v": 1, "type": "body.look", "x": 1, "y": 0})
-            page.wait_for_function(f"window.__siroVrm.lookTarget()[0] > {before[0] + 0.3}")
+            page.wait_for_function(
+                "(([x, , z]) => x > 0.6 && x < 1.0 && z < 1.5)(window.__siroVrm.lookTarget())"
+            )
+
+            # Back to neutral, the plain idle loop returns.
+            gateway.send({"v": 1, "type": "body.emotion", "name": "neutral", "intensity": 1})
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
 
             # The authored idle loop drives the body; a gesture cross-fades in and hands back.
-            assert page.evaluate("window.__siroVrm.activity()") in ("idle", "nod")
             gateway.send({"v": 1, "type": "body.gesture", "name": "nod"})
             page.wait_for_function("window.__siroVrm.activity() === 'nod'")
             page.wait_for_function("window.__siroVrm.neckPitch() > 0.05")
@@ -481,18 +491,19 @@ def test_framing_gaze_and_pointer_reactions(tmp_path: Path) -> None:
         browser, page = open_renderer(playwright, gateway, "?presentation=desktop")
         try:
             page.wait_for_function("window.__siroVrm && window.__siroVrm.loaded()", timeout=60000)
-            page.wait_for_function("window.__siroVrm.frames() > 3")
+            page.wait_for_function("window.__siroVrm.activity() !== null", timeout=30000)
             # Every clip's reach fits in the frame, so a raised hand is never cut off.
             framing = page.evaluate("window.__siroVrm.framing()")
             assert framing["reachTop"] is not None
             assert framing["centerY"] + framing["height"] / 2 >= framing["reachTop"]
 
-            # The page points her at the chat box while the user types; she looks over there.
-            before = page.evaluate("window.__siroVrm.lookTarget()")
+            # The page points her at the chat box while the user types; she looks over there
+            # (far below her feet here, where no idle glance ever goes).
             page.evaluate(
-                "window.postMessage({type: 'siro.view.focus', v: 1, x: 2, y: 0.3}, location.origin)"
+                "window.postMessage({type: 'siro.view.focus', v: 1, x: 0.5, y: 1.5},"
+                " location.origin)"
             )
-            page.wait_for_function(f"window.__siroVrm.lookTarget()[0] > {before[0] + 0.3}")
+            page.wait_for_function("window.__siroVrm.lookTarget()[1] < -1")
 
             # Stroking her head is a pat: a brief smile over Core's emotion, then back.
             head = page.evaluate("window.__siroVrm.head()")

@@ -32,7 +32,7 @@ const STYLE = {
 // VRoid exports map a 90-degree look onto the eyes' whole range, so glances and saccades of a few
 // degrees barely move them and the stare looks fixed. Reach the full range much sooner.
 const EYE_RANGE = { horizontal: 28, vertical: 22 };
-// Bones whose reach in any clip the camera keeps in frame, so a raised hand is never cut off.
+// Bones whose highest reach in any clip the camera keeps in frame, so a raised hand is not cut off.
 const REACH_BONES = [
   'head', 'leftHand', 'rightHand', 'leftMiddleDistal', 'rightMiddleDistal', 'leftIndexDistal',
   'rightIndexDistal', 'leftLittleDistal', 'rightLittleDistal', 'leftThumbDistal', 'rightThumbDistal',
@@ -41,6 +41,13 @@ const REACH_MARGIN = 0.045; // metres past the last finger joint: the fingertip 
 // Left alone for this long, she finds something to do: looks around, stretches, sits down.
 const BORED_SECONDS = 45;
 const SETTLE_SECONDS = 240;
+// Faces that belong to some clips, as [from, to, weight] in seconds into the clip.
+const GESTURE_FACES = {
+  yawn: { aa: [0.5, 2.4, 0.7], blink: [0.6, 2.3, 1] },
+  stretch: { blink: [0.9, 2.1, 0.85], aa: [1.0, 2.0, 0.2] },
+  sigh: { relaxed: [0.2, 2.8, 0.6], blink: [1.2, 2.4, 0.6] },
+  clap: { happy: [0, 2.2, 0.8] },
+};
 // Speech cues for a body gesture. Greetings and answers count only at the start of a reply,
 // farewells and thanks also at the end. One gesture per reply, and only from the idle loop.
 const SPEECH_GESTURES = [
@@ -100,6 +107,8 @@ const emotionWeights = Object.fromEntries(EMOTIONS.map(name => [name, 0]));
 const moodWeights = Object.fromEntries(EMOTIONS.map(name => [name, 0]));
 // A short-lived expression from an interaction (a pat, a poke) laid over the emotion from Core.
 let reaction = null;
+// The face of the clip playing now, if it has one (a yawn opens the mouth and shuts the eyes).
+let gestureFace = null;
 // A point she is interested in (the pointer, the chat box) and until when; Core's body.look wins.
 const interest = { point: new THREE.Vector3(), until: -1 };
 let reach; // world-space box every clip's hands reach, for framing
@@ -163,8 +172,8 @@ function fitCamera() {
   camera.aspect = width / height;
   if (modelBox) {
     // Desktop shows the whole body; the stage card frames head to thigh below its title
-    // overlay so the face stays legible. Both leave room for the highest and widest reach of
-    // any clip (a wave above the head), so gestures are never cut off at the window edge.
+    // overlay so the face stays legible. Both leave room for the highest reach of any clip (a
+    // wave or a stretch above the head), so gestures are not cut off at the top of the window.
     // Frame from humanoid bones: the mesh bounding box of VRoid exports is much taller than
     // the body. VRM puts the feet on y = 0; anime heads reach about 1/3 of hips-to-head above it.
     const hips = bone('hips')?.getWorldPosition(new THREE.Vector3());
@@ -178,10 +187,12 @@ function fitCamera() {
     // A raised hand first uses the headroom above the hair (on the stage card, the band under its
     // title); only if it reaches higher than that does the frame grow, and then just enough.
     const handTop = reach ? reach.max.y + REACH_MARGIN : -Infinity;
-    const halfWidth = reach ? Math.max(-reach.min.x, reach.max.x) + REACH_MARGIN : 0;
-    const widthLimit = Math.max(desktop ? 0 : (size.x * 0.75) / camera.aspect, (2.04 * halfWidth) / camera.aspect);
+    // Only height is reserved: arms swinging out sideways pass the edge for a moment at most, and
+    // reserving that width in a narrow window would shrink her all the time.
     const visibleHeight = Math.max(
-      (crown - bottom) / share, (handTop - bottom) / (1 - below - (desktop ? 0.01 : 0)), widthLimit,
+      (crown - bottom) / share,
+      (handTop - bottom) / (1 - below - (desktop ? 0.01 : 0)),
+      desktop ? 0 : (size.x * 0.75) / camera.aspect,
     );
     // The desktop pet stands on the window's bottom edge; the card keeps her head under its title.
     const centerY = desktop
@@ -244,7 +255,7 @@ function updateMouth(delta, manager) {
   // Bright frames (high zero-crossing rate: i, e, s) narrow the mouth; dark ones round it. The
   // jaw (aa) always carries most of the opening; the vowel shapes only colour it.
   const shapes = {
-    aa: open * (0.6 + 0.4 * clamp01(1 - Math.abs(t - 0.5) * 1.6)),
+    aa: Math.max(open * (0.6 + 0.4 * clamp01(1 - Math.abs(t - 0.5) * 1.6)), clipFace('aa')),
     ih: open * clamp01((t - 0.55) * 2.2) * 0.5,
     ou: open * clamp01((0.45 - t) * 2.2) * 0.5,
   };
@@ -263,6 +274,18 @@ function reactionWeight() {
   const w = Math.min(clamp01((elapsed - reaction.start) / 0.12), clamp01((reaction.end - elapsed) / 0.4));
   if (w <= 0 && elapsed > reaction.end) reaction = null;
   return w;
+}
+
+function clipFace(key) {
+  if (!gestureFace) return 0;
+  if (currentAction !== actions[gestureFace.name]) {
+    gestureFace = null;
+    return 0;
+  }
+  const span = gestureFace.face[key];
+  if (!span) return 0;
+  const t = elapsed - gestureFace.start;
+  return span[2] * Math.min(clamp01((t - span[0]) / 0.25), clamp01((span[1] - t) / 0.3));
 }
 
 function moodTarget(name, r) {
@@ -290,7 +313,7 @@ function updateFace(delta) {
     const target = moodTarget(name, r);
     moodWeights[name] += (target - moodWeights[name]) * slow;
     if (!manager || !hasExpression(name)) continue;
-    emotionWeights[name] += (target - emotionWeights[name]) * blend;
+    emotionWeights[name] += (Math.max(target, clipFace(name)) - emotionWeights[name]) * blend;
     manager.setValue(name, emotionWeights[name]);
   }
   updateStyle();
@@ -308,7 +331,8 @@ function updateFace(delta) {
       } else blink = Math.sin(phase * Math.PI);
     }
     // A smile already narrows the eyes; a full blink on top of it would squeeze them shut.
-    manager.setValue('blink', blink * (1 - 0.5 * (emotionWeights.happy || 0)));
+    blink = Math.max(blink * (1 - 0.5 * (emotionWeights.happy || 0)), clipFace('blink'));
+    manager.setValue('blink', blink);
   }
   updateMouth(delta, manager);
 }
@@ -901,6 +925,7 @@ function playGesture(name) {
   action.play();
   currentAction?.crossFadeTo(action, CROSSFADE, false);
   currentAction = action;
+  gestureFace = GESTURE_FACES[name] ? { name, face: GESTURE_FACES[name], start: elapsed } : null;
   if (name === 'think') {
     // People look up and away while they think, and back once they have it.
     life.glanceYaw = (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 8) * DEG;
