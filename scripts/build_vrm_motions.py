@@ -119,10 +119,12 @@ def hands(curl: float = 1.0, spread: float = 1.0) -> Pose:
                 rotations.append(("y", (4 - 3 * i) * spread))
             out[f"left{finger}{joint}"] = rotations
             out[f"right{finger}{joint}"] = mirror(rotations)
+    # Thumb: +y (left hand) swings it in toward the index finger, -z folds it toward the palm.
+    # VRoid's rest thumb points about 40 degrees away from the fingers.
     for joint, (y, z) in {
-        "Metacarpal": (-12, -4),
-        "Proximal": (-10, -6),
-        "Distal": (-8, -10),
+        "Metacarpal": (20, -10),
+        "Proximal": (8, -12),
+        "Distal": (2, -14),
     }.items():
         out[f"leftThumb{joint}"] = [("y", y * curl), ("z", z * curl)]
         out[f"rightThumb{joint}"] = mirror(out[f"leftThumb{joint}"])

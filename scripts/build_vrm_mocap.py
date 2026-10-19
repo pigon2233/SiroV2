@@ -605,15 +605,103 @@ def build_clips(cache: Path, skeleton: dict[str, Any]) -> dict[str, Clip]:
     }
 
 
+# ---- Hands: none of the sources capture fingers, so they get their own layer ----
+
+# Hand shapes as (curl, spread) for build_vrm_motions.hands(): relaxed and slightly cupped,
+# open with the fingers fanned (a raised, waving hand), and flat with the fingers together.
+RELAXED, OPEN, FLAT = (1.0, 1.0), (0.3, 3.5), (0.35, -0.4)
+FINGER_LAG = 0.12  # seconds; fingers settle a beat after the arm
+
+
+def smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
+    t = np.clip((x - edge0) / (edge1 - edge0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def world_rotations(rotations: Quats, skeleton: dict[str, Any], bone: str) -> np.ndarray:
+    chain = []
+    while bone:
+        chain.append(bone)
+        bone = skeleton[bone]["parent"]
+    frames = len(next(iter(rotations.values())))
+    world = np.broadcast_to(np.eye(3), (frames, 3, 3))
+    for name in reversed(chain):
+        if name in rotations:
+            world = world @ to_matrix(rotations[name])
+    return world
+
+
+def lagged(weight: np.ndarray, loop: bool) -> np.ndarray:
+    """One-pole low-pass, so the hand shape trails the arm instead of snapping with it."""
+
+    alpha = 1 - np.exp(-1 / (FPS * FINGER_LAG))
+    out = np.empty_like(weight)
+    value = weight[-1] if loop else weight[0]
+    for i, w in enumerate(weight):
+        value += (w - value) * alpha
+        out[i] = value
+    return out
+
+
+def hand_weights(clip: Clip, skeleton: dict[str, Any], loop: bool) -> dict[str, np.ndarray]:
+    """Per side, per frame: how open (hand raised) and how flat (bowing) the hand should be."""
+
+    rotations, _hips = clip
+    lean = world_rotations(rotations, skeleton, "upperChest")[:, 1, 1]  # cos of forward tilt
+    flat = smoothstep(np.cos(np.radians(10)), np.cos(np.radians(30)), lean)
+    out = {}
+    for side, out_axis in (("left", 1.0), ("right", -1.0)):
+        upper = world_rotations(rotations, skeleton, f"{side}UpperArm")
+        lower = world_rotations(rotations, skeleton, f"{side}LowerArm")
+        axis = np.array([out_axis, 0, 0])
+        rise = 0.26 * (upper @ axis)[:, 1] + 0.24 * (lower @ axis)[:, 1]  # wrist above shoulder
+        raised = smoothstep(-0.32, -0.02, rise)
+        out[side] = np.stack([lagged(raised, loop), lagged(flat, loop)], -1)
+    return out
+
+
+def finger_pose(
+    motions: ModuleType, side: str, raised: float, flat: float, t: float, period: float
+) -> dict[str, list[tuple[str, object]]]:
+    """Blend the hand shapes, plus a slow, small curl drift per finger so hands never freeze."""
+
+    curl = RELAXED[0] + (OPEN[0] - RELAXED[0]) * raised
+    spread = RELAXED[1] + (OPEN[1] - RELAXED[1]) * raised
+    curl += (FLAT[0] - curl) * flat * (1 - raised)
+    spread += (FLAT[1] - spread) * flat * (1 - raised)
+    shape = motions.hands(curl, spread)
+    # the thumb stays tucked alongside the palm; a fully opened thumb splays out like a claw
+    shape.update({b: r for b, r in motions.hands(max(curl, 0.75), spread).items() if "Thumb" in b})
+    phase = 0.0 if side == "left" else 1.7
+    out: dict[str, list[tuple[str, object]]] = {}
+    for bone, rotations in shape.items():
+        if not bone.startswith(side):
+            continue
+        finger = next((i for i, f in enumerate((*motions.FINGERS, "Thumb")) if f in bone), 0)
+        # whole cycles per clip keep loops seamless; amplitude fades on open/flat hands
+        cycles = max(1, round(period / (3.5 + 0.9 * finger)))
+        drift = np.sin(2 * np.pi * cycles * t / period + phase + 1.3 * finger)
+        drift_deg = (2.5 + 0.8 * finger) * drift * (1 - 0.6 * max(raised, flat))
+        sign = -1 if side == "left" else 1
+        bent = [
+            (axis, value + sign * drift_deg if axis == "z" else value) for axis, value in rotations
+        ]
+        out[bone] = bent  # type: ignore[assignment]
+    return out
+
+
 def encode(motions: ModuleType, skeleton: dict[str, Any], clip: Clip, loop: bool) -> bytes:
     rotations, hips = clip
-    fingers = motions.hands()
     rest = np.array(skeleton["hips"]["world"])
     frames = len(hips)
+    period = (frames - 1) / FPS
+    weights = hand_weights(clip, skeleton, loop)
 
     def sample(t: float) -> tuple[dict[str, list[tuple[str, object]]], tuple[float, ...]]:
         f = min(frames - 1, round(t * FPS))
-        pose: dict[str, list[tuple[str, object]]] = {b: list(r) for b, r in fingers.items()}
+        pose: dict[str, list[tuple[str, object]]] = {}
+        for side, w in weights.items():
+            pose.update(finger_pose(motions, side, float(w[f, 0]), float(w[f, 1]), t, period))
         for bone, q in rotations.items():
             pose[bone] = [("q", tuple(float(x) for x in q[f]))]
         return pose, tuple(float(x) for x in hips[f] - rest)
