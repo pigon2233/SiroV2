@@ -466,8 +466,8 @@ function updateLife(delta) {
     const size = (8 + Math.random() * 20) * (talking ? 0.5 : 1);
     life.glanceYaw = away ? (Math.random() < 0.5 ? -1 : 1) * size * DEG : 0;
     life.glancePitch = away ? (-8 + Math.random() * 14 - style.gaze) * DEG : 0;
-    const hold = away ? 0.8 + Math.random() * 1.8 : 2.5 + Math.random() * 5;
-    life.nextGlance = elapsed + hold / Math.max(0.4, style.pace);
+    const stay = away ? 0.8 + Math.random() * 1.8 : 2.5 + Math.random() * 5;
+    life.nextGlance = elapsed + stay / Math.max(0.4, style.pace);
     if (Math.abs(life.glanceYaw) > 15 * DEG && blinkStart < 0) nextBlink = elapsed;
   }
   bone('head')?.getWorldPosition(headPos);
