@@ -174,11 +174,32 @@
       frame.removeEventListener("load", attachRole);
       output?.removeEventListener("change", updateStatus);
     }, {once: true});
-    window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false), setLayout});
+    // Walking: the character asks to walk; the native window travels and reports back to her.
+    const toRole = update => {
+      try { frame.contentWindow?.postMessage({...update, type: "siro.desktop.walk.state", v: 1}, location.origin); } catch (_) { /* renderer gone */ }
+    };
+    const walkUpdate = update => {
+      const states = ["started", "stopping", "ended", "refused"];
+      if (!update || typeof update.id !== "string" || !states.includes(update.state)) return;
+      const numbers = ["direction", "distance", "ramp", "cruise", "delay", "remaining"].filter(key => key in update);
+      if (!numbers.every(key => Number.isFinite(update[key]))) return;
+      toRole(update);
+    };
+    const walkRequest = data => {
+      if (typeof data.id !== "string" || data.id.length > 40) return;
+      if (data.action === "stop") { nativeCommand({type: "desktop.walk.stop", id: data.id}); return; }
+      const fields = ["distance", "speed", "ramp", "delay"];
+      if (data.action !== "start" || ![-1, 0, 1].includes(data.direction) || !fields.every(key => Number.isFinite(data[key]))) return;
+      const message = {type: "desktop.walk", id: data.id, direction: data.direction};
+      for (const key of fields) message[key] = data[key];
+      if (chatOpen || !nativeCommand(message)) toRole({id: data.id, state: "refused", reason: chatOpen ? "chat" : "native"});
+    };
+    window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false), setLayout, walkUpdate});
     window.addEventListener("message", event => {
       if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
       if (event.data?.type === "siro.renderer.ready") nativeCommand({type: "desktop.ready"});
       if (event.data?.type === "siro.renderer.interact" && !roleDragged) setChat(true);
+      if (event.data?.type === "siro.desktop.walk" && event.data.v === 1) walkRequest(event.data);
     });
     updateStatus();
   }

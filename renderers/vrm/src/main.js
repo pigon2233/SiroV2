@@ -86,6 +86,7 @@ const MENU_GESTURES = [
   ['wave', '揮手'], ['bow', '鞠躬'], ['bye', '掰掰'], ['nod', '點頭'],
   ['shake', '搖頭'], ['think', '思考'], ['attention', '注意'], ['sit', '坐下'],
   ['clap', '拍手'], ['stretch', '伸懶腰'], ['hum', '哼歌'], ['notebook', '看筆記'],
+  ['stroll', '散步'],
 ];
 const SIT_SECONDS = 8;
 const desktop = new URLSearchParams(location.search).get('presentation') === 'desktop';
@@ -136,6 +137,7 @@ let gestureFace = null;
 // A point she is interested in (the pointer, the chat box) and until when; Core's body.look wins.
 const interest = { point: new THREE.Vector3(), until: -1 };
 let reach; // world-space box every clip's hands reach, for framing
+let strideCentre = 0; // metres, forward (+) or back (-), of the middle of the walk's footprint
 const view = { centerY: 1, height: 2, width: 1 };
 let lastActive = 0;
 let lastEmotionAt = 0;
@@ -180,7 +182,7 @@ window.addEventListener('message', event => {
     );
     interest.until = elapsed + 1.6;
     engage();
-  }
+  } else if (data.type === 'siro.desktop.walk.state') walkState(data);
 });
 
 // Anything that engages her (Core, speech, the pointer) postpones her idle pastimes.
@@ -449,7 +451,7 @@ function turn(name, x, y, z) {
 function updateLife(delta) {
   if (!vrm) return;
   const free = elapsed > lookUntil;
-  const leading = free && playing('look_around');
+  const leading = free && (playing('look_around') || walking());
   const reading = free && notebook.visible && !playing('notebook_away');
   let focus = null;
   if (leading && bone('head')) {
@@ -600,6 +602,7 @@ function loop(now) {
       updateEmotionFade();
       updateHold();
       updateCarry();
+      updateStroll(delta);
       updateIdle();
       updateTalkGestures();
       updatePastimes();
@@ -619,6 +622,7 @@ function loop(now) {
 function renderSiro(message) {
   if (!message || message.v !== 1) return;
   engage();
+  stopStroll();
   const previousEmotion = desiredEmotion;
   if (message.type === 'body.emotion') {
     const name = String(message.name);
@@ -807,6 +811,7 @@ window.addEventListener('pointerup', event => {
   press = undefined;
   if (event.button !== 0 || !down || !vrm || Math.hypot(event.screenX - down.x, event.screenY - down.y) >= 7) return;
   engage();
+  stopStroll();
   // Eye contact for whoever clicked.
   interest.until = -1;
   life.glanceYaw = 0;
@@ -839,6 +844,7 @@ function startCarry() {
   });
   react('surprised', 0.7, 1.4);
   hold = null;
+  stroll = null;
   if (mixer && actions.dangle) playLoop('dangle', 0.25);
 }
 
@@ -870,9 +876,11 @@ function updatePastimes() {
   if (actions.stretch) add('stretch', 1);
   if (actions.notebook_out && actions.notebook_read) add('notebook', 1);
   if (!actions.look_around) add('look', 2);
+  if (canStroll()) add('stroll', 2);
   const choice = choices[Math.floor(Math.random() * choices.length)];
   if (choice === 'sit') startHold('sit', 40 + Math.random() * 50, true);
   else if (choice === 'notebook') startHold('notebook', 20 + Math.random() * 20, true);
+  else if (choice === 'stroll') startStroll();
   else if (choice === 'look') {
     // A slow look to one side and back, as if something caught her eye.
     life.glanceYaw = (Math.random() < 0.5 ? -1 : 1) * (22 + Math.random() * 10) * DEG;
@@ -972,6 +980,138 @@ function updateNotebook() {
   notebook.scale.setScalar(size);
 }
 
+// ---- Strolling about the desktop (desktop presentation only). She turns to the side with small
+// steps, the native window travels while she walks (at her stride speed, so the planted foot
+// doesn't skate), then she settles and turns back to face you. The host decides how far there is
+// room to go; being spoken to or clicked stops her early, a drag hands her over to the dangle.
+const WALK_SPEED = 1.26; // m/s the captured stride covers at full speed (pack.json root_motion)
+const WALK_PACE = 0.7; // a stroll: clips and travel both at 70 %
+let stroll = null; // { id, phase, since, direction, ramp, cruise, delay, from }
+let facing = 0; // radians the body is turned from the viewer; + is toward screen right
+let facingV = 0;
+let baseYaw = 0;
+let strollCount = 0;
+
+const inOut = u => {
+  const x = clamp01(u);
+  return x < 0.5 ? 4 * x ** 3 : 1 - (2 - 2 * x) ** 3 / 2;
+};
+
+function canStroll() {
+  return desktop && mixer && ['walk', 'walk_start', 'walk_stop', 'turn_step'].every(name => actions[name]);
+}
+
+function startStroll() {
+  if (!canStroll() || stroll || hold || carry.active || currentAction !== idleAction) return false;
+  const pxPerMetre = (window.innerHeight || 1) / view.height;
+  stroll = { id: `walk-${++strollCount}`, phase: 'asked', since: elapsed };
+  window.parent.postMessage({
+    type: 'siro.desktop.walk', v: 1, action: 'start', id: stroll.id, direction: 0,
+    distance: (0.8 + Math.random() * 1.4) * pxPerMetre,
+    speed: WALK_SPEED * WALK_PACE * pxPerMetre,
+    ramp: actions.walk_start.getClip().duration / WALK_PACE,
+    delay: actions.turn_step.getClip().duration / WALK_PACE,
+  }, location.origin);
+  return true;
+}
+
+// The steps belong to the stroll, not to playGesture: they hand over to each other on its clock.
+function playStep(name, loop = false) {
+  const action = actions[name];
+  action.reset().setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
+  action.clampWhenFinished = !loop;
+  action.timeScale = WALK_PACE;
+  action.play();
+  if (currentAction !== action) currentAction?.crossFadeTo(action, 0.25, false);
+  currentAction = action;
+  gestureFace = null;
+}
+
+function enterPhase(phase) {
+  stroll.phase = phase;
+  stroll.since = elapsed;
+  if (phase === 'turn' || phase === 'back') {
+    stroll.from = facing;
+    playStep('turn_step');
+  } else if (phase === 'start') playStep('walk_start');
+  else if (phase === 'walk') playStep('walk', true);
+  else if (phase === 'stop') playStep('walk_stop');
+}
+
+// Called to her (Core speaks, a click): she stops walking and turns back to you.
+function stopStroll() {
+  if (!stroll || stroll.phase === 'stop' || stroll.phase === 'back') return;
+  window.parent.postMessage({ type: 'siro.desktop.walk', v: 1, action: 'stop', id: stroll.id }, location.origin);
+  if (stroll.phase === 'asked') stroll = null;
+  else if (stroll.phase === 'turn') enterPhase('back');
+  else enterPhase('stop');
+}
+
+function walkState(data) {
+  if (!stroll || data.id !== stroll.id) return;
+  if (data.state === 'refused') {
+    if (stroll.phase === 'asked') stroll = null;
+    return;
+  }
+  if (data.state === 'started' && stroll.phase === 'asked') {
+    Object.assign(stroll, {
+      direction: Math.sign(data.direction) || 1, ramp: data.ramp, cruise: data.cruise, delay: data.delay,
+    });
+    enterPhase('turn');
+  } else if (data.state === 'ended' && data.reason !== 'arrived') {
+    // The window stopped under her (a drag, the chat, a new layout): settle on the spot.
+    if (data.reason === 'dragged') stroll = null;
+    else if (stroll.phase === 'start' || stroll.phase === 'walk') enterPhase('stop');
+    else if (stroll.phase === 'turn') enterPhase('back');
+  }
+}
+
+function updateStroll(delta) {
+  if (stroll) {
+    const t = elapsed - stroll.since;
+    const turn = stroll.delay ?? 1;
+    if (stroll.phase === 'asked' && t > 1) {
+      // No host answered in time: stay put, and make sure a late start is called off.
+      window.parent.postMessage({ type: 'siro.desktop.walk', v: 1, action: 'stop', id: stroll.id }, location.origin);
+      stroll = null;
+    }
+    else if (stroll.phase === 'turn') {
+      facing = stroll.from + (stroll.direction * Math.PI / 2 - stroll.from) * inOut(t / turn);
+      if (t >= turn) enterPhase('start');
+    } else if (stroll.phase === 'start' && t >= stroll.ramp) enterPhase(stroll.cruise > 0 ? 'walk' : 'stop');
+    else if (stroll.phase === 'walk' && t >= stroll.cruise) enterPhase('stop');
+    else if (stroll.phase === 'stop' && t >= stroll.ramp) enterPhase('back');
+    else if (stroll.phase === 'back') {
+      const span = turn * Math.min(1, Math.abs(stroll.from) / (Math.PI / 2)) || 0.01;
+      facing = stroll.from * (1 - inOut(t / span));
+      if (t >= span) {
+        stroll = null;
+        facing = 0;
+        returnToIdle(currentAction);
+      }
+    }
+  }
+  if (!stroll && facing) {
+    // Interrupted mid-turn (picked up, for one): ease back to the viewer.
+    const omega = 2 / 0.3;
+    const x = omega * delta;
+    const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+    const temp = (facingV + omega * facing) * delta;
+    facingV = (facingV - omega * temp) * decay;
+    facing = (facing + temp) * decay;
+    if (Math.abs(facing) < 1e-3) facing = facingV = 0;
+  }
+  if (vrm) {
+    vrm.scene.rotation.y = baseYaw + facing;
+    // Side on, the stride reaches further behind her than ahead: centre its footprint in the pane.
+    vrm.scene.position.x = -Math.sin(facing) * strideCentre;
+  }
+}
+
+function walking() {
+  return Boolean(stroll) && ['start', 'walk', 'stop'].includes(stroll.phase);
+}
+
 // Read-only diagnostics for automated renderer checks.
 window.__siroVrm = Object.freeze({
   loaded: () => Boolean(vrm),
@@ -985,6 +1125,8 @@ window.__siroVrm = Object.freeze({
   framing: () => ({ ...view, reachTop: reach?.max.y ?? null }),
   head: () => headOnScreen(),
   notebook: () => notebook.visible,
+  stroll: () => stroll?.phase ?? null,
+  facing: () => facing,
   activity: () => Object.keys(actions).find(name => actions[name] === currentAction) ?? null,
 });
 
@@ -1022,7 +1164,8 @@ window.addEventListener('contextmenu', event => {
   if (!mixer) return;
   for (const item of gestureMenu.children) {
     const name = item.dataset.gesture;
-    item.disabled = !(HOLDS[name] ? actions[HOLDS[name][0]] && actions[HOLDS[name][1]] : actions[name]);
+    const ready = name === 'stroll' ? canStroll() : HOLDS[name] ? actions[HOLDS[name][0]] && actions[HOLDS[name][1]] : actions[name];
+    item.disabled = !ready;
   }
   gestureMenu.hidden = false;
   const x = Math.min(event.clientX, window.innerWidth - gestureMenu.offsetWidth - 4);
@@ -1053,7 +1196,7 @@ function speechGesture(text) {
 // the exit clip back to the idle. `auto` marks one she started herself; she ends it when engaged.
 function startHold(kind, seconds, auto = false) {
   const [enter, loop] = HOLDS[kind];
-  if (!mixer || !actions[enter] || !actions[loop] || hold || carry.active) return false;
+  if (!mixer || !actions[enter] || !actions[loop] || hold || carry.active || stroll) return false;
   hold = { kind, until: elapsed + actions[enter].getClip().duration + seconds, auto };
   if (playGesture(enter)) return true;
   hold = null;
@@ -1086,7 +1229,8 @@ function playLoop(name, fade = CROSSFADE) {
 function perform(name) {
   if (name === 'sit') return startHold('sit', SIT_SECONDS);
   if (name === 'notebook') return startHold('notebook', NOTEBOOK_SECONDS);
-  if (hold) return false;
+  if (name === 'stroll') return startStroll();
+  if (hold || stroll) return false;
   return playGesture(name);
 }
 
@@ -1101,7 +1245,7 @@ function playGesture(name) {
   if (!mixer || !action || looping.has(action)) return false;
   // Seated, reading or held up, other gestures wait until she is back on her feet.
   const steps = Object.values(HOLDS).flat();
-  const busy = hold || playing('dangle')
+  const busy = hold || stroll || playing('dangle')
     || Object.values(HOLDS).some(([enter, loop]) => playing(enter) || playing(loop));
   if (busy && !steps.includes(name) && name !== 'land') return false;
   if (currentAction === action && action.isRunning()) return true;
@@ -1125,7 +1269,10 @@ function playGesture(name) {
 function measureReach(mix) {
   const box = new THREE.Box3();
   const point = new THREE.Vector3();
-  for (const action of Object.values(actions)) {
+  let back = 0;
+  let ahead = 0;
+  for (const [name, action] of Object.entries(actions)) {
+    const stepping = ['walk', 'walk_start', 'walk_stop', 'turn_step'].includes(name);
     const duration = action.getClip().duration;
     mix.stopAllAction();
     action.reset().setLoop(THREE.LoopOnce, 1).play();
@@ -1136,8 +1283,19 @@ function measureReach(mix) {
         const node = bone(name);
         if (node) box.expandByPoint(node.getWorldPosition(point));
       }
+      // How far the feet reach forward and back while she walks (seen side on while strolling).
+      if (stepping) {
+        for (const name of ['leftFoot', 'rightFoot', 'leftToes', 'rightToes']) {
+          const node = bone(name);
+          if (!node) continue;
+          node.getWorldPosition(point);
+          back = Math.min(back, point.z);
+          ahead = Math.max(ahead, point.z);
+        }
+      }
     }
   }
+  strideCentre = (back + ahead) / 2;
   mix.stopAllAction();
   // playGesture sets one-shots up itself; everything else loops as clipAction made it.
   for (const action of Object.values(actions)) action.reset().setLoop(THREE.LoopRepeat, Infinity);
@@ -1166,7 +1324,7 @@ async function loadMotions(loader) {
   if (!actions.idle) throw new Error('motion pack has no idle loop');
   reach = measureReach(mix);
   mix.addEventListener('finished', event => {
-    if (event.action !== currentAction || event.action === idleAction) return;
+    if (event.action !== currentAction || event.action === idleAction || stroll) return;
     if (hold && event.action === actions[HOLDS[hold.kind][0]]) {
       playLoop(HOLDS[hold.kind][1]);
       return;
@@ -1191,6 +1349,7 @@ async function loadModel() {
   VRMUtils.rotateVRM0(loaded);
   scene.add(loaded.scene);
   vrm = loaded;
+  baseYaw = vrm.scene.rotation.y;
   const applier = vrm.lookAt?.applier;
   for (const [key, limit] of [
     ['rangeMapHorizontalInner', EYE_RANGE.horizontal], ['rangeMapHorizontalOuter', EYE_RANGE.horizontal],

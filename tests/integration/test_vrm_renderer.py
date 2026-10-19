@@ -561,6 +561,99 @@ def test_drag_dangles_and_lands_and_the_notebook_is_a_held_state(tmp_path: Path)
             browser.close()
 
 
+WALK_REQUESTS = "window.__posted.filter(m => m && m.type === 'siro.desktop.walk' && m.v === 1)"
+
+
+def test_desktop_stroll_turns_walks_with_the_window_and_stops_when_called(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway, "?presentation=desktop")
+        try:
+            page.wait_for_function("window.__siroVrm && window.__siroVrm.loaded()", timeout=60000)
+            page.wait_for_function("window.__siroVrm.activity() !== null", timeout=30000)
+            head = page.evaluate("window.__siroVrm.head()")
+            x, y = head["x"], head["y"] + 3 * head["radius"]
+
+            def menu_stroll() -> dict[str, object]:
+                count = page.evaluate(f"{WALK_REQUESTS}.length")
+                page.mouse.click(x, y, button="right")
+                page.locator("#gesture-menu button", has_text="散步").click()
+                page.wait_for_function(f"{WALK_REQUESTS}.length > {count}")
+                return page.evaluate(f"{WALK_REQUESTS}.at(-1)")
+
+            def host(update: dict[str, object]) -> None:
+                message = {"type": "siro.desktop.walk.state", "v": 1, **update}
+                page.evaluate("m => window.postMessage(m, location.origin)", message)
+
+            # She asks the host for room at her stride speed; the host lets her walk right.
+            request = menu_stroll()
+            assert request["action"] == "start" and request["direction"] == 0
+            assert request["speed"] > 0 and request["distance"] > 0
+            assert abs(request["ramp"] - 1 / 0.7) < 0.05 and abs(request["delay"] - 1 / 0.7) < 0.05
+            host(
+                {
+                    "id": request["id"],
+                    "state": "started",
+                    "direction": 1,
+                    "distance": 500,
+                    "ramp": request["ramp"],
+                    "cruise": 0.6,
+                    "delay": request["delay"],
+                }
+            )
+            page.wait_for_function("window.__siroVrm.activity() === 'turn_step'")
+            page.wait_for_function("window.__siroVrm.activity() === 'walk_start'", timeout=5000)
+            assert page.evaluate("window.__siroVrm.facing()") > 1.5  # turned to screen right
+            page.wait_for_function("window.__siroVrm.activity() === 'walk'", timeout=5000)
+            page.wait_for_function("window.__siroVrm.activity() === 'walk_stop'", timeout=5000)
+            page.wait_for_function("window.__siroVrm.stroll() === 'back'", timeout=5000)
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=5000)
+            assert page.evaluate("window.__siroVrm.stroll()") is None
+            assert abs(page.evaluate("window.__siroVrm.facing()")) < 1e-3
+
+            # Called back mid-walk (a click): she asks the host to stop, settles and turns back.
+            request = menu_stroll()
+            host(
+                {
+                    "id": request["id"],
+                    "state": "started",
+                    "direction": -1,
+                    "distance": 900,
+                    "ramp": request["ramp"],
+                    "cruise": 5,
+                    "delay": request["delay"],
+                }
+            )
+            page.wait_for_function("window.__siroVrm.activity() === 'walk'", timeout=8000)
+            page.mouse.click(x, y)
+            # postMessage delivers on a later task: wait for the request to arrive.
+            page.wait_for_function(f"{WALK_REQUESTS}.at(-1).action === 'stop'")
+            stop = page.evaluate(f"{WALK_REQUESTS}.at(-1)")
+            assert stop == {
+                "type": "siro.desktop.walk",
+                "v": 1,
+                "action": "stop",
+                "id": request["id"],
+            }
+            assert page.evaluate("window.__siroVrm.activity()") == "walk_stop"
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=8000)
+
+            # No room (or the chat is open): the host refuses and she stays where she is.
+            request = menu_stroll()
+            host({"id": request["id"], "state": "refused", "reason": "room"})
+            page.wait_for_function("window.__siroVrm.stroll() === null")
+            assert page.evaluate("window.__siroVrm.activity()") == "idle"
+
+            # No host at all: after a second she gives up, and calls off any late start.
+            request = menu_stroll()
+            page.wait_for_function("window.__siroVrm.stroll() === null", timeout=3000)
+            page.wait_for_function(f"{WALK_REQUESTS}.at(-1).action === 'stop'")
+            assert page.evaluate("window.__siroVrm.activity()") == "idle"
+            assert not gateway.received[1:], "strolling stays between the renderer and the host"
+        finally:
+            browser.close()
+
+
 def test_chat_input_shares_its_position_with_the_character() -> None:
     html = (ROOT / "src/siro/services/presentation/static/index.html").read_text(encoding="utf-8")
     hook = html[html.index("const shareFocus") : html.index('chatInput.addEventListener("focus"')]
