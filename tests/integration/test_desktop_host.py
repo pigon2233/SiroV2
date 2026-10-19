@@ -99,6 +99,11 @@ let last=0;for(let t=0;t<=plan.duration;t+=1/240){{const x=plan.at(t);
 // Too little room for the two ramps: no walk rather than a skating one.
 assert.equal(walkPlan(200,200,1.4),null);assert.equal(walkPlan(0,200,1),null);
 assert.equal(walkPlan(NaN,200,1),null);
+// With a stride cycle the full-speed part is whole cycles, rounded down to the room there is.
+const whole=walkPlan(1000,200,1.4,1.43);close(whole.cruise,2.86);close(whole.distance,852);
+close(whole.at(whole.duration),852);
+const none=walkPlan(300,200,1.4,1.43);close(none.cruise,0);close(none.distance,280);
+assert.equal(walkPlan(250,200,1.4,1.43),null);assert.equal(walkPlan(500,200,1.4,-1),null);
 // Stopping early settles over one ramp from the speed she has, never past the room left.
 const cut=stopPlan(plan,2);close(cut.remaining,140);close(cut.at(1.4),140);close(cut.at(0),0);
 const early=stopPlan(plan,.7);close(early.remaining,70);  // half speed mid-ramp
@@ -127,6 +132,7 @@ def test_host_walk_messages_are_validated_and_taken_over_by_drag_chat_and_layout
         "message.speed <= 2000",
         "message.ramp <= 5",
         "message.delay <= 5",
+        "message.cycle <= 5",
     ):
         assert check in handler
     assert "haltWalk('dragged');" in source[source.index("message.type === 'desktop.move'") :]

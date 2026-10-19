@@ -192,6 +192,7 @@
       if (data.action !== "start" || ![-1, 0, 1].includes(data.direction) || !fields.every(key => Number.isFinite(data[key]))) return;
       const message = {type: "desktop.walk", id: data.id, direction: data.direction};
       for (const key of fields) message[key] = data[key];
+      if (Number.isFinite(data.cycle)) message.cycle = data.cycle;
       if (chatOpen || !nativeCommand(message)) toRole({id: data.id, state: "refused", reason: chatOpen ? "chat" : "native"});
     };
     window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false), setLayout, walkUpdate});

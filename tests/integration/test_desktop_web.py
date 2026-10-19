@@ -191,9 +191,9 @@ def test_desktop_walk_bridge_forwards_valid_requests_and_host_updates_only() -> 
 const role=existing.get('#companion').contentWindow;
 const fromRole=data=>dispatch('message',{origin:location.origin,source:role,data});
 fromRole({type:'siro.desktop.walk',v:1,action:'start',id:'walk-1',direction:0,
- distance:400,speed:250,ramp:1.4,delay:1.4});
+ distance:400,speed:250,ramp:1.4,delay:1.4,cycle:1.43});
 assert.deepEqual(nativeMessages.at(-1),{type:'desktop.walk',id:'walk-1',direction:0,
- distance:400,speed:250,ramp:1.4,delay:1.4});
+ distance:400,speed:250,ramp:1.4,delay:1.4,cycle:1.43});
 fromRole({type:'siro.desktop.walk',v:1,action:'stop',id:'walk-1'});
 assert.deepEqual(nativeMessages.at(-1),{type:'desktop.walk.stop',id:'walk-1'});
 const count=nativeMessages.length;

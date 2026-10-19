@@ -20,12 +20,17 @@ export function rampDistance(u) {
     return 0.0625 + (x - 0.5) + ((2 - 2 * x) ** 4 - 1) / 16;
 }
 
-/** A walk of `distance` pixels at `speed` px/s with ramps of `ramp` seconds, or null when the
- * room is shorter than the two ramps need. Times in seconds, positions in pixels from the start. */
-export function walkPlan(distance, speed, ramp) {
-    if (![distance, speed, ramp].every(Number.isFinite) || distance <= 0 || speed <= 0 || ramp <= 0) return null;
-    const cruise = distance / speed - ramp;
-    if (cruise < 0) return null;
+/** A walk of up to `distance` pixels at `speed` px/s with ramps of `ramp` seconds, or null when the
+ * room is shorter than the two ramps need. With a `cycle` (seconds per stride cycle) the full-speed
+ * part is a whole number of cycles, so the walk loop hands over to walk_stop on its first frame;
+ * zero cycles is fine, walk_start ends where walk_stop begins. Times in seconds, positions in
+ * pixels from the start. */
+export function walkPlan(distance, speed, ramp, cycle = 0) {
+    if (![distance, speed, ramp, cycle].every(Number.isFinite) || distance <= 0 || speed <= 0 || ramp <= 0 || cycle < 0) return null;
+    let cruise = distance / speed - ramp;
+    if (cruise < -1e-9) return null;
+    cruise = cycle > 0 ? Math.floor(cruise / cycle + 1e-9) * cycle : Math.max(0, cruise);
+    distance = speed * (ramp + cruise);
     const duration = 2 * ramp + cruise;
     const at = t => {
         if (t <= 0) return 0;

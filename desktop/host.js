@@ -88,7 +88,7 @@ function startWalk(message) {
     if (lastChat || !area || !layout) return walkReport({id: message.id, state: 'refused', reason: lastChat ? 'chat' : 'layout'});
     const [x, y] = window.get_position();
     const room = walkRoom(x, layout.petX, layout.petWidth, area, message.direction, message.distance);
-    const plan = walkPlan(room.distance, message.speed, message.ramp);
+    const plan = walkPlan(room.distance, message.speed, message.ramp, message.cycle ?? 0);
     if (!plan) return walkReport({id: message.id, state: 'refused', reason: 'room'});
     const now = GLib.get_monotonic_time() / 1e6;
     walk = {id: message.id, direction: room.direction, startX: x, y, plan, began: now + message.delay, stop: null};
@@ -207,7 +207,8 @@ function activate() {
         else if (message.type === 'desktop.walk' && typeof message.id === 'string' && message.id.length <= 40 &&
             [-1, 0, 1].includes(message.direction) && [message.distance, message.speed, message.ramp, message.delay].every(Number.isFinite) &&
             message.distance > 0 && message.distance <= 4096 && message.speed >= 10 && message.speed <= 2000 &&
-            message.ramp >= 0.2 && message.ramp <= 5 && message.delay >= 0 && message.delay <= 5) startWalk(message);
+            message.ramp >= 0.2 && message.ramp <= 5 && message.delay >= 0 && message.delay <= 5 &&
+            (message.cycle === undefined || (Number.isFinite(message.cycle) && message.cycle >= 0 && message.cycle <= 5))) startWalk(message);
         else if (message.type === 'desktop.walk.stop' && typeof message.id === 'string') stopWalk(message.id);
         else if (message.type === 'desktop.console') openCenter();
         else if (message.type === 'desktop.chat' && typeof message.open === 'boolean') {

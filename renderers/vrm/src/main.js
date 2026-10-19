@@ -590,8 +590,9 @@ const clock = new THREE.Clock();
 let lastDesktopFrame = 0;
 function loop(now) {
   requestAnimationFrame(loop);
-  // SIRO desktop frame budget: retain normal web timing.
-  if (desktop && now - lastDesktopFrame < 1000 / 24) return;
+  // SIRO desktop frame budget: retain normal web timing. Not while strolling: the host moves the
+  // window every 16 ms, and drawing her at 24 fps against it makes the planted foot saw back and forth.
+  if (desktop && !stroll && now - lastDesktopFrame < 1000 / 24) return;
   lastDesktopFrame = now;
   const delta = Math.min(clock.getDelta(), 0.1);
   elapsed += delta;
@@ -1002,41 +1003,55 @@ function canStroll() {
   return desktop && mixer && ['walk', 'walk_start', 'walk_stop', 'turn_step'].every(name => actions[name]);
 }
 
+// Screen pixels per metre where her feet are (z = 0). The framing's view.height holds at the
+// camera's look-at plane, which sits in front of her; the feet are a little further away.
+function feetPixelsPerMetre() {
+  const depth = camera.position.z - (vrm?.scene.position.z ?? 0);
+  return (window.innerHeight || 1) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * depth);
+}
+
 function startStroll() {
   if (!canStroll() || stroll || hold || carry.active || currentAction !== idleAction) return false;
-  const pxPerMetre = (window.innerHeight || 1) / view.height;
+  const speed = walkSpeed * WALK_PACE * feetPixelsPerMetre();
+  const ramp = actions.walk_start.getClip().duration / WALK_PACE;
+  const cycle = actions.walk.getClip().duration / WALK_PACE;
+  const cycles = 1 + Math.floor(Math.random() * 3);
   stroll = { id: `walk-${++strollCount}`, phase: 'asked', since: elapsed };
+  // Both ramps plus whole stride cycles: the host rounds down to whole cycles if room is short,
+  // so the walk loop always hands over to walk_stop on its first frame.
   window.parent.postMessage({
     type: 'siro.desktop.walk', v: 1, action: 'start', id: stroll.id, direction: 0,
-    distance: (0.8 + Math.random() * 1.4) * pxPerMetre,
-    speed: walkSpeed * WALK_PACE * pxPerMetre,
-    ramp: actions.walk_start.getClip().duration / WALK_PACE,
+    distance: speed * (ramp + cycles * cycle) + 1, speed, ramp, cycle,
     delay: actions.turn_step.getClip().duration / WALK_PACE,
   }, location.origin);
   return true;
 }
 
 // The steps belong to the stroll, not to playGesture: they hand over to each other on its clock.
-function playStep(name, loop = false) {
+// `fade` is short where clips meet exactly (walk_start into the walk, the walk into walk_stop at a
+// cycle boundary); `late` carries how far this frame overshot the switch into the new clip.
+function playStep(name, loop = false, fade = 0.25, late = 0) {
   const action = actions[name];
   action.reset().setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
   action.clampWhenFinished = !loop;
   action.timeScale = WALK_PACE;
   action.play();
-  if (currentAction !== action) currentAction?.crossFadeTo(action, 0.25, false);
+  action.time = late * WALK_PACE;
+  if (currentAction !== action) currentAction?.crossFadeTo(action, fade, false);
   currentAction = action;
   gestureFace = null;
 }
 
-function enterPhase(phase) {
+function enterPhase(phase, late = 0, exact = false) {
   stroll.phase = phase;
-  stroll.since = elapsed;
+  stroll.since = elapsed - late;
+  const fade = exact ? 0.05 : 0.25;
   if (phase === 'turn' || phase === 'back') {
     stroll.from = facing;
-    playStep('turn_step');
-  } else if (phase === 'start') playStep('walk_start');
-  else if (phase === 'walk') playStep('walk', true);
-  else if (phase === 'stop') playStep('walk_stop');
+    playStep('turn_step', false, fade, late);
+  } else if (phase === 'start') playStep('walk_start', false, fade, late);
+  else if (phase === 'walk') playStep('walk', true, fade, late);
+  else if (phase === 'stop') playStep('walk_stop', false, fade, late);
 }
 
 // Called to her (Core speaks, a click): she stops walking and turns back to you.
@@ -1078,9 +1093,12 @@ function updateStroll(delta) {
     }
     else if (stroll.phase === 'turn') {
       facing = stroll.from + (stroll.direction * Math.PI / 2 - stroll.from) * inOut(t / turn);
-      if (t >= turn) enterPhase('start');
-    } else if (stroll.phase === 'start' && t >= stroll.ramp) enterPhase(stroll.cruise > 0 ? 'walk' : 'stop');
-    else if (stroll.phase === 'walk' && t >= stroll.cruise) enterPhase('stop');
+      // turn_step ends on the idle's first frame, where walk_start begins.
+      if (t >= turn) enterPhase('start', t - turn, true);
+    } else if (stroll.phase === 'start' && t >= stroll.ramp) {
+      // walk_start ends on the walk's first frame, which is also where walk_stop begins.
+      enterPhase(stroll.cruise > 0 ? 'walk' : 'stop', t - stroll.ramp, true);
+    } else if (stroll.phase === 'walk' && t >= stroll.cruise) enterPhase('stop', t - stroll.cruise, true);
     else if (stroll.phase === 'stop' && t >= stroll.ramp) enterPhase('back');
     else if (stroll.phase === 'back') {
       const span = turn * Math.min(1, Math.abs(stroll.from) / (Math.PI / 2)) || 0.01;
