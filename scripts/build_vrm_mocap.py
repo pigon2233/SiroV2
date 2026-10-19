@@ -746,10 +746,43 @@ MOCAP = {
     "sigh": ("A breath in, shoulders up, then a long breath out that lets everything drop.", False),
     "stretch": ("Both arms up overhead, leaning back; needs headroom above the head.", False),
     "yawn": ("Head back, shoulders up, right hand over the mouth.", False),
+    "pat": ("Patted on the head: shoulders up, head dipping into the hand at each pat.", False),
+    "poke": ("Poked: a quick jump back with both hands up in front of the chest.", False),
+    "dangle": ("Held up while dragged: legs hanging and kicking, arms out; loops.", True),
+    "land": ("Set down: knees give, arms out for balance, then back to the idle.", False),
+    "talk_offer": ("Talking: the right hand comes forward palm up.", False),
+    "talk_both": ("Talking: both palms up and apart with a slight shrug.", False),
+    "talk_explain": ("Talking: the right hand beats three small strokes before the chest.", False),
+    "talk_self": ("Talking: the right hand flat on the chest, meaning herself.", False),
+    "fix_hair": ("Tucking the hair behind the right ear, head tilted into the hand.", False),
+    "look_around": ("A look to her left, then her right, then back to the front.", False),
+    "hum": ("Hands behind the back, swaying side to side to a tune in her head.", False),
+    "notebook_out": ("Brings the notebook up and opens it in both hands (prop: renderer).", False),
+    "notebook_read": ("Reading the notebook held in both hands; turns a page; loops.", True),
+    "notebook_away": ("Puts the notebook away and returns to the idle.", False),
 }
 MOODS = {"idle_happy", "idle_sad", "idle_angry", "idle_relaxed"}
-LAYERED = {"think", "attention", "sit_loop", *MOODS, "clap", "sigh", "stretch", "yawn"}
-SEATED = {"sit_loop"}
+REACTIONS = {"pat", "poke", "dangle", "land"}
+TALK = {"talk_offer", "talk_both", "talk_explain", "talk_self"}
+IDLE_VARIETY = {"fix_hair", "look_around", "hum"}
+NOTEBOOK = {"notebook_out", "notebook_read", "notebook_away"}
+LAYERED = {
+    "think",
+    "attention",
+    "sit_loop",
+    *MOODS,
+    "clap",
+    "sigh",
+    "stretch",
+    "yawn",
+    *REACTIONS,
+    *TALK,
+    *IDLE_VARIETY,
+    *NOTEBOOK,
+}
+GROUND = {"sit_loop": "seat_edge_and_feet", "dangle": "none (held up while dragged)"}
+ENTRY = {"sit_loop": "seated", "notebook_read": "notebook", "notebook_away": "notebook"}
+EXIT = {"sit_loop": "seated", "notebook_out": "notebook", "notebook_read": "notebook"}
 
 
 def build_clips(
@@ -780,7 +813,7 @@ def build_clips(
     out["think"] = think(motions, idle)
     out["attention"] = surprise(motions, idle)
     out["sit_loop"] = (seated(motions, idle, skeleton), None)
-    out["idle_happy"] = mood_happy(motions, idle)
+    out["idle_happy"] = mood_happy(motions, idle, skeleton)
     out["idle_sad"] = mood_sad(motions, idle, offset_pose(xbot, "sad_pose", skeleton))
     out["idle_angry"] = mood_angry(motions, idle)
     out["idle_relaxed"] = mood_relaxed(motions, idle)
@@ -788,6 +821,17 @@ def build_clips(
     out["sigh"] = sigh(motions, idle)
     out["stretch"] = stretch(motions, idle)
     out["yawn"] = yawn(motions, idle)
+    out["pat"] = pat(motions, idle)
+    out["poke"] = poke(motions, idle)
+    out["dangle"] = dangle(motions, idle)
+    out["land"] = land(motions, idle, skeleton)
+    for talk in (talk_offer, talk_both, talk_explain, talk_self):
+        out[talk.__name__] = talk(motions, idle)
+    out["fix_hair"] = fix_hair(motions, idle)
+    out["look_around"] = look_around(motions, idle)
+    out["hum"] = hum(motions, idle, skeleton)
+    for book in (notebook_out, notebook_read, notebook_away):
+        out[book.__name__] = book(motions, idle)
     return out
 
 
@@ -893,6 +937,24 @@ def always(_t: np.ndarray) -> np.ndarray:
     return np.ones_like(_t)
 
 
+def crouch(clip: Clip, skeleton: dict[str, Any], degrees: np.ndarray) -> Clip:
+    """Bend both knees (thigh forward, shin back twice as far, foot flat) and lower the hips by
+    exactly what keeps the feet on the ground."""
+
+    def length(a: str, b: str) -> float:
+        return float(np.linalg.norm(np.subtract(skeleton[a]["world"], skeleton[b]["world"])))
+
+    leg = length("leftUpperLeg", "leftLowerLeg") + length("leftLowerLeg", "leftFoot")
+    for side in ("left", "right"):
+        clip = wobble(clip, f"{side}UpperLeg", "x", -degrees)
+        clip = wobble(clip, f"{side}LowerLeg", "x", 2 * degrees)
+        clip = wobble(clip, f"{side}Foot", "x", -degrees)
+    rotations, hips = clip
+    hips = hips.copy()
+    hips[:, 1] -= leg * (1 - np.cos(np.radians(degrees)))
+    return rotations, hips
+
+
 HANDS_BEHIND = {
     "leftUpperArm": [("x", 95), ("z", -80), ("x", 14)],
     "rightUpperArm": [("x", 95), ("z", 80), ("x", 14)],
@@ -921,7 +983,7 @@ ARMS = (*LEFT_ARM, *RIGHT_ARM)  # with the shoulders, which the arm poses are me
 SLUMP = ("spine", "chest", "upperChest", "neck", "head")
 
 
-def mood_happy(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+def mood_happy(motions: ModuleType, idle: Clip, skeleton: dict[str, Any]) -> tuple[Clip, Shapes]:
     """Quicker and bigger than the idle, chest up, hands behind the back, a small bounce."""
 
     clip = rescale(retime(idle, 0.85), 1.3)
@@ -930,15 +992,9 @@ def mood_happy(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
     clip = layer(motions, clip, HANDS_BEHIND, always, ARMS)
     clip = wobble(clip, "neck", "z", 4 * cycles(clip, 1))  # head sways side to side
     bounce = (1 - cycles(clip, 4, np.pi / 2)) / 2  # 0..1, four soft bounces per loop
-    for side in ("left", "right"):
-        clip = wobble(clip, f"{side}UpperLeg", "x", -4 * bounce)
-        clip = wobble(clip, f"{side}LowerLeg", "x", 8 * bounce)
-        clip = wobble(clip, f"{side}Foot", "x", -4 * bounce)
-    rotations, hips = clip
-    hips = hips.copy()
-    hips[:, 1] -= 0.008 * bounce
-    w = np.ones(len(hips))
-    return (rotations, hips), {"left": held_shape(1.1, 0.6, w), "right": held_shape(1.1, 0.6, w)}
+    clip = crouch(clip, skeleton, 8 * bounce)
+    w = np.ones(len(clip[1]))
+    return clip, {"left": held_shape(1.1, 0.6, w), "right": held_shape(1.1, 0.6, w)}
 
 
 def mood_sad(motions: ModuleType, idle: Clip, slump: Quats) -> tuple[Clip, Shapes]:
@@ -1094,6 +1150,325 @@ def yawn(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
     return clip, {"right": held_shape(0.7, 0.6, hand(np.arange(len(clip[1])) / FPS))}
 
 
+# --- reactions to the pointer, and hand gestures for talking --------------------------------
+#
+# The renderer picks these: pat for a click on the head, poke for a click on the body, dangle
+# while the window is dragged and land when it is let go; talk_* now and then while speaking.
+# All but dangle end exactly on the idle loop's first frame, so every envelope is done by
+# 0.2 s before the end: the hands trail the shoulder by up to 0.17 s.
+
+POKED = {
+    "rightUpperArm": [("x", 10), ("z", 80), ("x", -30)],
+    "rightLowerArm": [("x", -40), ("y", 100)],
+    "leftUpperArm": [("x", 10), ("z", -80), ("x", -30)],
+    "leftLowerArm": [("x", -40), ("y", -100)],
+    "leftHand": [("z", 0)],
+    "rightHand": [("z", 0)],
+}
+HANGING = {
+    "leftUpperArm": [("z", -55), ("x", -10)],
+    "rightUpperArm": [("z", 55), ("x", -10)],
+    "leftLowerArm": [("y", -30)],
+    "rightLowerArm": [("y", 30)],
+    "leftHand": [("z", 0)],
+    "rightHand": [("z", 0)],
+    "leftUpperLeg": [("x", -10)],
+    "rightUpperLeg": [("x", -4)],
+    "leftLowerLeg": [("x", 22)],
+    "rightLowerLeg": [("x", 16)],
+    "leftFoot": [("x", 25)],
+    "rightFoot": [("x", 25)],
+}
+LEGS = ("leftUpperLeg", "leftLowerLeg", "leftFoot", "rightUpperLeg", "rightLowerLeg", "rightFoot")
+BALANCE = {
+    "leftUpperArm": [("z", -50), ("x", -15)],
+    "rightUpperArm": [("z", 50), ("x", -15)],
+    "leftLowerArm": [("y", -25)],
+    "rightLowerArm": [("y", 25)],
+    "leftHand": [("z", 0)],
+    "rightHand": [("z", 0)],
+}
+OFFER = {  # right palm up, held out in front: "here", "you see"
+    "rightUpperArm": [("x", 15), ("z", 78), ("x", -25)],
+    "rightLowerArm": [("x", -120), ("y", 75)],
+    "rightHand": [("z", 0)],
+}
+BOTH_OPEN = {  # both palms up and a little apart: "well...", "you know"
+    "leftUpperArm": [("x", 0), ("z", -78), ("x", -22)],
+    "rightUpperArm": [("x", 0), ("z", 78), ("x", -22)],
+    "leftLowerArm": [("x", -120), ("y", -70)],
+    "rightLowerArm": [("x", -120), ("y", 70)],
+    "leftHand": [("z", 0)],
+    "rightHand": [("z", 0)],
+}
+EXPLAIN = {  # right hand up in front of the chest, beating out the words
+    "rightUpperArm": [("x", 20), ("z", 76), ("x", -30)],
+    "rightLowerArm": [("x", -80), ("y", 95)],
+    "rightHand": [("z", 0)],
+}
+SELF = {  # right hand flat on the chest: "I", "me"
+    "rightUpperArm": [("x", 45), ("z", 76), ("x", -12)],
+    "rightLowerArm": [("y", 108)],
+    "rightHand": [("z", 0)],
+}
+
+
+def frames_of(clip: Clip) -> np.ndarray:
+    return np.arange(len(clip[1])) / FPS
+
+
+def pat(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Patted on the head: hands together in front, shoulders up, head dipping into the hand
+    with a little give at each pat. Closed eyes and a smile are the renderer's part."""
+
+    clip = idle_tail(idle, 2.6)
+    arms = envelope((0.1, 0.5), (1.75, 2.35))
+    clip = layer(motions, clip, HANDS_FRONT, arms, ARMS)
+    shy = on_stand(
+        motions,
+        neck=[("x", 4)],
+        head=[("x", 5), ("z", 6)],
+        leftShoulder=[("z", 6)],
+        rightShoulder=[("z", -6)],
+    )
+    bones = ("neck", "head", "leftShoulder", "rightShoulder")
+    clip = layer(motions, clip, shy, envelope((0.0, 0.35), (1.8, 2.4)), additive=bones)
+    clip = wobble(clip, "head", "x", 3 * pulses((0.7, 1.15, 1.6), 0.09)(frames_of(clip)))
+    w = arms(frames_of(clip))
+    return clip, {"left": held_shape(0.9, 0.3, w), "right": held_shape(0.9, 0.3, w)}
+
+
+def poke(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Poked: a quick jump back and away with both hands up in front of the chest, settling."""
+
+    clip = idle_tail(idle, 1.5)
+    arms = envelope((0.0, 0.14), (0.55, 1.3), 1.2)
+    clip = layer(motions, clip, POKED, arms, ARMS)
+    flinch = on_stand(
+        motions,
+        spine=[("y", 8), ("x", -3)],
+        chest=[("x", -3)],
+        head=[("x", -4)],
+        leftShoulder=[("z", 6)],
+        rightShoulder=[("z", -6)],
+    )
+    bones = ("spine", "chest", "head", "leftShoulder", "rightShoulder")
+    clip = layer(motions, clip, flinch, envelope((0.0, 0.12), (0.5, 1.25), 1.5), additive=bones)
+    w = arms(frames_of(clip))
+    return clip, {"left": held_shape(0.5, 1.6, w), "right": held_shape(0.5, 1.6, w)}
+
+
+def dangle(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Held up while the window is dragged: legs hanging and kicking a little, arms out,
+    looking down. Loops on the calmed idle; lifted so the pointed toes stay in frame."""
+
+    clip = rescale(idle, 0.5)
+    clip = layer(motions, clip, HANGING, always, (*ARMS, *LEGS))
+    kick = cycles(clip, 3)
+    clip = wobble(clip, "leftUpperLeg", "x", -9 * kick)
+    clip = wobble(clip, "rightUpperLeg", "x", 9 * kick)
+    clip = wobble(clip, "leftLowerLeg", "x", 8 * cycles(clip, 3, -0.6))
+    clip = wobble(clip, "rightLowerLeg", "x", -8 * cycles(clip, 3, -0.6))
+    clip = wobble(clip, "leftUpperArm", "z", 5 * cycles(clip, 2))
+    clip = wobble(clip, "rightUpperArm", "z", 5 * cycles(clip, 2, 0.8))
+    look = on_stand(motions, spine=[("x", 5)], neck=[("x", 4)], head=[("x", 8)])
+    clip = layer(motions, clip, look, always, additive=("spine", "neck", "head"))
+    rotations, hips = clip
+    hips = hips.copy()
+    hips[:, 1] += 0.04
+    w = np.ones(len(hips))
+    return (rotations, hips), {"left": held_shape(0.6, 1.2, w), "right": held_shape(0.6, 1.2, w)}
+
+
+def land(motions: ModuleType, idle: Clip, skeleton: dict[str, Any]) -> tuple[Clip, Shapes]:
+    """Set down: knees give with the arms out for balance, then straightening into the idle."""
+
+    clip = idle_tail(idle, 1.4)
+    give = envelope((0.0, 0.16), (0.35, 1.15))
+    arms = envelope((0.0, 0.15), (0.4, 1.2))
+    clip = layer(motions, clip, BALANCE, arms, ARMS)
+    lean = on_stand(motions, spine=[("x", 8)], head=[("x", -4)])
+    clip = layer(motions, clip, lean, give, additive=("spine", "head"))
+    clip = crouch(clip, skeleton, 22 * give(frames_of(clip)))
+    w = arms(frames_of(clip))
+    return clip, {"left": held_shape(0.6, 1.4, w), "right": held_shape(0.6, 1.4, w)}
+
+
+def talk_offer(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """The right hand comes forward palm up, as if offering the point, with a small nod."""
+
+    clip = idle_tail(idle, 1.9)
+    hand = envelope((0.1, 0.55), (1.1, 1.7), 0.3)
+    clip = layer(motions, clip, OFFER, hand, RIGHT_ARM)
+    nod = on_stand(motions, neck=[("x", 2)], head=[("x", 3)])
+    clip = layer(motions, clip, nod, envelope((0.35, 0.6), (0.7, 1.1)), additive=("neck", "head"))
+    return clip, {"right": held_shape(0.3, 1.5, hand(frames_of(clip)))}
+
+
+def talk_both(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Both palms up and a little apart with a slight shrug and a head tilt."""
+
+    clip = idle_tail(idle, 2.1)
+    hands = envelope((0.1, 0.6), (1.2, 1.9), 0.3)
+    clip = layer(motions, clip, BOTH_OPEN, hands, ARMS)
+    shrug = on_stand(motions, leftShoulder=[("z", 4)], rightShoulder=[("z", -4)], head=[("z", -4)])
+    bones = ("leftShoulder", "rightShoulder", "head")
+    clip = layer(motions, clip, shrug, envelope((0.4, 0.75), (1.0, 1.5)), additive=bones)
+    w = hands(frames_of(clip))
+    return clip, {"left": held_shape(0.3, 1.5, w), "right": held_shape(0.3, 1.5, w)}
+
+
+def talk_explain(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """The right hand up in front of the chest, beating three small strokes with the words."""
+
+    clip = idle_tail(idle, 2.6)
+    hand = envelope((0.1, 0.55), (1.8, 2.4))
+    clip = layer(motions, clip, EXPLAIN, hand, RIGHT_ARM)
+    clip = wobble(clip, "rightLowerArm", "y", -12 * pulses((0.8, 1.2, 1.6), 0.07)(frames_of(clip)))
+    return clip, {"right": held_shape(0.8, 1.0, hand(frames_of(clip)))}
+
+
+def talk_self(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """The right hand flat on the chest, meaning herself, with a small dip of the head."""
+
+    clip = idle_tail(idle, 1.9)
+    hand = envelope((0.1, 0.5), (1.1, 1.7))
+    clip = layer(motions, clip, SELF, hand, RIGHT_ARM)
+    dip = on_stand(motions, neck=[("x", 2)], head=[("x", 3), ("z", 3)])
+    clip = layer(motions, clip, dip, envelope((0.3, 0.6), (1.0, 1.5)), additive=("neck", "head"))
+    return clip, {"right": held_shape(0.35, -0.4, hand(frames_of(clip)))}
+
+
+# --- idle variety and the notebook ----------------------------------------------------------
+#
+# fix_hair, look_around and hum are small things to do now and then while idle. The notebook
+# trio is out (stand to holding it), read (loops while holding it) and away (back to the
+# idle). The notebook itself is the renderer's prop: it sits on both palms, between the hands.
+
+HAIR = {  # right hand up at the ear, fingers in the hair
+    "rightUpperArm": [("x", -35), ("z", 25), ("x", -5)],
+    "rightLowerArm": [("x", -60), ("y", 150)],
+    "rightHand": [("z", -20)],
+}
+HAIR_WAY = {
+    "rightUpperArm": [("x", 20), ("z", 80), ("x", -20)],
+    "rightLowerArm": [("y", 125)],
+    "rightHand": [("z", 0)],
+}
+BOOK = {  # both palms up in front of the chest, a notebook's width apart
+    "leftUpperArm": [("x", 25), ("z", -80), ("x", -25)],
+    "rightUpperArm": [("x", 25), ("z", 80), ("x", -25)],
+    "leftLowerArm": [("x", -100), ("y", -85)],
+    "rightLowerArm": [("x", -100), ("y", 85)],
+    "leftHand": [("z", 0)],
+    "rightHand": [("z", 0)],
+}
+PAGE = {  # the right hand reaching over to turn a page
+    "rightUpperArm": [("x", 50), ("z", 76), ("x", -32)],
+    "rightLowerArm": [("x", -70), ("y", 100)],
+    "rightHand": [("z", 0)],
+}
+
+
+def fix_hair(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """The right hand tucks the hair behind the ear, head tilted into it."""
+
+    clip = idle_tail(idle, 2.8)
+    # the hand comes up in front of the chest first, so the arm doesn't swing out sideways
+    clip = layer(motions, clip, HAIR_WAY, envelope((0.1, 0.5), (1.95, 2.55)), RIGHT_ARM)
+    hand = envelope((0.3, 0.85), (1.7, 2.3))
+    clip = layer(motions, clip, HAIR, hand, RIGHT_ARM)
+    tuck = pulses((1.25,), 0.22)(frames_of(clip))
+    clip = wobble(clip, "rightLowerArm", "x", -20 * tuck)  # the fingers slide back past the ear
+    tilt = on_stand(motions, neck=[("z", 3)], head=[("z", 5), ("x", 2)])
+    clip = layer(motions, clip, tilt, envelope((0.3, 0.9), (1.6, 2.4)), additive=("neck", "head"))
+    way = envelope((0.1, 0.5), (1.95, 2.55))(frames_of(clip))
+    return clip, {"right": held_shape(0.6, 0.6, np.maximum(way, hand(frames_of(clip))))}
+
+
+def look_around(motions: ModuleType, idle: Clip) -> tuple[Clip, None]:
+    """A look to her left, then to her right, then back. The renderer should let the eyes go
+    with the head (not stay on the viewer) while this plays."""
+
+    clip = idle_tail(idle, 4.4)
+    bones = ("spine", "chest", "neck", "head")
+
+    def turn(degrees: float) -> dict[str, Any]:
+        return on_stand(
+            motions,
+            spine=[("y", 0.15 * degrees)],
+            chest=[("y", 0.25 * degrees)],
+            neck=[("y", 0.4 * degrees)],
+            head=[("y", degrees), ("x", -2)],
+        )
+
+    clip = layer(motions, clip, turn(30), envelope((0.3, 1.05), (1.6, 2.3)), additive=bones)
+    clip = layer(motions, clip, turn(-26), envelope((1.9, 2.65), (3.2, 4.0)), additive=bones)
+    return clip, None
+
+
+def hum(motions: ModuleType, idle: Clip, skeleton: dict[str, Any]) -> tuple[Clip, Shapes]:
+    """Hands behind the back, swaying side to side to a tune in her head, a dip on each beat."""
+
+    clip = idle_tail(idle, 4.2)
+    t = frames_of(clip)
+    arms = envelope((0.15, 0.7), (3.3, 3.95))
+    clip = layer(motions, clip, HANDS_BEHIND, arms, ARMS)
+    body = envelope((0.4, 1.0), (3.0, 3.85))(t)
+    sway = np.sin(2 * np.pi * (t - 0.4) / 1.4) * body
+    clip = wobble(clip, "spine", "z", 3 * sway)
+    clip = wobble(clip, "chest", "z", 2 * sway)
+    clip = wobble(clip, "head", "z", -5 * sway)
+    clip = crouch(clip, skeleton, 5 * np.abs(sway) * body)
+    w = arms(t)
+    return clip, {"left": held_shape(1.1, 0.6, w), "right": held_shape(1.1, 0.6, w)}
+
+
+def holding(motions: ModuleType, clip: Clip, weight: Weight) -> Clip:
+    clip = layer(motions, clip, BOOK, weight, ARMS)
+    look = on_stand(motions, neck=[("x", 8)], head=[("x", 10)])
+    return layer(motions, clip, look, weight, additive=("neck", "head"))
+
+
+def notebook_out(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """From standing to holding the notebook open in both hands, looking down at it."""
+
+    clip = idle_tail(idle, 1.6)
+    up = envelope((0.15, 1.2), (99, 100))
+    clip = holding(motions, clip, up)
+    w = up(frames_of(clip))
+    return clip, {"left": held_shape(0.7, 0.2, w), "right": held_shape(0.7, 0.2, w)}
+
+
+def notebook_read(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """Reading: two idle cycles holding the notebook, eyes running along the lines, one page
+    turned. Starts on notebook_out's last frame."""
+
+    rotations, hips = idle
+    period = len(hips) - 1
+    index = np.arange(2 * period + 1) % period
+    clip = {bone: q[index] for bone, q in rotations.items()}, hips[index]
+    clip = holding(motions, clip, always)
+    clip = wobble(clip, "head", "y", 3 * cycles(clip, 6))  # line by line
+    page = envelope((5.4, 5.85), (6.15, 6.7))
+    clip = layer(motions, clip, PAGE, page, RIGHT_ARM)
+    w = np.ones(len(clip[1]))
+    turn = page(frames_of(clip))
+    right = held_shape(0.7, 0.2, w)
+    right[:, 0] -= 0.4 * turn  # the fingers open a little to take the page
+    return clip, {"left": held_shape(0.7, 0.2, w), "right": right}
+
+
+def notebook_away(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
+    """The notebook comes down and away; back to the idle."""
+
+    clip = idle_tail(idle, 1.6)
+    down = envelope((-1, 0), (0.1, 1.3))
+    clip = holding(motions, clip, down)
+    w = down(frames_of(clip))
+    return clip, {"left": held_shape(0.7, 0.2, w), "right": held_shape(0.7, 0.2, w)}
+
+
 # ---- Hands: none of the sources capture fingers, so they get their own layer ----
 
 # Hand shapes as (curl, spread) for build_vrm_motions.hands(): relaxed and slightly cupped,
@@ -1238,10 +1613,10 @@ def main() -> None:
             "duration": (len(clip[1]) - 1) / FPS,
             "loop": loop,
             "description": description,
-            "entry_pose": "seated" if name in SEATED else "stand",
-            "exit_pose": "seated" if name in SEATED else "stand",
+            "entry_pose": ENTRY.get(name, "stand"),
+            "exit_pose": EXIT.get(name, "stand"),
             "root_motion": "none (hips height only; desktop window owns travel)",
-            "ground_contact": "seat_edge_and_feet" if name in SEATED else "feet",
+            "ground_contact": GROUND.get(name, "feet"),
             "interrupt": "any_frame",
             "crossfade_seconds": 0.3,
             "source": "mocap_layered" if name in LAYERED else "mocap",

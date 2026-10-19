@@ -97,11 +97,28 @@ def test_mocap_clips_credit_their_source_and_rebuild_when_cached() -> None:
         "sigh",
         "stretch",
         "yawn",
+        "pat",
+        "poke",
+        "dangle",
+        "land",
+        "talk_offer",
+        "talk_both",
+        "talk_explain",
+        "talk_self",
+        "fix_hair",
+        "look_around",
+        "hum",
+        "notebook_out",
+        "notebook_read",
+        "notebook_away",
     }
     for entry in captured.values():
         assert entry["license"] and entry["attribution"]
     assert "non-commercial" in captured["wave"]["license"]
     assert captured["sit_loop"]["entry_pose"] == captured["sit_loop"]["exit_pose"] == "seated"
+    assert captured["dangle"]["loop"] and captured["dangle"]["ground_contact"].startswith("none")
+    assert captured["notebook_read"]["entry_pose"] == captured["notebook_out"]["exit_pose"]
+    assert captured["notebook_read"]["exit_pose"] == captured["notebook_away"]["entry_pose"]
     mocap = load("build_vrm_mocap")
     if not all((mocap.CACHE / name).exists() for name in mocap.SOURCES):
         pytest.skip("motion-capture sources not cached; run scripts/build_vrm_mocap.py")
@@ -132,7 +149,17 @@ def rotation_keys(name: str) -> dict[str, list[tuple[float, ...]]]:
 def test_layered_gestures_hand_back_to_the_idle_loop_exactly() -> None:
     idle = rotation_keys("idle")
     fingers = ("Thumb", "Index", "Middle", "Ring", "Little")
-    for name in ("think", "attention", "clap", "yawn"):
+    for name in (
+        "think",
+        "attention",
+        "clap",
+        "yawn",
+        "poke",
+        "talk_offer",
+        "talk_explain",
+        "talk_self",
+        "fix_hair",
+    ):
         clip = rotation_keys(name)
         body = [bone for bone in idle if not any(f in bone for f in fingers)]
         assert set(body) <= set(clip)
@@ -163,11 +190,32 @@ def test_mood_idles_hold_their_own_pose_over_the_captured_idle() -> None:
     assert angle(happy, "leftUpperArm") > 30, "happy idle keeps the hands at the sides"
     assert angle(sad, "head") > 8, "sad idle never lowers the head"
     assert angle(angry, "rightLowerArm") > 60, "angry idle never folds the arms"
-    for name in ("sigh", "stretch"):  # one-shots that never raise a forearm still end on the idle
+    # one-shots that never raise the right forearm far still end on the idle
+    for name in (
+        "sigh",
+        "stretch",
+        "pat",
+        "land",
+        "talk_both",
+        "look_around",
+        "hum",
+        "notebook_away",
+    ):
         clip = rotation_keys(name)
         for bone in ("hips", "spine", "chest", "head", "leftUpperArm", "rightUpperArm"):
             dot = abs(sum(a * b for a, b in zip(clip[bone][-1], idle[bone][0], strict=True)))
             assert dot > 1 - 1e-6, f"{name} ends off the idle loop at {bone}"
+
+
+def test_notebook_out_hands_over_to_the_reading_loop_exactly() -> None:
+    out, read = rotation_keys("notebook_out"), rotation_keys("notebook_read")
+    assert set(out) == set(read)
+    fingers = ("Thumb", "Index", "Middle", "Ring", "Little")
+    for bone in out:
+        if any(f in bone for f in fingers):
+            continue  # the hand layer drifts the fingers on each clip's own clock
+        dot = abs(sum(a * b for a, b in zip(out[bone][-1], read[bone][0], strict=True)))
+        assert dot > 1 - 1e-6, f"notebook_out ends off notebook_read's first frame at {bone}"
 
 
 def test_spring_tuning_assigns_body_colliders_to_clothing_chains() -> None:
