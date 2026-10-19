@@ -58,11 +58,12 @@ BONES = [
 
 
 def synthetic_vrm() -> bytes:
-    """A tiny, self-made VRM 1.0 GLB: one skinned quad with happy/blink morph targets."""
+    """A tiny, self-made VRM 1.0 GLB: one skinned quad with happy/blink/aa morph targets."""
 
     positions = [(-0.2, 0.6, 0.0), (0.2, 0.6, 0.0), (0.2, 1.5, 0.0), (-0.2, 1.5, 0.0)]
     happy = [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.05, 0.0), (0.0, 0.05, 0.0)]
     blink = [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, -0.05, 0.0), (0.0, -0.05, 0.0)]
+    aa = [(0.0, -0.03, 0.0), (0.0, -0.03, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)]
     chunks: list[bytes] = []
     views: list[dict[str, int]] = []
     accessors: list[dict[str, object]] = []
@@ -104,7 +105,7 @@ def synthetic_vrm() -> bytes:
     indices = add(
         struct.pack("<6H", 0, 1, 2, 0, 2, 3), {"componentType": 5123, "count": 6, "type": "SCALAR"}
     )
-    happy_target, blink_target = vec3(happy), vec3(blink)
+    happy_target, blink_target, aa_target = vec3(happy), vec3(blink), vec3(aa)
     inverse_bind = add(
         struct.pack("<16f", 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, -0.9, 0, 1),
         {"componentType": 5126, "count": 1, "type": "MAT4"},
@@ -137,10 +138,14 @@ def synthetic_vrm() -> bytes:
                             "WEIGHTS_0": weights,
                         },
                         "indices": indices,
-                        "targets": [{"POSITION": happy_target}, {"POSITION": blink_target}],
+                        "targets": [
+                            {"POSITION": happy_target},
+                            {"POSITION": blink_target},
+                            {"POSITION": aa_target},
+                        ],
                     }
                 ],
-                "extras": {"targetNames": ["happy", "blink"]},
+                "extras": {"targetNames": ["happy", "blink", "aa"]},
             }
         ],
         "buffers": [{"byteLength": sum(len(c) for c in chunks)}],
@@ -163,6 +168,7 @@ def synthetic_vrm() -> bytes:
                         "blink": {
                             "morphTargetBinds": [{"node": mesh_node, "index": 1, "weight": 1}]
                         },
+                        "aa": {"morphTargetBinds": [{"node": mesh_node, "index": 2, "weight": 1}]},
                     }
                 },
             }
@@ -446,6 +452,21 @@ def test_renderer_follows_body_protocol_without_owning_speech(tmp_path: Path) ->
             page.wait_for_timeout(300)
             assert page.evaluate("window.__speak") == 0
             assert page.evaluate("window.__siroVrm.expression('aa')") in (None, 0)
+
+            # The mouth follows only the parent's playback-clock loudness, and closes when the
+            # player stops sending.
+            page.evaluate(
+                "window.__talk = setInterval(() => window.postMessage("
+                "{type: 'siro.speech.mouth', v: 1, level: 0.9, tone: 0.5}, location.origin), 30)"
+            )
+            page.wait_for_function("window.__siroVrm.expression('aa') > 0.5")
+            page.evaluate("clearInterval(window.__talk)")
+            page.wait_for_function("window.__siroVrm.expression('aa') < 0.05", timeout=3000)
+            page.evaluate(
+                "window.postMessage({type: 'siro.speech.mouth', v: 2, level: 1}, location.origin)"
+            )
+            page.wait_for_timeout(200)
+            assert page.evaluate("window.__siroVrm.expression('aa')") < 0.05
         finally:
             browser.close()
 

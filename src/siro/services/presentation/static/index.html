@@ -1504,6 +1504,48 @@
         const status = document.querySelector("#tts-status");
         status.textContent = active ? "朗讀已停止" : "TTS 待命"; status.className = "warn";
       }
+      // Mouth sync: the audio path owns the mouth. Each TTS segment is decoded once into a
+      // loudness/tone envelope and sampled on the playback clock, so the character's mouth
+      // follows what is actually heard. Best effort only; playback never waits on it.
+      const MOUTH_RATE = 60;
+      function speechEnvelope(blob) {
+        const Offline = globalThis.OfflineAudioContext;
+        if (typeof Offline !== "function" || typeof blob?.arrayBuffer !== "function") return Promise.resolve(null);
+        return blob.arrayBuffer().then(bytes => new Offline(1, 1, 16000).decodeAudioData(bytes)).then(buffer => {
+          const data = buffer.getChannelData(0), step = buffer.sampleRate / MOUTH_RATE;
+          const frames = Math.ceil(data.length / step);
+          const loud = new Float32Array(frames), bright = new Float32Array(frames);
+          for (let i = 0; i < frames; i++) {
+            const a = Math.floor(i * step), b = Math.min(data.length, Math.floor((i + 1) * step));
+            let sum = 0, crossings = 0;
+            for (let j = a; j < b; j++) { sum += data[j] * data[j]; if (j > a && (data[j] >= 0) !== (data[j - 1] >= 0)) crossings++; }
+            loud[i] = Math.sqrt(sum / Math.max(1, b - a)); bright[i] = crossings / Math.max(1, b - a);
+          }
+          const sorted = Float32Array.from(loud).sort(), voiced = Array.from(bright).filter((_, i) => loud[i] > sorted[Math.floor(frames * 0.5)]).sort((x, y) => x - y);
+          const top = sorted[Math.floor(frames * 0.95)] || 1, low = voiced[Math.floor(voiced.length * 0.2)] ?? 0, high = voiced[Math.floor(voiced.length * 0.8)] ?? 1;
+          const clamp = x => Math.max(0, Math.min(1, x));
+          return Array.from(loud, (value, i) => [clamp((value / top - 0.1) / 0.8), clamp((bright[i] - low) / Math.max(1e-6, high - low))]);
+        }).catch(() => null);
+      }
+      function syncMouth(audio, blob, current) {
+        const target = document.querySelector("#companion")?.contentWindow, frame = globalThis.requestAnimationFrame;
+        if (!target || typeof frame !== "function") return;
+        let envelope = null, sent = -1, quiet = 0;
+        const send = (level, tone) => {
+          // skip near-duplicates, but refresh every few frames: the renderer closes a stale mouth
+          if (Math.abs(level - sent) < 0.02 && (level !== 0 || sent === 0) && ++quiet < 6) return;
+          sent = level; quiet = 0;
+          try { target.postMessage({type: "siro.speech.mouth", v: 1, level, tone}, location.origin); } catch (_) { /* renderer gone */ }
+        };
+        speechEnvelope(blob).then(value => { envelope = value; });
+        const step = () => {
+          if (ttsAudio !== audio || !current()) { send(0, 0.5); return; }
+          const sample = envelope && !audio.paused ? envelope[Math.floor(audio.currentTime * MOUTH_RATE)] : null;
+          send(sample?.[0] ?? 0, sample?.[1] ?? 0.5);
+          frame(step);
+        };
+        frame(step);
+      }
       async function playTts(text, prosody) {
         stopTts();
         if (document.body?.classList?.contains("siro-control") || document.querySelector("#voice-output")?.checked === false) return;
@@ -1542,6 +1584,7 @@
           let audio;
           try { audio = new Audio(url); } catch (error) { URL.revokeObjectURL(url); throw error; }
           ttsAudio = audio;
+          syncMouth(audio, blob, current);
           let cancel;
           try {
             await new Promise((resolve, reject) => {

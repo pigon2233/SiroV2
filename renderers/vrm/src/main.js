@@ -69,6 +69,20 @@ let currentAction;
 const actions = {};
 const looping = new Set();
 const emotionWeights = Object.fromEntries(EMOTIONS.map(name => [name, 0]));
+// Mouth: the parent page owns speech audio and sends its loudness and tone on the playback clock
+// (siro.speech.mouth). Nothing here invents mouth motion without heard audio.
+const mouth = { level: 0, tone: 0.5, target: 0, targetTone: 0.5, at: -1, slow: 0, beat: 0, lastBeat: -1, voiced: -1, talk: 0 };
+window.addEventListener('message', event => {
+  if (event.origin !== location.origin || event.source !== window.parent) return;
+  const data = event.data;
+  if (data?.type !== 'siro.speech.mouth' || data.v !== 1) return;
+  const level = Number(data.level);
+  const tone = Number(data.tone);
+  mouth.target = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0;
+  mouth.targetTone = Number.isFinite(tone) ? Math.max(0, Math.min(1, tone)) : 0.5;
+  mouth.at = elapsed;
+  if (mouth.target > 0.1) mouth.voiced = elapsed;
+});
 
 function fitCamera() {
   const width = window.innerWidth || 1;
@@ -124,6 +138,34 @@ function idlePose(time) {
   bone('neck')?.rotation.set(nod, THREE.MathUtils.degToRad(3 * Math.sin(time * 0.37)), 0);
 }
 
+const clamp01 = x => Math.max(0, Math.min(1, x));
+
+function updateMouth(delta, manager) {
+  if (elapsed - mouth.at > 0.25) mouth.target = 0; // the player stopped sending: close
+  // Open fast, close a little slower, like a jaw.
+  const rate = mouth.target > mouth.level ? 0.03 : 0.065;
+  mouth.level += (mouth.target - mouth.level) * (1 - Math.exp(-delta / rate));
+  mouth.tone += (mouth.targetTone - mouth.tone) * (1 - Math.exp(-delta / 0.06));
+  // A stressed syllable (loudness jumping above its recent average) gives a small head beat.
+  mouth.slow += (mouth.target - mouth.slow) * (1 - Math.exp(-delta / 0.3));
+  if (mouth.target - mouth.slow > 0.28 && elapsed - mouth.lastBeat > 0.3) {
+    mouth.beat = 1;
+    mouth.lastBeat = elapsed;
+  }
+  mouth.beat *= Math.exp(-delta / 0.16);
+  const speaking = elapsed - mouth.voiced < 0.6 ? 1 : 0;
+  mouth.talk += (speaking - mouth.talk) * (1 - Math.exp(-delta / 0.35));
+  const open = mouth.level;
+  const t = mouth.tone;
+  // Bright frames (high zero-crossing rate: i, e, s) narrow the mouth; dark ones round it.
+  const shapes = {
+    aa: open * (0.35 + 0.65 * clamp01(1 - Math.abs(t - 0.5) * 1.6)),
+    ih: open * clamp01((t - 0.55) * 2.2) * 0.7,
+    ou: open * clamp01((0.45 - t) * 2.2) * 0.7,
+  };
+  for (const [name, value] of Object.entries(shapes)) if (hasExpression(name)) manager.setValue(name, value);
+}
+
 function updateFace(delta) {
   const manager = vrm.expressionManager;
   if (!manager) return;
@@ -146,6 +188,7 @@ function updateFace(delta) {
     }
     manager.setValue('blink', blink);
   }
+  updateMouth(delta, manager);
 }
 
 // Procedural life layer, added on top of whatever clip the mixer wrote this frame. Clips loop
@@ -213,8 +256,10 @@ function updateLife(delta) {
   const free = elapsed > lookUntil;
   if (free && elapsed >= life.nextGlance) {
     // Mostly back at the viewer; sometimes a glance away and back. Big glances often blink.
-    const away = life.glanceYaw === 0 && Math.random() < 0.6;
-    life.glanceYaw = away ? (Math.random() < 0.5 ? -1 : 1) * (8 + Math.random() * 20) * DEG : 0;
+    // While speaking she mostly holds eye contact, with only brief, small glances.
+    const talking = mouth.talk > 0.5;
+    const away = life.glanceYaw === 0 && Math.random() < (talking ? 0.25 : 0.6);
+    life.glanceYaw = away ? (Math.random() < 0.5 ? -1 : 1) * (8 + Math.random() * 20) * (talking ? 0.5 : 1) * DEG : 0;
     life.glancePitch = away ? (-8 + Math.random() * 14) * DEG : 0;
     life.nextGlance = elapsed + (away ? 0.8 + Math.random() * 1.8 : 2.5 + Math.random() * 5);
     if (Math.abs(life.glanceYaw) > 15 * DEG && blinkStart < 0) nextBlink = elapsed;
@@ -256,6 +301,12 @@ function updateLife(delta) {
   turn('chest', 0, life.yaw * 0.12, 0);
   turn('neck', -life.pitch * 0.4, life.yaw * 0.35, 0);
   turn('head', -life.pitch * 0.5 + drift(1, t) * 1.5 * DEG, life.yaw * 0.45, drift(2, t) * 2.5 * DEG);
+  // Speaking: a small nod on stressed syllables, livelier head motion and a slight lean in.
+  const talk = mouth.talk;
+  turn('neck', mouth.beat * 1.2 * DEG, 0, 0);
+  turn('head', mouth.beat * 2.2 * DEG + talk * drift(14, t * 2.2) * 1.4 * DEG,
+    talk * drift(15, t * 1.6) * 2.2 * DEG, talk * drift(16, t * 1.3) * 1.8 * DEG);
+  turn('spine', talk * 1.2 * DEG, 0, 0);
   turn('hips', 0, drift(3, t) * 1.2 * DEG * s, shift * 2 * DEG);
   turn('spine', drift(4, t) * 1.0 * DEG * s, drift(5, t) * 1.5 * DEG * s, -shift * 1.6 * DEG);
   turn('chest', drift(6, t) * 0.8 * DEG * s, 0, -shift * 0.6 * DEG + drift(7, t) * 0.8 * DEG * s);
