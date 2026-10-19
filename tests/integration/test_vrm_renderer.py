@@ -9,10 +9,11 @@ import struct
 import sys
 import time
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from fastapi.testclient import TestClient
-from playwright.sync_api import Route, WebSocketRoute, sync_playwright
+from playwright.sync_api import Browser, Page, Playwright, Route, WebSocketRoute, sync_playwright
 
 from siro.adapters.body.assets import verified_vrm_model
 from siro.services.presentation.gateway import create_app, vrm_renderer_from_env
@@ -22,7 +23,7 @@ SOURCE = ROOT / "renderers" / "vrm"
 ORIGIN = "http://siro.test"
 
 
-def _load_prepare_script():
+def _load_prepare_script() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
         "prepare_vrm_renderer", ROOT / "scripts" / "prepare_vrm_renderer.py"
     )
@@ -59,9 +60,9 @@ BONES = [
 def synthetic_vrm() -> bytes:
     """A tiny, self-made VRM 1.0 GLB: one skinned quad with happy/blink morph targets."""
 
-    positions = [(-0.2, 0.6, 0), (0.2, 0.6, 0), (0.2, 1.5, 0), (-0.2, 1.5, 0)]
-    happy = [(0, 0, 0), (0, 0, 0), (0, 0.05, 0), (0, 0.05, 0)]
-    blink = [(0, 0, 0), (0, 0, 0), (0, -0.05, 0), (0, -0.05, 0)]
+    positions = [(-0.2, 0.6, 0.0), (0.2, 0.6, 0.0), (0.2, 1.5, 0.0), (-0.2, 1.5, 0.0)]
+    happy = [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.05, 0.0), (0.0, 0.05, 0.0)]
+    blink = [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, -0.05, 0.0), (0.0, -0.05, 0.0)]
     chunks: list[bytes] = []
     views: list[dict[str, int]] = []
     accessors: list[dict[str, object]] = []
@@ -317,6 +318,7 @@ def built_renderer(tmp_path: Path) -> Path:
     for target, source in PREPARE.VENDOR.items():
         (dist / "vendor" / target).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(modules / source, dist / "vendor" / target)
+    PREPARE.copy_motions(dist / "motions")
     return dist
 
 
@@ -358,7 +360,9 @@ class MockGateway:
         self.socket.send(json.dumps(message))
 
 
-def open_renderer(playwright, gateway: MockGateway, query: str = ""):
+def open_renderer(
+    playwright: Playwright, gateway: MockGateway, query: str = ""
+) -> tuple[Browser, Page]:
     executable = shutil.which("google-chrome") or shutil.which("chromium")
     browser = playwright.chromium.launch(
         executable_path=executable,
@@ -408,8 +412,12 @@ def test_renderer_follows_body_protocol_without_owning_speech(tmp_path: Path) ->
             gateway.send({"v": 1, "type": "body.look", "x": 1, "y": 0})
             page.wait_for_function(f"window.__siroVrm.lookTarget()[0] > {before[0] + 0.3}")
 
-            gateway.send({"v": 1, "type": "body.gesture"})
+            # The authored idle loop drives the body; a gesture cross-fades in and hands back.
+            assert page.evaluate("window.__siroVrm.activity()") in ("idle", "nod")
+            gateway.send({"v": 1, "type": "body.gesture", "name": "nod"})
+            page.wait_for_function("window.__siroVrm.activity() === 'nod'")
             page.wait_for_function("window.__siroVrm.neckPitch() > 0.05")
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
 
             gateway.send({"v": 1, "type": "body.speech", "text": "合成測試", "generation_id": "g1"})
             gateway.send({"v": 1, "type": "body.cancel", "generation_id": "g1"})

@@ -21,13 +21,16 @@ from siro.adapters.body.assets import BodyAssetManifest, load_verified_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "renderers" / "vrm"
+MOTIONS = ROOT / "assets" / "companion" / "siro-vrm" / "0.1.0"
 VENDOR = {
     "three.module.js": "three/build/three.module.js",
     "jsm/loaders/GLTFLoader.js": "three/examples/jsm/loaders/GLTFLoader.js",
     "jsm/utils/BufferGeometryUtils.js": "three/examples/jsm/utils/BufferGeometryUtils.js",
     "three-vrm.module.js": "@pixiv/three-vrm/lib/three-vrm.module.js",
+    "three-vrm-animation.module.js": "@pixiv/three-vrm-animation/lib/three-vrm-animation.module.js",
     "LICENSE-three.txt": "three/LICENSE",
     "LICENSE-three-vrm.txt": "@pixiv/three-vrm/LICENSE",
+    "LICENSE-three-vrm-animation.txt": "@pixiv/three-vrm-animation/LICENSE",
 }
 
 
@@ -53,6 +56,14 @@ def vrm_spec_version(path: Path) -> str:
     raise ValueError(f"glTF file has no VRM extension: {path}")
 
 
+def copy_motions(destination: Path) -> None:
+    """Ship the authored activity pack (pack.json + .vrma clips) next to the renderer."""
+
+    destination.mkdir(parents=True, exist_ok=True)
+    for path in [MOTIONS / "pack.json", *sorted(MOTIONS.glob("*.vrma"))]:
+        shutil.copy2(path, destination / path.name)
+
+
 def build_renderer(output: Path, *, force: bool) -> bool:
     """Build into ``output``; an existing build is reused unless ``force`` is set."""
 
@@ -74,6 +85,7 @@ def build_renderer(output: Path, *, force: bool) -> bool:
         destination = output / "vendor" / target
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(SOURCE / "node_modules" / source, destination)
+    copy_motions(output / "motions")
     lock = json.loads((SOURCE / "package-lock.json").read_text(encoding="utf-8"))
     files = sorted(p for p in output.rglob("*") if p.is_file())
     record = {
@@ -81,7 +93,12 @@ def build_renderer(output: Path, *, force: bool) -> bool:
         "packages": {
             name.removeprefix("node_modules/"): meta["version"]
             for name, meta in lock["packages"].items()
-            if name in {"node_modules/three", "node_modules/@pixiv/three-vrm"}
+            if name
+            in {
+                "node_modules/three",
+                "node_modules/@pixiv/three-vrm",
+                "node_modules/@pixiv/three-vrm-animation",
+            }
         },
         "files": [{"path": p.relative_to(output).as_posix(), "sha256": sha256(p)} for p in files],
     }

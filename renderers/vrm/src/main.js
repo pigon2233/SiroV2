@@ -3,8 +3,17 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+import {
+  VRMAnimationLoaderPlugin,
+  VRMLookAtQuaternionProxy,
+  createVRMAnimationClip,
+} from '@pixiv/three-vrm-animation';
 
 const MODEL_URL = '/vrm-model/model.vrm';
+const PACK_URL = './motions/pack.json';
+const CROSSFADE = 0.35;
+// Emotions that also get a small body reaction; the face is driven separately.
+const EMOTION_GESTURES = { happy: 'nod', surprised: 'attention' };
 const desktop = new URLSearchParams(location.search).get('presentation') === 'desktop';
 const statusLine = document.querySelector('#status');
 const EMOTIONS = ['happy', 'sad', 'angry', 'surprised', 'relaxed'];
@@ -36,6 +45,11 @@ let nextBlink = 2;
 let blinkStart = -1;
 let elapsed = 0;
 let frames = 0;
+let mixer;
+let idleAction;
+let currentAction;
+const actions = {};
+const looping = new Set();
 const emotionWeights = Object.fromEntries(EMOTIONS.map(name => [name, 0]));
 
 function fitCamera() {
@@ -74,6 +88,7 @@ function hasExpression(name) {
   return Boolean(vrm?.expressionManager?.getExpression(name));
 }
 
+// Fallback when the motion pack is unavailable: a still pose with breathing only.
 function idlePose(time) {
   const breath = Math.sin(time * 1.6);
   bone('leftUpperArm')?.rotation.set(0, 0, THREE.MathUtils.degToRad(-72));
@@ -142,7 +157,8 @@ function loop(now) {
   const delta = Math.min(clock.getDelta(), 0.1);
   elapsed += delta;
   if (vrm) {
-    idlePose(elapsed);
+    if (mixer) mixer.update(delta);
+    else idlePose(elapsed);
     updateFace(delta);
     updateLook();
     vrm.update(delta);
@@ -166,7 +182,10 @@ function renderSiro(message) {
     lookTarget.position.set(head.x + x * 0.8, head.y + y * 0.5, head.z + 1.2);
     lookUntil = elapsed + LOOK_HOLD_SECONDS;
   } else if (message.type === 'body.gesture') {
-    gestureStart = elapsed;
+    if (!playGesture(String(message.name || 'nod'))) gestureStart = elapsed;
+  }
+  if (message.type === 'body.emotion' && EMOTION_GESTURES[desiredEmotion]) {
+    playGesture(EMOTION_GESTURES[desiredEmotion]);
   }
   // body.speech / body.cancel: audible speech has one owner in the parent page.
   // Never synthesize twice or fake lip motion here.
@@ -243,11 +262,58 @@ window.__siroVrm = Object.freeze({
   expression: name => vrm?.expressionManager?.getValue(name) ?? null,
   lookTarget: () => lookTarget.position.toArray(),
   neckPitch: () => bone('neck')?.rotation.x ?? null,
+  activity: () => Object.keys(actions).find(name => actions[name] === currentAction) ?? null,
 });
+
+// One-shot gestures cross-fade in over the idle loop and hand control back to it when done.
+function playGesture(name) {
+  const action = actions[name];
+  if (!mixer || !action || looping.has(action)) return false;
+  if (currentAction === action && action.isRunning()) return true;
+  action.reset().setLoop(THREE.LoopOnce, 1);
+  action.clampWhenFinished = true;
+  action.play();
+  currentAction?.crossFadeTo(action, CROSSFADE, false);
+  currentAction = action;
+  return true;
+}
+
+async function loadMotions(loader) {
+  const response = await fetch(PACK_URL);
+  if (!response.ok) throw new Error(`motion pack ${response.status}`);
+  const pack = await response.json();
+  const mix = new THREE.AnimationMixer(vrm.scene);
+  if (vrm.lookAt) {
+    const proxy = new VRMLookAtQuaternionProxy(vrm.lookAt);
+    proxy.name = 'VRMLookAtQuaternionProxy';
+    vrm.scene.add(proxy);
+  }
+  for (const item of pack.activities) {
+    const gltf = await loader.loadAsync(new URL(item.file, new URL(PACK_URL, location.href)).href);
+    const animation = gltf.userData.vrmAnimations?.[0];
+    if (!animation) continue;
+    const action = mix.clipAction(createVRMAnimationClip(animation, vrm));
+    if (item.loop) looping.add(action);
+    actions[item.activity] = action;
+  }
+  if (!actions.idle) throw new Error('motion pack has no idle loop');
+  mix.addEventListener('finished', event => {
+    if (event.action !== currentAction || event.action === idleAction) return;
+    idleAction.reset().play();
+    event.action.crossFadeTo(idleAction, CROSSFADE, false);
+    currentAction = idleAction;
+  });
+  idleAction = actions.idle;
+  idleAction.play();
+  currentAction = idleAction;
+  mixer = mix;
+  mixer.update(0);
+}
 
 async function loadModel() {
   const loader = new GLTFLoader();
   loader.register(parser => new VRMLoaderPlugin(parser));
+  loader.register(parser => new VRMAnimationLoaderPlugin(parser));
   const gltf = await loader.loadAsync(MODEL_URL);
   const loaded = gltf.userData.vrm;
   if (!loaded) throw new Error('file is not a VRM model');
@@ -255,7 +321,13 @@ async function loadModel() {
   VRMUtils.rotateVRM0(loaded);
   scene.add(loaded.scene);
   vrm = loaded;
-  idlePose(0);
+  try {
+    await loadMotions(loader);
+  } catch (error) {
+    // The model still renders; it just stays in the procedural fallback pose.
+    console.warn('SIRO motions unavailable:', error);
+    idlePose(0);
+  }
   vrm.update(0);
   modelBox = new THREE.Box3().setFromObject(vrm.scene);
   fitCamera();
