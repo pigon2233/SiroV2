@@ -1,0 +1,52 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_exact_quotes_cache_and_source_key_isolation _______________
+
+    @pytest.mark.asyncio
+    async def test_exact_quotes_cache_and_source_key_isolation() -> None:
+        adapter = OllamaMemoryRelevance(MODEL, DIGEST, transport=transport(YES))
+>       assert await adapter.select("drink", ITEMS) == (0,)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_ollama_memory_relevance.py:56:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/adapters/models/ollama_memory_relevance.py:186: in select
+    if await self._select_one(query, (candidate,)):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/adapters/models/ollama_memory_relevance.py:235: in _select_one
+    response = await client.post(
+/home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/httpx/_client.py:1859: in post
+    return await self.request(
+/home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/httpx/_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/httpx/_client.py:1629: in send
+    response = await self._send_handling_auth(
+/home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/httpx/_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+/home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/httpx/_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/httpx/_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/httpx/_transports/mock.py:34: in handle_async_request
+    response = self.handler(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+request = <Request('POST', 'http://127.0.0.1:11434/api/chat')>
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/tags":
+            return tags()
+        body = json.loads(request.content)
+        assert body["think"] is False and body["stream"] is False
+        count = len(json.loads(body["messages"][1]["content"])["memories"])
+>       assert count == 1 and body["options"]["num_predict"] == 1
+E       assert (1 == 1 and 768 == 1)
+
+tests/unit/test_ollama_memory_relevance.py:47: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_ollama_memory_relevance.py::test_exact_quotes_cache_and_source_key_isolation
+1 failed, 45 deselected in 0.71s

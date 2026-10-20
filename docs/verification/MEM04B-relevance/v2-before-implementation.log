@@ -1,0 +1,141 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_exact_quotes_cache_and_source_key_isolation _______________
+
+    @pytest.mark.asyncio
+    async def test_exact_quotes_cache_and_source_key_isolation() -> None:
+        adapter = OllamaMemoryRelevance(
+            MODEL, DIGEST, transport=transport('{"decisions":[{"index":0,"match":true,"quote":"synthetic tea"}]}')
+        )
+>       assert await adapter.select("drink", ITEMS) == (0,)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_ollama_memory_relevance.py:47:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <siro.adapters.models.ollama_memory_relevance.OllamaMemoryRelevance object at 0x7043e2d981a0>
+query = 'drink'
+candidates = (RelevanceCandidate(source_key='scope/revision/hash-1'),)
+
+    async def select(
+        self,
+        query: str,
+        candidates: tuple[RelevanceCandidate, ...],
+    ) -> tuple[int, ...]:
+        if (
+            not query.strip()
+            or len(query.encode()) > 8192
+            or not 1 <= len(candidates) <= 8
+            or len({c.source_key for c in candidates}) != len(candidates)
+            or any(
+                not c.source_key or not c.text.strip() or len(c.text.encode()) > 4096
+                for c in candidates
+            )
+        ):
+            raise RetrievalUnavailable("relevance input bounds exceeded")
+        data = json.dumps(
+            {
+                "question": query,
+                "memories": [{"index": i, "text": c.text} for i, c in enumerate(candidates)],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        if len(data.encode()) > 24576:
+            raise RetrievalUnavailable("relevance packet bounds exceeded")
+        key = hashlib.sha256(
+            json.dumps(
+                [
+                    self._model,
+                    self._digest,
+                    PROMPT_VERSION,
+                    query,
+                    [(c.source_key, c.text) for c in candidates],
+                ],
+                ensure_ascii=False,
+            ).encode()
+        ).hexdigest()
+        try:
+            async with (
+                asyncio.timeout(self._timeout),
+                self._lock,
+                httpx.AsyncClient(
+                    trust_env=False,
+                    follow_redirects=False,
+                    timeout=self._timeout,
+                    transport=self._transport,
+                ) as client,
+            ):
+                await self._verify(client)
+                if key in self._cache:
+                    self._hits += 1
+                    self._cache.move_to_end(key)
+                    return self._cache[key]
+                self._calls += 1
+                self._unmeasured += 1
+                response = await client.post(
+                    f"{self._url}/api/chat",
+                    json={
+                        "model": self._model,
+                        "stream": False,
+                        "think": False,
+                        "messages": [
+                            {"role": "system", "content": POLICY},
+                            {"role": "user", "content": data},
+                        ],
+                        "format": _Reply.model_json_schema(),
+                        "options": {
+                            "temperature": 0,
+                            "seed": 42,
+                            "num_predict": 768,
+                            "num_ctx": 16384,
+                        },
+                        "keep_alive": "5m",
+                    },
+                )
+                response.raise_for_status()
+                body = response.json()
+                counts = (body.get("prompt_eval_count"), body.get("eval_count"))
+                if any(type(n) is not int or n < 0 for n in counts):
+                    raise RetrievalUnavailable("relevance usage unavailable")
+                self._inputs += counts[0]
+                self._outputs += counts[1]
+                self._unmeasured -= 1
+                if (
+                    body.get("model") != self._model
+                    or body.get("done") is not True
+                    or body.get("done_reason") != "stop"
+                    or body["message"].get("role") != "assistant"
+                    or body["message"].get("tool_calls")
+                ):
+                    raise RetrievalUnavailable("incomplete relevance response")
+                content = body["message"]["content"]
+                if not isinstance(content, str) or len(content.encode()) > 8192:
+                    raise RetrievalUnavailable("relevance output bounds exceeded")
+                parsed = _Reply.model_validate(
+                    json.loads(content, object_pairs_hook=_unique_object)
+                )
+                chosen = tuple(item.index for item in parsed.selected)
+                if len(set(chosen)) != len(chosen) or any(
+                    item.index >= len(candidates)
+                    or item.quote != item.quote.strip()
+                    or item.quote not in candidates[item.index].text
+                    for item in parsed.selected
+                ):
+                    raise RetrievalUnavailable("unsupported relevance selection")
+                await self._verify(client)
+                if self._cache_size:
+                    self._cache[key] = chosen
+                    while len(self._cache) > self._cache_size:
+                        self._cache.popitem(last=False)
+                return chosen
+        except RetrievalUnavailable:
+            raise
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, TimeoutError, OverflowError):
+>           raise RetrievalUnavailable("local relevance selection failed") from None
+E           siro.ports.embeddings.RetrievalUnavailable: local relevance selection failed
+
+src/siro/adapters/models/ollama_memory_relevance.py:233: RetrievalUnavailable
+=========================== short test summary info ============================
+FAILED tests/unit/test_ollama_memory_relevance.py::test_exact_quotes_cache_and_source_key_isolation
+1 failed, 19 deselected in 0.58s

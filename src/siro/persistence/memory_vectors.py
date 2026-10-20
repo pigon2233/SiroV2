@@ -71,7 +71,16 @@ class SQLiteMemoryVectors:
                             struct.unpack(f"<{profile.dimensions}f", cached["vector"]),
                             profile.dimensions,
                         )
-                result.append(VectorDocument(self._memory._to_memory(c, row), source_hash, vector))
+                memory = self._memory._to_memory(c, row)
+                events = self._memory._source_events(c, set(memory.source_event_ids))
+                result.append(
+                    VectorDocument(
+                        memory,
+                        source_hash,
+                        vector,
+                        tuple(sorted({event.event_type for event in events})),
+                    )
+                )
             return tuple(result)
 
         return await self._transaction(read)

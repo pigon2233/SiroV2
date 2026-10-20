@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
@@ -10,6 +11,7 @@ from uuid import UUID
 from siro.contracts.events import Privacy
 from siro.core.memory import Memory
 from siro.ports.embeddings import EmbeddingProfile, LocalEmbedder, RetrievalUnavailable, normalized
+from siro.ports.memory_relevance import MemoryRelevanceFilter, RelevanceCandidate
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +19,7 @@ class VectorDocument:
     memory: Memory
     source_hash: str
     vector: tuple[float, ...] | None = None
+    source_event_types: tuple[str, ...] = ()
 
 
 class VectorRepository(Protocol):
@@ -46,16 +49,32 @@ class HybridMemoryRetriever:
         corpus_cap: int = 1000,
         timeout: float = 120,
         minimum_similarity: float = 0.5,
+        relevance: MemoryRelevanceFilter | None = None,
+        candidate_similarity: float | None = None,
     ) -> None:
         if not 1 <= corpus_cap <= 1000 or not 0 < timeout <= 300:
             raise ValueError("retrieval bounds exceeded")
         if not 0 <= minimum_similarity <= 1:
             raise ValueError("invalid similarity threshold")
+        if candidate_similarity is not None and (
+            relevance is None or not 0 <= candidate_similarity <= minimum_similarity
+        ):
+            raise ValueError("broader candidate floor requires relevance filter")
         self._repository = repository
         self._embedder = embedder
         self._cap = corpus_cap
         self._timeout = timeout
         self._minimum = minimum_similarity
+        self._relevance = relevance
+        self._candidate_floor = (
+            (
+                candidate_similarity
+                if candidate_similarity is not None
+                else min(0.3, minimum_similarity)
+            )
+            if relevance is not None
+            else minimum_similarity
+        )
         self._lock = asyncio.Lock()
 
     async def recall(
@@ -130,12 +149,53 @@ class HybridMemoryRetriever:
         lexical_ids = [
             m.memory_id
             for m in lexical
-            if eligible.get(m.memory_id) == m and similarity.get(m.memory_id, -1) >= self._minimum
+            if eligible.get(m.memory_id) == m
+            and similarity.get(m.memory_id, -1) >= self._candidate_floor
         ]
-        dense_ids = [d.memory.memory_id for score, d in dense if score >= self._minimum][:20]
+        dense_ids = [d.memory.memory_id for score, d in dense if score >= self._candidate_floor][
+            :20
+        ]
         scores: dict[UUID, float] = {}
         for ranking in (lexical_ids, dense_ids):
             for rank, memory_id in enumerate(dict.fromkeys(ranking), 1):
                 scores[memory_id] = scores.get(memory_id, 0) + 1 / (60 + rank)
         ranked = sorted(scores, key=lambda k: (-scores[k], str(k)))
+        if self._relevance is not None and ranked:
+            candidate_ids = ranked[:8]
+            bindings = {d.memory.memory_id: d for d in fresh}
+            candidates = tuple(
+                RelevanceCandidate(
+                    hashlib.sha256(
+                        f"{identity_id}|owner|{route.value}|{k}|{eligible[k].revision}|{bindings[k].source_hash}".encode()
+                    ).hexdigest(),
+                    eligible[k].text,
+                    bindings[k].source_event_types,
+                )
+                for k in candidate_ids
+            )
+            chosen = await self._relevance.select(current, candidates)
+            if (
+                not isinstance(chosen, tuple)
+                or any(type(i) is not int or not 0 <= i < len(candidates) for i in chosen)
+                or len(set(chosen)) != len(chosen)
+            ):
+                raise RetrievalUnavailable("invalid relevance filter selection")
+            latest = {
+                d.memory.memory_id: d
+                for d in await self._repository.documents(
+                    identity_id,
+                    "owner",
+                    route,
+                    profile,
+                    self._cap,
+                )
+            }
+            if any(
+                k not in latest
+                or latest[k].memory != bindings[k].memory
+                or latest[k].source_hash != bindings[k].source_hash
+                for k in candidate_ids
+            ):
+                raise RetrievalUnavailable("sources changed during relevance selection")
+            return [eligible[k] for i, k in enumerate(candidate_ids) if i in chosen][:5]
         return [eligible[k] for k in ranked[:5]]
