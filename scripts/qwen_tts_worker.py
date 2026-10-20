@@ -140,6 +140,93 @@ def observe_voice_clone(model: Any, text: str, voice: Any) -> tuple[Any, int, di
             primary_error.add_note("talker observer restoration failed")
 
 
+# The CUDA-graph backend replays the same Qwen3 talker/code predictor with the same
+# sampling settings; its static cache only has to hold prompt plus MAX_NEW_TOKENS.
+FAST_MAX_SEQ_LEN = 2048
+
+
+def fast_completion(steps: object) -> dict[str, object]:
+    """Completion record for one CUDA-graph generation.
+
+    The graph loop stops at EOS or at MAX_NEW_TOKENS; FAST_MAX_SEQ_LEN leaves room for
+    every prompt plus the cap, so fewer steps than the cap can only mean EOS. EOS is
+    counted as a generated token, as in the observed official talker output.
+    """
+    if type(steps) is not int or not 0 < steps < MAX_NEW_TOKENS - 1:
+        raise QwenOutputIncomplete("talker did not finish before the generation cap")
+    completion = verified_completion(
+        {
+            "status": "complete",
+            "eos_observed": True,
+            "cap_reached": False,
+            "generated_tokens": steps + 1,
+            "max_new_tokens": MAX_NEW_TOKENS,
+            "observer_calls": 1,
+        }
+    )
+    assert completion is not None
+    return completion
+
+
+class FastVoiceClone:
+    """faster-qwen3-tts (CUDA graphs) behind the worker's synthesis contract."""
+
+    def __init__(self, fast: Any) -> None:
+        self.fast = fast
+        self.model = fast.model if hasattr(fast, "model") else fast.base_model
+
+    def synthesize(self, text: str, voice: Any) -> tuple[Any, int, dict[str, object]]:
+        import faster_qwen3_tts.generate as fast_generate_module  # type: ignore[import-not-found]
+
+        original = fast_generate_module.fast_generate
+        steps: list[object] = []
+
+        def observed(*args: Any, **kwargs: Any) -> Any:
+            if kwargs.get("max_new_tokens") != MAX_NEW_TOKENS or steps:
+                raise QwenOutputIncomplete("unsupported fast generation call")
+            codes, timing = original(*args, **kwargs)
+            steps.append(timing.get("steps") if codes is not None else 0)
+            return codes, timing
+
+        fast_generate_module.fast_generate = observed
+        try:
+            wavs, sample_rate = self.fast.generate_voice_clone(
+                text=text,
+                language="Chinese",
+                voice_clone_prompt=voice,
+                non_streaming_mode=True,
+                max_new_tokens=MAX_NEW_TOKENS,
+            )
+        finally:
+            fast_generate_module.fast_generate = original
+        if len(steps) != 1:
+            raise QwenOutputIncomplete("missing fast completion observation")
+        return wavs, sample_rate, fast_completion(steps[0])
+
+
+def load_fast_backend(model_path: str) -> FastVoiceClone | None:
+    """Prefer the CUDA-graph backend when it and CUDA are present; else the official SDK."""
+    if os.environ.get("SIRO_QWEN_FAST", "1") == "0":
+        return None
+    try:
+        import torch  # type: ignore[import-not-found]
+        from faster_qwen3_tts import FasterQwen3TTS  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+    if not torch.cuda.is_available():
+        return None
+    fast = FasterQwen3TTS.from_pretrained(
+        model_path,
+        device="cuda",
+        dtype=torch.bfloat16,
+        attn_implementation="sdpa",
+        max_seq_len=FAST_MAX_SEQ_LEN,
+        local_files_only=True,
+    )
+    fast.warmup(prefill_len=100)
+    return FastVoiceClone(fast)
+
+
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -254,13 +341,20 @@ def main() -> int:
     model_path, reference_wav, reference_text, cache_text = sys.argv[1:]
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     attention = "sdpa" if device == "cuda:0" else "eager"
-    model = Qwen3TTSModel.from_pretrained(
-        model_path,
-        device_map=device,
-        dtype=torch.bfloat16,
-        attn_implementation=attention,
-        local_files_only=True,
-    )
+    backend = load_fast_backend(model_path)
+    if backend is not None:
+        model = backend.model
+    else:
+        model = Qwen3TTSModel.from_pretrained(
+            model_path,
+            device_map=device,
+            dtype=torch.bfloat16,
+            attn_implementation=attention,
+            local_files_only=True,
+        )
+    versions = {name: version(name) for name in ("qwen-tts", "transformers", "torch", "soundfile")}
+    if backend is not None:
+        versions["faster-qwen3-tts"] = version("faster-qwen3-tts")
     voice = model.create_voice_clone_prompt(
         ref_audio=reference_wav,
         ref_text=reference_text,
@@ -270,14 +364,21 @@ def main() -> int:
         Path(model_path),
         Path(reference_wav),
         reference_text,
-        {name: version(name) for name in ("qwen-tts", "transformers", "torch", "soundfile")},
+        versions,
         model._merge_generate_kwargs(max_new_tokens=MAX_NEW_TOKENS),
         attention=attention,
     )
     cache = Path(cache_text) / CACHE_VERSION / fingerprint
     cache.mkdir(parents=True, exist_ok=True)
     print(
-        json.dumps({"ready": True, "device": device, "completion_protocol": COMPLETION_PROTOCOL}),
+        json.dumps(
+            {
+                "ready": True,
+                "device": device,
+                "backend": "cuda-graph" if backend is not None else "qwen-tts",
+                "completion_protocol": COMPLETION_PROTOCOL,
+            }
+        ),
         flush=True,
     )
     for line in sys.stdin:
@@ -295,7 +396,11 @@ def main() -> int:
                 audio, completion = cached_result
                 hit = True
             else:
-                wavs, sample_rate, completion = observe_voice_clone(model, text, voice)
+                wavs, sample_rate, completion = (
+                    backend.synthesize(text, voice)
+                    if backend is not None
+                    else observe_voice_clone(model, text, voice)
+                )
                 if not wavs or len(wavs[0]) == 0:
                     raise QwenOutputIncomplete("voice decoder returned no samples")
                 output = io.BytesIO()

@@ -663,3 +663,9 @@ D57 schema fixture correction after full3fail: old test_run_journal says the lat
 ## DESKTOP-VOICE-RECOVERY / 2026-10-16
 
 Rate-limit recovery is optional and pre-emission only: FailoverModel(rate_limit_max_wait_seconds=None, clock=UTC-now, on_retry=None) preserves existing defaults. Explicit policy accepts a valid Retry-After delta/date within a configured maximum, otherwise bounded original backoff or fail-closed over-limit. A 429 retry targets the same provider and needs explicit cloud_request_budget=1; there are at most two attempts, no tool execution replay and immediate cancellation-aware stop. Groq remaining-requests=0 means daily quota depleted and rejects another attempt. One async on_retry(original request, safe delay) enables an owner-scoped UI notice. No provider bodies, credentials, headers or prompts in the notice. Native desktop adds optional body authentication presentation='desktop'; connected desktop owns rendering, web control views omit competing renderer and speech playback. Exact local Origin/session authentication remains required.
+
+## D79 — 角色觸碰 body.touch (2026-10-20)
+
+Renderer 在已認證的 `/ws/body` 上送 `{"v":1,"type":"body.touch","kind":"pat"|"poke"|"carry","count":1..50}`；只有這四個 key，`v` 必須是整數 1。其他訊息照舊忽略。Gateway 只在該 socket 是目前的 body owner、沒有 responding／awaiting_approval 的 turn、對話未被 cloud kill switch 關閉、且上一個觸碰回應已結束時，才把 `(kind, count)` 交給 `create_app(on_body_touch=...)`；回應在背景 task 執行，不阻塞 renderer socket，失敗只記錄例外類別。Renderer 端每種觸碰最多每 8 秒送一次，單擊不送。
+
+`IntegratedCompanion.react_to_touch` 一律記住最近 3 次觸碰（10 分鐘內）作為下一輪對話的 verified context（`[source:body-touch]`）。說話與否由 `TouchReplies` 決定：關閉時不說；忙碌（前景回覆中、上一句估計仍在播放）不說；任兩次觸碰回應間隔至少 60 秒；同種摸頭／戳 3 分鐘、被拎走 10 分鐘；每日（Asia/Taipei）最多 15 句。允許時用目前模型（同一 privacy 路由）產生一句，最多 60 tokens、6 秒；逾時、失敗或清理後不是一句短句（最多 24 字）時改用固定短句。輸出走既有 `assistant_started/delta/terminal`（新 stream_id、最近的對話 session）與 `body.speech`，不送 `turn_started`、不建立 agent run、不改表情（renderer 自己的觸碰反應已處理）。`SIRO_TOUCH_REPLY_ENABLED=0` 關閉說話，觸碰仍會被記住。

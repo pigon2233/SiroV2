@@ -80,6 +80,69 @@ for(const args of [[image,0,7,28,4],[image,7,7,1,4],[[],7,7,28,4]]){{
     subprocess.run(["node", "--input-type=module", "-e", script], check=True, timeout=10)
 
 
+def test_walk_travel_follows_the_stride_curve_and_stays_in_the_work_area() -> None:
+    source = Path(__file__).parents[2] / "desktop/wander.mjs"
+    script = f"""
+import assert from 'node:assert/strict';
+import {{ease, rampDistance, stopPlan, walkPlan, walkRoom}} from {json.dumps(source.as_uri())};
+const close=(a,b,eps=1e-6)=>assert(Math.abs(a-b)<eps,`${{a}} != ${{b}}`);
+// The ramp curve is the one walk_start/walk_stop blend the stride with; its area is one half.
+close(ease(0),0);close(ease(.5),.5);close(ease(1),1);close(rampDistance(1),.5);
+let sum=0;for(let i=0;i<10000;i++)sum+=ease((i+.5)/10000)/10000;close(sum,.5,1e-6);
+// A walk: half a ramp of distance in each ramp, full speed in between, exact at the end.
+const plan=walkPlan(500,200,1.4);
+close(plan.cruise,1.1);close(plan.duration,3.9);close(plan.at(1.4),140);close(plan.at(2.5),360);
+close(plan.at(plan.duration),500);assert.equal(plan.at(-1),0);assert.equal(plan.at(99),500);
+// Position never jumps or runs backwards, and the speed never exceeds the stride's.
+let last=0;for(let t=0;t<=plan.duration;t+=1/240){{const x=plan.at(t);
+ assert(x>=last-1e-9);assert(x-last<=200/240+1e-6);last=x;}}
+// Too little room for the two ramps: no walk rather than a skating one.
+assert.equal(walkPlan(200,200,1.4),null);assert.equal(walkPlan(0,200,1),null);
+assert.equal(walkPlan(NaN,200,1),null);
+// With a stride cycle the full-speed part is whole cycles, rounded down to the room there is.
+const whole=walkPlan(1000,200,1.4,1.43);close(whole.cruise,2.86);close(whole.distance,852);
+close(whole.at(whole.duration),852);
+const none=walkPlan(300,200,1.4,1.43);close(none.cruise,0);close(none.distance,280);
+assert.equal(walkPlan(250,200,1.4,1.43),null);assert.equal(walkPlan(500,200,1.4,-1),null);
+// Stopping early settles over one ramp from the speed she has, never past the room left.
+const cut=stopPlan(plan,2);close(cut.remaining,140);close(cut.at(1.4),140);close(cut.at(0),0);
+const early=stopPlan(plan,.7);close(early.remaining,70);  // half speed mid-ramp
+const late=stopPlan(plan,3.8);assert(late.remaining<=500-plan.at(3.8)+1e-9);
+// Room: the pet pane stays 8 px inside the work area; 0 picks the roomier side.
+const area={{x:0,width:1920}};
+assert.deepEqual(walkRoom(1000,0,360,area,0,800),{{direction:-1,distance:800}});
+assert.deepEqual(walkRoom(1000,0,360,area,1,800),{{direction:1,distance:552}});
+assert.deepEqual(walkRoom(5,0,360,area,-1,800),{{direction:-1,distance:0}});
+assert.deepEqual(walkRoom(1552,0,360,{{x:0,width:1920}},1,50),{{direction:1,distance:0}});
+assert.deepEqual(walkRoom(1100,20,320,{{x:1920,width:1280}},0,100),{{direction:1,distance:100}});
+"""
+    subprocess.run(["node", "--input-type=module", "-e", script], check=True, timeout=10)
+
+
+def test_host_walk_messages_are_validated_and_taken_over_by_drag_chat_and_layout() -> None:
+    source = Path("desktop/host.js").read_text()
+    # The native side only walks on a fully validated request, and anything that takes the
+    # window over halts it first.
+    handler = source[source.index("message.type === 'desktop.walk' &&") :]
+    handler = handler[: handler.index("startWalk(message);")]
+    for check in (
+        "message.id.length <= 40",
+        "[-1, 0, 1].includes(message.direction)",
+        "message.distance <= 4096",
+        "message.speed <= 2000",
+        "message.ramp <= 5",
+        "message.delay <= 5",
+        "message.cycle <= 5",
+    ):
+        assert check in handler
+    assert "haltWalk('dragged');" in source[source.index("message.type === 'desktop.move'") :]
+    layout = source[source.index("function applyLayout()") :]
+    assert layout.index("haltWalk('layout');") < layout.index("window.move(")
+    assert "haltWalk('hidden'); window.iconify();" in source
+    assert "window.connect('unmap', () => haltWalk('hidden'));" in source
+    assert "if (lastChat || !area || !layout) return walkReport(" in source
+
+
 def test_desktop_requires_real_prepared_renderer() -> None:
     with TestClient(create_app()) as client:
         assert client.get("/desktop").status_code == 503

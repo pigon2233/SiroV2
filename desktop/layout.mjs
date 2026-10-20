@@ -4,7 +4,9 @@ export function desktopLayout(scale, chat, workWidth, workHeight, controlsHeight
         ![workWidth, workHeight].every(value => Number.isSafeInteger(value) && value >= 64) ||
         !Number.isSafeInteger(controlsHeight) || controlsHeight < 64 || controlsHeight > 320)
         throw new Error('Invalid desktop layout');
-    const gap = 12, aspect = 570 / 360;
+    // The pet pane is taller than the standing body: the transparent band above the head holds a
+    // hand raised in a wave, so gestures are not cut off and the character keeps her size.
+    const gap = 12, aspect = 640 / 360;
     const footer = Math.min(controlsHeight, Math.floor(workHeight / 2), chat && workWidth < 574 ? workHeight - Math.floor(workHeight * .36) - gap - 1 : workHeight);
     let availablePetHeight = Math.max(1, workHeight - footer);
     if (chat && workWidth < 574) availablePetHeight = Math.max(1, workHeight - footer - Math.floor(workHeight * .36) - gap);

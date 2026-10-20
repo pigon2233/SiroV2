@@ -185,6 +185,48 @@ document.documentElement.style={setProperty:(key,value)=>properties.set(key,valu
     )
 
 
+def test_desktop_walk_bridge_forwards_valid_requests_and_host_updates_only() -> None:
+    run_desktop(
+        """
+const role=existing.get('#companion').contentWindow;
+const fromRole=data=>dispatch('message',{origin:location.origin,source:role,data});
+fromRole({type:'siro.desktop.walk',v:1,action:'start',id:'walk-1',direction:0,
+ distance:400,speed:250,ramp:1.4,delay:1.4,cycle:1.43});
+assert.deepEqual(nativeMessages.at(-1),{type:'desktop.walk',id:'walk-1',direction:0,
+ distance:400,speed:250,ramp:1.4,delay:1.4,cycle:1.43});
+fromRole({type:'siro.desktop.walk',v:1,action:'stop',id:'walk-1'});
+assert.deepEqual(nativeMessages.at(-1),{type:'desktop.walk.stop',id:'walk-1'});
+const count=nativeMessages.length;
+for(const bad of [{v:2,action:'start'},{v:1,action:'start',direction:2},
+ {v:1,action:'start',direction:0,distance:'far'},{v:1,action:'fly'}])
+ fromRole({type:'siro.desktop.walk',id:'walk-2',direction:0,distance:1,speed:1,ramp:1,delay:0,...bad});
+dispatch('message',{origin:'http://evil',source:role,data:{type:'siro.desktop.walk',v:1,
+ action:'start',id:'x',direction:0,distance:1,speed:1,ramp:1,delay:0}});
+assert.equal(nativeMessages.length,count);
+// Host updates reach the role with the protocol stamp; malformed ones are dropped.
+window.siroDesktopView.walkUpdate({id:'walk-1',state:'started',direction:-1,distance:400,
+ ramp:1.4,cruise:0.2,delay:1.4});
+window.siroDesktopView.walkUpdate({id:'walk-1',state:'teleported'});
+window.siroDesktopView.walkUpdate({id:'walk-1',state:'started',distance:'far'});
+assert.equal(toRole.length,1);
+assert.deepEqual(toRole[0].message,{id:'walk-1',state:'started',direction:-1,distance:400,
+ ramp:1.4,cruise:0.2,delay:1.4,type:'siro.desktop.walk.state',v:1});
+assert.equal(toRole[0].origin,location.origin);
+// With the chat open she does not wander off from it.
+existing.get('#text').focus=()=>{};
+document.querySelector('#desktop-chat').click();
+fromRole({type:'siro.desktop.walk',v:1,action:'start',id:'walk-3',direction:1,
+ distance:400,speed:250,ramp:1.4,delay:1.4});
+assert(!nativeMessages.some(item=>item.id==='walk-3'));
+assert.deepEqual(toRole.at(-1).message,{id:'walk-3',state:'refused',reason:'chat',
+ type:'siro.desktop.walk.state',v:1});
+""",
+        "const toRole=[];\n"
+        "existing.get('#companion').contentWindow={renderer:true,"
+        "postMessage:(message,origin)=>toRole.push({message,origin})};\n",
+    )
+
+
 def test_desktop_microphone_switch_forwards_without_starting_recording() -> None:
     run_desktop(
         """

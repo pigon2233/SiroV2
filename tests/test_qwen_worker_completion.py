@@ -438,3 +438,18 @@ def test_fingerprint_binds_effective_attention(tmp_path: Path) -> None:
     fingerprint = worker["cache_fingerprint"]
     args = (model, reference, "synthetic", {"qwen-tts": "0.1.1"}, {"max_new_tokens": 512})
     assert fingerprint(*args, attention="eager") != fingerprint(*args, attention="sdpa")
+
+
+@pytest.mark.parametrize("steps", [1, 57, 510])
+def test_fast_backend_completion_counts_eos_like_the_observed_talker(steps: int) -> None:
+    worker = runpy.run_path(str(WORKER))
+    completion = worker["fast_completion"](steps)
+    assert completion["generated_tokens"] == steps + 1
+    assert worker["verified_completion"](completion) == completion
+
+
+@pytest.mark.parametrize("steps", [0, 511, 512, None, 3.0])
+def test_fast_backend_without_proven_eos_is_incomplete(steps: object) -> None:
+    worker = runpy.run_path(str(WORKER))
+    with pytest.raises(worker["QwenOutputIncomplete"]):
+        worker["fast_completion"](steps)

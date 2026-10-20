@@ -9,6 +9,7 @@ import WebKit from 'gi://WebKit2?version=4.1';
 import Cairo from 'cairo';
 import {inputMask} from './input-mask.mjs';
 import {desktopLayout} from './layout.mjs';
+import {stopPlan, walkPlan, walkRoom} from './wander.mjs';
 
 const url = GLib.getenv('SIRO_DESKTOP_URL') || 'http://127.0.0.1:8000/desktop';
 const parsed = GLib.Uri.parse(url, GLib.UriFlags.NONE);
@@ -19,6 +20,7 @@ const reportDirectory = GLib.getenv('SIRO_DESKTOP_REPORT_DIR');
 const app = new Gtk.Application({application_id: 'org.siro.Companion', flags: Gio.ApplicationFlags.FLAGS_NONE});
 let window, web, center, pendingSnapshot = false, timer = 0, ready = false, lastChat = false;
 let samples = 0, lastRegion = 0, scale = 1, layoutTimer = 0, controlsHeight = 132;
+let walk = null; // the walk in progress: the window travels while the renderer plays the steps
 const state = {protocol: 1, toolkit: 'GTK3/WebKitGTK4.1', backend: GLib.getenv('GDK_BACKEND') || 'default', sandbox: false, ready: false, alpha: false, input_regions: 0};
 const hostFile = Gio.File.new_for_uri(import.meta.url);
 state.host_source_sha256 = GLib.compute_checksum_for_data(GLib.ChecksumType.SHA256, hostFile.load_contents(null)[1]);
@@ -44,7 +46,7 @@ function restrict(view) {
         if (!audioOnly || !permitted(view.get_uri() || '')) { request.deny(); return true; }
         const dialog = new Gtk.MessageDialog({transient_for: window, modal: true,
             message_type: Gtk.MessageType.QUESTION, buttons: Gtk.ButtonsType.NONE,
-            text: '允許這次使用麥克風嗎？', secondary_text: '只在你按開始說話後錄音；辨識使用目前設定的語音服務。'});
+            text: '允許這次使用麥克風嗎？', secondary_text: '只在你按開始說話或開啟免手動時錄音；辨識使用目前設定的語音服務。'});
         dialog.add_button('取消', Gtk.ResponseType.CANCEL);
         dialog.add_button('允許這次', Gtk.ResponseType.ACCEPT);
         dialog.connect('response', (_dialog, response) => {
@@ -68,14 +70,74 @@ function queueShape() {
         layoutTimer = 0; updateShape(); return GLib.SOURCE_REMOVE;
     });
 }
-function applyLayout() {
-    if (!window || !web) return;
+function workArea() {
     const display = Gdk.Display.get_default();
     const monitor = window.get_window() ? display.get_monitor_at_window(window.get_window()) : display.get_primary_monitor();
-    const area = (monitor || display.get_monitor(0))?.get_workarea();
+    return (monitor || display.get_monitor(0))?.get_workarea() ?? null;
+}
+// ---- Walking: the renderer asks to walk (speed, wanted distance, ramp and turning lead-in);
+// the window then travels on the same speed curve as her steps, inside the work area. Anything
+// that takes the window over (a drag, the chat, a new layout, hiding, a monitor change) halts it.
+function walkReport(update) {
+    state.walk = update; saveState();
+    evaluate(`window.siroDesktopView?.walkUpdate(${JSON.stringify(update)})`);
+}
+function startWalk(message) {
+    haltWalk('replaced');
+    const area = workArea(), layout = state.layout;
+    if (lastChat || !area || !layout) return walkReport({id: message.id, state: 'refused', reason: lastChat ? 'chat' : 'layout'});
+    const [x, y] = window.get_position();
+    const room = walkRoom(x, layout.petX, layout.petWidth, area, message.direction, message.distance);
+    const plan = walkPlan(room.distance, message.speed, message.ramp, message.cycle ?? 0);
+    if (!plan) return walkReport({id: message.id, state: 'refused', reason: 'room'});
+    const now = GLib.get_monotonic_time() / 1e6;
+    walk = {id: message.id, direction: room.direction, startX: x, y, plan, began: now + message.delay, stop: null};
+    walk.timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 16, stepWalk);
+    walkReport({id: walk.id, state: 'started', direction: walk.direction, distance: plan.distance, ramp: plan.ramp, cruise: plan.cruise, delay: message.delay});
+}
+function stepWalk() {
+    if (!walk || !window) return GLib.SOURCE_REMOVE;
+    const now = GLib.get_monotonic_time() / 1e6;
+    let offset, done;
+    if (walk.stop) {
+        const s = now - walk.stop.since;
+        offset = walk.stop.base + walk.stop.plan.at(s); done = s >= walk.plan.ramp;
+    } else {
+        const t = now - walk.began;
+        offset = walk.plan.at(t); done = t >= walk.plan.duration;
+    }
+    const area = workArea(), layout = state.layout;
+    let next = walk.startX + walk.direction * offset;
+    if (area && layout) next = Math.max(area.x - layout.petX, Math.min(next, area.x + area.width - layout.petX - layout.petWidth));
+    window.move(Math.round(next), walk.y);
+    if (!done) return GLib.SOURCE_CONTINUE;
+    walk.timer = 0; finishWalk('arrived');
+    return GLib.SOURCE_REMOVE;
+}
+function stopWalk(id) {
+    if (!walk || walk.id !== id || walk.stop) return;
+    const now = GLib.get_monotonic_time() / 1e6, t = now - walk.began;
+    if (t <= 0) return haltWalk('cancelled');
+    const plan = stopPlan(walk.plan, t);
+    walk.stop = {since: now, base: walk.plan.at(t), plan};
+    walkReport({id, state: 'stopping', remaining: plan.remaining});
+}
+function finishWalk(reason) {
+    if (!walk) return;
+    const id = walk.id;
+    if (walk.timer) GLib.source_remove(walk.timer);
+    walk = null;
+    walkReport({id, state: 'ended', reason});
+    queueShape();
+}
+function haltWalk(reason) { if (walk) finishWalk(reason); }
+function applyLayout() {
+    if (!window || !web) return;
+    haltWalk('layout');
+    const area = workArea();
     if (!area) return;
     const previous = state.layout, [x, y] = window.get_position();
-    const roleX = x + (previous?.petX || 0), roleBottom = y + (previous?.petHeight || 570);
+    const roleX = x + (previous?.petX || 0), roleBottom = y + (previous?.petHeight || 640);
     const layout = desktopLayout(scale, lastChat, Math.min(4096, area.width), Math.min(4096, area.height), controlsHeight);
     // Keep the role anchored when the panel fits to its left near a screen edge.
     if (lastChat && layout.chatY === 8 && roleX + layout.width > area.x + area.width && roleX - layout.chatWidth - 12 >= area.x) {
@@ -99,13 +161,15 @@ function openCenter() {
     center.show_all(); center.present();
 }
 function updateShape() {
-    if (!web || !window || pendingSnapshot || !window.get_visible() || web.is_loading) return GLib.SOURCE_CONTINUE;
+    if (!web || !window || pendingSnapshot || !window.get_visible() || web.is_loading || !web.get_mapped() || web.get_allocated_width() < 2 || web.get_allocated_height() < 2) return GLib.SOURCE_CONTINUE;
     pendingSnapshot = true;
     web.get_snapshot(WebKit.SnapshotRegion.VISIBLE, WebKit.SnapshotOptions.TRANSPARENT_BACKGROUND, null, (_view, result) => {
         pendingSnapshot = false;
         if (!window) return;
         try {
-            const surface = web.get_snapshot_finish(result);
+            let surface = null;
+            try { surface = web.get_snapshot_finish(result); } catch (error) { state.snapshot_error = String(error); saveState(); return; }
+            if (!surface) return; // keep the previous shape; the next tick tries again
             const image = Gdk.pixbuf_get_from_surface(surface, 0, 0, surface.getWidth(), surface.getHeight());
             if (!image) throw new Error('Desktop snapshot pixels are unavailable');
             const pixels = image.get_pixels(), channels = image.get_n_channels(), stride = image.get_rowstride();
@@ -141,7 +205,13 @@ function activate() {
         try { message = JSON.parse(result.get_js_value().to_string()); } catch (_) { return; }
         if (!message || typeof message.type !== 'string') return;
         if (message.type === 'desktop.quit') app.quit();
-        else if (message.type === 'desktop.hide') window.iconify();
+        else if (message.type === 'desktop.hide') { haltWalk('hidden'); window.iconify(); }
+        else if (message.type === 'desktop.walk' && typeof message.id === 'string' && message.id.length <= 40 &&
+            [-1, 0, 1].includes(message.direction) && [message.distance, message.speed, message.ramp, message.delay].every(Number.isFinite) &&
+            message.distance > 0 && message.distance <= 4096 && message.speed >= 10 && message.speed <= 2000 &&
+            message.ramp >= 0.2 && message.ramp <= 5 && message.delay >= 0 && message.delay <= 5 &&
+            (message.cycle === undefined || (Number.isFinite(message.cycle) && message.cycle >= 0 && message.cycle <= 5))) startWalk(message);
+        else if (message.type === 'desktop.walk.stop' && typeof message.id === 'string') stopWalk(message.id);
         else if (message.type === 'desktop.console') openCenter();
         else if (message.type === 'desktop.chat' && typeof message.open === 'boolean') {
             lastChat = message.open; window.set_accept_focus(lastChat);
@@ -159,10 +229,11 @@ function activate() {
                 const area = display.get_monitor(index).get_geometry();
                 if (message.screenX >= area.x && message.screenX <= area.x + area.width && message.screenY >= area.y && message.screenY <= area.y + area.height) insideMonitor = true;
             }
+            haltWalk('dragged');
             if (insideMonitor) window.begin_move_drag(1, Math.round(message.screenX), Math.round(message.screenY), Gdk.CURRENT_TIME);
         } else if (message.type === 'desktop.ready') { ready = true; state.ready = true; applyLayout(); }
     });
-    window = new Gtk.ApplicationWindow({application: app, title: `SIRO 桌寵 · ${GLib.getenv('GDK_BACKEND') === 'x11' ? 'XWayland/X11 相容' : '原生顯示'}`, default_width: 360, default_height: 570, decorated: false, resizable: true});
+    window = new Gtk.ApplicationWindow({application: app, title: `SIRO 桌寵 · ${GLib.getenv('GDK_BACKEND') === 'x11' ? 'XWayland/X11 相容' : '原生顯示'}`, default_width: 360, default_height: 640, decorated: false, resizable: true});
     window.set_app_paintable(true);
     const rgba = window.get_screen().get_rgba_visual();
     if (!rgba) throw new Error('RGBA compositing visual is unavailable');
@@ -183,9 +254,16 @@ function activate() {
     web.connect('web-process-terminated', () => { state.ready = false; saveState(); });
     web.connect('load-failed', () => { state.ready = false; state.load_failed = true; saveState(); return false; });
     window.connect('delete-event', () => { app.quit(); return true; });
+    // Minimised, hidden by a lock screen or withdrawn: stop walking where she is.
+    window.connect('window-state-event', (_window, event) => {
+        const gone = Gdk.WindowState.ICONIFIED | Gdk.WindowState.WITHDRAWN;
+        if (event.new_window_state & gone) haltWalk('hidden');
+        return false;
+    });
+    window.connect('unmap', () => haltWalk('hidden'));
     window.show_all();
     const display = Gdk.Display.get_default(), monitor = display.get_primary_monitor() || display.get_monitor(0);
-    if (monitor) { const area = monitor.get_workarea(); window.move(area.x + area.width - 390, area.y + area.height - 600); }
+    if (monitor) { const area = monitor.get_workarea(); window.move(area.x + area.width - 390, area.y + area.height - 670); }
     window.get_screen().connect('monitors-changed', () => {
         if (!window) return;
         const d = Gdk.Display.get_default(), m = d.get_monitor_at_window(window.get_window()) || d.get_primary_monitor() || d.get_monitor(0);
@@ -198,6 +276,7 @@ function activate() {
 }
 app.connect('activate', activate);
 app.connect('shutdown', () => {
+    haltWalk('closed');
     if (timer) GLib.source_remove(timer);
     if (layoutTimer) GLib.source_remove(layoutTimer);
     state.closed = true; saveState(); center?.destroy(); window?.destroy(); window = null; web = null;

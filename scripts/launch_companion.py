@@ -90,8 +90,25 @@ def main() -> None:
         if selected is not None:
             raise SystemExit("SIRO release launch refused: runtime_asset_missing")
         subprocess.run(["cargo", "build", "--locked", "-p", "siro-runtime"], check=True)
+    vrm_dist = root / "models/vrm-renderer"
+    vrm_manifest = root / "config/body-assets/siro-vrm/asset-manifest.json"
+    if (
+        selected is None
+        and not os.environ.get("SIRO_VRM_DIST")
+        and not os.environ.get("SIRO_VRM_MODEL_MANIFEST")
+        and (vrm_dist / "index.html").is_file()
+        and vrm_manifest.is_file()
+    ):
+        # A prepared owner VRM takes precedence; the gateway re-verifies the manifest hashes.
+        os.environ["SIRO_VRM_DIST"] = str(vrm_dist)
+        os.environ["SIRO_VRM_MODEL_MANIFEST"] = str(vrm_manifest)
+    vrm_configured = bool(os.environ.get("SIRO_VRM_DIST"))
     demo = root / "models/live2d-sdk-5-r.5/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo"
-    if not os.environ.get("SIRO_LIVE2D_DIST") and (demo / "src/main.ts").is_file():
+    if (
+        not vrm_configured
+        and not os.environ.get("SIRO_LIVE2D_DIST")
+        and (demo / "src/main.ts").is_file()
+    ):
         if selected is not None:
             raise SystemExit("SIRO release launch refused: renderer_asset_missing")
         subprocess.run(
@@ -99,7 +116,7 @@ def main() -> None:
             check=True,
         )
         os.environ["SIRO_LIVE2D_DIST"] = str(demo / "dist")
-    renderer = os.environ.get("SIRO_LIVE2D_DIST")
+    renderer = os.environ.get("SIRO_VRM_DIST") or os.environ.get("SIRO_LIVE2D_DIST")
     if not renderer or not (Path(renderer) / "index.html").is_file():
         raise SystemExit("找不到已準備的 Live2D 角色。請先準備本機角色或指定 SIRO_LIVE2D_DIST。")
     if (

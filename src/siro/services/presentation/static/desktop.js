@@ -48,6 +48,7 @@
       setChat(true);
       forward("#voice");
     });
+    const handsFreeButton = button("desktop-voice-auto", "免手動：關", "偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音", () => forward("#voice-auto"));
     button("desktop-stop", "停止", "停止回覆、工具與語音", () => forward("#cancel"));
     const output = document.querySelector("#voice-output");
     const speechButton = button("desktop-speech", "朗讀：關", "朗讀 SIRO 的回覆", () => {
@@ -140,15 +141,21 @@
       microphoneButton.textContent = source("#microphone-toggle") || "麥克風：未提供";
       microphoneButton.disabled = !microphone || microphone.disabled;
       microphoneButton.setAttribute("aria-pressed", microphone?.getAttribute?.("aria-pressed") || "false");
+      const handsFree = document.querySelector("#voice-auto");
+      handsFreeButton.textContent = source("#voice-auto") || "免手動：未提供";
+      handsFreeButton.disabled = !handsFree;
+      handsFreeButton.setAttribute("aria-pressed", handsFree?.getAttribute?.("aria-pressed") || "false");
       speechButton.textContent = output?.checked ? "朗讀：開" : "朗讀：關";
       speechButton.setAttribute("aria-pressed", String(Boolean(output?.checked)));
       status.textContent = detached ? "角色顯示已交接；重新啟動桌寵可取回。" :
         notice ? notice.textContent.trim() :
-          [source("#connection"), source("#voice-status"), source("#tts-status")].filter(Boolean).join(" · ");
+          // Short states first, so a long recognised sentence cannot push them out of view.
+          [source("#connection"), source("#tts-status"), source("#voice-status")].filter(Boolean).join(" · ");
+      status.title = status.textContent;
     };
     const observer = new MutationObserver(updateStatus);
     output?.addEventListener("change", updateStatus);
-    for (const id of ["#connection", "#voice", "#microphone-toggle", "#voice-status", "#tts-status", "#activity-notice", "#service-notice", "#runtime-notice"]) {
+    for (const id of ["#connection", "#voice", "#voice-auto", "#microphone-toggle", "#voice-status", "#tts-status", "#activity-notice", "#service-notice", "#runtime-notice"]) {
       const node = document.querySelector(id);
       if (node) observer.observe(node, {childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden", "disabled", "aria-pressed"]});
     }
@@ -174,11 +181,33 @@
       frame.removeEventListener("load", attachRole);
       output?.removeEventListener("change", updateStatus);
     }, {once: true});
-    window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false), setLayout});
+    // Walking: the character asks to walk; the native window travels and reports back to her.
+    const toRole = update => {
+      try { frame.contentWindow?.postMessage({...update, type: "siro.desktop.walk.state", v: 1}, location.origin); } catch (_) { /* renderer gone */ }
+    };
+    const walkUpdate = update => {
+      const states = ["started", "stopping", "ended", "refused"];
+      if (!update || typeof update.id !== "string" || !states.includes(update.state)) return;
+      const numbers = ["direction", "distance", "ramp", "cruise", "delay", "remaining"].filter(key => key in update);
+      if (!numbers.every(key => Number.isFinite(update[key]))) return;
+      toRole(update);
+    };
+    const walkRequest = data => {
+      if (typeof data.id !== "string" || data.id.length > 40) return;
+      if (data.action === "stop") { nativeCommand({type: "desktop.walk.stop", id: data.id}); return; }
+      const fields = ["distance", "speed", "ramp", "delay"];
+      if (data.action !== "start" || ![-1, 0, 1].includes(data.direction) || !fields.every(key => Number.isFinite(data[key]))) return;
+      const message = {type: "desktop.walk", id: data.id, direction: data.direction};
+      for (const key of fields) message[key] = data[key];
+      if (Number.isFinite(data.cycle)) message.cycle = data.cycle;
+      if (chatOpen || !nativeCommand(message)) toRole({id: data.id, state: "refused", reason: chatOpen ? "chat" : "native"});
+    };
+    window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false), setLayout, walkUpdate});
     window.addEventListener("message", event => {
       if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
       if (event.data?.type === "siro.renderer.ready") nativeCommand({type: "desktop.ready"});
       if (event.data?.type === "siro.renderer.interact" && !roleDragged) setChat(true);
+      if (event.data?.type === "siro.desktop.walk" && event.data.v === 1) walkRequest(event.data);
     });
     updateStatus();
   }

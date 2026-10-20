@@ -65,4 +65,7 @@ if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
   export GTK_IM_MODULE=ibus
   export XMODIFIERS=@im=ibus
 fi
+# Without a GPU path (WSLg's WebKit falls back to Mesa's llvmpipe) WebGL draws on the CPU with one
+# thread per core; four are plenty for the pet and leave the rest to speech and transcription.
+export LP_NUM_THREADS="${LP_NUM_THREADS:-4}"
 exec gjs -m desktop/host.js
