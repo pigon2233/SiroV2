@@ -161,13 +161,15 @@ function openCenter() {
     center.show_all(); center.present();
 }
 function updateShape() {
-    if (!web || !window || pendingSnapshot || !window.get_visible() || web.is_loading) return GLib.SOURCE_CONTINUE;
+    if (!web || !window || pendingSnapshot || !window.get_visible() || web.is_loading || !web.get_mapped() || web.get_allocated_width() < 2 || web.get_allocated_height() < 2) return GLib.SOURCE_CONTINUE;
     pendingSnapshot = true;
     web.get_snapshot(WebKit.SnapshotRegion.VISIBLE, WebKit.SnapshotOptions.TRANSPARENT_BACKGROUND, null, (_view, result) => {
         pendingSnapshot = false;
         if (!window) return;
         try {
-            const surface = web.get_snapshot_finish(result);
+            let surface = null;
+            try { surface = web.get_snapshot_finish(result); } catch (error) { state.snapshot_error = String(error); saveState(); return; }
+            if (!surface) return; // keep the previous shape; the next tick tries again
             const image = Gdk.pixbuf_get_from_surface(surface, 0, 0, surface.getWidth(), surface.getHeight());
             if (!image) throw new Error('Desktop snapshot pixels are unavailable');
             const pixels = image.get_pixels(), channels = image.get_n_channels(), stride = image.get_rowstride();
