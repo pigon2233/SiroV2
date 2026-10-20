@@ -61,7 +61,7 @@ def run_shape(checks: str) -> None:
     end = source.index("\nfunction activate()", start)
     harness = r"""
 const assert=require('node:assert/strict');
-let reportDirectory='/synthetic/report',lastChat=false,pendingSnapshot=false;
+let reportDirectory='/synthetic/report',lastChat=false,pendingSnapshot=false,ready=true;
 let samples=0,lastRegion=0,stateWrites=0,broken=false,hidden=false,nullPixels=false;
 const imageWrites=[],masks=[],callbacks=[],state={},scratch='/synthetic/temporary.png';
 const surface={getWidth:()=>7,getHeight:()=>9,writeToPNG:path=>imageWrites.push(path)};
@@ -84,7 +84,7 @@ const saveState=()=>stateWrites++;
 let window={get_visible:()=>!hidden,get_window:()=>({
  input_shape_combine_region:region=>masks.push(region.rectangles)
 }),get_position:()=>[10,20]};
-const web={is_loading:false,get_snapshot:(_r,_o,_c,callback)=>callbacks.push(()=>callback(web,{})),
+const web={is_loading:false,get_mapped:()=>true,get_allocated_width:()=>7,get_allocated_height:()=>9,get_snapshot:(_r,_o,_c,callback)=>callbacks.push(()=>callback(web,{})),
  get_snapshot_finish:()=>{if(broken)throw new Error('synthetic snapshot failure');return surface;}};
 const WebKit={SnapshotRegion:{VISIBLE:1},SnapshotOptions:{TRANSPARENT_BACKGROUND:1}};
 """
