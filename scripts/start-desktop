@@ -68,4 +68,19 @@ fi
 # Without a GPU path (WSLg's WebKit falls back to Mesa's llvmpipe) WebGL draws on the CPU with one
 # thread per core; four are plenty for the pet and leave the rest to speech and transcription.
 export LP_NUM_THREADS="${LP_NUM_THREADS:-4}"
-exec gjs -m desktop/host.js
+# The host can die from a WebKit snapshot failure inside GJS that no script can catch. A crash
+# (non-zero exit) relaunches it after 2 s, at most 5 times in 10 minutes; a clean exit, which is
+# the owner closing it, or an interrupt does not.
+starts=()
+while true; do
+  now=$SECONDS
+  recent=()
+  for started in "${starts[@]}"; do ((now - started < 600)) && recent+=("$started"); done
+  starts=("${recent[@]}")
+  if ((${#starts[@]} >= 5)); then echo 'SIRO 桌寵 10 分鐘內當機 5 次，不再自動重啟。' >&2; exit 1; fi
+  starts+=("$now")
+  if gjs -m desktop/host.js; then exit 0; else code=$?; fi
+  if ((code == 130 || code == 143)); then exit "$code"; fi
+  echo "SIRO 桌寵異常結束（代碼 $code），2 秒後重啟。" >&2
+  sleep 2
+done
