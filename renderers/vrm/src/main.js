@@ -1355,7 +1355,10 @@ for (const [name, label] of MENU_GESTURES) {
 const soundToggle = document.createElement('button');
 soundToggle.type = 'button';
 soundToggle.style.gridColumn = '1 / -1';
-const showSoundLabel = () => { soundToggle.textContent = sfx.enabled ? '音效：開' : '音效：關'; };
+const showSoundLabel = () => {
+  const paused = mouth.talk > 0.05 || elapsed < audioBusyUntil;
+  soundToggle.textContent = !sfx.enabled ? '音效：關' : paused ? '音效：開（說話／收音中暫停）' : '音效：開';
+};
 showSoundLabel();
 soundToggle.addEventListener('pointerdown', event => event.stopPropagation());
 soundToggle.addEventListener('pointerup', event => event.stopPropagation());
@@ -1365,6 +1368,17 @@ soundToggle.addEventListener('click', () => {
   gestureMenu.hidden = true;
 });
 gestureMenu.append(soundToggle);
+const soundTest = document.createElement('button');
+soundTest.type = 'button';
+soundTest.style.gridColumn = '1 / -1';
+soundTest.addEventListener('pointerdown', event => event.stopPropagation());
+soundTest.addEventListener('pointerup', event => event.stopPropagation());
+soundTest.addEventListener('click', () => {
+  sfx.play('clap', { force: true });
+  soundTest.textContent = `試聽音效（音訊：${sfx.audioState}）`;
+});
+soundTest.textContent = '試聽音效';
+gestureMenu.append(soundTest);
 document.body.append(gestureMenu);
 window.addEventListener('contextmenu', event => {
   event.preventDefault();
@@ -1375,6 +1389,7 @@ window.addEventListener('contextmenu', event => {
     const ready = name === 'stroll' ? canStroll() : HOLDS[name] ? HOLDS[name].every(step => actions[step]) : actions[name];
     item.disabled = !ready;
   }
+  showSoundLabel();
   gestureMenu.hidden = false;
   const x = Math.min(event.clientX, window.innerWidth - gestureMenu.offsetWidth - 4);
   const y = Math.min(event.clientY, window.innerHeight - gestureMenu.offsetHeight - 4);

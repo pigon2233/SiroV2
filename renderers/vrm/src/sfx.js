@@ -112,12 +112,12 @@ export function createSfx({ speaking = () => false, hour = () => new Date().getH
     },
   };
 
-  function play(name, { own = false } = {}) {
+  function play(name, { own = false, force = false } = {}) {
     const voice = VOICES[name];
-    if (!enabled || !voice || speaking()) return false;
+    if (!enabled || !voice || (!force && speaking())) return false;
     const clock = now();
-    if (own && (isNight(hour()) || clock - lastOwn < OWN_GAP_SECONDS)) return false;
-    if (clock - (lastByName[name] ?? -Infinity) < (MIN_GAP[name] ?? 0)) return false;
+    if (!force && own && (isNight(hour()) || clock - lastOwn < OWN_GAP_SECONDS)) return false;
+    if (!force && clock - (lastByName[name] ?? -Infinity) < (MIN_GAP[name] ?? 0)) return false;
     if (!ensure()) {
       console.info(`SIRO sfx: ${name} skipped, audio ${context?.state ?? 'unavailable'}`);
       return false;
@@ -145,5 +145,6 @@ export function createSfx({ speaking = () => false, hour = () => new Date().getH
     },
     // Names of the sounds played so far, for automated checks.
     get played() { return played.slice(); },
+    get audioState() { return context?.state ?? 'none'; },
   };
 }
