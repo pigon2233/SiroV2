@@ -1,5 +1,12 @@
 # 決策紀錄
 
+## MEM-03-A / 2026-10-20 / owner來源接納邊界
+
+沿既有events與conversations／MEM01 tombstones，不加schema。對自動owner來源明定UserTextEvent
+subject_id為可信producer填的人物scope；缺失不補造，現有服務須待owner接線。Policy唯讀view
+來自可信應用，不由模型輸出設定；snapshot不授權候選保存／外送／工具操作。
+完整邊界見memory-evolution/MEM-03-A-CONTRACT.md，已於程式與測試新增前記錄。
+
 ## D78 / 2026-10-19 / accepted / CP-P02 活動紀錄：同交易事件流＋唯讀投影
 
 （編號跳過 D76／D77：已由未合併的 CP-P01 分支使用。）

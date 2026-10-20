@@ -723,3 +723,11 @@ MEM-02 canonical對話引用：可在source JSON附最近最多4則user/assistan
 它會隨既有system message經run_journal.checkpoint存入messages_json，與原canonical對話
 同資料分類；這次實作不提供額外的journal副本清除機制，不能宣稱記憶刪除會清掉所有對話副本。
 只由已驗canonical的同session recent_messages建立；cloud仍沿原trusted-caller route契約。
+
+## MEM-03-A：已保存owner來源接納
+
+Core按UUID唯讀查來源，可信Policy view決定讀取，event文字不能自授權。自動owner來源的
+UserTextEvent.subject_id須為可信入口確認的人物scope，缺失不推測／回填。與conversation identity、
+session、producer、privacy、TTL／版本／撤銷同交易查核，snapshot使用前須重驗。
+可讀不等於可保存／外送／已證實／非敏感；無Memory候選寫入或服務接線。
+詳見[memory-evolution/MEM-03-A-CONTRACT.md](memory-evolution/MEM-03-A-CONTRACT.md)。
