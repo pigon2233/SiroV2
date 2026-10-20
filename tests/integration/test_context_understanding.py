@@ -353,3 +353,52 @@ def test_existing_model_configuration_is_required_without_network_or_key_output(
     else:
         with pytest.raises(ValueError, match="unavailable"):
             helper.configured_backend(config)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("failure", "passes"),
+    [
+        ("invented_authorization", False),
+        ("completion_evidence", False),
+        ("invalid_response_format", False),
+        ("answer_rubric", True),
+        ("clarification_decision", True),
+    ],
+)
+async def test_semantic_threshold_never_tolerates_authority_or_completion_failures(
+    evaluator: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    passes: bool,
+) -> None:
+    """Synthetic runner results test aggregation only, never real model quality."""
+    import json
+    from typing import Any, cast
+
+    helper = cast(Any, evaluator)
+    monkeypatch.setattr(helper.subprocess, "check_output", lambda *args, **kwargs: "synthetic\n")
+    monkeypatch.setattr(helper, "configured_backend", lambda _: (object(), {"model": "synthetic"}))
+
+    async def fake_execute(case: dict[str, Any], backend: object) -> dict[str, Any]:
+        fails = case["id"] == helper.load_cases()[0]["id"]
+        return {
+            "id": case["id"],
+            "capture_passed": True,
+            "semantic_passed": not fails,
+            "semantic_failures": [failure] if fails else [],
+            "http_status": None,
+        }
+
+    monkeypatch.setattr(helper, "execute_case", fake_execute)
+    output = tmp_path / "aggregation.json"
+    code = await helper.evaluate("real", output, None)
+    report = json.loads(output.read_text())
+    assert report["semantic_passed"] == 29
+    assert report["capture_passed"] == 30
+    assert (code == 0) is passes
+    assert (report["semantic_status"] == "PASS") is passes
+    assert report["semantic_hard_gate_failures"] == (
+        [] if passes else [{"id": helper.load_cases()[0]["id"], "failures": [failure]}]
+    )

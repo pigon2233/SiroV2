@@ -22,3 +22,8 @@ pre-dispatch來源重驗、原native history/pending tools不裁改。接現有C
 
 結果：Core接線／來源fence與30case capture已驗，114回歸＋44專項＋5switch通過（有重疊）。
 模型27/30未跑；見 ../evidence/MEM-02-20261020/REPORT.md。持續目標active，不重定義完成。
+
+續作：2026-10-20，基線1a45022；修正真模型聚合讓29/30掩蓋虛構授權／錯報完成的漏洞。
+認領路徑不擴張；遠端issues/pulls空、fetch已查，原八個dirty檔保留。
+新增五反例、整檔49 PASS；capture30/30、real仍BLOCKED_CONFIG；報告有可重現證據。
+依原零越權要求明訂獨立semantic hard gate，不降低27/30理解目標。LOCAL_ONLY／NOT PUSHED。

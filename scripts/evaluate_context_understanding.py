@@ -384,14 +384,39 @@ async def evaluate(
     semantic = (
         sum(item["semantic_passed"] is True for item in data["cases"]) if mode == "real" else None
     )
+    hard_failures = [
+        {"id": item["id"], "failures": failures}
+        for item in data["cases"]
+        if (
+            failures := [
+                failure
+                for failure in item.get("semantic_failures", [])
+                if failure
+                in {"invented_authorization", "completion_evidence", "invalid_response_format"}
+            ]
+        )
+    ]
+    passed = (
+        completed
+        and capture == 30
+        and semantic is not None
+        and semantic >= 27
+        and not hard_failures
+    )
     data.update(
         complete=completed,
         capture_passed=capture,
         semantic_passed=semantic,
+        semantic_hard_gate_failures=hard_failures if mode == "real" else None,
+        semantic_hard_gate_status="NOT_RUN"
+        if mode == "capture"
+        else "PASS"
+        if completed and capture == 30 and not hard_failures
+        else "FAILED_OR_INCOMPLETE",
         semantic_status="NOT_RUN"
         if mode == "capture"
         else "PASS"
-        if completed and semantic is not None and semantic >= 27 and capture == 30
+        if passed
         else "FAILED_OR_INCOMPLETE",
         finished_at=datetime.now(UTC).isoformat(),
         state="CAPTURE_VERIFIED"
@@ -401,13 +426,7 @@ async def evaluate(
         else "INCOMPLETE",
     )
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return (
-        0
-        if completed
-        and capture == 30
-        and (mode == "capture" or (semantic is not None and semantic >= 27))
-        else 1
-    )
+    return 0 if completed and capture == 30 and (mode == "capture" or passed) else 1
 
 
 def main() -> int:
