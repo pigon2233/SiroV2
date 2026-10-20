@@ -1,87 +1,57 @@
-# SIRO V2：透過 GitHub 協作
+# SIRO V2 協作流程
 
-本流程讓不同 AI、不同電腦與人工貢獻者有共同可讀的工作紀錄。GitHub Issue／PR
-負責認領與交接，Git branch／worktree 隔離檔案；聊天記憶、本機未推送 commit
-與單一共享 checkout 都不能代替這兩件事。使用者明確指示優先於本流程。
+使用者明確指示優先。2026-10-20 起預設採本機交付：每項工作必須 commit，
+不得 push、建立／更新遠端 PR、自行合併、發布或部署。只有使用者另外明確授權
+指定遠端操作及分支，才能執行；「完成全部任務」不構成推送授權。
 
-## 1. 開始前：確認別人在做什麼
+## 開始前：盤點與認領
 
-1. 讀 AGENTS.md、STATUS、任務規格；檢查本機 status、branch、worktree 與近期 commit。
-2. fetch 遠端；讀目前未結 Issue、所有未合併 PR（包含 Draft）與相關 diff。
-   查詢要處理完整分頁，不能用第一頁無結果就斷言沒有其他任務。
-3. 使用者已指定別的 AI 負責的範圍，即使尚無 Issue，也要視為已占用。
-   目前使用者交由 Claude 處理 T10；其他貢獻者不得自行接手或修改其 dirty 檔案。
-   這是目前交接資訊，之後以使用者更新及 GitHub 認領紀錄為準。
-4. 重用對應 Issue；沒有才建立。先登記下列欄位，再開始編輯。
+讀 AGENTS.md、STATUS、runbook、任務卡與引用規格；檢查 dirty 狀態、branch、
+worktree、近期 commit。允許 fetch 與唯讀查詢 GitHub 未結 Issues、所有未合併 PR
+及其 diff，處理完整分頁。使用者指定給其他 Agent 的範圍，即使未公開認領仍視為占用。
 
-| 欄位 | 必填內容 |
-| --- | --- |
-| Task / owner | 任務、實際執行者或 session 代稱；AI 名稱不等於不同 GitHub 帳戶 |
-| State / updated | CLAIMED、IN_PROGRESS、BLOCKED、READY_FOR_REVIEW 或 HANDED_OFF；日期與時區 |
-| Base / branch | 完整基線 SHA、目標分支、任務分支與獨立工作區 |
-| Owned paths | 預計修改的具體檔案／目錄；包含測試與共享文件 |
-| Scope / excluded | 要解決的問題、不做的事與不可改區域 |
-| Validation / handoff | 驗收、回歸範圍、交接對象或下一動作 |
+預設不寫入 GitHub Issue／評論；在 docs/collaboration/<task-id>.md 記錄：
+Task、owner/session、時間與時區、狀態、完整 base SHA、分支、worktree、精確 owned paths、
+排除範圍、依賴、驗收及交接。開始修改前再查一次遠端與本機範圍。
+本機紀錄不是跨機共享鎖；重疊範圍須由原 owner 移交或使用者明確指派，不能搶寫。
+無法查詢 GitHub 時明列 UNKNOWN／LOCAL_ONLY，不假稱成功遠端認領。
 
-認領後再重新讀相關 Issue／PR，確認沒有另一個 owner 的重疊路徑。
-評論與 assigned 狀態不是原子鎖：兩方同時認領時，先協調並留下明確接收回覆，
-不能依自己較新的時間戳判定取得權利。不要只因一段時間無更新就接管；
-由原 owner 明確移交或使用者重新指派。
+## 隔離與檔案所有權
 
-## 2. 實作：每位執行者使用獨立 checkout
+一任務一分支一獨立 worktree；預設使用 codex/<task> 分支，記錄已核對的基線。
+不在使用者 dirty checkout 切分支、stash、清理、覆蓋或搬走他人的成果。
+不直接修改 main/master 或其他 Agent 的分支。
 
-- 一任務一分支，例如 `ai/codex/task-id-short-name`。從 fetch 後確認的遠端基線建立
-  worktree；若基於未合併工作，明列前置 PR 與 base SHA，不能混入不相關成果。
-- 原 checkout 已有使用者或 Claude 的修改時，不搬走、不 stash、不切 branch，
-  不把這些檔案偷偷複製進自己的交付分支。使用者明確要求接續時才做有紀錄的移交。
-- 修改前核對 owned paths；新增路徑或跨任務依賴時先更新認領並檢查衝突。
-  同檔不同段也可能互相影響，不以「不同段」自動取得寫入權。
-- 對 STATUS、TASKS、roadmap、DECISIONS、lockfile 等共享文件指定一位整合者。
-  若已被占用，將結果寫到 `docs/collaboration/<task-id>.md` 並由 PR 交接；
-  此時延後共享 STATUS 更新是明確例外，完成前須由整合者確認納入。
-- 不動另一台電腦的部署、服務、私人資料與設定；原先部署授權不自動擴及新部署。
+STATUS、TASKS、roadmap、DECISIONS、lockfile 等共享檔也需要 owner。
+未取得共享文件寫入權，先寫本任務交接，由整合者之後更新；明列延後原因。
+新增修改路徑前再核對衝突。不同分支或同檔不同段均不自動代表安全。
+不改使用中服務、另一台電腦或私人資料；部署授權需另外確認。
 
-## 3. 驗證與 commit：進度可保存，完成不可虛報
+## 驗證與本機 commit
 
-1. 修改後跑 task-specific、相關 unit／integration／regression，文件修改則做對應文件檢查。
-   新功能要檢查相鄰既有流程，不只測新 helper。未跑、跳過、模擬與真人驗證分開記錄。
-2. 檢查 `git diff` 和 staged diff，明確列檔案加入暫存；禁止廣泛收進他人變更。
-3. 每項工作結束前建立 commit；中途被要求停止時，不為湊 commit 繼續開發，
-   可將已授權且安全的進度與限制保存為 checkpoint。無修改時不做空 commit。
-4. 有未過測試或缺驗收時照樣誠實記錄 PARTIAL／FAILED_VERIFICATION／BLOCKED，
-   不因已 commit 或已開 PR 就改為 DONE。不可提交 secret、真錄音、私人對話或無授權資產。
+依變更執行必要 unit／contract／integration／regression；文件改動執行文件一致性檢查。
+mock、真整合、人工硬體與未執行項目分別記錄，不放寬門檻或用舊報告當本輪結果。
+檢查 diff 與 staged diff，明確指定 git add 路徑，禁止 git add . 或 git add -A。
+每項工作結束前保存本機 commit；訊息含 Task ID 與摘要，交付完整 SHA。
+未通過驗收可保存 WIP／PARTIAL／FAILED_VERIFICATION checkpoint，不標 DONE。
+沒有變更不建立空 commit；不提交 secret、私人對話、原始錄音或無授權資產。
 
-## 4. 推送與 PR：不同電腦必須讀得到
+## 遠端限制與交接
 
-將任務分支推送 GitHub，再建立或更新 Draft PR，連結認領 Issue。
-PR 至少包含：問題與結果、owned paths、base/head SHA、驗證命令與結果、
-未驗項目、相依 PR、資料／設定影響與回退方式。不可把本機絕對路徑當唯一證據連結；
-提供 repo 內相對路徑或 GitHub permalink，確保另一台電腦能取得。
+禁止 git push（包含 --force、--all、--mirror），也不得透過 IDE、API、GitHub CLI、
+CI/CD 等間接推送。禁止自動建立／更新遠端 PR、自行合併或同步遠端分支。
+本機 commit 不表示 GitHub 可讀。預設交接狀態為 LOCAL_ONLY／NOT PUSHED。
+既有 Issue／PR 可唯讀參考；模板僅供使用者另行授權後使用，不授權送出。
 
-整合前重新 fetch，比對最新目標分支與其他 PR，列出重疊檔案。若需整合，
-在自己分支 merge 最新基線，保留雙方修改，重跑受影響的驗證並推送更新。
-禁止自行 force push 共享分支、改寫別人的 commit，或整檔選 ours/theirs 當作解法。
-對自己的已發布分支也優先追加修正 commit，需重寫時先取得明確授權。
+交接包含 Task 狀態、分支／worktree、base／完整 commit SHA、檔案清單、測試命令與
+實際結果、未驗項目、限制、下一步、回退方法、dirty 狀態及 NOT PUSHED。
+使用者決定何時推送與整合；未收到具體授權，不把遠端同步當成必要補做步驟。
 
-由使用者或被明確授權的整合者決定合併；AI 不自行 approve 自己的 PR、
-直推 main 或部署。CI 綠燈不能代替人工／硬體／provider 驗收。
-合併後在 Issue 記錄最終 merge SHA 與未解限制，才釋放認領。
-移除 worktree 前須確認所有需要的資料已 commit／push 或另外保存；禁止清掉他人工作區。
+禁止 reset --hard、clean -fd、整檔 ours/theirs 或刪除他人測試來消除衝突；
+不 amend 他人 commit。需整合時先核對雙方 diff／證據並取得授權，保留雙方意圖。
+worktree 清理前確認必要內容已 commit 或另外保存；不能因未 push 就刪除成果。
 
-## 5. 交接與失聯
+## 規則與技術保護
 
-交接紀錄至少包含 Issue／PR URL、最新已推送 SHA、分支／base、變更檔案、
-精確測試結果、未提交／未推送內容、未解問題與下一動作。
-接手者先讀此紀錄與實際 diff，再確認 owner 已移交；不能只相信 implementation report。
-
-GitHub 無權限、離線或工具失敗時，立即標示 LOCAL_ONLY／BLOCKED_SYNC，
-保留本機 commit，不假稱已認領或已上傳。可做唯讀調查；使用者已明確授權且
-與已知 owner 不重疊的範圍，可在獨立 worktree 準備，恢復連線後先補認領檢查再開 PR。
-不能因連線失敗就直接改共享 checkout 或 main。
-
-## 6. 規則與技術保護的界線
-
-AGENTS.md、CLAUDE.md、Issue／PR 模板提供所有貢獻者的共同入口，
-但不保證任意 AI 會讀取，也不提供跨機原子鎖。本次沒有設定 GitHub Rulesets、
-分支保護或額外 CI 阻擋。需要強制保護時，另行核對管理權限、帳戶方案與既有 CI，
-設定 PR 必經、必要檢查、禁止 force push／刪除等規則並實測；不可僅憑這份文件宣稱已啟用。
+Markdown 與模板不是原子鎖、Git hook、CI 或 branch protection。
+本規範不宣稱已設定技術性 push 阻擋；需另行授權並實測才能如此宣稱。
