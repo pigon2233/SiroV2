@@ -380,6 +380,30 @@ def test_wsl_desktop_selects_chewing_and_passes_ibus_to_native_host(
     )
 
 
+@pytest.mark.parametrize(("preset", "expected"), [(None, "4"), ("12", "12")])
+def test_desktop_caps_software_gl_threads_unless_already_set(
+    desktop_project: tuple[Path, dict[str, str]],
+    backend: tuple[str, list[tuple[str, str | None, str | None]], dict[str, str]],
+    preset: str | None,
+    expected: str,
+) -> None:
+    project, environment = desktop_project
+    binaries = project / "native-bin"
+    executable(
+        binaries / "gjs",
+        '#!/bin/bash\nprintf "%s\\n" "$LP_NUM_THREADS" > "$SIRO_TEST_GJS_LOG"\n',
+    )
+    environment["PATH"] = str(binaries) + ":" + environment["PATH"]
+    environment.pop("LP_NUM_THREADS", None)
+    if preset is not None:
+        environment["LP_NUM_THREADS"] = preset
+    base, _, _ = backend
+    environment["SIRO_DESKTOP_URL"] = base + "/desktop"
+    result = run_script(project, environment, "start-desktop")
+    assert result.returncode == 0, result.stderr
+    assert Path(environment["SIRO_TEST_GJS_LOG"]).read_text() == expected + "\n"
+
+
 @pytest.mark.parametrize(
     "modified",
     [
