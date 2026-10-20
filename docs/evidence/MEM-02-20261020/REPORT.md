@@ -312,7 +312,9 @@ recent_messages仍沿既有trusted-caller契約，不宣稱增加了對任意cli
 | dialogue-separated-evaluation.json | 原雙語指引獨立置於來源前，最終版本 | 23/30 | FAIL |
 
 精簡版C22錯稱「測試已通過」但布林false，已撤回POLICY實驗；
-rejected-concise-policy.patch可從base重現當時五個code/test檔diff，沒有隱藏失敗紀錄。
+rejected-concise-policy.patch.json的patch字串可從base重現當時五個code/test檔diff，沒有隱藏失敗紀錄。
+原unified diff的空白context行觸發staged whitespace檢查，改以JSON包裝保存完整patch字串，
+round-trip逐字相同且git apply --stat驗證有效，修正後staged diff check通過；沒有改實驗結果。
 最終保留原POLICY文字，只有位置與資料分離；不以最好一批替代其餘結果或放寬27門檻。
 原模型temperature0.7、無seed；開發迭代不能作受控改善或獨立泛化證明。
 
