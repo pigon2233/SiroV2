@@ -161,7 +161,7 @@ function openCenter() {
     center.show_all(); center.present();
 }
 function updateShape() {
-    if (!web || !window || pendingSnapshot || !window.get_visible() || web.is_loading || !web.get_mapped() || web.get_allocated_width() < 2 || web.get_allocated_height() < 2) return GLib.SOURCE_CONTINUE;
+    if (!web || !window || !ready || pendingSnapshot || !window.get_visible() || web.is_loading || !web.get_mapped() || web.get_allocated_width() < 2 || web.get_allocated_height() < 2) return GLib.SOURCE_CONTINUE;
     pendingSnapshot = true;
     web.get_snapshot(WebKit.SnapshotRegion.VISIBLE, WebKit.SnapshotOptions.TRANSPARENT_BACKGROUND, null, (_view, result) => {
         pendingSnapshot = false;
