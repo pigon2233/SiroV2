@@ -50,7 +50,7 @@ const REACH_MARGIN = 0.045; // metres past the last finger joint: the fingertip 
 // Left alone for this long, she finds something to do now and then (fixes her hair, hums, looks
 // around, reads her notebook, stretches, yawns at night); after a long quiet she sits down.
 const BORED_SECONDS = 20;
-const SETTLE_SECONDS = 240;
+const SETTLE_SECONDS = 0; // off until the sit clips sit on the floor (was 240)
 // Held states: an entry clip, a loop held for a while, and an exit clip back to the idle.
 const HOLDS = {
   sit: ['sit_down', 'sit_loop', 'stand_up'],
@@ -871,7 +871,8 @@ function updatePastimes() {
   const choices = [];
   const add = (name, weight) => { for (let i = 0; i < weight; i++) choices.push(name); };
   const hour = clockHour();
-  if (quiet > SETTLE_SECONDS && actions.sit_down && actions.sit_loop) add('sit', 3);
+  // Settling down on her own waits for a floor sit: the current one sits on a chair that isn't there.
+  if (SETTLE_SECONDS && quiet > SETTLE_SECONDS && actions.sit_down && actions.sit_loop) add('sit', 3);
   if (actions.yawn) add('yawn', hour >= 23 || hour < 5 ? 4 : 0);
   for (const name of ['fix_hair', 'hum', 'look_around']) if (actions[name]) add(name, 2);
   if (actions.stretch) add('stretch', 1);
