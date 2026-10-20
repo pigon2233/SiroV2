@@ -18,7 +18,8 @@ class SQLiteProceduralCandidateRepository:
             lambda connection: connection.execute(
                 "INSERT INTO procedural_candidates("
                 "candidate_id,source_trace_ids_json,workflow_hash,"
-                "capabilities_json,fixture_json,status,created_at) VALUES (?,?,?,?,?,?,?)",
+                "capabilities_json,fixture_json,status,created_at) VALUES (?,?,?,?,?,?,?) "
+                "ON CONFLICT(workflow_hash) DO NOTHING",
                 (
                     str(candidate.candidate_id),
                     json.dumps([str(item) for item in candidate.source_trace_ids]),

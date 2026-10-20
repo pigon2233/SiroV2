@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -42,7 +43,7 @@ class ProceduralCandidate(BaseModel):
     workflow_hash: str
     capabilities: tuple[str, ...]
     fixture: tuple[TraceStep, ...]
-    status: str = "candidate"
+    status: Literal["candidate"] = "candidate"
     created_at: datetime
 
 
@@ -62,6 +63,8 @@ class ProceduralCandidateGenerator:
             return RejectedTrace(
                 traces[0].trace_id if traces else uuid4(), "insufficient_successes"
             )
+        if len({trace.trace_id for trace in traces}) != len(traces):
+            return RejectedTrace(traces[0].trace_id, "duplicate_trace")
         if any(not trace.trusted for trace in traces):
             return RejectedTrace(traces[0].trace_id, "untrusted_trace")
         if any(not all(step.succeeded for step in trace.steps) for trace in traces):
@@ -96,25 +99,30 @@ class ProceduralCandidateGenerator:
             succeeded=True,
         )
 
-    def _redact_object(self, value: dict[str, object]) -> dict[str, object]:
-        redacted: dict[str, object] = {}
-        for key, item in value.items():
-            if _SECRET_KEY.search(key) or (isinstance(item, str) and _SECRET_VALUE.search(item)):
-                redacted[key] = "[REDACTED]"
-            elif isinstance(item, dict):
-                redacted[key] = self._redact_object({str(k): v for k, v in item.items()})
-            else:
-                redacted[key] = item
-        return redacted
+    def _redact_value(self, value: object) -> object:
+        if isinstance(value, str) and _SECRET_VALUE.search(value):
+            return "[REDACTED]"
+        if isinstance(value, dict):
+            return self._redact_object({str(key): item for key, item in value.items()})
+        if isinstance(value, (list, tuple)):
+            return [self._redact_value(item) for item in value]
+        return value
 
-    def _contains_secret(self, value: dict[str, object]) -> bool:
-        for key, item in value.items():
-            if _SECRET_KEY.search(key) and item != "[REDACTED]":
-                return True
-            if isinstance(item, str) and _SECRET_VALUE.search(item):
-                return True
-            if isinstance(item, dict) and self._contains_secret(
-                {str(k): v for k, v in item.items()}
-            ):
-                return True
+    def _redact_object(self, value: dict[str, object]) -> dict[str, object]:
+        return {
+            key: "[REDACTED]" if _SECRET_KEY.search(key) else self._redact_value(item)
+            for key, item in value.items()
+        }
+
+    def _contains_secret(self, value: object) -> bool:
+        if isinstance(value, str):
+            return _SECRET_VALUE.search(value) is not None
+        if isinstance(value, dict):
+            return any(
+                (_SECRET_KEY.search(str(key)) is not None and item != "[REDACTED]")
+                or self._contains_secret(item)
+                for key, item in value.items()
+            )
+        if isinstance(value, (list, tuple)):
+            return any(self._contains_secret(item) for item in value)
         return False
