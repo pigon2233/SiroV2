@@ -501,6 +501,7 @@ def _memory_json(memory: Memory) -> dict[str, object]:
 
 TurnHandler = Callable[[str, str, str], Awaitable[None]]
 CancelHandler = Callable[[str, str], Awaitable[None]]
+BodyTouchHandler = Callable[[str, int], Awaitable[None]]
 MemoryCorrectionHandler = Callable[[UserTextEvent, Memory], Awaitable[None]]
 ToolResultHandler = Callable[[ToolProposal], Awaitable[None]]
 BrowserToolHandler = Callable[[str], Awaitable[dict[str, str]]]
@@ -513,6 +514,33 @@ async def _ignore_turn(_session_id: str, _text: str, _input_mode: str) -> None:
 
 async def _ignore_cancel(_turn_id: str, _reason: str) -> None:
     return None
+
+
+async def _ignore_touch(_kind: str, _count: int) -> None:
+    return None
+
+
+_TOUCH_KINDS = frozenset({"pat", "poke", "carry"})
+
+
+def _body_touch(message: object) -> tuple[str, int] | None:
+    """A renderer's touch report (pat, pokes, carried), exactly as specified, or None."""
+
+    if not isinstance(message, dict) or set(message) != {"v", "type", "kind", "count"}:
+        return None
+    kind, count = message["kind"], message["count"]
+    if type(message["v"]) is not int or message["v"] != 1 or message["type"] != "body.touch":
+        return None
+    if kind not in _TOUCH_KINDS or type(count) is not int or not 1 <= count <= 50:
+        return None
+    return kind, count
+
+
+def _log_touch_failure(task: asyncio.Task[None]) -> None:
+    if not task.cancelled() and task.exception() is not None:
+        logging.getLogger(__name__).warning(
+            "touch reply failed: %s", type(task.exception()).__name__
+        )
 
 
 async def _ignore_memory_correction(_source: UserTextEvent, _memory: Memory) -> None:
@@ -554,6 +582,7 @@ def create_app(
     vrm_model: Path | None = None,
     on_turn: TurnHandler = _ignore_turn,
     on_cancel: CancelHandler = _ignore_cancel,
+    on_body_touch: BodyTouchHandler = _ignore_touch,
     on_memory_correction: MemoryCorrectionHandler = _ignore_memory_correction,
     on_tool_result: ToolResultHandler = _ignore_tool_result,
     on_browser_tool: BrowserToolHandler | None = None,
@@ -1558,9 +1587,27 @@ def create_app(
             if presentation == "desktop":
                 desktop_renderer = websocket
             await renderer_transport.attach(websocket)
+            touch_task: asyncio.Task[None] | None = None
             try:
                 while True:
-                    await websocket.receive_json()
+                    touch = _body_touch(await websocket.receive_json())
+                    if (
+                        touch is None
+                        or (desktop_renderer is not None and websocket is not desktop_renderer)
+                        or (touch_task is not None and not touch_task.done())
+                        or any(
+                            turn["state"] in {"responding", "awaiting_approval"}
+                            for turn in gateway_state.active_turns.values()
+                        )
+                        or (
+                            gateway_state.routes.get("model", "").startswith("cloud:")
+                            and not gateway_state.kill_switches["cloud"]
+                        )
+                    ):
+                        continue
+                    # The reply runs beside the socket: a slow model never holds up the renderer.
+                    touch_task = asyncio.create_task(on_body_touch(*touch))
+                    touch_task.add_done_callback(_log_touch_failure)
             except WebSocketDisconnect:
                 pass
             finally:
@@ -1720,6 +1767,7 @@ def _run_gateway(
     from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
     from siro.adapters.skill_worker import SkillDispatcher, WorkerSupervisor
     from siro.core.memory import MemoryService
+    from siro.core.touch import TouchReplies
     from siro.persistence.memory import SQLiteMemoryRepository
     from siro.persistence.skills import SQLiteSkillRegistry
     from siro.persistence.sqlite import SQLiteStore
@@ -2277,6 +2325,9 @@ def _run_gateway(
         if memory_setting not in {"0", "1"}:
             raise ValueError("SIRO_MEMORY_INGRESS_ENABLED must be 0 or 1")
         memory_ingress_enabled = memory_setting == "1"
+    touch_setting = os.environ.get("SIRO_TOUCH_REPLY_ENABLED", "1")
+    if touch_setting not in {"0", "1"}:
+        raise ValueError("SIRO_TOUCH_REPLY_ENABLED must be 0 or 1")
     controller = IntegratedCompanion(
         data_dir,
         model,
@@ -2288,6 +2339,7 @@ def _run_gateway(
         session_restore_enabled=session_restore_enabled,
         memory_ingress_enabled=memory_ingress_enabled,
         summary_enabled=summary_enabled,
+        touch_replies=TouchReplies(enabled=touch_setting == "1"),
         auto_authorize=lambda: state.authorization_mode == "full" and state.kill_switches["tools"],
     )
 
@@ -2421,6 +2473,7 @@ def _run_gateway(
             workspace_service=workspace,
             on_memory_invalidated=controller.invalidate_memory_context,
             on_cancel=cancel_controller,
+            on_body_touch=controller.react_to_touch,
             on_memory_correction=controller.memory_corrected,
             on_tool_result=controller.continue_after_tool,
             on_browser_tool=browser_tool,

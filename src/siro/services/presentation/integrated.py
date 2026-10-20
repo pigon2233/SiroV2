@@ -6,11 +6,13 @@ import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from siro.adapters.body.web import MinimalWebBodyAdapter
+from siro.config import ProactivitySettings
 from siro.contracts.events import (
     MemoryCorrectedEvent,
     MemoryCorrectedPayload,
@@ -31,6 +33,17 @@ from siro.core.relationships import (
     RelationshipSystem,
     relationship_event_from_text,
 )
+from siro.core.touch import (
+    TOUCH_REPLY_SECONDS,
+    TOUCH_REPLY_TOKENS,
+    Touch,
+    TouchMemory,
+    TouchReplies,
+    clean_touch_line,
+    touch_prompt,
+    touch_prosody,
+    touch_template,
+)
 from siro.persistence.affect import Preference, SQLiteAffectRepository
 from siro.persistence.conversation import SQLiteConversationRepository
 from siro.persistence.memory import SQLiteMemoryRepository
@@ -38,7 +51,15 @@ from siro.persistence.relationships import SQLiteRelationshipRepository
 from siro.persistence.sqlite import SQLiteStore
 from siro.persistence.state import SQLiteIdentityRepository
 from siro.ports.body import EmotionIntent, SpeechIntent
-from siro.ports.models import LanguageModel, ModelMessage, Privacy, ToolCall, ToolDefinition
+from siro.ports.models import (
+    CancellationToken,
+    LanguageModel,
+    ModelMessage,
+    ModelRequest,
+    Privacy,
+    ToolCall,
+    ToolDefinition,
+)
 from siro.services.activity.monitor import ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
 from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
@@ -101,6 +122,7 @@ class IntegratedCompanion:
         session_restore_enabled: bool = True,
         memory_ingress_enabled: bool = True,
         summary_enabled: bool = False,
+        touch_replies: TouchReplies | None = None,
     ) -> None:
         if runtime_profile not in {"legacy", "candidate"}:
             raise ValueError("runtime_profile must be legacy or candidate")
@@ -138,6 +160,13 @@ class IntegratedCompanion:
         self._active_sessions: set[str] = set()
         self._affect = AffectSystem()
         self._expression = ExpressionPolicy()
+        self._touch = touch_replies or TouchReplies()
+        self._touches = TouchMemory()
+        self._touch_zone = ZoneInfo(ProactivitySettings().timezone)
+        self._touch_lines = 0
+        self._touching = False
+        self._last_session: str | None = None
+        self._speaking_until = datetime.min.replace(tzinfo=UTC)
 
     @property
     def foreground_active(self) -> bool:
@@ -221,7 +250,85 @@ class IntegratedCompanion:
             urgent=True,
         )
 
+    async def _speak(self, intent: SpeechIntent) -> None:
+        # Roughly how long the line takes to say, so a touch reply never talks over it.
+        seconds = 2 + len(intent.text) / 4
+        self._speaking_until = datetime.now(UTC) + timedelta(seconds=seconds)
+        await self._body.speak(intent)
+
+    async def react_to_touch(self, kind: str, count: int) -> None:
+        """A pat, pokes or a carry on the desktop character: noted for her next reply, and now
+        and then answered with one short spoken line from the local model."""
+
+        now = datetime.now(UTC)
+        busy = self.foreground_active or self._touching or now < self._speaking_until
+        choice = self._touch.choose(kind, now, busy=busy)
+        if not choice.speak:
+            self._touches.add(Touch(kind, count, now))
+            return
+        self._touch.spoke(kind, now)
+        self._touching = True
+        try:
+            line = await self._touch_line(kind, count, now)
+            if line is None:
+                line = touch_template(kind, self._touch_lines)
+            self._touch_lines += 1
+            self._touches.add(Touch(kind, count, now, line))
+            session_id = self._last_session or "touch"
+            stream_id = str(uuid4())
+            prosody = touch_prosody(kind)
+
+            async def emit(message: dict[str, object]) -> None:
+                await self._broadcast_stream(stream_id, message)
+
+            await emit({"type": "assistant_started", "session_id": session_id})
+            await emit({"type": "assistant_delta", "session_id": session_id, "text": line})
+            await emit(
+                {
+                    "type": "assistant_terminal",
+                    "session_id": session_id,
+                    "state": TurnState.COMPLETED,
+                    "error": None,
+                    "prosody": prosody,
+                }
+            )
+            await self._speak(
+                SpeechIntent(
+                    str(uuid4()),
+                    line,
+                    str(uuid4()),
+                    prosody["rate"],
+                    prosody["pitch"],
+                    prosody["energy"],
+                )
+            )
+        finally:
+            self._touching = False
+
+    async def _touch_line(self, kind: str, count: int, now: datetime) -> str | None:
+        request = ModelRequest(
+            touch_prompt(kind, count, now, self._touch_zone),
+            str(uuid4()),
+            privacy=self._privacy,
+            max_output_tokens=TOUCH_REPLY_TOKENS,
+        )
+        cancellation = CancellationToken()
+        parts: list[str] = []
+
+        async def collect() -> None:
+            async for chunk in self._model.stream(request, cancellation):
+                if chunk.kind == "text":
+                    parts.append(chunk.text)
+
+        try:
+            await asyncio.wait_for(collect(), TOUCH_REPLY_SECONDS)
+        except Exception:  # a slow or failing model falls back to a ready-made line
+            cancellation.cancel()
+            return None
+        return clean_touch_line("".join(parts))
+
     async def respond(self, session_id: str, text: str, input_mode: str = "text") -> None:
+        self._last_session = session_id
         await self._ensure_core()
         assert self._core is not None
         if self._runtime_profile == "candidate" and session_id in self._run_ids:
@@ -267,7 +374,7 @@ class IntegratedCompanion:
                     "prosody": {"rate": 1.03, "pitch": 0.04, "energy": 0.62},
                 }
             )
-            await self._body.speak(SpeechIntent(str(uuid4()), reply, generation_id))
+            await self._speak(SpeechIntent(str(uuid4()), reply, generation_id))
             self._active_sessions.discard(session_id)
             return
 
@@ -519,6 +626,7 @@ class IntegratedCompanion:
                 "[source:runtime-capabilities]",
                 f"Current user input arrived through {input_source} "
                 f"[source:{source_event.event_id}]",
+                *filter(None, (self._touches.context(now, self._touch_zone),)),
                 affect_context,
                 f"Relationship with owner: trust={relationship.trust:.2f}, "
                 f"familiarity={relationship.familiarity:.2f}, "
@@ -561,7 +669,7 @@ class IntegratedCompanion:
                     },
                 )
                 if result.state is TurnState.COMPLETED and result.text:
-                    await self._body.speak(
+                    await self._speak(
                         SpeechIntent(
                             str(uuid4()),
                             result.text,
@@ -610,7 +718,7 @@ class IntegratedCompanion:
                 }
             )
             if result.state is TurnState.COMPLETED and result.text:
-                await self._body.speak(
+                await self._speak(
                     SpeechIntent(
                         str(uuid4()),
                         result.text,
@@ -776,9 +884,7 @@ class IntegratedCompanion:
                 rejected_tool_calls=result.tool_calls,
             )
             if result.state is TurnState.COMPLETED and result.text:
-                await self._body.speak(
-                    SpeechIntent(str(uuid4()), result.text, result.generation_id)
-                )
+                await self._speak(SpeechIntent(str(uuid4()), result.text, result.generation_id))
             return
         self._agent_steps.pop(session_id, None)
         self._message_histories.pop(run_id, None)
@@ -813,7 +919,7 @@ class IntegratedCompanion:
             }
         )
         if result.state is TurnState.COMPLETED and result.text:
-            await self._body.speak(SpeechIntent(str(uuid4()), result.text, result.generation_id))
+            await self._speak(SpeechIntent(str(uuid4()), result.text, result.generation_id))
 
     async def _propose_tool_calls(self, session_id: str, calls: tuple[ToolCall, ...]) -> None:
         orchestrator = self._tool_orchestrator
