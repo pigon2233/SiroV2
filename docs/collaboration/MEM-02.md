@@ -53,3 +53,12 @@ source type只表示事件類別，不等於已驗owner身份、事實或成功r
 結果：來源event metadata原子capture／preflight／adoption與context角色已接，129回歸PASS。
 同一真模型新批次25/30，完整正文審閱23符合／7有缺口，仍FAILED_VERIFICATION／PARTIAL。
 未改評測器、fixture或模型，未push／PR／部署。新程式與所有實測結果由本輪本機commit保存。
+
+續作base e7c26e196d343952e4b011ab91542c7cb8abd963：原owned companion.py／memory.py／context.py、
+context tests與評測腳本內修正native history被system描述為none、legacy restored history遺失，
+並分離context instructions與source JSON。工具評測history改用既有assemble_prompt，
+不改fixture／expected／模型。CONTRACTS先記錄，遠端與八個dirty檔再查，仍LOCAL_ONLY。
+
+結果：三個反例修復，早期132 PASS、最終73 PASS（重疊）；最終真模型23/30未過27。
+保留20/20/23三批，精簡POLICY的C22假成功已撤回；思考模式四例未有分離推理輸出。
+D77補記時序如實記在REPORT。未改運行服務、原dirty檔、fixture或模型，仍PARTIAL／LOCAL_ONLY。

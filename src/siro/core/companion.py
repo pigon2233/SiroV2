@@ -8,7 +8,7 @@ from siro.contracts.events import Privacy as EventPrivacy
 from siro.core.context import ContextSourceChanged, read_context_snapshot, render_context
 from siro.core.conversation import ConversationEngine, DeltaHandler, TurnResult, TurnState
 from siro.core.identity import IdentityRepository
-from siro.core.memory import MemoryService, WorkingMemory, assemble_prompt
+from siro.core.memory import MemoryService, WorkingMemory, WorkingMessage, assemble_prompt
 from siro.ports.models import ModelMessage, Privacy, ToolDefinition
 
 
@@ -64,6 +64,8 @@ class CompanionCore:
                 if recent_messages is not None
                 else tuple(m.text for m in working if m.role == "user")
             )
+            if message_history is None and recent_messages is not None:
+                working = tuple(WorkingMessage(m.role, m.content, route) for m in recent_messages)
             memories = await self._memory.recall_context(
                 identity_id, user_text, recent_users=recent_users, route_privacy=route
             )
@@ -81,6 +83,7 @@ class CompanionCore:
                 verified_context,
                 cloud_route=route is EventPrivacy.CLOUD_ALLOWED,
                 context_evidence=context,
+                native_dialogue=message_history is not None,
             )
             self._working.append(session_id, "user", user_text, privacy=route)
             if message_history is not None:

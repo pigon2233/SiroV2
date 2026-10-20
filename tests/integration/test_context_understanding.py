@@ -526,3 +526,51 @@ async def test_invented_source_type_cannot_adopt_derived_memory(tmp_path: Path) 
     assert await service.recall("siro", "derived role output") == []
     await service._repository.add_derived(child, snapshot, now=now, policy_revision=1)
     assert await service.recall("siro", "derived role output") == [child]
+
+
+@pytest.mark.asyncio
+async def test_native_dialogue_is_not_contradicted_by_empty_legacy_labels(tmp_path: Path) -> None:
+    core, _, model = await setup(tmp_path / "native-labels.sqlite")
+    recent = (
+        ModelMessage("user", "USER_RESTORED_MARKER"),
+        ModelMessage("assistant", "SIRO_MARKER"),
+    )
+    await core.respond(
+        "native", "siro", "CURRENT_MARKER", message_history=[], recent_messages=recent
+    )
+    request = model.requests[-1]
+    assert request.messages[1:-1] == recent
+    assert request.messages[-1] == ModelMessage("user", "CURRENT_MARKER")
+    assert "Recent conversation:\n(none)" not in request.messages[0].content
+    assert not request.messages[0].content.rstrip().endswith("User:")
+
+
+@pytest.mark.asyncio
+async def test_legacy_restored_dialogue_preserves_both_speakers(tmp_path: Path) -> None:
+    core, _, model = await setup(tmp_path / "legacy-restored.sqlite")
+    await core.respond(
+        "legacy",
+        "siro",
+        "CURRENT_MARKER",
+        recent_messages=(
+            ModelMessage("user", "USER_RESTORED_MARKER"),
+            ModelMessage("assistant", "SIRO_RESTORED_MARKER"),
+        ),
+    )
+    request = model.requests[-1]
+    assert request.messages == ()
+    assert '"type": "user_statement", "text": "USER_RESTORED_MARKER"' in request.prompt
+    assert '"type": "assistant_statement", "text": "SIRO_RESTORED_MARKER"' in request.prompt
+    assert request.prompt.endswith("User: CURRENT_MARKER")
+
+
+def test_source_context_is_only_one_json_packet_not_a_policy_wrapper() -> None:
+    import json
+
+    from siro.core.context import END, START, render_context
+
+    rendered = render_context("synthetic", "siro", [], None)
+    assert rendered.startswith(START) and rendered.endswith(END)
+    data, offset = json.JSONDecoder().raw_decode(rendered[len(START) :])
+    assert rendered[len(START) + offset :] == END
+    assert data["authority"] == "data_only" and data["memories"] == []

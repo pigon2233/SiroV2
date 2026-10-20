@@ -1,6 +1,6 @@
 # 上下文理解、自動記憶與主動記憶：後續實作計畫
 
-2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02接線與確定性gate已驗、最新真模型25/30及正文歸屬未達標（PARTIAL）；MEM-03–06仍PLANNED。依T18/T30驗證制定，
+2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02接線與確定性gate已驗、最新真模型23/30及正文歸屬未達標（PARTIAL）；MEM-03–06仍PLANNED。依T18/T30驗證制定，
 保留既有T／RT歷史編號和限定DONE；下列MEM-*是此計畫的工作包，不是重開舊卡。
 產品接線依現有Gateway／UI owner交接序列整合，不在同一checkout雙寫。
 
@@ -71,6 +71,9 @@ owner第一人稱被照抄成SIRO自述、使用者回報被冒作自己的手�
 來源角色續作：已在原子snapshot中帶event UUID/type並於dispatch／採用重驗，
 context區分user／assistant／tool／unknown事件，舊snapshot不猜來源。129項相鄰回歸PASS；
 同模型新批次仍25/30，C19仍有第一人稱錯置，正文另有澄清不足，保持PARTIAL。
+對話還原續作：修復native system誤稱近期對話none與legacy丟失recent_messages，
+指引／source JSON分離，工具case改用產品assembler。早期132回歸及最終73專項PASS（重疊）；
+真模型三版本20／20／23，精簡policy錯報完成已撤回。最終23/30仍未過27，所有失敗結果保留。
 **回退**：恢復原context assembly，保留journal；不能改寫舊對話。
 
 ## MEM-03：自動記憶候選（先候選，後可設定保存）

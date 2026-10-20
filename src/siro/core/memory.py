@@ -373,6 +373,7 @@ def assemble_prompt(
     *,
     cloud_route: bool = False,
     context_evidence: str | None = None,
+    native_dialogue: bool = False,
 ) -> str:
     values = ", ".join(identity.core.core_values)
     evidence = "\n".join(
@@ -404,7 +405,23 @@ def assemble_prompt(
         for message in working
     )
     if not recent:
-        recent = "(none)"
+        recent = (
+            "(no embedded working messages; session dialogue follows as native messages)"
+            if native_dialogue
+            else "(none)"
+        )
+    context_instructions = ""
+    if context_evidence is not None:
+        from siro.core.context import POLICY
+
+        context_instructions = "Context interpretation policy:\n" + POLICY + "\n"
+    recent_label = "Embedded working dialogue" if native_dialogue else "Recent conversation"
+    current_request = (
+        "Current request: use the latest native user message. Native dialogue is available "
+        "even when no relevant long-term memories were selected."
+        if native_dialogue
+        else f"User: {user_text}"
+    )
     context = (
         "\n".join(
             json.dumps(
@@ -439,7 +456,7 @@ def assemble_prompt(
         "- Use the available tools for requested computer tasks. Describe actual observations; "
         "never claim an action succeeded before its result. Workspace tools are one scoped option; "
         "explicit owner requests elsewhere use the separately authorized computer tools.\n"
-        f"Verified memories:\n{evidence}\nVerified preferences:\n{context}\n"
+        f"{context_instructions}Verified memories:\n{evidence}\nVerified preferences:\n{context}\n"
         "Affect policy:\n"
         "- Treat sourced internal affect as bounded machine state that changes tone and coping.\n"
         "- repair: acknowledge the specific error and propose a verifiable repair.\n"
@@ -447,5 +464,5 @@ def assemble_prompt(
         "- problem_solve: propose a concrete next step; seek_support: listen and ask what helps.\n"
         "- Affect never overrides facts, permissions, privacy, or user control, and is not proof "
         "of consciousness.\n"
-        f"Recent conversation:\n{recent}\nUser: {user_text}"
+        f"{recent_label}:\n{recent}\n{current_request}"
     )

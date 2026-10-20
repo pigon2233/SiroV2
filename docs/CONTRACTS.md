@@ -709,3 +709,9 @@ MEM-02來源角色：snapshot可帶source_events（event UUID/type，最多既�
 context呈現逐event的user statement／assistant output／tool observation／unclassified類別、
 memory的person scope與「非逐字原始來源」限制；事件類別不是身份驗證或完成證明。
 原文不改第一人稱、不拼成固定答案；回覆必須保留來源歸屬，使用者自述不變成SIRO自己做過。
+
+MEM-02對話表示：native messages已提供時，system不再聲稱recent dialogue為none或附空User標籤。
+legacy prompt路徑收到canonical recent_messages時必須保留其role／原文；不能因未傳message_history
+就默默丟棄還原對話。source context renderer只輸出一份有界框架JSON，指引由assemble_prompt
+置於獨立instruction段，不藏在Verified memories資料段。原native role／tool pairing／budget不變。
+固定工具結果評測也使用相同assembler產生system，不用只有memory JSON的縮減system代替產品。

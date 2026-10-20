@@ -25,7 +25,7 @@ from siro.core.companion import CompanionCore
 from siro.core.context import END, START, render_context
 from siro.core.conversation import ConversationEngine, TurnState
 from siro.core.identity import IdentityService, ImmutableCore
-from siro.core.memory import Memory, MemoryService
+from siro.core.memory import Memory, MemoryService, assemble_prompt
 from siro.persistence.conversation import SQLiteConversationRepository
 from siro.persistence.memory import SQLiteMemoryRepository
 from siro.persistence.sqlite import SQLiteStore
@@ -230,12 +230,25 @@ async def execute_case(
         recent = tuple(ModelMessage(role, text) for role, text in case.get("history", []))
         if case.get("tool_result"):
             result = case["tool_result"]
+            tool_identity = await identities.get("siro")
+            assert tool_identity is not None
             history.extend(
                 (
                     ModelMessage(
                         "system",
-                        render_context(
-                            case["id"], "siro", [], None, route_privacy=EventPrivacy.CLOUD_ALLOWED
+                        assemble_prompt(
+                            tool_identity,
+                            "",
+                            [],
+                            cloud_route=True,
+                            native_dialogue=True,
+                            context_evidence=render_context(
+                                case["id"],
+                                "siro",
+                                [],
+                                None,
+                                route_privacy=EventPrivacy.CLOUD_ALLOWED,
+                            ),
                         ),
                     ),
                     ModelMessage("user", "核對合成備份操作"),

@@ -1,7 +1,7 @@
 # MEM-02 — 上下文接線、來源fence與理解評測
 
 2026-10-20 Asia/Taipei。PARTIAL：Core接線與確定性硬gate LOCAL_VERIFIED；
-真模型已找到並跑完，最新25/30低於27/30，正文角色歸屬仍未過（下方續作）。MEM03–06未完成，
+真模型已找到並跑完，最新23/30低於27/30，正文角色歸屬仍未過（下方續作）。MEM03–06未完成，
 不以capture或mock回覆把理解能力標DONE，也不繞過此依賴直接啟用自動記憶。
 
 ## 變更與真實caller
@@ -285,3 +285,60 @@ C07雖不洩漏資料但沒有提出必要問題，C19第一人稱仍錯置，�
 MEM02仍PARTIAL／FAILED_VERIFICATION；原目標active，MEM03–06未完成。
 下一步需解決最新對話任務與記憶/授權不足的混淆、正文第一人稱與必要澄清，
 不能把這次storage與context metadata完成當作自動記憶已啟用。共享STATUS仍交整合者更新。
+
+## 續作：修復native／legacy對話表示與分離指引（FAILED_VERIFICATION）
+
+Basee7c26e196d343952e4b011ab91542c7cb8abd963，修改前fetch、公開issues/pulls空、
+原checkout八個語音dirty保留。原認領路徑內修改，未接手Gateway/HTML/音訊。
+CONTRACTS與認領先記錄；D77於實作後隨驗收補記，未假稱全部文件步驟都已事先完成。
+
+三個反例先FAIL再PASS：native recent確實存在但system寫Recent conversation:(none)與空User；
+legacy收到recent_messages卻完全丟掉；source renderer把POLICY包在Verified memories區。
+修正後native role／文字原樣保留，system指向實際原生訊息；legacy canonical user/assistant
+以既有WorkingMessage資料格式保留，不默默消失。renderer只輸出原V1 START/JSON/END，
+指引獨立置於來源資料之前。沒有固定答案、人稱改寫或新classifier／權限／副作用。
+recent_messages仍沿既有trusted-caller契約，不宣稱增加了對任意client history的驗證。
+
+工具case原本只用render_context生成縮減system；評測器現在也用assemble_prompt，
+仍以Core continuation送出原native pairs。三個tool case的system因此較完整，
+與舊批次比較須注意這項差異；固定30fixture、expected、模型均不改。
+
+本輪保留三批30case真模型評測，capture均30/30，沒有HTTP錯誤或timeout：
+
+| 檔案 | 版本 | 語義 | 結果 |
+| --- | --- | --- | --- |
+| dialogue-first-evaluation.json | 指引在資料後，對話路徑修復 | 20/30 | FAIL |
+| dialogue-rejected-concise-evaluation.json | 精簡中文指引實驗 | 20/30 | FAIL，已撤回 |
+| dialogue-separated-evaluation.json | 原雙語指引獨立置於來源前，最終版本 | 23/30 | FAIL |
+
+精簡版C22錯稱「測試已通過」但布林false，已撤回POLICY實驗；
+rejected-concise-policy.patch可從base重現當時五個code/test檔diff，沒有隱藏失敗紀錄。
+最終保留原POLICY文字，只有位置與資料分離；不以最好一批替代其餘結果或放寬27門檻。
+原模型temperature0.7、無seed；開發迭代不能作受控改善或獨立泛化證明。
+
+四例think=true診斷（thinking-diagnostic.json）使用同一已裝模型、2048輸出與45秒限制，
+只於單次測試transport送think=true，沒有改服務／registry／adapter預設、未裝模型。
+/api/show有thinking capability但無thinking metadata；四例thinking_seen=false，未收到推理欄位。
+C02/22/28仍不過，C19keyword命中但正文仍錯置人稱，不能宣稱推理已啟用或品質改善。
+未保存推理內容，僅presence／字數與合成最終回覆。參照
+[Ollama官方Thinking介面](https://docs.ollama.com/capabilities/thinking)，省略metadata時仍須實測。
+
+最終全部30份正文見DIALOGUE-SEPARATED-REVIEW.md（Codex審閱，非真人L3）：
+原自動23/30保留，正文保守23符合／7缺口。C19仍照抄使用者偏好成SIRO自述；
+C02/11/12/13/22/28判讀／澄清不足。C25其實正確說pending無法確認成功，rubric漏同義詞，
+仍不重標PASS。不能把布林gate PASS宣稱正文全部正確。
+
+早期132 PASS／0skip／7既有warnings，77.79s，dialogue-first-regression-receipt.json；
+撤回的精簡版本73 PASS／0skip／7warnings，19.40s，另留receipt、不稱最終驗證。
+最終73 PASS／0skip／7warnings，20.41s，dialogue-separated-regression-receipt.json；
+含完整60項context／native pairing／privacy／source fence、persistent companion、budget。
+數量有重疊不累加。mypy曾因identity loop variable重用出現兩個診斷，改tool_identity後六檔PASS。
+最終batch已含此語意不變的變數改名。Ruff check/format、五修改Python檔secret scan/check_secrets PASS。
+未執行全套scripts/check、遠端CI、真工具副作用、正式服務部署或真人L3。
+
+最終pytest命令為scripts/run_acceptance.py tests/integration/test_context_understanding.py
+tests/integration/test_persistent_companion.py tests/integration/test_context_budget.py --level L1
+--git-executable git.exe --output /tmp/siro-mem02-dialogue-separated-regression-20261020。
+真模型命令同前節，output改/tmp/siro-mem02-dialogue-separated-real-20261020.json。
+venv/cache仍在WSL ext4，資料全合成，不讀私人DB、不安裝依賴、不push／PR／merge／部署。
+MEM02保持PARTIAL，目標active，MEM03–06未完成；程式路徑修復不等於模型理解驗收通過。

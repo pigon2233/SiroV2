@@ -196,12 +196,7 @@ def render_context(
         "memories": [asdict(record) for record in records],
         "source_snapshot": asdict(snapshot) if snapshot else None,
     }
-    return (
-        POLICY
-        + START
-        + json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
-        + END
-    )
+    return START + json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str) + END
 
 
 def read_context_snapshot(
