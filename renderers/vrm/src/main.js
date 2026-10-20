@@ -875,7 +875,8 @@ function updatePastimes() {
   if (SETTLE_SECONDS && quiet > SETTLE_SECONDS && actions.sit_down && actions.sit_loop) add('sit', 3);
   if (actions.yawn) add('yawn', hour >= 23 || hour < 5 ? 4 : 0);
   for (const name of ['fix_hair', 'hum', 'look_around']) if (actions[name]) add(name, 2);
-  if (actions.stretch) add('stretch', 1);
+  // (No stretch on her own for now: arms straight overhead pull the jacket in ways VRoid's skinning
+  // can't follow, and its hem doesn't rise with them. The menu still has it.)
   if (actions.notebook_out && actions.notebook_read) add('notebook', 1);
   if (!actions.look_around) add('look', 2);
   if (canStroll()) add('stroll', 2);
