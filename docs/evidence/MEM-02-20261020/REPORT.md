@@ -1,7 +1,7 @@
 # MEM-02 — 上下文接線、來源fence與理解評測
 
 2026-10-20 Asia/Taipei。PARTIAL：Core接線與確定性硬gate LOCAL_VERIFIED；
-真模型已找到並跑完，22/30低於27/30，FAILED_VERIFICATION（下方續作）。MEM03–06未完成，
+真模型已找到並跑完，最新25/30低於27/30，正文角色歸屬仍未過（下方續作）。MEM03–06未完成，
 不以capture或mock回覆把理解能力標DONE，也不繞過此依賴直接啟用自動記憶。
 
 ## 變更與真實caller
@@ -175,3 +175,56 @@ C12工具unknown、C18最新停止、C21衝突偏好擅選其一、C22計畫被�
 原checkout八個語音dirty檔未碰；git diff --check通過。MEM02仍PARTIAL，缺模型障礙已解除；
 持續goal先前為blocked，本輪不宣稱完整目標已完成或可自行把工具狀態切active。
 下一步針對首次真模型失敗與評分盲點修復，重跑固定30case；不以22/30啟用自動記憶。
+
+## 續作：繁中context policy與無歧義評測格式（仍FAILED_VERIFICATION）
+
+Base66c8ced，持續目標現已active。原認領路徑內修改context.py與評測腳本，
+補繁中說明最新訊息優先、使用者第一人稱、來源不足與互相矛盾、權限與需求歧義區分、
+證據／授權核對可以直接答覆、不把假設／計畫當事實。這是model指引，不是新的授權或真相判定器。
+固定30case與expected/rubric均不改，模型維持qwen3:4b-instruct、2048輸出token、45秒provider timeout。
+
+發現評測FORMAT的「answer欄位放你原本的回覆」含糊，會誘導複製歷史assistant。
+prompt-diagnostic.json記錄同一C02在actual/no_empty_legacy_footer/policy_only均照抄，
+移除評測格式後不再照抄而改為權限拒絕；prompt_eval_count1018等遠低4096，
+此案例沒有上下文容量不足證據。這是四個單次診斷，不證所有情境皆同一原因。
+修改FORMAT為針對本次問題的新回答，明訂needs_clarification是本題是否必須補資訊、
+布林應與正文一致；沒有提供個別case標籤或答案。不把這項評測修正宣稱為產品理解提升。
+
+template-diagnostic.json：已配置模型的最小4message／2message對話可回應最新修改要求；
+未證明完整tool template所有行為正確，未修改Ollama模板或正式服務設定。
+對照既有qwen3:4b兩次都length-truncated且回傳推理式文字，未把它換成驗收模型，
+也不把該對照視為可用模型或PASS。未安裝／下載任何模型。
+
+本輪完整保存三次固定30case真評測，沒有挑最好一次假稱整體達標：
+
+| 檔案 | 變更時點 | capture | 自動語義 | 結果 |
+| --- | --- | --- | --- | --- |
+| policy-only-evaluation.json | 初版繁中policy，舊FORMAT | 30/30 | 22/30 | FAIL |
+| unambiguous-format-evaluation.json | 初版繁中policy，新FORMAT | 30/30 | 25/30 | FAIL |
+| final-policy-evaluation.json | 最終policy與FORMAT | 30/30 | 25/30 | FAIL |
+
+每批30次真provider完成，沒有timeout／HTTP錯誤；各批source_hashes區分版本。
+原模型預設temperature0.7，未設定seed；這些是迭代開發量測而非受控A/B或獨立泛化驗證，
+不能將得分差異全歸因於修改。沒有因最終仍失敗而重抽同版本來挑過線結果。
+所有semantic_hard_gate_status=PASS仍只檢布林聲明，不能宣稱自然語言正確。
+
+最終自動未過C02/13/21/22/28；C21兩份相反來源都確實進Core request，缺口是判讀，非漏查。
+另逐題讀取全部30份正文，見FINAL-POLICY-REVIEW.md，保守20符合／10有缺口；
+C19/20/27第一人稱錯置，C23把使用者手動回報說成SIRO自己手動檢查，自動keyword沒抓到。
+這是Codex審閱、不是真人L3，不覆寫原始自動25/30或改fixture。
+因此即使未來keyword分數達27，仍須檢查來源角色與正文完成聲明；不能提前開MEM03。
+
+驗證：早期policy版本76 PASS／0skip／7既有warnings（46.87s），policy-regression-receipt.json；
+最終62 PASS／0skip／7既有warnings（18.35s），final-policy-regression-receipt.json。
+兩批有重疊不加總。早期Ruff因中文全形標點RUF001失敗，改ASCII標點後
+兩修改檔Ruff check/format、mypy（MYPYPATH=src、/tmp cache）、secret scan/check_secrets全PASS。
+沒有新增依賴或額外忽略規則。未重跑全套scripts/check、遠端CI、正式服務部署或真人L3。
+
+重現最終真評測命令與上一節一致，output改/tmp/siro-mem02-qwen-finalpolicy-20261020.json；
+最終regression為scripts/run_acceptance.py tests/integration/test_context_understanding.py
+tests/integration/test_persistent_companion.py tests/integration/test_context_budget.py --level L1
+--git-executable git.exe --output /tmp/siro-mem02-finalpolicy-regression-20261020。
+快取在WSL ext4；所有新增實測對話為合成，不讀私人DB。共享STATUS仍由整合者納入。
+MEM02 PARTIAL，整個目標未完成，仍有可修正的實作問題，不以困難為由blocked。
+下一步：明確保留來源說話者／scope的呈現，修正第一人稱照抄與衝突判讀；評測須覆蓋正文，
+不以固定答案、keyword補丁或改預期值宣稱理解已完成。Gateway/語音/HTML dirty範圍未碰。

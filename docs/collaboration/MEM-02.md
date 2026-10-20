@@ -33,3 +33,13 @@ pre-dispatch來源重驗、原native history/pending tools不裁改。接現有C
 capture30/30、自動語義22/30；人工發現C22自然語言錯報測試通過而布林false，不能宣稱零錯報。
 同工作區／分支，基線b2c01dc；本輪只更動本交接、PLAN、REPORT與本任務evidence目錄。
 模型metadata與合成真回答已留證，不含密鑰、未改使用中服務／私人DB／其他owner檔案。
+
+續作基線66c8ced：檢查既有模型template與最小多輪診斷；只在原owned context.py與評測／
+測試／本交接／PLAN／CONTRACTS／本任務evidence範圍修正。固定30fixture與27門檻不改。
+對話template不擅自修改，另裝的qwen3:4b只作對照診斷，不替換正式或評測所選模型。
+逐題檢查新批次自然語言，不把model自報布林當安全證明。GitHub唯讀查詢與dirty已再核對。
+
+結果：繁中context policy＋評測格式修正；最終62回歸PASS，真模型25/30未過27。
+本輪三個30case批次22/25/25均留證，逐題正文審閱有角色錯置／虛構自己手動檢查的缺口。
+MEM02保持FAILED_VERIFICATION／PARTIAL；不是模型配置阻礙，不標整個goal完成或blocked。
+未改fixture／expected、模型設定、其他owner範圍，未push／PR／部署。完整命令與限制見REPORT續作。

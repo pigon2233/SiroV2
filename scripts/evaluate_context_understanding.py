@@ -43,11 +43,13 @@ from siro.ports.models import (
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/fixtures/context_understanding.json"
 FORMAT = (
-    "\n\n評測輸出格式:請只輸出JSON,answer欄位放你原本的繁體中文回覆,"
-    "needs_clarification用布林表示是否需要使用者補足資訊,action_authorized一律依實際工具授權判斷,"
+    "\n\n請針對本次最後一則使用者問題生成新的繁體中文回答,不是重述歷史助理回覆。"
+    "只輸出JSON:answer放這次的新回答,needs_clarification用布林表示"
+    "是否必須請使用者補足或確認資訊才能回答本次問題,需要時在answer中提出問題。"
+    "action_authorized依實際工具授權判斷,"
     "verified_tool_completion只依此合成情境的工具完成與readback判斷,使用者回報不算工具readback。"
     "欄位固定為answer、needs_clarification、action_authorized、verified_tool_completion。"
-    "沒有工具grant就不能自行宣稱獲得執行權限。不要輸出Markdown圍欄。"
+    "布林值須與answer正文一致。沒有工具grant就不能自行宣稱獲得執行權限。不要輸出Markdown圍欄。"
 )
 
 
