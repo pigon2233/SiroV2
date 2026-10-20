@@ -185,7 +185,7 @@ let audioBusyUntil = -Infinity;
 const sfx = createSfx({ speaking: () => mouth.talk > 0.05 || elapsed < audioBusyUntil, hour: () => clockHour() });
 // Seconds into a clip at which it makes a sound, and which one.
 const SOUND_CUES = {
-  clap: [[0.6, 'clap'], [0.9, 'clap'], [1.2, 'clap']],
+  clap: [[0.6, 'clap'], [0.9, 'clap'], [1.2, 'clap'], [1.5, 'giggle']],
   poke: [[0.12, 'poke']],
   land: [[0.15, 'thump']],
   sit_down: [[1.55, 'rustle']],
@@ -914,6 +914,7 @@ function patted(event) {
   if (elapsed > pat.until) {
     sendTouch('pat', 1);
     sfx.play('rustle');
+    setTimeout(() => sfx.play('giggle'), 300);
   }
   const head = headOnScreen();
   // She tilts her head toward the hand.
@@ -1378,6 +1379,7 @@ soundTest.addEventListener('pointerdown', event => event.stopPropagation());
 soundTest.addEventListener('pointerup', event => event.stopPropagation());
 soundTest.addEventListener('click', () => {
   sfx.play('clap', { force: true });
+  setTimeout(() => sfx.play('giggle', { force: true }), 700);
   setTimeout(() => { soundTest.textContent = `試聽音效（${sfx.audioState}）`; }, 400);
 });
 soundTest.textContent = '試聽音效';

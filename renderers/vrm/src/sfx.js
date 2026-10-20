@@ -9,7 +9,7 @@ const MASTER = 0.4;
 const NIGHT_FACTOR = 0.5;
 const RATE = 22050;
 const OWN_GAP_SECONDS = 600; // sounds she makes on her own (pastimes): at most one per 10 minutes
-const MIN_GAP = { rustle: 8, giggle: 30, poke: 0.25, clap: 0, thump: 0.5, paper: 0.5, paper_out: 0.5, paper_read: 0.5, paper_away: 0.5 };
+const MIN_GAP = { rustle: 8, giggle: 60, poke: 0.25, clap: 0, thump: 0.5, paper: 0.5, paper_out: 0.5, paper_read: 0.5, paper_away: 0.5 };
 // Recorded clips, all level-matched; `gain` trims a clip further. Each play varies slightly in level
 // and speed so repeats (the three claps) are not identical.
 const FILES = {
@@ -17,6 +17,8 @@ const FILES = {
   poke: { file: 'poke.wav', gain: 1 },
   thump: { file: 'thump.wav', gain: 0.7 },
   rustle: { file: 'rustle.wav', gain: 0.5 },
+  giggle: { file: 'giggle.wav', gain: 1 },
+  giggle2: { file: 'giggle2.wav', gain: 1 },
   paper_out: { file: 'paper_out.wav', gain: 1 },
   paper_read: { file: 'paper_read.wav', gain: 1 },
   paper_away: { file: 'paper_away.wav', gain: 1 },
@@ -161,7 +163,7 @@ export function createSfx({ speaking = () => false, hour = () => new Date().getH
     if (!force && own && (isNight(hour()) || clock - lastOwn < OWN_GAP_SECONDS)) return false;
     if (!force && clock - (lastByName[name] ?? -Infinity) < (MIN_GAP[name] ?? 0)) return false;
     try {
-      const clip = FILES[name];
+      const clip = FILES[name === 'giggle' && Math.random() < 0.5 ? 'giggle2' : name];
       const audio = new Audio(clip ? new URL(`./sfx/${clip.file}`, import.meta.url).href : urlFor(name));
       audio.volume = Math.min(1, MASTER * (clip?.gain ?? 1) * (0.85 + Math.random() * 0.15) * (isNight(hour()) ? NIGHT_FACTOR : 1));
       if (clip) {
