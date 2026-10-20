@@ -70,23 +70,21 @@ for (const id of {element_ids}) {{
 }}
 document.querySelector('#voice-output').checked = false;
 """
+    # The page script is passed on stdin: as one argv string it exceeds Linux's 128 KiB limit.
     result = subprocess.run(
-        [
-            "node",
-            "-e",
-            setup
-            + initialize
-            + script
-            + "\nsocket = {readyState:1}; controlAuthenticated = true;\n"
-            + "const owner = socket, epoch = controlEpoch, retired = false;\n"
-            + "const markAuthenticated = () => {};\n"
-            + handler
-            + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
-            + "(async () => {\n"
-            + "await sessionAccess.getToken(); calls.length = 0;\n"
-            + checks
-            + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
-        ],
+        ["node", "-"],
+        input=setup
+        + initialize
+        + script
+        + "\nsocket = {readyState:1}; controlAuthenticated = true;\n"
+        + "const owner = socket, epoch = controlEpoch, retired = false;\n"
+        + "const markAuthenticated = () => {};\n"
+        + handler
+        + "\nconst emit = data => socket.onmessage({data: JSON.stringify(data)});\n"
+        + "(async () => {\n"
+        + "await sessionAccess.getToken(); calls.length = 0;\n"
+        + checks
+        + "\n})().catch(error => { console.error(error); process.exitCode = 1; });",
         capture_output=True,
         text=True,
         timeout=10,
@@ -185,6 +183,7 @@ const source = '**狀態**\n請看 `cwd`。\n```text\n  hello **keep**\n' +
   '<script>globalThis.compromised = true</script>\n```\n<img src=x onerror=alert(1)>';
 const spoken = [];
 playTts = text => { spoken.push(text); };
+beginLiveSpeech = () => undefined; // live narration is covered by its own tests
 emit({type: 'turn_started', turn_id: 'format-turn'});
 emit({type: 'assistant_started', stream_id: 'format-stream'});
 emit({type: 'assistant_delta', stream_id: 'format-stream', text: source});

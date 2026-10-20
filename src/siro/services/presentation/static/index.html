@@ -174,6 +174,7 @@
             <button id="connection" class="connection-pill" type="button" title="重新連線，不會重新執行工作">連線中</button>
             <button id="microphone-toggle" type="button" aria-pressed="false">麥克風：關</button>
             <button id="voice" type="button">開始說話</button>
+            <button id="voice-auto" type="button" aria-pressed="false" title="偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音">免手動：關</button>
             <button id="cancel" type="button">停止回覆與語音</button>
           </div>
         </header>
@@ -261,7 +262,7 @@
       let goalTaskViews = [], goalTaskBusy = false, goalTaskAvailable = true, goalTaskNeedsReadback = false;
       const goalTaskSessionId = "browser", goalTaskProfile = "document-checklist-v1";
       let recorder, recordedChunks = [], ttsAudio;
-      let ttsController, ttsGeneration = 0, speechCancelled = false;
+      let ttsController, ttsGeneration = 0, speechCancelled = false, liveSpeech;
       let lastSpeech;
       const headers = () => ({"Content-Type": "application/json"});
       const log = data => { document.querySelector("#events").textContent += JSON.stringify(data) + "\n"; };
@@ -465,6 +466,7 @@
           if (data.type === "affect_state") { renderAffect(data); }
           if (data.type === "assistant_started") {
             assistantBubble = appendMessage("assistant", "");
+            liveSpeech = typeof beginLiveSpeech === "function" ? beginLiveSpeech() : undefined;
           }
           if (data.type === "assistant_retry_wait") {
             const notice = document.querySelector("#service-notice");
@@ -476,6 +478,7 @@
             clearRetryNotice();
             if (!assistantBubble) assistantBubble = appendMessage("assistant", "");
             assistantBubble.textContent += data.text;
+            liveSpeech?.push(data.text);
             document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;
           }
           if (data.type === "assistant_terminal") {
@@ -499,9 +502,10 @@
             if (data.state === "completed" && canonicalText) {
               lastSpeech = {text: canonicalText, prosody: data.prosody || {}};
               document.querySelector("#replay-speech").disabled = false;
-              if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);
+              if (liveSpeech?.started) { if (liveSpeech.current()) liveSpeech.finish(canonicalText, lastSpeech.prosody); }
+              else if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);
             }
-            assistantBubble = undefined; currentTurn = undefined;
+            assistantBubble = undefined; currentTurn = undefined; liveSpeech = undefined;
           }
           if (data.type === "tool_proposal") renderToolProposal(data);
           if (data.type === "tool_started") { runningTools.set(data.proposal_id, data.stream_id); updateToolProposal(data.proposal_id, "執行中…"); }
@@ -1546,12 +1550,42 @@
         };
         frame(step);
       }
-      async function playTts(text, prosody) {
+      const validSpeechPlan = plan => Array.isArray(plan.segments) && plan.segments.length > 0 && plan.segments.length <= 128 &&
+        plan.max_chars === 80 && plan.max_segments === 128 && plan.max_total_chars === 8000 &&
+        typeof plan.version === "string" && Boolean(plan.version) && typeof plan.spoken_text === "string" &&
+        Boolean(plan.spoken_text.trim()) && Array.from(plan.spoken_text).length <= 8000 &&
+        !plan.segments.some(segment => typeof segment !== "string" || !segment.trim() || Array.from(segment).length > 80) &&
+        plan.segments.reduce((sum, segment) => sum + Array.from(segment).length, 0) <= 8000 &&
+        plan.segments.join("") === plan.spoken_text &&
+        Number.isFinite(plan.deadline_seconds) && plan.deadline_seconds > 0 && plan.deadline_seconds <= 1200;
+      // Text that can be read now: up to the last finished sentence, never inside an open code fence.
+      function speakablePrefix(raw) {
+        const fences = raw.split("```").length - 1;
+        const head = fences % 2 ? raw.slice(0, raw.lastIndexOf("```")) : raw;
+        let end = -1;
+        for (const match of head.matchAll(/[。！？!?\n]|\.(?=\s)/g)) end = match.index + match[0].length;
+        return end > 0 ? head.slice(0, end) : "";
+      }
+      // Live narration: start reading finished sentences while the reply is still streaming.
+      // The completed reply is planned once more at the end, so the full text is still covered.
+      function beginLiveSpeech() {
+        if (speechCancelled || document.body?.classList?.contains("siro-control") || document.querySelector("#voice-output")?.checked === false) return undefined;
+        const live = {raw: "", final: undefined, prosody: {}, started: false, wake: undefined, current: () => false};
+        live.push = text => {
+          live.raw += text;
+          if (!live.started && speakablePrefix(live.raw)) { live.started = true; playTts(undefined, {}, live); }
+          live.wake?.();
+        };
+        live.finish = (text, prosody) => { live.final = text; live.prosody = prosody || {}; live.wake?.(); };
+        return live;
+      }
+      async function playTts(text, prosody, live) {
         stopTts();
         if (document.body?.classList?.contains("siro-control") || document.querySelector("#voice-output")?.checked === false) return;
         const generation = ttsGeneration;
         const controller = new AbortController(); ttsController = controller;
         const current = () => generation === ttsGeneration && !controller.signal.aborted;
+        if (live) live.current = current;
         const status = document.querySelector("#tts-status"); status.textContent = "準備全文朗讀…";
         const started = performance.now();
         let played = 0, total = 0, deadlineReached = false;
@@ -1571,12 +1605,71 @@
           if (!response.ok) throw new Error((await waitFor(response.json())).detail || `HTTP ${response.status}`);
           return response;
         };
-        const loadSegment = async segment => {
+        // Segments arrive all at once (planned text) or sentence by sentence (live narration).
+        const segments = [];
+        let closed = false, planError, waiters = [];
+        const progress = () => closed ? `${played}/${total}` : `${played}`;
+        const notify = () => { const pending = waiters; waiters = []; pending.forEach(resolve => resolve()); };
+        const segmentAt = async index => {
+          while (index >= segments.length && !closed) await waitFor(new Promise(resolve => waiters.push(resolve)));
+          assertCurrent();
+          if (index >= segments.length && planError) throw planError;
+          return segments[index];
+        };
+        const loadSegment = async index => {
           try {
-            const response = await request("/v1/audio/speech", {text: segment, ...prosody});
+            const segment = await segmentAt(index);
+            if (segment === undefined) return {done: true};
+            const response = await request("/v1/audio/speech", {text: segment, ...(live ? live.prosody : prosody)});
             const blob = await waitFor(response.blob()); assertCurrent();
             return {blob};
           } catch (error) { return {error}; } // A prefetched rejection always has an owner.
+        };
+        const plan = async body => {
+          const response = await request("/v1/audio/speech/plan", body);
+          const value = await waitFor(response.json()); assertCurrent();
+          if (!validSpeechPlan(value)) throw new Error("朗讀計畫超出上限或內容無效，沒有截短播放");
+          return value;
+        };
+        const accept = value => {
+          total = value.segments.length;
+          clearTimeout(timer);
+          const remaining = value.deadline_seconds * 1000 - (performance.now() - started);
+          if (remaining <= 0) { deadlineReached = true; controller.abort(); throw aborted(); }
+          timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, remaining);
+        };
+        const followLive = async () => {
+          let planned = 0, deadlineSet = false;
+          for (;;) {
+            assertCurrent();
+            const final = live.final;
+            if (final === undefined) {
+              const prefix = speakablePrefix(live.raw);
+              if (prefix.length <= planned) { await waitFor(new Promise(resolve => { live.wake = resolve; })); continue; }
+              planned = prefix.length;
+              let value;
+              try { value = await plan({text: prefix}); } catch (error) { assertCurrent(); continue; } // retried with more text
+              if (!deadlineSet) { accept(value); deadlineSet = true; }
+              // Every segment but the last is final: later text only extends the last one.
+              // A finished first sentence is read at once; that is what the short first segment is for.
+              const stable = value.segments.length === 1 && /[。！？!?]$/.test(value.segments[0]) ? value.segments : value.segments.slice(0, -1);
+              if (stable.length > segments.length && segments.every((segment, i) => segment === stable[i])) {
+                segments.push(...stable.slice(segments.length)); notify();
+              }
+              continue;
+            }
+            const value = await plan({text: final});
+            accept(value);
+            if (segments.every((segment, i) => segment === value.segments[i])) segments.push(...value.segments.slice(segments.length));
+            else {
+              // Already-read text no longer lines up with the full plan: read only what is left.
+              const heard = segments.join("");
+              if (!value.spoken_text.startsWith(heard)) throw new Error("朗讀內容與完整回覆不一致，沒有續播");
+              const rest = value.spoken_text.slice(heard.length);
+              if (rest.trim()) segments.push(...(await plan({text: rest})).segments);
+            }
+            total = segments.length; closed = true; notify(); return;
+          }
         };
         const playSegment = async blob => {
           assertCurrent();
@@ -1591,7 +1684,7 @@
               cancel = () => reject(aborted());
               controller.signal.addEventListener("abort", cancel, {once: true});
               audio.onplay = () => {
-                if (current()) { status.textContent = `SIRO 正在說話（已播 ${played}/${total} 段）`; status.className = "ok"; }
+                if (current()) { status.textContent = `SIRO 正在說話（已播 ${progress()} 段）`; status.className = "ok"; }
               };
               audio.onended = () => { if (current()) resolve(); else reject(aborted()); };
               audio.onerror = () => reject(new Error("音訊播放失敗"));
@@ -1609,37 +1702,31 @@
           }
         };
         try {
-          const response = await request("/v1/audio/speech/plan", {text});
-          const plan = await waitFor(response.json()); assertCurrent();
-          if (!Array.isArray(plan.segments) || !plan.segments.length || plan.segments.length > 128 ||
-              plan.max_chars !== 80 || plan.max_segments !== 128 || plan.max_total_chars !== 8000 ||
-              typeof plan.version !== "string" || !plan.version || typeof plan.spoken_text !== "string" ||
-              !plan.spoken_text.trim() || Array.from(plan.spoken_text).length > 8000 ||
-              plan.segments.some(segment => typeof segment !== "string" || !segment.trim() || Array.from(segment).length > 80) ||
-              plan.segments.reduce((sum, segment) => sum + Array.from(segment).length, 0) > 8000 ||
-              plan.segments.join("") !== plan.spoken_text ||
-              !Number.isFinite(plan.deadline_seconds) || plan.deadline_seconds <= 0 || plan.deadline_seconds > 1200)
-            throw new Error("朗讀計畫超出上限或內容無效，沒有截短播放");
-          total = plan.segments.length;
-          clearTimeout(timer);
-          const remaining = plan.deadline_seconds * 1000 - (performance.now() - started);
-          if (remaining <= 0) { deadlineReached = true; controller.abort(); throw aborted(); }
-          timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, remaining);
-          let next = loadSegment(plan.segments[0]);
-          for (let index = 0; index < total; index++) {
-            status.textContent = `語音準備中（已播 ${played}/${total} 段）`; status.className = "warn";
+          if (live) {
+            followLive().catch(error => { planError = error; closed = true; notify(); });
+          } else {
+            const value = await plan({text});
+            accept(value);
+            segments.push(...value.segments); closed = true;
+          }
+          let next = loadSegment(0);
+          for (let index = 0; ; index++) {
+            status.textContent = `語音準備中（已播 ${progress()} 段）`; status.className = "warn";
             const result = await next; assertCurrent();
             if (result.error) throw result.error;
+            if (result.done) break;
             const playback = playSegment(result.blob);
-            next = index + 1 < total ? loadSegment(plan.segments[index + 1]) : undefined;
+            next = !closed || index + 1 < total ? loadSegment(index + 1) : undefined;
             await playback; assertCurrent();
             played++;
+            if (!next) break;
           }
+          if (planError) throw planError;
           status.textContent = `全文朗讀完成（${played}/${total} 段）`; status.className = "ok";
         } catch (error) {
           if (generation === ttsGeneration && (deadlineReached || !controller.signal.aborted)) {
-            status.textContent = deadlineReached ? `已達朗讀時限（已播 ${played}/${total} 段），全文未完成。`
-              : `朗讀失敗（已播 ${played}/${total} 段）：${error.message}。全文未完成。`;
+            status.textContent = deadlineReached ? `已達朗讀時限（已播 ${progress()} 段），全文未完成。`
+              : `朗讀失敗（已播 ${progress()} 段）：${error.message}。全文未完成。`;
             status.className = "warn";
           }
         } finally {
@@ -1765,6 +1852,125 @@
         speechCancelled = false;
         await playTts(lastSpeech.text, lastSpeech.prosody);
       };
+      // Hands-free listening: an energy detector starts capture when the owner speaks and
+      // submits after a short pause. It never listens while SIRO is answering or speaking,
+      // so her own voice is not captured; the microphone kill switch still owns the device.
+      const handsFree = {on: false, stream: undefined, context: undefined, node: undefined, timer: undefined};
+      const HANDS_FREE = {frameMs: 30, startMs: 150, endSilenceMs: 800, prerollMs: 300, maxMs: 29000, rate: 16000};
+      function handsFreeBusy() {
+        return Boolean(currentTurn || ttsController || ttsAudio || transcriptionController || microphoneCapture || permissionPending);
+      }
+      function downsampledWav(chunks, sourceRate) {
+        const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0), ratio = sourceRate / HANDS_FREE.rate;
+        const joined = new Float32Array(length);
+        let offset = 0;
+        for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.length; }
+        const samples = new Float32Array(Math.floor(length / ratio));
+        for (let i = 0; i < samples.length; i++) {
+          const start = Math.floor(i * ratio), end = Math.min(length, Math.floor((i + 1) * ratio));
+          let sum = 0;
+          for (let j = start; j < end; j++) sum += joined[j];
+          samples[i] = sum / Math.max(1, end - start);
+        }
+        return wavFromBuffer({sampleRate: HANDS_FREE.rate, getChannelData: () => samples});
+      }
+      async function submitUtterance(wav, epoch) {
+        const status = document.querySelector("#voice-status");
+        const current = () => epoch === microphoneEpoch && handsFree.on && !pageClosing && microphoneEnabled;
+        const controller = new AbortController(); transcriptionController = controller;
+        const deadline = setTimeout(() => controller.abort(), 45000);
+        status.textContent = "辨識中…"; status.className = "warn";
+        try {
+          const response = await authorizedFetch("/v1/audio/transcriptions?language=zh", {method: "POST", headers: {"Content-Type": "audio/wav"}, signal: controller.signal, body: wav});
+          if (!current()) return;
+          if (!response.ok) throw new Error((await response.json()).detail || `HTTP ${response.status}`);
+          const result = await response.json();
+          if (!current()) return;
+          if (!result.text) { status.textContent = "沒聽清楚，請再說一次"; return; }
+          status.textContent = `辨識：${result.text}`; status.className = "ok";
+          await submitText(result.text, "speech");
+        } catch (error) {
+          if (current()) { status.textContent = `語音失敗：${error.message}`; status.className = "warn"; }
+        } finally {
+          clearTimeout(deadline);
+          if (transcriptionController === controller) transcriptionController = undefined;
+        }
+      }
+      function stopHandsFree(message) {
+        handsFree.on = false;
+        clearInterval(handsFree.timer); handsFree.timer = undefined;
+        if (handsFree.node) handsFree.node.onaudioprocess = null;
+        handsFree.node?.disconnect(); handsFree.node = undefined;
+        handsFree.stream?.getTracks().forEach(track => track.stop()); handsFree.stream = undefined;
+        handsFree.context?.close().catch(() => {}); handsFree.context = undefined;
+        const button = document.querySelector("#voice-auto");
+        if (button) { button.textContent = "免手動：關"; button.setAttribute?.("aria-pressed", "false"); }
+        if (message) document.querySelector("#voice-status").textContent = message;
+      }
+      async function startHandsFree() {
+        const status = document.querySelector("#voice-status"), button = document.querySelector("#voice-auto");
+        if (!microphoneEnabled) { status.textContent = "請先按「麥克風：關」開啟，再使用免手動"; return; }
+        cancelRecording();
+        handsFree.on = true; button.textContent = "免手動：開"; button.setAttribute?.("aria-pressed", "true");
+        status.textContent = "正在請求麥克風權限…";
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1}});
+          if (!handsFree.on || !microphoneEnabled || pageClosing) { stream.getTracks().forEach(track => track.stop()); return; }
+          const context = new AudioContext(), source = context.createMediaStreamSource(stream);
+          const node = context.createScriptProcessor(1024, 1, 1);
+          Object.assign(handsFree, {stream, context, node});
+          const frames = [], preroll = [], prerollLimit = Math.ceil(HANDS_FREE.prerollMs / 1000 * context.sampleRate / 1024);
+          let speaking = false, loudMs = 0, quietMs = 0, spokenMs = 0, floor = 0.01, epoch = microphoneEpoch;
+          const idle = () => { status.textContent = "免手動聆聽中，直接說話即可"; status.className = "ok"; };
+          idle();
+          node.onaudioprocess = event => {
+            const input = event.inputBuffer.getChannelData(0), chunk = Float32Array.from(input);
+            event.outputBuffer?.getChannelData(0).fill(0);
+            if (!microphoneEnabled || pageClosing) { stopHandsFree("麥克風已關閉"); return; }
+            if (handsFreeBusy() && !speaking) { preroll.length = 0; loudMs = 0; return; }
+            let sum = 0;
+            for (const value of chunk) sum += value * value;
+            const level = Math.sqrt(sum / chunk.length), ms = chunk.length / context.sampleRate * 1000;
+            const threshold = Math.max(0.012, floor * 3);
+            if (!speaking) {
+              preroll.push(chunk); if (preroll.length > prerollLimit) preroll.shift();
+              if (level > threshold) loudMs += ms; else { loudMs = 0; floor = floor * 0.95 + level * 0.05; }
+              if (loudMs >= HANDS_FREE.startMs) {
+                speaking = true; quietMs = 0; spokenMs = 0; epoch = microphoneEpoch;
+                frames.push(...preroll); preroll.length = 0;
+                status.textContent = "正在聆聽…（停頓後自動送出）"; status.className = "ok";
+              }
+              return;
+            }
+            frames.push(chunk); spokenMs += ms;
+            quietMs = level > threshold * 0.7 ? 0 : quietMs + ms;
+            if (quietMs >= HANDS_FREE.endSilenceMs || spokenMs >= HANDS_FREE.maxMs) {
+              speaking = false; loudMs = 0;
+              const wav = downsampledWav(frames.splice(0), context.sampleRate);
+              if (epoch === microphoneEpoch) submitUtterance(wav, epoch).finally(() => { if (handsFree.on && !handsFreeBusy()) idle(); });
+            }
+          };
+          source.connect(node); node.connect(context.destination);
+          // Show that listening resumed once SIRO has finished answering.
+          let wasBusy = false;
+          handsFree.timer = setInterval(() => {
+            const busy = handsFreeBusy();
+            if (wasBusy && !busy && !speaking) idle();
+            wasBusy = busy;
+          }, 250);
+        } catch (error) {
+          stopHandsFree(`無法使用麥克風：${error.message}`);
+        }
+      }
+      const voiceAuto = document.querySelector("#voice-auto");
+      if (voiceAuto) {
+        voiceAuto.onclick = () => handsFree.on ? stopHandsFree("免手動已關閉") : startHandsFree();
+        const listen = (target, name, handler, options) => { if (typeof target?.addEventListener === "function") target.addEventListener(name, handler, options); };
+        // Manual recording or switching the microphone off takes over from hands-free.
+        listen(document.querySelector("#voice"), "click", () => { if (handsFree.on) stopHandsFree(); }, {capture: true});
+        listen(document.querySelector("#microphone-toggle"), "click", () => { if (microphoneEnabled && handsFree.on) stopHandsFree(); }, {capture: true});
+        listen(globalThis, "pagehide", () => stopHandsFree(), {once: true});
+      }
       if (document.body?.classList?.contains("siro-control")) {
         document.querySelector("#voice-output").checked = false;
         document.querySelector("#voice-output").disabled = true;

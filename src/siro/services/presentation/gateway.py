@@ -623,6 +623,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         nonlocal release_started
+        speech_warmup: asyncio.Task[None] | None = None
         try:
             if on_startup is not None:
                 await on_startup()
@@ -633,6 +634,8 @@ def create_app(
                 if not gateway_state.kill_switches["tools"]:
                     await activation_owner.suspend()
             release_started = True
+            warm = getattr(speech_to_text, "warm", None)
+            speech_warmup = asyncio.create_task(warm()) if callable(warm) else None
             yield
         finally:
             release_started = False
@@ -661,7 +664,15 @@ def create_app(
                             if isinstance(text_to_speech, QwenReferenceTTS):
                                 await text_to_speech.close()
                         finally:
-                            await gateway_hub.shutdown()
+                            try:
+                                if speech_warmup is not None:
+                                    speech_warmup.cancel()
+                                    await asyncio.gather(speech_warmup, return_exceptions=True)
+                                close = getattr(speech_to_text, "close", None)
+                                if callable(close):
+                                    await close()
+                            finally:
+                                await gateway_hub.shutdown()
 
     app = FastAPI(title="SIRO Presentation Gateway", lifespan=lifespan)
     app.state.gateway_hub = gateway_hub

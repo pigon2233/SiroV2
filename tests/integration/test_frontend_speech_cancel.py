@@ -26,7 +26,7 @@ const assert = require('node:assert/strict');
 const mode = process.argv[1];
 const button = {}, status = {}, service = {}, replay = {}, voice = {checked:true};
 const calls = [], audios = [], revoked = [];
-let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+let currentTurn, ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false, liveSpeech;
 let assistantBubble, lastSpeech;
 const pageClosing = false, socket = {readyState:1}, log = () => {};
 const owner = socket, epoch = 0, controlEpoch = 0, retired = false, markAuthenticated = () => {};

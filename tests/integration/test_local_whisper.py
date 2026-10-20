@@ -51,33 +51,70 @@ def test_missing_local_model_is_not_downloaded(tmp_path: Path) -> None:
         LocalWhisper(tmp_path / "missing")
 
 
+class FakeWorker:
+    """Speaks the persistent worker protocol: ready line, then header + WAV per request."""
+
+    def __init__(self, replies: list[bytes], gate: asyncio.Event | None = None) -> None:
+        self.returncode: int | None = None
+        self.received = bytearray()
+        self._lines: asyncio.Queue[bytes] = asyncio.Queue()
+        self._lines.put_nowait(b'{"ready": true}\n')
+        self._replies, self._gate = list(replies), gate
+        self.stdin, self.stdout = self, self
+
+    def write(self, data: bytes) -> None:
+        self.received += data
+
+    async def drain(self) -> None:
+        if self._gate is not None:
+            await self._gate.wait()
+        if self._replies:
+            self._lines.put_nowait(self._replies.pop(0) + b"\n")
+
+    async def readline(self) -> bytes:
+        return await self._lines.get()
+
+    def terminate(self) -> None:
+        self.returncode = -15
+
+    kill = terminate
+
+    async def wait(self) -> int:
+        return self.returncode or 0
+
+
 @pytest.mark.asyncio
 async def test_worker_is_offline_and_receives_audio_only_in_stdin(
     model: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     received: dict[str, Any] = {}
+    reply = json.dumps({"text": "合成辨識", "language": "zh"}).encode()
+    worker = FakeWorker([reply, reply])
 
-    class Worker:
-        returncode = 0
-
-        async def communicate(self, audio: bytes) -> tuple[bytes, bytes]:
-            received["audio"] = audio
-            return json.dumps({"text": "合成辨識", "language": "zh"}).encode(), b""
-
-    async def spawn(*args: Any, **kwargs: Any) -> Worker:
+    async def spawn(*args: Any, **kwargs: Any) -> FakeWorker:
+        received.setdefault("spawns", 0)
+        received["spawns"] += 1
         received.update(argv=args, options=kwargs)
-        return Worker()
+        return worker
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
     audio = wav()
-    transcript = await LocalWhisper(model).transcribe(audio, language="zh")
+    adapter = LocalWhisper(model)
+    transcript = await adapter.transcribe(audio, language="zh")
     assert transcript.text == "合成辨識" and transcript.final
-    assert received["audio"] == audio
+    header, body = bytes(worker.received).split(b"\n", 1)
+    assert json.loads(header) == {"bytes": len(audio), "language": "zh"}
+    assert body == audio
     assert received["argv"][1:4] == ("-I", "-m", "siro.services.audio.whisper_worker")
     assert str(model) in received["argv"]
     assert all("合成" not in str(argument) for argument in received["argv"])
     assert received["options"]["env"]["HF_HUB_OFFLINE"] == "1"
     assert received["options"]["env"]["TRANSFORMERS_OFFLINE"] == "1"
+    # The loaded model is reused: a second utterance starts no new process.
+    await adapter.transcribe(audio, language="zh")
+    assert received["spawns"] == 1
+    await adapter.close()
+    assert worker.returncode is not None
 
 
 @pytest.mark.asyncio
@@ -91,7 +128,11 @@ async def test_cancel_or_timeout_joins_real_owned_worker(
 
     async def sleeping_worker(*args: Any, **kwargs: Any) -> asyncio.subprocess.Process:
         process = await original(
-            args[0], "-c", "import sys,time; sys.stdin.buffer.read(); time.sleep(60)", **kwargs
+            args[0],
+            "-c",
+            "import sys,time; print('{\"ready\": true}', flush=True); "
+            "sys.stdin.buffer.read(); time.sleep(60)",
+            **kwargs,
         )
         owned.append(process)
         started.set()
@@ -101,6 +142,7 @@ async def test_cancel_or_timeout_joins_real_owned_worker(
     adapter = LocalWhisper(model, timeout_seconds=0.1 if mode == "timeout" else 10)
     task = asyncio.create_task(adapter.transcribe(wav()))
     await asyncio.wait_for(started.wait(), 2)
+    await asyncio.sleep(0.2)
     if mode == "cancel":
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -120,18 +162,11 @@ async def test_concurrent_capture_is_rejected_without_another_worker(
     release = asyncio.Event()
     calls = 0
 
-    class Worker:
-        returncode = 0
-
-        async def communicate(self, audio: bytes) -> tuple[bytes, bytes]:
-            await release.wait()
-            return b'{"text":"","language":"zh"}', b""
-
-    async def spawn(*args: Any, **kwargs: Any) -> Worker:
+    async def spawn(*args: Any, **kwargs: Any) -> FakeWorker:
         nonlocal calls
         calls += 1
         started.set()
-        return Worker()
+        return FakeWorker([b'{"text":"","language":"zh"}'], release)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
     adapter = LocalWhisper(model)
@@ -151,14 +186,8 @@ async def test_concurrent_capture_is_rejected_without_another_worker(
 async def test_bad_worker_response_has_no_provider_payload(
     model: Path, monkeypatch: pytest.MonkeyPatch, result: bytes
 ) -> None:
-    class Worker:
-        returncode = 0
-
-        async def communicate(self, audio: bytes) -> tuple[bytes, bytes]:
-            return result, b"private diagnostic"
-
-    async def spawn(*args: Any, **kwargs: Any) -> Worker:
-        return Worker()
+    async def spawn(*args: Any, **kwargs: Any) -> FakeWorker:
+        return FakeWorker([result])
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
     with pytest.raises(ValueError, match="invalid local speech response") as failure:
