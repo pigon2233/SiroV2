@@ -11,7 +11,7 @@ const scenario = process.argv[1];
 const status = {textContent:'', className:''}, calls = [], audios = [], revoked = [];
 const connection = {};
 const urls = new Map(), unhandled = [], timers = new Map();
-let ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false;
+let ttsAudio, ttsController, ttsGeneration = 0, speechCancelled = false, liveSpeech;
 let currentTurn, assistantBubble;
 const socket = {readyState:1}, owner = socket, epoch = 0, controlEpoch = 0, retired = false;
 const log = () => {}, acceptRunEvent = () => true, markAuthenticated = () => {};
@@ -303,6 +303,54 @@ _CHECKS = r"""
   const segments=variants[scenario.slice('invalid_plan_'.length)];assert(segments);
   calls[0].resolve(planResponse(segments));await work.promise;
   failureClean();assert.equal(rendered().length,0);assert.equal(audios.length,0);
+ } else if(scenario==='live_stream') {
+  const live=beginLiveSpeech();live.push('第一句。第二');await tick();
+  assert.equal(calls[0]?.url,'/v1/audio/speech/plan','first finished sentence is planned at once');
+  assert.equal(calls[0].body.text,'第一句。','unfinished sentence is not planned yet');
+  calls[0].resolve(planResponse(['第一句。']));await tick();
+  assert.equal(rendered().length,1,'a finished first sentence renders before the reply finishes');
+  assert.equal(rendered()[0].body.text,'第一句。');
+  live.push('句。第三句');await tick();
+  assert.equal(calls[2].body.text,'第一句。第二句。');
+  calls[2].resolve(planResponse(['第一句。','第二句。']));await tick();
+  assert.equal(rendered().length,1,'last segment of a partial plan may still grow');
+  await deliver(0);assert.equal(audios.length,1);assert.equal(audios[0].played,1);
+  live.finish('第一句。第二句。第三句。尾。',{rate:1.05});await tick();
+  const last=calls.filter(call=>call.url==='/v1/audio/speech/plan').at(-1);
+  assert.equal(last.body.text,'第一句。第二句。第三句。尾。','completed reply is planned in full');
+  last.resolve(planResponse(['第一句。','第二句。第三句。','尾。']));await tick();
+  await deliver(1);audios[0].end();await tick();
+  assert.equal(audios.length,2);await deliver(2);audios[1].end();await tick();
+  assert.equal(audios.length,3);audios[2].end();await tick();
+  assert(succeeded(),'live narration completes the whole reply: '+status.textContent);
+  assert.match(status.textContent,/3\/3/);
+  assert.deepEqual(rendered().map(call=>call.body.text),['第一句。','第二句。第三句。','尾。']);
+  assert.equal(rendered()[2].body.rate,1.05,'final prosody applies to later segments');
+  assert.equal(urls.size,0);assert.equal(timers.size,0);
+ } else if(scenario==='live_realign') {
+  const live=beginLiveSpeech();live.push('甲。');await tick();
+  calls[0].resolve(planResponse(['甲。']));await tick();await deliver(0);
+  live.finish('甲。乙。',{});await tick();
+  const plans=()=>calls.filter(call=>call.url==='/v1/audio/speech/plan');
+  plans()[1].resolve(planResponse(['甲。乙。']));await tick();
+  assert.equal(plans()[2]?.body.text,'乙。','only the unheard rest is planned again');
+  plans()[2].resolve(planResponse(['乙。']));await tick();
+  await deliver(1);audios[0].end();await tick();audios[1].end();await tick();
+  assert(succeeded(),status.textContent);
+  assert.deepEqual(rendered().map(call=>call.body.text),['甲。','乙。'],'nothing is read twice');
+ } else if(scenario==='live_stop') {
+  const live=beginLiveSpeech();live.push('甲。乙。');await tick();
+  calls[0].resolve(planResponse(['甲。','乙。']));await tick();
+  await deliver(0);assert.equal(audios.length,1);
+  stopTts();assert(calls[0].options.signal.aborted);stopped();
+  assert.equal(live.current(),false,'a stopped narration is no longer current');
+  live.push('丙。');live.finish('甲。乙。丙。',{});await tick();
+  assert.equal(calls.length,2,'stopped live narration plans and renders nothing more');
+  stopped();assert.equal(timers.size,0);
+ } else if(scenario==='live_code_fence') {
+  const live=beginLiveSpeech();live.push('看這段\n```sh\necho 1。\n');await tick();
+  assert.equal(calls[0]?.body.text,'看這段\n','open code fence is never planned early');
+  stopTts();
  } else if(scenario==='voice_disabled') {
   voiceEnabled=false;const work=run('synthetic answer');await work.promise;
   assert.equal(calls.length,0);assert.equal(audios.length,0);assert(!succeeded());
@@ -351,6 +399,10 @@ _CHECKS = r"""
         "invalid_plan_segment",
         "invalid_plan_total",
         "voice_disabled",
+        "live_stream",
+        "live_realign",
+        "live_stop",
+        "live_code_fence",
     ],
 )
 def test_actual_frontend_speech_queue(scenario: str) -> None:
