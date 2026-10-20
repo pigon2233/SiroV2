@@ -88,7 +88,9 @@ def test_mocap_clips_credit_their_source_and_rebuild_when_cached() -> None:
         "bye",
         "think",
         "attention",
+        "sit_down",
         "sit_loop",
+        "stand_up",
         "idle_happy",
         "idle_sad",
         "idle_angry",
@@ -120,6 +122,7 @@ def test_mocap_clips_credit_their_source_and_rebuild_when_cached() -> None:
         assert entry["license"] and entry["attribution"]
     assert "non-commercial" in captured["wave"]["license"]
     assert captured["sit_loop"]["entry_pose"] == captured["sit_loop"]["exit_pose"] == "seated"
+    assert captured["sit_down"]["exit_pose"] == captured["stand_up"]["entry_pose"] == "seated"
     assert captured["dangle"]["loop"] and captured["dangle"]["ground_contact"].startswith("none")
     assert captured["notebook_read"]["entry_pose"] == captured["notebook_out"]["exit_pose"]
     assert captured["notebook_read"]["exit_pose"] == captured["notebook_away"]["entry_pose"]
@@ -216,19 +219,44 @@ def test_mood_idles_hold_their_own_pose_over_the_captured_idle() -> None:
             assert dot > 1 - 1e-6, f"{name} ends off the idle loop at {bone}"
 
 
-def test_stretch_raises_the_arms_in_front_not_out_to_the_sides() -> None:
-    # The desktop pane is narrow: arms swung up through a T put both hands past its side edges.
+# Raised overhead, the jacket's sleeves and shoulders stretch apart (VRoid skinning, no cloth
+# physics): authored clips keep the upper arms below that. The captured wave is the exception.
+OVERHEAD_EXEMPT = {"wave"}
+
+
+def test_upper_arms_stay_below_overhead_where_the_jacket_tears() -> None:
+    mocap = load("build_vrm_mocap")
+    np = mocap.np
+    skeleton = json.loads((PACK / "skeleton.json").read_text(encoding="utf-8"))
+    pack = json.loads((PACK / "pack.json").read_text(encoding="utf-8"))
+    for name in (a["activity"] for a in pack["activities"]):
+        if name in OVERHEAD_EXEMPT:
+            continue
+        keys = rotation_keys(name)
+        clip = ({bone: np.array(frames) for bone, frames in keys.items()},)
+        clip = (*clip, np.tile(skeleton["hips"]["world"], (len(keys["hips"]), 1)))
+        down = mocap.world_positions(clip, skeleton, "hips")
+        down = down - mocap.world_positions(clip, skeleton, "upperChest")
+        down /= np.linalg.norm(down, axis=1, keepdims=True)
+        for side in ("left", "right"):
+            arm = mocap.world_positions(clip, skeleton, f"{side}LowerArm")
+            arm = arm - mocap.world_positions(clip, skeleton, f"{side}UpperArm")
+            arm /= np.linalg.norm(arm, axis=1, keepdims=True)
+            lift = np.degrees(np.arccos(np.clip((arm * down).sum(1), -1, 1))).max()
+            assert lift < 110, f"{name} raises the {side} upper arm {lift:.0f} degrees"
+
+
+def test_stretch_reaches_forward_inside_the_narrow_pane() -> None:
     mocap = load("build_vrm_mocap")
     np = mocap.np
     skeleton = json.loads((PACK / "skeleton.json").read_text(encoding="utf-8"))
     keys = rotation_keys("stretch")
     rotations = {bone: np.array(frames) for bone, frames in keys.items()}
     hips = np.tile(skeleton["hips"]["world"], (len(keys["hips"]), 1))
-    crown = skeleton["head"]["world"][1] + 0.15
     for side in ("left", "right"):
         tip = mocap.world_positions((rotations, hips), skeleton, f"{side}MiddleDistal")
         assert np.abs(tip[:, 0]).max() < 0.3, f"stretch swings the {side} hand out sideways"
-        assert tip[:, 1].max() > crown, f"stretch never lifts the {side} hand above the head"
+        assert tip[:, 2].max() > 0.45, f"stretch never pushes the {side} hand out in front"
 
 
 def test_walk_holds_the_planted_foot_still_at_the_pack_speed() -> None:
@@ -248,7 +276,8 @@ def test_walk_holds_the_planted_foot_still_at_the_pack_speed() -> None:
 
 
 @pytest.mark.parametrize(
-    ("into", "loop"), [("notebook_out", "notebook_read"), ("walk_start", "walk")]
+    ("into", "loop"),
+    [("notebook_out", "notebook_read"), ("walk_start", "walk"), ("sit_down", "sit_loop")],
 )
 def test_lead_ins_hand_over_to_their_loop_exactly(into: str, loop: str) -> None:
     out, looped = rotation_keys(into), rotation_keys(loop)
@@ -259,6 +288,40 @@ def test_lead_ins_hand_over_to_their_loop_exactly(into: str, loop: str) -> None:
             continue  # the hand layer drifts the fingers on each clip's own clock
         dot = abs(sum(a * b for a, b in zip(out[bone][-1], looped[bone][0], strict=True)))
         assert dot > 1 - 1e-6, f"{into} ends off {loop}'s first frame at {bone}"
+
+
+def test_sitting_rests_on_the_floor_with_planted_feet_and_exact_handovers() -> None:
+    # No chair: she sits on the window's bottom edge. Seat and heels touch the floor, the feet
+    # never sink under it, they stay put while she lowers herself, and the seat stays put after.
+    mocap = load("build_vrm_mocap")
+    if not all((mocap.CACHE / name).exists() for name in mocap.SOURCES):
+        pytest.skip("motion-capture sources not cached; run scripts/build_vrm_mocap.py")
+    np = mocap.np
+    skeleton = json.loads((PACK / "skeleton.json").read_text(encoding="utf-8"))
+    clips = mocap.build_clips(mocap.CACHE, skeleton, mocap.load_motions())
+    idle, sit = clips["idle"][0], clips["sit_loop"][0]
+    down, up = clips["sit_down"][0], clips["stand_up"][0]
+    gap = mocap.floor_gap(sit, skeleton)
+    assert np.abs(gap).max() < 0.005, "the seated loop floats or sinks"
+    for name, clip in (("sit_loop", sit), ("sit_down", down), ("stand_up", up)):
+        assert mocap.floor_gap(clip, skeleton).max() < 0.005, f"{name} leaves the floor"
+        for side in ("left", "right"):
+            for part in ("Foot", "Toes"):
+                bone = f"{side}{part}"
+                height = mocap.world_positions(clip, skeleton, bone)[:, 1]
+                assert height.min() > skeleton[bone]["world"][1] - 0.012, f"{name} sinks {bone}"
+    seat = mocap.world_positions(sit, skeleton, "leftUpperLeg")[:, 1] - mocap.SEAT
+    assert seat.max() < 0.005, "the seated loop does not rest on the seat"
+    feet = mocap.feet_z(down, skeleton)
+    lowered = int(1.6 * mocap.FPS)
+    assert np.ptp(feet[:lowered]) < 0.012, "the feet slide while she sits down"
+    seat_z = mocap.world_positions(down, skeleton, "leftUpperLeg")[lowered:, 2]
+    assert np.ptp(seat_z) < 0.012, "the seat slides once she is down"
+    assert np.allclose(down[1][-1], sit[1][0]) and np.allclose(up[1][0], sit[1][0])
+    assert np.allclose(up[1][-1], idle[1][0]), "stand_up does not end on the idle's first frame"
+    for bone, q in up[0].items():
+        if bone in idle[0]:
+            assert abs((q[-1] * idle[0][bone][0]).sum()) > 1 - 1e-6, f"stand_up ends off at {bone}"
 
 
 def test_spring_tuning_assigns_body_colliders_to_clothing_chains() -> None:

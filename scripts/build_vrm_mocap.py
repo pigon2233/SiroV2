@@ -730,10 +730,18 @@ MOCAP = {
         "Startle over the captured idle: flinch back, a hand to the mouth, held breath, relax.",
         False,
     ),
+    "sit_down": (
+        "Squats on flat feet, sits back onto the floor behind the heels and hugs the knees.",
+        False,
+    ),
     "sit_loop": (
-        "Seated on an edge with the captured idle's breathing and sway in the upper body,"
-        " an idle foot swing; loops until stand_up.",
+        "On the floor hugging the knees, with the captured idle's breathing and head sway;"
+        " loops until stand_up.",
         True,
+    ),
+    "stand_up": (
+        "Lets go of the knees, draws the feet in, rocks forward over them and rises.",
+        False,
     ),
     "idle_happy": (
         "Happy idle: livelier sway, chest up, hands behind the back, small bounce.",
@@ -744,7 +752,7 @@ MOCAP = {
     "idle_relaxed": ("Relaxed idle: slower and looser, shoulders down, head at a tilt.", True),
     "clap": ("Three quick claps in front of the chest with a happy lift.", False),
     "sigh": ("A breath in, shoulders up, then a long breath out that lets everything drop.", False),
-    "stretch": ("Arms raised forward to overhead, leaning back; needs headroom above.", False),
+    "stretch": ("Palms pushed out in front, then the chest opens and the face lifts.", False),
     "yawn": ("Head back, shoulders up, right hand over the mouth.", False),
     "pat": ("Patted on the head: shoulders up, head dipping into the hand at each pat.", False),
     "poke": ("Poked: a quick jump back with both hands up in front of the chest.", False),
@@ -774,7 +782,9 @@ STEPS = {"walk_start", "walk_stop", "turn_step"}
 LAYERED = {
     "think",
     "attention",
+    "sit_down",
     "sit_loop",
+    "stand_up",
     *MOODS,
     "clap",
     "sigh",
@@ -786,9 +796,24 @@ LAYERED = {
     *NOTEBOOK,
     *STEPS,
 }
-GROUND = {"sit_loop": "seat_edge_and_feet", "dangle": "none (held up while dragged)"}
-ENTRY = {"sit_loop": "seated", "notebook_read": "notebook", "notebook_away": "notebook"}
-EXIT = {"sit_loop": "seated", "notebook_out": "notebook", "notebook_read": "notebook"}
+GROUND = {
+    "sit_down": "feet, then the seat on the floor",
+    "sit_loop": "floor_seat_and_heels",
+    "stand_up": "the seat on the floor, then feet",
+    "dangle": "none (held up while dragged)",
+}
+ENTRY = {
+    "sit_loop": "seated",
+    "stand_up": "seated",
+    "notebook_read": "notebook",
+    "notebook_away": "notebook",
+}
+EXIT = {
+    "sit_down": "seated",
+    "sit_loop": "seated",
+    "notebook_out": "notebook",
+    "notebook_read": "notebook",
+}
 
 
 def build_clips(
@@ -818,7 +843,10 @@ def build_clips(
     out: dict[str, tuple[Clip, Shapes | None]] = {name: (c, None) for name, c in clips.items()}
     out["think"] = think(motions, idle)
     out["attention"] = surprise(motions, idle)
-    out["sit_loop"] = (seated(motions, idle, skeleton), None)
+    sit = seated(motions, idle, skeleton)
+    out["sit_loop"] = (sit, {side: held_shape(*HUG, np.ones(len(sit[1]))) for side in SIDES})
+    out["sit_down"] = sit_down(motions, idle, sit, skeleton)
+    out["stand_up"] = stand_up(motions, idle, sit, skeleton)
     out["idle_happy"] = mood_happy(motions, idle, skeleton)
     out["idle_sad"] = mood_sad(motions, idle, offset_pose(xbot, "sad_pose", skeleton))
     out["idle_angry"] = mood_angry(motions, idle)
@@ -846,13 +874,19 @@ def build_clips(
     return out
 
 
-UPPER_BODY = ("spine", "chest", "upperChest", "neck", "head", "leftShoulder", "rightShoulder")
+# The captured idle's sway in the seated upper body: full in the head, light in the back, whose
+# sway would slide the hands along the shins they hold, none in the shoulders.
+SEATED_SWAY = {"spine": 0.3, "chest": 0.3, "upperChest": 0.3, "neck": 0.8, "head": 0.8}
+SIDES = ("left", "right")
+HUG = (0.8, 0.4)  # fingers curled round the shins
+# How far the floor lies under each contact joint: the soles under the ankle and the toes joint
+# (their standing heights) and the seat under the hip joints (measured on the mesh, seated).
+SOLE = ("Foot", "Toes")
+SEAT = 0.056
 
 
-def seated(
-    motions: ModuleType, idle: Clip, skeleton: dict[str, Any], strength: float = 0.8
-) -> Clip:
-    """The authored seated loop with the captured idle's breathing and sway in the upper body.
+def seated(motions: ModuleType, idle: Clip, skeleton: dict[str, Any]) -> Clip:
+    """The authored floor sit with the captured idle's breathing and sway in the upper body.
 
     Two idle cycles long; the authored loop is stretched to match so both stay seamless.
     """
@@ -861,19 +895,152 @@ def seated(
     index = np.arange(2 * period + 1) % period
     duration = 2 * period / FPS
     samples = [motions.sit_loop(i / FPS * 8.0 / duration) for i in range(len(index))]
-    fingers = (*motions.FINGERS, "Thumb")
-    # fingers are left to the hand layer, which keeps them drifting
-    bones = {b for p, _h in samples for b in p if not any(f in b for f in fingers)}
-    out = {b: np.array([motions.compose(p.get(b, [])) for p, _h in samples]) for b in bones}
+    out, hips = sampled_frames(motions, skeleton, samples)
     identity = np.broadcast_to(np.array([0.0, 0, 0, 1]), (len(index), 4))
-    for bone in UPPER_BODY:
+    for bone, strength in SEATED_SWAY.items():
         q = idle[0][bone]
         q = np.where((q * q[:1]).sum(-1, keepdims=True) < 0, -q, q)
         mean = q.mean(0) / np.linalg.norm(q.mean(0))
         sway = arc(identity, qmul(q[index], qinv(mean)), np.full(len(index), strength))
         out[bone] = qmul(sway, out.get(bone, identity))
+    for bone in idle[0]:  # the bones the idle moves and the floor sit leaves straight (the toes)
+        if bone not in out and not any(f in bone for f in (*motions.FINGERS, "Thumb")):
+            out[bone] = identity.copy()
+    return out, hips
+
+
+def sampled_frames(motions: ModuleType, skeleton: dict[str, Any], samples: list[Any]) -> Clip:
+    """Authored frames as a clip; fingers are left to the hand layer, which keeps them alive."""
+
+    fingers = (*motions.FINGERS, "Thumb")
+    bones = {b for p, _h in samples for b in p if not any(f in b for f in fingers)}
+    out = {b: np.array([motions.compose(p.get(b, [])) for p, _h in samples]) for b in bones}
     hips = np.array([h for _p, h in samples]) + np.array(skeleton["hips"]["world"])
     return out, hips
+
+
+def authored(motions: ModuleType, skeleton: dict[str, Any], name: str) -> Clip:
+    spec = motions.ACTIVITIES[name]
+    frames = round(float(spec["duration"]) * FPS) + 1
+    return sampled_frames(motions, skeleton, [spec["sample"](i / FPS) for i in range(frames)])
+
+
+def floor_gap(clip: Clip, skeleton: dict[str, Any]) -> np.ndarray:
+    """Height of her lowest contact (heels, toes or seat) above the floor, per frame."""
+
+    gaps = []
+    for side in SIDES:
+        for part in SOLE:
+            bone = f"{side}{part}"
+            gaps.append(world_positions(clip, skeleton, bone)[:, 1] - skeleton[bone]["world"][1])
+        gaps.append(world_positions(clip, skeleton, f"{side}UpperLeg")[:, 1] - SEAT)
+    return np.min(gaps, axis=0)
+
+
+def feet_z(clip: Clip, skeleton: dict[str, Any]) -> np.ndarray:
+    return np.mean([world_positions(clip, skeleton, f"{s}Foot")[:, 2] for s in SIDES], axis=0)
+
+
+def between(a: Clip, b: Clip, w: np.ndarray) -> Clip:
+    """``a`` blending into ``b`` by ``w``; a bone only one of them moves keeps its own track."""
+
+    rotations = {bone: arc(a[0][bone], q, w) if bone in a[0] else q for bone, q in b[0].items()}
+    rotations.update({bone: q for bone, q in a[0].items() if bone not in b[0]})
+    return rotations, a[1] * (1 - w[:, None]) + b[1] * w[:, None]
+
+
+def first(clip: Clip, frames: int) -> Clip:
+    """The clip's first frame held for ``frames`` frames."""
+
+    rotations, hips = clip
+    held = {b: np.repeat(q[:1], frames, 0) for b, q in rotations.items()}
+    return held, np.repeat(hips[:1], frames, 0)
+
+
+def grounded(clip: Clip, skeleton: dict[str, Any], planted: np.ndarray) -> Clip:
+    """Keep her lowest contact on the floor and, where ``planted``, the feet where they are;
+    elsewhere the seat holds its place. The first and last frames are left exactly as they are
+    (they hand over to the idle and the seated loop)."""
+
+    rotations, hips = clip
+    hips = hips.copy()
+    u = np.linspace(0, 1, len(hips))
+    lift = -floor_gap((rotations, hips), skeleton)
+    hips[:, 1] += lift - lift[0] * (1 - u) - lift[-1] * u
+    z = feet_z((rotations, hips), skeleton)
+    slide = np.zeros(len(hips))
+    held = 0.0
+    anchor_z = z[0]
+    for i in range(len(hips)):
+        if planted[i]:
+            if i and not planted[i - 1]:
+                anchor_z = z[i] + held  # feet come down where they are
+            slide[i] = anchor_z - z[i]
+            held = slide[i]
+        else:
+            slide[i] = held  # the seat holds while the feet move
+    hips[:, 2] += slide - slide[0] * (1 - u) - slide[-1] * u
+    return rotations, hips
+
+
+def even_pace(clip: Clip, start: int, end: int, seconds: float) -> Clip:
+    """Frames ``start`` to ``end`` re-timed to last ``seconds``, easing in and out at an even pace
+    of change (hips travel plus joint rotation). Grounding a pose blend drops the hips fastest
+    where the knees are half bent, which reads as falling; this spreads the descent evenly."""
+
+    rotations, hips = clip
+    bones = sorted(rotations)
+    turn = sum(
+        2 * np.arccos(np.clip(np.abs((q[start + 1 : end + 1] * q[start:end]).sum(-1)), 0, 1))
+        for q in (rotations[b] for b in bones)
+    )
+    travel = np.linalg.norm(np.diff(hips[start : end + 1], axis=0), axis=1)
+    progress = np.concatenate([[0.0], np.cumsum(travel + 0.012 * turn + 1e-9)])
+    u = np.linspace(0, 1, round(seconds * FPS) + 1)
+    goal = progress[-1] * u * u * (3 - 2 * u)  # gentler than in_out: no plunge at the middle
+    source = np.interp(goal, progress, np.arange(start, end + 1, dtype=float))
+    i0 = np.minimum(np.floor(source).astype(int), end - 1)
+    u = source - i0
+    paced = {b: slerp(rotations[b][i0], rotations[b][i0 + 1], u) for b in bones}
+    paced_hips = hips[i0] + (hips[i0 + 1] - hips[i0]) * u[:, None]
+    out = {b: np.concatenate([q[:start], paced[b], q[end + 1 :]]) for b, q in rotations.items()}
+    return out, np.concatenate([hips[:start], paced_hips, hips[end + 1 :]])
+
+
+def sit_down(
+    motions: ModuleType, idle: Clip, sit: Clip, skeleton: dict[str, Any]
+) -> tuple[Clip, Shapes]:
+    """From the idle's first frame: squat on flat feet, sit back onto the floor behind the heels,
+    then hug the knees, ending exactly on the seated loop's first frame."""
+
+    clip = authored(motions, skeleton, "sit_down")
+    n = len(clip[1])
+    t = np.arange(n) / FPS
+    clip = between(first(idle, n), clip, in_out(np.clip(t / 0.35, 0, 1)))
+    clip = between(clip, first(sit, n), in_out(np.clip((t - (t[-1] - 0.45)) / 0.45, 0, 1)))
+    clip = grounded(clip, skeleton, t <= 1.25)
+    clip = even_pace(clip, 0, round(1.25 * FPS), 1.6)
+    t = np.arange(len(clip[1])) / FPS
+    w = np.clip((t - 1.6) / 0.5, 0, 1)
+    return clip, {side: held_shape(*HUG, w) for side in SIDES}
+
+
+def stand_up(
+    motions: ModuleType, idle: Clip, sit: Clip, skeleton: dict[str, Any]
+) -> tuple[Clip, Shapes]:
+    """From the seated loop's first frame: let go of the knees and draw the feet in, rock forward
+    over them and rise, ending exactly on the idle's first frame."""
+
+    clip = authored(motions, skeleton, "stand_up")
+    n = len(clip[1])
+    t = np.arange(n) / FPS
+    clip = between(first(sit, n), clip, in_out(np.clip(t / 0.2, 0, 1)))
+    clip = between(clip, first(idle, n), in_out(np.clip((t - (t[-1] - 0.4)) / 0.4, 0, 1)))
+    clip = grounded(clip, skeleton, t >= 0.5)
+    clip = even_pace(clip, round(0.5 * FPS), n - 1, 1.5)
+    t = np.arange(len(clip[1])) / FPS
+    w = 1 - np.clip(t / 0.4, 0, 1)
+    return clip, {side: held_shape(*HUG, w) for side in SIDES}
 
 
 # --- moods: emotion-specific idle loops and small one-shots ----------------------------------
@@ -1064,15 +1231,15 @@ CLAP_SHUT = {
     "leftUpperArm": [("x", 40), ("z", -72), ("x", -28)],
     "rightUpperArm": [("x", 40), ("z", 72), ("x", -28)],
 }
-STRETCH = {  # raised forward and up, not out to the sides: a narrow window keeps both hands
-    "leftShoulder": [("z", 10)],
-    "rightShoulder": [("z", -10)],
-    "leftUpperArm": [("z", -71), ("x", -158)],
-    "rightUpperArm": [("z", 71), ("x", -158)],
-    "leftLowerArm": [("y", -25)],
-    "rightLowerArm": [("y", 25)],
-    "leftHand": [("z", 0)],
-    "rightHand": [("z", 0)],
+STRETCH = {  # arms out straight in front, palms pushed away: raised overhead, the jacket tears
+    "leftShoulder": [("z", 4), ("y", -8)],
+    "rightShoulder": [("z", -4), ("y", 8)],
+    "leftUpperArm": [("z", -70), ("x", -76), ("y", -2)],
+    "rightUpperArm": [("z", 70), ("x", -76), ("y", 2)],
+    "leftLowerArm": [("y", -8), ("z", -20)],
+    "rightLowerArm": [("y", 8), ("z", 20)],
+    "leftHand": [("z", 80), ("x", 50), ("y", -31)],
+    "rightHand": [("z", -80), ("x", 50), ("y", 31)],
 }
 YAWN = {
     "rightShoulder": [("z", -5)],
@@ -1130,17 +1297,27 @@ def sigh(motions: ModuleType, idle: Clip) -> tuple[Clip, None]:
 
 
 def stretch(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:
-    """Both arms up overhead, leaning back with the face up, held a moment; back to the idle.
-    The arms swing up in front of her, so the hands go well above the head (the desktop framing
-    keeps headroom for it) but never wider than the shoulders."""
+    """Palms pushed out in front with the back rounding, then the arms come down and the chest
+    opens with the shoulders drawn back and the face up; back to the idle. The upper arms stay
+    below shoulder height: overhead, the jacket's sleeves and shoulders stretch apart."""
 
     clip = idle_tail(idle, 3.6)
-    arms = envelope((0.2, 1.1), (2.2, 3.25))
-    back = on_stand(motions, spine=[("x", -5)], chest=[("x", -3)], head=[("x", -8)])
-    clip = layer(motions, clip, back, arms, additive=("spine", "chest", "head"))
+    arms = envelope((0.15, 0.85), (1.7, 2.35), 0.3)
+    hunch = on_stand(motions, spine=[("x", 5)], chest=[("x", 3)], head=[("x", 3)])
+    clip = layer(motions, clip, hunch, arms, additive=("spine", "chest", "head"))
     clip = layer(motions, clip, STRETCH, arms, ARMS)
+    opened = on_stand(
+        motions,
+        leftShoulder=[("y", 6)],
+        rightShoulder=[("y", -6)],
+        spine=[("x", -4)],
+        chest=[("x", -4)],
+        head=[("x", -7)],
+    )
+    bones = ("leftShoulder", "rightShoulder", "spine", "chest", "head")
+    clip = layer(motions, clip, opened, envelope((2.0, 2.6), (2.7, 3.2)), additive=bones)
     w = arms(np.arange(len(clip[1])) / FPS)
-    return clip, {"left": held_shape(0.3, 2.5, w), "right": held_shape(0.3, 2.5, w)}
+    return clip, {"left": held_shape(0.15, 1.0, w), "right": held_shape(0.15, 1.0, w)}
 
 
 def yawn(motions: ModuleType, idle: Clip) -> tuple[Clip, Shapes]:

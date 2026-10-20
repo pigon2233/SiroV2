@@ -295,36 +295,63 @@ def walk(t: float) -> Frame:
     return p, (0.012 * wave(t, 1.0, math.pi / 2), bob, 0.0)
 
 
+# Sitting on the floor (the bottom edge of her window), knees up and hugged: there is no chair.
+# The pelvis rolls back, the back rounds over the knees, the heels rest on the floor.
+# Leg and arm angles solved against the real mesh: seat and heels both touch the floor.
 SIT: Pose = pose(
-    **hands(curl=1.2),
-    hips=[("x", 0)],
-    spine=[("x", 8), ("z", 0)],
-    chest=[("x", 2)],
-    neck=[("x", 4), ("z", 3)],
-    leftUpperLeg=[("x", -86), ("z", -5)],
-    rightUpperLeg=[("x", -88), ("z", 3)],
-    leftLowerLeg=[("x", 80)],
-    rightLowerLeg=[("x", 88)],
-    leftFoot=[("x", 8)],
-    rightFoot=[("x", 2)],
-    leftShoulder=[("z", -2)],
-    rightShoulder=[("z", 2)],
-    # Hands resting on the thighs (solved numerically against the measured skeleton).
-    leftUpperArm=[("z", -77), ("x", -27)],
-    rightUpperArm=[("z", 75), ("x", -29)],
-    leftLowerArm=[("y", -17), ("z", -38)],
-    rightLowerArm=[("y", 13), ("z", 41)],
-    leftHand=[("z", -4), ("x", 10)],
-    rightHand=[("z", 4), ("x", 10)],
+    **hands(curl=0.8, spread=0.5),
+    hips=[("x", -25)],
+    spine=[("x", 20)],
+    chest=[("x", 12)],
+    neck=[("x", -6)],
+    leftUpperLeg=[("x", -132)],
+    rightUpperLeg=[("x", -132)],
+    leftLowerLeg=[("x", 102)],
+    rightLowerLeg=[("x", 102)],
+    leftFoot=[("x", 40)],
+    rightFoot=[("x", 40)],
+    # Arms round the shins from outside the knees, hands meeting in front of the shins.
+    leftUpperArm=[("z", -50), ("x", -42), ("y", -31)],
+    rightUpperArm=[("z", 50), ("x", -42), ("y", 31)],
+    leftLowerArm=[("y", -51), ("z", -30)],
+    rightLowerArm=[("y", 51), ("z", 30)],
+    leftHand=[("z", -63), ("x", 19), ("y", -8)],
+    rightHand=[("z", 63), ("x", 19), ("y", 8)],
 )
-# Seat height puts the thighs level with the feet resting on the floor.
-SIT_DROP = -0.40
-# Hips settle back onto the seat edge behind the heels.
-SIT_BACK = -0.12
-# Leaning forward over the knees is what lets a person sit down and stand up.
-LEAN = add(blend(STAND, SIT, 0.7), spine=[("x", 22)], chest=[("x", 6)], neck=[("x", -14)])
-# Hip drop that keeps the feet on the floor with LEAN's bent knees (thigh and shin lengths).
-LEAN_DROP = -0.18
+# Hip drop that puts the seat on the floor with SIT's legs (measured on the mesh).
+SIT_DROP = -0.83
+# The seat lands behind the standing heels (SETTLE's feet stay where she stood); the feet then
+# slide a little further forward into SIT.
+SIT_BACK = -0.45
+# Deep squat on flat feet, leaning forward with the arms out in front for balance.
+SQUAT: Pose = pose(
+    **hands(curl=0.4),
+    spine=[("x", 28)],
+    chest=[("x", 10)],
+    neck=[("x", -16)],
+    leftUpperLeg=[("x", -108)],
+    rightUpperLeg=[("x", -108)],
+    leftLowerLeg=[("x", 130)],
+    rightLowerLeg=[("x", 130)],
+    leftFoot=[("x", -22)],
+    rightFoot=[("x", -22)],
+    leftUpperArm=[("z", -72), ("x", -55)],
+    rightUpperArm=[("z", 72), ("x", -55)],
+    leftLowerArm=[("y", -25)],
+    rightLowerArm=[("y", 25)],
+)
+# The seat touching down behind the heels: pelvis rolled back, knees drawn up, heels down.
+SETTLE: Pose = add(
+    SQUAT,
+    hips=[("x", -30)],
+    spine=[("x", -4)],
+    leftUpperLeg=[("x", -27)],
+    rightUpperLeg=[("x", -27)],
+    leftLowerLeg=[("x", -16)],
+    rightLowerLeg=[("x", -16)],
+    leftFoot=[("x", 52)],
+    rightFoot=[("x", 52)],
+)
 
 
 def sit_loop(t: float) -> Frame:
@@ -332,9 +359,9 @@ def sit_loop(t: float) -> Frame:
         SIT,
         neck=[("y", 5 * wave(t, 8, 0.5)), ("x", 1.5 * wave(t, 8 / 3, 1.0))],
         head=[("z", 2 * wave(t, 8, 2.0))],
-        # idle foot swing, out of phase between the legs
-        leftLowerLeg=[("x", 6 * wave(t, 8 / 3))],
-        rightLowerLeg=[("x", 5 * wave(t, 8 / 3, 2.4))],
+        # a small toe tap now and then; the heels stay on the floor
+        leftFoot=[("x", -6 * max(0.0, wave(t, 8 / 3)) ** 3)],
+        rightFoot=[("x", -5 * max(0.0, wave(t, 8 / 3, 2.4)) ** 3)],
     )
     for bone, rotations in breathing(t).items():
         p[bone] = p[bone] + rotations
@@ -446,24 +473,23 @@ ACTIVITIES: dict[str, dict[str, object]] = {
     },
     "walk": {"duration": 1.0, "loop": True, "sample": walk},
     "sit_down": {
-        "duration": 1.4,
+        "duration": 1.9,
         "loop": False,
         "sample": keyframes(
-            [0, 0.55, 1.4],
-            [STAND, LEAN, SIT],
-            [(0, 0, 0), (0, LEAN_DROP, SIT_BACK * 0.3), (0, SIT_DROP, SIT_BACK)],
-            eases=["in_out", "back"],
+            [0, 0.7, 1.25, 1.9],
+            [STAND, SQUAT, SETTLE, SIT],
+            [(0, 0, 0), (0, -0.5, -0.19), (0, SIT_DROP, SIT_BACK), (0, SIT_DROP, SIT_BACK)],
         ),
     },
     "sit_loop": {"duration": 8.0, "loop": True, "sample": sit_loop},
     "stand_up": {
-        "duration": 1.3,
+        "duration": 1.7,
         "loop": False,
         "sample": keyframes(
-            [0, 0.5, 1.3],
-            [SIT, LEAN, STAND],
-            [(0, SIT_DROP, SIT_BACK), (0, LEAN_DROP, SIT_BACK * 0.3), (0, 0, 0)],
-            eases=["in_out", "back"],
+            [0, 0.5, 1.0, 1.7],
+            [SIT, SETTLE, SQUAT, STAND],
+            [(0, SIT_DROP, SIT_BACK), (0, SIT_DROP, SIT_BACK), (0, -0.5, -0.19), (0, 0, 0)],
+            eases=["in_out", "in_out", "back"],
         ),
     },
 }
@@ -475,9 +501,9 @@ DESCRIPTIONS = {
     "wave": "Right-hand wave with anticipation and a wrist flick; returns to the stand pose.",
     "think": "Hand to cheek, free arm across the waist, head tilt; returns to the stand pose.",
     "walk": "In-place gait: heel strike, toe-off, hip roll; the window moves, not the clip.",
-    "sit_down": "Leans over the knees and settles onto an edge, feet on the floor.",
-    "sit_loop": "Seated breathing, head drift and an idle foot swing; loops until stand_up.",
-    "stand_up": "Leans forward and rises back to the stand pose.",
+    "sit_down": "Squats down and sits back onto the floor, then hugs the knees.",
+    "sit_loop": "On the floor hugging the knees: breathing, head drift, a toe tap; loops.",
+    "stand_up": "Lets go of the knees, rocks forward onto the feet and rises.",
 }
 
 # Overlapping action: children trail their parents by these delays (seconds), so a motion
@@ -644,7 +670,7 @@ def main() -> None:
                 if seated
                 else ("hold_last_frame" if name == "attention" else "stand"),
                 "root_motion": "none (hips height only; desktop window owns travel)",
-                "ground_contact": "seat_edge_and_feet"
+                "ground_contact": "floor_seat_and_heels"
                 if name.startswith("sit") or name == "stand_up"
                 else "feet",
                 "interrupt": "any_frame"
