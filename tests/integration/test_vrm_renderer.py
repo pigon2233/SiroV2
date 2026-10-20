@@ -692,7 +692,7 @@ def test_desktop_framing_keeps_every_clips_soles_and_hands_on_screen(tmp_path: P
         )
         try:
             ready_renderer(page, gateway)
-            # Boot soles (4 cm below the foot joints) and hand tips of every clip in the pack,
+            # Boot soles (the shoe's measured sole below the foot joints) and hand tips of every clip,
             # projected with perspective, stay inside the frame: seated feet forward, raised hands.
             reach = page.evaluate("window.__siroVrm.reachOnScreen()")
             assert reach["points"] > 0
