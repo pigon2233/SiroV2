@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta charset="utf-8">
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/jsm/","@pixiv/three-vrm":"/vendor/three-vrm.module.js","@pixiv/three-vrm-animation":"/vendor/three-vrm-animation.module.js"}}</script>
+</head><body style="margin:0;background:#fff">
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from '@pixiv/three-vrm-animation';
+const W = 180, H = 280;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
+renderer.setSize(W, H); renderer.setClearColor(0xf1f3f7);
+const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(1, 2, 3); scene.add(sun);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(0.6, 32), new THREE.MeshBasicMaterial({ color: 0xd5dae3 }));
+floor.rotation.x = -Math.PI / 2; scene.add(floor);
+const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 20);
+const loader = new GLTFLoader();
+loader.register(p => new VRMLoaderPlugin(p)); loader.register(p => new VRMAnimationLoaderPlugin(p));
+window.renderSheet = async (pack, views) => {
+  const vrm = (await loader.loadAsync('/model.vrm')).userData.vrm;
+  scene.add(vrm.scene);
+  const rows = [];
+  for (const entry of pack) {
+    const anim = (await loader.loadAsync('/motions/' + entry.file)).userData.vrmAnimations[0];
+    rows.push({ entry, clip: createVRMAnimationClip(anim, vrm) });
+  }
+  const results = {};
+  for (const view of views) {
+    const cols = view.times.length;
+    const sheet = document.createElement('canvas');
+    sheet.width = W * cols + 120; sheet.height = H * view.clips.length;
+    const g = sheet.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, sheet.width, sheet.height);
+    g.font = '15px sans-serif';
+    view.clips.forEach((name, r) => { g.fillStyle = '#222'; g.fillText(name, 6, r * H + H / 2); });
+    camera.position.set(...view.camera); camera.lookAt(0, view.target ?? 0.75, 0);
+    for (const [r, name] of view.clips.entries()) {
+      const { clip, entry } = rows.find(x => x.entry.activity === name);
+      vrm.scene.rotation.y = 0;
+      const mixer = new THREE.AnimationMixer(vrm.scene);
+      const action = mixer.clipAction(clip); action.play();
+      vrm.springBoneManager?.reset?.();
+      let t = 0; const dt = 1 / 30; mixer.update(0); vrm.update(dt);
+      for (const [c, frac] of view.times.entries()) {
+        const target = frac * clip.duration;
+        while (t < target - 1e-6) { mixer.update(dt); vrm.update(dt); t += dt; }
+        renderer.render(scene, camera);
+        g.drawImage(renderer.domElement, 120 + c * W, r * H);
+      }
+      action.stop(); mixer.uncacheRoot(vrm.scene);
+      vrm.humanoid.resetNormalizedPose(); vrm.update(0);
+    }
+    results[view.name] = sheet.toDataURL('image/png');
+  }
+  return results;
+};
+window.sheetReady = true;
+</script></body></html>

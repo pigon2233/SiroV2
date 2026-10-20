@@ -47,7 +47,10 @@ BANDAI = (
 )
 BANDAI_LICENSE = "CC BY-NC 4.0 (Bandai Namco Research Motion Dataset); non-commercial use only"
 BANDAI_CREDIT = "Bandai Namco Research Inc., Bandai-Namco-Research-Motiondataset"
-MIXAMO_LICENSE = "Mixamo animation as distributed in the three.js examples (MIT repository)"
+MIXAMO_LICENSE = (
+    "Adobe Mixamo animation under the Mixamo terms (not the three.js MIT licence),"
+    " taken from the three.js examples"
+)
 MIXAMO_CREDIT = "Mixamo (Adobe), via three.js examples/models/gltf/Xbot.glb r169"
 SOURCES = {
     "Xbot.glb": (
@@ -1970,6 +1973,20 @@ def main() -> None:
         }
     pack["activities"] = list(entries.values())
     pack["mocap_source"] = "scripts/build_vrm_mocap.py"
+    # Every clip is now captured, so the authored-preview header from build_vrm_motions.py no
+    # longer describes the pack.
+    pack["status"] = "IN_USE_BY_VRM_RENDERER (V04 acceptance: design/companion/CP-V04/README.md)"
+    pack["authorship"] = (
+        "Motion capture retargeted onto SIRO's skeleton, with Claude-authored layers"
+        " (scripts/build_vrm_mocap.py), 2026-10-19/20"
+    )
+    pack["license"] = (
+        "Per clip, see activities[].license. Non-commercial as a whole: wave, bow and bye are"
+        " CC BY-NC 4.0; the owner decided on 2026-10-20 that no commercial use is planned and"
+        " kept them. Replace those three before any commercial release."
+    )
+    pack["editable_source"] = ["scripts/build_vrm_motions.py", "scripts/build_vrm_mocap.py"]
+    pack["editable_model"] = "design/companion/CP-V04/MODEL.md"
     (args.out / "pack.json").write_text(
         json.dumps(pack, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
