@@ -358,6 +358,21 @@ _CHECKS = r"""
   audios[2].end();await tick();
   assert(succeeded(),status.textContent);
   assert.deepEqual(rendered().map(call=>call.body.text),['好。','我看看。','後面還有。再一句。']);
+ } else if(scenario==='live_closing_mark') {
+  const plans=()=>calls.filter(call=>call.url==='/v1/audio/speech/plan');
+  const live=beginLiveSpeech();live.push('好呀\uff01');await tick();
+  // A planned prefix is closed as a sentence, so it can differ in punctuation from the full text.
+  plans()[0].resolve(planResponse(['好呀\uff01。']));await tick();await deliver(0);
+  live.finish('好呀\uff01我在。',{});await tick();
+  plans()[1].resolve(planResponse(['好呀\uff01我在。']));await tick();
+  assert.equal(plans()[2]?.body.text,'我在。','punctuation differences do not stop narration');
+  plans()[2].resolve(planResponse(['我在。']));await tick();
+  await deliver(1);audios[0].end();await tick();audios[1].end();await tick();
+  assert(succeeded(),status.textContent);
+ } else if(scenario==='live_fence_closes_later') {
+  const live=beginLiveSpeech();live.push('可以的。\n```py\nprint(1)\n```');await tick();
+  assert.equal(calls[0]?.body.text,'可以的。\n','no reading point inside a code block');
+  stopTts();
  } else if(scenario==='live_stop') {
   const live=beginLiveSpeech();live.push('甲。乙。');await tick();
   calls[0].resolve(planResponse(['甲。','乙。']));await tick();
@@ -422,6 +437,8 @@ _CHECKS = r"""
         "live_stream",
         "live_realign",
         "live_boundary_moves",
+        "live_closing_mark",
+        "live_fence_closes_later",
         "live_stop",
         "live_code_fence",
     ],
