@@ -46,7 +46,7 @@ function restrict(view) {
         if (!audioOnly || !permitted(view.get_uri() || '')) { request.deny(); return true; }
         const dialog = new Gtk.MessageDialog({transient_for: window, modal: true,
             message_type: Gtk.MessageType.QUESTION, buttons: Gtk.ButtonsType.NONE,
-            text: '允許這次使用麥克風嗎？', secondary_text: '只在你按開始說話後錄音；辨識使用目前設定的語音服務。'});
+            text: '允許這次使用麥克風嗎？', secondary_text: '只在你按開始說話或開啟免手動時錄音；辨識使用目前設定的語音服務。'});
         dialog.add_button('取消', Gtk.ResponseType.CANCEL);
         dialog.add_button('允許這次', Gtk.ResponseType.ACCEPT);
         dialog.connect('response', (_dialog, response) => {

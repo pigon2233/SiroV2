@@ -1650,12 +1650,23 @@
               let value;
               try { value = await plan({text: prefix}); } catch (error) { assertCurrent(); continue; } // retried with more text
               if (!deadlineSet) { accept(value); deadlineSet = true; }
+              // Only text not yet queued is new. A longer prefix can move earlier segment
+              // boundaries (the short first segment grows), so then just the rest is planned.
+              const heard = segments.join("");
+              let fresh = value.segments;
+              if (heard) {
+                if (!value.spoken_text.startsWith(heard)) continue; // the final plan settles it
+                if (segments.every((segment, i) => segment === value.segments[i])) fresh = value.segments.slice(segments.length);
+                else {
+                  const rest = value.spoken_text.slice(heard.length);
+                  if (!rest.trim()) continue;
+                  try { fresh = (await plan({text: rest})).segments; } catch (error) { assertCurrent(); continue; }
+                }
+              }
               // Every segment but the last is final: later text only extends the last one.
               // A finished first sentence is read at once; that is what the short first segment is for.
-              const stable = value.segments.length === 1 && /[。！？!?]$/.test(value.segments[0]) ? value.segments : value.segments.slice(0, -1);
-              if (stable.length > segments.length && segments.every((segment, i) => segment === stable[i])) {
-                segments.push(...stable.slice(segments.length)); notify();
-              }
+              const stable = !heard && fresh.length === 1 && /[。！？!?]$/.test(fresh[0]) ? fresh : fresh.slice(0, -1);
+              if (stable.length) { segments.push(...stable); notify(); }
               continue;
             }
             const value = await plan({text: final});
@@ -2016,7 +2027,7 @@
       // Her soft sound effects stay silent while her voice plays or a microphone capture is open.
       setInterval(() => {
         const frame = document.querySelector("#companion");
-        if (!frame?.contentWindow || !(ttsAudio || ttsController || microphoneCapture || transcriptionController)) return;
+        if (!frame?.contentWindow || !(ttsAudio || ttsController || microphoneCapture || transcriptionController || handsFree.on)) return;
         try { frame.contentWindow.postMessage({type: "siro.audio.busy", v: 1, busy: true}, location.origin); } catch (_) { /* renderer gone */ }
       }, 1000);
       boot().catch(() => { document.querySelector("#connection").textContent = "連線未完成"; const notice = document.querySelector("#service-notice"); notice.hidden = false; notice.textContent = "目前無法連接 SIRO。請確認服務已啟動，再按重新連線；已送出的工作不會自動重送。"; });

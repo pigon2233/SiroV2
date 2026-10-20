@@ -112,6 +112,12 @@ body.siro-desktop #desktop-status {
   font-size: 11px;
   line-height: 1.45;
   margin: 0;
-  max-height: 3em;
+  max-height: 4.35em;
   overflow: hidden;
+  /* Long recognised text ends in an ellipsis; the full line is in the tooltip and the chat. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
 }
+body.siro-desktop #desktop-voice-auto[aria-pressed="true"] { background: var(--tint); border-color: var(--action); }

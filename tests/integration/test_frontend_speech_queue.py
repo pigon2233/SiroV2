@@ -338,6 +338,26 @@ _CHECKS = r"""
   await deliver(1);audios[0].end();await tick();audios[1].end();await tick();
   assert(succeeded(),status.textContent);
   assert.deepEqual(rendered().map(call=>call.body.text),['甲。','乙。'],'nothing is read twice');
+ } else if(scenario==='live_boundary_moves') {
+  const plans=()=>calls.filter(call=>call.url==='/v1/audio/speech/plan');
+  const live=beginLiveSpeech();live.push('好。');await tick();
+  plans()[0].resolve(planResponse(['好。']));await tick();await deliver(0);
+  live.push('我看看。後面還有。再一句');await tick();
+  assert.equal(plans()[1].body.text,'好。我看看。後面還有。');
+  // The longer text moves the first boundary; reading must not stall until the reply ends.
+  plans()[1].resolve(planResponse(['好。我看看。','後面還有。']));await tick();
+  assert.equal(plans()[2]?.body.text,'我看看。後面還有。','only the unqueued rest is planned');
+  plans()[2].resolve(planResponse(['我看看。','後面還有。']));await tick();
+  assert.equal(rendered().length,2,'the next sentence is queued while the reply streams');
+  assert.equal(rendered()[1].body.text,'我看看。');
+  live.finish('好。我看看。後面還有。再一句。',{});await tick();
+  plans()[3].resolve(planResponse(['好。我看看。','後面還有。再一句。']));await tick();
+  assert.equal(plans()[4]?.body.text,'後面還有。再一句。');
+  plans()[4].resolve(planResponse(['後面還有。再一句。']));await tick();
+  await deliver(1);audios[0].end();await tick();await deliver(2);audios[1].end();await tick();
+  audios[2].end();await tick();
+  assert(succeeded(),status.textContent);
+  assert.deepEqual(rendered().map(call=>call.body.text),['好。','我看看。','後面還有。再一句。']);
  } else if(scenario==='live_stop') {
   const live=beginLiveSpeech();live.push('甲。乙。');await tick();
   calls[0].resolve(planResponse(['甲。','乙。']));await tick();
@@ -401,6 +421,7 @@ _CHECKS = r"""
         "voice_disabled",
         "live_stream",
         "live_realign",
+        "live_boundary_moves",
         "live_stop",
         "live_code_fence",
     ],
