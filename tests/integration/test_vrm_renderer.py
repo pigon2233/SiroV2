@@ -529,7 +529,15 @@ def test_framing_gaze_and_pointer_reactions(tmp_path: Path) -> None:
             assert any(
                 m.get("type") == "siro.renderer.interact" for m in page.evaluate("window.__posted")
             )
-            assert not gateway.received[1:], "pointer reactions stay in the renderer"
+            # Touches reach SIRO as body.touch: one pat for the patting, and the burst of four
+            # clicks as one poke once the clicking stops. Nothing else leaves the renderer.
+            deadline = time.monotonic() + 5
+            while len(gateway.received) < 3 and time.monotonic() < deadline:
+                page.wait_for_timeout(100)
+            assert gateway.received[1:] == [
+                {"v": 1, "type": "body.touch", "kind": "pat", "count": 1},
+                {"v": 1, "type": "body.touch", "kind": "poke", "count": 4},
+            ]
         finally:
             browser.close()
 
@@ -554,6 +562,10 @@ def test_drag_dangles_and_lands_and_the_notebook_is_a_held_state(tmp_path: Path)
             page.mouse.up()
             page.wait_for_function("window.__siroVrm.activity() === 'land'", timeout=5000)
             page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
+            # Being carried reaches SIRO once, on landing.
+            assert gateway.received[1:] == [
+                {"v": 1, "type": "body.touch", "kind": "carry", "count": 1}
+            ]
 
             # The notebook: out, read (a held loop with the prop in her hands), then away.
             page.mouse.click(x, y, button="right")

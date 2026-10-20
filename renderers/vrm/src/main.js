@@ -661,6 +661,7 @@ function loop(now) {
       saveLifeBones();
     } else idlePose(elapsed);
     updateNotebook();
+    updateTouches();
     updateLife(delta);
     updateFace(delta);
     updateLook();
@@ -852,7 +853,28 @@ window.addEventListener('pointermove', event => {
   if (pat.strokes.length >= 3) patted(event);
 });
 
+// Touches also reach SIRO, so she can know she was patted, poked or carried (body.touch on the
+// body socket; only while this renderer owns the body; each kind at most once every 8 s).
+const touchSentAt = {};
+const pokeBurst = { count: 0, last: -Infinity };
+function sendTouch(kind, count) {
+  if (siroDetached || siroSocket?.readyState !== WebSocket.OPEN) return;
+  if (elapsed - (touchSentAt[kind] ?? -Infinity) < 8) return;
+  touchSentAt[kind] = elapsed;
+  siroSocket.send(JSON.stringify({ v: 1, type: 'body.touch', kind, count }));
+}
+
+// A burst of clicks on her body is one poke once the clicking stops; a single click is not.
+function updateTouches() {
+  if (pokeBurst.count && elapsed - pokeBurst.last > 1.5) {
+    if (pokeBurst.count >= 2) sendTouch('poke', pokeBurst.count);
+    pokeBurst.count = 0;
+  }
+}
+
 function patted(event) {
+  // A new patting episode (not one already going on) is one touch.
+  if (elapsed > pat.until) sendTouch('pat', 1);
   const head = headOnScreen();
   // She tilts her head toward the hand.
   if (head) life.patSide = THREE.MathUtils.clamp((head.x - event.clientX) / head.radius, -1, 1);
@@ -886,6 +908,9 @@ window.addEventListener('pointerup', event => {
   }
   pokes = pokes.filter(time => elapsed - time < 2.5);
   pokes.push(elapsed);
+  if (elapsed - pokeBurst.last > 1.5) pokeBurst.count = 0;
+  pokeBurst.count += 1;
+  pokeBurst.last = elapsed;
   if (pokes.length >= 4) {
     pokes = [];
     react('angry', 0.65, 2.2);
@@ -920,6 +945,7 @@ function updateCarry() {
   const back = carry.touched > carry.since + 0.5;
   if (!settled && !back && elapsed - carry.since < 8) return;
   carry.active = false;
+  sendTouch('carry', 1);
   if (playing('dangle') && !playGesture('land')) returnToIdle(currentAction);
 }
 
