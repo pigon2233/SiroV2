@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIRO 活動監測參考稿（CP-V05）</title>
+<!--
+  CP-V05 reference mock. Not production: P03 builds the real page inside index.html.
+  Data is synthetic and shaped like GET /v1/activities (src/siro/services/activity/monitor.py).
+  ?scenario=normal|empty|offline|gap|denied|unavailable picks a state; ?bubble=1 shows the pet bubbles.
+-->
+<style>
+  :root {
+    color-scheme: light; font-family: "Noto Sans TC", system-ui, sans-serif;
+    --page:#f3f6fa; --surface:#ffffff; --text:#27344a; --muted:#53627a;
+    --action:#365d8d; --pink:#e5b6c8; --line:#dce3ed; --tint:#eaf0f8; --soft:#f8fafc;
+    --success:#2e6655; --warning:#8a4a27; --danger:#9b2d3a; --focus:#365d8d;
+    background:var(--page); color:var(--text); line-height:1.6;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; overflow-x:clip; }
+  [hidden] { display:none !important; }
+  button { font:inherit; border:1px solid var(--line); border-radius:10px; background:var(--surface); color:var(--text); padding:9px 14px; cursor:pointer; font-size:14px; }
+  button:hover { background:var(--tint); border-color:var(--action); }
+  button.danger { border-color:#d9b3b9; color:var(--danger); }
+  button:disabled { opacity:.55; cursor:not-allowed; }
+  :focus-visible { outline:3px solid var(--focus); outline-offset:3px; }
+  h1 { font-size:30px; font-weight:650; margin:0 0 6px; line-height:1.35; }
+  h2 { font-size:20px; font-weight:650; margin:0 0 12px; }
+  h3 { font-size:16px; font-weight:650; margin:0; overflow-wrap:anywhere; }
+  p { margin:0 0 12px; color:var(--muted); overflow-wrap:anywhere; }
+  .page { max-width:900px; margin:0 auto; padding:30px 32px 44px; }
+  .section { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:22px; margin-bottom:20px; min-width:0; }
+  .feed { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; font-size:13px; color:var(--muted); margin-bottom:22px; }
+  .feed .dot { width:9px; height:9px; border-radius:50%; background:var(--success); display:inline-block; }
+  .feed.offline .dot { background:var(--warning); }
+  .banner { border-radius:12px; padding:12px 14px; margin-bottom:18px; font-size:14px; border:1px solid; }
+  .banner.warn { background:#fbf3ec; border-color:#e8cdb8; color:var(--warning); }
+  .banner.info { background:var(--tint); border-color:#c9d6e8; color:var(--action); }
+  .banner p { color:inherit; margin:4px 0 0; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; }
+  .now-card { border:1px solid var(--line); border-left:5px solid var(--action); border-radius:12px; padding:16px; margin-top:12px; }
+  .now-card.cancelling { border-left-color:var(--warning); }
+  .now-head { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; align-items:flex-start; }
+  .facts { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:4px 14px; margin:12px 0; font-size:14px; }
+  .facts dt { color:var(--muted); }
+  .facts dd { margin:0; overflow-wrap:anywhere; }
+  .state { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:2px 10px; border-radius:999px; border:1px solid currentColor; white-space:nowrap; }
+  .state[data-state="running"], .state[data-state="queued"], .state[data-state="proposed"] { color:var(--action); }
+  .state[data-state="completed"] { color:var(--success); }
+  .state[data-state="failed"] { color:var(--danger); }
+  .state[data-state="cancelling"], .state[data-state="unknown"] { color:var(--warning); }
+  .state[data-state="cancelled"], .state[data-state="paused"] { color:var(--muted); }
+  .timeline { list-style:none; margin:0; padding:0; }
+  .timeline > li { border-top:1px solid var(--line); padding:14px 0; }
+  .timeline > li:first-child { border-top:0; }
+  .row { display:grid; grid-template-columns:4.2em minmax(0,1fr) auto; gap:4px 14px; align-items:start; }
+  .row time { font-variant-numeric:tabular-nums; color:var(--muted); font-size:14px; padding-top:1px; }
+  .row .what { min-width:0; }
+  .row .why { font-size:13px; color:var(--muted); }
+  details { margin-top:8px; }
+  summary { cursor:pointer; color:var(--action); font-size:14px; width:max-content; max-width:100%; }
+  .tools { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:10px; }
+  .tool { background:var(--soft); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .tool .facts { margin:8px 0 0; font-size:13px; }
+  .target { font-family:ui-monospace, Consolas, monospace; font-size:13px; overflow-wrap:anywhere; }
+  .gap-list { margin:4px 0 0; padding-left:18px; font-size:13px; color:var(--warning); }
+  .empty { text-align:center; padding:26px 12px; }
+  .empty strong { display:block; font-size:18px; margin-bottom:6px; }
+  .coverage-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .coverage-table th, .coverage-table td { text-align:left; padding:8px 6px; border-top:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; }
+  .coverage-table th { color:var(--muted); font-weight:600; width:34%; }
+  .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+  /* Narrow (320–480 CSS px, which is also a 1280 px window at 250–400% zoom). */
+  @media (max-width:560px) {
+    .page { padding:18px 14px 32px; }
+    h1 { font-size:24px; }
+    .section { padding:16px; border-radius:12px; }
+    .row { grid-template-columns:minmax(0,1fr) auto; }
+    .row time { grid-column:1 / -1; padding:0; font-size:13px; }
+    .facts { grid-template-columns:minmax(0,1fr); gap:0; }
+    .facts dd { margin-bottom:6px; }
+    .controls button { flex:1 1 100%; white-space:normal; }
+    .tool { padding:10px; }
+    .row .state { font-size:12px; padding:1px 8px; }
+    .coverage-table th, .coverage-table td { display:block; width:auto; border:0; padding:2px 0; }
+    .coverage-table tr { display:block; border-top:1px solid var(--line); padding:8px 0; }
+  }
+  /* Pet bubbles: a mock desktop with the 360x640 pet pane. */
+  .desk { position:relative; min-height:100vh; background:linear-gradient(160deg,#5f7290,#36425a); padding:24px; display:flex; flex-wrap:wrap; gap:24px; align-items:flex-end; }
+  .pet { position:relative; width:280px; height:340px; }
+  .pet .figure { position:absolute; bottom:0; left:90px; width:100px; height:250px; border-radius:50px 50px 18px 18px; background:linear-gradient(#cfd4de 0 22%,#f8efe2 22% 62%,#2a2f3a 62%); opacity:.92; }
+  .bubble { position:absolute; left:6px; right:6px; top:0; display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:16px; background:rgba(250,252,255,.97); box-shadow:0 6px 20px rgba(20,28,45,.28); font-size:14px; color:var(--text); }
+  .bubble::after { content:""; position:absolute; left:126px; bottom:-8px; border:8px solid transparent; border-bottom:0; border-top-color:rgba(250,252,255,.97); }
+  .bubble .label { flex:1; min-width:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
+  .bubble .icon { width:16px; text-align:center; }
+  .bubble button { padding:2px 8px; font-size:12px; border-radius:8px; }
+  .bubble[data-tone="warn"] { border:1px solid #e8cdb8; }
+  .bubble[data-tone="bad"] { border:1px solid #d9b3b9; }
+  .caption { position:absolute; bottom:-26px; left:0; right:0; text-align:center; font-size:12px; color:#e6ecf5; }
+</style>
+</head>
+<body>
+<a class="sr-only" href="#activity-heading">跳到活動內容</a>
+<main id="app"></main>
+<script>
+// Synthetic data in the shape of GET /v1/activities. Not something SIRO has done.
+const NOW = '2026-10-20T14:21:30+08:00';
+const ACTIVITIES = [
+  { activity_id:'run-7', kind:'agent_run', origin:'owner_request', state:'running',
+    reason:'查一下今晚台北看得到哪些星雲，整理成三句話給我', created_at:'2026-10-20T14:20:03+08:00', updated_at:'2026-10-20T14:21:12+08:00',
+    coverage:{ tools:'journal', network:['browser_adapter'] },
+    tools:[
+      { capability:'browser.navigate+read', state:'completed', dispatched:true, error:null, created_at:'2026-10-20T14:20:05+08:00',
+        target:{ url:'https://www.example-astro.org/sky/tonight', redacted:true },
+        network:{ coverage:'browser_adapter', requests:[{ requested:{ url:'https://www.example-astro.org/sky/tonight' }, final:{ url:'https://www.example-astro.org/sky/tonight/taipei' }, redirected:true, status:'unknown' }], gaps:['http_status_not_captured','subresource_requests_not_listed'] } },
+      { capability:'browser.navigate+read', state:'running', dispatched:true, error:null, created_at:'2026-10-20T14:21:12+08:00',
+        target:{ url:'https://star-catalog.example.net/objects/nebula-list-with-a-very-long-path-segment-that-keeps-going-for-testing-wrap/2026/10/20' },
+        network:{ coverage:'browser_adapter', requests:[], gaps:['http_status_not_captured','subresource_requests_not_listed'] } } ] },
+  { activity_id:'run-6', kind:'agent_run', origin:'owner_request', state:'cancelling',
+    reason:'整理下載資料夾的 PDF 清單', created_at:'2026-10-20T14:18:40+08:00', updated_at:'2026-10-20T14:21:01+08:00',
+    coverage:{ tools:'journal', network:['unobserved'] },
+    tools:[ { capability:'computer.execute', state:'running', dispatched:true, error:null, created_at:'2026-10-20T14:18:44+08:00',
+      target:{ program:'find', argument_count:4 }, network:{ coverage:'unobserved', requests:[], gaps:['subprocess_network_not_monitored'] } } ] },
+  { activity_id:'prop-31', kind:'tool', origin:'owner_request', state:'proposed',
+    reason:null, created_at:'2026-10-20T14:17:55+08:00', updated_at:'2026-10-20T14:17:55+08:00',
+    coverage:{ tools:'proposal_only', network:['unobserved'] },
+    tools:[ { capability:'computer.execute', state:'proposed', dispatched:null, error:null, created_at:'2026-10-20T14:17:55+08:00',
+      target:{ program:'git', argument_count:2 }, network:{ coverage:'unobserved', requests:[], gaps:['subprocess_network_not_monitored'] } } ] },
+  { activity_id:'run-5', kind:'agent_run', origin:'self_interest', state:'completed',
+    reason:'延續昨天的興趣：讀一篇關於獵戶座星雲的介紹，留下筆記', created_at:'2026-10-20T13:02:10+08:00', updated_at:'2026-10-20T13:04:40+08:00',
+    coverage:{ tools:'journal', network:['browser_adapter'] },
+    tools:[ { capability:'browser.navigate+read', state:'completed', dispatched:true, error:null, created_at:'2026-10-20T13:02:14+08:00',
+      target:{ url:'https://encyclopedia.example.org/wiki/Orion_Nebula' },
+      network:{ coverage:'browser_adapter', requests:[{ requested:{ url:'https://encyclopedia.example.org/wiki/Orion_Nebula' }, final:{ url:'https://encyclopedia.example.org/wiki/Orion_Nebula' }, redirected:false, status:'unknown' }], gaps:['http_status_not_captured','subresource_requests_not_listed'] } } ] },
+  { activity_id:'run-4', kind:'agent_run', origin:'owner_request', state:'unknown',
+    reason:'把會議記錄寄給自己', created_at:'2026-10-20T11:40:00+08:00', updated_at:'2026-10-20T11:40:31+08:00',
+    coverage:{ tools:'journal', network:['unobserved'] },
+    tools:[ { capability:'computer.execute', state:'unknown', dispatched:true, error:'ExecutionCancelled', created_at:'2026-10-20T11:40:02+08:00',
+      target:{ program:'sendmail', argument_count:1 }, network:{ coverage:'unobserved', requests:[], gaps:['subprocess_network_not_monitored'] } } ] },
+  { activity_id:'run-3', kind:'agent_run', origin:'owner_request', state:'failed',
+    reason:'打開公司內網的請假頁', created_at:'2026-10-20T10:12:00+08:00', updated_at:'2026-10-20T10:12:31+08:00', error:'navigation_failed',
+    coverage:{ tools:'journal', network:['browser_adapter'] },
+    tools:[ { capability:'browser.navigate+read', state:'failed', dispatched:true, error:'Error', created_at:'2026-10-20T10:12:02+08:00',
+      target:{ url:'http://intranet.local/leave' }, network:{ coverage:'browser_adapter', requests:[{ requested:{ url:'http://intranet.local/leave' }, final:null, redirected:'unknown', status:'unknown' }], gaps:['http_status_not_captured'] } } ] },
+  { activity_id:'run-2', kind:'agent_run', origin:'owner_request', state:'cancelled',
+    reason:'下載這週的天氣預報圖', created_at:'2026-10-20T09:30:00+08:00', updated_at:'2026-10-20T09:30:09+08:00',
+    coverage:{ tools:'journal', network:['none_recorded'] }, tools:[] },
+];
+
+const STATE = {
+  proposed:   ['等你確認', '◔', '還沒開始。要先在對話裡按「允許」才會執行。'],
+  queued:     ['排隊中', '◔', '已允許，等前一件事做完就開始。'],
+  running:    ['進行中', '●', null],
+  paused:     ['已暫停', '❚❚', '不會再往下做，按「繼續」才會恢復。'],
+  cancelling: ['停止中…', '◌', '已要求停止，正在確認工具真的停了。'],
+  completed:  ['完成', '✓', null],
+  cancelled:  ['已停止', '■', '在工具動手之前就停住了，沒有產生影響。'],
+  failed:     ['失敗', '✕', null],
+  unknown:    ['結果未確認', '?', '停止時工具可能已經在執行，SIRO 讀不回結果，所以不知道它有沒有做完。請自己確認一次。'],
+};
+const ORIGIN = { owner_request:'你要求的', self_interest:'SIRO 自己想做的', scheduled_followup:'先前約好的後續' };
+const TOOL = { 'browser.navigate+read':'開網頁並讀內容', 'computer.execute':'在電腦上執行程式' };
+const GAP = {
+  http_status_not_captured:'沒有記錄網站回應的狀態碼',
+  subresource_requests_not_listed:'頁面另外載入的圖片、腳本等沒有列出',
+  page_interaction_requests_not_listed:'在頁面上操作時的請求沒有列出',
+  subprocess_network_not_monitored:'這個程式自己連網的話，這裡看不到',
+  tool_not_instrumented:'這個工具沒有網路監測',
+};
+const COVER = {
+  browser_adapter:'瀏覽器：有網址與轉址',
+  unobserved:'沒有網路監測',
+  none_recorded:'沒有任何網路紀錄',
+};
+const ERROR = { navigation_failed:'打不開網頁（連不上或被拒絕）', Error:'連線失敗，沒有更詳細的原因' };
+
+const q = new URLSearchParams(location.search);
+const scenario = q.get('scenario') || 'normal';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+const hm = iso => iso.slice(11, 16);
+const hms = iso => iso.slice(11, 19);
+const ago = iso => { const s = (Date.parse(NOW) - Date.parse(iso)) / 1000; return s < 60 ? `${Math.round(s)} 秒前` : `${Math.round(s / 60)} 分鐘前`; };
+const live = ['running', 'queued', 'proposed', 'cancelling', 'paused'];
+
+function badge(state) {
+  const [label, icon] = STATE[state];
+  return `<span class="state" data-state="${state}"><span aria-hidden="true">${icon}</span>${label}</span>`;
+}
+function targetText(t) {
+  if (!t) return '沒有記錄目標';
+  if (t.url) return esc(t.url) + (t.redacted ? '<br><small>網址後面的查詢參數已隱藏</small>' : '');
+  if (t.program) return `${esc(t.program)}（另有 ${t.argument_count} 個參數，內容不保存）`;
+  return '沒有記錄目標';
+}
+function toolBlock(t) {
+  const net = t.network;
+  const reqs = net.requests.map(r => r.redirected === true
+    ? `轉到 <span class="target">${esc(r.final.url)}</span>` : r.final === null ? '沒有拿到頁面' : '沒有轉址').join('；');
+  return `<li class="tool">
+    <div class="now-head"><h3>${TOOL[t.capability] || esc(t.capability)}</h3>${badge(t.state)}</div>
+    <dl class="facts">
+      <dt>目標</dt><dd class="target">${targetText(t.target)}</dd>
+      <dt>開始</dt><dd><time datetime="${t.created_at}">${hms(t.created_at)}</time></dd>
+      ${t.error ? `<dt>原因</dt><dd>${ERROR[t.error] || (t.error === 'ExecutionCancelled' ? '執行中被停止' : esc(t.error))}</dd>` : ''}
+      <dt>網路</dt><dd>${COVER[net.coverage]}${reqs ? '；' + reqs : ''}
+        ${net.gaps.length ? `<ul class="gap-list">${net.gaps.map(g => `<li>${GAP[g]}</li>`).join('')}</ul>` : ''}</dd>
+    </dl></li>`;
+}
+function stopButton(a) {
+  if (a.state === 'cancelling') return `<button type="button" disabled aria-describedby="why-${a.activity_id}">停止中…</button>`;
+  if (a.state === 'proposed') return `<button type="button">在對話中查看</button>`;
+  if (scenario === 'offline') return `<button type="button" class="danger" disabled>停止這件事（連線後可用）</button>`;
+  return `<button type="button" class="danger" aria-label="停止「${esc(a.reason || TOOL[a.tools[0]?.capability])}」">停止這件事</button>`;
+}
+function nowCard(a) {
+  const what = a.reason || TOOL[a.tools[0]?.capability] || '工具操作';
+  const step = a.tools.find(t => t.state === 'running') || a.tools.at(-1);
+  const note = STATE[a.state][2];
+  return `<article class="now-card ${a.state}" aria-labelledby="now-${a.activity_id}">
+    <div class="now-head"><h3 id="now-${a.activity_id}">${esc(what)}</h3>${badge(a.state)}</div>
+    <dl class="facts">
+      <dt>為什麼</dt><dd>${ORIGIN[a.origin]}</dd>
+      <dt>現在這步</dt><dd>${step ? `${TOOL[step.capability]}：<span class="target">${targetText(step.target)}</span>` : '還沒有動手'}</dd>
+      <dt>開始於</dt><dd><time datetime="${a.created_at}">${hm(a.created_at)}</time>（${ago(a.created_at)}）</dd>
+    </dl>
+    ${note ? `<p id="why-${a.activity_id}">${note}</p>` : ''}
+    <div class="controls">${stopButton(a)}</div>
+  </article>`;
+}
+function timelineItem(a) {
+  const what = a.reason || TOOL[a.tools[0]?.capability] || '工具操作';
+  const note = STATE[a.state][2];
+  const result = a.state === 'failed' ? ERROR[a.error] || '沒有完成' : note;
+  return `<li><div class="row">
+    <time datetime="${a.created_at}">${hm(a.created_at)}</time>
+    <div class="what"><h3>${esc(what)}</h3><div class="why">${ORIGIN[a.origin]} · 用了 ${a.tools.length} 個工具</div>
+      ${result && !live.includes(a.state) ? `<p style="margin:4px 0 0">${esc(result)}</p>` : ''}
+      <details><summary>看細節<span class="sr-only">：${esc(what)}</span></summary>
+        ${a.tools.length ? `<ul class="tools">${a.tools.map(toolBlock).join('')}</ul>` : '<p>停下時還沒有呼叫任何工具。</p>'}
+        ${a.coverage.tools === 'legacy_unjournaled' ? '<p>這是舊格式的紀錄，工具細節不完整。</p>' : ''}
+      </details></div>
+    ${badge(a.state)}</div></li>`;
+}
+
+function page() {
+  const items = scenario === 'empty' ? [] : ACTIVITIES;
+  const current = items.filter(a => live.includes(a.state));
+  const past = items.filter(a => !live.includes(a.state));
+  const feed = {
+    normal: `<span class="dot" aria-hidden="true"></span>即時更新中 · 最後更新 ${hms(NOW)}`,
+    empty: `<span class="dot" aria-hidden="true"></span>即時更新中 · 最後更新 ${hms(NOW)}`,
+    gap: `<span class="dot" aria-hidden="true"></span>即時更新中 · 最後更新 ${hms(NOW)}`,
+    offline: `<span class="dot" aria-hidden="true"></span>和 SIRO 斷線 · 下面是 14:19:50 的資料`,
+  }[scenario] || '';
+  const banner = {
+    offline: `<div class="banner warn" role="alert"><strong>和 SIRO 斷線，正在重新連線。</strong><p>下面的狀態可能已經變了。停止按鈕先停用，連回後會重新讀一次。</p></div>`,
+    gap: `<div class="banner info" role="status"><strong>剛才有一段紀錄沒收到，已重新載入整份清單。</strong><p>只顯示最近 50 件事；更早的紀錄已超過保存期限。</p></div>`,
+    denied: `<div class="banner warn" role="alert"><strong>需要重新連線才能查看活動。</strong><p>連線憑證過期了。回到對話頁重新整理後再打開這裡。</p></div>`,
+    unavailable: `<div class="banner warn" role="alert"><strong>活動紀錄暫時讀不到。</strong><p>紀錄寫不進去的期間，SIRO 不會自己開始新的上網或電腦操作。你要求的對話照常可用。</p></div>`,
+  }[scenario] || '';
+  const blocked = scenario === 'denied' || scenario === 'unavailable';
+  const disabled = scenario === 'offline';
+  const html = `<div class="page">
+    <h1 id="activity-heading" tabindex="-1">活動</h1>
+    <p>SIRO 正在做什麼、為什麼做、做完了沒有。這裡只讀紀錄，打開這頁不會讓她做任何事。</p>
+    <p class="feed${scenario === 'offline' ? ' offline' : ''}" role="status" aria-live="polite">${feed}</p>
+    ${banner}
+    ${blocked ? '' : `
+    <section class="section" aria-labelledby="now-heading">
+      <div class="now-head"><h2 id="now-heading">現在</h2>
+        <div class="controls"><button type="button"${disabled ? ' disabled' : ''}>暫停 SIRO 自己找事做</button><button type="button" class="danger"${disabled || !current.length ? ' disabled' : ''}>停止所有背景工作</button></div></div>
+      ${current.length ? current.map(nowCard).join('') : `<div class="empty"><strong>現在沒有在做事</strong><p>你在對話裡交代、或 SIRO 自己想查資料時，會出現在這裡。</p></div>`}
+    </section>
+    <section class="section" aria-labelledby="history-heading">
+      <h2 id="history-heading">今天稍早</h2>
+      ${past.length ? `<ol class="timeline" aria-label="已結束的活動，新的在上面">${past.map(timelineItem).join('')}</ol>` : `<div class="empty"><strong>今天還沒有紀錄</strong><p>完成、停止或失敗的事情會留在這裡 7 天。</p></div>`}
+    </section>`}
+    <section class="section" aria-labelledby="coverage-heading">
+      <h2 id="coverage-heading">這裡看得到什麼</h2>
+      <table class="coverage-table"><tbody>
+        <tr><th scope="row">開網頁</th><td>看得到要開的網址、最後停在哪個網址、有沒有轉址。看不到狀態碼，也看不到頁面另外載入的圖片和腳本。</td></tr>
+        <tr><th scope="row">在電腦上執行程式</th><td>看得到程式名稱和參數個數（內容不保存）。程式自己連網的話，這裡看不到。</td></tr>
+        <tr><th scope="row">保存</th><td>紀錄保存 7 天或最近 10,000 筆，先到的先清。網址的查詢參數、帳號密碼與輸入內容不保存。</td></tr>
+      </tbody></table>
+    </section>
+  </div>`;
+  document.getElementById('app').innerHTML = html;
+}
+
+// Pet bubbles: one short line, only facts the journal already has.
+const BUBBLES = [
+  ['●', '正在查：今晚看得到的星雲', null, '進行中', ''],
+  ['◔', '等你允許：執行 git', '查看', '等你確認', ''],
+  ['◌', '停止中…', null, '停止中', 'warn'],
+  ['✓', '查好了，要聽嗎？', '聽', '完成', ''],
+  ['?', '寄信的結果沒確認', '看看', '結果未確認', 'warn'],
+  ['✕', '打不開請假頁', '看看', '失敗', 'bad'],
+  ['●', '自己在讀：獵戶座星雲…', '停', 'SIRO 自己想做的', ''],
+  ['⚠', '斷線了，狀態可能過時', null, '斷線', 'warn'],
+];
+function bubbles() {
+  document.body.style.background = '#36425a';
+  document.getElementById('app').innerHTML = `<div class="desk">${BUBBLES.map(([icon, text, action, caption, tone]) => `
+    <div class="pet"><div class="bubble" role="status" data-tone="${tone}"><span class="icon" aria-hidden="true">${icon}</span><span class="label">${text}</span>${action ? `<button type="button">${action}</button>` : ''}</div>
+    <div class="figure" aria-hidden="true"></div><div class="caption">${caption}</div></div>`).join('')}</div>`;
+}
+
+q.get('bubble') ? bubbles() : page();
+</script>
+</body>
+</html>

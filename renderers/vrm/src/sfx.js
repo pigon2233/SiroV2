@@ -24,7 +24,10 @@ export function createSfx({ speaking = () => false, hour = () => new Date().getH
   const played = [];
 
   function ensure() {
-    if (context) return context.state === 'running' || (context.resume?.().catch?.(() => {}), context.state === 'running');
+    if (context) {
+      if (context.state !== 'running') context.resume?.().catch?.(() => {});
+      return context.state === 'running';
+    }
     const Ctor = globalThis.AudioContext ?? globalThis.webkitAudioContext;
     if (!Ctor) return false;
     try {
@@ -35,11 +38,14 @@ export function createSfx({ speaking = () => false, hour = () => new Date().getH
       noise = context.createBuffer(1, length, context.sampleRate);
       const data = noise.getChannelData(0);
       for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
-    } catch {
+    } catch (error) {
+      console.warn('SIRO sfx: no audio context', error);
       context = null;
       return false;
     }
     context.resume?.().catch?.(() => {});
+    context.addEventListener?.('statechange', () => console.info(`SIRO sfx: audio ${context.state}`));
+    console.info(`SIRO sfx: audio ${context.state}`);
     return context.state === 'running';
   }
 
@@ -112,7 +118,10 @@ export function createSfx({ speaking = () => false, hour = () => new Date().getH
     const clock = now();
     if (own && (isNight(hour()) || clock - lastOwn < OWN_GAP_SECONDS)) return false;
     if (clock - (lastByName[name] ?? -Infinity) < (MIN_GAP[name] ?? 0)) return false;
-    if (!ensure()) return false;
+    if (!ensure()) {
+      console.info(`SIRO sfx: ${name} skipped, audio ${context?.state ?? 'unavailable'}`);
+      return false;
+    }
     master.gain.value = MASTER * (isNight(hour()) ? NIGHT_FACTOR : 1);
     voice(context.currentTime + 0.01);
     lastByName[name] = clock;
@@ -121,6 +130,9 @@ export function createSfx({ speaking = () => false, hour = () => new Date().getH
     if (played.length > 50) played.shift();
     return true;
   }
+
+  // Open the audio device early: a context starts suspended and only runs a moment later.
+  if (enabled) setTimeout(ensure, 0);
 
   return {
     play,
