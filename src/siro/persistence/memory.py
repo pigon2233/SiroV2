@@ -15,6 +15,7 @@ from siro.core.memory import (
     MemoryKind,
     MemoryRevision,
     MemorySourceBinding,
+    MemorySourceEvent,
     MemoryStatus,
     SemanticFact,
 )
@@ -69,6 +70,9 @@ class SQLiteMemoryRepository:
                 generator_version,
                 policy_revision,
                 route_privacy,
+                self._source_events(
+                    connection, {event for parent in parents for event in parent.source_event_ids}
+                ),
             )
 
         return await self._store.run_transaction(read)
@@ -92,7 +96,14 @@ class SQLiteMemoryRepository:
                         != binding.source_event_ids
                     ):
                         return False
-                return True
+                return (
+                    not snapshot.source_events
+                    or self._source_events(
+                        connection,
+                        {event for parent in snapshot.parents for event in parent.source_event_ids},
+                    )
+                    == snapshot.source_events
+                )
             except ValueError:
                 return False
 
@@ -158,6 +169,11 @@ class SQLiteMemoryRepository:
                     expiry = datetime.fromisoformat(row["valid_to"])
                     if memory.valid_to is None or memory.valid_to > expiry:
                         raise ValueError("derived expiry exceeds source validity")
+            if (
+                snapshot.source_events
+                and self._source_events(connection, expected) != snapshot.source_events
+            ):
+                raise ValueError("source event metadata changed after capture")
             self._add_memory(connection, memory, None)
             for parent in snapshot.parents:
                 connection.execute(
@@ -185,6 +201,28 @@ class SQLiteMemoryRepository:
             )
 
         await self._store.run_transaction(write)
+
+    @staticmethod
+    def _source_events(
+        connection: sqlite3.Connection, event_ids: set[UUID]
+    ) -> tuple[MemorySourceEvent, ...]:
+        if not 1 <= len(event_ids) <= 100:
+            raise ValueError("source event metadata bounds exceeded")
+        placeholders = ",".join("?" for _ in event_ids)
+        rows = connection.execute(
+            f"SELECT event_id,envelope_json FROM events WHERE event_id IN ({placeholders}) "
+            "ORDER BY event_id",
+            tuple(str(event_id) for event_id in event_ids),
+        ).fetchall()
+        if len(rows) != len(event_ids):
+            raise ValueError("source event metadata missing")
+        events = []
+        for row in rows:
+            event_type = json.loads(row["envelope_json"]).get("type")
+            if not isinstance(event_type, str):
+                raise ValueError("source event metadata type missing")
+            events.append(MemorySourceEvent(UUID(row["event_id"]), event_type))
+        return tuple(events)
 
     @staticmethod
     def _source_hash(connection: sqlite3.Connection, row: sqlite3.Row) -> str:

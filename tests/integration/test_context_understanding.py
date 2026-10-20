@@ -402,3 +402,127 @@ async def test_semantic_threshold_never_tolerates_authority_or_completion_failur
     assert report["semantic_hard_gate_failures"] == (
         [] if passes else [{"id": helper.load_cases()[0]["id"], "failures": [failure]}]
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("event_type", "expected_role"),
+    [
+        ("conversation.user_text.v1", "user_statement"),
+        ("conversation.text_delta.v1", "assistant_output"),
+        ("action.result.v1", "tool_observation"),
+        ("world.observed.v1", "tool_observation"),
+        ("conversation.turn_started.v1", "unclassified"),
+    ],
+)
+async def test_memory_source_roles_come_from_bound_events_not_owner_scope(
+    tmp_path: Path, event_type: str, expected_role: str
+) -> None:
+    import json
+
+    from siro.contracts.events import EVENT_ADAPTER
+    from siro.core.context import START
+
+    core, service, model = await setup(tmp_path / "source-roles.sqlite")
+    envelope = event("synthetic report").model_dump(mode="json")
+    envelope["type"] = event_type
+    if event_type == "conversation.text_delta.v1":
+        envelope["payload"] = {"generation_id": "synthetic", "index": 0, "text": "synthetic"}
+    elif event_type == "action.result.v1":
+        envelope["payload"] = {"action_id": str(uuid4()), "outcome": "error"}
+    elif event_type == "world.observed.v1":
+        envelope["payload"] = {
+            "entity_id": "synthetic",
+            "property": "light",
+            "value": 1,
+            "confidence": 1,
+        }
+    elif event_type == "conversation.turn_started.v1":
+        envelope["payload"] = {"generation_id": "synthetic"}
+    source = EVENT_ADAPTER.validate_python(envelope)
+    stored = Memory(uuid4(), "siro", "synthetic report", (source.event_id,), source.occurred_at)
+    await service.remember(stored, source)
+    await core.respond("roles", "siro", "synthetic report", message_history=[])
+    data, _ = json.JSONDecoder().raw_decode(model.requests[-1].messages[0].content.split(START)[1])
+    record = data["memories"][0]
+    assert record["text"] == stored.text
+    assert record["person_id"] == "owner"
+    assert record["source_events"] == [
+        {
+            "event_id": str(source.event_id),
+            "event_type": event_type,
+            "role": expected_role,
+            "speaker_identity_verified": False,
+            "proves_execution_completion": False,
+        }
+    ]
+    assert data["source_snapshot"]["source_events"] == [
+        {"event_id": str(source.event_id), "event_type": event_type}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_legacy_snapshot_never_invents_user_source_from_owner_scope(tmp_path: Path) -> None:
+    import json
+    from dataclasses import replace
+
+    from siro.core.context import START, render_context
+
+    _, service, _ = await setup(tmp_path / "legacy-role.sqlite")
+    stored = await remember(service, "synthetic legacy")
+    snapshot = await service.context_snapshot(
+        "siro", [stored], route_privacy=EventPrivacy.LOCAL_ONLY
+    )
+    assert snapshot is not None
+    legacy = replace(snapshot, source_events=())
+    data, _ = json.JSONDecoder().raw_decode(
+        render_context("legacy", "siro", [stored], legacy).split(START)[1]
+    )
+    assert data["memories"][0]["source_events"] == []
+    assert await service.context_sources_current(legacy)
+
+
+@pytest.mark.asyncio
+async def test_modified_source_type_metadata_cannot_dispatch_native_continuation(
+    tmp_path: Path,
+) -> None:
+    import json
+
+    from siro.core.context import END, START
+
+    core, service, model = await setup(tmp_path / "role-tamper.sqlite")
+    await remember(service, "synthetic role binding")
+    history: list[ModelMessage] = []
+    await core.respond("binding", "siro", "synthetic role binding", message_history=history)
+    prefix, packet = history[0].content.split(START, 1)
+    data, offset = json.JSONDecoder().raw_decode(packet)
+    data["source_snapshot"]["source_events"][0]["event_type"] = "action.result.v1"
+    history[0] = ModelMessage("system", prefix + START + json.dumps(data) + packet[offset:])
+    assert END in history[0].content
+    result = await core.respond("binding", "siro", "continue", message_history=history)
+    assert result.state is TurnState.FAILED and result.error == "ContextSourceChanged"
+    assert len(model.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_invented_source_type_cannot_adopt_derived_memory(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    _, service, _ = await setup(tmp_path / "role-adoption.sqlite")
+    parent = await remember(service, "synthetic original")
+    snapshot = await service.context_snapshot(
+        "siro", [parent], route_privacy=EventPrivacy.LOCAL_ONLY
+    )
+    assert snapshot is not None
+    modified = replace(
+        snapshot,
+        source_events=(replace(snapshot.source_events[0], event_type="action.result.v1"),),
+    )
+    assert isinstance(service._repository, SQLiteMemoryRepository)
+    now = datetime.now(UTC)
+    child = Memory(uuid4(), "siro", "derived role output", parent.source_event_ids, now)
+    with pytest.raises(ValueError, match="metadata"):
+        await service._repository.add_derived(child, modified, now=now, policy_revision=1)
+    assert await service.recall("siro", "derived role output") == []
+    await service._repository.add_derived(child, snapshot, now=now, policy_revision=1)
+    assert await service.recall("siro", "derived role output") == [child]

@@ -228,3 +228,60 @@ tests/integration/test_persistent_companion.py tests/integration/test_context_bu
 MEM02 PARTIAL，整個目標未完成，仍有可修正的實作問題，不以困難為由blocked。
 下一步：明確保留來源說話者／scope的呈現，修正第一人稱照抄與衝突判讀；評測須覆蓋正文，
 不以固定答案、keyword補丁或改預期值宣稱理解已完成。Gateway/語音/HTML dirty範圍未碰。
+
+## 續作：原子來源事件類別與角色呈現
+
+Base5e0016ed31ccc772e47d5a9ab7fa96d1ba124339。先查遠端issues/pulls均空、fetch及本機dirty，
+原八個語音dirty檔保留；原認領路徑內補core/memory.py、context.py、persistence/memory.py。
+CONTRACTS與D77附錄在實作前記錄。沒有新schema、依賴、producer／planner或正式服務設定。
+
+MemorySourceEvent新增event UUID/type；MemoryDerivationSnapshot.source_events預設空以相容歷史。
+新capture在同一SQLite transaction讀完整來源集合，最多100個、type最多128字；
+parent內容、event envelope hash、privacy/revision fence維持。僅讀事件類別，不外送payload／producer。
+dispatch與add_derived在原交易內核對metadata與當前envelope，偽造類別／不完整集合不採用。
+沒有metadata的歷史snapshot保留未知；不能按person=owner就捏造user來源。
+constructor只檢唯一／上限，完整對應由可信DB capture／preflight／採用重驗負責，
+保留原MEM01 forged-event測試的採用前拒絕契約，不改原測試斷言。
+
+ContextEvidence逐event呈現user_statement／assistant_output／tool_observation／unclassified，
+同時固定speaker_identity_verified=false與proves_execution_completion=false。
+事件類別不證本人身份、事實真偽或readback；memory text標stored_memory_not_verbatim_source，
+因衍生記憶不一定是逐字引文。scope_reference說明identity為SIRO服務、owner為使用者資料範圍。
+原文字／native messages不改、不以固定模板產生答案；policy要求保留來源人稱而非冒稱自己做過。
+snapshot parser支援optional新metadata，舊格式缺欄位保留未知。此機制不是prompt簽章或外部授權器。
+
+先新增六項測試，全因缺來源metadata而FAIL；不是宣稱修復六項既有安全漏洞。
+實作後六項PASS，再補unclassified事件與derived adoption原子拒絕／原snapshot可採用兩項。
+中途相鄰80項有79PASS／1FAIL，因新constructor提前拒絕，已將完整metadata一致性檢查
+保留在DB邊界而非改舊測試。Ruff的長行／SIM103修正後check與format通過。
+
+最終129 PASS／0SKIP／7既有warnings，80.58s；source-roles-regression-receipt.json，
+包括57項context、MEM01來源撤銷／更正／adoption、memory v2／ingress、native工具、session restore、
+conversation、context budget／summary與Core boundary。與先前各批重疊，不累加數字。
+四修改Python檔明確MYPYPATH=src的mypy、Ruff check/format、secret scan/check_secrets PASS。
+快取仍在WSL ext4。沒有執行全套scripts/check／遠端CI／真人L3／正式部署。
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /home/pepepig/.local/share/siro/venv/bin/python \
+ scripts/run_acceptance.py tests/integration/test_context_understanding.py \
+ tests/integration/test_conversation.py tests/integration/test_persistent_companion.py \
+ tests/integration/test_session_restore.py tests/integration/test_integrated_companion.py \
+ tests/integration/test_memory_ingress.py tests/integration/test_memory_v2.py \
+ tests/integration/test_memory_derivation_bindings.py tests/integration/test_context_budget.py \
+ tests/integration/test_context_summary.py tests/contract/test_boundaries.py \
+ --level L1 --git-executable git.exe --output /tmp/siro-mem02-source-roles-regression-20261020
+```
+
+同一qwen3:4b-instruct與固定30case再實測一次，完整回覆留source-roles-evaluation.json；
+命令沿前節，output改/tmp/siro-mem02-source-roles-real-20261020.json。
+capture30/30、語義25/30，未過27；本輪沒有修改評測器／fixture／預期值或模型設定。
+C21這次指出兩份來源矛盾並詢問，C20／23／27角色歸屬較清楚，C19仍照抄成自己的偏好。
+自動未過C02／11／13／22／28；不是配置或timeout問題，不標blocked。
+單次溫度0.7無seed，不把差異全歸因於修改、不重跑同版本挑過線。
+
+全部30份正文逐題檢視於SOURCE-ROLE-REVIEW.md：保守23符合／7有缺口（Codex審閱，非真人）。
+C07雖不洩漏資料但沒有提出必要問題，C19第一人稱仍錯置，兩者自動分數未抓到。
+沒有觀察到本批冒稱SIRO自己完成檢查，但不據布林false宣稱任意輸出零錯報。
+MEM02仍PARTIAL／FAILED_VERIFICATION；原目標active，MEM03–06未完成。
+下一步需解決最新對話任務與記憶/授權不足的混淆、正文第一人稱與必要澄清，
+不能把這次storage與context metadata完成當作自動記憶已啟用。共享STATUS仍交整合者更新。

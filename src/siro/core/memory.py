@@ -64,6 +64,16 @@ class MemorySourceBinding:
 
 
 @dataclass(frozen=True, slots=True)
+class MemorySourceEvent:
+    event_id: UUID
+    event_type: str
+
+    def __post_init__(self) -> None:
+        if not self.event_type or len(self.event_type) > 128:
+            raise ValueError("source event type must be bounded and nonempty")
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryDerivationSnapshot:
     identity_id: str
     person_id: str
@@ -72,6 +82,7 @@ class MemoryDerivationSnapshot:
     generator_version: str
     policy_revision: int
     route_privacy: Privacy = Privacy.LOCAL_ONLY
+    source_events: tuple[MemorySourceEvent, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.identity_id or not self.person_id or not self.generator_version.strip():
@@ -86,6 +97,11 @@ class MemoryDerivationSnapshot:
             or not 1 <= len(events) <= 100
         ):
             raise ValueError("source snapshot exceeds independent parent/event bounds")
+        if self.source_events and (
+            len(self.source_events) > 100
+            or len({event.event_id for event in self.source_events}) != len(self.source_events)
+        ):
+            raise ValueError("source event metadata must be bounded and unique")
 
 
 @dataclass(frozen=True, slots=True)

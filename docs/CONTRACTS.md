@@ -701,3 +701,11 @@ MEM-02首次真模型失敗後，context policy以繁中明說當前user第一�
 回覆最新問題、資料缺漏／衝突或指代不明時澄清、假設及assistant意圖不是已發生事件。
 回覆的自然語言與結構化完成聲明都必須符合真實readback；評測仍須逐題審閱自然語言，
 不能把布林false當作無錯報完成的證據。本說明不新增語意classifier／授權規則或固定答案。
+
+MEM-02來源角色：snapshot可帶source_events（event UUID/type，最多既有100個來源），
+從同一capture交易讀取受hash綁定的envelope，不靠memory文字猜說話者。新capture提供完整集合；
+舊snapshot欄位缺省時保留未知，不按owner scope補造user來源。dispatch／derived adoption
+對已提供metadata重驗，變更拒絕。此metadata不新增DB schema，也不寫回原event。
+context呈現逐event的user statement／assistant output／tool observation／unclassified類別、
+memory的person scope與「非逐字原始來源」限制；事件類別不是身份驗證或完成證明。
+原文不改第一人稱、不拼成固定答案；回覆必須保留來源歸屬，使用者自述不變成SIRO自己做過。

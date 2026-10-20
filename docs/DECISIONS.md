@@ -624,6 +624,10 @@ release actual-schema gate不放寬；停producer後回退需相容版本，不�
 
 ## D77 — MEM-02 / 有來源的上下文選取與dispatch fence（2026-10-20）
 
+後續來源角色補充：在既有snapshot新增optional source_events（UUID/type）原子metadata，
+以既有envelope hash＋metadata重驗維持binding。無新schema、無按文字猜來源、無owner真實身份
+或工具成功推論；缺欄位的歷史snapshot只保留未知。這是context data的出處說明，非授權機制。
+
 不重造RT010/011。語境記憶檢索採有界Unicode詞／中文片段與最近user topic回退；
 相關度只是查詢線索，不把指代猜測當已確認事實。明確新話題不自動帶入上一話題。
 新typed packet分開owner statement、assistant statement、runtime observation、source-backed memory，

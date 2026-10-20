@@ -43,3 +43,13 @@ capture30/30、自動語義22/30；人工發現C22自然語言錯報測試通過
 本輪三個30case批次22/25/25均留證，逐題正文審閱有角色錯置／虛構自己手動檢查的缺口。
 MEM02保持FAILED_VERIFICATION／PARTIAL；不是模型配置阻礙，不標整個goal完成或blocked。
 未改fixture／expected、模型設定、其他owner範圍，未push／PR／部署。完整命令與限制見REPORT續作。
+
+續作基線5e0016ed31ccc772e47d5a9ab7fa96d1ba124339：原owned core/memory.py、context.py、
+persistence/memory.py、context integration tests、CONTRACTS／D77附錄、PLAN與本evidence內
+補來源event type的原子metadata與呈現；不改schema／依賴／Gateway／native message內容。
+source type只表示事件類別，不等於已驗owner身份、事實或成功readback。舊snapshot保留未知。
+新增metadata採用／dispatch都重驗，固定30fixture與門檻不改；遠端／本機dirty已再查。
+
+結果：來源event metadata原子capture／preflight／adoption與context角色已接，129回歸PASS。
+同一真模型新批次25/30，完整正文審閱23符合／7有缺口，仍FAILED_VERIFICATION／PARTIAL。
+未改評測器、fixture或模型，未push／PR／部署。新程式與所有實測結果由本輪本機commit保存。

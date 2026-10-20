@@ -68,6 +68,9 @@ pending保留與隔離，模型回答品質另報。零越權／零跨scope／�
 後續繁中policy／評測格式修正後最新25/30，62項相鄰回歸PASS；逐題正文審閱另發現
 owner第一人稱被照抄成SIRO自述、使用者回報被冒作自己的手動檢查。保留失敗結果，
 不以自動keyword分數替代來源角色與完成聲明驗收。
+來源角色續作：已在原子snapshot中帶event UUID/type並於dispatch／採用重驗，
+context區分user／assistant／tool／unknown事件，舊snapshot不猜來源。129項相鄰回歸PASS；
+同模型新批次仍25/30，C19仍有第一人稱錯置，正文另有澄清不足，保持PARTIAL。
 **回退**：恢復原context assembly，保留journal；不能改寫舊對話。
 
 ## MEM-03：自動記憶候選（先候選，後可設定保存）
