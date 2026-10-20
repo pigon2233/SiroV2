@@ -692,8 +692,9 @@ def test_desktop_framing_keeps_every_clips_soles_and_hands_on_screen(tmp_path: P
         )
         try:
             ready_renderer(page, gateway)
-            # Boot soles (the shoe's measured sole below the foot joints) and hand tips of every clip,
-            # projected with perspective, stay inside the frame: seated feet forward, raised hands.
+            # Boot soles (the shoe's measured sole below the foot joints) and hand tips of every
+            # clip, projected with perspective, stay inside the frame: seated feet forward, raised
+            # hands.
             reach = page.evaluate("window.__siroVrm.reachOnScreen()")
             assert reach["points"] > 0
             assert -1 < reach["lowest"] < -0.8, reach
@@ -799,6 +800,30 @@ def test_desktop_stroll_turns_walks_with_the_window_and_stops_when_called(tmp_pa
             page.wait_for_function(f"{WALK_REQUESTS}.at(-1).action === 'stop'")
             assert page.evaluate("window.__siroVrm.activity()") == "idle"
             assert not gateway.received[1:], "strolling stays between the renderer and the host"
+        finally:
+            browser.close()
+
+
+def test_desktop_draws_lightly_when_resting_and_not_at_all_when_hidden(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway, "?presentation=desktop")
+        try:
+            ready_renderer(page, gateway)
+            # Drawn at twice the screen's pixels, the downscale smooths her edges: no multisampling.
+            graphics = page.evaluate("window.__siroVrm.graphics()")
+            assert graphics["pixelRatio"] >= 2 and graphics["antialias"] is False
+            assert graphics["renderer"]
+            page.wait_for_function("window.__siroVrm.resting()", timeout=15000)
+            start = page.evaluate("window.__siroVrm.frames()")
+            page.wait_for_timeout(2000)
+            drawn = page.evaluate("window.__siroVrm.frames()") - start
+            assert 0 < drawn <= 2 * 20 + 2, drawn
+            page.evaluate("Object.defineProperty(document, 'hidden', { get: () => true })")
+            page.wait_for_timeout(200)
+            start = page.evaluate("window.__siroVrm.frames()")
+            page.wait_for_timeout(1000)
+            assert page.evaluate("window.__siroVrm.frames()") == start
         finally:
             browser.close()
 

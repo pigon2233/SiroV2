@@ -50,7 +50,7 @@ const REACH_MARGIN = 0.045; // metres past the last finger joint: the fingertip 
 // Left alone for this long, she finds something to do now and then (fixes her hair, hums, looks
 // around, reads her notebook, stretches, yawns at night); after a long quiet she sits down.
 const BORED_SECONDS = 20;
-const SETTLE_SECONDS = 0; // off until the sit clips sit on the floor (was 240)
+const SETTLE_SECONDS = 240;
 // Held states: an entry clip, a loop held for a while, and an exit clip back to the idle.
 const HOLDS = {
   sit: ['sit_down', 'sit_loop', 'stand_up'],
@@ -94,9 +94,13 @@ const statusLine = document.querySelector('#status');
 const EMOTIONS = ['happy', 'sad', 'angry', 'surprised', 'relaxed'];
 const LOOK_HOLD_SECONDS = 4;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-// Supersample at least 2x: the character is small in the stage card and blurs at 1x.
-renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 2), 3));
+// Supersample at least 2x: the character is small in the stage card and blurs at 1x. Drawn at 1.5x
+// the screen's pixels or more, the downscale already smooths her edges, so multisampling on top
+// only costs time (a lot of it when WebGL runs on the CPU, as it can on the desktop).
+const pixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
+const supersampled = pixelRatio >= 1.5 * (window.devicePixelRatio || 1);
+const renderer = new THREE.WebGLRenderer({ antialias: !supersampled, alpha: true });
+renderer.setPixelRatio(pixelRatio);
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.prepend(renderer.domElement);
@@ -639,11 +643,19 @@ function announceEmotion() {
 
 const clock = new THREE.Clock();
 let lastDesktopFrame = 0;
+// Standing idle with nothing going on: no gesture, hold, drag, pat or talk, and no one for a while.
+function resting() {
+  return currentAction === idleAction && !hold && !carry.active && mouth.talk < 0.05 &&
+    elapsed > pat.until && elapsed - lastActive > 5;
+}
 function loop(now) {
   requestAnimationFrame(loop);
+  // Nothing to draw while the window is hidden or minimised.
+  if (document.hidden) return;
   // SIRO desktop frame budget: retain normal web timing. Not while strolling: the host moves the
   // window every 16 ms, and drawing her at 24 fps against it makes the planted foot saw back and forth.
-  if (desktop && !stroll && now - lastDesktopFrame < 1000 / 24) return;
+  // Standing idle with nobody talking, 20 fps is enough for breathing, blinks and glances.
+  if (desktop && !stroll && now - lastDesktopFrame < 1000 / (resting() ? 20 : 24)) return;
   lastDesktopFrame = now;
   const delta = Math.min(clock.getDelta(), 0.1);
   elapsed += delta;
@@ -959,12 +971,10 @@ function updatePastimes() {
   const choices = [];
   const add = (name, weight) => { for (let i = 0; i < weight; i++) choices.push(name); };
   const hour = clockHour();
-  // Settling down on her own waits for a floor sit: the current one sits on a chair that isn't there.
-  if (SETTLE_SECONDS && quiet > SETTLE_SECONDS && HOLDS.sit.every(name => actions[name])) add('sit', 3);
+  if (quiet > SETTLE_SECONDS && HOLDS.sit.every(name => actions[name])) add('sit', 3);
   if (actions.yawn) add('yawn', hour >= 23 || hour < 5 ? 4 : 0);
   for (const name of ['fix_hair', 'hum', 'look_around']) if (actions[name]) add(name, 2);
-  // (No stretch on her own for now: arms straight overhead pull the jacket in ways VRoid's skinning
-  // can't follow, and its hem doesn't rise with them. The menu still has it.)
+  if (actions.stretch) add('stretch', 1);
   if (HOLDS.notebook.every(name => actions[name])) add('notebook', 1);
   if (!actions.look_around) add('look', 2);
   if (canStroll()) add('stroll', 2);
@@ -1236,6 +1246,16 @@ function walking() {
 window.__siroVrm = Object.freeze({
   loaded: () => Boolean(vrm),
   frames: () => frames,
+  resting: () => resting(),
+  // Which GL draws her (a CPU rasteriser such as llvmpipe costs far more), and at what scale.
+  graphics: () => {
+    const gl = renderer.getContext();
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    return {
+      renderer: String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)),
+      pixelRatio, antialias: !supersampled,
+    };
+  },
   expression: name => vrm?.expressionManager?.getValue(name) ?? null,
   lookTarget: () => lookTarget.position.toArray(),
   neckPitch: () => bone('neck')?.rotation.x ?? null,
