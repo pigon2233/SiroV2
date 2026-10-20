@@ -1,6 +1,6 @@
 # MEM-02 認領
 
-2026-10-20 Asia/Taipei；Codex；PARTIAL／HARD_GATES_LOCAL_VERIFIED／WAITING_MODEL_CONFIGURATION／LOCAL_ONLY／NOT PUSHED。
+2026-10-20 Asia/Taipei；Codex；PARTIAL／DETERMINISTIC_GATES_LOCAL_VERIFIED／REAL_MODEL_FAILED_VERIFICATION／LOCAL_ONLY／NOT PUSHED。
 使用者持續目標「一直做下去」，延續MEM01後的整個記憶計畫，不以本卡取代全目標。
 Base 259fddacb9c585de3c5c4a7ae3ac6a111539cd00；branch codex/memory-mem02-20261020；
 worktree E:/coding/股票策略機器學習/SiroV2-mem02-20261020。
@@ -27,3 +27,9 @@ pre-dispatch來源重驗、原native history/pending tools不裁改。接現有C
 認領路徑不擴張；遠端issues/pulls空、fetch已查，原八個dirty檔保留。
 新增五反例、整檔49 PASS；capture30/30、real仍BLOCKED_CONFIG；報告有可重現證據。
 依原零越權要求明訂獨立semantic hard gate，不降低27/30理解目標。LOCAL_ONLY／NOT PUSHED。
+
+使用者要求查運行中的模型後，找到WSL PID807實際設定qwen3:4b-instruct、Ollama11434。
+缺模型判斷更正：漏查程序環境，不是確實沒有模型。沿用現有模型完成首次30case真評測，
+capture30/30、自動語義22/30；人工發現C22自然語言錯報測試通過而布林false，不能宣稱零錯報。
+同工作區／分支，基線b2c01dc；本輪只更動本交接、PLAN、REPORT與本任務evidence目錄。
+模型metadata與合成真回答已留證，不含密鑰、未改使用中服務／私人DB／其他owner檔案。

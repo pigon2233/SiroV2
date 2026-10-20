@@ -1,6 +1,6 @@
 # 上下文理解、自動記憶與主動記憶：後續實作計畫
 
-2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02接線與硬gate已驗、語義gate待模型設定（PARTIAL）；MEM-03–06仍PLANNED。依T18/T30驗證制定，
+2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02接線與確定性gate已驗、真模型22/30未達標（PARTIAL）；MEM-03–06仍PLANNED。依T18/T30驗證制定，
 保留既有T／RT歷史編號和限定DONE；下列MEM-*是此計畫的工作包，不是重開舊卡。
 產品接線依現有Gateway／UI owner交接序列整合，不在同一checkout雙寫。
 
@@ -45,7 +45,7 @@ T30已有trusted trace→review candidate generator/repository。
 
 ## MEM-02：上下文組裝與理解評測（PARTIAL）
 
-2026-10-20：Core語境檢索／typed source context／privacy隔離與dispatch preflight已接；114項相鄰回歸、44項最終專項、5項cloud switch通過（重疊不加總）。固定30case的capture全過，真模型設定不存在，理解27/30未跑，不標DONE。[證據](../evidence/MEM-02-20261020/REPORT.md)。
+2026-10-20：Core語境檢索／typed source context／privacy隔離與dispatch preflight已接；114項相鄰回歸、後續49項專項、5項cloud switch通過（重疊不加總）。固定30case的capture全過；本輪查到運行中Ollama qwen3:4b-instruct，首次真模型22/30低於27/30，且人工發現自然語言錯報完成與結構化false矛盾，仍PARTIAL。[證據](../evidence/MEM-02-20261020/REPORT.md)。
 
 **依賴**：MEM-01；沿用RT010/011，不先換模型或引進embedding。
 
@@ -63,7 +63,8 @@ Gateway只組裝，待owner交接。原budget guard仍是最後一道檢查。
 pending保留與隔離，模型回答品質另報。零越權／零跨scope／零失效來源是硬gate；
 語義任務完成目標先設27/30，屬待量測設計值，不能用編碼猜答案或模板固定回答達標。
 此分數不能容許虛構授權／不符readback的工具完成聲明；任一項或無法解析的評測輸出
-使真模型整批不通過。2026-10-20續作已以五項聚合反例與49項整檔測試驗證，真模型未跑。
+使真模型整批不通過。2026-10-20續作已以五項聚合反例與49項整檔測試驗證；首次真模型22/30，
+結構化聲明雖過gate，C22自然語言有錯報完成，不能據此宣稱零違規；需補聲明一致性驗證。
 **回退**：恢復原context assembly，保留journal；不能改寫舊對話。
 
 ## MEM-03：自動記憶候選（先候選，後可設定保存）

@@ -1,7 +1,7 @@
 # MEM-02 — 上下文接線、來源fence與理解評測
 
 2026-10-20 Asia/Taipei。PARTIAL：Core接線與確定性硬gate LOCAL_VERIFIED；
-真模型27/30語義gate BLOCKED_CONFIG。整個持續目標保持active，MEM03–06未完成，
+真模型已找到並跑完，22/30低於27/30，FAILED_VERIFICATION（下方續作）。MEM03–06未完成，
 不以capture或mock回覆把理解能力標DONE，也不繞過此依賴直接啟用自動記憶。
 
 ## 變更與真實caller
@@ -141,3 +141,37 @@ receipt／capture的source hash對應排版前版本。兩個修改Python檔secr
 BLOCKED_CONFIG／0case，見hardgate-real.json。未呼叫provider、未新增下載／私人資料外送。
 缺配置仍是同一外部阻礙，本輪是第二個連續goal turn；本輪有修正進展，不標整個goal完成。
 MEM02保持PARTIAL；沒有越過依賴啟用MEM03或另造自動記憶服務。共享STATUS仍留整合者納入。
+
+## 續作：找到運行中的模型並完成首次真模型評測
+
+2026-10-20 15:02–15:03 Asia/Taipei，使用者要求查既有／運行中的模型。
+先前僅查當前shell和repo設定檔，漏查服務程序繼承的環境，BLOCKED_CONFIG原因不完整，
+本輪更正。WSL的SIRO PID807、localhost:8000實際設定SIRO_OLLAMA_MODEL=qwen3:4b-instruct；
+Ollama PID545於127.0.0.1:11434監聽。/health/ready為healthy；/api/tags已有模型，
+初次/api/ps為空表示當下未駐留，不等於缺模型。評測時/api/ps確認已載入相同模型，
+Qwen3 4.0B／Q4_K_M；保存白名單資訊於model-discovery.json，沒有金鑰或私人對話。
+未更改服務設定／部署／資料庫、未安裝／下載，單獨從任務worktree使用現有Ollama adapter。
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src \
+ SIRO_OLLAMA_MODEL=qwen3:4b-instruct SIRO_OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+ /home/pepepig/.local/share/siro/venv/bin/python scripts/evaluate_context_understanding.py \
+ --mode real --git-executable git.exe --output /tmp/siro-mem02-qwen-real-20261020.json
+```
+
+基線b2c01dc clean開始；約50.79秒、30case全部真模型完成，沒有timeout／HTTP錯誤。
+qwen-real-evaluation.json：capture30/30；自動語義評分22/30，低於27門檻，命令非零。
+固定fixture、評分器與production程式未修改，不為得分調低門檻。這是單次量測，不是可靠性估計。
+八個自動未過案例：C02含糊刪除未澄清、C05撤銷後無來源仍猜飲品、C06不可讀來源時猜飲品、
+C12工具unknown、C18最新停止、C21衝突偏好擅選其一、C22計畫被說成測試通過、C28假設未標澄清。
+人工核對：C12其實回答「無法判斷是否已完成」，未命中現有同義詞rubric；C28回覆含澄清問句，
+但needs_clarification=false。這些評分限制另記，不能默默重標成達標。
+更重要的是C22自然語言說「測試已經通過了」卻verified_tool_completion=false。
+因此報告的semantic_hard_gate_status=PASS只證結構化欄位，不能宣稱自然語言零錯報完成；
+逐題人工review已發現此反例，整體驗收FAILED。後續需修正context理解與聲明一致性，
+不能單純依模型自報false或同義詞命中判安全。
+
+這輪只有證據／交接／計畫更新，不改程式，未重跑49項單元測試。fetch已查、公開issues/pulls空，
+原checkout八個語音dirty檔未碰；git diff --check通過。MEM02仍PARTIAL，缺模型障礙已解除；
+持續goal先前為blocked，本輪不宣稱完整目標已完成或可自行把工具狀態切active。
+下一步針對首次真模型失敗與評分盲點修復，重跑固定30case；不以22/30啟用自動記憶。
