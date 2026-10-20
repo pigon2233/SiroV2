@@ -8,6 +8,7 @@ import {
   VRMLookAtQuaternionProxy,
   createVRMAnimationClip,
 } from '@pixiv/three-vrm-animation';
+import { createSfx } from './sfx.js';
 
 const MODEL_URL = '/vrm-model/model.vrm';
 const PACK_URL = './motions/pack.json';
@@ -178,6 +179,23 @@ let nextTalkGesture = Infinity;
 let lastTalkGesture = '';
 // Mouth: the parent page owns speech audio and sends its loudness and tone on the playback clock
 // (siro.speech.mouth). Nothing here invents mouth motion without heard audio.
+// The parent page says while it is playing her voice or the microphone is open (siro.audio.busy);
+// the claim goes stale after a few seconds in case the parent stops sending.
+let audioBusyUntil = -Infinity;
+const sfx = createSfx({ speaking: () => mouth.talk > 0.05 || elapsed < audioBusyUntil, hour: () => clockHour() });
+// Seconds into a clip at which it makes a sound, and which one.
+const SOUND_CUES = {
+  clap: [[0.6, 'clap'], [0.9, 'clap'], [1.2, 'clap']],
+  poke: [[0.12, 'poke']],
+  land: [[0.15, 'thump']],
+  sit_down: [[1.55, 'rustle']],
+  sit_loop: [],
+  notebook_out: [[0.6, 'paper']],
+  notebook_read: [[0.6, 'paper']],
+  notebook_away: [[0.6, 'paper']],
+};
+const activityOf = new Map();
+const sound = { action: null, cues: [], own: false };
 const mouth = { level: 0, tone: 0.5, target: 0, targetTone: 0.5, at: -1, slow: 0, beat: 0, lastBeat: -1, voiced: -1, talk: 0 };
 window.addEventListener('message', event => {
   if (event.origin !== location.origin || event.source !== window.parent) return;
@@ -200,6 +218,8 @@ window.addEventListener('message', event => {
       mouth.voiced = elapsed;
       engage();
     }
+  } else if (data.type === 'siro.audio.busy') {
+    audioBusyUntil = data.busy ? elapsed + 2.5 : -Infinity;
   } else if (data.type === 'siro.view.focus') {
     // Something on the page worth a look (the chat box while you type), as an offset from the
     // centre of this frame in frame widths and heights.
@@ -670,6 +690,7 @@ function loop(now) {
       updateIdle();
       updateTalkGestures();
       updatePastimes();
+      updateSounds();
       saveLifeBones();
     } else idlePose(elapsed);
     updateNotebook();
@@ -886,7 +907,11 @@ function updateTouches() {
 
 function patted(event) {
   // A new patting episode (not one already going on) is one touch.
-  if (elapsed > pat.until) sendTouch('pat', 1);
+  if (elapsed > pat.until) {
+    sendTouch('pat', 1);
+    sfx.play('giggle');
+  }
+  sfx.play('rustle');
   const head = headOnScreen();
   // She tilts her head toward the hand.
   if (head) life.patSide = THREE.MathUtils.clamp((head.x - event.clientX) / head.radius, -1, 1);
@@ -963,6 +988,7 @@ function updateCarry() {
 
 // ---- Pastimes: left alone she does small things now and then; after a long quiet she sits
 // down until someone comes back. Never while talking, mid-gesture or held up.
+let ownAction = null; // the clip a pastime started, so its sounds are rate limited as her own
 function updatePastimes() {
   if (!mixer || elapsed < nextIdleBehaviour) return;
   nextIdleBehaviour = elapsed + 20 + Math.random() * 40;
@@ -987,7 +1013,26 @@ function updatePastimes() {
     life.glanceYaw = (Math.random() < 0.5 ? -1 : 1) * (22 + Math.random() * 10) * DEG;
     life.glancePitch = (Math.random() * 10 - 4) * DEG;
     life.nextGlance = elapsed + 1.8 + Math.random() * 1.5;
-  } else playGesture(choice);
+  } else if (playGesture(choice)) ownAction = currentAction;
+}
+
+// Soft sounds follow the clip playing now. A sound is only made when the clip is not one she
+// started on her own, or (for those) when the rate limit lets it.
+function updateSounds() {
+  if (currentAction !== sound.action) {
+    sound.action = currentAction;
+    const cues = SOUND_CUES[activityOf.get(currentAction)] ?? [];
+    sound.cues = cues.map(cue => ({ cue, done: false }));
+    sound.own = ownAction === currentAction || Boolean(hold?.auto);
+  }
+  if (!sound.cues.length || !currentAction) return;
+  const time = currentAction.time;
+  for (const item of sound.cues) {
+    if (!item.done && time >= item.cue[0]) {
+      item.done = true;
+      if (time - item.cue[0] < 0.4) sfx.play(item.cue[1], { own: sound.own });
+    }
+  }
 }
 
 // The local hour, read at most every half minute.
@@ -1244,6 +1289,7 @@ function walking() {
 
 // Read-only diagnostics for automated renderer checks.
 window.__siroVrm = Object.freeze({
+  sounds: () => ({ enabled: sfx.enabled, played: sfx.played }),
   loaded: () => Boolean(vrm),
   frames: () => frames,
   resting: () => resting(),
@@ -1306,12 +1352,26 @@ for (const [name, label] of MENU_GESTURES) {
   });
   gestureMenu.append(item);
 }
+const soundToggle = document.createElement('button');
+soundToggle.type = 'button';
+soundToggle.style.gridColumn = '1 / -1';
+const showSoundLabel = () => { soundToggle.textContent = sfx.enabled ? '音效：開' : '音效：關'; };
+showSoundLabel();
+soundToggle.addEventListener('pointerdown', event => event.stopPropagation());
+soundToggle.addEventListener('pointerup', event => event.stopPropagation());
+soundToggle.addEventListener('click', () => {
+  sfx.setEnabled(!sfx.enabled);
+  showSoundLabel();
+  gestureMenu.hidden = true;
+});
+gestureMenu.append(soundToggle);
 document.body.append(gestureMenu);
 window.addEventListener('contextmenu', event => {
   event.preventDefault();
   if (!mixer) return;
   for (const item of gestureMenu.children) {
     const name = item.dataset.gesture;
+    if (!name) continue;
     const ready = name === 'stroll' ? canStroll() : HOLDS[name] ? HOLDS[name].every(step => actions[step]) : actions[name];
     item.disabled = !ready;
   }
@@ -1500,6 +1560,7 @@ async function loadMotions(loader) {
     const action = mix.clipAction(createVRMAnimationClip(result.value, vrm));
     if (item.loop) looping.add(action);
     actions[item.activity] = action;
+    activityOf.set(action, item.activity);
     const speed = Number(item.root_speed_mps);
     if (item.activity === 'walk' && Number.isFinite(speed) && speed > 0) walkSpeed = speed;
   }

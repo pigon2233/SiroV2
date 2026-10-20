@@ -380,7 +380,10 @@ def open_renderer(
     browser = playwright.chromium.launch(
         executable_path=executable,
         headless=True,
-        args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+        args=[
+            "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist",
+            "--autoplay-policy=no-user-gesture-required",
+        ],
     )
     page = browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
     page.add_init_script(INIT)
@@ -633,6 +636,40 @@ def test_cancel_stops_the_gesture_its_reply_started(tmp_path: Path) -> None:
             assert page.evaluate("window.__siroVrm.activity()") == "wave"
             gateway.send({"v": 1, "type": "body.cancel", "generation_id": "r-g1"})
             page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=1000)
+        finally:
+            browser.close()
+
+
+def test_gestures_make_soft_sounds_never_over_her_voice_and_can_be_muted(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway)
+        try:
+            ready_renderer(page, gateway)
+            played = "window.__siroVrm.sounds().played"
+            # A clap sounds at its three beats.
+            gateway.send({"v": 1, "type": "body.gesture", "name": "clap"})
+            page.wait_for_function(f"{played}.filter(n => n === 'clap').length === 3", timeout=10000)
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
+
+            # While the page says her voice or the microphone is busy, nothing sounds.
+            page.evaluate("window.postMessage({type: 'siro.audio.busy', v: 1, busy: true}, location.origin)")
+            before = len(page.evaluate(played))
+            gateway.send({"v": 1, "type": "body.gesture", "name": "clap"})
+            page.wait_for_timeout(2500)
+            assert len(page.evaluate(played)) == before
+
+            # The menu switch mutes her; the choice is remembered.
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
+            page.wait_for_timeout(2600)  # the busy claim goes stale
+            page.mouse.click(180, 320, button="right")
+            page.get_by_text("音效：開").click()
+            assert page.evaluate("window.__siroVrm.sounds().enabled") is False
+            assert page.evaluate("localStorage.getItem('siro.sfx')") == "off"
+            before = len(page.evaluate(played))
+            gateway.send({"v": 1, "type": "body.gesture", "name": "clap"})
+            page.wait_for_timeout(2500)
+            assert len(page.evaluate(played)) == before
         finally:
             browser.close()
 

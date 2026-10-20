@@ -2013,6 +2013,12 @@
       };
       chatInput.addEventListener("input", shareFocus);
       chatInput.addEventListener("focus", shareFocus);
+      // Her soft sound effects stay silent while her voice plays or a microphone capture is open.
+      setInterval(() => {
+        const frame = document.querySelector("#companion");
+        if (!frame?.contentWindow || !(ttsAudio || ttsController || microphoneCapture || transcriptionController)) return;
+        try { frame.contentWindow.postMessage({type: "siro.audio.busy", v: 1, busy: true}, location.origin); } catch (_) { /* renderer gone */ }
+      }, 1000);
       boot().catch(() => { document.querySelector("#connection").textContent = "連線未完成"; const notice = document.querySelector("#service-notice"); notice.hidden = false; notice.textContent = "目前無法連接 SIRO。請確認服務已啟動，再按重新連線；已送出的工作不會自動重送。"; });
     </script>
   </body>
