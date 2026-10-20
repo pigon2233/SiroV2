@@ -1375,7 +1375,7 @@ soundTest.addEventListener('pointerdown', event => event.stopPropagation());
 soundTest.addEventListener('pointerup', event => event.stopPropagation());
 soundTest.addEventListener('click', () => {
   sfx.play('clap', { force: true });
-  soundTest.textContent = `試聽音效（音訊：${sfx.audioState}）`;
+  setTimeout(() => { soundTest.textContent = `試聽音效（${sfx.audioState}）`; }, 400);
 });
 soundTest.textContent = '試聽音效';
 gestureMenu.append(soundTest);
