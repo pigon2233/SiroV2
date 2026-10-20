@@ -1560,11 +1560,16 @@
         Number.isFinite(plan.deadline_seconds) && plan.deadline_seconds > 0 && plan.deadline_seconds <= 1200;
       // Text that can be read now: up to the last finished sentence, never inside an open code fence.
       function speakablePrefix(raw) {
-        const fences = raw.split("```").length - 1;
-        const head = fences % 2 ? raw.slice(0, raw.lastIndexOf("```")) : raw;
-        let end = -1;
-        for (const match of head.matchAll(/[。！？!?\n]|\.(?=\s)/g)) end = match.index + match[0].length;
-        return end > 0 ? head.slice(0, end) : "";
+        let head = raw;
+        for (;;) {
+          if ((head.split("```").length - 1) % 2) head = head.slice(0, head.lastIndexOf("```"));
+          let end = -1;
+          for (const match of head.matchAll(/[。！？!?\n]|\.(?=\s)/g)) end = match.index + match[0].length;
+          const prefix = end > 0 ? head.slice(0, end) : "";
+          // Cutting at a sentence end can land inside a fenced block that closes later.
+          if ((prefix.split("```").length - 1) % 2 === 0) return prefix;
+          head = prefix;
+        }
       }
       // Live narration: start reading finished sentences while the reply is still streaming.
       // The completed reply is planned once more at the end, so the full text is still covered.
@@ -1638,6 +1643,21 @@
           if (remaining <= 0) { deadlineReached = true; controller.abort(); throw aborted(); }
           timer = setTimeout(() => { deadlineReached = true; controller.abort(); }, remaining);
         };
+        // Planning a prefix closes it as a sentence (an extra "。", a line break read as a pause),
+        // so queued text is matched to the full text ignoring punctuation and spacing.
+        const unheardRest = (spoken, heard) => {
+          const pause = /[\s。．.，,！!？?；;：:、…~～—-]/;
+          const need = Array.from(heard).filter(c => !pause.test(c)).join("");
+          const chars = Array.from(spoken);
+          let index = 0, matched = 0;
+          while (index < chars.length && matched < need.length) {
+            if (!pause.test(chars[index])) { if (chars[index] !== need[matched]) return undefined; matched++; }
+            index++;
+          }
+          if (matched < need.length) return undefined;
+          while (index < chars.length && pause.test(chars[index])) index++;
+          return chars.slice(index).join("");
+        };
         const followLive = async () => {
           let planned = 0, deadlineSet = false;
           for (;;) {
@@ -1655,11 +1675,10 @@
               const heard = segments.join("");
               let fresh = value.segments;
               if (heard) {
-                if (!value.spoken_text.startsWith(heard)) continue; // the final plan settles it
                 if (segments.every((segment, i) => segment === value.segments[i])) fresh = value.segments.slice(segments.length);
                 else {
-                  const rest = value.spoken_text.slice(heard.length);
-                  if (!rest.trim()) continue;
+                  const rest = unheardRest(value.spoken_text, heard);
+                  if (!rest?.trim()) continue; // nothing new yet, or the final plan settles it
                   try { fresh = (await plan({text: rest})).segments; } catch (error) { assertCurrent(); continue; }
                 }
               }
@@ -1675,8 +1694,8 @@
             else {
               // Already-read text no longer lines up with the full plan: read only what is left.
               const heard = segments.join("");
-              if (!value.spoken_text.startsWith(heard)) throw new Error("朗讀內容與完整回覆不一致，沒有續播");
-              const rest = value.spoken_text.slice(heard.length);
+              const rest = unheardRest(value.spoken_text, heard);
+              if (rest === undefined) throw new Error("朗讀內容與完整回覆不一致，沒有續播");
               if (rest.trim()) segments.push(...(await plan({text: rest})).segments);
             }
             total = segments.length; closed = true; notify(); return;
@@ -2025,11 +2044,12 @@
       chatInput.addEventListener("input", shareFocus);
       chatInput.addEventListener("focus", shareFocus);
       // Her soft sound effects stay silent while her voice plays or a microphone capture is open.
-      setInterval(() => {
+      const audioBusyTimer = setInterval(() => {
         const frame = document.querySelector("#companion");
         if (!frame?.contentWindow || !(ttsAudio || ttsController || microphoneCapture || transcriptionController || handsFree.on)) return;
         try { frame.contentWindow.postMessage({type: "siro.audio.busy", v: 1, busy: true}, location.origin); } catch (_) { /* renderer gone */ }
       }, 1000);
+      audioBusyTimer?.unref?.(); // a page-level heartbeat must not keep a test harness's event loop alive
       boot().catch(() => { document.querySelector("#connection").textContent = "連線未完成"; const notice = document.querySelector("#service-notice"); notice.hidden = false; notice.textContent = "目前無法連接 SIRO。請確認服務已啟動，再按重新連線；已送出的工作不會自動重送。"; });
     </script>
   </body>
