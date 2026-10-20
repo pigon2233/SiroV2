@@ -117,7 +117,13 @@ let lastAnnounced = '';
 let lookUntil = 0;
 let gestureStart = -1;
 let speechGeneration;
+let replyGeneration = ''; // the generation of the latest body.speech
+// Which reply started the gesture playing now (a speech cue or a talking gesture), so that reply's
+// body.cancel can end it: { generation, action }.
+let replyGesture = null;
 let hold = null; // the held state she is in: { kind, until, auto }
+// How much of the motion pack loaded: full, partial (missing clips listed) or none (procedural pose).
+const motionStatus = { state: 'loading', missing: [] };
 let nextBlink = 2;
 let blinkStart = -1;
 let elapsed = 0;
@@ -576,11 +582,15 @@ function updateLook() {
 }
 
 function announceEmotion() {
+  if (motionStatus.state === 'loading') return; // the page hears about the motions in the same message
   const settled = !hasExpression(desiredEmotion) || emotionWeights[desiredEmotion] > desiredIntensity * 0.6;
   if (!settled || lastAnnounced === desiredEmotion) return;
   document.documentElement.dataset.siroEmotion = desiredEmotion;
   window.parent.postMessage(
-    { type: 'siro.renderer.ready', emotion: desiredEmotion, character: vrm.meta?.name || 'SIRO', renderer: 'VRM' },
+    {
+      type: 'siro.renderer.ready', emotion: desiredEmotion, character: vrm.meta?.name || 'SIRO', renderer: 'VRM',
+      motions: { state: motionStatus.state, missing: [...motionStatus.missing] },
+    },
     location.origin,
   );
   lastAnnounced = desiredEmotion;
@@ -641,10 +651,21 @@ function renderSiro(message) {
     if (!perform(String(message.name || 'nod'))) gestureStart = elapsed;
   } else if (message.type === 'body.speech') {
     const generation = String(message.generation_id ?? '');
+    replyGeneration = generation;
     if (generation !== speechGeneration || !generation) {
       const gesture = speechGesture(String(message.text ?? ''));
-      if (gesture && currentAction === idleAction && playGesture(gesture)) speechGeneration = generation;
+      if (gesture && currentAction === idleAction && playGesture(gesture)) {
+        speechGeneration = generation;
+        replyGesture = { generation, action: currentAction };
+      }
     }
+  } else if (message.type === 'body.cancel') {
+    // A cancelled reply takes its gesture with it; holds, strolls and the face stay as they are.
+    const generation = String(message.generation_id ?? '');
+    if (replyGesture && generation && replyGesture.generation === generation && currentAction === replyGesture.action) {
+      returnToIdle(currentAction);
+    }
+    if (replyGesture?.generation === generation) replyGesture = null;
   }
   // A new emotion gets one body reaction as it arrives; the same emotion again stays quiet.
   if (message.type === 'body.emotion' && desiredEmotion !== previousEmotion) {
@@ -872,12 +893,12 @@ function updatePastimes() {
   const add = (name, weight) => { for (let i = 0; i < weight; i++) choices.push(name); };
   const hour = clockHour();
   // Settling down on her own waits for a floor sit: the current one sits on a chair that isn't there.
-  if (SETTLE_SECONDS && quiet > SETTLE_SECONDS && actions.sit_down && actions.sit_loop) add('sit', 3);
+  if (SETTLE_SECONDS && quiet > SETTLE_SECONDS && HOLDS.sit.every(name => actions[name])) add('sit', 3);
   if (actions.yawn) add('yawn', hour >= 23 || hour < 5 ? 4 : 0);
   for (const name of ['fix_hair', 'hum', 'look_around']) if (actions[name]) add(name, 2);
   // (No stretch on her own for now: arms straight overhead pull the jacket in ways VRoid's skinning
   // can't follow, and its hem doesn't rise with them. The menu still has it.)
-  if (actions.notebook_out && actions.notebook_read) add('notebook', 1);
+  if (HOLDS.notebook.every(name => actions[name])) add('notebook', 1);
   if (!actions.look_around) add('look', 2);
   if (canStroll()) add('stroll', 2);
   const choice = choices[Math.floor(Math.random() * choices.length)];
@@ -917,7 +938,7 @@ function updateTalkGestures() {
   const options = TALK_GESTURES.filter(name => actions[name] && name !== lastTalkGesture);
   if (!options.length) return;
   lastTalkGesture = options[Math.floor(Math.random() * options.length)];
-  playGesture(lastTalkGesture);
+  if (playGesture(lastTalkGesture) && replyGeneration) replyGesture = { generation: replyGeneration, action: currentAction };
 }
 
 // While an emotion holds strongly enough, its own idle loop (idle_happy, idle_sad...) replaces
@@ -1146,6 +1167,7 @@ window.__siroVrm = Object.freeze({
   framing: () => ({ ...view, reachTop: reach?.max.y ?? null }),
   head: () => headOnScreen(),
   notebook: () => notebook.visible,
+  motions: () => ({ state: motionStatus.state, missing: [...motionStatus.missing] }),
   stroll: () => stroll?.phase ?? null,
   walkSpeed: () => walkSpeed,
   facing: () => facing,
@@ -1186,7 +1208,7 @@ window.addEventListener('contextmenu', event => {
   if (!mixer) return;
   for (const item of gestureMenu.children) {
     const name = item.dataset.gesture;
-    const ready = name === 'stroll' ? canStroll() : HOLDS[name] ? actions[HOLDS[name][0]] && actions[HOLDS[name][1]] : actions[name];
+    const ready = name === 'stroll' ? canStroll() : HOLDS[name] ? HOLDS[name].every(step => actions[step]) : actions[name];
     item.disabled = !ready;
   }
   gestureMenu.hidden = false;
@@ -1217,8 +1239,8 @@ function speechGesture(text) {
 // Held states (sitting, reading the notebook): the entry clip, its loop held for a while, then
 // the exit clip back to the idle. `auto` marks one she started herself; she ends it when engaged.
 function startHold(kind, seconds, auto = false) {
-  const [enter, loop] = HOLDS[kind];
-  if (!mixer || !actions[enter] || !actions[loop] || hold || carry.active || stroll) return false;
+  const [enter] = HOLDS[kind];
+  if (!mixer || !HOLDS[kind].every(name => actions[name]) || hold || carry.active || stroll) return false;
   hold = { kind, until: elapsed + actions[enter].getClip().duration + seconds, auto };
   if (playGesture(enter)) return true;
   hold = null;
@@ -1226,6 +1248,9 @@ function startHold(kind, seconds, auto = false) {
 }
 
 function updateHold() {
+  // A hold whose clips are no longer playing (taken over some other way) is over: clear it, so
+  // nothing waits on a deadline that can't arrive and the next sit or read can start.
+  if (hold && !HOLDS[hold.kind].some(playing)) hold = null;
   if (!hold || elapsed < hold.until || currentAction !== actions[HOLDS[hold.kind][1]]) return;
   const exit = HOLDS[hold.kind][2];
   hold = null;
@@ -1335,17 +1360,30 @@ async function loadMotions(loader) {
     proxy.name = 'VRMLookAtQuaternionProxy';
     vrm.scene.add(proxy);
   }
-  for (const item of pack.activities) {
+  // Each clip loads on its own: one that fails only switches off what needs it (its menu item, a
+  // hold missing a step, strolling without all four walking clips). Only the idle is required.
+  const items = (pack.activities ?? []).filter(item => item && typeof item.file === 'string');
+  const loaded = await Promise.allSettled(items.map(async item => {
     const gltf = await loader.loadAsync(new URL(item.file, new URL(PACK_URL, location.href)).href);
     const animation = gltf.userData.vrmAnimations?.[0];
-    if (!animation) continue;
-    const action = mix.clipAction(createVRMAnimationClip(animation, vrm));
+    if (!animation) throw new Error(`${item.file} has no VRM animation`);
+    return animation;
+  }));
+  for (const [index, result] of loaded.entries()) {
+    const item = items[index];
+    if (result.status !== 'fulfilled') {
+      motionStatus.missing.push(String(item.activity));
+      console.warn(`SIRO motion "${item.activity}" unavailable:`, result.reason);
+      continue;
+    }
+    const action = mix.clipAction(createVRMAnimationClip(result.value, vrm));
     if (item.loop) looping.add(action);
     actions[item.activity] = action;
     const speed = Number(item.root_speed_mps);
     if (item.activity === 'walk' && Number.isFinite(speed) && speed > 0) walkSpeed = speed;
   }
   if (!actions.idle) throw new Error('motion pack has no idle loop');
+  motionStatus.state = motionStatus.missing.length ? 'partial' : 'full';
   reach = measureReach(mix);
   mix.addEventListener('finished', event => {
     if (event.action !== currentAction || event.action === idleAction || stroll) return;
@@ -1385,14 +1423,16 @@ async function loadModel() {
   try {
     await loadMotions(loader);
   } catch (error) {
-    // The model still renders; it just stays in the procedural fallback pose.
+    // The model still renders; it just stays in the procedural fallback pose, and says so.
     console.warn('SIRO motions unavailable:', error);
+    for (const name of Object.keys(actions)) delete actions[name];
+    motionStatus.state = 'none';
     idlePose(0);
   }
   vrm.update(0);
   modelBox = new THREE.Box3().setFromObject(vrm.scene);
   fitCamera();
-  statusLine.textContent = '';
+  statusLine.textContent = motionStatus.state === 'none' ? '動作檔沒有載入，角色先以靜態姿勢顯示。' : '';
   document.documentElement.dataset.siroRenderer = 'vrm';
 }
 

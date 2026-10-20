@@ -335,6 +335,7 @@ class MockGateway:
         self.sessions = 0
         self.received: list[dict[str, object]] = []
         self.socket: WebSocketRoute | None = None
+        self.missing: set[str] = set()  # renderer files answered 404, to test partial loads
 
     def http(self, route: Route) -> None:
         path = route.request.url.removeprefix(ORIGIN).split("?", 1)[0]
@@ -348,6 +349,9 @@ class MockGateway:
                 route.fulfill(body=self.model, content_type="model/gltf-binary")
         elif path.startswith("/vrm/"):
             relative = path.removeprefix("/vrm/") or "index.html"
+            if relative in self.missing:
+                route.fulfill(status=404, body="missing")
+                return
             file = (self.dist / relative).resolve()
             if not file.is_relative_to(self.dist.resolve()) or not file.is_file():
                 route.fulfill(status=404, body="missing")
@@ -557,6 +561,110 @@ def test_drag_dangles_and_lands_and_the_notebook_is_a_held_state(tmp_path: Path)
             gateway.send({"v": 1, "type": "body.gesture", "name": "wave"})
             page.wait_for_timeout(300)
             assert page.evaluate("window.__siroVrm.activity()") == "notebook_read"
+        finally:
+            browser.close()
+
+
+def ready_renderer(page: Page, gateway: MockGateway) -> None:
+    page.wait_for_function("window.__siroVrm && window.__siroVrm.loaded()", timeout=60000)
+    page.wait_for_function("window.__siroVrm.activity() !== null", timeout=30000)
+    deadline = time.monotonic() + 10
+    while not gateway.received and time.monotonic() < deadline:
+        page.wait_for_timeout(50)
+    assert gateway.received, "the renderer never authenticated"
+
+
+def menu(page: Page, label: str) -> None:
+    page.mouse.click(180, 320, button="right")
+    page.locator("#gesture-menu button", has_text=label).click()
+
+
+def test_emotion_while_seated_keeps_the_hold_and_a_second_sit_works(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway)
+        try:
+            ready_renderer(page, gateway)
+            menu(page, "坐下")
+            page.wait_for_function("window.__siroVrm.activity() === 'sit_loop'", timeout=5000)
+            # An emotion while seated changes her face, not her posture: no nod or clap out of the
+            # sit, and the mood idle does not replace the seated loop.
+            gateway.send({"v": 1, "type": "body.emotion", "name": "happy", "intensity": 0.8})
+            page.wait_for_function("window.__siroVrm.expression('happy') > 0.5")
+            page.wait_for_timeout(600)
+            assert page.evaluate("window.__siroVrm.activity()") == "sit_loop"
+            # The hold ends the one way it should: stand_up, then the (happy) idle.
+            page.wait_for_function("window.__siroVrm.activity() === 'stand_up'", timeout=15000)
+            page.wait_for_function("window.__siroVrm.activity() === 'idle_happy'", timeout=10000)
+            gateway.send({"v": 1, "type": "body.emotion", "name": "neutral", "intensity": 1})
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
+            menu(page, "坐下")
+            page.wait_for_function("window.__siroVrm.activity() === 'sit_loop'", timeout=5000)
+        finally:
+            browser.close()
+
+
+def test_cancel_stops_the_gesture_its_reply_started(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway)
+        try:
+            ready_renderer(page, gateway)
+            gateway.send({"v": 1, "type": "body.speech", "text": "你好", "generation_id": "r-g1"})
+            page.wait_for_function("window.__siroVrm.activity() === 'wave'")
+            # Another reply's cancel leaves it alone; its own cancel ends it.
+            gateway.send({"v": 1, "type": "body.cancel", "generation_id": "other"})
+            page.wait_for_timeout(300)
+            assert page.evaluate("window.__siroVrm.activity()") == "wave"
+            gateway.send({"v": 1, "type": "body.cancel", "generation_id": "r-g1"})
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=1000)
+        finally:
+            browser.close()
+
+
+READY = "window.__posted.find(m => m && m.type === 'siro.renderer.ready')"
+
+
+def test_one_missing_clip_only_disables_what_needs_it(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    gateway.missing = {"motions/wave.vrma"}
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway)
+        try:
+            ready_renderer(page, gateway)
+            assert page.evaluate("window.__siroVrm.motions()") == {
+                "state": "partial",
+                "missing": ["wave"],
+            }
+            page.wait_for_function(READY)
+            assert page.evaluate(READY)["motions"] == {"state": "partial", "missing": ["wave"]}
+            assert page.evaluate("window.__siroVrm.activity()") == "idle"
+            # Other gestures still play; the missing one's menu item is off and a cue just falls
+            # back to the idle.
+            gateway.send({"v": 1, "type": "body.gesture", "name": "nod"})
+            page.wait_for_function("window.__siroVrm.activity() === 'nod'")
+            page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
+            page.mouse.click(180, 320, button="right")
+            assert page.locator("#gesture-menu button", has_text="揮手").is_disabled()
+            assert page.locator("#gesture-menu button", has_text="鞠躬").is_enabled()
+            assert page.inner_text("#status") == ""
+        finally:
+            browser.close()
+
+
+def test_missing_idle_falls_back_to_the_still_pose_and_says_so(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    gateway.missing = {"motions/idle.vrma"}
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway)
+        try:
+            page.wait_for_function("window.__siroVrm && window.__siroVrm.loaded()", timeout=60000)
+            page.wait_for_function("window.__siroVrm.motions().state === 'none'", timeout=30000)
+            assert page.evaluate("window.__siroVrm.activity()") is None
+            assert "靜態姿勢" in page.inner_text("#status")
+            page.wait_for_function(READY)
+            assert page.evaluate(READY)["motions"]["state"] == "none"
+            assert page.evaluate("document.documentElement.dataset.siroRenderer") == "vrm"
         finally:
             browser.close()
 
