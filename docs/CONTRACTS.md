@@ -731,3 +731,10 @@ UserTextEvent.subject_id須為可信入口確認的人物scope，缺失不推測
 session、producer、privacy、TTL／版本／撤銷同交易查核，snapshot使用前須重驗。
 可讀不等於可保存／外送／已證實／非敏感；無Memory候選寫入或服務接線。
 詳見[memory-evolution/MEM-03-A-CONTRACT.md](memory-evolution/MEM-03-A-CONTRACT.md)。
+
+## MEM-03-C：候選審閱
+
+Memory candidate不進recall／FTS；只有獨立可信Policy lease下明確approve才升格為committed。
+同交易重驗來源、CAS與版本，action UUID綁命令／結果；編輯使用新owner event，不改原引用。
+取消需join writer，unknown先查結果；無真lease adapter不裝配正式writer。schema17與完整限制見
+[memory-evolution/MEM-03-C-CONTRACT.md](memory-evolution/MEM-03-C-CONTRACT.md)。

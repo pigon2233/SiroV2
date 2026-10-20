@@ -12,7 +12,7 @@ from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayl
 from siro.core.identity import IdentityService, ImmutableCore
 from siro.core.memory import Memory, MemoryKind, MemoryService, MemoryStatus
 from siro.persistence.memory import SQLiteMemoryRepository
-from siro.persistence.sqlite import SQLiteStore
+from siro.persistence.sqlite import SQLiteStore, load_migrations
 from siro.persistence.state import SQLiteIdentityRepository
 
 NOW = datetime(2026, 10, 20, 4, tzinfo=UTC)
@@ -341,7 +341,7 @@ async def test_upgrade_schema15_keeps_existing_memory_and_edge(tmp_path: Path) -
     event = source("legacy blue")
     parent_id, child_id = uuid4(), uuid4()
     with sqlite3.connect(path) as connection:
-        apply_migrations(connection, migrations[:-1])
+        apply_migrations(connection, migrations[:15])
         connection.execute(
             "INSERT INTO identities(identity_id,core_json,core_version,created_at) "
             "VALUES('siro','{}',1,?)",
@@ -386,7 +386,9 @@ async def test_upgrade_schema15_keeps_existing_memory_and_edge(tmp_path: Path) -
             for row in c.execute("SELECT version,checksum FROM schema_migrations ORDER BY version")
         ]
     )
-    assert current[:-1] == old_checksums and current[-1][0] == 16
+    assert current[: len(old_checksums)] == old_checksums
+    assert len(old_checksums) == 15
+    assert [version for version, _ in current[len(old_checksums) :]] == [16, 17]
     await repo.correct(parent_id, "legacy red", source("red"), reason="synthetic correction")
     assert await repo.search("siro", "legacy blue") == []
 
@@ -519,7 +521,7 @@ async def test_legacy_consolidation_cannot_regenerate_deleted_parent(tmp_path: P
 
 
 @pytest.mark.asyncio
-async def test_schema16_database_refuses_older_release_without_touching_data(
+async def test_current_schema_database_refuses_older_release_without_touching_data(
     tmp_path: Path,
 ) -> None:
     import hashlib
@@ -528,13 +530,18 @@ async def test_schema16_database_refuses_older_release_without_touching_data(
 
     from siro.core.releases import ReleaseManager, ReleaseManifest
 
-    path = tmp_path / "schema16.sqlite"
+    path = tmp_path / "current-schema.sqlite"
     store, _, _, parent = await setup(path)
     bundle = tmp_path / "bundle"
     bundle.mkdir()
     (bundle / "app.txt").write_text("synthetic older release")
     signing_key = b"release-test-key"  # pragma: allowlist secret
-    manager = ReleaseManager(tmp_path / "release", signing_key, current_schema=16, database=path)
+    manager = ReleaseManager(
+        tmp_path / "release",
+        signing_key,
+        current_schema=load_migrations()[-1].version,
+        database=path,
+    )
     artifact = ReleaseManifest(
         version="0.0.1",
         source_sha256=manager._digest_v2(bundle),

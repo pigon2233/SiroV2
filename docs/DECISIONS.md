@@ -654,3 +654,11 @@ cloud route即使legacy caller省略memory route也不送local-only記憶或短�
 本次引用來源使用MEM01 snapshot，在ConversationEngine真正呼叫model前再次驗證；
 工具continuation從owned packet取來源綁定，過期結果報失敗，不重播工具、不自動重試模型。
 模型理解分數另由固定合成情境實測；capture通過不是27/30語義gate通過。
+
+## MEM-03-C：候選持久審閱與原子採用（2026-10-20）
+
+沿既有Memory candidate／revision／FTS新增schema17 review metadata與無原文action ledger。
+source gate只授權讀，寫入另需既有Policy的序列化lease；取消等待交易結束才釋放lease。
+原子source重驗＋revision CAS＋命令hash readback，未知不盲重送，編輯以新owner來源替換。
+詳[memory-evolution/MEM-03-C-CONTRACT.md](memory-evolution/MEM-03-C-CONTRACT.md)。
+正式Policy adapter／UI未接，MEM02與主MEM03 gate保留，release schema上限不放寬。
