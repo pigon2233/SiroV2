@@ -190,9 +190,9 @@ const SOUND_CUES = {
   land: [[0.15, 'thump']],
   sit_down: [[1.55, 'rustle']],
   sit_loop: [],
-  notebook_out: [[0.6, 'paper']],
-  notebook_read: [[0.6, 'paper']],
-  notebook_away: [[0.6, 'paper']],
+  notebook_out: [[0.6, 'paper_out']],
+  notebook_read: [[0.6, 'paper_read']],
+  notebook_away: [[0.6, 'paper_away']],
 };
 const activityOf = new Map();
 const sound = { action: null, cues: [], own: false };
@@ -909,6 +909,7 @@ function patted(event) {
   // A new patting episode (not one already going on) is one touch.
   if (elapsed > pat.until) {
     sendTouch('pat', 1);
+    sfx.play('rustle');
   }
   const head = headOnScreen();
   // She tilts her head toward the hand.

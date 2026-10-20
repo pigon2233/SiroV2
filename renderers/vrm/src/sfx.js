@@ -1,6 +1,7 @@
-// Soft sound effects for SIRO's body gestures. The sounds are synthesised here as raw samples and
-// played through an <audio> element (the same path her voice takes), so there are no sound files
-// to license and no dependence on WebAudio output, which can be silent in some webviews. Quiet by
+// Soft sound effects for SIRO's body gestures. Short recorded clips (src/sfx, see LICENSES.md) are
+// played through an <audio> element (the same path her voice takes), with no dependence on WebAudio
+// output, which can be silent in some webviews. If a clip fails to load, a synthesised stand-in
+// built below plays instead. Quiet by
 // design: low master volume (halved at night), silent while she speaks or the microphone listens,
 // rate limited, and one switch turns it off.
 const STORAGE_KEY = 'siro.sfx';
@@ -8,7 +9,19 @@ const MASTER = 0.4;
 const NIGHT_FACTOR = 0.5;
 const RATE = 22050;
 const OWN_GAP_SECONDS = 600; // sounds she makes on her own (pastimes): at most one per 10 minutes
-const MIN_GAP = { rustle: 1.5, giggle: 30, poke: 0.25, clap: 0, thump: 0.5, paper: 0.5 };
+const MIN_GAP = { rustle: 8, giggle: 30, poke: 0.25, clap: 0, thump: 0.5, paper: 0.5, paper_out: 0.5, paper_read: 0.5, paper_away: 0.5 };
+// Recorded clips, all level-matched; `gain` trims a clip further. Each play varies slightly in level
+// and speed so repeats (the three claps) are not identical.
+const FILES = {
+  clap: { file: 'clap.wav', gain: 1 },
+  poke: { file: 'poke.wav', gain: 1 },
+  thump: { file: 'thump.wav', gain: 0.7 },
+  rustle: { file: 'rustle.wav', gain: 0.5 },
+  paper_out: { file: 'paper_out.wav', gain: 1 },
+  paper_read: { file: 'paper_read.wav', gain: 1 },
+  paper_away: { file: 'paper_away.wav', gain: 1 },
+};
+const FALLBACK = { paper_out: 'paper', paper_read: 'paper', paper_away: 'paper' };
 
 function isNight(hour) {
   return hour >= 23 || hour < 8;
@@ -143,13 +156,24 @@ export function createSfx({ speaking = () => false, hour = () => new Date().getH
   }
 
   function play(name, { own = false, force = false } = {}) {
-    if (!enabled || !VOICES[name] || (!force && speaking())) return false;
+    if (!enabled || !(FILES[name] || VOICES[name]) || (!force && speaking())) return false;
     const clock = now();
     if (!force && own && (isNight(hour()) || clock - lastOwn < OWN_GAP_SECONDS)) return false;
     if (!force && clock - (lastByName[name] ?? -Infinity) < (MIN_GAP[name] ?? 0)) return false;
     try {
-      const audio = new Audio(urlFor(name));
-      audio.volume = Math.min(1, MASTER * (isNight(hour()) ? NIGHT_FACTOR : 1));
+      const clip = FILES[name];
+      const audio = new Audio(clip ? new URL(`./sfx/${clip.file}`, import.meta.url).href : urlFor(name));
+      audio.volume = Math.min(1, MASTER * (clip?.gain ?? 1) * (0.85 + Math.random() * 0.15) * (isNight(hour()) ? NIGHT_FACTOR : 1));
+      if (clip) {
+        audio.playbackRate = 0.96 + Math.random() * 0.08;
+        audio.addEventListener('error', () => {
+          const voice = FALLBACK[name] ?? name;
+          if (!VOICES[voice]) return;
+          const backup = new Audio(urlFor(voice));
+          backup.volume = audio.volume;
+          backup.play()?.catch?.(() => {});
+        }, { once: true });
+      }
       audio.play()?.then?.(() => { lastResult = 'playing'; }, error => {
         lastResult = `blocked: ${error?.name ?? error}`;
         console.info(`SIRO sfx: ${name} ${lastResult}`);
