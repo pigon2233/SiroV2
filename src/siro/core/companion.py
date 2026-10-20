@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Sequence
 
 from siro.contracts.events import Privacy as EventPrivacy
+from siro.core.context import ContextSourceChanged, read_context_snapshot, render_context
 from siro.core.conversation import ConversationEngine, DeltaHandler, TurnResult, TurnState
 from siro.core.identity import IdentityRepository
 from siro.core.memory import MemoryService, WorkingMemory, assemble_prompt
@@ -39,22 +40,49 @@ class CompanionCore:
         recent_messages: tuple[ModelMessage, ...] | None = None,
         memory_route_privacy: EventPrivacy | None = None,
     ) -> TurnResult:
+        route = (
+            EventPrivacy.CLOUD_ALLOWED
+            if privacy is Privacy.CLOUD_ALLOWED
+            else (memory_route_privacy or EventPrivacy.LOCAL_ONLY)
+        )
+        snapshot = None
         if message_history is None or not message_history:
             identity = await self._identities.get(identity_id)
             if identity is None:
                 raise KeyError(identity_id)
-            memories = await self._memory.recall(
-                identity_id, user_text, route_privacy=memory_route_privacy
+            if recent_messages and any(
+                m.role not in ("user", "assistant") or m.tool_calls for m in recent_messages
+            ):
+                raise ValueError("restored dialogue must be canonical user/assistant statements")
+            working = (
+                self._working.recent(session_id, route_privacy=route)
+                if recent_messages is None
+                else ()
+            )
+            recent_users = (
+                tuple(m.content for m in (recent_messages or ()) if m.role == "user")
+                if recent_messages is not None
+                else tuple(m.text for m in working if m.role == "user")
+            )
+            memories = await self._memory.recall_context(
+                identity_id, user_text, recent_users=recent_users, route_privacy=route
+            )
+            snapshot = await self._memory.context_snapshot(
+                identity_id, memories, route_privacy=route
+            )
+            context = render_context(
+                session_id, identity_id, memories, snapshot, route_privacy=route
             )
             prompt = assemble_prompt(
                 identity,
                 user_text if message_history is None else "",
                 memories,
-                self._working.recent(session_id) if recent_messages is None else (),
+                working,
                 verified_context,
-                cloud_route=memory_route_privacy is EventPrivacy.CLOUD_ALLOWED,
+                cloud_route=route is EventPrivacy.CLOUD_ALLOWED,
+                context_evidence=context,
             )
-            self._working.append(session_id, "user", user_text)
+            self._working.append(session_id, "user", user_text, privacy=route)
             if message_history is not None:
                 message_history.extend(
                     (
@@ -66,8 +94,19 @@ class CompanionCore:
         else:
             # A tool continuation is not a new user utterance or memory query.
             prompt = user_text
+            snapshot = read_context_snapshot(
+                message_history[0].content, session_id, identity_id, route
+            )
         if on_messages_ready is not None:
             await on_messages_ready()
+
+        async def preflight() -> None:
+            if snapshot is not None and (
+                snapshot.route_privacy is not route
+                or not await self._memory.context_sources_current(snapshot)
+            ):
+                raise ContextSourceChanged("selected context sources changed before dispatch")
+
         result = await self._conversation.respond(
             session_id,
             identity_id,
@@ -76,11 +115,12 @@ class CompanionCore:
             on_delta=on_delta,
             tools=tools,
             messages=tuple(message_history) if message_history is not None else (),
+            on_before_request=preflight,
         )
         if message_history is not None:
             # Partial intent from a failed/cancelled generation is not an accepted batch.
             calls = result.tool_calls if result.state is TurnState.COMPLETED else ()
             message_history.append(ModelMessage("assistant", result.text, calls))
         if result.text:
-            self._working.append(session_id, "assistant", result.text)
+            self._working.append(session_id, "assistant", result.text, privacy=route)
         return result

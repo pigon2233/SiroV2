@@ -1,6 +1,6 @@
 # 上下文理解、自動記憶與主動記憶：後續實作計畫
 
-2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02–06仍PLANNED。依T18/T30驗證制定，
+2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02接線與硬gate已驗、語義gate待模型設定（PARTIAL）；MEM-03–06仍PLANNED。依T18/T30驗證制定，
 保留既有T／RT歷史編號和限定DONE；下列MEM-*是此計畫的工作包，不是重開舊卡。
 產品接線依現有Gateway／UI owner交接序列整合，不在同一checkout雙寫。
 
@@ -43,7 +43,9 @@ T30已有trusted trace→review candidate generator/repository。
 舊來源零回填、零跨scope、零原文cloud外送，重啟與索引重建後仍失效。
 **回退**：關閉新producer，保留原記憶／revisions；不能用舊DB備份覆蓋新私人記憶。
 
-## MEM-02：上下文組裝與理解評測
+## MEM-02：上下文組裝與理解評測（PARTIAL）
+
+2026-10-20：Core語境檢索／typed source context／privacy隔離與dispatch preflight已接；114項相鄰回歸、44項最終專項、5項cloud switch通過（重疊不加總）。固定30case的capture全過，真模型設定不存在，理解27/30未跑，不標DONE。[證據](../evidence/MEM-02-20261020/REPORT.md)。
 
 **依賴**：MEM-01；沿用RT010/011，不先換模型或引進embedding。
 

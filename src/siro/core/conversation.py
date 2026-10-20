@@ -97,6 +97,7 @@ class ConversationEngine:
         on_delta: DeltaHandler | None = None,
         tools: tuple[ToolDefinition, ...] = (),
         messages: tuple[ModelMessage, ...] = (),
+        on_before_request: Callable[[], Awaitable[None]] | None = None,
     ) -> TurnResult:
         turn_id, generation_id, trace_id = str(uuid4()), str(uuid4()), str(uuid4())
         token = CancellationToken()
@@ -116,26 +117,31 @@ class ConversationEngine:
                 request = ModelRequest(
                     prompt, generation_id, privacy, tools=tools, messages=messages
                 )
-                async for chunk in self._model.stream(request, token):
-                    if token.cancelled or not await self._is_current(session_id, generation_id):
-                        state = TurnState.CANCELLED
-                        break
-                    if chunk.kind == "text" and chunk.text:
-                        pieces.append(chunk.text)
-                        await self._on_signal(
-                            ConversationSignal(
-                                "text_delta",
-                                trace_id,
-                                turn_id,
-                                generation_id,
-                                index=len(pieces) - 1,
-                                text=chunk.text,
+                if on_before_request is not None:
+                    await on_before_request()
+                if token.cancelled:
+                    state = TurnState.CANCELLED
+                else:
+                    async for chunk in self._model.stream(request, token):
+                        if token.cancelled or not await self._is_current(session_id, generation_id):
+                            state = TurnState.CANCELLED
+                            break
+                        if chunk.kind == "text" and chunk.text:
+                            pieces.append(chunk.text)
+                            await self._on_signal(
+                                ConversationSignal(
+                                    "text_delta",
+                                    trace_id,
+                                    turn_id,
+                                    generation_id,
+                                    index=len(pieces) - 1,
+                                    text=chunk.text,
+                                )
                             )
-                        )
-                        if on_delta is not None:
-                            await on_delta(chunk.text)
-                    elif chunk.kind == "tool_request" and chunk.tool_call is not None:
-                        tool_calls.append(chunk.tool_call)
+                            if on_delta is not None:
+                                await on_delta(chunk.text)
+                        elif chunk.kind == "tool_request" and chunk.tool_call is not None:
+                            tool_calls.append(chunk.tool_call)
         except TimeoutError:
             token.cancel()
             state, error = TurnState.FAILED, "timeout"

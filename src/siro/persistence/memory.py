@@ -35,6 +35,7 @@ class SQLiteMemoryRepository:
         generator_version: str,
         policy_revision: int,
         route_privacy: Privacy = Privacy.LOCAL_ONLY,
+        expected_memories: tuple[Memory, ...] | None = None,
     ) -> MemoryDerivationSnapshot:
         if not 1 <= len(parent_ids) <= 32 or len(set(parent_ids)) != len(parent_ids):
             raise ValueError("source parent bounds exceeded")
@@ -42,11 +43,16 @@ class SQLiteMemoryRepository:
             raise ValueError("source time must be aware")
 
         def read(connection: sqlite3.Connection) -> MemoryDerivationSnapshot:
+            expected = {item.memory_id: item for item in expected_memories or ()}
+            if expected_memories is not None and set(expected) != set(parent_ids):
+                raise ValueError("source selection mismatch")
             parents = []
             for memory_id in parent_ids:
                 row = self._parent(
                     connection, str(memory_id), identity_id, person_id, now, route_privacy
                 )
+                if expected and self._to_memory(connection, row) != expected[memory_id]:
+                    raise ValueError("source changed while selecting context")
                 parents.append(
                     MemorySourceBinding(
                         memory_id,
@@ -64,6 +70,31 @@ class SQLiteMemoryRepository:
                 policy_revision,
                 route_privacy,
             )
+
+        return await self._store.run_transaction(read)
+
+    async def sources_current(self, snapshot: MemoryDerivationSnapshot, *, now: datetime) -> bool:
+        def read(connection: sqlite3.Connection) -> bool:
+            try:
+                for binding in snapshot.parents:
+                    row = self._parent(
+                        connection,
+                        str(binding.memory_id),
+                        snapshot.identity_id,
+                        snapshot.person_id,
+                        now,
+                        snapshot.route_privacy,
+                    )
+                    if (
+                        row["revision"] != binding.revision
+                        or self._source_hash(connection, row) != binding.source_hash
+                        or self._source_ids(connection, str(binding.memory_id))
+                        != binding.source_event_ids
+                    ):
+                        return False
+                return True
+            except ValueError:
+                return False
 
         return await self._store.run_transaction(read)
 
@@ -394,6 +425,7 @@ class SQLiteMemoryRepository:
         source_event_id: UUID | None = None,
         route_privacy: Privacy | None = None,
         limit: int = 5,
+        match_all: bool = True,
     ) -> list[Memory]:
         if not query.strip() or not 1 <= limit <= 100 or not identity_id or not person_id:
             return []
@@ -467,7 +499,7 @@ class SQLiteMemoryRepository:
                 (
                     row
                     for row in rows
-                    if score(row)[1] == len(tokens)
+                    if (score(row)[1] == len(tokens) if match_all else score(row)[1] > 0)
                     and self._visible(
                         connection,
                         row,

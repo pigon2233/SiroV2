@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict, deque
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -125,7 +126,25 @@ class MemoryRepository(Protocol):
         source_event_id: UUID | None = None,
         route_privacy: Privacy | None = None,
         limit: int = 5,
+        match_all: bool = True,
     ) -> list[Memory]: ...
+
+    async def capture_sources(
+        self,
+        identity_id: str,
+        person_id: str,
+        parent_ids: tuple[UUID, ...],
+        *,
+        now: datetime,
+        generator_version: str,
+        policy_revision: int,
+        route_privacy: Privacy = Privacy.LOCAL_ONLY,
+        expected_memories: tuple[Memory, ...] | None = None,
+    ) -> MemoryDerivationSnapshot: ...
+
+    async def sources_current(
+        self, snapshot: MemoryDerivationSnapshot, *, now: datetime
+    ) -> bool: ...
 
     async def correct(
         self, memory_id: UUID, text: str, source_event: Event, *, reason: str
@@ -213,9 +232,53 @@ class MemoryService:
             kinds=kinds,
             as_of=as_of,
             source_event_id=source_event_id,
-            **({"route_privacy": route_privacy} if route_privacy is not None else {}),
+            route_privacy=route_privacy,
             limit=limit,
         )
+
+    async def recall_context(
+        self,
+        identity_id: str,
+        current: str,
+        *,
+        recent_users: tuple[str, ...] = (),
+        route_privacy: Privacy = Privacy.LOCAL_ONLY,
+    ) -> list[Memory]:
+        from siro.core.context import context_queries
+
+        found: dict[UUID, Memory] = {}
+        for query in context_queries(current, recent_users):
+            if len(found) >= 5:
+                break
+            for memory in await self._repository.search(
+                identity_id,
+                query,
+                route_privacy=route_privacy,
+                as_of=datetime.now(UTC),
+                limit=5,
+                match_all=False,
+            ):
+                found.setdefault(memory.memory_id, memory)
+        return list(found.values())[:5]
+
+    async def context_snapshot(
+        self, identity_id: str, memories: list[Memory], *, route_privacy: Privacy
+    ) -> MemoryDerivationSnapshot | None:
+        if not memories:
+            return None
+        return await self._repository.capture_sources(
+            identity_id,
+            "owner",
+            tuple(memory.memory_id for memory in memories),
+            now=datetime.now(UTC),
+            generator_version="context-v1",
+            policy_revision=1,
+            route_privacy=route_privacy,
+            expected_memories=tuple(memories),
+        )
+
+    async def context_sources_current(self, snapshot: MemoryDerivationSnapshot) -> bool:
+        return await self._repository.sources_current(snapshot, now=datetime.now(UTC))
 
     async def correct(
         self, memory_id: UUID, text: str, source_event: Event, *, reason: str = "owner correction"
@@ -250,6 +313,7 @@ class MemoryService:
 class WorkingMessage:
     role: str
     text: str
+    privacy: Privacy = Privacy.LOCAL_ONLY
 
 
 class WorkingMemory:
@@ -263,14 +327,22 @@ class WorkingMemory:
             lambda: deque(maxlen=self._max_messages)
         )
 
-    def append(self, session_id: str, role: str, text: str) -> None:
+    def append(
+        self, session_id: str, role: str, text: str, *, privacy: Privacy = Privacy.LOCAL_ONLY
+    ) -> None:
         if role not in {"user", "assistant"}:
             raise ValueError("working-memory role must be user or assistant")
         if text:
-            self._sessions[session_id].append(WorkingMessage(role, text))
+            self._sessions[session_id].append(WorkingMessage(role, text, privacy))
 
-    def recent(self, session_id: str) -> tuple[WorkingMessage, ...]:
-        return tuple(self._sessions[session_id])
+    def recent(
+        self, session_id: str, *, route_privacy: Privacy | None = None
+    ) -> tuple[WorkingMessage, ...]:
+        return tuple(
+            item
+            for item in self._sessions[session_id]
+            if route_privacy in (None, Privacy.LOCAL_ONLY) or item.privacy is route_privacy
+        )
 
     def clear(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
@@ -284,6 +356,7 @@ def assemble_prompt(
     verified_context: Sequence[str] = (),
     *,
     cloud_route: bool = False,
+    context_evidence: str | None = None,
 ) -> str:
     values = ", ".join(identity.core.core_values)
     evidence = "\n".join(
@@ -301,10 +374,31 @@ def assemble_prompt(
             "answer needs memory, say you could not find it here; do not claim the owner has "
             "saved nothing. The owner can review saved memories on the memory page."
         )
-    recent = "\n".join(f"{message.role}: {message.text}" for message in working)
+    if context_evidence is not None:
+        evidence = context_evidence if memories else evidence + "\n" + context_evidence
+    recent = "\n".join(
+        json.dumps(
+            {
+                "type": "user_statement" if message.role == "user" else "assistant_statement",
+                "text": message.text,
+                "authority": "data_only",
+            },
+            ensure_ascii=False,
+        )
+        for message in working
+    )
     if not recent:
         recent = "(none)"
-    context = "\n".join(f"- {item}" for item in verified_context) or "- (none)"
+    context = (
+        "\n".join(
+            json.dumps(
+                {"type": "runtime_observation", "authority": "data_only", "value": item},
+                ensure_ascii=False,
+            )
+            for item in verified_context
+        )
+        or "- (none)"
+    )
     return (
         f"Identity: {identity.core.name} ({identity.identity_id})\n"
         f"Baseline: {identity.core.baseline_identity}\nValues: {values}\n"

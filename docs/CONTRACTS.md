@@ -679,3 +679,15 @@ correct遞迴使descendants superseded，delete使descendants deleted；兩者�
 已失效內容不因更正child／索引重建／重啟自動復活。無binding的舊edge沿用保守失效，
 不能補造歷史來源hash。撤銷event後原event不得重新生成可用記憶。
 schema16為新增表與可空edge欄位；舊migration checksum不變，舊release max_schema不自動提高。
+
+## MEM-02：有界上下文與來源preflight
+
+context retrieval不改既有recall預設all-terms。可用最近user的話題作有界查詢回退，
+assistant/tool輸出不能作owner facts或自己的權限。結果最多5項，同scope、有效、同privacy route。
+Context資料以typed/source-backed JSON呈現，摘要／memory／runtime資料均不是system授權。
+current user與native history/pending tool pair保持；超限交由原ContextBudgetModel拒絕。
+每次model dispatch前以MEM01來源snapshot驗當前hash/revision/route，來源已變則FAILED／零dispatch。
+工具continuation仍是同turn的native history，不變成新user utterance或重新批准；來源必須重驗。
+短期working messages記錄privacy；cloud既不讀local-only working，也不讀local-only durable memory。
+外部provider在完成preflight後的網路傳輸，仍由原controller cancellation及Policy處理，
+此fence不宣稱把SQLite交易鎖延伸到外部網路或能撤回已送出的payload。

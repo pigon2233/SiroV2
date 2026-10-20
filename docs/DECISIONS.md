@@ -621,3 +621,15 @@ correct使既有descendants superseded並移除FTS，保留revisions；delete仍
 source revoke是不可逆的來源停用tombstone，不等於原文physical purge；原資料政策保持。
 新producer未啟用，Gateway未改。schema16禁止直接用舊程式操作新derived資料，
 release actual-schema gate不放寬；停producer後回退需相容版本，不還原舊私人DB。
+
+## D77 — MEM-02 / 有來源的上下文選取與dispatch fence（2026-10-20）
+
+不重造RT010/011。語境記憶檢索採有界Unicode詞／中文片段與最近user topic回退；
+相關度只是查詢線索，不把指代猜測當已確認事實。明確新話題不自動帶入上一話題。
+新typed packet分開owner statement、assistant statement、runtime observation、source-backed memory，
+所有資料不授權；保留native messages及pending tool pairs，current request與system/goals不剪裁。
+舊recall的all-terms語意保持；新增context retrieval用OR候選並仍先驗scope/privacy/時間/lineage。
+cloud route即使legacy caller省略memory route也不送local-only記憶或短期訊息。
+本次引用來源使用MEM01 snapshot，在ConversationEngine真正呼叫model前再次驗證；
+工具continuation從owned packet取來源綁定，過期結果報失敗，不重播工具、不自動重試模型。
+模型理解分數另由固定合成情境實測；capture通過不是27/30語義gate通過。
