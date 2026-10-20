@@ -909,9 +909,7 @@ function patted(event) {
   // A new patting episode (not one already going on) is one touch.
   if (elapsed > pat.until) {
     sendTouch('pat', 1);
-    sfx.play('giggle');
   }
-  sfx.play('rustle');
   const head = headOnScreen();
   // She tilts her head toward the hand.
   if (head) life.patSide = THREE.MathUtils.clamp((head.x - event.clientX) / head.radius, -1, 1);

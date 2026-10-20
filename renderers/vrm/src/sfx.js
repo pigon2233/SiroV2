@@ -4,7 +4,7 @@
 // design: low master volume (halved at night), silent while she speaks or the microphone listens,
 // rate limited, and one switch turns it off.
 const STORAGE_KEY = 'siro.sfx';
-const MASTER = 0.45;
+const MASTER = 0.4;
 const NIGHT_FACTOR = 0.5;
 const RATE = 22050;
 const OWN_GAP_SECONDS = 600; // sounds she makes on her own (pastimes): at most one per 10 minutes
@@ -73,8 +73,12 @@ function tone(out, at, { from, to, peak, decay, wave = 'sine' }) {
 const VOICES = {
   // One soft clap of the hands: a mid noise snap with a little body underneath.
   clap: { length: 0.2, build(out) {
-    noiseBurst(out, 0, { freq: 1700, q: 0.9, peak: 0.6, decay: 0.07 });
-    noiseBurst(out, 0, { freq: 700, q: 0.7, peak: 0.3, decay: 0.05 });
+    // Hands never meet in one instant: a few micro-bursts a few milliseconds apart, then a
+    // short low "pock" from the cupped palms.
+    for (const [at, peak] of [[0, 0.35], [0.006, 0.45], [0.012, 0.3]]) {
+      noiseBurst(out, at, { freq: 1300, q: 1.4, peak, attack: 0.001, decay: 0.03 });
+    }
+    noiseBurst(out, 0.004, { freq: 420, q: 1.2, peak: 0.4, attack: 0.002, decay: 0.05 });
   } },
   // Cloth against cloth: a slow noise swish.
   rustle: { length: 0.4, build(out) {
@@ -132,6 +136,7 @@ export function createSfx({ speaking = () => false, hour = () => new Date().getH
       const voice = VOICES[name];
       const out = new Float32Array(Math.floor(voice.length * RATE));
       voice.build(out);
+      filter(out, 'lowpass', 3600, 0.7); // take the edge off everything
       urls[name] = wavUrl(out);
     }
     return urls[name];
