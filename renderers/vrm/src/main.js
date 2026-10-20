@@ -143,6 +143,28 @@ let gestureFace = null;
 // A point she is interested in (the pointer, the chat box) and until when; Core's body.look wins.
 const interest = { point: new THREE.Vector3(), until: -1 };
 let reach; // world-space box every clip's hands reach, for framing
+// Points any clip reaches, as [y, z]: boot soles (the lowest a foot gets, sole included) and hand
+// tips (the highest, skin included). Framing keeps their perspective projection inside the frame.
+const reachPoints = { soles: [], hands: [] };
+// Metres from the foot and toe joints down to the bottom of the shoe, measured from the model's own
+// mesh on load (thick platform boots go well past a bare foot); 4 cm until then.
+let soleDepth = 0.04;
+// Per clip, metres she is set back while it plays, so feet it brings forward stay at the depth
+// the frame was fitted for (see measureReach). Standing feet sit about this far ahead of the hips.
+const clipDepth = {};
+const FEET_AHEAD = 0.12;
+let depth = 0;
+let depthV = 0;
+
+// Lowest and highest of those points in normalised screen height for a camera at (0, centerY,
+// cameraZ) looking straight ahead.
+function projectedReach(centerY, cameraZ, tan) {
+  let lowest = Infinity;
+  let highest = -Infinity;
+  for (const [y, z] of reachPoints.soles) lowest = Math.min(lowest, (y - centerY) / ((cameraZ - z) * tan));
+  for (const [y, z] of reachPoints.hands) highest = Math.max(highest, (y - centerY) / ((cameraZ - z) * tan));
+  return { lowest, highest };
+}
 let strideCentre = 0; // metres, forward (+) or back (-), of the middle of the walk's footprint
 const view = { centerY: 1, height: 2, width: 1 };
 let lastActive = 0;
@@ -220,20 +242,39 @@ function fitCamera() {
     const below = 1 - share - headroom; // the gap under the framed body, as a share of the frame
     // A raised hand first uses the headroom above the hair (on the stage card, the band under its
     // title); only if it reaches higher than that does the frame grow, and then just enough.
-    const handTop = reach ? reach.max.y + REACH_MARGIN : -Infinity;
+    const baseTop = reach ? reach.max.y + REACH_MARGIN : -Infinity;
+    const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     // Only height is reserved: arms swinging out sideways pass the edge for a moment at most, and
     // reserving that width in a narrow window would shrink her all the time.
-    const visibleHeight = Math.max(
-      (crown - bottom) / share,
-      (handTop - bottom) / (1 - below - (desktop ? 0.01 : 0)),
-      desktop ? 0 : (size.x * 0.75) / camera.aspect,
-    );
-    // The desktop pet stands on the window's bottom edge; the card keeps her head under its title.
-    const centerY = desktop
-      ? bottom - below * visibleHeight + visibleHeight / 2
-      : Math.max(crown + headroom * visibleHeight, handTop) - visibleHeight / 2;
-    const distance = visibleHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    camera.position.set(0, centerY, distance + size.z / 2);
+    const frame = (low, handTop) => {
+      const visibleHeight = Math.max(
+        (crown - low) / share,
+        (handTop - low) / (1 - below - (desktop ? 0.01 : 0)),
+        desktop ? 0 : (size.x * 0.75) / camera.aspect,
+      );
+      // The desktop pet stands on the window's bottom edge; the card keeps her head under its title.
+      const centerY = desktop
+        ? low - below * visibleHeight + visibleHeight / 2
+        : Math.max(crown + headroom * visibleHeight, handTop) - visibleHeight / 2;
+      return { visibleHeight, centerY, cameraZ: visibleHeight / 2 / tan + size.z / 2 };
+    };
+    // Perspective: a boot sole or a hand brought toward the camera projects further out than the
+    // same height at her own depth. Grow the frame until every point any clip reaches (soles on
+    // the desktop, raised hands everywhere) projects inside it.
+    let low = bottom;
+    let handTop = baseTop;
+    let fit = frame(low, handTop);
+    for (let i = 0; i < 60; i++) {
+      const { lowest, highest } = projectedReach(fit.centerY, fit.cameraZ, tan);
+      const lowOut = desktop && lowest < -0.99;
+      const highOut = highest > 0.99;
+      if (!lowOut && !highOut) break;
+      if (lowOut) low -= 0.01;
+      if (highOut) handTop += 0.01;
+      fit = frame(low, handTop);
+    }
+    const { visibleHeight, centerY } = fit;
+    camera.position.set(0, centerY, fit.cameraZ);
     camera.lookAt(0, centerY, 0);
     Object.assign(view, { centerY, height: visibleHeight, width: visibleHeight * camera.aspect });
   }
@@ -1147,6 +1188,17 @@ function updateStroll(delta) {
     vrm.scene.rotation.y = baseYaw + facing;
     // Side on, the stride reaches further behind her than ahead: centre its footprint in the pane.
     vrm.scene.position.x = -Math.sin(facing) * strideCentre;
+    // Set back while a clip brings her feet forward (sitting), eased so she never jumps.
+    const name = Object.keys(actions).find(key => actions[key] === currentAction);
+    const goal = clipDepth[name] ?? 0;
+    const omega = 2 / 0.5;
+    const x = omega * delta;
+    const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+    const change = depth - goal;
+    const temp = (depthV + omega * change) * delta;
+    depthV = (depthV - omega * temp) * decay;
+    depth = goal + (change + temp) * decay;
+    vrm.scene.position.z = -depth;
   }
 }
 
@@ -1165,9 +1217,15 @@ window.__siroVrm = Object.freeze({
   eyes: () => (vrm?.lookAt ? [vrm.lookAt.yaw, vrm.lookAt.pitch] : null),
   reaction: () => (reaction && elapsed < reaction.end ? reaction.name : null),
   framing: () => ({ ...view, reachTop: reach?.max.y ?? null }),
+  // Where the lowest sole and highest hand of any clip land in normalised screen height (-1..1).
+  reachOnScreen: () => {
+    const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    return { ...projectedReach(camera.position.y, camera.position.z, tan), points: reachPoints.soles.length, soleDepth };
+  },
   head: () => headOnScreen(),
   notebook: () => notebook.visible,
   motions: () => ({ state: motionStatus.state, missing: [...motionStatus.missing] }),
+  depth: () => depth,
   stroll: () => stroll?.phase ?? null,
   walkSpeed: () => walkSpeed,
   facing: () => facing,
@@ -1318,9 +1376,11 @@ function measureReach(mix) {
   const point = new THREE.Vector3();
   let back = 0;
   let ahead = 0;
-  for (const [name, action] of Object.entries(actions)) {
-    const stepping = ['walk', 'walk_start', 'walk_stop', 'turn_step'].includes(name);
+  for (const [clipName, action] of Object.entries(actions)) {
+    const stepping = ['walk', 'walk_start', 'walk_stop', 'turn_step'].includes(clipName);
     const duration = action.getClip().duration;
+    const soles = [];
+    const hands = [];
     mix.stopAllAction();
     action.reset().setLoop(THREE.LoopOnce, 1).play();
     for (let i = 0, steps = Math.max(1, Math.ceil(duration * 15)); i <= steps; i++) {
@@ -1328,7 +1388,13 @@ function measureReach(mix) {
       vrm.scene.updateMatrixWorld(true);
       for (const name of REACH_BONES) {
         const node = bone(name);
-        if (node) box.expandByPoint(node.getWorldPosition(point));
+        if (!node) continue;
+        box.expandByPoint(node.getWorldPosition(point));
+        if (name !== 'head') hands.push([point.y + REACH_MARGIN, point.z]);
+      }
+      for (const name of ['leftFoot', 'rightFoot', 'leftToes', 'rightToes']) {
+        const node = bone(name);
+        if (node) soles.push([node.getWorldPosition(point).y - soleDepth, point.z]);
       }
       // How far the feet reach forward and back while she walks (seen side on while strolling).
       if (stepping) {
@@ -1341,6 +1407,15 @@ function measureReach(mix) {
         }
       }
     }
+    // Feet brought toward the camera (sitting with the legs forward) would sit lower on screen in
+    // perspective than feet at her own depth, so the whole frame would have to drop and she would
+    // float above the window's bottom edge when standing. Instead the clip sets her back by how far
+    // its feet come forward, and is framed as played. Walking clips play side on, where the stride
+    // runs across the screen, not toward it.
+    const forward = stepping ? 0 : Math.max(0, ...soles.map(([, z]) => z));
+    clipDepth[clipName] = Math.max(0, forward - FEET_AHEAD);
+    for (const [y, z] of soles) reachPoints.soles.push([y, stepping ? 0 : z - clipDepth[clipName]]);
+    for (const [y, z] of hands) reachPoints.hands.push([y, z - clipDepth[clipName]]);
   }
   strideCentre = (back + ahead) / 2;
   mix.stopAllAction();
@@ -1412,6 +1487,15 @@ async function loadModel() {
   scene.add(loaded.scene);
   vrm = loaded;
   baseYaw = vrm.scene.rotation.y;
+  // In the rest pose the feet stand flat: the mesh's lowest point is the sole. A tilted foot
+  // (toes down, heel up) can reach a little further, hence the margin.
+  vrm.scene.updateMatrixWorld(true);
+  const restBox = new THREE.Box3().setFromObject(vrm.scene);
+  const feet = ['leftFoot', 'rightFoot', 'leftToes', 'rightToes'].map(name => bone(name)?.getWorldPosition(new THREE.Vector3()).y)
+    .filter(Number.isFinite);
+  if (feet.length && Number.isFinite(restBox.min.y)) {
+    soleDepth = THREE.MathUtils.clamp((Math.min(...feet) - restBox.min.y) * 1.4 + 0.01, 0.03, 0.2);
+  }
   const applier = vrm.lookAt?.applier;
   for (const [key, limit] of [
     ['rangeMapHorizontalInner', EYE_RANGE.horizontal], ['rangeMapHorizontalOuter', EYE_RANGE.horizontal],

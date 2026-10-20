@@ -371,7 +371,10 @@ class MockGateway:
 
 
 def open_renderer(
-    playwright: Playwright, gateway: MockGateway, query: str = ""
+    playwright: Playwright,
+    gateway: MockGateway,
+    query: str = "",
+    viewport: tuple[int, int] = (360, 640),
 ) -> tuple[Browser, Page]:
     executable = shutil.which("google-chrome") or shutil.which("chromium")
     browser = playwright.chromium.launch(
@@ -379,7 +382,7 @@ def open_renderer(
         headless=True,
         args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
     )
-    page = browser.new_page(viewport={"width": 360, "height": 640})
+    page = browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
     page.add_init_script(INIT)
     page.route(f"{ORIGIN}/**", gateway.http)
     page.route_web_socket("ws://siro.test/ws/body", gateway.websocket)
@@ -665,6 +668,24 @@ def test_missing_idle_falls_back_to_the_still_pose_and_says_so(tmp_path: Path) -
             page.wait_for_function(READY)
             assert page.evaluate(READY)["motions"]["state"] == "none"
             assert page.evaluate("document.documentElement.dataset.siroRenderer") == "vrm"
+        finally:
+            browser.close()
+
+
+def test_desktop_framing_keeps_every_clips_soles_and_hands_on_screen(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(
+            playwright, gateway, "?presentation=desktop", viewport=(540, 960)
+        )
+        try:
+            ready_renderer(page, gateway)
+            # Boot soles (4 cm below the foot joints) and hand tips of every clip in the pack,
+            # projected with perspective, stay inside the frame: seated feet forward, raised hands.
+            reach = page.evaluate("window.__siroVrm.reachOnScreen()")
+            assert reach["points"] > 0
+            assert -1 < reach["lowest"] < -0.8, reach
+            assert reach["highest"] < 1, reach
         finally:
             browser.close()
 
