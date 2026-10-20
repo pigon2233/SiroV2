@@ -1,5 +1,16 @@
 # MEM-02 認領
 
+續作983012d：現用模型template的非推理結尾診斷；只新增本evidence目錄下可重現腳本、
+合成結果與診斷報告，更新本認領。不改產品adapter／模型registry／服務／fixture／門檻。
+遠端fetch與公開issues/pulls空已再查，兩個工作區原dirty狀態保留。本機認領非共享鎖。
+固定每case單次captured Core request，再以同seed／options比較chat、raw ChatML、raw加官方
+nonthinking prefix；不是正式理解驗收。STATUS由整合者更新；LOCAL_ONLY／NOT PUSHED。
+
+結果：12次診斷完成，chat/raw各2/4、補結尾1/4，拒絕此改法；確認現用Instruct-2507本來
+只有non-thinking，另裝qwen3:4b為不同blob的Thinking-2507。起始混合推理模板假設已撤回。
+模板與官方文字不相等的diff及完整metadata留證，不宣稱差異就是bug。Ruff／diff check PASS，
+未改產品／模型／fixture，未重跑產品回歸。見本evidence/TEMPLATE-DIAGNOSTIC.md。
+
 2026-10-20 Asia/Taipei；Codex；PARTIAL／DETERMINISTIC_GATES_LOCAL_VERIFIED／REAL_MODEL_FAILED_VERIFICATION／LOCAL_ONLY／NOT PUSHED。
 使用者持續目標「一直做下去」，延續MEM01後的整個記憶計畫，不以本卡取代全目標。
 Base 259fddacb9c585de3c5c4a7ae3ac6a111539cd00；branch codex/memory-mem02-20261020；
