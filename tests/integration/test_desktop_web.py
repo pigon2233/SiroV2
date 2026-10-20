@@ -281,6 +281,39 @@ def test_desktop_geometry_keeps_chat_and_role_separate_and_inside_workarea() -> 
     )
 
 
+def test_desktop_pet_size_follows_the_screen_within_bounds() -> None:
+    source = Path("desktop/layout.mjs").resolve().as_uri()
+    run_node(
+        f"""
+(async()=>{{
+ const assert=require('node:assert/strict');
+ const {{desktopLayout}}=await import({json.dumps(source)});
+ // 1920x1080 landscape (work area 1040 tall) keeps the original 360x640 pet at 100%.
+ let r=desktopLayout(1,false,1920,1040);
+ assert.equal(r.petHeight,640); assert.equal(r.scale,1);
+ // Portrait 1080x1920 (work area 1872): 45% of the height, 842 px tall, shown as 100%.
+ r=desktopLayout(1,false,1080,1872);
+ assert(r.petHeight>=838 && r.petHeight<=842,JSON.stringify(r)); assert.equal(r.scale,1);
+ // With the chat open on that portrait screen she keeps her size beside the chat window.
+ const chat=desktopLayout(1,true,1080,1872);
+ assert.equal(chat.petHeight,r.petHeight); assert(chat.chatX>=chat.petX+chat.petWidth);
+ assert(chat.width<=1080 && chat.chatHeight>=520,JSON.stringify(chat));
+ // A narrow portrait screen stacks the chat below and shrinks her to fit.
+ const narrow=desktopLayout(1,true,540,960);
+ assert(narrow.chatY>=narrow.petHeight && narrow.height<=960,JSON.stringify(narrow));
+ // Upper bound: a 4K portrait monitor stops at 1040 px tall at 100%.
+ assert(desktopLayout(1,false,2160,3800).petHeight<=1040);
+ // The +/- buttons still scale the base, and the shown percentage is relative to it.
+ const big=desktopLayout(1.5,false,1080,1872), small=desktopLayout(.6,false,1080,1872);
+ assert(big.petHeight>r.petHeight && small.petHeight<r.petHeight);
+ assert.equal(small.scale,.6);
+ // Never taller than the screen leaves room for, even at 150%.
+ assert(big.height<=1872);
+}})().catch(error=>{{console.error(error);process.exit(1);}});
+"""
+    )
+
+
 def test_desktop_chat_uses_original_nodes_and_native_focus_notification() -> None:
     run_desktop(
         """
