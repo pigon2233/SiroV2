@@ -221,7 +221,7 @@ def test_mood_idles_hold_their_own_pose_over_the_captured_idle() -> None:
 
 # Raised overhead, the jacket's sleeves and shoulders stretch apart (VRoid skinning, no cloth
 # physics): authored clips keep the upper arms below that. The captured wave is the exception.
-OVERHEAD_EXEMPT = {"wave"}
+OVERHEAD_EXEMPT: set[str] = set()
 
 
 def test_upper_arms_stay_below_overhead_where_the_jacket_tears() -> None:

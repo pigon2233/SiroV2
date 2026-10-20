@@ -19,6 +19,10 @@
 比對第 2、3 步的 glTF JSON：產生器改為「VRM Add-on for Blender v4.10.2 with Khronos glTF Blender I/O
 v5.2.40」；多了一個 `HairClip` mesh、材質 `HairClip_MAT` 與一張貼圖；表情多了 `lookUp/Down/Left/Right`；
 節點順序與 skin 重新編排。Blender 工程（.blend）沒有保存，所以**只靠 .vroid 無法重現髮夾**。
+擁有者 2026-10-21 交由 Claude 決定，決定是：第 3 步的 VRM（17.5 MB）不放進 repo，只記雜湊。理由：它和
+第 4 步的執行用模型幾乎一樣大，再加一份會讓 repo 多 17.5 MB，而髮夾只是一個小 mesh；檔案仍在擁有者電腦
+`siroClaude/`，用上表的雜湊可以確認拿到的是同一份。
+
 要修改目前模型，可以：
 
 - 改外觀、服裝、髮型：在 VRoid Studio 開 `.vroid` → 匯出 VRM 1.0 → 在 Blender（VRM Add-on）匯入，

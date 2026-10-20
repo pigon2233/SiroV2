@@ -722,7 +722,11 @@ MOCAP = {
     "idle": ("Mixamo idle, mirrored and joined into a 5 s weight-shifting loop.", True),
     "nod": ("Mixamo agree: a few natural nods; returns to the stand pose.", False),
     "shake": ("Mixamo head shake (no); returns to the stand pose.", False),
-    "wave": ("Captured right-hand wave, trimmed to two sweeps; returns to the stand pose.", False),
+    "wave": (
+        "Captured right-hand wave, trimmed to two sweeps, the upper arm lowered so the hand"
+        " waves beside her face; returns to the stand pose.",
+        False,
+    ),
     "bow": ("Captured polite bow with hands together; returns to the stand pose.", False),
     "bye": ("Captured small hand-by-the-face hello/bye; returns to the stand pose.", False),
     "think": (
@@ -839,7 +843,7 @@ def build_clips(
         "nod": mixamo("agree"),
         "shake": mixamo("headShake"),
         # raise and one and a half sweeps, then the matching sweep before the arm comes down
-        "wave": join(cut(wave, 0, 65), cut(wave, 136)),
+        "wave": beside_the_face(join(cut(wave, 0, 65), cut(wave, 136)), skeleton),
         "bow": bvh("dataset-1_bow_normal_001"),
         "bye": bvh("dataset-1_bye_normal_001"),
     }
@@ -875,6 +879,28 @@ def build_clips(
     out["walk_stop"] = walk_stop(idle, walk, skeleton, speed)
     out["turn_step"] = turn_step(idle, walk)
     return out
+
+
+# The captured wave lifts the upper arm to ~146 degrees, so the forearm folds over the top of her
+# head. Above WAVE_CAP the upper arm is brought down (and out) by WAVE_GAIN times the excess, which
+# keeps the waving hand beside her face.
+WAVE_CAP, WAVE_GAIN = 100.0, 1.2
+
+
+def arm_lift(clip: Clip, skeleton: dict[str, Any], side: str) -> np.ndarray:
+    """Degrees between each frame's upper arm and the torso's downward direction."""
+
+    down = world_positions(clip, skeleton, "hips") - world_positions(clip, skeleton, "upperChest")
+    down /= np.linalg.norm(down, axis=1, keepdims=True)
+    arm = world_positions(clip, skeleton, f"{side}LowerArm")
+    arm = arm - world_positions(clip, skeleton, f"{side}UpperArm")
+    arm /= np.linalg.norm(arm, axis=1, keepdims=True)
+    return np.degrees(np.arccos(np.clip((arm * down).sum(1), -1, 1)))
+
+
+def beside_the_face(clip: Clip, skeleton: dict[str, Any]) -> Clip:
+    excess = np.clip(arm_lift(clip, skeleton, "right") - WAVE_CAP, 0, None)
+    return wobble(clip, "rightUpperArm", "z", excess * WAVE_GAIN)
 
 
 # The captured idle's sway in the seated upper body: full in the head, light in the back, whose

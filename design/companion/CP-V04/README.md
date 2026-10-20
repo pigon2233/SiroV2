@@ -28,7 +28,7 @@
 | 坐、起 | 完成 | `sit_down`→`sit_loop`（坐地抱膝）→`stand_up`；`test_sitting_rests_on_the_floor_with_planted_feet_and_exact_handovers` |
 | 注意、揮手 | 完成 | `attention`、`wave`、`bye`、`bow` |
 | 筆記本拿出／閱讀／收起 | 完成 | `notebook_out`→`notebook_read`→`notebook_away`；筆記本道具由 renderer 畫（不在片段裡） |
-| 關節、衣物不破圖 | 目視 PASS（軟體 GPU） | 37 個片段 × 6 格 × 正面與 3/4，共 444 格在縮圖解析度下逐一看過，沒有看到關節反折、穿模或外套撕裂。抬手過頭會撕外套，除了 `wave` 以外都有測試擋住（`test_upper_arms_stay_below_overhead_where_the_jacket_tears`） |
+| 關節、衣物不破圖 | 目視 PASS（軟體 GPU） | 37 個片段 × 6 格 × 正面與 3/4，共 444 格在縮圖解析度下逐一看過，沒有看到關節反折、穿模或外套撕裂。抬手過頭會撕外套，所有片段（含 `wave`）都有測試擋住（`test_upper_arms_stay_below_overhead_where_the_jacket_tears`） |
 | 左右身份一致 | PASS | 單一 3D 模型，各角度同一份網格與貼圖；3/4 圖可看出 |
 | 真步態有腳步，不是站姿平移 | PASS | 見步態側面圖；P06 讓視窗以片段記錄的步速移動，著地腳不滑 |
 | 可編輯工程＋runtime 包 | 完成 | 見上方交付表；髮夾的限制見 MODEL.md |
@@ -46,8 +46,10 @@
 
 ## 已知的小地方（不是 blocker）
 
-- `wave` 是動捕原樣的大幅揮手：手會舉過頭頂、前臂越過頭頂上方（見 `evidence/wave-close-front.jpg`）。
-  外套沒有撕裂，但看起來比較像「用力打招呼」。若想要只在臉旁邊揮，可以改疊加層壓低上臂，需要擁有者決定。
+- `wave`（2026-10-21 擁有者交由 Claude 決定）：動捕原樣會把上臂抬到約 146°，前臂越過頭頂。
+  `build_vrm_mocap.py` 的 `beside_the_face` 把超過 100° 的部分以 1.2 倍壓低，上臂最高約 109°，
+  手在臉旁邊揮、不再越過頭頂（見 `evidence/front-1.jpg` 的 wave 列）。手往外伸得比原本遠約 7 cm，
+  窄的桌寵窗格在揮到最外側的一瞬間可能切到指尖。
 - 證據圖是 headless Chromium＋SwiftShader 渲染，只播片段本身（沒有 renderer 的呼吸、視線、情緒層）。
   真機 GPU 的畫面與自然度要擁有者實際看過才算驗收。
 
