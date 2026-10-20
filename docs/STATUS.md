@@ -1051,3 +1051,9 @@ owner完成NVIDIA repair後，RTX3050Laptop 4GiB／driver595.99.02／Torch2.12.0
 兩組worker已reap、temp cache刪除、isolated server/listener關閉，production source hashes起訖不變。恢復managed8000 healthy、原控制台reload已連線；舊nativehost graceful退出後用原launcher重啟一次恢復控制連線，單實例alpha/sandboxtrue、rendererowner=desktop，avatar診斷圖為真Live2D。原reference/私人DB/產品cache不變。本輪128PASS／2既有warnings、harness compile/Ruff、diff check PASS；沒有production改動，未重跑舊2225全套或cloudCI。生成WAV留ignored本機，未讀私人聊天／外送音訊。
 
 FIX005保持PARTIAL：近即時速度FAIL、人耳待回饋；GTK/WebKit實播／桌寵滑鼠及多monitor、自由活動素材、長期soak／部署rollback未由這次in-app browser probe驗收。不是全產品DONE。詳 docs/evidence/FIX-005-first-segment-2026-10-17/REPORT.md。無push。
+
+## 2026-10-19 — VRoid 原生重做候選：檔案／指骨蒙皮 LOCAL_VERIFIED，外觀／物理 PARTIAL
+
+依使用者「從來一次」新建 VRoid 女性底模並實際存 `.siro-data/vroid/siro-restart-v1.vroid`，原生匯出 VRM 1.0。另拆出外套／短褲／靴與頭皮，保留獨立頭髮，新增跟隨 head 的深藍髮夾；分件版共8角色mesh、39,789三角面、128骨，雙手30指關節均有權重，57 morph targets／14預設表情／30 spring／28 collider保留。Blender真重新匯入、打包貼圖並渲染7張預覽；左手張指試驗561頂點移動，最大0.016109m，測後還原。ZIP 19 entries CRC／SHA256全驗，原生.vroid ZIP完整性通過。
+
+交付 `.siro-data/vroid/siro-vroid-restart-v1.zip`（45,213,012 bytes），來源、分件VRM／GLB／Blend與預覽均保留。內搭／褲襪仍是身體貼圖，非獨立衣物；衣物物理及目標VRM播放器未跑，原生.vroid沒有後製髮夾。外觀未經使用者驗收，短褲長度／靴底／瀏海等與參考有差距。下一步先檢查外觀，再補獨立內搭及完整身體後驗物理。正式產品未改、未跑產品CI、未commit／push。[真實結果、失敗修復與限制](evidence/VROID-RESTART-2026-10-19/REPORT.md)。
