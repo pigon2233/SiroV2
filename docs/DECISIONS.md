@@ -624,6 +624,11 @@ release actual-schema gate不放寬；停producer後回退需相容版本，不�
 
 ## D77 — MEM-02 / 有來源的上下文選取與dispatch fence（2026-10-20）
 
+有界canonical引用補充：不再增加同義指令，以最近最多4則user/assistant的原文資料投影
+補足說話者／相對native index／hash，長則前後各256字且明示partial／excerpt。
+保留完整原生對話，無語意分類、批准、事實升格或memory寫入。源於格式對照對取消情境的
+診斷線索，不以小樣本命中證明泛化；固定30case、原標準與正文審閱仍須完成。
+
 對話表示補充：native模式不輸出「近期對話none」與空User欄位；legacy模式收到canonical
 recent_messages仍須保留原role／文字。Context指引由assemble_prompt獨立置於來源資料之前，
 render_context只提供原V1 JSON框架。無新model port、權限或executor；工具評測也沿用assembler。

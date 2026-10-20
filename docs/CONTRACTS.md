@@ -715,3 +715,11 @@ legacy prompt路徑收到canonical recent_messages時必須保留其role／原�
 就默默丟棄還原對話。source context renderer只輸出一份有界框架JSON，指引由assemble_prompt
 置於獨立instruction段，不藏在Verified memories資料段。原native role／tool pairing／budget不變。
 固定工具結果評測也使用相同assembler產生system，不用只有memory JSON的縮減system代替產品。
+
+MEM-02 canonical對話引用：可在source JSON附最近最多4則user/assistant原文投影，
+以native message index、role、speaker label及role+原文SHA256定位。每則超過512字只取
+前後各256字並標省略；partial欄位區分只投影部分歷史。完整native/current/pending原樣保留，
+投影不是新的user要求、不是獨立事實、不授權、不另寫Memory，也不代替session journal。
+它會隨既有system message經run_journal.checkpoint存入messages_json，與原canonical對話
+同資料分類；這次實作不提供額外的journal副本清除機制，不能宣稱記憶刪除會清掉所有對話副本。
+只由已驗canonical的同session recent_messages建立；cloud仍沿原trusted-caller route契約。

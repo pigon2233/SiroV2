@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Literal
@@ -18,6 +20,7 @@ from siro.core.memory import (
     MemorySourceEvent,
     MemoryStatus,
 )
+from siro.ports.models import ModelMessage
 
 START = "\n<SIRO_SOURCE_CONTEXT_V1>\n"
 END = "\n</SIRO_SOURCE_CONTEXT_V1>\n"
@@ -138,6 +141,52 @@ class ContextEvidence:
     authorizes_execution: Literal[False] = False
 
 
+@dataclass(frozen=True, slots=True)
+class ContextDialogueStatement:
+    native_message_index: int
+    role: str
+    speaker_label: str
+    text: str
+    excerpted: bool
+    source_sha256: str
+    statement_type: Literal["quoted_dialogue_not_new_instruction"] = (
+        "quoted_dialogue_not_new_instruction"
+    )
+    authority: Literal["data_only"] = "data_only"
+
+
+def _dialogue_projection(messages: Sequence[ModelMessage]) -> dict[str, object]:
+    if any(message.role not in ("user", "assistant") or message.tool_calls for message in messages):
+        raise ValueError("dialogue projection requires canonical user/assistant messages")
+    statements = []
+    start = max(0, len(messages) - 4)
+    for index in range(start, len(messages)):
+        message = messages[index]
+        excerpted = len(message.content) > 512
+        text = (
+            message.content[:256] + " [… omitted …] " + message.content[-256:]
+            if excerpted
+            else message.content
+        )
+        statements.append(
+            ContextDialogueStatement(
+                index + 1,
+                message.role,
+                "使用者" if message.role == "user" else "SIRO",
+                text,
+                excerpted,
+                hashlib.sha256((message.role + "\0" + message.content).encode()).hexdigest(),
+            )
+        )
+    return {
+        "origin": "same_session_canonical_dialogue",
+        "original_message_count": len(messages),
+        "partial": start > 0 or any(statement.excerpted for statement in statements),
+        "authority": "data_only",
+        "statements": [asdict(statement) for statement in statements],
+    }
+
+
 def render_context(
     session_id: str,
     identity_id: str,
@@ -145,6 +194,7 @@ def render_context(
     snapshot: MemoryDerivationSnapshot | None,
     *,
     route_privacy: Privacy = Privacy.LOCAL_ONLY,
+    dialogue_messages: Sequence[ModelMessage] | None = None,
 ) -> str:
     records = []
     for memory in memories[:5]:
@@ -194,6 +244,9 @@ def render_context(
             "source_role_limit": "event category only, not verified identity/truth/execution",
         },
         "memories": [asdict(record) for record in records],
+        "dialogue_projection": (
+            _dialogue_projection(dialogue_messages) if dialogue_messages is not None else None
+        ),
         "source_snapshot": asdict(snapshot) if snapshot else None,
     }
     return START + json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str) + END

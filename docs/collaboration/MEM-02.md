@@ -62,3 +62,14 @@ context tests與評測腳本內修正native history被system描述為none、lega
 結果：三個反例修復，早期132 PASS、最終73 PASS（重疊）；最終真模型23/30未過27。
 保留20/20/23三批，精簡POLICY的C22假成功已撤回；思考模式四例未有分離推理輸出。
 D77補記時序如實記在REPORT。未改運行服務、原dirty檔、fixture或模型，仍PARTIAL／LOCAL_ONLY。
+
+續作base1835e40：同模型16次格式消融與8次對話引用診斷（僅合成、非驗收）後，
+在原owned context.py／companion.py／context tests補canonical近期對話的有界引用投影。
+最多4則、前後各256字與省略標記、role/index/hash保留；原native／current／pending不剪改。
+原文引用不是新指令或已證實事實，不寫入memory／planner。CONTRACTS與D77先補，
+遠端issues/pulls空、fetch已查；不改模型／評測器／fixture／其他owner路徑，仍本機交付。
+
+結果：引用投影接入Core source JSON，135回歸PASS，真模型25/30未達27。
+16格式／8引用診斷與完整30case均留證；正文逐題審閱23符合／7缺口，未宣稱理解已完成。
+核對journal後已更正「不持久化」用字：不另寫Memory，但system會隨既有journal保存。
+未改服務／其他dirty檔、無新模型／依賴，保持PARTIAL／LOCAL_ONLY／NOT PUSHED。

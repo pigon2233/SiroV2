@@ -1,6 +1,6 @@
 # 上下文理解、自動記憶與主動記憶：後續實作計畫
 
-2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02接線與確定性gate已驗、最新真模型23/30及正文歸屬未達標（PARTIAL）；MEM-03–06仍PLANNED。依T18/T30驗證制定，
+2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02接線與確定性gate已驗、最新真模型25/30及正文歸屬未達標（PARTIAL）；MEM-03–06仍PLANNED。依T18/T30驗證制定，
 保留既有T／RT歷史編號和限定DONE；下列MEM-*是此計畫的工作包，不是重開舊卡。
 產品接線依現有Gateway／UI owner交接序列整合，不在同一checkout雙寫。
 
@@ -74,9 +74,21 @@ context區分user／assistant／tool／unknown事件，舊snapshot不猜來源�
 對話還原續作：修復native system誤稱近期對話none與legacy丟失recent_messages，
 指引／source JSON分離，工具case改用產品assembler。早期132回歸及最終73專項PASS（重疊）；
 真模型三版本20／20／23，精簡policy錯報完成已撤回。最終23/30仍未過27，所有失敗結果保留。
+canonical引用續作：最近4則同session對話帶role/index/hash／省略標記，完整native不變。
+135項相鄰回歸PASS，同模型最新25/30仍未過27；正文角色、衝突與澄清未過。投影不寫Memory，
+但隨既有journal存入system副本，不能宣稱記憶刪除會清除所有對話副本。
 **回退**：恢復原context assembly，保留journal；不能改寫舊對話。
 
 ## MEM-03：自動記憶候選（先候選，後可設定保存）
+
+**MEM-03-A獨立子任務：已記錄來源的接納邊界（PLANNED）**。依「需要拆分則記錄子任務」
+拆出候選生成前的來源查核：按既有persisted event ID讀取server-recorded來源，核對事件類型、
+identity/person/session、privacy、撤銷／版本與可信caller的policy revision；模型／tool／外部內容
+不能靠自帶flags冒充owner。輸出只是一份有來源的接納判定／snapshot，不抽取語義、不新增Memory、
+不排程或接Gateway。此層只依MEM-01與RT014，技術上不需要模型先答對中文指代，可先獨立驗。
+拆分原因：多輪模型實測尚未過gate，但來源邊界是整個自動記憶必需的工作，不能只反覆改prompt。
+這不是依賴豁免：MEM-03的候選producer、語義抽取、UI／自動保存與正式啟用仍必須等MEM-02
+及下列完整驗收；MEM-03-A完成不代表MEM-03或原持續目標完成。
 
 **依賴**：MEM-01/02。只接server-recorded trusted UserTextEvent；模型輸出、網頁、工具結果、
 測試fixture、引用文字或第三人敘述不能冒充owner facts或替自己啟用記憶。

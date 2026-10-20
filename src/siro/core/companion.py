@@ -73,7 +73,12 @@ class CompanionCore:
                 identity_id, memories, route_privacy=route
             )
             context = render_context(
-                session_id, identity_id, memories, snapshot, route_privacy=route
+                session_id,
+                identity_id,
+                memories,
+                snapshot,
+                route_privacy=route,
+                dialogue_messages=recent_messages if message_history is not None else None,
             )
             prompt = assemble_prompt(
                 identity,

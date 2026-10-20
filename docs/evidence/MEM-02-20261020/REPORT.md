@@ -1,7 +1,7 @@
 # MEM-02 — 上下文接線、來源fence與理解評測
 
 2026-10-20 Asia/Taipei。PARTIAL：Core接線與確定性硬gate LOCAL_VERIFIED；
-真模型已找到並跑完，最新23/30低於27/30，正文角色歸屬仍未過（下方續作）。MEM03–06未完成，
+真模型已找到並跑完，最新25/30低於27/30，正文角色歸屬仍未過（下方續作）。MEM03–06未完成，
 不以capture或mock回覆把理解能力標DONE，也不繞過此依賴直接啟用自動記憶。
 
 ## 變更與真實caller
@@ -344,3 +344,52 @@ tests/integration/test_persistent_companion.py tests/integration/test_context_bu
 真模型命令同前節，output改/tmp/siro-mem02-dialogue-separated-real-20261020.json。
 venv/cache仍在WSL ext4，資料全合成，不讀私人DB、不安裝依賴、不push／PR／merge／部署。
 MEM02保持PARTIAL，目標active，MEM03–06未完成；程式路徑修復不等於模型理解驗收通過。
+
+## 續作：格式消融與有界canonical對話引用
+
+Base1835e40，clean開始；fetch與公開issues/pulls空已查，原八個語音dirty保留。
+先做16次格式對照（format-ablation.json，四個case×四種system資料表示），
+原版／短指引完整資料／短指引精簡資料／完整指引精簡資料皆未解決C02/13/22；
+C19雖substring命中，多份正文仍錯置人稱。沒有因此移除產品來源binding或權限約束。
+再做8次引用對照（dialogue-quotation-diagnostic.json，四case×前置／後置引用），
+C13兩種表示均能辨認取消，C02與C22仍不過。這只是單次診斷線索，不是四題小樣本驗收。
+診斷wrapper改了投影後的wire system，原Core hard-check只檢原request；
+因此24次全部明標diagnostic_only，不以其capture PASS當產品硬gate證據。
+
+CONTRACTS、D77與認領在實作前記錄。原owned context.py與companion.py新增ContextDialogueStatement，
+只從trusted caller提供的canonical recent_messages（user/assistant、無tool call）投影最近4則。
+保留native message index、role、speaker label、role+完整原文SHA256；每則超過512字只取
+前後各256字加省略標記，partial表示省略歷史或文字；不知道是否提供過歷史時用null而非假稱空。
+source JSON明列quoted_dialogue_not_new_instruction／authority=data_only，原文不解析成意圖或事實。
+不改current request、完整native history或pending pair，不增加模型輪次、模型／依賴／DB schema。
+原byte/token guard仍拒絕整體超限；附加投影的byte成本存在，不藉裁剪原生對話繞過限制。
+
+三項新增反例先FAIL（缺欄位／參數）、後PASS：最近四則與index/hash/省略正確且完整native不變、
+惡意結束標記在JSON內不能逃出資料框、非canonical工具角色拒絕。不是宣稱三個既有漏洞都已修復。
+原角色與privacy guard不變；投影沒有驗證client history的session provenance，仍依trusted-caller契約。
+引用不寫Memory／planner，但會隨原有system message由run_journal.checkpoint寫messages_json。
+這次查清並更正CONTRACTS初稿「不持久化」用字：沒有額外journal副本清除功能，
+不能宣稱刪除記憶會清除既有對話／system副本。此限制原native journal也存在，不標隱私整合已完成。
+
+最終135 PASS／0SKIP／7既有warnings，80.73s，projection-regression-receipt.json。
+含完整63項context、MEM01來源撤銷／更正／adoption、session restore、native tool、
+ingress／memory v2、budget／summary、Core boundary；與先前各批重疊，不累加。
+三修改Python檔Ruff check/format、secret scan/check_secrets PASS；明確五檔mypy PASS。
+未執行全套scripts/check、遠端CI、正式服務部署、真工具副作用或真人L3。
+
+真模型固定30case再量測一次（projection-evaluation.json）：capture30/30，自動25/30未過27。
+全30 provider完成無HTTP錯誤／timeout；沿原qwen3:4b-instruct、2048輸出／45秒限制。
+本輪沒有修改評測器／fixture／expected、模型設定，也沒有同版本重抽挑好分數。
+C13本批辨認取消，C02仍缺目標澄清，C21仍擅選衝突來源。temperature0.7無seed，
+不能把23→25的差異全歸因於投影或宣稱泛化。全部30份正文逐題審閱於PROJECTION-REVIEW.md：
+保守23符合／7有缺口（Codex審閱非真人）；C19第一人稱錯置及C11不必要問題未被自動分數抓到。
+完整目標仍active，MEM02保持PARTIAL，不用綠色程式測試或單一正例啟用MEM03產品。
+
+重現pytest命令沿上一輪132的11個target，output改/tmp/siro-mem02-projection-regression-20261020；
+真模型沿前節命令，output改/tmp/siro-mem02-projection-real-20261020.json。
+輸入／輸出全合成，未讀私人DB；venv/cache在WSL ext4，沒有安裝或下載新套件／模型。
+本機commit、NOT PUSHED；原Gateway/HTML/音訊範圍仍留owner。
+
+接續安排：PLAN明列MEM-03-A來源接納邊界獨立子任務，只依MEM01/RT014、不抽取／寫候選／
+啟用產品；主MEM03與MEM04–06的語義／整合gate不變。這項拆分讓完整自動記憶所需的來源
+查核能先推進，不將MEM02降格為已完成，也不以子任務完成取代原目標。
