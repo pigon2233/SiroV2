@@ -663,3 +663,19 @@ D57 schema fixture correction after full3fail: old test_run_journal says the lat
 ## DESKTOP-VOICE-RECOVERY / 2026-10-16
 
 Rate-limit recovery is optional and pre-emission only: FailoverModel(rate_limit_max_wait_seconds=None, clock=UTC-now, on_retry=None) preserves existing defaults. Explicit policy accepts a valid Retry-After delta/date within a configured maximum, otherwise bounded original backoff or fail-closed over-limit. A 429 retry targets the same provider and needs explicit cloud_request_budget=1; there are at most two attempts, no tool execution replay and immediate cancellation-aware stop. Groq remaining-requests=0 means daily quota depleted and rejects another attempt. One async on_retry(original request, safe delay) enables an owner-scoped UI notice. No provider bodies, credentials, headers or prompts in the notice. Native desktop adds optional body authentication presentation='desktop'; connected desktop owns rendering, web control views omit competing renderer and speech playback. Exact local Origin/session authentication remains required.
+
+## MEM-01：衍生記憶來源綁定（schema16）
+
+只由可信任服務呼叫capture/adopt/revoke，不把snapshot、模型輸出或event當寫入授權。
+最多32個唯一parent、100個唯一原event；parent與child必須同identity/person。
+Snapshot記錄parent UUID/revision/source hash與原event集合、captured_at、generator version、
+policy revision、route privacy。hash包含parent內容/狀態/時間與source envelope內容，不能只比較文字。
+採用時重驗相同scope與每一來源；child的event集合必須等於parent來源聯集，
+時間不得超過來源有效期，candidate parent不能生成committed child。
+current policy revision由可信caller提供，policy撤權與外送授權仍由原Policy執行；
+此library不宣稱替代外部permission revision交易。source revoke由SQLite tombstone原子阻擋。
+
+correct遞迴使descendants superseded，delete使descendants deleted；兩者均新增revision、移除FTS。
+已失效內容不因更正child／索引重建／重啟自動復活。無binding的舊edge沿用保守失效，
+不能補造歷史來源hash。撤銷event後原event不得重新生成可用記憶。
+schema16為新增表與可空edge欄位；舊migration checksum不變，舊release max_schema不自動提高。

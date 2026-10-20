@@ -55,6 +55,39 @@ class Memory:
 
 
 @dataclass(frozen=True, slots=True)
+class MemorySourceBinding:
+    memory_id: UUID
+    revision: int
+    source_hash: str
+    source_event_ids: tuple[UUID, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryDerivationSnapshot:
+    identity_id: str
+    person_id: str
+    parents: tuple[MemorySourceBinding, ...]
+    captured_at: datetime
+    generator_version: str
+    policy_revision: int
+    route_privacy: Privacy = Privacy.LOCAL_ONLY
+
+    def __post_init__(self) -> None:
+        if not self.identity_id or not self.person_id or not self.generator_version.strip():
+            raise ValueError("source snapshot requires scope and generator version")
+        if self.policy_revision < 1 or self.captured_at.utcoffset() is None:
+            raise ValueError("source snapshot requires policy revision and aware time")
+        ids = {parent.memory_id for parent in self.parents}
+        events = {event for parent in self.parents for event in parent.source_event_ids}
+        if (
+            not 1 <= len(self.parents) <= 32
+            or len(ids) != len(self.parents)
+            or not 1 <= len(events) <= 100
+        ):
+            raise ValueError("source snapshot exceeds independent parent/event bounds")
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryRevision:
     memory_id: UUID
     revision: int

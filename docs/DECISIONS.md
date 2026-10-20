@@ -609,3 +609,15 @@ D63 已將 `done_reason=length` 判為未完成，保留 partial 並禁止自動
 記憶：維持 D32／記憶寫入決策，cloud route 不會取得 local-only 記憶。原 NO_SOURCE 文字要求模型說「不知道」，與另一處雲端說明衝突，真實模型因此回答「沒有記錄」。NO_SOURCE 改為依路由說明：雲端說明看不到本機記憶並指向記憶頁；本機說明這次沒找到相關記憶。兩者都禁止宣稱沒有任何記憶。只送邊界說明，不含記憶內容或筆數。`assemble_prompt` 新增 keyword-only `cloud_route=False`，相容於既有呼叫。
 
 另外修正上一輪回歸：T10 的跳過連結綁定與記憶搜尋區塊落在既有測試擷取的程式片段範圍內，造成 3 個測試失敗。只搬移程式位置，不改行為，也不改測試。
+
+## D76 — MEM-01 / 可撤銷記憶衍生關係（2026-10-20）
+
+沿用既有memories/revisions/FTS與memory_derivations；revision明確表示parent的被採用版本。
+新增schema16：edge source_hash、typed child生成metadata、source event撤銷tombstone。
+Snapshot是typed且有界的本機資料，綁scope、parent revision及來源內容/分類hash、時間、
+生成版本、policy revision與route；不授權寫入。adopt在同一SQLite寫入交易重驗，
+來源更正/刪除/撤銷/過期/降為local-only時拒絕晚到結果且零部分寫入。
+correct使既有descendants superseded並移除FTS，保留revisions；delete仍標deleted。
+source revoke是不可逆的來源停用tombstone，不等於原文physical purge；原資料政策保持。
+新producer未啟用，Gateway未改。schema16禁止直接用舊程式操作新derived資料，
+release actual-schema gate不放寬；停producer後回退需相容版本，不還原舊私人DB。

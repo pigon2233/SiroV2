@@ -73,6 +73,26 @@ class SQLiteConsolidationRepository:
                     (str(checkpoint), now.astimezone(UTC).isoformat(), run_id),
                 )
                 return False
+            if any(
+                connection.execute(
+                    "SELECT 1 FROM memory_source_revocations WHERE source_event_id=?",
+                    (str(source),),
+                ).fetchone()
+                for source in candidate.source_event_ids
+            ):
+                raise ValueError("candidate source revoked")
+            if any(
+                connection.execute(
+                    "SELECT 1 FROM memory_sources s JOIN memories m ON m.memory_id=s.memory_id "
+                    "WHERE s.source_event_id=? AND (m.deleted_at IS NOT NULL "
+                    "OR m.status='superseded' OR m.revision>1) LIMIT 1",
+                    (str(source),),
+                ).fetchone()
+                for source in candidate.source_event_ids
+            ):
+                raise ValueError(
+                    "candidate source has changed memory history; use bound derivation"
+                )
             placeholders = ",".join("?" for _ in candidate.source_event_ids)
             count = connection.execute(
                 f"SELECT count(*) FROM events WHERE event_id IN ({placeholders})",

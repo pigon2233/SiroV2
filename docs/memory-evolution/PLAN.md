@@ -1,6 +1,6 @@
 # 上下文理解、自動記憶與主動記憶：後續實作計畫
 
-2026-10-20 Asia/Taipei。PLANNED，不宣稱已實作。依本輪T18/T30驗證制定，
+2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02–06仍PLANNED。依T18/T30驗證制定，
 保留既有T／RT歷史編號和限定DONE；下列MEM-*是此計畫的工作包，不是重開舊卡。
 產品接線依現有Gateway／UI owner交接序列整合，不在同一checkout雙寫。
 
@@ -25,7 +25,9 @@ T30已有trusted trace→review candidate generator/repository。
 不新增第二人格DB、MemoryStore、planner、全域state或任意prompt驅動的授權。
 舊CAPABILITY_NEEDS_RESEARCH的DEFER敘述須按RT011/015後續限定DONE解讀，不照抄當現在缺口。
 
-## MEM-01：來源與撤銷閉環（優先）
+## MEM-01：來源與撤銷閉環（LOCAL_VERIFIED）
+
+2026-10-20：來源snapshot／原子採用／更正及event撤銷失效／schema16已驗。107項回歸與最終23項專項通過（重疊不加總）；[證據](../evidence/MEM-01-20261020/REPORT.md)。外部Policy與Gateway撤權入口、T18人格projection仍按後續整合gate，不宣稱自動記憶已啟用。
 
 **依賴**：本輪T18/T30修復；T17與RT014既有API。目標是先有可撤銷的衍生關係，再產生自動候選。
 
