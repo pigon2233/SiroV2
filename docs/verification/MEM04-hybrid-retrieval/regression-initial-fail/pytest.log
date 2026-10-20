@@ -1,0 +1,1102 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0
+rootdir: /mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.15.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 631 items
+
+tests/unit/test_ollama_embeddings.py ....................                [  3%]
+tests/integration/test_memory_vectors.py ....................            [  6%]
+tests/integration/test_memory_v2.py .....                                [  7%]
+tests/integration/test_memory_derivation_bindings.py ................... [ 10%]
+....                                                                     [ 10%]
+tests/integration/test_memory_source_gate.py ........................... [ 15%]
+.............                                                            [ 17%]
+tests/integration/test_memory_candidates.py ............................ [ 21%]
+........................................................................ [ 32%]
+............................................                             [ 39%]
+tests/integration/test_memory_review.py ................................ [ 45%]
+............                                                             [ 46%]
+tests/integration/test_memory_candidate_review.py .......                [ 48%]
+tests/integration/test_context_understanding.py ........................ [ 51%]
+.......................................                                  [ 58%]
+tests/integration/test_context_summary.py ..                             [ 58%]
+tests/integration/test_context_budget.py ........                        [ 59%]
+tests/integration/test_native_context_budget.py FFFFFFFF.FF....FFFF      [ 62%]
+tests/integration/test_memory_ingress.py .......                         [ 63%]
+tests/integration/test_consolidation.py ....                             [ 64%]
+tests/integration/test_memory_organization.py ..                         [ 64%]
+tests/integration/test_memory_learning_guards.py ............            [ 66%]
+tests/integration/test_persistent_companion.py .....                     [ 67%]
+tests/contract/test_boundaries.py ..                                     [ 67%]
+tests/integration/test_sqlite_store.py ..........                        [ 69%]
+tests/integration/test_sqlite_backup_lifecycle.py ...................    [ 72%]
+tests/integration/test_sqlite_restore_lifecycle.py .........             [ 73%]
+tests/integration/test_sqlite_restore_validation.py .................... [ 76%]
+............                                                             [ 78%]
+tests/integration/test_sqlite_connection_cleanup.py ...........          [ 80%]
+tests/integration/test_release_manager.py ..                             [ 80%]
+tests/integration/test_release_launch_selection.py ..................... [ 84%]
+.................................................                        [ 91%]
+tests/integration/test_release_data_retention.py ....................... [ 95%]
+............................                                             [100%]
+
+=================================== FAILURES ===================================
+_______ test_native_input_output_safety_boundary_uses_actual_payload[-1] _______
+
+offset = -1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("offset", [-1, 0, 1])
+    async def test_native_input_output_safety_boundary_uses_actual_payload(offset: int) -> None:
+        transport = Transport()
+        adapter = provider(transport)
+        request = ModelRequest(
+            "fallback ignored",
+            "g",
+            Privacy.CLOUD_ALLOWED,
+            max_output_tokens=512,
+            messages=(
+                ModelMessage("system", "permission [source:policy]"),
+                ModelMessage("user", "你好🌸"),
+                ModelMessage("assistant", "", (ToolCall("pair", "inspect", {"path": "中文"}),)),
+                ModelMessage("tool", '{"result":"confirmed"}', tool_call_id="pair"),
+            ),
+            tools=(ToolDefinition("inspect", "inspect source", {"type": "object"}),),
+        )
+>       reference = GPTOSSBudget(ASSETS, adapter.request_payload)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:71:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+_______ test_native_input_output_safety_boundary_uses_actual_payload[0] ________
+
+offset = 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("offset", [-1, 0, 1])
+    async def test_native_input_output_safety_boundary_uses_actual_payload(offset: int) -> None:
+        transport = Transport()
+        adapter = provider(transport)
+        request = ModelRequest(
+            "fallback ignored",
+            "g",
+            Privacy.CLOUD_ALLOWED,
+            max_output_tokens=512,
+            messages=(
+                ModelMessage("system", "permission [source:policy]"),
+                ModelMessage("user", "你好🌸"),
+                ModelMessage("assistant", "", (ToolCall("pair", "inspect", {"path": "中文"}),)),
+                ModelMessage("tool", '{"result":"confirmed"}', tool_call_id="pair"),
+            ),
+            tools=(ToolDefinition("inspect", "inspect source", {"type": "object"}),),
+        )
+>       reference = GPTOSSBudget(ASSETS, adapter.request_payload)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:71:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+_______ test_native_input_output_safety_boundary_uses_actual_payload[1] ________
+
+offset = 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("offset", [-1, 0, 1])
+    async def test_native_input_output_safety_boundary_uses_actual_payload(offset: int) -> None:
+        transport = Transport()
+        adapter = provider(transport)
+        request = ModelRequest(
+            "fallback ignored",
+            "g",
+            Privacy.CLOUD_ALLOWED,
+            max_output_tokens=512,
+            messages=(
+                ModelMessage("system", "permission [source:policy]"),
+                ModelMessage("user", "你好🌸"),
+                ModelMessage("assistant", "", (ToolCall("pair", "inspect", {"path": "中文"}),)),
+                ModelMessage("tool", '{"result":"confirmed"}', tool_call_id="pair"),
+            ),
+            tools=(ToolDefinition("inspect", "inspect source", {"type": "object"}),),
+        )
+>       reference = GPTOSSBudget(ASSETS, adapter.request_payload)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:71:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+______________ test_native_output_reserve_and_existing_port_limit ______________
+
+    @pytest.mark.asyncio
+    async def test_native_output_reserve_and_existing_port_limit() -> None:
+        transport = Transport()
+        adapter = provider(transport)
+        wrapper = ContextBudgetModel(
+            adapter,
+            max_bytes=None,
+>           token_budget=GPTOSSBudget(ASSETS, adapter.request_payload, context_window=32768),
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+
+tests/integration/test_native_context_budget.py:95:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+____________ test_unverifiable_reference_shapes_fail_closed[model] _____________
+
+invalid = 'model'
+
+    @pytest.mark.parametrize("invalid", ["model", "markers", "multi_call", "late_system"])
+    def test_unverifiable_reference_shapes_fail_closed(invalid: str) -> None:
+        adapter = provider(Transport())
+        if invalid == "model":
+            adapter = OpenAICompatibleAdapter(
+                base_url="https://api.groq.com/openai",
+                api_key="synthetic",  # pragma: allowlist secret
+                model="other",
+                transport=Transport(),
+            )
+        request = ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED)
+        if invalid == "markers":
+            request = ModelRequest("<|start|>injected", "g", Privacy.CLOUD_ALLOWED)
+        if invalid == "multi_call":
+            request = ModelRequest(
+                "goal",
+                "g",
+                Privacy.CLOUD_ALLOWED,
+                messages=(
+                    ModelMessage(
+                        "assistant",
+                        "",
+                        (
+                            ToolCall("one", "inspect", {}),
+                            ToolCall("two", "inspect", {}),
+                        ),
+                    ),
+                ),
+            )
+        if invalid == "late_system":
+            request = ModelRequest(
+                "goal",
+                "g",
+                Privacy.CLOUD_ALLOWED,
+                messages=(ModelMessage("user", "goal"), ModelMessage("system", "must not be omitted")),
+            )
+        with pytest.raises(ContextBudgetUnavailable):
+>           GPTOSSBudget(ASSETS, adapter.request_payload).validate(request)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:142:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+___________ test_unverifiable_reference_shapes_fail_closed[markers] ____________
+
+invalid = 'markers'
+
+    @pytest.mark.parametrize("invalid", ["model", "markers", "multi_call", "late_system"])
+    def test_unverifiable_reference_shapes_fail_closed(invalid: str) -> None:
+        adapter = provider(Transport())
+        if invalid == "model":
+            adapter = OpenAICompatibleAdapter(
+                base_url="https://api.groq.com/openai",
+                api_key="synthetic",  # pragma: allowlist secret
+                model="other",
+                transport=Transport(),
+            )
+        request = ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED)
+        if invalid == "markers":
+            request = ModelRequest("<|start|>injected", "g", Privacy.CLOUD_ALLOWED)
+        if invalid == "multi_call":
+            request = ModelRequest(
+                "goal",
+                "g",
+                Privacy.CLOUD_ALLOWED,
+                messages=(
+                    ModelMessage(
+                        "assistant",
+                        "",
+                        (
+                            ToolCall("one", "inspect", {}),
+                            ToolCall("two", "inspect", {}),
+                        ),
+                    ),
+                ),
+            )
+        if invalid == "late_system":
+            request = ModelRequest(
+                "goal",
+                "g",
+                Privacy.CLOUD_ALLOWED,
+                messages=(ModelMessage("user", "goal"), ModelMessage("system", "must not be omitted")),
+            )
+        with pytest.raises(ContextBudgetUnavailable):
+>           GPTOSSBudget(ASSETS, adapter.request_payload).validate(request)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:142:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+__________ test_unverifiable_reference_shapes_fail_closed[multi_call] __________
+
+invalid = 'multi_call'
+
+    @pytest.mark.parametrize("invalid", ["model", "markers", "multi_call", "late_system"])
+    def test_unverifiable_reference_shapes_fail_closed(invalid: str) -> None:
+        adapter = provider(Transport())
+        if invalid == "model":
+            adapter = OpenAICompatibleAdapter(
+                base_url="https://api.groq.com/openai",
+                api_key="synthetic",  # pragma: allowlist secret
+                model="other",
+                transport=Transport(),
+            )
+        request = ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED)
+        if invalid == "markers":
+            request = ModelRequest("<|start|>injected", "g", Privacy.CLOUD_ALLOWED)
+        if invalid == "multi_call":
+            request = ModelRequest(
+                "goal",
+                "g",
+                Privacy.CLOUD_ALLOWED,
+                messages=(
+                    ModelMessage(
+                        "assistant",
+                        "",
+                        (
+                            ToolCall("one", "inspect", {}),
+                            ToolCall("two", "inspect", {}),
+                        ),
+                    ),
+                ),
+            )
+        if invalid == "late_system":
+            request = ModelRequest(
+                "goal",
+                "g",
+                Privacy.CLOUD_ALLOWED,
+                messages=(ModelMessage("user", "goal"), ModelMessage("system", "must not be omitted")),
+            )
+        with pytest.raises(ContextBudgetUnavailable):
+>           GPTOSSBudget(ASSETS, adapter.request_payload).validate(request)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:142:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+_________ test_unverifiable_reference_shapes_fail_closed[late_system] __________
+
+invalid = 'late_system'
+
+    @pytest.mark.parametrize("invalid", ["model", "markers", "multi_call", "late_system"])
+    def test_unverifiable_reference_shapes_fail_closed(invalid: str) -> None:
+        adapter = provider(Transport())
+        if invalid == "model":
+            adapter = OpenAICompatibleAdapter(
+                base_url="https://api.groq.com/openai",
+                api_key="synthetic",  # pragma: allowlist secret
+                model="other",
+                transport=Transport(),
+            )
+        request = ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED)
+        if invalid == "markers":
+            request = ModelRequest("<|start|>injected", "g", Privacy.CLOUD_ALLOWED)
+        if invalid == "multi_call":
+            request = ModelRequest(
+                "goal",
+                "g",
+                Privacy.CLOUD_ALLOWED,
+                messages=(
+                    ModelMessage(
+                        "assistant",
+                        "",
+                        (
+                            ToolCall("one", "inspect", {}),
+                            ToolCall("two", "inspect", {}),
+                        ),
+                    ),
+                ),
+            )
+        if invalid == "late_system":
+            request = ModelRequest(
+                "goal",
+                "g",
+                Privacy.CLOUD_ALLOWED,
+                messages=(ModelMessage("user", "goal"), ModelMessage("system", "must not be omitted")),
+            )
+        with pytest.raises(ContextBudgetUnavailable):
+>           GPTOSSBudget(ASSETS, adapter.request_payload).validate(request)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:142:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+_ test_actual_main_native_guard_and_rollback[64-1-False-openai/gpt-oss-20b-0-ContextBudgetExceeded] _
+
+tmp_path = PosixPath('/tmp/pytest-of-pepepig/pytest-175/test_actual_main_native_guard_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x701804368fa0>
+limit = '64', enabled = '1', missing = False, model_name = 'openai/gpt-oss-20b'
+expected = 0, error = 'ContextBudgetExceeded'
+
+    @pytest.mark.parametrize(
+        "limit,enabled,missing,model_name,expected,error",
+        [
+            ("64", "1", False, "openai/gpt-oss-20b", 0, "ContextBudgetExceeded"),
+            ("8192", "1", False, "openai/gpt-oss-20b", 1, None),
+            ("64", "0", False, "openai/gpt-oss-20b", 1, None),
+            ("8192", "1", True, "openai/gpt-oss-20b", 0, "ContextBudgetUnavailable"),
+            ("8192", "1", False, "unknown-model", 0, "ContextBudgetUnavailable"),
+        ],
+    )
+    def test_actual_main_native_guard_and_rollback(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        limit: str,
+        enabled: str,
+        missing: bool,
+        model_name: str,
+        expected: int,
+        error: str | None,
+    ) -> None:
+        import siro.adapters.models.openai_compatible as module
+        from siro.services.presentation.gateway import main
+
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", model_name)
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic")
+        monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", limit)
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", enabled)
+        # Disabling byte guard must not bypass token enforcement.
+        monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "0")
+        monkeypatch.setenv(
+            "SIRO_CONTEXT_TOKENIZER_DIR", str(tmp_path / "missing" if missing else ASSETS)
+        )
+        transport = Transport()
+        monkeypatch.setattr(module, "HttpxStreamingTransport", lambda: transport)
+
+        def run(app: object, **kwargs: object) -> None:
+            monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0" if enabled == "1" else "1")
+            monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", "131072")
+            with TestClient(cast(FastAPI, app)) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                assert (
+                    client.post(
+                        "/v1/conversations/A/turns", headers=headers, json={"text": "原始目標"}
+                    ).status_code
+                    == 200
+                )
+                readback = client.get("/v1/agent-runs/A", headers=headers).json()
+                assert readback["error"] == error
+                assert readback["state"] == ("failed" if error else "completed")
+                assert readback["backend"] == "openai-compatible"
+                assert readback["messages"][1]["content"] == "原始目標"
+                assert readback["messages"][0]["role"] == "system"
+
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_native_context_budget.py:216:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/presentation/gateway.py:1646: in main
+    _run_gateway(data_dir, owner.loop_factory)
+src/siro/services/presentation/gateway.py:2351: in _run_gateway
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+app = <fastapi.applications.FastAPI object at 0x701804535160>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...tderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}, ...}
+
+    def run(app: object, **kwargs: object) -> None:
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0" if enabled == "1" else "1")
+        monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", "131072")
+        with TestClient(cast(FastAPI, app)) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            assert (
+                client.post(
+                    "/v1/conversations/A/turns", headers=headers, json={"text": "原始目標"}
+                ).status_code
+                == 200
+            )
+            readback = client.get("/v1/agent-runs/A", headers=headers).json()
+>           assert readback["error"] == error
+E           AssertionError: assert 'ContextBudgetUnavailable' == 'ContextBudgetExceeded'
+E
+E             - ContextBudgetExceeded
+E             + ContextBudgetUnavailable
+
+tests/integration/test_native_context_budget.py:209: AssertionError
+_ test_actual_main_native_guard_and_rollback[8192-1-False-openai/gpt-oss-20b-1-None] _
+
+tmp_path = PosixPath('/tmp/pytest-of-pepepig/pytest-175/test_actual_main_native_guard_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7018043698d0>
+limit = '8192', enabled = '1', missing = False
+model_name = 'openai/gpt-oss-20b', expected = 1, error = None
+
+    @pytest.mark.parametrize(
+        "limit,enabled,missing,model_name,expected,error",
+        [
+            ("64", "1", False, "openai/gpt-oss-20b", 0, "ContextBudgetExceeded"),
+            ("8192", "1", False, "openai/gpt-oss-20b", 1, None),
+            ("64", "0", False, "openai/gpt-oss-20b", 1, None),
+            ("8192", "1", True, "openai/gpt-oss-20b", 0, "ContextBudgetUnavailable"),
+            ("8192", "1", False, "unknown-model", 0, "ContextBudgetUnavailable"),
+        ],
+    )
+    def test_actual_main_native_guard_and_rollback(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        limit: str,
+        enabled: str,
+        missing: bool,
+        model_name: str,
+        expected: int,
+        error: str | None,
+    ) -> None:
+        import siro.adapters.models.openai_compatible as module
+        from siro.services.presentation.gateway import main
+
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", model_name)
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic")
+        monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", limit)
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", enabled)
+        # Disabling byte guard must not bypass token enforcement.
+        monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "0")
+        monkeypatch.setenv(
+            "SIRO_CONTEXT_TOKENIZER_DIR", str(tmp_path / "missing" if missing else ASSETS)
+        )
+        transport = Transport()
+        monkeypatch.setattr(module, "HttpxStreamingTransport", lambda: transport)
+
+        def run(app: object, **kwargs: object) -> None:
+            monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0" if enabled == "1" else "1")
+            monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", "131072")
+            with TestClient(cast(FastAPI, app)) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                assert (
+                    client.post(
+                        "/v1/conversations/A/turns", headers=headers, json={"text": "原始目標"}
+                    ).status_code
+                    == 200
+                )
+                readback = client.get("/v1/agent-runs/A", headers=headers).json()
+                assert readback["error"] == error
+                assert readback["state"] == ("failed" if error else "completed")
+                assert readback["backend"] == "openai-compatible"
+                assert readback["messages"][1]["content"] == "原始目標"
+                assert readback["messages"][0]["role"] == "system"
+
+        monkeypatch.setattr(uvicorn, "run", run)
+>       main()
+
+tests/integration/test_native_context_budget.py:216:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/presentation/gateway.py:1646: in main
+    _run_gateway(data_dir, owner.loop_factory)
+src/siro/services/presentation/gateway.py:2351: in _run_gateway
+    uvicorn.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+app = <fastapi.applications.FastAPI object at 0x70180442a270>
+kwargs = {'host': '127.0.0.1', 'port': 8000, 'log_level': 'info', 'log_config': {'version': 1, 'disable_existing_loggers': Fals...tderr'}, 'access': {'formatter': 'access', 'class': 'logging.StreamHandler', 'stream': 'ext://sys.stdout'}}, ...}, ...}
+
+    def run(app: object, **kwargs: object) -> None:
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0" if enabled == "1" else "1")
+        monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", "131072")
+        with TestClient(cast(FastAPI, app)) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            assert (
+                client.post(
+                    "/v1/conversations/A/turns", headers=headers, json={"text": "原始目標"}
+                ).status_code
+                == 200
+            )
+            readback = client.get("/v1/agent-runs/A", headers=headers).json()
+>           assert readback["error"] == error
+E           AssertionError: assert 'ContextBudgetUnavailable' == None
+
+tests/integration/test_native_context_budget.py:209: AssertionError
+___ test_completed_batch_counts_all_calls_results_without_wire_mutation[10] ____
+
+size = 10
+
+    @pytest.mark.parametrize("size", [10, 10000])
+    def test_completed_batch_counts_all_calls_results_without_wire_mutation(size: int) -> None:
+        adapter = provider(Transport())
+        request = ModelRequest(
+            "goal",
+            "g",
+            Privacy.CLOUD_ALLOWED,
+            messages=(
+                ModelMessage("user", "goal"),
+                ModelMessage(
+                    "assistant",
+                    "batch content",
+                    (
+                        ToolCall("a", "first", {"value": "a"}),
+                        ToolCall("b", "second", {"value": "b" * size}),
+                    ),
+                ),
+                ModelMessage("tool", "one", tool_call_id="a"),
+                ModelMessage("tool", "two" * size, tool_call_id="b"),
+            ),
+        )
+        before = adapter.request_payload(request)
+>       budget = GPTOSSBudget(ASSETS, adapter.request_payload)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:271:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+__ test_completed_batch_counts_all_calls_results_without_wire_mutation[10000] __
+
+size = 10000
+
+    @pytest.mark.parametrize("size", [10, 10000])
+    def test_completed_batch_counts_all_calls_results_without_wire_mutation(size: int) -> None:
+        adapter = provider(Transport())
+        request = ModelRequest(
+            "goal",
+            "g",
+            Privacy.CLOUD_ALLOWED,
+            messages=(
+                ModelMessage("user", "goal"),
+                ModelMessage(
+                    "assistant",
+                    "batch content",
+                    (
+                        ToolCall("a", "first", {"value": "a"}),
+                        ToolCall("b", "second", {"value": "b" * size}),
+                    ),
+                ),
+                ModelMessage("tool", "one", tool_call_id="a"),
+                ModelMessage("tool", "two" * size, tool_call_id="b"),
+            ),
+        )
+        before = adapter.request_payload(request)
+>       budget = GPTOSSBudget(ASSETS, adapter.request_payload)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:271:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/siro/services/agent/native_context.py:43: in __init__
+    if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json')
+mode = 'rb', buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/.siro-data/tokenizers/gpt-oss-20b/tokenizer.json'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+______ test_actual_main_native_two_tool_continuation_effects_once[False] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-pepepig/pytest-175/test_actual_main_native_two_to0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7018019cfa80>
+oversized = False
+
+    @pytest.mark.parametrize("oversized", [False, True])
+    def test_actual_main_native_two_tool_continuation_effects_once(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, oversized: bool
+    ) -> None:
+        import json
+        import sys
+        from typing import Any
+
+        from siro.services.presentation import gateway
+
+        marker = tmp_path / "effects.txt"
+
+        class BatchTransport(Transport):
+            async def post(
+                self, url: str, payload: dict[str, object], headers: dict[str, str], timeout: float
+            ) -> dict[str, object]:
+                self.payloads.append(payload)
+                if len(self.payloads) == 1:
+                    code = (
+                        f"from pathlib import Path; p=Path({str(marker)!r}); "
+                        "p.write_text((p.read_text() if p.exists() else '')+'effect\\n'); "
+                        + ("print('測試' * 10000)" if oversized else "print('confirmed')")
+                    )
+                    return {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": "",
+                                    "tool_calls": [
+                                        {
+                                            "id": name,
+                                            "type": "function",
+                                            "function": {
+                                                "name": "computer.execute",
+                                                "arguments": json.dumps(
+                                                    {"argv": [sys.executable, "-c", code]}
+                                                ),
+                                            },
+                                        }
+                                        for name in ("first", "second")
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                return {"choices": [{"message": {"content": "synthetic done"}}]}
+
+        transport = BatchTransport()
+
+        class Adapter(OpenAICompatibleAdapter):
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                kwargs["transport"] = transport
+                super().__init__(*args, **kwargs)
+
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "openai/gpt-oss-20b")
+        monkeypatch.setenv("SIRO_OPENAI_BASE_URL", "https://api.groq.com/openai")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic")
+        monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "0")
+        monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", "8192")
+        monkeypatch.setattr("siro.adapters.models.openai_compatible.OpenAICompatibleAdapter", Adapter)
+        apps: list[FastAPI] = []
+        monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: apps.append(app))
+        gateway.main()
+        with TestClient(apps[0]) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            client.post(
+                "/v1/conversations/batch/turns",
+                headers=headers,
+                json={"text": "synthetic two tool goal"},
+            )
+            run = client.get("/v1/agent-runs/batch", headers=headers).json()
+>           assert marker.read_text().splitlines() == ["effect", "effect"]
+                   ^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:360:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.14/pathlib/__init__.py:788: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/tmp/pytest-of-pepepig/pytest-175/test_actual_main_native_two_to0/effects.txt')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-pepepig/pytest-175/test_actual_main_native_two_to0/effects.txt'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+_______ test_actual_main_native_two_tool_continuation_effects_once[True] _______
+
+tmp_path = PosixPath('/tmp/pytest-of-pepepig/pytest-175/test_actual_main_native_two_to1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7018019cee40>
+oversized = True
+
+    @pytest.mark.parametrize("oversized", [False, True])
+    def test_actual_main_native_two_tool_continuation_effects_once(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch, oversized: bool
+    ) -> None:
+        import json
+        import sys
+        from typing import Any
+
+        from siro.services.presentation import gateway
+
+        marker = tmp_path / "effects.txt"
+
+        class BatchTransport(Transport):
+            async def post(
+                self, url: str, payload: dict[str, object], headers: dict[str, str], timeout: float
+            ) -> dict[str, object]:
+                self.payloads.append(payload)
+                if len(self.payloads) == 1:
+                    code = (
+                        f"from pathlib import Path; p=Path({str(marker)!r}); "
+                        "p.write_text((p.read_text() if p.exists() else '')+'effect\\n'); "
+                        + ("print('測試' * 10000)" if oversized else "print('confirmed')")
+                    )
+                    return {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": "",
+                                    "tool_calls": [
+                                        {
+                                            "id": name,
+                                            "type": "function",
+                                            "function": {
+                                                "name": "computer.execute",
+                                                "arguments": json.dumps(
+                                                    {"argv": [sys.executable, "-c", code]}
+                                                ),
+                                            },
+                                        }
+                                        for name in ("first", "second")
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                return {"choices": [{"message": {"content": "synthetic done"}}]}
+
+        transport = BatchTransport()
+
+        class Adapter(OpenAICompatibleAdapter):
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                kwargs["transport"] = transport
+                super().__init__(*args, **kwargs)
+
+        for key in tuple(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setenv("SIRO_OPENAI_MODEL", "openai/gpt-oss-20b")
+        monkeypatch.setenv("SIRO_OPENAI_BASE_URL", "https://api.groq.com/openai")
+        monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic")
+        monkeypatch.setenv("SIRO_CONTEXT_MAX_BYTES", "0")
+        monkeypatch.setenv("SIRO_CONTEXT_WINDOW_TOKENS", "8192")
+        monkeypatch.setattr("siro.adapters.models.openai_compatible.OpenAICompatibleAdapter", Adapter)
+        apps: list[FastAPI] = []
+        monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: apps.append(app))
+        gateway.main()
+        with TestClient(apps[0]) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            client.post(
+                "/v1/conversations/batch/turns",
+                headers=headers,
+                json={"text": "synthetic two tool goal"},
+            )
+            run = client.get("/v1/agent-runs/batch", headers=headers).json()
+>           assert marker.read_text().splitlines() == ["effect", "effect"]
+                   ^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_native_context_budget.py:360:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/lib/python3.14/pathlib/__init__.py:788: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = PosixPath('/tmp/pytest-of-pepepig/pytest-175/test_actual_main_native_two_to1/effects.txt')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-pepepig/pytest-175/test_actual_main_native_two_to1/effects.txt'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+=============================== warnings summary ===============================
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/__init__.py:44
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/__init__.py:44: SyntaxWarning: "\." is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\."? A raw string is also an option.
+    re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/__init__.py:46
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/__init__.py:46: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+    re_skip_default = re.compile("(\r\n|\s)", re.U)
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/finalseg/__init__.py:78
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/finalseg/__init__.py:78: SyntaxWarning: "\." is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\."? A raw string is also an option.
+    re_skip = re.compile("([a-zA-Z0-9]+(?:\.\d+)?%?)")
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+src/siro/adapters/models/openai_compatible.py:277
+  /mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/src/siro/adapters/models/openai_compatible.py:277: SyntaxWarning: 'return' in a 'finally' block
+    return
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+--------- generated xml file: /tmp/siro-acceptance-3634kmsl/pytest.xml ---------
+=========================== short test summary info ============================
+FAILED tests/integration/test_native_context_budget.py::test_native_input_output_safety_boundary_uses_actual_payload[-1]
+FAILED tests/integration/test_native_context_budget.py::test_native_input_output_safety_boundary_uses_actual_payload[0]
+FAILED tests/integration/test_native_context_budget.py::test_native_input_output_safety_boundary_uses_actual_payload[1]
+FAILED tests/integration/test_native_context_budget.py::test_native_output_reserve_and_existing_port_limit
+FAILED tests/integration/test_native_context_budget.py::test_unverifiable_reference_shapes_fail_closed[model]
+FAILED tests/integration/test_native_context_budget.py::test_unverifiable_reference_shapes_fail_closed[markers]
+FAILED tests/integration/test_native_context_budget.py::test_unverifiable_reference_shapes_fail_closed[multi_call]
+FAILED tests/integration/test_native_context_budget.py::test_unverifiable_reference_shapes_fail_closed[late_system]
+FAILED tests/integration/test_native_context_budget.py::test_actual_main_native_guard_and_rollback[64-1-False-openai/gpt-oss-20b-0-ContextBudgetExceeded]
+FAILED tests/integration/test_native_context_budget.py::test_actual_main_native_guard_and_rollback[8192-1-False-openai/gpt-oss-20b-1-None]
+FAILED tests/integration/test_native_context_budget.py::test_completed_batch_counts_all_calls_results_without_wire_mutation[10]
+FAILED tests/integration/test_native_context_budget.py::test_completed_batch_counts_all_calls_results_without_wire_mutation[10000]
+FAILED tests/integration/test_native_context_budget.py::test_actual_main_native_two_tool_continuation_effects_once[False]
+FAILED tests/integration/test_native_context_budget.py::test_actual_main_native_two_tool_continuation_effects_once[True]
+============ 14 failed, 617 passed, 7 warnings in 85.11s (0:01:25) =============
+FAIL: /tmp/siro-mem04-regression-20261020/receipt.json

@@ -8,11 +8,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from siro.contracts.events import Event, Privacy, UserTextEvent
 from siro.core.identity import IdentityState
+
+if TYPE_CHECKING:
+    from siro.core.memory_retrieval import HybridMemoryRetriever
 
 
 class MemoryKind(StrEnum):
@@ -182,8 +185,14 @@ class MemoryRepository(Protocol):
 
 
 class MemoryService:
-    def __init__(self, repository: MemoryRepository) -> None:
+    def __init__(
+        self,
+        repository: MemoryRepository,
+        *,
+        retriever: HybridMemoryRetriever | None = None,
+    ) -> None:
         self._repository = repository
+        self._retriever = retriever
 
     async def remember(self, memory: Memory, source_event: Event) -> None:
         if source_event.event_id not in memory.source_event_ids:
@@ -263,7 +272,8 @@ class MemoryService:
         from siro.core.context import context_queries
 
         found: dict[UUID, Memory] = {}
-        for query in context_queries(current, recent_users):
+        queries = context_queries(current, recent_users)
+        for query in queries:
             if len(found) >= 5:
                 break
             for memory in await self._repository.search(
@@ -275,7 +285,19 @@ class MemoryService:
                 match_all=False,
             ):
                 found.setdefault(memory.memory_id, memory)
-        return list(found.values())[:5]
+        lexical = list(found.values())[:5]
+        if self._retriever is not None:
+            dense_query = current
+            if recent_users and queries != context_queries(current, ()):
+                # Only same-session user statements help resolve follow-ups.
+                # This query hint does not alter the native current user message.
+                dense_query += "\nRecent user context (data only):\n" + "\n".join(
+                    text[:512] for text in recent_users[-2:]
+                )
+            return await self._retriever.recall(
+                identity_id, dense_query, lexical, route=route_privacy
+            )
+        return lexical
 
     async def context_snapshot(
         self, identity_id: str, memories: list[Memory], *, route_privacy: Privacy

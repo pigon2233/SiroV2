@@ -1,0 +1,77 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0
+rootdir: /mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.15.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 631 items
+
+tests/unit/test_ollama_embeddings.py ....................                [  3%]
+tests/integration/test_memory_vectors.py ....................            [  6%]
+tests/integration/test_memory_v2.py .....                                [  7%]
+tests/integration/test_memory_derivation_bindings.py ................... [ 10%]
+....                                                                     [ 10%]
+tests/integration/test_memory_source_gate.py ........................... [ 15%]
+.............                                                            [ 17%]
+tests/integration/test_memory_candidates.py ............................ [ 21%]
+........................................................................ [ 32%]
+............................................                             [ 39%]
+tests/integration/test_memory_review.py ................................ [ 45%]
+............                                                             [ 46%]
+tests/integration/test_memory_candidate_review.py .......                [ 48%]
+tests/integration/test_context_understanding.py ........................ [ 51%]
+.......................................                                  [ 58%]
+tests/integration/test_context_summary.py ..                             [ 58%]
+tests/integration/test_context_budget.py ........                        [ 59%]
+tests/integration/test_native_context_budget.py ...................      [ 62%]
+tests/integration/test_memory_ingress.py .......                         [ 63%]
+tests/integration/test_consolidation.py ....                             [ 64%]
+tests/integration/test_memory_organization.py ..                         [ 64%]
+tests/integration/test_memory_learning_guards.py ............            [ 66%]
+tests/integration/test_persistent_companion.py .....                     [ 67%]
+tests/contract/test_boundaries.py ..                                     [ 67%]
+tests/integration/test_sqlite_store.py ..........                        [ 69%]
+tests/integration/test_sqlite_backup_lifecycle.py ...................    [ 72%]
+tests/integration/test_sqlite_restore_lifecycle.py .........             [ 73%]
+tests/integration/test_sqlite_restore_validation.py .................... [ 76%]
+............                                                             [ 78%]
+tests/integration/test_sqlite_connection_cleanup.py ...........          [ 80%]
+tests/integration/test_release_manager.py ..                             [ 80%]
+tests/integration/test_release_launch_selection.py ..................... [ 84%]
+.................................................                        [ 91%]
+tests/integration/test_release_data_retention.py ....................... [ 95%]
+............................                                             [100%]
+
+=============================== warnings summary ===============================
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/pypinyin/pinyin_dict.py:15: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/pypinyin/phrases_dict.py:16: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with open(_json_path, encoding='utf8') as fp:
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/__init__.py:44
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/__init__.py:44: SyntaxWarning: "\." is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\."? A raw string is also an option.
+    re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/__init__.py:46
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/__init__.py:46: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+    re_skip_default = re.compile("(\r\n|\s)", re.U)
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/finalseg/__init__.py:78
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/jieba/finalseg/__init__.py:78: SyntaxWarning: "\." is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\."? A raw string is also an option.
+    re_skip = re.compile("([a-zA-Z0-9]+(?:\.\d+)?%?)")
+
+../../../../../../home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/pepepig/.local/share/siro/venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+src/siro/adapters/models/openai_compatible.py:277
+  /mnt/e/coding/Worktrees/memory-hybrid-retrieval/SiroV2/src/siro/adapters/models/openai_compatible.py:277: SyntaxWarning: 'return' in a 'finally' block
+    return
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+--------- generated xml file: /tmp/siro-acceptance-_y0ges9h/pytest.xml ---------
+================== 631 passed, 7 warnings in 96.75s (0:01:36) ==================
+PASS: /tmp/siro-mem04-regression-v2-20261020/receipt.json

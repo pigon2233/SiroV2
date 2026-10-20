@@ -427,7 +427,7 @@ async def test_ledger_failure_rolls_back_revision_and_index(tmp_path: Path) -> N
 
 def test_migration_16_to_17_additive_and_reopen_idempotent(tmp_path: Path) -> None:
     connection = sqlite3.connect(tmp_path / "migrate.sqlite")
-    migrations = load_migrations()
+    migrations = load_migrations()[:17]
     apply_migrations(connection, migrations[:16])
     old = connection.execute(
         "SELECT version,checksum FROM schema_migrations ORDER BY version"
@@ -604,7 +604,7 @@ async def test_read_failure_is_sanitized_and_distinct_from_empty(tmp_path: Path)
 
 def test_failed_migration_17_rolls_back_new_tables(tmp_path: Path) -> None:
     connection = sqlite3.connect(tmp_path / "migration-failure.sqlite")
-    migrations = load_migrations()
+    migrations = load_migrations()[:17]
     apply_migrations(connection, migrations[:16])
     failed = replace(migrations[-1], sql=migrations[-1].sql + ";NOT VALID SQL")
     with pytest.raises(sqlite3.OperationalError):

@@ -388,7 +388,7 @@ async def test_upgrade_schema15_keeps_existing_memory_and_edge(tmp_path: Path) -
     )
     assert current[: len(old_checksums)] == old_checksums
     assert len(old_checksums) == 15
-    assert [version for version, _ in current[len(old_checksums) :]] == [16, 17]
+    assert [version for version, _ in current[len(old_checksums) :]] == [16, 17, 18]
     await repo.correct(parent_id, "legacy red", source("red"), reason="synthetic correction")
     assert await repo.search("siro", "legacy blue") == []
 

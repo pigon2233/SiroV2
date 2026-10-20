@@ -19,7 +19,12 @@ class CompanionCore:
         memory: MemoryService,
         conversation: ConversationEngine,
         working_memory: WorkingMemory | None = None,
+        *,
+        memory_context_bytes: int | None = None,
     ) -> None:
+        if memory_context_bytes is not None and not 0 <= memory_context_bytes <= 65536:
+            raise ValueError("memory context byte budget must be between 0 and 65536")
+        self._memory_context_bytes = memory_context_bytes
         self._identities = identity_repository
         self._memory = memory
         self._conversation = conversation
@@ -80,6 +85,34 @@ class CompanionCore:
                 route_privacy=route,
                 dialogue_messages=recent_messages if message_history is not None else None,
             )
+            if self._memory_context_bytes is not None:
+                empty_context = render_context(
+                    session_id,
+                    identity_id,
+                    [],
+                    None,
+                    route_privacy=route,
+                    dialogue_messages=recent_messages if message_history is not None else None,
+                )
+                # Keep whole source-backed records; budget includes provenance metadata.
+                while memories and (
+                    len(context.encode("utf-8")) - len(empty_context.encode("utf-8"))
+                    > self._memory_context_bytes
+                ):
+                    memories = memories[:-1]
+                    snapshot = await self._memory.context_snapshot(
+                        identity_id,
+                        memories,
+                        route_privacy=route,
+                    )
+                    context = render_context(
+                        session_id,
+                        identity_id,
+                        memories,
+                        snapshot,
+                        route_privacy=route,
+                        dialogue_messages=recent_messages if message_history is not None else None,
+                    )
             prompt = assemble_prompt(
                 identity,
                 user_text if message_history is None else "",

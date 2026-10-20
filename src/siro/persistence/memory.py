@@ -341,6 +341,9 @@ class SQLiteMemoryRepository:
         now: datetime,
         include_self: bool = False,
     ) -> None:
+        # Also clear the root on review transitions (withdraw/replace), even
+        # when only its descendants need status invalidation.
+        connection.execute("DELETE FROM memory_vectors WHERE memory_id=?", (memory_id,))
         descendants = connection.execute(
             "WITH RECURSIVE d(id) AS (SELECT child_memory_id FROM memory_derivations "
             "WHERE parent_memory_id=? "
@@ -372,6 +375,7 @@ class SQLiteMemoryRepository:
                 connection, self._to_memory(connection, updated), reason=reason, changed_at=now
             )
             connection.execute("DELETE FROM memory_fts WHERE memory_id=?", (current_id,))
+            connection.execute("DELETE FROM memory_vectors WHERE memory_id=?", (current_id,))
 
     async def revoke_source(self, source_event_id: UUID, *, reason: str, now: datetime) -> bool:
         if not reason.strip() or now.utcoffset() is None:
@@ -580,6 +584,7 @@ class SQLiteMemoryRepository:
             memory = self._to_memory(connection, updated)
             self._insert_revision(connection, memory, reason=reason, changed_at=changed_at)
             connection.execute("DELETE FROM memory_fts WHERE memory_id = ?", (str(memory_id),))
+            connection.execute("DELETE FROM memory_vectors WHERE memory_id = ?", (str(memory_id),))
             self._invalidate(connection, str(memory_id), reason="source corrected", now=changed_at)
             if memory.status is MemoryStatus.COMMITTED and self._visible(
                 connection, updated, changed_at
@@ -631,6 +636,7 @@ class SQLiteMemoryRepository:
                     changed_at=deleted_at,
                 )
                 connection.execute("DELETE FROM memory_fts WHERE memory_id = ?", (current_id,))
+                connection.execute("DELETE FROM memory_vectors WHERE memory_id = ?", (current_id,))
             return True
 
         return await self._store.run_transaction(write)
