@@ -269,7 +269,10 @@ function activate() {
     window.connect('unmap', () => haltWalk('hidden'));
     window.show_all();
     const display = Gdk.Display.get_default(), monitor = display.get_primary_monitor() || display.get_monitor(0);
-    if (monitor) { const area = monitor.get_workarea(); window.move(area.x + area.width - 390, area.y + area.height - 670); }
+    // SIRO_DESKTOP_POSITION="x,y" starts her there; WSL defaults to 0,0 (top left of the vertical screen).
+    const start = (GLib.getenv('SIRO_DESKTOP_POSITION') || (GLib.getenv('WSL_DISTRO_NAME') ? '0,0' : '')).split(',').map(Number);
+    if (start.length === 2 && start.every(Number.isFinite)) window.move(start[0], start[1]);
+    else if (monitor) { const area = monitor.get_workarea(); window.move(area.x + area.width - 390, area.y + area.height - 670); }
     window.get_screen().connect('monitors-changed', () => {
         if (!window) return;
         const d = Gdk.Display.get_default(), m = d.get_monitor_at_window(window.get_window()) || d.get_primary_monitor() || d.get_monitor(0);
