@@ -11,7 +11,7 @@ INDEX = Path(__file__).parents[2] / "src/siro/services/presentation/static/index
 # 320/375/414/768 narrow widths plus 1280x800 and 1920x1080 at 200% page zoom.
 VIEWPORTS = [(320, 568), (375, 667), (414, 896), (768, 1024), (640, 400), (960, 540)]
 DETAIL = "tasks/0123abcd-0000-4000-8000-00000000abcd"
-PAGES = ["chat", "tasks", DETAIL, "memory", "capabilities", "computer", "skills"]
+PAGES = ["chat", "tasks", DETAIL, "activity", "memory", "capabilities", "computer", "skills"]
 PAGES += ["settings", "permissions", "system"]
 LONG = "這是一段很長的繁體中文合成測試內容用來檢查窄窗換行" * 3
 LONG += " https://example.invalid/" + "a" * 120
@@ -38,6 +38,21 @@ L => {
   renderToolProposal({proposal_id: 'p1', capability: 'browser.navigate+read', scope: L,
     target: 'https://example.invalid/' + 'b'.repeat(200), risk: L,
     automatic_approval_blocked: 'prior_outcome_unknown'});
+  const longUrl = {url: 'https://example.invalid/' + 'd'.repeat(200), redacted: true};
+  const tool = state => ({capability: 'browser.navigate+read', state, dispatched: true,
+    error: state === 'failed' ? 'Error' : null, created_at: '2026-10-18T10:00:00+08:00',
+    target: longUrl, network: {coverage: 'browser_adapter', requests: [{requested: longUrl,
+      final: longUrl, redirected: true, status: 'unknown'}],
+      gaps: ['http_status_not_captured', 'subresource_requests_not_listed']}});
+  const activity = (id, state) => ({activity_id: id, kind: 'agent_run', origin: 'owner_request',
+    state, reason: id + L, reason_truncated: true, error: null, created_at: '2026-10-18T10:00:00+08:00',
+    updated_at: '2026-10-18T10:0' + id + ':00+08:00', tools: [tool(state)],
+    coverage: {tools: 'journal', network: ['browser_adapter']}});
+  activityView.items = new Map(['1', '2', '3'].map((id, i) =>
+    [id, activity(id, ['running', 'unknown', 'failed'][i])]));
+  activityView.fetchedAt = '2026-10-18T10:05:00+08:00'; activityView.status = 'ok';
+  activityView.truncated = true; renderActivity();
+  for (const details of document.querySelectorAll('#activity-body details')) details.open = true;
   appendMessage('user', L); appendMessage('assistant', L);
   productRequest = async () => ({items: [{memory_id: 'm1', text: L, revision: 2,
     source_event_ids: ['evt-' + 'c'.repeat(60)]}]});

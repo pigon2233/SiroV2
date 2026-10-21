@@ -147,6 +147,48 @@
         .stage { height:290px; min-height:290px; } #companion { min-height:290px; } .stage-title p { display:none; }
       }
       @media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; } button:active, .button-link:active { transform:none; } }
+      .act-feed { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; font-size:13px; margin:0 0 18px; }
+      .act-dot { width:9px; height:9px; border-radius:50%; background:var(--success); display:inline-block; }
+      .act-offline .act-dot { background:var(--warning); }
+      .act-banner { border-radius:12px; padding:12px 14px; margin:0 0 18px; font-size:14px; border:1px solid #e8cdb8; background:#fbf3ec; color:var(--warning); }
+      .act-banner[data-tone="info"] { background:var(--tint); border-color:#c9d6e8; color:var(--action); }
+      .act-banner p { color:inherit; margin:4px 0 0; }
+      .act-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:8px 16px; }
+      .act-head h2, .act-head h3 { margin:0; overflow-wrap:anywhere; min-width:0; }
+      .act-card { border:1px solid var(--line); border-left:5px solid var(--action); border-radius:12px; padding:16px; margin-top:12px; }
+      .act-card[data-state="cancelling"] { border-left-color:var(--warning); }
+      .act-facts { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:4px 14px; margin:12px 0; font-size:14px; }
+      .act-facts dt { color:var(--muted); } .act-facts dd { margin:0; overflow-wrap:anywhere; min-width:0; }
+      .act-state { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:2px 10px; border-radius:999px; border:1px solid currentColor; white-space:nowrap; color:var(--action); }
+      .act-state[data-state="completed"] { color:var(--success); } .act-state[data-state="failed"] { color:#9b2d3a; }
+      .act-state[data-state="cancelling"], .act-state[data-state="unknown"] { color:var(--warning); }
+      .act-state[data-state="cancelled"], .act-state[data-state="paused"] { color:var(--muted); }
+      .act-stop { border-color:#d9b3b9; color:#9b2d3a; }
+      .act-timeline { list-style:none; margin:0; padding:0; }
+      .act-timeline > li { border-top:1px solid var(--line); padding:14px 0; } .act-timeline > li:first-child { border-top:0; }
+      .act-row { display:grid; grid-template-columns:5.5em minmax(0,1fr) auto; gap:4px 14px; align-items:start; }
+      .act-row time { font-variant-numeric:tabular-nums; color:var(--muted); font-size:14px; }
+      .act-row .act-why { font-size:13px; color:var(--muted); } .act-row p { margin:4px 0 0; }
+      #activity-body details { border:0; padding:0; margin:8px 0 0; background:none; }
+      #activity-body summary { color:var(--action); font-size:14px; font-weight:400; width:max-content; max-width:100%; }
+      #activity-body details[open]>summary { margin-bottom:0; }
+      .act-tools { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:10px; }
+      .act-tool { background:var(--soft); border:1px solid var(--line); border-radius:10px; padding:12px; }
+      .act-tool .act-facts { margin:8px 0 0; font-size:13px; }
+      .act-target { font-family:ui-monospace,Consolas,monospace; font-size:13px; overflow-wrap:anywhere; }
+      .act-gaps { margin:4px 0 0; padding-left:18px; font-size:13px; color:var(--warning); }
+      .act-empty { text-align:center; padding:22px 12px; } .act-empty strong { display:block; font-size:18px; margin-bottom:6px; }
+      .act-coverage { width:100%; border-collapse:collapse; font-size:14px; }
+      .act-coverage th, .act-coverage td { text-align:left; padding:8px 6px; border-top:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; }
+      .act-coverage th { color:var(--muted); font-weight:600; width:34%; }
+      .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+      @media(max-width:560px) {
+        .act-row { grid-template-columns:minmax(0,1fr) auto; } .act-row time { grid-column:1 / -1; font-size:13px; }
+        .act-facts { grid-template-columns:minmax(0,1fr); gap:0; } .act-facts dd { margin-bottom:6px; }
+        .act-card .quick-actions button { flex:1 1 100%; white-space:normal; } .act-tool { padding:10px; }
+        .act-coverage th, .act-coverage td { display:block; width:auto; border:0; padding:2px 0; }
+        .act-coverage tr { display:block; border-top:1px solid var(--line); padding:8px 0; }
+      }
     </style>
   </head>
   <body>
@@ -158,6 +200,7 @@
         <nav class="primary-nav" aria-label="工作畫面">
           <a href="#/chat" data-nav="chat" aria-current="page"><span class="nav-mark" aria-hidden="true">◌</span>對話</a>
           <a href="#/tasks" data-nav="tasks"><span class="nav-mark" aria-hidden="true">☑</span>任務</a>
+          <a href="#/activity" data-nav="activity"><span class="nav-mark" aria-hidden="true">◎</span>活動</a>
           <a href="#/memory" data-nav="memory"><span class="nav-mark" aria-hidden="true">◇</span>記憶</a>
           <a href="#/capabilities" data-nav="capabilities"><span class="nav-mark" aria-hidden="true">✧</span>能力</a>
           <div class="nav-divider" aria-hidden="true"></div>
@@ -220,6 +263,14 @@
               <p id="goal-task-status" aria-live="polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>
               <div id="goal-task-items" aria-live="polite"></div>
             </section>
+          </section>
+          <section class="page-view reading-width" data-page="activity" hidden inert aria-labelledby="activity-heading">
+            <div class="page-heading"><h1 id="activity-heading" data-page-heading tabindex="-1">活動</h1><p>SIRO 正在做什麼、為什麼做、做完了沒有。這裡只讀紀錄，打開這頁不會讓她做任何事。</p></div>
+            <p id="activity-feed" class="act-feed" role="status" aria-live="polite">等待連線…</p>
+            <div id="activity-banner"></div>
+            <p id="activity-announce" class="sr-only" role="status" aria-live="polite"></p>
+            <div id="activity-body"></div>
+            <section class="content-section" aria-labelledby="activity-coverage-heading"><h2 id="activity-coverage-heading">這裡看得到什麼</h2><table class="act-coverage"><tbody><tr><th scope="row">開網頁</th><td>看得到要開的網址、最後停在哪個網址、有沒有轉址。看不到狀態碼，也看不到頁面另外載入的圖片和腳本。</td></tr><tr><th scope="row">在電腦上執行程式</th><td>看得到程式名稱和參數個數（內容不保存）。程式自己連網的話，這裡看不到。</td></tr><tr><th scope="row">保存</th><td>變更紀錄保存 7 天或最近 10,000 筆，先到的先清；這頁最多列出最近 50 件事。網址的查詢參數、帳號密碼與輸入內容不保存。</td></tr></tbody></table></section>
           </section>
           <section class="page-view reading-width" data-page="skills" hidden inert aria-labelledby="skills-heading">
             <div class="page-heading"><h1 id="skills-heading" data-page-heading tabindex="-1">技能與改善</h1><p>從可追溯的來源準備新能力。驗證、審查與啟用，各有清楚的界線。</p></div>
@@ -346,7 +397,7 @@
           ? "上次工作中斷，有些操作的結果未知。我沒有重新執行；請先確認實際結果。"
           : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
       }
-      const pageTitles = Object.freeze({chat:"對話", tasks:"任務", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
+      const pageTitles = Object.freeze({chat:"對話", tasks:"任務", activity:"活動", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
       let activePage = "chat", navigationInitialized = false, selectedGoalTaskId = null;
       function showPage(hash = location.hash, moveFocus = false) {
         const detail = typeof hash === "string" ? /^#\/tasks\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.exec(hash) : null;
@@ -364,6 +415,7 @@
           else link.removeAttribute("aria-current");
         }
         activePage = page;
+        activityPageChanged();
         const title = selectedGoalTaskId ? "任務詳情" : pageTitles[page];
         document.querySelector("#page-title").textContent = title;
         document.querySelector("#tasks-heading").textContent = selectedGoalTaskId ? "任務詳情" : "任務";
@@ -397,6 +449,196 @@
         window.addEventListener("popstate", () => showPage(location.hash, true));
         showPage();
       }
+      // Activity page (CP-V05): a read-only projection; viewing never runs a tool, model or voice.
+      const ACTIVITY_LIVE = new Set(["proposed", "queued", "running", "paused", "cancelling"]);
+      const ACTIVITY_STATES = Object.freeze({
+        proposed: ["等你確認", "◔", "還沒開始。要先在對話裡按「允許」才會執行。"],
+        queued: ["排隊中", "◔", "已允許，等前一件事做完就開始。"],
+        running: ["進行中", "●", null],
+        paused: ["已暫停", "❚❚", "不會再往下做，按「繼續」才會恢復。"],
+        cancelling: ["停止中…", "◌", "已要求停止，正在確認工具真的停了。"],
+        completed: ["完成", "✓", null],
+        cancelled: ["已停止", "■", "在工具動手之前就停住了，沒有產生影響。"],
+        failed: ["失敗", "✕", null],
+        unknown: ["結果未確認", "?", "停止時工具可能已經在執行，SIRO 讀不回結果，所以不知道它有沒有做完。請自己確認一次。"],
+      });
+      const ACTIVITY_ORIGINS = Object.freeze({owner_request: "你要求的", self_interest: "SIRO 自己想做的", scheduled_followup: "先前約好的後續"});
+      const ACTIVITY_TOOLS = Object.freeze({"browser.navigate+read": "開網頁並讀內容", "computer.execute": "在電腦上執行程式"});
+      const ACTIVITY_GAPS = Object.freeze({
+        http_status_not_captured: "沒有記錄網站回應的狀態碼",
+        subresource_requests_not_listed: "頁面另外載入的圖片、腳本等沒有列出",
+        page_interaction_requests_not_listed: "在頁面上操作時的請求沒有列出",
+        subprocess_network_not_monitored: "這個程式自己連網的話，這裡看不到",
+        tool_not_instrumented: "這個工具沒有網路監測",
+      });
+      const ACTIVITY_COVERAGE = Object.freeze({browser_adapter: "瀏覽器：有網址與轉址", unobserved: "沒有網路監測", none_recorded: "沒有任何網路紀錄"});
+      const ACTIVITY_ERRORS = Object.freeze({
+        navigation_failed: "打不開網頁（連不上或被拒絕）", agent_step_limit: "步驟太多，先停下來了",
+        outcome_unknown: "中途被打斷，有些操作的結果不知道", ExecutionCancelled: "執行中被停止", interrupted_restart: "SIRO 重新啟動時中斷",
+      });
+      const activityView = {items: new Map(), cursor: null, fetchedAt: null, status: "idle", gap: false, truncated: false, stopping: new Set(), epoch: 0, timer: undefined};
+      const activityEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+      function activityClock(iso, seconds = false) {
+        const date = new Date(iso);
+        if (Number.isNaN(date.getTime())) return "時間不明";
+        const time = date.toLocaleTimeString("zh-TW", {hour12: false, hour: "2-digit", minute: "2-digit", ...(seconds ? {second: "2-digit"} : {})});
+        return date.toDateString() === new Date().toDateString() ? time : `${date.getMonth() + 1}/${date.getDate()} ${time}`;
+      }
+      function activityAgo(iso) {
+        const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+        if (!Number.isFinite(seconds)) return "";
+        return seconds < 60 ? `${Math.round(seconds)} 秒前` : seconds < 3600 ? `${Math.round(seconds / 60)} 分鐘前` : `${Math.round(seconds / 3600)} 小時前`;
+      }
+      const activityStateOf = item => activityView.stopping.has(item.activity_id) && ACTIVITY_LIVE.has(item.state) ? "cancelling" : item.state;
+      const activityTitle = item => (item.reason ? item.reason + (item.reason_truncated ? "…" : "") : ACTIVITY_TOOLS[item.tools?.[0]?.capability] || "工具操作");
+      function activityBadge(state) {
+        const [label, icon] = ACTIVITY_STATES[state] || ["狀態不明", "?"];
+        return `<span class="act-state" data-state="${activityEscape(state)}"><span aria-hidden="true">${icon}</span>${label}</span>`;
+      }
+      function activityTarget(target) {
+        if (!target) return "沒有記錄目標";
+        if (target.url) return activityEscape(target.url) + (target.redacted ? "<br><small>網址後面的查詢參數已隱藏</small>" : "");
+        if (target.program) return `${activityEscape(target.program)}（另有 ${Number(target.argument_count) || 0} 個參數，內容不保存）`;
+        return target.redacted ? "網址已隱藏" : "沒有記錄目標";
+      }
+      function activityToolBlock(tool) {
+        const network = tool.network || {coverage: "unobserved", requests: [], gaps: []};
+        const requests = (network.requests || []).map(request => request.redirected === true && request.final?.url
+          ? `轉到 <span class="act-target">${activityEscape(request.final.url)}</span>` : request.final == null ? "沒有拿到頁面" : request.redirected === false ? "沒有轉址" : "不知道有沒有轉址").join("；");
+        const error = tool.error ? `<dt>原因</dt><dd>${activityEscape(ACTIVITY_ERRORS[tool.error] || "沒有更詳細的原因")}</dd>` : "";
+        const gaps = (network.gaps || []).length ? `<ul class="act-gaps">${network.gaps.map(gap => `<li>${activityEscape(ACTIVITY_GAPS[gap] || "有一部分網路活動沒有記錄")}</li>`).join("")}</ul>` : "";
+        return `<li class="act-tool"><div class="act-head"><h3>${activityEscape(ACTIVITY_TOOLS[tool.capability] || tool.capability)}</h3>${activityBadge(tool.state)}</div>
+          <dl class="act-facts"><dt>目標</dt><dd class="act-target">${activityTarget(tool.target)}</dd>
+          <dt>開始</dt><dd><time datetime="${activityEscape(tool.created_at)}">${activityClock(tool.created_at, true)}</time></dd>${error}
+          <dt>網路</dt><dd>${activityEscape(ACTIVITY_COVERAGE[network.coverage] || "沒有網路監測")}${requests ? "；" + requests : ""}${gaps}</dd></dl></li>`;
+      }
+      function activityCard(item, index) {
+        const state = activityStateOf(item), title = activityTitle(item), note = ACTIVITY_STATES[state]?.[2];
+        const step = item.tools.find(tool => tool.state === "running") || item.tools.at(-1);
+        let control;
+        if (state === "cancelling") control = `<button type="button" disabled aria-describedby="activity-note-${index}">停止中…</button>`;
+        else if (state === "proposed") control = `<button type="button" data-activity-chat>在對話中查看</button>`;
+        else if (activityView.status !== "ok") control = `<button type="button" class="act-stop" disabled>停止這件事（連線後可用）</button>`;
+        else control = `<button type="button" class="act-stop" data-activity-stop="${activityEscape(item.activity_id)}" aria-label="停止「${activityEscape(title)}」">停止這件事</button>`;
+        return `<article class="act-card" data-state="${activityEscape(state)}" aria-labelledby="activity-now-${index}">
+          <div class="act-head"><h3 id="activity-now-${index}">${activityEscape(title)}</h3>${activityBadge(state)}</div>
+          <dl class="act-facts"><dt>為什麼</dt><dd>${activityEscape(ACTIVITY_ORIGINS[item.origin] || "來源不明")}</dd>
+          <dt>現在這步</dt><dd>${step ? `${activityEscape(ACTIVITY_TOOLS[step.capability] || step.capability)}：<span class="act-target">${activityTarget(step.target)}</span>` : "還沒有動手"}</dd>
+          <dt>開始於</dt><dd><time datetime="${activityEscape(item.created_at)}">${activityClock(item.created_at)}</time>（${activityAgo(item.created_at)}）</dd></dl>
+          ${note ? `<p id="activity-note-${index}">${note}</p>` : ""}<div class="quick-actions">${control}</div></article>`;
+      }
+      function activityTimelineItem(item) {
+        const title = activityTitle(item), note = ACTIVITY_STATES[item.state]?.[2];
+        const result = item.state === "failed" ? ACTIVITY_ERRORS[item.error] || "沒有完成" : note;
+        const legacy = item.coverage?.tools === "legacy_unjournaled" ? "<p>這是舊格式的紀錄，工具細節不完整。</p>" : "";
+        return `<li><div class="act-row"><time datetime="${activityEscape(item.created_at)}">${activityClock(item.created_at)}</time>
+          <div><h3>${activityEscape(title)}</h3><div class="act-why">${activityEscape(ACTIVITY_ORIGINS[item.origin] || "來源不明")} · 用了 ${item.tools.length} 個工具</div>
+          ${result ? `<p>${activityEscape(result)}</p>` : ""}
+          <details><summary>看細節<span class="sr-only">：${activityEscape(title)}</span></summary>
+          ${item.tools.length ? `<ul class="act-tools">${item.tools.map(activityToolBlock).join("")}</ul>` : "<p>停下時還沒有呼叫任何工具。</p>"}${legacy}</details></div>
+          ${activityBadge(item.state)}</div></li>`;
+      }
+      function renderActivity() {
+        const feed = document.querySelector("#activity-feed"), banner = document.querySelector("#activity-banner"), body = document.querySelector("#activity-body");
+        const {status} = activityView, at = activityView.fetchedAt ? activityClock(activityView.fetchedAt, true) : null;
+        feed.className = status === "ok" ? "act-feed" : "act-feed act-offline";
+        feed.innerHTML = status === "ok" ? `<span class="act-dot" aria-hidden="true"></span>即時更新中 · 最後更新 ${at}`
+          : status === "offline" ? `<span class="act-dot" aria-hidden="true"></span>和 SIRO 斷線${at ? ` · 下面是 ${at} 的資料` : ""}`
+          : status === "loading" ? "讀取中…" : "";
+        const banners = {
+          offline: ["warn", "和 SIRO 斷線，正在重新連線。", "下面的狀態可能已經變了。停止按鈕先停用，連回後會重新讀一次。"],
+          denied: ["warn", "需要重新連線才能查看活動。", "連線憑證過期了。按上方的連線按鈕，或重新整理這頁後再打開這裡。"],
+          unavailable: ["warn", "活動紀錄暫時讀不到。", "紀錄寫不進去的期間，SIRO 不會自己開始新的上網或電腦操作。你要求的對話照常可用。"],
+        };
+        const notice = banners[status] || (activityView.gap || activityView.truncated
+          ? ["info", activityView.gap ? "剛才有一段紀錄沒收到，已重新載入整份清單。" : "只顯示最近的事情。", "這頁最多列出最近 50 件事；更早的紀錄不在這裡。"] : null);
+        banner.innerHTML = notice ? `<div class="act-banner" data-tone="${notice[0]}" role="${notice[0] === "warn" ? "alert" : "status"}"><strong>${notice[1]}</strong><p>${notice[2]}</p></div>` : "";
+        if (status === "denied" || status === "unavailable" || (status !== "ok" && !activityView.fetchedAt)) { body.innerHTML = ""; return; }
+        const items = [...activityView.items.values()].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+        const current = items.filter(item => ACTIVITY_LIVE.has(item.state)), ended = items.filter(item => !ACTIVITY_LIVE.has(item.state));
+        // A finished reply that used no tool is just conversation; the chat already shows it.
+        const past = ended.filter(item => item.tools.length || item.state !== "completed"), chats = ended.length - past.length;
+        body.innerHTML = `<section class="content-section" aria-labelledby="activity-now-heading"><h2 id="activity-now-heading">現在</h2>
+          ${current.length ? current.map(activityCard).join("") : `<div class="act-empty"><strong>現在沒有在做事</strong><p>你在對話裡交代的事開始後，會出現在這裡。</p></div>`}</section>
+          <section class="content-section" aria-labelledby="activity-history-heading"><h2 id="activity-history-heading">稍早</h2>
+          ${past.length ? `<ol class="act-timeline" aria-label="已結束的活動，新的在上面">${past.map(activityTimelineItem).join("")}</ol>` : `<div class="act-empty"><strong>還沒有紀錄</strong><p>完成、停止或失敗的事情會留在這裡。</p></div>`}
+          ${chats ? `<p class="section-note">另有 ${chats} 則只是聊天、沒有用到工具的回覆，沒有列在這裡。</p>` : ""}</section>`;
+      }
+      function activityAnnounce(previous, next) {
+        if (!previous || !ACTIVITY_LIVE.has(previous.state) || !["completed", "failed", "unknown"].includes(next.state)) return;
+        document.querySelector("#activity-announce").textContent = `${ACTIVITY_STATES[next.state][0]}：${activityTitle(next)}`;
+      }
+      async function activityRead(url, epoch) {
+        const response = await authorizedFetch(url, {headers: {Accept: "application/json"}});
+        if (epoch !== activityView.epoch) return null;
+        if (response.status === 401) { activityView.status = "denied"; return null; }
+        const data = response.ok || response.status === 503 ? await response.json().catch(() => null) : null;
+        if (epoch !== activityView.epoch) return null;
+        if (!data || data.status !== "ok") { activityView.status = "unavailable"; return null; }
+        return data;
+      }
+      async function refreshActivity(epoch = activityView.epoch, announce = false) {
+        try {
+          const data = await activityRead("/v1/activities?limit=50", epoch);
+          if (!data) return;
+          const previous = activityView.items;
+          activityView.items = new Map(data.activities.map(item => [item.activity_id, item]));
+          if (announce) for (const item of activityView.items.values()) activityAnnounce(previous.get(item.activity_id), item);
+          for (const id of activityView.stopping) if (!ACTIVITY_LIVE.has(activityView.items.get(id)?.state)) activityView.stopping.delete(id);
+          Object.assign(activityView, {cursor: data.cursor, truncated: Boolean(data.truncated), fetchedAt: new Date().toISOString(), status: "ok"});
+        } catch { if (epoch === activityView.epoch) activityView.status = "offline"; }
+        finally { if (epoch === activityView.epoch) { renderActivity(); scheduleActivity(epoch); } }
+      }
+      async function pollActivity(epoch) {
+        activityView.timer = undefined;
+        let more = false;
+        try {
+          const data = await activityRead(`/v1/activities/changes?after=${activityView.cursor}&limit=100`, epoch);
+          if (!data) { if (epoch === activityView.epoch) renderActivity(); return; }
+          if (data.gap) { activityView.gap = true; return refreshActivity(epoch, true); }
+          for (const [id, item] of Object.entries(data.activities || {})) {
+            activityAnnounce(activityView.items.get(id), item); activityView.items.set(id, item);
+            if (!ACTIVITY_LIVE.has(item.state)) activityView.stopping.delete(id);
+          }
+          Object.assign(activityView, {cursor: data.cursor, fetchedAt: new Date().toISOString(), status: "ok"});
+          more = Boolean(data.has_more);
+        } catch { if (epoch === activityView.epoch) activityView.status = "offline"; }
+        if (epoch === activityView.epoch) { renderActivity(); scheduleActivity(epoch, more ? 0 : 3000); }
+      }
+      function scheduleActivity(epoch, delay = 3000) {
+        clearTimeout(activityView.timer); activityView.timer = undefined;
+        if (epoch !== activityView.epoch || activePage !== "activity" || activityView.status !== "ok") return;
+        activityView.timer = setTimeout(() => pollActivity(epoch), delay);
+      }
+      // Called on page changes and control connection changes; a reconnect always re-reads the snapshot.
+      function activityPageChanged() {
+        const epoch = ++activityView.epoch;
+        clearTimeout(activityView.timer); activityView.timer = undefined;
+        if (activePage !== "activity") return;
+        if (!controlAuthenticated) { activityView.status = "offline"; renderActivity(); return; }
+        if (!activityView.fetchedAt) activityView.status = "loading";
+        activityView.gap = false; renderActivity(); refreshActivity(epoch);
+      }
+      async function stopActivity(id) {
+        if (activityView.status !== "ok" || activityView.stopping.has(id)) return;
+        const title = activityTitle(activityView.items.get(id) || {tools: []});
+        activityView.stopping.add(id); renderActivity();
+        const epoch = activityView.epoch;
+        try {
+          const response = await authorizedFetch(`/v1/activities/${encodeURIComponent(id)}/stop`, {method: "POST"});
+          if (response.status === 409 || response.status === 404) document.querySelector("#activity-announce").textContent = `「${title}」已經結束，沒有再停一次。`;
+          else if (!response.ok) throw new Error("stop failed");
+        } catch {
+          activityView.stopping.delete(id);
+          document.querySelector("#activity-announce").textContent = `停止「${title}」沒有送出，請再按一次。`;
+        }
+        if (epoch === activityView.epoch) refreshActivity(epoch);
+      }
+      document.querySelector("#activity-body").addEventListener("click", event => {
+        const stop = event.target.closest?.("[data-activity-stop]");
+        if (stop) stopActivity(stop.dataset.activityStop);
+        else if (event.target.closest?.("[data-activity-chat]")) navigateToPage("chat");
+      });
       function notifyComputerActivity() {
         document.querySelector("#activity-notice").hidden = activePage === "computer";
       }
@@ -439,11 +681,11 @@
           socket = owner; controlAuthenticated = false;
           let retired = false;
           const abandon = message => {
-            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); if (typeof clearMemorySearch === "function") clearMemorySearch(); ready.reject(new Error(message));
+            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); if (typeof clearMemorySearch === "function") clearMemorySearch(); if (activePage === "activity") activityPageChanged(); ready.reject(new Error(message));
           };
           controlDispose = abandon;
           const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
-          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); ready.resolve(); };
+          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); if (activePage === "activity") activityPageChanged(); ready.resolve(); };
           socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
         socket.onmessage = event => {
           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
