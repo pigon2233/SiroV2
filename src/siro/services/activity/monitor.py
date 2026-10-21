@@ -254,6 +254,14 @@ def _run_view(c: sqlite3.Connection, run: sqlite3.Row) -> dict[str, object]:
     journal = c.execute(
         "SELECT status FROM run_journal WHERE run_id=?", (run["run_id"],)
     ).fetchone()
+    why = None
+    if run["session_id"] == SELF_SESSION:
+        topic = c.execute(
+            "SELECT payload_json FROM agent_steps WHERE run_id=? AND kind='self_topic'",
+            (run["run_id"],),
+        ).fetchone()
+        chosen = _json(topic[0]) if topic is not None else None
+        why = chosen.get("why") if isinstance(chosen, dict) else None
     return {
         "activity_id": run["run_id"],
         "kind": "agent_run",
@@ -262,6 +270,7 @@ def _run_view(c: sqlite3.Connection, run: sqlite3.Row) -> dict[str, object]:
         "session_id": run["session_id"],
         "reason": goal[:MAX_REASON],
         "reason_truncated": len(goal) > MAX_REASON,
+        "why": why[:MAX_REASON] if isinstance(why, str) else None,
         "state": run_state(str(run["state"]), run["error"]),
         "raw_state": run["state"],
         "error": run["error"],
@@ -284,6 +293,7 @@ def _standalone_view(c: sqlite3.Connection, row: sqlite3.Row) -> dict[str, objec
         "session_id": row["session_id"],
         "reason": None,
         "reason_truncated": False,
+        "why": None,
         "state": tool["state"],
         "raw_state": row["state"],
         "error": row["error"],

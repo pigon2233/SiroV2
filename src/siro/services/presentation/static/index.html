@@ -499,6 +499,7 @@
         if (!Number.isFinite(seconds)) return "";
         return seconds < 60 ? `${Math.round(seconds)} 秒前` : seconds < 3600 ? `${Math.round(seconds / 60)} 分鐘前` : `${Math.round(seconds / 3600)} 小時前`;
       }
+      const activityWhy = item => (ACTIVITY_ORIGINS[item.origin] || "來源不明") + (item.why ? `：${item.why}` : "");
       const activityStateOf = item => activityView.stopping.has(item.activity_id) && ACTIVITY_LIVE.has(item.state) ? "cancelling" : item.state;
       const activityTitle = item => (item.reason ? item.reason + (item.reason_truncated ? "…" : "") : ACTIVITY_TOOLS[item.tools?.[0]?.capability] || "工具操作");
       function activityBadge(state) {
@@ -532,7 +533,7 @@
         else control = `<button type="button" class="act-stop" data-activity-stop="${activityEscape(item.activity_id)}" aria-label="停止「${activityEscape(title)}」">停止這件事</button>`;
         return `<article class="act-card" data-state="${activityEscape(state)}" aria-labelledby="activity-now-${index}">
           <div class="act-head"><h3 id="activity-now-${index}">${activityEscape(title)}</h3>${activityBadge(state)}</div>
-          <dl class="act-facts"><dt>為什麼</dt><dd>${activityEscape(ACTIVITY_ORIGINS[item.origin] || "來源不明")}</dd>
+          <dl class="act-facts"><dt>為什麼</dt><dd>${activityEscape(activityWhy(item))}</dd>
           <dt>現在這步</dt><dd>${step ? `${activityEscape(ACTIVITY_TOOLS[step.capability] || step.capability)}：<span class="act-target">${activityTarget(step.target)}</span>` : "還沒有動手"}</dd>
           <dt>開始於</dt><dd><time datetime="${activityEscape(item.created_at)}">${activityClock(item.created_at)}</time>（${activityAgo(item.created_at)}）</dd></dl>
           ${note ? `<p id="activity-note-${index}">${note}</p>` : ""}<div class="quick-actions">${control}</div></article>`;
@@ -542,7 +543,7 @@
         const result = item.state === "failed" ? ACTIVITY_ERRORS[item.error] || "沒有完成" : note;
         const legacy = item.coverage?.tools === "legacy_unjournaled" ? "<p>這是舊格式的紀錄，工具細節不完整。</p>" : "";
         return `<li><div class="act-row"><time datetime="${activityEscape(item.created_at)}">${activityClock(item.created_at)}</time>
-          <div><h3>${activityEscape(title)}</h3><div class="act-why">${activityEscape(ACTIVITY_ORIGINS[item.origin] || "來源不明")} · 用了 ${item.tools.length} 個工具</div>
+          <div><h3>${activityEscape(title)}</h3><div class="act-why">${activityEscape(activityWhy(item))} · 用了 ${item.tools.length} 個工具</div>
           ${result ? `<p>${activityEscape(result)}</p>` : ""}
           <details><summary>看細節<span class="sr-only">：${activityEscape(title)}</span></summary>
           ${item.tools.length ? `<ul class="act-tools">${item.tools.map(activityToolBlock).join("")}</ul>` : "<p>停下時還沒有呼叫任何工具。</p>"}${legacy}</details></div>

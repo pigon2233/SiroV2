@@ -33,9 +33,11 @@ from siro.adapters.body.web import WebSocketBodyTransport
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.memory import Memory, MemoryService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
+from siro.persistence.affect import SQLiteAffectRepository
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
+from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
@@ -2443,6 +2445,34 @@ def _run_gateway(
         else None
     )
 
+    self_setting = os.environ.get("SIRO_SELF_ACTIVITY_ENABLED", "1")
+    if self_setting not in {"0", "1"}:
+        raise ValueError("SIRO_SELF_ACTIVITY_ENABLED must be 0 or 1")
+
+    async def own_preferences() -> tuple[str, ...]:
+        items = await SQLiteAffectRepository(shared_store).preferences("siro", "siro")
+        return tuple(
+            item.subject for item in items if item.status == "committed" and item.polarity > 0
+        )
+
+    self_scheduler = (
+        SelfActivityScheduler(
+            self_owner,
+            InterestPicker(shared_store, model, own_preferences),
+            shared_store,
+            foreground=lambda: (
+                controller.foreground_active
+                or (read_tasks is not None and read_tasks.busy)
+                or any(
+                    turn["state"] in {"responding", "awaiting_approval"}
+                    for turn in state.active_turns.values()
+                )
+            ),
+        )
+        if self_owner is not None and self_setting == "1"
+        else None
+    )
+
     async def start_controller() -> None:
         await controller.startup()
         if organizer is not None:
@@ -2451,8 +2481,12 @@ def _run_gateway(
             await workspace.start()
         if browser_sessions is not None:
             await browser_sessions.start()
+        if self_scheduler is not None:
+            self_scheduler.start()
 
     async def stop_controller() -> None:
+        if self_scheduler is not None:
+            await self_scheduler.close()
         if self_owner is not None:
             await self_owner.close()
         try:

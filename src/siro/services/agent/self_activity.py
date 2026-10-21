@@ -72,7 +72,9 @@ class SelfActivityOwner:
     def active_run(self) -> str | None:
         return self._run_id if self.busy else None
 
-    async def start(self, goal: str) -> str | None:
+    async def start(
+        self, goal: str, why: str | None = None, source: str | None = None
+    ) -> str | None:
         """Start one run for a goal SIRO chose; refused while paused, busy or not allowed."""
         async with self._control:
             # Without the journal hook a dispatch could not be audited, so nothing starts.
@@ -91,6 +93,8 @@ class SelfActivityOwner:
                 privacy=Privacy.LOCAL_ONLY.value,
                 max_model_rounds=MAX_ROUNDS,
             )
+            # Why she chose it is shown on the activity page next to "SIRO 自己想做的".
+            await self._runs.append(run.run_id, "self_topic", {"why": why, "source": source})
             self._run_id, self._stop_reason = run.run_id, None
             self._cancellation = CancellationToken()
             self._orchestrator.start_run(run.run_id, SELF_SESSION)
