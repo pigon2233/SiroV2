@@ -520,3 +520,61 @@ def test_renderer_repair_is_idempotent_and_desktop_transparency_is_opt_in(tmp_pa
     assert "// SIRO persistent presentation v2" in main
     assert "Audible speech has one owner in the parent page" in main
     assert main.count("async function connectSiro()") == 1
+
+
+BUBBLE_FEED = r"""
+let feed, speechBusy=false;
+window.siroWatchActivity=listener=>{feed=listener;return ()=>{feed=null;};};
+window.siroSpeechBusy=()=>speechBusy;
+const tool=(capability,state,target={})=>({capability,state,target});
+const act=(id,state,tools,reason='查今晚的星雲')=>({activity_id:id,state,reason,tools,
+  updated_at:'2026-10-21T00:00:0'+id.length+'Z'});
+const view=(items,status='ok')=>({status,items:new Map(items.map(item=>[item.activity_id,item])),stopping:new Set()});
+"""
+
+
+def test_bubble_only_says_working_when_the_journal_has_a_running_tool() -> None:
+    run_desktop(
+        """
+const bubble=document.querySelector('#desktop-bubble');
+const label=()=>bubble.children[1].textContent, action=bubble.children[2];
+feed(view([act('a','running',[])]));
+assert.equal(bubble.hidden,true);
+feed(view([act('a','running',[tool('browser.navigate+read','running')])]));
+assert.equal(bubble.hidden,false); assert.equal(label(),'正在查：查今晚的星雲'); assert.equal(action.hidden,true);
+feed(view([act('a','completed',[tool('browser.navigate+read','completed')])]));
+assert.equal(label(),'做好了：查今晚的星雲'); assert.equal(action.textContent,'看看');
+action.click();
+assert.deepEqual(nativeMessages.at(-1),{type:'desktop.console',page:'activity'});
+window.siroDesktopView.openChat();
+assert.equal(bubble.hidden,true);
+window.siroDesktopView.closeChat(); document.activeElement=null;
+speechBusy=true; feed(view([act('b','running',[tool('computer.execute','running',{program:'find'})])]));
+assert.equal(bubble.hidden,true);
+speechBusy=false; feed(view([act('b','running',[tool('computer.execute','running',{program:'find'})])]));
+assert.equal(label(),'正在執行：查今晚的星雲');
+feed(view([],'offline'));
+assert.equal(label(),'斷線了，狀態可能過時');
+""",
+        before=BUBBLE_FEED,
+    )
+
+
+def test_bubble_proposal_opens_chat_and_escape_only_folds_the_bubble() -> None:
+    run_desktop(
+        """
+const bubble=document.querySelector('#desktop-bubble');
+feed(view([act('c','proposed',[tool('computer.execute','proposed',{program:'git'})],null)]));
+assert.equal(bubble.children[1].textContent,'等你允許：執行 git');
+bubble.events.get('keydown')({key:'Escape',stopPropagation(){}});
+assert.equal(bubble.hidden,true); assert.equal(stopped,0);
+feed(view([act('c','proposed',[tool('computer.execute','proposed',{program:'git'})],null)]));
+assert.equal(bubble.hidden,true);
+feed(view([])); feed(view([act('c','proposed',[tool('computer.execute','proposed',{program:'git'})],null)]));
+assert.equal(bubble.hidden,false);
+bubble.children[2].click();
+assert.equal(conversation.inert,false);
+dispatch('pagehide',{}); assert.equal(feed,null);
+""",
+        before=BUBBLE_FEED,
+    )

@@ -477,6 +477,15 @@
         outcome_unknown: "中途被打斷，有些操作的結果不知道", ExecutionCancelled: "執行中被停止", interrupted_restart: "SIRO 重新啟動時中斷",
       });
       const activityView = {items: new Map(), cursor: null, fetchedAt: null, status: "idle", gap: false, truncated: false, stopping: new Set(), epoch: 0, timer: undefined};
+      // Other views (the desktop bubble) watch the same reads; polling runs while anyone looks.
+      const activityWatchers = new Set();
+      const activityWanted = () => activePage === "activity" || activityWatchers.size > 0;
+      function watchActivity(listener) {
+        activityWatchers.add(listener); activityPageChanged();
+        return () => { activityWatchers.delete(listener); activityPageChanged(); };
+      }
+      window.siroWatchActivity = watchActivity;
+      window.siroSpeechBusy = () => Boolean(ttsController || ttsAudio);
       const activityEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
       function activityClock(iso, seconds = false) {
         const date = new Date(iso);
@@ -540,6 +549,7 @@
       }
       function renderActivity() {
         const feed = document.querySelector("#activity-feed"), banner = document.querySelector("#activity-banner"), body = document.querySelector("#activity-body");
+        for (const watcher of activityWatchers) { try { watcher(activityView); } catch (_) { /* a view must not stop the page */ } }
         const {status} = activityView, at = activityView.fetchedAt ? activityClock(activityView.fetchedAt, true) : null;
         feed.className = status === "ok" ? "act-feed" : "act-feed act-offline";
         feed.innerHTML = status === "ok" ? `<span class="act-dot" aria-hidden="true"></span>即時更新中 · 最後更新 ${at}`
@@ -607,14 +617,14 @@
       }
       function scheduleActivity(epoch, delay = 3000) {
         clearTimeout(activityView.timer); activityView.timer = undefined;
-        if (epoch !== activityView.epoch || activePage !== "activity" || activityView.status !== "ok") return;
+        if (epoch !== activityView.epoch || !activityWanted() || activityView.status !== "ok") return;
         activityView.timer = setTimeout(() => pollActivity(epoch), delay);
       }
       // Called on page changes and control connection changes; a reconnect always re-reads the snapshot.
       function activityPageChanged() {
         const epoch = ++activityView.epoch;
         clearTimeout(activityView.timer); activityView.timer = undefined;
-        if (activePage !== "activity") return;
+        if (!activityWanted()) return;
         if (!controlAuthenticated) { activityView.status = "offline"; renderActivity(); return; }
         if (!activityView.fetchedAt) activityView.status = "loading";
         activityView.gap = false; renderActivity(); refreshActivity(epoch);
@@ -681,11 +691,11 @@
           socket = owner; controlAuthenticated = false;
           let retired = false;
           const abandon = message => {
-            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); if (typeof clearMemorySearch === "function") clearMemorySearch(); if (activePage === "activity") activityPageChanged(); ready.reject(new Error(message));
+            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); if (typeof clearMemorySearch === "function") clearMemorySearch(); if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); ready.reject(new Error(message));
           };
           controlDispose = abandon;
           const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
-          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); if (activePage === "activity") activityPageChanged(); ready.resolve(); };
+          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); ready.resolve(); };
           socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
         socket.onmessage = event => {
           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;

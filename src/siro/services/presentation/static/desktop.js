@@ -35,6 +35,7 @@
       chatButton.classList.remove("desktop-unread");
       nativeCommand({type: "desktop.chat", open: chatOpen});
       if (chatOpen) document.querySelector("#text")?.focus();
+      if (typeof renderBubble === "function") renderBubble();
       return chatOpen;
     };
     const chatButton = button("desktop-chat", "聊聊", "展開或收起對話", () => setChat(!chatOpen));
@@ -177,10 +178,98 @@
       setChat(false);
     });
     window.addEventListener("pagehide", () => {
-      observer.disconnect(); unreadObserver.disconnect(); detachRole();
+      observer.disconnect(); unreadObserver.disconnect(); detachRole(); unwatchActivity?.();
       frame.removeEventListener("load", attachRole);
       output?.removeEventListener("change", updateStatus);
     }, {once: true});
+    // Bubble (CP-V05): one short line above her, only facts the activity journal already has.
+    const bubble = document.createElement("div");
+    bubble.id = "desktop-bubble";
+    bubble.setAttribute("role", "status");
+    bubble.hidden = true;
+    const bubbleIcon = document.createElement("span");
+    bubbleIcon.className = "desktop-bubble-icon";
+    bubbleIcon.setAttribute("aria-hidden", "true");
+    const bubbleLabel = document.createElement("span");
+    bubbleLabel.className = "desktop-bubble-label";
+    const bubbleAction = document.createElement("button");
+    bubbleAction.type = "button";
+    bubbleAction.hidden = true;
+    bubble.appendChild(bubbleIcon);
+    bubble.appendChild(bubbleLabel);
+    bubble.appendChild(bubbleAction);
+    document.body.appendChild(bubble);
+    const LIVE = new Set(["proposed", "queued", "running", "paused", "cancelling"]);
+    const TOOL_NAMES = {"browser.navigate+read": "開網頁", "computer.execute": "執行程式"};
+    const openActivity = () => {
+      if (!nativeCommand({type: "desktop.console", page: "activity"})) window.open("/?view=control#/activity", "siro-control");
+    };
+    const seenStates = new Map();
+    let lastView, flash, hadLive = false, dismissed = "", bubbleRun;
+    const subject = item => item.reason || TOOL_NAMES[item.tools?.[0]?.capability] || "工具操作";
+    const toolName = tool => tool ? (tool.target?.program ? `執行 ${tool.target.program}` : TOOL_NAMES[tool.capability] || "使用工具") : "使用工具";
+    const bubbleFor = view => {
+      const items = [...view.items.values()].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+      const live = items.filter(item => LIVE.has(item.state) && item.tools?.length);
+      if (view.status === "offline") return hadLive ? {icon: "⚠", text: "斷線了，狀態可能過時", tone: "warn"} : null;
+      if (view.status !== "ok") return null;
+      hadLive = live.length > 0;
+      const proposed = live.find(item => item.state === "proposed");
+      if (proposed) return {icon: "◔", text: `等你允許：${toolName(proposed.tools[0])}`, action: "查看", run: () => setChat(true)};
+      if (live.some(item => item.state === "cancelling" || view.stopping?.has(item.activity_id))) return {icon: "◌", text: "停止中…", tone: "warn"};
+      // Her motions are only a show: "正在" needs a tool the journal records as running.
+      const working = live.find(item => item.tools.some(tool => tool.state === "running"));
+      if (working) {
+        const tool = working.tools.find(item => item.state === "running");
+        return {icon: "●", text: `${tool.capability.startsWith("browser.") ? "正在查" : "正在執行"}：${subject(working)}`};
+      }
+      if (flash && Date.now() < flash.until) {
+        const {item} = flash;
+        if (item.state === "completed") return {icon: "✓", text: `做好了：${subject(item)}`, action: "看看", run: openActivity};
+        if (item.state === "unknown") return {icon: "?", text: `結果沒確認：${subject(item)}`, action: "看看", run: openActivity, tone: "warn"};
+        return {icon: "✕", text: `沒做成：${subject(item)}`, action: "看看", run: openActivity, tone: "bad"};
+      }
+      return null;
+    };
+    const renderBubble = () => {
+      const quiet = chatOpen || window.siroSpeechBusy?.() || document.activeElement === document.querySelector("#text");
+      const next = lastView && !quiet ? bubbleFor(lastView) : null;
+      const show = next && next.text !== dismissed ? next : null;
+      if (!next) dismissed = "";
+      bubble.hidden = !show;
+      if (!show) { bubbleRun = undefined; return; }
+      bubble.setAttribute("data-tone", show.tone || "");
+      bubbleIcon.textContent = show.icon;
+      bubbleLabel.textContent = show.text;
+      bubble.title = show.text;
+      bubbleAction.hidden = !show.action;
+      bubbleAction.textContent = show.action || "";
+      bubbleRun = show.run;
+    };
+    bubbleAction.addEventListener("click", () => bubbleRun?.());
+    bubble.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      // Esc here only folds the bubble; Esc elsewhere keeps its stop meaning.
+      event.stopPropagation?.();
+      dismissed = bubbleLabel.textContent;
+      renderBubble();
+    });
+    const unwatchActivity = window.siroWatchActivity?.(view => {
+      for (const item of view.items.values()) {
+        const before = seenStates.get(item.activity_id);
+        if (before && LIVE.has(before) && !LIVE.has(item.state) && item.state !== "cancelled" && item.tools?.length) flash = {item, until: Date.now() + 8000};
+        seenStates.set(item.activity_id, item.state);
+      }
+      if (seenStates.size > 500) {
+        seenStates.clear();
+        for (const item of view.items.values()) seenStates.set(item.activity_id, item.state);
+      }
+      lastView = view;
+      renderBubble();
+    });
+    const typing = document.querySelector("#text");
+    typing?.addEventListener("focus", renderBubble);
+    typing?.addEventListener("blur", renderBubble);
     // Walking: the character asks to walk; the native window travels and reports back to her.
     const toRole = update => {
       try { frame.contentWindow?.postMessage({...update, type: "siro.desktop.walk.state", v: 1}, location.origin); } catch (_) { /* renderer gone */ }

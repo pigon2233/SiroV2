@@ -18,7 +18,7 @@ if (parsed.get_scheme() !== 'http' || !['127.0.0.1', 'localhost'].includes(parse
 const origin = `http://${parsed.get_host()}:${parsed.get_port() > 0 ? parsed.get_port() : 80}`;
 const reportDirectory = GLib.getenv('SIRO_DESKTOP_REPORT_DIR');
 const app = new Gtk.Application({application_id: 'org.siro.Companion', flags: Gio.ApplicationFlags.FLAGS_NONE});
-let window, web, center, pendingSnapshot = false, timer = 0, ready = false, lastChat = false;
+let window, web, center, centerView, pendingSnapshot = false, timer = 0, ready = false, lastChat = false;
 let samples = 0, lastRegion = 0, scale = 1, layoutTimer = 0, controlsHeight = 132;
 let walk = null; // the walk in progress: the window travels while the renderer plays the steps
 const state = {protocol: 1, toolkit: 'GTK3/WebKitGTK4.1', backend: GLib.getenv('GDK_BACKEND') || 'default', sandbox: false, ready: false, alpha: false, input_regions: 0};
@@ -150,14 +150,16 @@ function applyLayout() {
     evaluate(`window.siroDesktopView?.setLayout(${JSON.stringify(layout)})`);
     saveState(); queueShape();
 }
-function openCenter() {
+function openCenter(page) {
+    // Only known page names reach the URL; anything else opens the default page.
+    const hash = page === 'activity' ? '#/activity' : '';
     if (!center) {
         center = new Gtk.ApplicationWindow({application: app, title: 'SIRO · 控制台', default_width: 1080, default_height: 760});
-        const view = new WebKit.WebView({web_context: web.get_context()});
-        restrict(view); center.add(view);
-        view.load_uri(`${origin}/?view=control`);
+        centerView = new WebKit.WebView({web_context: web.get_context()});
+        restrict(centerView); center.add(centerView);
+        centerView.load_uri(`${origin}/?view=control${hash}`);
         center.connect('delete-event', () => { center.hide(); return true; });
-    }
+    } else if (hash) centerView.load_uri(`${origin}/?view=control${hash}`);
     center.show_all(); center.present();
 }
 function updateShape() {
@@ -212,7 +214,7 @@ function activate() {
             message.ramp >= 0.2 && message.ramp <= 5 && message.delay >= 0 && message.delay <= 5 &&
             (message.cycle === undefined || (Number.isFinite(message.cycle) && message.cycle >= 0 && message.cycle <= 5))) startWalk(message);
         else if (message.type === 'desktop.walk.stop' && typeof message.id === 'string') stopWalk(message.id);
-        else if (message.type === 'desktop.console') openCenter();
+        else if (message.type === 'desktop.console') openCenter(message.page);
         else if (message.type === 'desktop.chat' && typeof message.open === 'boolean') {
             lastChat = message.open; window.set_accept_focus(lastChat);
             applyLayout();
