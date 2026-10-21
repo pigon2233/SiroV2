@@ -40,6 +40,7 @@ if [[ ( "${XDG_SESSION_TYPE:-}" == wayland || ( -n "${WSL_DISTRO_NAME:-}" && -n 
   # native Wayland window cannot move itself, so strolls would only animate. The desktop session
   # is never changed.
   export GDK_BACKEND=x11
+  [[ -n "${WSL_DISTRO_NAME:-}" ]] && export SIRO_DESKTOP_UNMANAGED="${SIRO_DESKTOP_UNMANAGED:-1}"
   echo 'SIRO 桌寵使用 XWayland 相容模式（不更改目前 Wayland 桌面）。'
 elif [[ -n "${SIRO_DESKTOP_BACKEND:-}" ]]; then
   export GDK_BACKEND="$SIRO_DESKTOP_BACKEND"

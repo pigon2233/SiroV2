@@ -237,7 +237,9 @@ function activate() {
             if (insideMonitor) window.begin_move_drag(1, Math.round(message.screenX), Math.round(message.screenY), Gdk.CURRENT_TIME);
         } else if (message.type === 'desktop.ready') { ready = true; state.ready = true; applyLayout(); }
     });
-    window = new Gtk.ApplicationWindow({application: app, title: `SIRO 桌寵 · ${GLib.getenv('GDK_BACKEND') === 'x11' ? 'XWayland/X11 相容' : '原生顯示'}`, default_width: 360, default_height: 640, decorated: false, resizable: true});
+    window = new Gtk.ApplicationWindow({application: app, title: `SIRO 桌寵 · ${GLib.getenv('GDK_BACKEND') === 'x11' ? 'XWayland/X11 相容' : '原生顯示'}`, default_width: 360, default_height: 640, decorated: false, resizable: true,
+        // Unmanaged window: WSLg frames and shadows every managed one, but cannot give it keyboard focus.
+        type: GLib.getenv('SIRO_DESKTOP_UNMANAGED') === '1' ? Gtk.WindowType.POPUP : Gtk.WindowType.TOPLEVEL});
     window.set_app_paintable(true);
     const rgba = window.get_screen().get_rgba_visual();
     if (!rgba) throw new Error('RGBA compositing visual is unavailable');
