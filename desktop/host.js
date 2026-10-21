@@ -20,6 +20,7 @@ const reportDirectory = GLib.getenv('SIRO_DESKTOP_REPORT_DIR');
 const app = new Gtk.Application({application_id: 'org.siro.Companion', flags: Gio.ApplicationFlags.FLAGS_NONE});
 let window, web, center, centerView, pendingSnapshot = false, timer = 0, ready = false, lastChat = false;
 let samples = 0, lastRegion = 0, scale = 1, layoutTimer = 0, controlsHeight = 132;
+let pendingStart = null; // start position still to apply once the first layout has run
 let walk = null; // the walk in progress: the window travels while the renderer plays the steps
 const state = {protocol: 1, toolkit: 'GTK3/WebKitGTK4.1', backend: GLib.getenv('GDK_BACKEND') || 'default', sandbox: false, ready: false, alpha: false, input_regions: 0};
 const hostFile = Gio.File.new_for_uri(import.meta.url);
@@ -148,6 +149,9 @@ function applyLayout() {
         Math.max(area.y, Math.min(roleBottom - layout.petHeight, area.y + area.height - layout.height)));
     state.layout = layout; state.scale = layout.scale; state.chat_open = lastChat;
     evaluate(`window.siroDesktopView?.setLayout(${JSON.stringify(layout)})`);
+    if (pendingStart) { // the first layout clamps into whichever screen she mapped on; then go where asked
+        const [px, py] = pendingStart; pendingStart = null; window.move(px, py);
+    }
     saveState(); queueShape();
 }
 function openCenter(page) {
@@ -271,7 +275,7 @@ function activate() {
     const display = Gdk.Display.get_default(), monitor = display.get_primary_monitor() || display.get_monitor(0);
     // SIRO_DESKTOP_POSITION="x,y" starts her there; WSL defaults to 0,0 (top left of the vertical screen).
     const start = (GLib.getenv('SIRO_DESKTOP_POSITION') || (GLib.getenv('WSL_DISTRO_NAME') ? '0,0' : '')).split(',').map(Number);
-    if (start.length === 2 && start.every(Number.isFinite)) window.move(start[0], start[1]);
+    if (start.length === 2 && start.every(Number.isFinite)) { window.move(start[0], start[1]); pendingStart = start; }
     else if (monitor) { const area = monitor.get_workarea(); window.move(area.x + area.width - 390, area.y + area.height - 670); }
     window.get_screen().connect('monitors-changed', () => {
         if (!window) return;
