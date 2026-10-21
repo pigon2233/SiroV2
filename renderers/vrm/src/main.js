@@ -680,8 +680,8 @@ function loop(now) {
   if (document.hidden) return;
   // SIRO desktop frame budget: retain normal web timing. Not while strolling: the host moves the
   // window every 16 ms, and drawing her at 24 fps against it makes the planted foot saw back and forth.
-  // Standing idle with nobody talking, 12 fps is enough for breathing, blinks and glances.
-  if (desktop && !stroll && now - lastDesktopFrame < 1000 / (resting() ? 12 : 24)) return;
+  // Standing idle with nobody talking, 20 fps is enough for breathing, blinks and glances.
+  if (desktop && !stroll && now - lastDesktopFrame < 1000 / (resting() ? 20 : 30)) return;
   lastDesktopFrame = now;
   const delta = Math.min(clock.getDelta(), 0.1);
   elapsed += delta;

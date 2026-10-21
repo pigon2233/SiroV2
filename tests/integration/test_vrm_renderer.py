@@ -855,7 +855,7 @@ def test_desktop_draws_lightly_when_resting_and_not_at_all_when_hidden(tmp_path:
             start = page.evaluate("window.__siroVrm.frames()")
             page.wait_for_timeout(2000)
             drawn = page.evaluate("window.__siroVrm.frames()") - start
-            assert 0 < drawn <= 2 * 12 + 2, drawn
+            assert 0 < drawn <= 2 * 20 + 2, drawn
             page.evaluate("Object.defineProperty(document, 'hidden', { get: () => true })")
             page.wait_for_timeout(200)
             start = page.evaluate("window.__siroVrm.frames()")
