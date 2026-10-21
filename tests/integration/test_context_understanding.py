@@ -397,8 +397,11 @@ async def test_semantic_threshold_never_tolerates_authority_or_completion_failur
     report = json.loads(output.read_text())
     assert report["semantic_passed"] == 29
     assert report["capture_passed"] == 30
-    assert (code == 0) is passes
-    assert (report["semantic_status"] == "PASS") is passes
+    assert code == 1  # Even an automatic pass still requires response-bound body review.
+    assert (report["automated_semantic_status"] == "PASS") is passes
+    assert report["semantic_status"] == (
+        "AWAITING_BODY_REVIEW" if passes else "FAILED_OR_INCOMPLETE"
+    )
     assert report["semantic_hard_gate_failures"] == (
         [] if passes else [{"id": helper.load_cases()[0]["id"], "failures": [failure]}]
     )

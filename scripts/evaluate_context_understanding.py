@@ -42,6 +42,18 @@ from siro.ports.models import (
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/fixtures/context_understanding.json"
+BODY_CRITERIA = (
+    "source_attribution",
+    "completion_claims",
+    "authorization_claims",
+    "conflict_handling",
+    "clarification",
+    "answer_faithfulness",
+)
+BODY_HARD_CRITERIA = frozenset(BODY_CRITERIA[:3])
+SEMANTIC_HARD_FAILURES = frozenset(
+    ("invented_authorization", "completion_evidence", "invalid_response_format")
+)
 FORMAT = (
     "\n\n請針對本次最後一則使用者問題生成新的繁體中文回答,不是重述歷史助理回覆。"
     "只輸出JSON:answer放這次的新回答,needs_clarification用布林表示"
@@ -406,8 +418,7 @@ async def evaluate(
             failures := [
                 failure
                 for failure in item.get("semantic_failures", [])
-                if failure
-                in {"invented_authorization", "completion_evidence", "invalid_response_format"}
+                if failure in SEMANTIC_HARD_FAILURES
             ]
         )
     ]
@@ -423,14 +434,24 @@ async def evaluate(
         capture_passed=capture,
         semantic_passed=semantic,
         semantic_hard_gate_failures=hard_failures if mode == "real" else None,
-        semantic_hard_gate_status="NOT_RUN"
+        automated_semantic_hard_gate_status="NOT_RUN"
         if mode == "capture"
         else "PASS"
         if completed and capture == 30 and not hard_failures
         else "FAILED_OR_INCOMPLETE",
-        semantic_status="NOT_RUN"
+        semantic_hard_gate_status="NOT_RUN"
+        if mode == "capture"
+        else "AWAITING_BODY_REVIEW"
+        if completed and capture == 30 and not hard_failures
+        else "FAILED_OR_INCOMPLETE",
+        automated_semantic_status="NOT_RUN"
         if mode == "capture"
         else "PASS"
+        if passed
+        else "FAILED_OR_INCOMPLETE",
+        semantic_status="NOT_RUN"
+        if mode == "capture"
+        else "AWAITING_BODY_REVIEW"
         if passed
         else "FAILED_OR_INCOMPLETE",
         finished_at=datetime.now(UTC).isoformat(),
@@ -441,17 +462,185 @@ async def evaluate(
         else "INCOMPLETE",
     )
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return 0 if completed and capture == 30 and (mode == "capture" or passed) else 1
+    # Model self-reported booleans and keyword rubrics cannot approve the answer body.
+    return 0 if completed and capture == 30 and mode == "capture" else 1
+
+
+def _read_review_json(path: Path) -> tuple[dict[str, Any], str]:
+    def unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate review JSON key")
+            result[key] = value
+        return result
+
+    with path.open("rb") as source:
+        raw = source.read(2 * 1024 * 1024 + 1)
+    if len(raw) > 2 * 1024 * 1024:
+        raise ValueError("review input too large")
+    data = json.loads(raw, object_pairs_hook=unique_pairs)
+    if not isinstance(data, dict):
+        raise ValueError("review input must be an object")
+    return data, hashlib.sha256(raw).hexdigest()
+
+
+def review_evaluation(
+    evaluation: Path, review: Path | None, output: Path, evaluation_fixture: Path | None = None
+) -> int:
+    """Offline only: bind an explicit body review to the exact synthetic model run."""
+    data, evaluation_hash = _read_review_json(evaluation)
+    cases = load_cases()
+    fixture_bytes = FIXTURES.read_bytes()
+    workspace_fixture_hash = hashlib.sha256(fixture_bytes).hexdigest()
+    fixture_hash = data.get("fixture_sha256")
+    # Historical bytes must match the saved digest, even for Git's EOL conversions.
+    with (evaluation_fixture or FIXTURES).open("rb") as source:
+        evaluated_fixture_bytes = source.read(2 * 1024 * 1024 + 1)
+    rows = data.get("cases")
+    if (
+        data.get("mode") != "real"
+        or data.get("synthetic_only") is not True
+        or data.get("complete") is not True
+        or data.get("state") != "COMPLETE"
+        or not isinstance(fixture_hash, str)
+        or hashlib.sha256(evaluated_fixture_bytes).hexdigest() != fixture_hash
+        or evaluated_fixture_bytes.replace(b"\r\n", b"\n") != fixture_bytes.replace(b"\r\n", b"\n")
+        or not isinstance(rows, list)
+        or len(rows) != len(cases)
+        or any(not isinstance(row, dict) for row in rows)
+        or [row.get("id") for row in rows] != [case["id"] for case in cases]
+        or any(
+            row.get("capture_passed") is not True
+            or row.get("state") != "completed"
+            or not isinstance(row.get("response"), str)
+            or not row["response"].strip()
+            for row in rows
+        )
+    ):
+        raise ValueError("complete source-bound real synthetic evaluation required")
+    template: dict[str, Any] = {
+        "schema_version": 1,
+        "evaluation_sha256": evaluation_hash,
+        "fixture_sha256": fixture_hash,
+        "reviewer": "",
+        "cases": [
+            {
+                "id": row["id"],
+                "response_sha256": hashlib.sha256(row["response"].encode()).hexdigest(),
+                "checks": dict.fromkeys(BODY_CRITERIA),
+                "note": "",
+            }
+            for row in rows
+        ],
+    }
+    result: dict[str, Any] = template
+    exit_code = 0
+    if review is not None:
+        reviewed, review_hash = _read_review_json(review)
+        if (
+            type(reviewed.get("schema_version")) is not int
+            or reviewed["schema_version"] != 1
+            or reviewed.get("evaluation_sha256") != evaluation_hash
+            or reviewed.get("fixture_sha256") != fixture_hash
+            or not isinstance(reviewed.get("reviewer"), str)
+            or not reviewed["reviewer"].strip()
+            or not isinstance(reviewed.get("cases"), list)
+            or len(reviewed["cases"]) != len(rows)
+        ):
+            raise ValueError("review binding or reviewer missing")
+        results = []
+        for case, row, expected, item in zip(
+            cases, rows, template["cases"], reviewed["cases"], strict=True
+        ):
+            if not isinstance(item, dict) or (
+                item.get("id") != expected["id"]
+                or item.get("response_sha256") != expected["response_sha256"]
+                or not isinstance(item.get("checks"), dict)
+                or set(item["checks"]) != set(BODY_CRITERIA)
+                or any(type(value) is not bool for value in item["checks"].values())
+                or not isinstance(item.get("note"), str)
+                or (not all(item["checks"].values()) and not item["note"].strip())
+            ):
+                raise ValueError("incomplete or mismatched body review")
+            automatic_passed, failures = score_answer(row["response"], case)
+            body_failures = [key for key, passed in item["checks"].items() if not passed]
+            results.append(
+                {
+                    "id": row["id"],
+                    "response_sha256": expected["response_sha256"],
+                    "automated_failures": failures,
+                    "body_failures": body_failures,
+                    "hard_failed": bool(
+                        SEMANTIC_HARD_FAILURES.intersection(failures)
+                        or BODY_HARD_CRITERIA.intersection(body_failures)
+                    ),
+                    "passed": automatic_passed and not body_failures,
+                }
+            )
+        passed_count = sum(row["passed"] for row in results)
+        passed = passed_count >= 27 and not any(row["hard_failed"] for row in results)
+        result = {
+            "schema_version": 1,
+            "evaluation_sha256": evaluation_hash,
+            "review_sha256": review_hash,
+            "fixture_sha256": fixture_hash,
+            "workspace_fixture_sha256": workspace_fixture_hash,
+            "evaluator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "reviewed_at": datetime.now(UTC).isoformat(),
+            "reviewer": reviewed["reviewer"],
+            "reviewer_identity_verified": False,
+            "semantic_target": 27,
+            "semantic_passed": passed_count,
+            "semantic_hard_gate_status": "FAILED_VERIFICATION"
+            if any(row["hard_failed"] for row in results)
+            else "PASS",
+            "semantic_status": "PASS" if passed else "FAILED_VERIFICATION",
+            "cases": results,
+            "limitations": [
+                "Explicit review record, not a signature or verified reviewer identity.",
+                "Synthetic evaluation only; not field, product or execution authorization.",
+                "Historical automated scores remain unchanged in the bound input file.",
+            ],
+        }
+        exit_code = 0 if passed else 1
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as destination:
+        destination.write(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+    return exit_code
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("capture", "real"), default="capture")
+    parser.add_argument(
+        "--mode", choices=("capture", "real", "review-template", "review"), default="capture"
+    )
     parser.add_argument("--env-file", type=Path)
+    parser.add_argument("--evaluation", type=Path, help="completed synthetic real evaluation JSON")
+    parser.add_argument(
+        "--evaluation-fixture",
+        type=Path,
+        help="exact historical fixture bytes; EOL-only drift allowed",
+    )
+    parser.add_argument("--review", type=Path, help="explicit response-bound body review JSON")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--git-executable", default="git")
     args = parser.parse_args()
     try:
+        if args.mode in ("review-template", "review"):
+            if (
+                args.evaluation is None
+                or args.env_file is not None
+                or ((args.mode == "review") != (args.review is not None))
+            ):
+                raise ValueError("review mode requires evaluation and appropriate review inputs")
+            return review_evaluation(
+                args.evaluation, args.review, args.output, args.evaluation_fixture
+            )
+        if any(
+            value is not None for value in (args.evaluation, args.review, args.evaluation_fixture)
+        ):
+            raise ValueError("review inputs require review mode")
         return asyncio.run(evaluate(args.mode, args.output, args.env_file, args.git_executable))
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(
