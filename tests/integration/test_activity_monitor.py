@@ -405,11 +405,11 @@ async def test_new_feed_table_keeps_the_previous_schema_readable(tmp_path: Path)
     store = SQLiteStore(tmp_path / "siro.db")
     await store.initialize()
     migrations = load_migrations()
-    assert migrations[-1].name == "activity_events"
+    assert (migrations[14].version, migrations[14].name) == (15, "activity_events")
 
     def previous_release(c: Any) -> int:
         # An older build applies only the migrations it knows and ignores the newer table.
-        apply_migrations(c, migrations[:-1])
+        apply_migrations(c, migrations[:14])
         c.execute(
             "INSERT INTO tool_proposals VALUES "
             "('p','s','c','computer.execute','{}','h','high','pending',NULL,NULL,'t','t')"

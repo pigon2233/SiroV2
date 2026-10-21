@@ -1,3 +1,4 @@
+import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -275,7 +276,18 @@ async def test_status_wiring_before_new_run_start_and_egress_gates(
     assert request.max_output_tokens == 512
     if expected:
         assert prior_id in request.messages[0].content
-        assert '"tool_dispatch_recorded":true' in request.messages[0].content
+        observations = (
+            request.messages[0]
+            .content.split("Verified preferences:\n", 1)[1]
+            .split("\nAffect policy:", 1)[0]
+        )
+        records = [json.loads(line) for line in observations.splitlines()]
+        [status] = [r for r in records if r["value"].startswith("Own runtime status: ")]
+        assert status["type"] == "runtime_observation" and status["authority"] == "data_only"
+        recorded, _ = json.JSONDecoder().raw_decode(
+            status["value"].removeprefix("Own runtime status: ")
+        )
+        assert recorded["tool_dispatch_recorded"] is True
         assert [(m.role, m.content) for m in request.messages[1:]] == [
             ("user", "剛才是你自己的錯誤嗎?")
         ]
