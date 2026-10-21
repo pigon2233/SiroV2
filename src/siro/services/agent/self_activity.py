@@ -35,6 +35,7 @@ SYSTEM_PROMPT = (
     "只能用 browser.navigate+read 讀網頁，不能填表、登入、下載或操作頁面。"  # noqa: RUF001
     "讀完後用繁體中文寫簡短筆記：每個重點後面標出來源網址；推測要寫明是推測；"  # noqa: RUF001
     "還沒查清楚的列為待查。不要編造沒讀到的來源。"
+    "不知道網址或網站打不開時，用 https://zh.wikipedia.org/w/index.php?search=關鍵字 查。"  # noqa: RUF001
 )
 
 

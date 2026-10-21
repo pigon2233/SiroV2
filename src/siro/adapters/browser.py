@@ -41,6 +41,59 @@ class BrowserScopeViolation(ScopeViolation):
         super().__init__(f"browser request blocked: {reason.value}")
 
 
+class BrowserNavigationReason(StrEnum):
+    HOST_NOT_FOUND = "host_not_found"
+    CONNECTION_FAILED = "connection_failed"
+    TIMEOUT = "timeout"
+    TLS_ERROR = "tls_error"
+
+
+class BrowserNavigationError(RuntimeError):
+    """The site could not be reached; the reason tells the model what to try next."""
+
+    def __init__(self, reason: BrowserNavigationReason) -> None:
+        self.reason = reason
+        super().__init__(f"navigation failed: {reason.value}")
+
+
+_NAVIGATION_CODES = (
+    (BrowserNavigationReason.HOST_NOT_FOUND, ("ERR_NAME_NOT_RESOLVED", "NS_ERROR_UNKNOWN_HOST")),
+    (
+        BrowserNavigationReason.CONNECTION_FAILED,
+        (
+            "ERR_CONNECTION_REFUSED",
+            "ERR_CONNECTION_RESET",
+            "ERR_CONNECTION_CLOSED",
+            "ERR_CONNECTION_FAILED",
+            "ERR_ADDRESS_UNREACHABLE",
+            "ERR_INTERNET_DISCONNECTED",
+            "NS_ERROR_CONNECTION_REFUSED",
+        ),
+    ),
+    (BrowserNavigationReason.TIMEOUT, ("ERR_TIMED_OUT", "Timeout")),
+    (BrowserNavigationReason.TLS_ERROR, ("ERR_CERT_", "ERR_SSL_")),
+)
+
+
+def navigation_reason(message: str) -> BrowserNavigationReason | None:
+    for reason, codes in _NAVIGATION_CODES:
+        if any(code in message for code in codes):
+            return reason
+    return None
+
+
+async def _resolves(url: str) -> bool:
+    host = urlsplit(url).hostname
+    if not host:
+        return False
+    try:
+        async with asyncio.timeout(3):
+            await asyncio.get_running_loop().getaddrinfo(host, None)
+    except (OSError, TimeoutError):
+        return False
+    return True
+
+
 @dataclass(frozen=True, slots=True)
 class BrowserObservation:
     url: str
@@ -126,8 +179,14 @@ class ScopedBrowserDriver:
         self._blocked_resources = False
         try:
             await page.goto(url, wait_until="domcontentloaded")
-        except Error:
+        except Error as error:
             await self._raise_blocked_main()
+            reason = navigation_reason(str(error))
+            if reason is BrowserNavigationReason.CONNECTION_FAILED and not await _resolves(url):
+                # Chromium can report a missing domain as a plain connection failure.
+                reason = BrowserNavigationReason.HOST_NOT_FOUND
+            if reason is not None:
+                raise BrowserNavigationError(reason) from error
             raise
         return await self.observe()
 

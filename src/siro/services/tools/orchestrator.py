@@ -14,7 +14,12 @@ from typing import cast
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from siro.adapters.browser import BrowserScopeReason, BrowserScopeViolation
+from siro.adapters.browser import (
+    BrowserNavigationError,
+    BrowserNavigationReason,
+    BrowserScopeReason,
+    BrowserScopeViolation,
+)
 from siro.core.authorization import argument_hash
 from siro.persistence.activity_events import record_event
 from siro.persistence.sqlite import SQLiteStore
@@ -33,7 +38,11 @@ ToolExecutor = Callable[[dict[str, object]], Awaitable[object]]
 DEFAULT_MODEL_TOOLS = (
     ToolDefinition(
         "browser.navigate+read",
-        "Open an HTTP or HTTPS URL and return its title and visible text.",
+        "Open an HTTP or HTTPS URL and return its title and visible text. If a site "
+        "cannot be reached, reason host_not_found means the address may be outdated (for "
+        "example Taiwan's weather bureau moved from cwb.gov.tw to www.cwa.gov.tw): try another "
+        "site, or look the topic up with https://zh.wikipedia.org/w/index.php?search=WORDS. "
+        "One failed site never means you cannot read web pages.",
         {
             "type": "object",
             "properties": {"url": {"type": "string", "format": "uri"}},
@@ -332,9 +341,13 @@ class ToolProposal:
         if self.error is None:
             return self.observation
         failure = {"error": self.error}
-        if self.error == "ScopeViolation" and isinstance(self.observation, dict):
+        known = {
+            "ScopeViolation": {item.value for item in BrowserScopeReason},
+            "NavigationFailed": {item.value for item in BrowserNavigationReason},
+        }.get(self.error)
+        if known is not None and isinstance(self.observation, dict):
             reason = self.observation.get("reason")
-            if isinstance(reason, str) and reason in {item.value for item in BrowserScopeReason}:
+            if isinstance(reason, str) and reason in known:
                 failure["reason"] = reason
         return failure
 
@@ -815,12 +828,16 @@ class ToolOrchestrator:
             error_name = (
                 "ScopeViolation"
                 if isinstance(error, BrowserScopeViolation)
+                else "NavigationFailed"
+                if isinstance(error, BrowserNavigationError)
                 else type(error).__name__
             )
             failure = {"error": error_name}
             if isinstance(error, BrowserScopeViolation) and isinstance(
                 error.reason, BrowserScopeReason
             ):
+                failure["reason"] = error.reason.value
+            if isinstance(error, BrowserNavigationError):
                 failure["reason"] = error.reason.value
             if (
                 context is not None
@@ -833,7 +850,9 @@ class ToolOrchestrator:
                 ProposalState.RUNNING,
                 ProposalState.FAILED,
                 error=error_name,
-                observation=failure if isinstance(error, BrowserScopeViolation) else None,
+                observation=failure
+                if isinstance(error, BrowserScopeViolation | BrowserNavigationError)
+                else None,
             )
         if (
             context is not None

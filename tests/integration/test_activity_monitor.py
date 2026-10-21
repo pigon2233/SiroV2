@@ -290,7 +290,14 @@ async def test_real_browser_http_outcomes_are_recorded_honestly(
     # An HTTP 500 page still loads in the browser; the adapter has no status, so none is invented.
     assert broken["network"]["requests"][0]["status"] == "unknown"
     assert broken["state"] == "completed"
-    assert offline["state"] == "failed" and offline["error"] != "ExecutionCleanupError"
+    assert offline["state"] == "failed" and offline["error"] == "NavigationFailed"
+    # The model is told why, so it can try another site instead of giving up on the web.
+    observed = await store.run_transaction(
+        lambda c: c.execute(
+            "SELECT observation_json FROM run_journal_calls WHERE call_id='x'"
+        ).fetchone()[0]
+    )
+    assert json.loads(observed) == {"error": "NavigationFailed", "reason": "connection_failed"}
     from datetime import datetime
 
     took = datetime.fromisoformat(offline["updated_at"]) - datetime.fromisoformat(
@@ -654,3 +661,20 @@ def test_gateway_stop_route_maps_outcomes() -> None:
             "/v1/activities/a/stop", headers={"authorization": f"Bearer {token}"}
         )
         assert response.status_code == 503
+
+
+def test_navigation_errors_map_to_reasons_the_model_can_act_on() -> None:
+    from siro.adapters.browser import navigation_reason
+
+    assert navigation_reason("net::ERR_NAME_NOT_RESOLVED at https://www.cwb.gov.tw/") == (
+        "host_not_found"
+    )
+    assert navigation_reason("net::ERR_CONNECTION_REFUSED at http://127.0.0.1:9/") == (
+        "connection_failed"
+    )
+    assert navigation_reason("net::ERR_CONNECTION_FAILED at https://a.test/") == (
+        "connection_failed"
+    )
+    assert navigation_reason("Timeout 30000ms exceeded.") == "timeout"
+    assert navigation_reason("net::ERR_CERT_DATE_INVALID") == "tls_error"
+    assert navigation_reason("Target page, context or browser has been closed") is None
