@@ -1,3 +1,11 @@
+# Companion CP-P03：活動監測頁、停止與桌寵氣泡 — 2026-10-21，PARTIAL
+
+依 V05 規格實作，三個本機 commit（未 push）：`02707ce` 新增 `POST /v1/activities/{id}/stop`，停正在跑的 run（取消工具、語音、動畫並關瀏覽器分頁）或擋下待確認的單獨提案；已結束 409、找不到 404、這個程序沒有 owner 的 run 409 not_owned。run id 本身就是 generation，所以不另帶 revision。`1364847` 主畫面新增「活動」頁（`#/activity`）：快照＋每 3 秒 cursor 增量，只在頁面打開且已連線時讀；gap 重讀快照；斷線保留舊資料並停用停止；401／紀錄不可用只顯示橫幅；沒用工具的已完成回覆只計數不列出。`d47ecb3` 桌寵頭上一行氣泡，讀同一份紀錄；只有 journal 有 running 工具才寫「正在…」，聊天開、說話中、打字中不出；「看看」用 `desktop.console` 的 `page: "activity"` 打開控制台活動頁。
+
+命令與結果：`test_activity_monitor.py` 14 PASS（新 3）；前端＋桌寵＋活動相關 441 PASS（新增活動頁 reflow／導航與 2 個氣泡測試）；Ruff check／format PASS；mypy 只剩 gateway 既有的 create_task 型別錯誤。合成資料截圖：桌面、320 px、200% 縮放皆無橫向捲動。2026-10-21 owner 重開服務後，以 curl 確認線上停止 API 回 `not_found`、`index.html` 與 `desktop.js` 已是新版；真資料與氣泡位置尚待 owner 看過。
+
+限制：「暫停 SIRO 自己找事做」「停止所有背景工作」沒做，目前沒有背景 producer，等 P04；夜間／專心模式只顯示重要氣泡等 P05；停止一件事時 body cancel 是 `active`，同時有兩個前景 session 時也會停到另一個的動畫語音；氣泡固定在角色區頂端 8px，可能蓋到頭。下一步：owner 試用確認後，CP-P04。
+
 # Companion CP-00：Claude runtime 接收 — 2026-10-18
 
 接收 Codex `design/companion-cp00-20261018`@`feda8bc` 的視覺基線與資產交接 v0，見[接收紀錄](companion-workflow/CP-00-CLAUDE-RECEIPT.md)。source 對映核對：audio owner 與 finish_journal 位置更正；**ProactivityRules 只有測試中的 RoomAutomation 在用，companion 主動性沒有 production caller**。提供 V01 用的 Haru 實檔路徑、digest、expression／motion 清單；目前 renderer 是 repair v2，gesture／stopSiroMotion 沒有 caller，嘴型沒有音訊驅動，第一次 cancel 後會固定閉嘴（source 推論）。更正：下方 T10 修正已在 `2f68d50` 提交並推送，計畫文件已由 `ddeabdd` 進 main。
