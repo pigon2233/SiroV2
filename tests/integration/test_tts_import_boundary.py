@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
@@ -32,15 +34,22 @@ def probe(tmp_path: Path, code: str) -> dict[str, Any]:
     return output
 
 
-def test_busy_gateway_rejects_before_optional_kokoro_import(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "blocked_modules",
+    [("kokoro_onnx", "onnxruntime"), ("numpy",), ("soundfile",), ("misaki", "jieba")],
+)
+def test_busy_gateway_rejects_before_optional_kokoro_import(
+    tmp_path: Path, blocked_modules: tuple[str, ...]
+) -> None:
     result = probe(
         tmp_path,
         """import importlib.abc, json, sys
 from siro.adapters import data_ownership as ownership
 imports, owners = [], []
+blocked_modules = BLOCKED_MODULES
 class ForbidSDK(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path, target=None):
-        if fullname in {'kokoro_onnx', 'onnxruntime'}:
+        if any(fullname == name or fullname.startswith(name + '.') for name in blocked_modules):
             imports.append(fullname)
             raise ImportError('controlled optional SDK failure')
         return None
@@ -55,7 +64,7 @@ try:
 except (ImportError, SystemExit) as error:
     print(json.dumps({'type':type(error).__name__, 'message':str(error),
                       'imports':imports, 'owners':owners}))
-""",
+""".replace("BLOCKED_MODULES", repr(blocked_modules)),
     )
     assert result == {
         "type": "SystemExit",
@@ -65,7 +74,7 @@ except (ImportError, SystemExit) as error:
     }
 
 
-STUB_SDK = """import asyncio, importlib.abc, importlib.util, json, sys, threading
+STUB_SDK = """import asyncio, importlib.abc, importlib.util, json, sys, threading, types
 events = []
 main_thread = threading.get_ident()
 block_create = False
@@ -86,6 +95,17 @@ class StubKokoro:
                 raise TimeoutError('controlled render was not released')
         finished.set()
         return np.array([0.25, -0.25], dtype=np.float32), 24000
+class StubG2P:
+    def __init__(self, *, version):
+        events.append(['g2p', version])
+    def __call__(self, text):
+        return 'synthetic-phonemes', None
+class StubG2PLoader(importlib.abc.Loader):
+    def create_module(self, spec):
+        return None
+    def exec_module(self, module):
+        events.append(['g2p_import', threading.get_ident()])
+        module.zh = types.SimpleNamespace(ZHG2P=StubG2P)
 class StubLoader(importlib.abc.Loader):
     def create_module(self, spec):
         return None
@@ -96,17 +116,13 @@ class StubFinder(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path, target=None):
         if fullname == 'kokoro_onnx':
             return importlib.util.spec_from_loader(fullname, StubLoader())
+        if fullname == 'misaki':
+            return importlib.util.spec_from_loader(fullname, StubG2PLoader())
         if fullname == 'onnxruntime':
             raise AssertionError('real inference SDK must never load in this synthetic test')
         return None
 sys.meta_path.insert(0, StubFinder())
 from siro.services.audio import tts
-class StubG2P:
-    def __init__(self, *, version):
-        events.append(['g2p', version])
-    def __call__(self, text):
-        return 'synthetic-phonemes', None
-tts.zh.ZHG2P = StubG2P
 speaker = tts.KokoroLocalTTS('synthetic-model', 'synthetic-voices', {'synthetic-voice':1.0})
 """
 
@@ -118,7 +134,9 @@ def test_pure_audio_helpers_and_construction_do_not_import_sdk(tmp_path: Path) -
         + """plan = tts.plan_speech('hello')
 print(json.dumps({'events':events, 'segments':plan['segments'],
                   'model_loaded':speaker._model is not None,
-                  'onnx_loaded':'onnxruntime' in sys.modules}))
+                  'onnx_loaded':'onnxruntime' in sys.modules,
+                  'optional_loaded':[name for name in ('numpy','soundfile','misaki','jieba')
+                                     if name in sys.modules]}))
 """,
     )
     assert result == {
@@ -126,6 +144,7 @@ print(json.dumps({'events':events, 'segments':plan['segments'],
         "segments": ["hello。"],
         "model_loaded": False,
         "onnx_loaded": False,
+        "optional_loaded": [],
     }
 
 
@@ -150,6 +169,8 @@ print(json.dumps({'events':events, 'headers':headers, 'main_thread':main_thread,
     constructors = [event for event in result["events"] if event[0] == "construct"]
     calls = [event for event in result["events"] if event[0] == "create"]
     assert len(imports) == len(constructors) == 1
+    g2p_imports = [event for event in result["events"] if event[0] == "g2p_import"]
+    assert len(g2p_imports) == 1 and g2p_imports[0][1] != result["main_thread"]
     assert constructors[0][2:] == ["synthetic-model", "synthetic-voices"]
     assert [event for event in result["events"] if event[0] == "g2p"] == [["g2p", "1.0"]]
     assert len(calls) == 2

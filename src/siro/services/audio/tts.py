@@ -17,11 +17,9 @@ from uuid import uuid4
 
 import edge_tts
 import httpx
-import numpy as np
-import soundfile as sf  # type: ignore[import-untyped]
-from misaki import zh  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
+    import numpy as np
     from kokoro_onnx import Kokoro
 
 _BOUNDARY = re.compile(r"(?<=[.!?。！？])\s*")  # noqa: RUF001
@@ -222,7 +220,9 @@ class KokoroLocalTTS:
 
     def _render_sync(self, text: str, rate: float, energy: float) -> bytes:
         if self._model is None:
+            import numpy as np
             from kokoro_onnx import Kokoro
+            from misaki import zh  # type: ignore[import-untyped]
 
             self._model = Kokoro(self._model_path, self._voices_path)
             self._g2p = zh.ZHG2P(version="1.0")
@@ -244,6 +244,8 @@ class KokoroLocalTTS:
         )
         samples *= max(0.25, min(1.0, 0.5 + energy * 0.5))
         output = io.BytesIO()
+        import soundfile as sf  # type: ignore[import-untyped]
+
         sf.write(output, samples, sample_rate, format="WAV", subtype="PCM_16")
         return output.getvalue()
 
