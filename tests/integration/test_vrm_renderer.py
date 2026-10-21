@@ -847,15 +847,15 @@ def test_desktop_draws_lightly_when_resting_and_not_at_all_when_hidden(tmp_path:
         browser, page = open_renderer(playwright, gateway, "?presentation=desktop")
         try:
             ready_renderer(page, gateway)
-            # Drawn at twice the screen's pixels, the downscale smooths her edges: no multisampling.
+            # The desktop window is drawn lightly: little oversampling, with multisampling instead.
             graphics = page.evaluate("window.__siroVrm.graphics()")
-            assert graphics["pixelRatio"] >= 2 and graphics["antialias"] is False
+            assert 1 <= graphics["pixelRatio"] < 2 and graphics["antialias"] is True
             assert graphics["renderer"]
             page.wait_for_function("window.__siroVrm.resting()", timeout=15000)
             start = page.evaluate("window.__siroVrm.frames()")
             page.wait_for_timeout(2000)
             drawn = page.evaluate("window.__siroVrm.frames()") - start
-            assert 0 < drawn <= 2 * 20 + 2, drawn
+            assert 0 < drawn <= 2 * 12 + 2, drawn
             page.evaluate("Object.defineProperty(document, 'hidden', { get: () => true })")
             page.wait_for_timeout(200)
             start = page.evaluate("window.__siroVrm.frames()")

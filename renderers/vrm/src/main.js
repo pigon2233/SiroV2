@@ -98,7 +98,9 @@ const LOOK_HOLD_SECONDS = 4;
 // Supersample at least 2x: the character is small in the stage card and blurs at 1x. Drawn at 1.5x
 // the screen's pixels or more, the downscale already smooths her edges, so multisampling on top
 // only costs time (a lot of it when WebGL runs on the CPU, as it can on the desktop).
-const pixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
+// The desktop window is drawn on the CPU under WSLg and covers far more pixels, so it takes 1.25x
+// with multisampling instead.
+const pixelRatio = desktop ? Math.max(window.devicePixelRatio || 1, 1.25) : Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
 const supersampled = pixelRatio >= 1.5 * (window.devicePixelRatio || 1);
 const renderer = new THREE.WebGLRenderer({ antialias: !supersampled, alpha: true });
 renderer.setPixelRatio(pixelRatio);
@@ -678,8 +680,8 @@ function loop(now) {
   if (document.hidden) return;
   // SIRO desktop frame budget: retain normal web timing. Not while strolling: the host moves the
   // window every 16 ms, and drawing her at 24 fps against it makes the planted foot saw back and forth.
-  // Standing idle with nobody talking, 20 fps is enough for breathing, blinks and glances.
-  if (desktop && !stroll && now - lastDesktopFrame < 1000 / (resting() ? 20 : 24)) return;
+  // Standing idle with nobody talking, 12 fps is enough for breathing, blinks and glances.
+  if (desktop && !stroll && now - lastDesktopFrame < 1000 / (resting() ? 12 : 24)) return;
   lastDesktopFrame = now;
   const delta = Math.min(clock.getDelta(), 0.1);
   elapsed += delta;
