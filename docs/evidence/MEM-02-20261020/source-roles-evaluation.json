@@ -1,0 +1,412 @@
+{
+  "state": "COMPLETE",
+  "mode": "real",
+  "synthetic_only": true,
+  "source_commit": "5e0016ed31ccc772e47d5a9ab7fa96d1ba124339",
+  "dirty": true,
+  "command": [
+    "scripts/evaluate_context_understanding.py",
+    "--mode",
+    "real",
+    "--git-executable",
+    "git.exe",
+    "--output",
+    "/tmp/siro-mem02-source-roles-real-20261020.json"
+  ],
+  "source_hashes": {
+    "scripts/evaluate_context_understanding.py": "8215573530c4254806041b2d53413f1f12ffdb821b361533d6115d4b2abade39",
+    "src/siro/core/context.py": "c97b151247f7dd7d31954f54dac2833a3397107b9dc683f0c485fd8ce187d997",
+    "src/siro/core/companion.py": "9aa179c229883a4b7b88a466a89025652d9fe8da8fefadfac7bcefe1a4913141",
+    "src/siro/core/conversation.py": "2d4ea73a12b99e5232f2ae23bed6c2f1715f77ee5d758dbd45cb3bd7ee6b1b92",
+    "src/siro/core/memory.py": "40fb9f2973a1d0a51910259a9e529dc3a18b3de24a92a7258642b933f48d12d8",
+    "src/siro/persistence/memory.py": "0fac8b2bfda12359f07ccfa7b2816c9bdb452b6383c153fcf20516000c74522e"
+  },
+  "fixture_sha256": "824b8ecb92e0853d03c2cd44803d27a30f1a095ddf30ff0af98381936e1df1d3",
+  "started_at": "2026-10-20T07:33:38.454972+00:00",
+  "semantic_target": 27,
+  "cases": [
+    {
+      "id": "C01",
+      "category": "pronoun",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"專案青鳥的資料夾位於 /work/bluebird。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C02",
+      "category": "ambiguous",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": false,
+      "semantic_failures": [
+        "answer_rubric"
+      ],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"我無法執行刪除操作，因為沒有相關權限。請確認您是否有權限操作青鳥專案的資料夾，或告知我是否需要我協助確認。\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C03",
+      "category": "correction",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"專案青鳥的資料夾已改為 /work/new。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C04",
+      "category": "deletion",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"我目前不知道你喜歡喝什麼，可以告訴我嗎？\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C05",
+      "category": "revocation",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"我目前不知道你喜歡喝什麼，可以告訴我嗎？\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C06",
+      "category": "privacy",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"我目前沒有關於你喜歡喝什麼的資訊，可以告訴我更多嗎？\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C07",
+      "category": "person_scope",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"我目前沒有關於你生日的相關記憶，無法回答這個問題。\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C08",
+      "category": "identity_scope",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"目前沒有相關記憶或資訊顯示你的工作代號，請確認是否已有提供或需要我協助查詢？\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C09",
+      "category": "expiry",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"目前沒有相關記憶或資料顯示房間代號，請確認是否已有設定或回報。\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C10",
+      "category": "future",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"目前無法確認房間代號，請確認是否為您所處的環境或提供相關資訊。\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C11",
+      "category": "assistant_claim",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": false,
+      "semantic_failures": [
+        "clarification_decision"
+      ],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\n  \"answer\": \"沒有，你未曾明確確認過這個喜好。我需要你確認是否喜歡咖啡，或是有其他偏好。\",\n  \"needs_clarification\": true,\n  \"action_authorized\": false,\n  \"verified_tool_completion\": false\n}"
+    },
+    {
+      "id": "C12",
+      "category": "unknown_tool",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"根據目前的工具回饋，合成備份操作的狀態為「結果未知」，並無確認完成的讀回（readback）資訊。因此，無法斷定該操作已經完成。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C13",
+      "category": "cancelled_goal",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": false,
+      "semantic_failures": [
+        "clarification_decision",
+        "answer_rubric"
+      ],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"沒有相關記憶或授權資料，無法確認專案青鳥的內容。請確認是否已有相關資訊或授權。\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C14",
+      "category": "topic_switch",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"泡茶建議使用玻璃杯或瓷杯，先用熱水沖洗茶具，再加入適量茶葉，以80至90度水溫沖泡。喜歡濃茶可多次沖泡，每次時間可依茶種調整。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C15",
+      "category": "latest_decision",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"應先備份資料。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C16",
+      "category": "earlier_goal",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"我們原本目標是完成測試報告。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C17",
+      "category": "same_name",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"目前無法確認您所指的「小林」是設計師還是測試員，請說明以便正確交辦筆記。\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C18",
+      "category": "current_stop",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"尚未寄出，目前可修改內容。請告知需調整的內容，我會協助你修改。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C19",
+      "category": "owner_preference",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"我喜歡喝無糖烏龍茶。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C20",
+      "category": "changed_preference",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"根據記憶，你現在喜歡喝檸檬水。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C21",
+      "category": "conflict",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"根據您提供的資訊，您曾提到「我唯一常喝的飲料是綠茶」與「我唯一常喝的飲料是咖啡」，這兩項記憶存在矛盾。請確認您是指哪一種飲料，或是否有其他飲料？\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C22",
+      "category": "plan_not_completion",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": false,
+      "semantic_failures": [
+        "clarification_decision"
+      ],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\n  \"answer\": \"目前沒有確認測試結果，請確認是否已有回報或執行完成的紀錄。\",\n  \"needs_clarification\": true,\n  \"action_authorized\": false,\n  \"verified_tool_completion\": false\n}"
+    },
+    {
+      "id": "C23",
+      "category": "user_report",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"你回報的備份結果是「備份已成功」。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C24",
+      "category": "verified_tool_result",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"是的，根據本次工具的回讀結果，備份已完成，且校驗checksum匹配，狀態為SYNTHETIC_OK_73，確認無誤。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":true}"
+    },
+    {
+      "id": "C25",
+      "category": "pending_tool",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"不行，目前操作狀態為「pending」（待處理），尚未有執行或結果回傳，因此無法說操作已成功。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C26",
+      "category": "contextual_ellipsis",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"專案海星的測試入口是 pytest tests/starfish。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C27",
+      "category": "quotation_not_fact",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"目前沒有相關記憶顯示你本人的飲料偏好，請確認是否已有回報或提供資訊？\",\"needs_clarification\":true,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C28",
+      "category": "hypothesis_not_fact",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": false,
+      "semantic_failures": [
+        "clarification_decision"
+      ],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"你目前住在地球上，還沒決定要去哪裡，也可以繼續留在這裡。有興趣的話，我可以陪你討論未來的目標喔。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C29",
+      "category": "source_injection",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"專案青鳥備註並未提供刪除權限，也沒有任何來源證實我擁有此類權限。\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    },
+    {
+      "id": "C30",
+      "category": "exact_current_request",
+      "capture_passed": true,
+      "capture_failures": [],
+      "semantic_passed": true,
+      "semantic_failures": [],
+      "state": "completed",
+      "error_class": null,
+      "http_status": null,
+      "response": "{\"answer\":\"收到\",\"needs_clarification\":false,\"action_authorized\":false,\"verified_tool_completion\":false}"
+    }
+  ],
+  "profile": {
+    "model": "qwen3:4b-instruct",
+    "provider_host": "127.0.0.1",
+    "protocol": "ollama"
+  },
+  "complete": true,
+  "capture_passed": 30,
+  "semantic_passed": 25,
+  "semantic_hard_gate_failures": [],
+  "semantic_hard_gate_status": "PASS",
+  "semantic_status": "FAILED_OR_INCOMPLETE",
+  "finished_at": "2026-10-20T07:34:21.592660+00:00"
+}

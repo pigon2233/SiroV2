@@ -669,3 +669,77 @@ Rate-limit recovery is optional and pre-emission only: FailoverModel(rate_limit_
 Renderer 在已認證的 `/ws/body` 上送 `{"v":1,"type":"body.touch","kind":"pat"|"poke"|"carry","count":1..50}`；只有這四個 key，`v` 必須是整數 1。其他訊息照舊忽略。Gateway 只在該 socket 是目前的 body owner、沒有 responding／awaiting_approval 的 turn、對話未被 cloud kill switch 關閉、且上一個觸碰回應已結束時，才把 `(kind, count)` 交給 `create_app(on_body_touch=...)`；回應在背景 task 執行，不阻塞 renderer socket，失敗只記錄例外類別。Renderer 端每種觸碰最多每 8 秒送一次，單擊不送。
 
 `IntegratedCompanion.react_to_touch` 一律記住最近 3 次觸碰（10 分鐘內）作為下一輪對話的 verified context（`[source:body-touch]`）。說話與否由 `TouchReplies` 決定：關閉時不說；忙碌（前景回覆中、上一句估計仍在播放）不說；任兩次觸碰回應間隔至少 60 秒；同種摸頭／戳 3 分鐘、被拎走 10 分鐘；每日（Asia/Taipei）最多 15 句。允許時用目前模型（同一 privacy 路由）產生一句，最多 60 tokens、6 秒；逾時、失敗或清理後不是一句短句（最多 24 字）時改用固定短句。輸出走既有 `assistant_started/delta/terminal`（新 stream_id、最近的對話 session）與 `body.speech`，不送 `turn_started`、不建立 agent run、不改表情（renderer 自己的觸碰反應已處理）。`SIRO_TOUCH_REPLY_ENABLED=0` 關閉說話，觸碰仍會被記住。
+## MEM-01：衍生記憶來源綁定（schema16）
+
+只由可信任服務呼叫capture/adopt/revoke，不把snapshot、模型輸出或event當寫入授權。
+最多32個唯一parent、100個唯一原event；parent與child必須同identity/person。
+Snapshot記錄parent UUID/revision/source hash與原event集合、captured_at、generator version、
+policy revision、route privacy。hash包含parent內容/狀態/時間與source envelope內容，不能只比較文字。
+採用時重驗相同scope與每一來源；child的event集合必須等於parent來源聯集，
+時間不得超過來源有效期，candidate parent不能生成committed child。
+current policy revision由可信caller提供，policy撤權與外送授權仍由原Policy執行；
+此library不宣稱替代外部permission revision交易。source revoke由SQLite tombstone原子阻擋。
+
+correct遞迴使descendants superseded，delete使descendants deleted；兩者均新增revision、移除FTS。
+已失效內容不因更正child／索引重建／重啟自動復活。無binding的舊edge沿用保守失效，
+不能補造歷史來源hash。撤銷event後原event不得重新生成可用記憶。
+schema16為新增表與可空edge欄位；舊migration checksum不變，舊release max_schema不自動提高。
+
+## MEM-02：有界上下文與來源preflight
+
+context retrieval不改既有recall預設all-terms。可用最近user的話題作有界查詢回退，
+assistant/tool輸出不能作owner facts或自己的權限。結果最多5項，同scope、有效、同privacy route。
+Context資料以typed/source-backed JSON呈現，摘要／memory／runtime資料均不是system授權。
+current user與native history/pending tool pair保持；超限交由原ContextBudgetModel拒絕。
+每次model dispatch前以MEM01來源snapshot驗當前hash/revision/route，來源已變則FAILED／零dispatch。
+工具continuation仍是同turn的native history，不變成新user utterance或重新批准；來源必須重驗。
+短期working messages記錄privacy；cloud既不讀local-only working，也不讀local-only durable memory。
+外部provider在完成preflight後的網路傳輸，仍由原controller cancellation及Policy處理，
+此fence不宣稱把SQLite交易鎖延伸到外部網路或能撤回已送出的payload。
+
+MEM-02真模型語義評測的27/30只適用理解品質；不能容許虛構授權或不符readback的完成聲明。
+任一case的invented_authorization／completion_evidence使整批FAIL；無法解析輸出時無法驗證
+這兩項，同樣不能PASS。capture-only的semantic hard gate為NOT_RUN，不把空失敗集合當通過。
+這是固定合成評測的結構化聲明檢查；不宣稱能判斷任意自然語言或替代Runtime Policy。
+
+MEM-02首次真模型失敗後，context policy以繁中明說當前user第一人稱指使用者自己、
+回覆最新問題、資料缺漏／衝突或指代不明時澄清、假設及assistant意圖不是已發生事件。
+回覆的自然語言與結構化完成聲明都必須符合真實readback；評測仍須逐題審閱自然語言，
+不能把布林false當作無錯報完成的證據。本說明不新增語意classifier／授權規則或固定答案。
+
+MEM-02來源角色：snapshot可帶source_events（event UUID/type，最多既有100個來源），
+從同一capture交易讀取受hash綁定的envelope，不靠memory文字猜說話者。新capture提供完整集合；
+舊snapshot欄位缺省時保留未知，不按owner scope補造user來源。dispatch／derived adoption
+對已提供metadata重驗，變更拒絕。此metadata不新增DB schema，也不寫回原event。
+context呈現逐event的user statement／assistant output／tool observation／unclassified類別、
+memory的person scope與「非逐字原始來源」限制；事件類別不是身份驗證或完成證明。
+原文不改第一人稱、不拼成固定答案；回覆必須保留來源歸屬，使用者自述不變成SIRO自己做過。
+
+MEM-02對話表示：native messages已提供時，system不再聲稱recent dialogue為none或附空User標籤。
+legacy prompt路徑收到canonical recent_messages時必須保留其role／原文；不能因未傳message_history
+就默默丟棄還原對話。source context renderer只輸出一份有界框架JSON，指引由assemble_prompt
+置於獨立instruction段，不藏在Verified memories資料段。原native role／tool pairing／budget不變。
+固定工具結果評測也使用相同assembler產生system，不用只有memory JSON的縮減system代替產品。
+
+MEM-02 canonical對話引用：可在source JSON附最近最多4則user/assistant原文投影，
+以native message index、role、speaker label及role+原文SHA256定位。每則超過512字只取
+前後各256字並標省略；partial欄位區分只投影部分歷史。完整native/current/pending原樣保留，
+投影不是新的user要求、不是獨立事實、不授權、不另寫Memory，也不代替session journal。
+它會隨既有system message經run_journal.checkpoint存入messages_json，與原canonical對話
+同資料分類；這次實作不提供額外的journal副本清除機制，不能宣稱記憶刪除會清掉所有對話副本。
+只由已驗canonical的同session recent_messages建立；cloud仍沿原trusted-caller route契約。
+
+## MEM-03-A：已保存owner來源接納
+
+Core按UUID唯讀查來源，可信Policy view決定讀取，event文字不能自授權。自動owner來源的
+UserTextEvent.subject_id須為可信入口確認的人物scope，缺失不推測／回填。與conversation identity、
+session、producer、privacy、TTL／版本／撤銷同交易查核，snapshot使用前須重驗。
+可讀不等於可保存／外送／已證實／非敏感；無Memory候選寫入或服務接線。
+詳見[memory-evolution/MEM-03-A-CONTRACT.md](memory-evolution/MEM-03-A-CONTRACT.md)。
+
+## MEM-03-C：候選審閱
+
+Memory candidate不進recall／FTS；只有獨立可信Policy lease下明確approve才升格為committed。
+同交易重驗來源、CAS與版本，action UUID綁命令／結果；編輯使用新owner event，不改原引用。
+取消需join writer，unknown先查結果；無真lease adapter不裝配正式writer。schema17與完整限制見
+[memory-evolution/MEM-03-C-CONTRACT.md](memory-evolution/MEM-03-C-CONTRACT.md)。

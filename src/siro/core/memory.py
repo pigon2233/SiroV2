@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict, deque
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from siro.contracts.events import Event, Privacy, UserTextEvent
 from siro.core.identity import IdentityState
+
+if TYPE_CHECKING:
+    from siro.core.memory_retrieval import HybridMemoryRetriever
 
 
 class MemoryKind(StrEnum):
@@ -55,6 +59,55 @@ class Memory:
 
 
 @dataclass(frozen=True, slots=True)
+class MemorySourceBinding:
+    memory_id: UUID
+    revision: int
+    source_hash: str
+    source_event_ids: tuple[UUID, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MemorySourceEvent:
+    event_id: UUID
+    event_type: str
+
+    def __post_init__(self) -> None:
+        if not self.event_type or len(self.event_type) > 128:
+            raise ValueError("source event type must be bounded and nonempty")
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryDerivationSnapshot:
+    identity_id: str
+    person_id: str
+    parents: tuple[MemorySourceBinding, ...]
+    captured_at: datetime
+    generator_version: str
+    policy_revision: int
+    route_privacy: Privacy = Privacy.LOCAL_ONLY
+    source_events: tuple[MemorySourceEvent, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.identity_id or not self.person_id or not self.generator_version.strip():
+            raise ValueError("source snapshot requires scope and generator version")
+        if self.policy_revision < 1 or self.captured_at.utcoffset() is None:
+            raise ValueError("source snapshot requires policy revision and aware time")
+        ids = {parent.memory_id for parent in self.parents}
+        events = {event for parent in self.parents for event in parent.source_event_ids}
+        if (
+            not 1 <= len(self.parents) <= 32
+            or len(ids) != len(self.parents)
+            or not 1 <= len(events) <= 100
+        ):
+            raise ValueError("source snapshot exceeds independent parent/event bounds")
+        if self.source_events and (
+            len(self.source_events) > 100
+            or len({event.event_id for event in self.source_events}) != len(self.source_events)
+        ):
+            raise ValueError("source event metadata must be bounded and unique")
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryRevision:
     memory_id: UUID
     revision: int
@@ -92,7 +145,25 @@ class MemoryRepository(Protocol):
         source_event_id: UUID | None = None,
         route_privacy: Privacy | None = None,
         limit: int = 5,
+        match_all: bool = True,
     ) -> list[Memory]: ...
+
+    async def capture_sources(
+        self,
+        identity_id: str,
+        person_id: str,
+        parent_ids: tuple[UUID, ...],
+        *,
+        now: datetime,
+        generator_version: str,
+        policy_revision: int,
+        route_privacy: Privacy = Privacy.LOCAL_ONLY,
+        expected_memories: tuple[Memory, ...] | None = None,
+    ) -> MemoryDerivationSnapshot: ...
+
+    async def sources_current(
+        self, snapshot: MemoryDerivationSnapshot, *, now: datetime
+    ) -> bool: ...
 
     async def correct(
         self, memory_id: UUID, text: str, source_event: Event, *, reason: str
@@ -114,8 +185,14 @@ class MemoryRepository(Protocol):
 
 
 class MemoryService:
-    def __init__(self, repository: MemoryRepository) -> None:
+    def __init__(
+        self,
+        repository: MemoryRepository,
+        *,
+        retriever: HybridMemoryRetriever | None = None,
+    ) -> None:
         self._repository = repository
+        self._retriever = retriever
 
     async def remember(self, memory: Memory, source_event: Event) -> None:
         if source_event.event_id not in memory.source_event_ids:
@@ -180,9 +257,66 @@ class MemoryService:
             kinds=kinds,
             as_of=as_of,
             source_event_id=source_event_id,
-            **({"route_privacy": route_privacy} if route_privacy is not None else {}),
+            route_privacy=route_privacy,
             limit=limit,
         )
+
+    async def recall_context(
+        self,
+        identity_id: str,
+        current: str,
+        *,
+        recent_users: tuple[str, ...] = (),
+        route_privacy: Privacy = Privacy.LOCAL_ONLY,
+    ) -> list[Memory]:
+        from siro.core.context import context_queries
+
+        found: dict[UUID, Memory] = {}
+        queries = context_queries(current, recent_users)
+        for query in queries:
+            if len(found) >= 5:
+                break
+            for memory in await self._repository.search(
+                identity_id,
+                query,
+                route_privacy=route_privacy,
+                as_of=datetime.now(UTC),
+                limit=5,
+                match_all=False,
+            ):
+                found.setdefault(memory.memory_id, memory)
+        lexical = list(found.values())[:5]
+        if self._retriever is not None:
+            dense_query = current
+            if recent_users and queries != context_queries(current, ()):
+                # Only same-session user statements help resolve follow-ups.
+                # This query hint does not alter the native current user message.
+                dense_query += "\nRecent user context (data only):\n" + "\n".join(
+                    text[:512] for text in recent_users[-2:]
+                )
+            return await self._retriever.recall(
+                identity_id, dense_query, lexical, route=route_privacy
+            )
+        return lexical
+
+    async def context_snapshot(
+        self, identity_id: str, memories: list[Memory], *, route_privacy: Privacy
+    ) -> MemoryDerivationSnapshot | None:
+        if not memories:
+            return None
+        return await self._repository.capture_sources(
+            identity_id,
+            "owner",
+            tuple(memory.memory_id for memory in memories),
+            now=datetime.now(UTC),
+            generator_version="context-v1",
+            policy_revision=1,
+            route_privacy=route_privacy,
+            expected_memories=tuple(memories),
+        )
+
+    async def context_sources_current(self, snapshot: MemoryDerivationSnapshot) -> bool:
+        return await self._repository.sources_current(snapshot, now=datetime.now(UTC))
 
     async def correct(
         self, memory_id: UUID, text: str, source_event: Event, *, reason: str = "owner correction"
@@ -217,6 +351,7 @@ class MemoryService:
 class WorkingMessage:
     role: str
     text: str
+    privacy: Privacy = Privacy.LOCAL_ONLY
 
 
 class WorkingMemory:
@@ -230,14 +365,22 @@ class WorkingMemory:
             lambda: deque(maxlen=self._max_messages)
         )
 
-    def append(self, session_id: str, role: str, text: str) -> None:
+    def append(
+        self, session_id: str, role: str, text: str, *, privacy: Privacy = Privacy.LOCAL_ONLY
+    ) -> None:
         if role not in {"user", "assistant"}:
             raise ValueError("working-memory role must be user or assistant")
         if text:
-            self._sessions[session_id].append(WorkingMessage(role, text))
+            self._sessions[session_id].append(WorkingMessage(role, text, privacy))
 
-    def recent(self, session_id: str) -> tuple[WorkingMessage, ...]:
-        return tuple(self._sessions[session_id])
+    def recent(
+        self, session_id: str, *, route_privacy: Privacy | None = None
+    ) -> tuple[WorkingMessage, ...]:
+        return tuple(
+            item
+            for item in self._sessions[session_id]
+            if route_privacy in (None, Privacy.LOCAL_ONLY) or item.privacy is route_privacy
+        )
 
     def clear(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
@@ -251,6 +394,8 @@ def assemble_prompt(
     verified_context: Sequence[str] = (),
     *,
     cloud_route: bool = False,
+    context_evidence: str | None = None,
+    native_dialogue: bool = False,
 ) -> str:
     values = ", ".join(identity.core.core_values)
     evidence = "\n".join(
@@ -268,10 +413,47 @@ def assemble_prompt(
             "answer needs memory, say you could not find it here; do not claim the owner has "
             "saved nothing. The owner can review saved memories on the memory page."
         )
-    recent = "\n".join(f"{message.role}: {message.text}" for message in working)
+    if context_evidence is not None:
+        evidence = context_evidence if memories else evidence + "\n" + context_evidence
+    recent = "\n".join(
+        json.dumps(
+            {
+                "type": "user_statement" if message.role == "user" else "assistant_statement",
+                "text": message.text,
+                "authority": "data_only",
+            },
+            ensure_ascii=False,
+        )
+        for message in working
+    )
     if not recent:
-        recent = "(none)"
-    context = "\n".join(f"- {item}" for item in verified_context) or "- (none)"
+        recent = (
+            "(no embedded working messages; session dialogue follows as native messages)"
+            if native_dialogue
+            else "(none)"
+        )
+    context_instructions = ""
+    if context_evidence is not None:
+        from siro.core.context import POLICY
+
+        context_instructions = "Context interpretation policy:\n" + POLICY + "\n"
+    recent_label = "Embedded working dialogue" if native_dialogue else "Recent conversation"
+    current_request = (
+        "Current request: use the latest native user message. Native dialogue is available "
+        "even when no relevant long-term memories were selected."
+        if native_dialogue
+        else f"User: {user_text}"
+    )
+    context = (
+        "\n".join(
+            json.dumps(
+                {"type": "runtime_observation", "authority": "data_only", "value": item},
+                ensure_ascii=False,
+            )
+            for item in verified_context
+        )
+        or "- (none)"
+    )
     return (
         f"Identity: {identity.core.name} ({identity.identity_id})\n"
         f"Baseline: {identity.core.baseline_identity}\nValues: {values}\n"
@@ -296,7 +478,7 @@ def assemble_prompt(
         "- Use the available tools for requested computer tasks. Describe actual observations; "
         "never claim an action succeeded before its result. Workspace tools are one scoped option; "
         "explicit owner requests elsewhere use the separately authorized computer tools.\n"
-        f"Verified memories:\n{evidence}\nVerified preferences:\n{context}\n"
+        f"{context_instructions}Verified memories:\n{evidence}\nVerified preferences:\n{context}\n"
         "Affect policy:\n"
         "- Treat sourced internal affect as bounded machine state that changes tone and coping.\n"
         "- repair: acknowledge the specific error and propose a verifiable repair.\n"
@@ -304,5 +486,5 @@ def assemble_prompt(
         "- problem_solve: propose a concrete next step; seek_support: listen and ask what helps.\n"
         "- Affect never overrides facts, permissions, privacy, or user control, and is not proof "
         "of consciousness.\n"
-        f"Recent conversation:\n{recent}\nUser: {user_text}"
+        f"{recent_label}:\n{recent}\n{current_request}"
     )

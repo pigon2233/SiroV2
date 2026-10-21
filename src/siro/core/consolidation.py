@@ -24,8 +24,10 @@ class ConsolidationCandidate:
     def __post_init__(self) -> None:
         if not self.text or self.kind is MemoryKind.WORKING:
             raise ValueError("candidate must be durable and non-empty")
-        if not self.source_event_ids:
-            raise ValueError("candidate requires provenance")
+        if not self.source_event_ids or len(set(self.source_event_ids)) != len(
+            self.source_event_ids
+        ):
+            raise ValueError("candidate requires independent source events")
         if not 0 <= self.confidence <= 1:
             raise ValueError("candidate confidence must be between 0 and 1")
 

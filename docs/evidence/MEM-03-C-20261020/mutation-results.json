@@ -1,0 +1,34 @@
+{
+  "runtime_only": true,
+  "results": [
+    {
+      "mutation": "bypass_atomic_source_binding",
+      "pytest_returncode": 1,
+      "counts": {
+        "tests": 2,
+        "failures": 2,
+        "errors": 0,
+        "skipped": 0
+      },
+      "targets": [
+        "test_transaction_rechecks_sources_after_core_preflight[source_hash]",
+        "test_transaction_rechecks_sources_after_core_preflight[identity]"
+      ],
+      "plugin": "def pytest_configure(config):\n from siro.persistence.memory_review import SQLiteMemoryReviewRepository as R\n old=R._preview\n cache={}\n def cached(self,c,row,now):\n  key=row['memory_id']\n  if key not in cache:\n   value=old(self,c,row,now)\n   if value is not None: cache[key]=value\n  return cache.get(key)\n R._preview=cached\n R._check_source=staticmethod(lambda *args: None)\n"
+    },
+    {
+      "mutation": "abandon_worker_on_cancellation",
+      "pytest_returncode": 1,
+      "counts": {
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0
+      },
+      "targets": [
+        "test_cancel_joins_sqlite_before_releasing_policy_lease"
+      ],
+      "plugin": "def pytest_configure(config):\n from siro.core.memory_review import MemoryReviewService as S, ReviewOperation as O\n old=S.execute\n async def unsafe(self,command):\n  if command.operation is not O.APPROVE:\n   return await old(self,command)\n  async with self._policy.lease(command.scope,command.operation) as permit:\n   preview=await self._repository.draft(command.candidate_id,command.scope,permit)\n   checked=await self._generator.revalidate(preview.draft)\n   return await self._repository.apply(command,permit,checked.draft)\n S.execute=unsafe\n"
+    }
+  ]
+}
