@@ -1,8 +1,13 @@
 # 上下文理解、自動記憶與主動記憶：後續實作計畫
 
-2026-10-20 Asia/Taipei。MEM-01本機儲存契約已LOCAL_VERIFIED（見下方），MEM-02接線與確定性gate已驗、最新真模型25/30及正文歸屬未達標（PARTIAL）；MEM-03-A唯讀來源層LOCAL_VERIFIED／NOT_WIRED，主MEM-03–06仍PLANNED。依T18/T30驗證制定，
+2026-10-21 Asia/Taipei 更新。MEM-01本機儲存契約已LOCAL_VERIFIED；MEM-02最新真模型25/30與正文歸屬仍未達標（PARTIAL）。MEM-03-A/B/C來源接納、規則草稿與持久候選審閱底層已本機驗證，真Auth／Policy／Gateway／UI未接；MEM-04／04B可選向量與相關性篩選已本機驗證、正式聊天未接。主MEM-03–06產品交付仍未完成。依T18/T30驗證制定，
 保留既有T／RT歷史編號和限定DONE；下列MEM-*是此計畫的工作包，不是重開舊卡。
 產品接線依現有Gateway／UI owner交接序列整合，不在同一checkout雙寫。
+
+**後續入口：[RT／Hermes 接續與驗收](RT-HERMES-INTEGRATION.md)**。本輪已把少量常用記憶＋
+按需歷史搜尋、版本化快取與即時撤銷、保存／技能審核、技能逐層載入及有界背景整理納入。
+沿用RT-008/010/011/014/015與RI-002/004，不重做已完成底座、不新增第二scheduler／MemoryStore。
+此入口細化下列工作包與執行順序，未將PLANNED能力或舊測試數改列產品DONE。
 
 ## 目標與既有能力
 
@@ -81,6 +86,11 @@ canonical引用續作：最近4則同session對話帶role/index/hash／省略標
 
 ## MEM-03：自動記憶候選（先候選，後可設定保存）
 
+2026-10-21 狀態補記：後續B規則草稿與C持久候選／原子審閱已完成本機限定驗證，
+見[B證據](../evidence/MEM-03-B-20261020/REPORT.md)、[C證據](../evidence/MEM-03-C-20261020/REPORT.md)。
+下方A為原子任務歷史；主MEM-03的真Auth／owner／Policy、審閱UI、自動保存與資料清除未完成。
+後續應接現有C，不重建候選store；完整接線與驗收沿RT／Hermes接續文件。
+
 **MEM-03-A獨立子任務：已記錄來源的接納邊界（LOCAL_VERIFIED／NOT_WIRED）**。依「需要拆分則記錄子任務」
 拆出候選生成前的來源查核：按既有persisted event ID讀取server-recorded來源，核對事件類型、
 identity/person/session、privacy、撤銷／版本與可信caller的policy revision；模型／tool／外部內容
@@ -113,6 +123,11 @@ local_only不因選了雲端聊天就自動外送，也不另開無上限背景c
 先離線合成評測，再由owner opt-in試用，不用本機fixture成績宣稱真人記憶可靠。
 
 ## MEM-04：主動提取與適度詢問
+
+2026-10-21 狀態補記：MEM04B optional filter已驗31/32對照、19/20開發來源召回與14/14缺來源題，
+仍有漏記；698項相關回歸通過屬元件證據，不是正式聊天或回答品質驗收。
+見[報告](../verification/MEM04B-relevance/REPORT.md)。使用既有SQLite索引，沒有第二向量DB。
+下列原產品門檻保留；新分層載入／跨對話查找／成本評測詳RT／Hermes接續文件。
 
 **依賴**：MEM-01/02；對話內提取沿用T17 recall，先加語境與時間線查詢，不立即換向量DB。
 最多選現有top-5有來源記憶，重複/衝突/過期別混成定論；使用者問「你怎麼知道」可定位來源。
@@ -156,6 +171,10 @@ UI可看脫敏步驟、來源、可支持範圍、測試與拒絕原因；審閱
 巢狀secret不保存、同workflow重跑不報錯且不覆寫首份、重啟readback，未批准零enable。
 
 ## 執行順序與完成規則
+
+2026-10-21：優先按[接續文件](RT-HERMES-INTEGRATION.md)核對既有成果、序列整合與細分驗收；
+以下保留原依賴順序，不表示MEM-01或已完成的RT需重做。資料政策、保存／技能審核、
+背景控制、跨session歷史權限與正式啟用gate皆不可因參考Hermes而降低。
 
 先MEM-01→MEM-02→MEM-03候選→MEM-04對話內提取；
 取得owner交接後MEM-05與MEM-06按檔案範圍序列整合。主動打擾與自動升格最後才opt-in。
