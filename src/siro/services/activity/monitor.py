@@ -14,6 +14,7 @@ from typing import cast
 from urllib.parse import urlsplit
 
 from siro.persistence.sqlite import SQLiteStore
+from siro.services.agent.self_activity import SELF_SESSION
 
 MAX_PAGE = 100
 DEFAULT_SNAPSHOT = 50
@@ -256,7 +257,8 @@ def _run_view(c: sqlite3.Connection, run: sqlite3.Row) -> dict[str, object]:
     return {
         "activity_id": run["run_id"],
         "kind": "agent_run",
-        "origin": "owner_request",
+        # SIRO's own runs use one reserved session; everything else was asked for by the owner.
+        "origin": "self_interest" if run["session_id"] == SELF_SESSION else "owner_request",
         "session_id": run["session_id"],
         "reason": goal[:MAX_REASON],
         "reason_truncated": len(goal) > MAX_REASON,

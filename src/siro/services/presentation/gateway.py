@@ -34,8 +34,11 @@ from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayl
 from siro.core.memory import Memory, MemoryService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
 from siro.ports.models import ToolCall
+from siro.services.activity.monitor import ActivityMonitor
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.organization import MemoryOrganizer
+from siro.services.agent.runs import SQLiteAgentRunRepository
+from siro.services.agent.self_activity import SelfActivityOwner
 from siro.services.audio.protocol import (
     AudioFrame,
     AudioMetadata,
@@ -386,6 +389,11 @@ class CancelInput(BaseModel):
     reason: str = Field(default="user", min_length=1, max_length=512)
 
 
+class SelfActivityPauseInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    paused: bool
+
+
 class KillSwitchInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     enabled: bool
@@ -597,6 +605,7 @@ def create_app(
     on_activity_snapshot: Callable[[int], Awaitable[dict[str, object]]] | None = None,
     on_activity_changes: Callable[[int, int], Awaitable[dict[str, object]]] | None = None,
     on_activity_stop: Callable[[str], Awaitable[dict[str, object]]] | None = None,
+    self_activity: SelfActivityOwner | None = None,
     on_improvement_proposal: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     feature_status: Callable[[], dict[str, object]] | None = None,
     memory_organizer: MemoryOrganizer | None = None,
@@ -1235,6 +1244,8 @@ def create_app(
         gateway_state.active_turns[session_id] = {"turn_id": turn_id, "state": "responding"}
         if goal_owner is not None:
             await goal_owner.foreground()
+        if self_activity is not None:
+            await self_activity.foreground()
         await gateway_hub.broadcast(
             {"type": "turn_started", "session_id": session_id, "turn_id": turn_id}
         )
@@ -1321,6 +1332,8 @@ def create_app(
             if on_activity_snapshot is not None
             else {"status": "unavailable"}
         )
+        if self_activity is not None and result.get("status") == "ok":
+            result = {**result, "self_activity": {"paused": self_activity.paused}}
         return JSONResponse(result, headers={"Cache-Control": "no-store"})
 
     @app.get("/v1/activities/changes")
@@ -1355,6 +1368,27 @@ def create_app(
             status_code=code.get(str(result["status"]), 200),
             headers={"Cache-Control": "no-store"},
         )
+
+    @app.post("/v1/activities/stop-background")
+    async def stop_background(authorization: str | None = Header(default=None)) -> Response:
+        require_token(authorization)
+        if self_activity is None:
+            raise HTTPException(status_code=503, detail="self activity is unavailable")
+        # Background scope only: the owner's foreground turns are left running.
+        stopped = await self_activity.stop("owner stopped background work")
+        return JSONResponse({"stopped": stopped}, headers={"Cache-Control": "no-store"})
+
+    @app.put("/v1/self-activity")
+    async def pause_self_activity(
+        body: SelfActivityPauseInput, authorization: str | None = Header(default=None)
+    ) -> Response:
+        require_token(authorization)
+        if self_activity is None:
+            raise HTTPException(status_code=503, detail="self activity is unavailable")
+        await self_activity.set_paused(body.paused)
+        message = {"type": "self_activity", "paused": self_activity.paused}
+        await gateway_hub.broadcast(message, urgent=True)
+        return JSONResponse(message, headers={"Cache-Control": "no-store"})
 
     @app.get("/v1/agent-runs/{session_id}")
     async def agent_run_readback(
@@ -1416,6 +1450,8 @@ def create_app(
     ) -> dict[str, str]:
         require_token(authorization)
         await on_cancel(turn_id, body.reason)
+        if self_activity is not None:
+            await self_activity.stop("owner stop")
         await gateway_hub.broadcast(
             {"type": "turn_cancelled", "turn_id": turn_id, "reason": body.reason},
             urgent=True,
@@ -1432,6 +1468,8 @@ def create_app(
         if name not in gateway_state.kill_switches:
             raise HTTPException(status_code=404, detail="unknown kill switch")
         gateway_state.kill_switches[name] = body.enabled
+        if name == "tools" and not body.enabled and self_activity is not None:
+            await self_activity.stop("tools_disabled")
         if name == "tools" and not body.enabled:
             try:
                 if goal_owner is not None:
@@ -2363,6 +2401,18 @@ def _run_gateway(
         auto_authorize=lambda: state.authorization_mode == "full" and state.kill_switches["tools"],
     )
 
+    self_owner = (
+        SelfActivityOwner(
+            SQLiteAgentRunRepository(shared_store),
+            tool_orchestrator,
+            model,
+            allowed=lambda: state.kill_switches["tools"],
+            close_browser=browser_sessions.close_session if browser_sessions is not None else None,
+        )
+        if runtime_profile == "candidate"
+        else None
+    )
+
     task_setting = os.environ.get("SIRO_GOAL_TASKS_ENABLED", "1")
     if task_setting not in {"0", "1"}:
         raise ValueError("SIRO_GOAL_TASKS_ENABLED must be 0 or 1")
@@ -2403,6 +2453,8 @@ def _run_gateway(
             await browser_sessions.start()
 
     async def stop_controller() -> None:
+        if self_owner is not None:
+            await self_owner.close()
         try:
             if organizer is not None:
                 await organizer.close()
@@ -2450,6 +2502,11 @@ def _run_gateway(
             await browser_sessions.clear()
 
     async def stop_activity(activity_id: str) -> dict[str, object]:
+        if self_owner is not None and await self_owner.stop(
+            "owner stopped this activity", run_id=activity_id
+        ):
+            view = await ActivityMonitor(shared_store).get(activity_id)
+            return {"status": "cancelling", "state": None if view is None else view["state"]}
         result = await controller.stop_activity(activity_id, "owner stopped this activity")
         session_id = result.pop("session_id", None)
         if isinstance(session_id, str) and browser_sessions is not None:
@@ -2495,6 +2552,7 @@ def _run_gateway(
             on_activity_snapshot=controller.activity_snapshot,
             on_activity_changes=controller.activity_changes,
             on_activity_stop=stop_activity,
+            self_activity=self_owner,
             on_improvement_proposal=controller.improvement_proposal,
             on_turn=controller.respond,
             memory_organizer=organizer,

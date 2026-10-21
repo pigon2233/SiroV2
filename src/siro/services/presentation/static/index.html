@@ -476,7 +476,7 @@
         navigation_failed: "打不開網頁（連不上或被拒絕）", agent_step_limit: "步驟太多，先停下來了",
         outcome_unknown: "中途被打斷，有些操作的結果不知道", ExecutionCancelled: "執行中被停止", interrupted_restart: "SIRO 重新啟動時中斷",
       });
-      const activityView = {items: new Map(), cursor: null, fetchedAt: null, status: "idle", gap: false, truncated: false, stopping: new Set(), epoch: 0, timer: undefined};
+      const activityView = {items: new Map(), cursor: null, fetchedAt: null, status: "idle", gap: false, truncated: false, stopping: new Set(), epoch: 0, timer: undefined, selfActivity: null, backgroundBusy: false};
       // Other views (the desktop bubble) watch the same reads; polling runs while anyone looks.
       const activityWatchers = new Set();
       const activityWanted = () => activePage === "activity" || activityWatchers.size > 0;
@@ -486,6 +486,7 @@
       }
       window.siroWatchActivity = watchActivity;
       window.siroSpeechBusy = () => Boolean(ttsController || ttsAudio);
+      window.siroStopActivity = id => stopActivity(id);
       const activityEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
       function activityClock(iso, seconds = false) {
         const date = new Date(iso);
@@ -568,8 +569,8 @@
         const current = items.filter(item => ACTIVITY_LIVE.has(item.state)), ended = items.filter(item => !ACTIVITY_LIVE.has(item.state));
         // A finished reply that used no tool is just conversation; the chat already shows it.
         const past = ended.filter(item => item.tools.length || item.state !== "completed"), chats = ended.length - past.length;
-        body.innerHTML = `<section class="content-section" aria-labelledby="activity-now-heading"><h2 id="activity-now-heading">現在</h2>
-          ${current.length ? current.map(activityCard).join("") : `<div class="act-empty"><strong>現在沒有在做事</strong><p>你在對話裡交代的事開始後，會出現在這裡。</p></div>`}</section>
+        body.innerHTML = `<section class="content-section" aria-labelledby="activity-now-heading"><div class="act-head"><h2 id="activity-now-heading">現在</h2>${activityBackgroundControls(current)}</div>
+          ${current.length ? current.map(activityCard).join("") : `<div class="act-empty"><strong>現在沒有在做事</strong><p>你在對話裡交代的事、或 SIRO 自己想查資料時，會出現在這裡。</p></div>`}</section>
           <section class="content-section" aria-labelledby="activity-history-heading"><h2 id="activity-history-heading">稍早</h2>
           ${past.length ? `<ol class="act-timeline" aria-label="已結束的活動，新的在上面">${past.map(activityTimelineItem).join("")}</ol>` : `<div class="act-empty"><strong>還沒有紀錄</strong><p>完成、停止或失敗的事情會留在這裡。</p></div>`}
           ${chats ? `<p class="section-note">另有 ${chats} 則只是聊天、沒有用到工具的回覆，沒有列在這裡。</p>` : ""}</section>`;
@@ -595,7 +596,7 @@
           activityView.items = new Map(data.activities.map(item => [item.activity_id, item]));
           if (announce) for (const item of activityView.items.values()) activityAnnounce(previous.get(item.activity_id), item);
           for (const id of activityView.stopping) if (!ACTIVITY_LIVE.has(activityView.items.get(id)?.state)) activityView.stopping.delete(id);
-          Object.assign(activityView, {cursor: data.cursor, truncated: Boolean(data.truncated), fetchedAt: new Date().toISOString(), status: "ok"});
+          Object.assign(activityView, {cursor: data.cursor, truncated: Boolean(data.truncated), fetchedAt: new Date().toISOString(), status: "ok", selfActivity: data.self_activity || null});
         } catch { if (epoch === activityView.epoch) activityView.status = "offline"; }
         finally { if (epoch === activityView.epoch) { renderActivity(); scheduleActivity(epoch); } }
       }
@@ -644,9 +645,31 @@
         }
         if (epoch === activityView.epoch) refreshActivity(epoch);
       }
+      // Background controls exist only when SIRO can do her own work; they never touch the owner's turns.
+      function activityBackgroundControls(current) {
+        const own = activityView.selfActivity;
+        if (!own) return "";
+        const offline = activityView.status !== "ok", busy = activityView.backgroundBusy;
+        const background = current.some(item => item.origin !== "owner_request");
+        return `<div class="quick-actions"><button type="button" data-activity-pause aria-pressed="${own.paused}"${offline || busy ? " disabled" : ""}>${own.paused ? "讓 SIRO 再自己找事做" : "暫停 SIRO 自己找事做"}</button>`
+          + `<button type="button" class="act-stop" data-activity-stop-background${offline || busy || !background ? " disabled" : ""}>停止所有背景工作</button></div>`;
+      }
+      async function activityBackgroundAction(url, options, failure) {
+        if (activityView.status !== "ok" || activityView.backgroundBusy) return;
+        activityView.backgroundBusy = true; renderActivity();
+        const epoch = activityView.epoch;
+        try {
+          const response = await authorizedFetch(url, options);
+          if (!response.ok) throw new Error(failure);
+        } catch { document.querySelector("#activity-announce").textContent = failure; }
+        activityView.backgroundBusy = false;
+        if (epoch === activityView.epoch) refreshActivity(epoch); else renderActivity();
+      }
       document.querySelector("#activity-body").addEventListener("click", event => {
         const stop = event.target.closest?.("[data-activity-stop]");
-        if (stop) stopActivity(stop.dataset.activityStop);
+        if (event.target.closest?.("[data-activity-pause]")) activityBackgroundAction("/v1/self-activity", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({paused: !activityView.selfActivity?.paused})}, "切換沒有送出，請再按一次。");
+        else if (event.target.closest?.("[data-activity-stop-background]")) activityBackgroundAction("/v1/activities/stop-background", {method: "POST"}, "停止背景工作沒有送出，請再按一次。");
+        else if (stop) stopActivity(stop.dataset.activityStop);
         else if (event.target.closest?.("[data-activity-chat]")) navigateToPage("chat");
       });
       function notifyComputerActivity() {

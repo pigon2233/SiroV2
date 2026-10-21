@@ -530,7 +530,7 @@ const tool=(capability,state,target={})=>({capability,state,target});
 const act=(id,state,tools,reason='查今晚的星雲')=>({activity_id:id,state,reason,tools,
   updated_at:'2026-10-21T00:00:0'+id.length+'Z'});
 const view=(items,status='ok')=>({status,items:new Map(items.map(item=>[item.activity_id,item])),stopping:new Set()});
-"""
+"""  # noqa: E501
 
 
 def test_bubble_only_says_working_when_the_journal_has_a_running_tool() -> None:
@@ -555,7 +555,7 @@ speechBusy=false; feed(view([act('b','running',[tool('computer.execute','running
 assert.equal(label(),'正在執行：查今晚的星雲');
 feed(view([],'offline'));
 assert.equal(label(),'斷線了，狀態可能過時');
-""",
+""",  # noqa: E501, RUF001
         before=BUBBLE_FEED,
     )
 
@@ -575,6 +575,22 @@ assert.equal(bubble.hidden,false);
 bubble.children[2].click();
 assert.equal(conversation.inert,false);
 dispatch('pagehide',{}); assert.equal(feed,null);
-""",
+""",  # noqa: E501, RUF001
+        before=BUBBLE_FEED,
+    )
+
+
+def test_bubble_for_her_own_reading_offers_a_stop_for_that_activity() -> None:
+    run_desktop(
+        """
+const stops=[]; window.siroStopActivity=id=>stops.push(id);
+const bubble=document.querySelector('#desktop-bubble');
+const own=act('s1','running',[tool('browser.navigate+read','running')],'獵戶座星雲'); own.origin='self_interest';
+feed(view([own]));
+assert.equal(bubble.children[1].textContent,'自己在讀：獵戶座星雲');
+assert.equal(bubble.children[2].textContent,'停');
+bubble.children[2].click();
+assert.deepEqual(stops,['s1']);
+""",  # noqa: E501, RUF001
         before=BUBBLE_FEED,
     )

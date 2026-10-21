@@ -221,6 +221,10 @@
       const working = live.find(item => item.tools.some(tool => tool.state === "running"));
       if (working) {
         const tool = working.tools.find(item => item.state === "running");
+        if (working.origin === "self_interest") {
+          const id = working.activity_id;
+          return {icon: "●", text: `自己在讀：${subject(working)}`, action: "停", run: () => window.siroStopActivity?.(id)};
+        }
         return {icon: "●", text: `${tool.capability.startsWith("browser.") ? "正在查" : "正在執行"}：${subject(working)}`};
       }
       if (flash && Date.now() < flash.until) {
