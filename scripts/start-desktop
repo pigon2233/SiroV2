@@ -62,6 +62,9 @@ if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
     echo '注音輸入引擎缺少或無法啟動；請檢查 Ubuntu 的 ibus、ibus-chewing 與 x11-xkb-utils。' >&2
     exit 2
   fi
+  # Windows swallows the default <Super>space, so also switch engines with Ctrl+Space.
+  gsettings set org.freedesktop.ibus.general preload-engines "['xkb:us::eng', 'chewing']" >/dev/null 2>&1 || true
+  gsettings set org.freedesktop.ibus.general.hotkey triggers "['<Control>space', '<Super>space']" >/dev/null 2>&1 || true
   export GTK_IM_MODULE=ibus
   export XMODIFIERS=@im=ibus
 fi
