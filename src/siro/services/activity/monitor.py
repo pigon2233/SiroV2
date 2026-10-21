@@ -20,6 +20,7 @@ DEFAULT_SNAPSHOT = 50
 MAX_REASON = 200
 MAX_PATH = 200
 _CANCEL_ERRORS = {"ExecutionCancelled", "interrupted_restart"}
+ACTIVE_STATES = frozenset({"proposed", "queued", "running", "paused", "cancelling"})
 
 
 def redact_url(raw: object) -> dict[str, object] | None:
@@ -193,6 +194,18 @@ class ActivityMonitor:
                 "events": events,
                 "activities": touched,
             }
+
+        return await self._store.run_transaction(read)
+
+    async def get(self, activity_id: str) -> dict[str, object] | None:
+        """One activity by its id: a run id first, then a standalone proposal id."""
+
+        def read(c: sqlite3.Connection) -> dict[str, object] | None:
+            run = c.execute("SELECT * FROM agent_runs WHERE run_id=?", (activity_id,)).fetchone()
+            if run is not None:
+                return _run_view(c, run)
+            found, view = _activity_for(c, "tool", activity_id)
+            return view if found == activity_id else None
 
         return await self._store.run_transaction(read)
 

@@ -596,6 +596,7 @@ def create_app(
     on_recovery: Callable[[str], Awaitable[dict[str, object] | None]] | None = None,
     on_activity_snapshot: Callable[[int], Awaitable[dict[str, object]]] | None = None,
     on_activity_changes: Callable[[int, int], Awaitable[dict[str, object]]] | None = None,
+    on_activity_stop: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     on_improvement_proposal: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     feature_status: Callable[[], dict[str, object]] | None = None,
     memory_organizer: MemoryOrganizer | None = None,
@@ -1335,6 +1336,25 @@ def create_app(
             else {"status": "unavailable"}
         )
         return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/activities/{activity_id}/stop")
+    async def stop_activity(
+        activity_id: str, authorization: str | None = Header(default=None)
+    ) -> Response:
+        require_token(authorization)
+        if len(activity_id) > 128:
+            raise HTTPException(status_code=400, detail="invalid activity identity")
+        result = (
+            await on_activity_stop(activity_id)
+            if on_activity_stop is not None
+            else {"status": "unavailable"}
+        )
+        code = {"not_found": 404, "stale": 409, "not_owned": 409, "unavailable": 503}
+        return JSONResponse(
+            result,
+            status_code=code.get(str(result["status"]), 200),
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/v1/agent-runs/{session_id}")
     async def agent_run_readback(
@@ -2429,6 +2449,13 @@ def _run_gateway(
         if browser_sessions is not None:
             await browser_sessions.clear()
 
+    async def stop_activity(activity_id: str) -> dict[str, object]:
+        result = await controller.stop_activity(activity_id, "owner stopped this activity")
+        session_id = result.pop("session_id", None)
+        if isinstance(session_id, str) and browser_sessions is not None:
+            await browser_sessions.close_session(session_id)
+        return result
+
     log_directory = os.environ.get("SIRO_LOG_DIR")
     if log_directory:
         directory = Path(log_directory)
@@ -2467,6 +2494,7 @@ def _run_gateway(
             on_recovery=controller.recovery_readback,
             on_activity_snapshot=controller.activity_snapshot,
             on_activity_changes=controller.activity_changes,
+            on_activity_stop=stop_activity,
             on_improvement_proposal=controller.improvement_proposal,
             on_turn=controller.respond,
             memory_organizer=organizer,

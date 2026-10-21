@@ -60,7 +60,7 @@ from siro.ports.models import (
     ToolCall,
     ToolDefinition,
 )
-from siro.services.activity.monitor import ActivityMonitor
+from siro.services.activity.monitor import ACTIVE_STATES, ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
 from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
 from siro.services.presentation.gateway import GatewayHub
@@ -1231,6 +1231,35 @@ class IntegratedCompanion:
         if self._store is None:
             return {"status": "unavailable"}
         return await ActivityMonitor(self._store).changes(after=after, limit=limit)
+
+    async def stop_activity(self, activity_id: str, reason: str) -> dict[str, object]:
+        """Stop one activity; the run id is its generation, so a finished one is never reused."""
+        if self._store is None:
+            return {"status": "unavailable"}
+        monitor = ActivityMonitor(self._store)
+        view = await monitor.get(activity_id)
+        if view is None:
+            return {"status": "not_found"}
+        if view["state"] not in ACTIVE_STATES:
+            return {"status": "stale", "state": view["state"]}
+        if view["kind"] == "agent_run":
+            sessions = [s for s, run_id in self._run_ids.items() if run_id == activity_id]
+            if not sessions:
+                # Durable state says active but no live owner here: nothing safe to cancel.
+                return {"status": "not_owned", "state": view["state"]}
+            await self.cancel("active", reason, session_id=sessions[0])
+            after = await monitor.get(activity_id)
+            return {
+                "status": "cancelling",
+                "state": None if after is None else after["state"],
+                "session_id": sessions[0],
+            }
+        if self._tool_orchestrator is None or view["state"] not in {"proposed", "queued"}:
+            # A standalone approved tool runs inside its approval request; it has no fence.
+            return {"status": "not_owned", "state": view["state"]}
+        await self._tool_orchestrator.discard_unstarted(activity_id)
+        after = await monitor.get(activity_id)
+        return {"status": "cancelling", "state": None if after is None else after["state"]}
 
     async def recovery_readback(self, session_id: str) -> dict[str, object] | None:
         await self._ensure_core()

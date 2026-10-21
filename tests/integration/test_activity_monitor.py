@@ -558,3 +558,99 @@ async def test_killed_process_restarts_with_unknown_outcome_and_no_replay(tmp_pa
     assert_terminal_monotonic(events)
     await controller.respond("s1", "are you there")
     assert replays == []
+
+
+async def test_stop_one_activity_by_id_and_reject_stale_controls(tmp_path: Path) -> None:
+    entered = asyncio.Event()
+
+    async def execute(arguments: dict[str, object], context: ExecutionContext) -> object:
+        entered.set()
+        await context.cancellation.wait()
+        context.check()
+        return arguments
+
+    model = ScriptedModel([[ToolCall("c1", "computer.execute", {"argv": ["sleep", "9"]})], "never"])
+    controller, store = await companion(tmp_path, model, {"computer.execute": execute})
+    task = asyncio.create_task(controller.respond("s1", "wait for a while"))
+    await asyncio.wait_for(entered.wait(), 10)
+    [running] = activities_of(await ActivityMonitor(store).snapshot())
+    assert running["state"] == "running"
+    stopped = await asyncio.wait_for(
+        controller.stop_activity(str(running["activity_id"]), "owner stop"), 5
+    )
+    await asyncio.wait_for(task, 5)
+    assert (stopped["status"], stopped["session_id"]) == ("cancelling", "s1")
+    [after] = activities_of(await ActivityMonitor(store).snapshot())
+    assert after["state"] in {"cancelled", "unknown", "failed"}
+    # A dispatched tool may have acted: the stop never claims a clean cancellation.
+    assert [tool["state"] for tool in after["tools"]] == ["unknown"]
+    again = await controller.stop_activity(str(running["activity_id"]), "owner stop")
+    assert again == {"status": "stale", "state": after["state"]}
+    assert await controller.stop_activity("missing", "owner stop") == {"status": "not_found"}
+    # The next foreground turn is untouched by the old stop.
+    model.rounds = ["fresh reply"]
+    model.requests = 0
+    await asyncio.wait_for(controller.respond("s1", "hello again"), 5)
+    latest = activities_of(await ActivityMonitor(store).snapshot())[0]
+    assert latest["state"] == "completed"
+
+
+async def test_stop_a_pending_standalone_tool_never_runs_it(tmp_path: Path) -> None:
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    ran: list[object] = []
+
+    async def legacy(arguments: dict[str, object]) -> object:
+        ran.append(arguments)
+        return arguments
+
+    orchestrator = ToolOrchestrator(
+        SQLiteToolProposalRepository(store), {"computer.execute": legacy}
+    )
+    proposal = await orchestrator.propose(
+        "s1", ToolCall("c1", "computer.execute", {"argv": ["ls"]}), risk="low"
+    )
+    controller = IntegratedCompanion(
+        tmp_path,
+        ScriptedModel(["unused"]),
+        GatewayHub(),
+        MinimalWebBodyAdapter(WebSocketBodyTransport()),
+        privacy=Privacy.LOCAL_ONLY,
+        tool_orchestrator=orchestrator,
+        runtime_profile="candidate",
+    )
+    controller._store = store
+    result = await controller.stop_activity(proposal.proposal_id, "owner stop")
+    assert result == {"status": "cancelling", "state": "cancelled"}
+    stored = await orchestrator.get(proposal.proposal_id)
+    assert stored is not None and stored.state is ProposalState.DENIED
+    assert ran == []
+
+
+def test_gateway_stop_route_maps_outcomes() -> None:
+    origin = "http://testserver"
+    outcomes = {
+        "a": {"status": "cancelling", "state": "cancelled"},
+        "b": {"status": "stale", "state": "completed"},
+        "c": {"status": "not_found"},
+    }
+
+    async def stop(activity_id: str) -> dict[str, object]:
+        return outcomes[activity_id]
+
+    app = create_app(allowed_origins={origin}, on_activity_stop=stop)
+    with TestClient(app) as client:
+        assert client.post("/v1/activities/a/stop").status_code == 401
+        token = client.post("/v1/session", headers={"origin": origin}).json()["token"]
+        auth = {"authorization": f"Bearer {token}"}
+        ok = client.post("/v1/activities/a/stop", headers=auth)
+        assert (ok.status_code, ok.json()) == (200, outcomes["a"])
+        assert client.post("/v1/activities/b/stop", headers=auth).status_code == 409
+        assert client.post("/v1/activities/c/stop", headers=auth).status_code == 404
+        assert client.post(f"/v1/activities/{'x' * 129}/stop", headers=auth).status_code == 400
+    with TestClient(create_app(allowed_origins={origin})) as client:
+        token = client.post("/v1/session", headers={"origin": origin}).json()["token"]
+        response = client.post(
+            "/v1/activities/a/stop", headers={"authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 503
