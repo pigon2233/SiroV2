@@ -35,8 +35,10 @@ try:
 except (OSError,KeyError,ValueError):
     raise SystemExit("尚未連接正式 SIRO 與 Live2D；請使用 scripts/start-companion。") from None
 CHECK
-if [[ "${XDG_SESSION_TYPE:-}" == wayland && -z "${SIRO_DESKTOP_BACKEND:-}" ]]; then
-  # Application-only XWayland compatibility. The desktop session is never changed.
+if [[ ( "${XDG_SESSION_TYPE:-}" == wayland || ( -n "${WSL_DISTRO_NAME:-}" && -n "${WAYLAND_DISPLAY:-}" ) ) && -z "${SIRO_DESKTOP_BACKEND:-}" ]]; then
+  # Application-only XWayland compatibility (also WSLg, which leaves XDG_SESSION_TYPE unset): a
+  # native Wayland window cannot move itself, so strolls would only animate. The desktop session
+  # is never changed.
   export GDK_BACKEND=x11
   echo 'SIRO 桌寵使用 XWayland 相容模式（不更改目前 Wayland 桌面）。'
 elif [[ -n "${SIRO_DESKTOP_BACKEND:-}" ]]; then
