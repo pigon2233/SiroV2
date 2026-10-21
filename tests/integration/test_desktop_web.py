@@ -594,3 +594,21 @@ assert.deepEqual(stops,['s1']);
 """,  # noqa: E501, RUF001
         before=BUBBLE_FEED,
     )
+
+
+def test_bubble_offers_her_unshared_note_and_escape_marks_it_seen() -> None:
+    run_desktop(
+        """
+const shared=[], seen=[];
+window.siroShareNote=id=>shared.push(id); window.siroDismissNote=id=>seen.push(id);
+const bubble=document.querySelector('#desktop-bubble');
+const withNote=view([]); withNote.selfActivity={paused:false,unshared:['n1']};
+feed(withNote);
+assert.equal(bubble.children[1].textContent,'查好了，要聽嗎？');
+bubble.children[2].click();
+assert.deepEqual(shared,['n1']);
+bubble.events.get('keydown')({key:'Escape',stopPropagation(){}});
+assert.deepEqual(seen,['n1']); assert.equal(bubble.hidden,true); assert.equal(stopped,0);
+""",  # noqa: RUF001
+        before=BUBBLE_FEED,
+    )

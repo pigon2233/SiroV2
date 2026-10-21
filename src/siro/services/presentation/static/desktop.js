@@ -205,7 +205,7 @@
       if (!nativeCommand({type: "desktop.console", page: "activity"})) window.open("/?view=control#/activity", "siro-control");
     };
     const seenStates = new Map();
-    let lastView, flash, hadLive = false, dismissed = "", bubbleRun;
+    let lastView, flash, hadLive = false, dismissed = "", bubbleRun, bubbleNote;
     const subject = item => item.reason || TOOL_NAMES[item.tools?.[0]?.capability] || "工具操作";
     const toolName = tool => tool ? (tool.target?.program ? `執行 ${tool.target.program}` : TOOL_NAMES[tool.capability] || "使用工具") : "使用工具";
     const bubbleFor = view => {
@@ -227,6 +227,8 @@
         }
         return {icon: "●", text: `${tool.capability.startsWith("browser.") ? "正在查" : "正在執行"}：${subject(working)}`};
       }
+      const note = view.selfActivity?.unshared?.[0];
+      if (note) return {icon: "✓", text: "查好了，要聽嗎？", action: "聽", run: () => window.siroShareNote?.(note), note};
       if (flash && Date.now() < flash.until) {
         const {item} = flash;
         if (item.state === "completed") return {icon: "✓", text: `做好了：${subject(item)}`, action: "看看", run: openActivity};
@@ -241,7 +243,7 @@
       const show = next && next.text !== dismissed ? next : null;
       if (!next) dismissed = "";
       bubble.hidden = !show;
-      if (!show) { bubbleRun = undefined; return; }
+      if (!show) { bubbleRun = bubbleNote = undefined; return; }
       bubble.setAttribute("data-tone", show.tone || "");
       bubbleIcon.textContent = show.icon;
       bubbleLabel.textContent = show.text;
@@ -249,12 +251,19 @@
       bubbleAction.hidden = !show.action;
       bubbleAction.textContent = show.action || "";
       bubbleRun = show.run;
+      bubbleNote = show.note;
     };
     bubbleAction.addEventListener("click", () => bubbleRun?.());
     bubble.addEventListener("keydown", event => {
       if (event.key !== "Escape") return;
       // Esc here only folds the bubble; Esc elsewhere keeps its stop meaning.
       event.stopPropagation?.();
+      // A note is marked seen on the server; other lines stay folded until they change.
+      if (bubbleNote) {
+        window.siroDismissNote?.(bubbleNote);
+        bubble.hidden = true;
+        return;
+      }
       dismissed = bubbleLabel.textContent;
       renderBubble();
     });

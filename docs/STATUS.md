@@ -1,3 +1,11 @@
+# Companion CP-P04：她自己的活動、研究筆記與分享 — 2026-10-22，PARTIAL
+
+Owner 決定：可讀任何網頁；興趣清單由她自己找。本機 commit（未 push）：`473b8a6` 背景 owner：保留 session `siro.self`，一次一件、只准 `browser.navigate+read`、只用本機請求、不說話、不寫 owner facts；新 turn、全域停止、工具開關、`POST /v1/activities/stop-background` 會取消；`PUT /v1/self-activity` 暫停（目前這步做完再停）。`778851a` 她自己挑題目：線索為三天內對話、她的 committed 喜好、舊筆記「待查」；本機模型選一題或選擇等待；排程每 10 分鐘，owner 安靜 10 分鐘、距上一件 45 分鐘（失敗也算）、一天最多 6 件；理由存成 `self_topic` 步驟並顯示在活動頁。`7d07dc1` 修 owner 回報：氣象查詢開了已停用的 `www.cwb.gov.tw`，失敗只回 `Error`，模型因此說自己不能上網；改為 `NavigationFailed`＋原因（DNS 查詢區分找不到網站），工具說明提示換站與維基搜尋（DuckDuckGo 有 CAPTCHA、Bing 讀不到結果）。本次：研究筆記從完成的 self run 讀回，來源只列 journal 中確實讀成功的頁面（模型自己寫的連結不算），`GET /v1/self-notes`；氣泡「查好了，要聽嗎？」，按「聽」才把筆記與來源放進對話並說一句短話，Esc 標成已看；活動頁「看細節」顯示她的筆記與讀過的頁面。
+
+命令與結果：相關 633 PASS（活動、前端、contract、self activity／interests、桌寵）；Ruff／mypy 只剩 gateway 既有 create_task 型別錯誤；隔離 candidate 服務（8765）啟動、三個新 API 回應、正常關閉。`test_gateway_main` 因本環境沒有 `.venv/bin/siro-gateway` 無法執行。
+
+限制：qwen3:4b 挑題目、叫工具與換站的能力未在真環境驗；背景推論與前景共用 GPU；暫停狀態與「已告訴主人」清單（`self-notes-shared.json`）不在 DB，暫停重開會重置；筆記不進記憶服務；分享不寫入對話歷史，她之後不記得說過。下一步：owner 重開後閒置觀察真紀錄，再決定 P05 或調整排程參數。
+
 # Companion CP-P03：活動監測頁、停止與桌寵氣泡 — 2026-10-21，PARTIAL
 
 依 V05 規格實作，三個本機 commit（未 push）：`02707ce` 新增 `POST /v1/activities/{id}/stop`，停正在跑的 run（取消工具、語音、動畫並關瀏覽器分頁）或擋下待確認的單獨提案；已結束 409、找不到 404、這個程序沒有 owner 的 run 409 not_owned。run id 本身就是 generation，所以不另帶 revision。`1364847` 主畫面新增「活動」頁（`#/activity`）：快照＋每 3 秒 cursor 增量，只在頁面打開且已連線時讀；gap 重讀快照；斷線保留舊資料並停用停止；401／紀錄不可用只顯示橫幅；沒用工具的已完成回覆只計數不列出。`d47ecb3` 桌寵頭上一行氣泡，讀同一份紀錄；只有 journal 有 running 工具才寫「正在…」，聊天開、說話中、打字中不出；「看看」用 `desktop.console` 的 `page: "activity"` 打開控制台活動頁。

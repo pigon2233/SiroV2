@@ -254,8 +254,13 @@ def _run_view(c: sqlite3.Connection, run: sqlite3.Row) -> dict[str, object]:
     journal = c.execute(
         "SELECT status FROM run_journal WHERE run_id=?", (run["run_id"],)
     ).fetchone()
-    why = None
+    why = note = None
     if run["session_id"] == SELF_SESSION:
+        from siro.services.agent.self_notes import note_for  # notes read through this module
+
+        found = note_for(c, str(run["run_id"]))
+        if found is not None:
+            note = {key: found[key] for key in ("text", "truncated", "sources", "open_questions")}
         topic = c.execute(
             "SELECT payload_json FROM agent_steps WHERE run_id=? AND kind='self_topic'",
             (run["run_id"],),
@@ -271,6 +276,7 @@ def _run_view(c: sqlite3.Connection, run: sqlite3.Row) -> dict[str, object]:
         "reason": goal[:MAX_REASON],
         "reason_truncated": len(goal) > MAX_REASON,
         "why": why[:MAX_REASON] if isinstance(why, str) else None,
+        "note": note,
         "state": run_state(str(run["state"]), run["error"]),
         "raw_state": run["state"],
         "error": run["error"],
@@ -294,6 +300,7 @@ def _standalone_view(c: sqlite3.Connection, row: sqlite3.Row) -> dict[str, objec
         "reason": None,
         "reason_truncated": False,
         "why": None,
+        "note": None,
         "state": tool["state"],
         "raw_state": row["state"],
         "error": row["error"],

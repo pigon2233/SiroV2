@@ -177,6 +177,7 @@
       .act-tool .act-facts { margin:8px 0 0; font-size:13px; }
       .act-target { font-family:ui-monospace,Consolas,monospace; font-size:13px; overflow-wrap:anywhere; }
       .act-gaps { margin:4px 0 0; padding-left:18px; font-size:13px; color:var(--warning); }
+      .act-note { white-space:pre-wrap; overflow-wrap:anywhere; color:var(--text); } .act-sources { color:var(--muted); }
       .act-empty { text-align:center; padding:22px 12px; } .act-empty strong { display:block; font-size:18px; margin-bottom:6px; }
       .act-coverage { width:100%; border-collapse:collapse; font-size:14px; }
       .act-coverage th, .act-coverage td { text-align:left; padding:8px 6px; border-top:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; }
@@ -487,6 +488,20 @@
       window.siroWatchActivity = watchActivity;
       window.siroSpeechBusy = () => Boolean(ttsController || ttsAudio);
       window.siroStopActivity = id => stopActivity(id);
+      // Her notes are told only when the owner asks; dismissing just marks one as seen.
+      async function noteAction(id, action) {
+        if (activityView.status !== "ok") return false;
+        try {
+          const response = await authorizedFetch(`/v1/self-notes/${encodeURIComponent(id)}/${action}`, {method: "POST"});
+          if (!response.ok) return false;
+        } catch { return false; }
+        const own = activityView.selfActivity;
+        if (own?.unshared) own.unshared = own.unshared.filter(item => item !== id);
+        renderActivity();
+        return true;
+      }
+      window.siroShareNote = id => noteAction(id, "share");
+      window.siroDismissNote = id => noteAction(id, "dismiss");
       const activityEscape = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
       function activityClock(iso, seconds = false) {
         const date = new Date(iso);
@@ -542,11 +557,14 @@
         const title = activityTitle(item), note = ACTIVITY_STATES[item.state]?.[2];
         const result = item.state === "failed" ? ACTIVITY_ERRORS[item.error] || "沒有完成" : note;
         const legacy = item.coverage?.tools === "legacy_unjournaled" ? "<p>這是舊格式的紀錄，工具細節不完整。</p>" : "";
+        const sources = item.note?.sources || [];
+        const noteBlock = item.note ? `<h4>她的筆記</h4><p class="act-note">${activityEscape(item.note.text)}${item.note.truncated ? "…" : ""}</p>`
+          + (sources.length ? `<p>她讀過的頁面：</p><ul class="act-gaps act-sources">${sources.map(source => `<li class="act-target">${activityEscape(source.title ? `${source.title}：` : "")}${activityEscape(source.url.url)}</li>`).join("")}</ul>` : "<p>這份筆記沒有成功讀到的頁面，內容可能不可靠。</p>") : "";
         return `<li><div class="act-row"><time datetime="${activityEscape(item.created_at)}">${activityClock(item.created_at)}</time>
           <div><h3>${activityEscape(title)}</h3><div class="act-why">${activityEscape(activityWhy(item))} · 用了 ${item.tools.length} 個工具</div>
           ${result ? `<p>${activityEscape(result)}</p>` : ""}
           <details><summary>看細節<span class="sr-only">：${activityEscape(title)}</span></summary>
-          ${item.tools.length ? `<ul class="act-tools">${item.tools.map(activityToolBlock).join("")}</ul>` : "<p>停下時還沒有呼叫任何工具。</p>"}${legacy}</details></div>
+          ${noteBlock}${item.tools.length ? `<ul class="act-tools">${item.tools.map(activityToolBlock).join("")}</ul>` : "<p>停下時還沒有呼叫任何工具。</p>"}${legacy}</details></div>
           ${activityBadge(item.state)}</div></li>`;
       }
       function renderActivity() {
@@ -613,6 +631,7 @@
             if (!ACTIVITY_LIVE.has(item.state)) activityView.stopping.delete(id);
           }
           Object.assign(activityView, {cursor: data.cursor, fetchedAt: new Date().toISOString(), status: "ok"});
+          if (data.self_activity) activityView.selfActivity = data.self_activity;
           more = Boolean(data.has_more);
         } catch { if (epoch === activityView.epoch) activityView.status = "offline"; }
         if (epoch === activityView.epoch) { renderActivity(); scheduleActivity(epoch, more ? 0 : 3000); }

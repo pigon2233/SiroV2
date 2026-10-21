@@ -305,6 +305,27 @@ class IntegratedCompanion:
         finally:
             self._touching = False
 
+    async def share_self_note(self, text: str, spoken: str) -> None:
+        """Tell the owner about her own research, only when they asked to hear it."""
+        session_id = self._last_session or "browser"
+        stream_id = str(uuid4())
+        await self._broadcast_stream(
+            stream_id, {"type": "assistant_started", "session_id": session_id}
+        )
+        await self._broadcast_stream(
+            stream_id, {"type": "assistant_delta", "session_id": session_id, "text": text}
+        )
+        await self._broadcast_stream(
+            stream_id,
+            {
+                "type": "assistant_terminal",
+                "session_id": session_id,
+                "state": TurnState.COMPLETED,
+                "error": None,
+            },
+        )
+        await self._speak(SpeechIntent(str(uuid4()), spoken, str(uuid4())))
+
     async def _touch_line(self, kind: str, count: int, now: datetime) -> str | None:
         request = ModelRequest(
             touch_prompt(kind, count, now, self._touch_zone),

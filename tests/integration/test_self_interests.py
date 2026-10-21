@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from test_activity_monitor import ScriptedModel, activities_of, companion
 
+from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler, parse_choice
 from siro.services.agent.runs import SQLiteAgentRunRepository
@@ -124,3 +125,40 @@ async def test_open_questions_from_her_notes_become_clues(tmp_path: Path) -> Non
     assert clues.conversation == ("今晚想看獵戶座",)
     assert clues.open_questions == ("待查：為什麼有暗帶",)  # noqa: RUF001
     assert clues.recent_topics == ("M42 的顏色",)
+
+
+async def test_notes_list_only_pages_she_read_and_remember_what_was_told(tmp_path: Path) -> None:
+    from siro.services.agent.self_notes import SelfNotes, share_text
+
+    clock = [datetime.now(UTC) + timedelta(minutes=11)]
+    scheduler, owner, _, store, _ = await setup(tmp_path, [choice("M42 的顏色")], clock)
+    research = owner._model
+    assert isinstance(research, ScriptedModel)
+    research.rounds = [
+        [ToolCall("r1", READ, {"url": "https://example.test/m42?utm=SECRET"})],
+        "筆記：粉紅色來自氫 [https://made-up.test/]\n待查：為什麼有暗帶",  # noqa: RUF001
+    ]
+    research.requests = 0
+    run_id = await scheduler.tick()
+    assert run_id is not None
+    await settle(owner)
+    path = tmp_path / "shared.json"
+    notes = SelfNotes(store, path)  # type: ignore[arg-type]
+    [note] = await notes.notes()
+    # The made-up link the model wrote is not a source; only the page the journal shows read.
+    assert note["sources"] == [
+        {"url": {"url": "https://example.test/m42", "redacted": True}, "title": "synthetic"}
+    ]
+    assert note["open_questions"] == ["待查：為什麼有暗帶"]  # noqa: RUF001
+    assert await notes.unshared() == [run_id]
+    text, spoken = share_text(note)
+    assert "https://example.test/m42" in text and "SECRET" not in text
+    assert spoken.startswith("我剛剛查了M42 的顏色")
+    notes.mark_shared(run_id)
+    assert await SelfNotes(store, path).unshared() == []  # type: ignore[arg-type]
+    [activity] = [
+        item
+        for item in activities_of(await ActivityMonitor(store).snapshot())  # type: ignore[arg-type]
+        if item["activity_id"] == run_id
+    ]
+    assert activity["note"]["sources"] == note["sources"]

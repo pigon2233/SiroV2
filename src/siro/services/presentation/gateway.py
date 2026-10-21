@@ -41,6 +41,7 @@ from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
+from siro.services.agent.self_notes import SelfNotes, share_text
 from siro.services.audio.protocol import (
     AudioFrame,
     AudioMetadata,
@@ -608,6 +609,8 @@ def create_app(
     on_activity_changes: Callable[[int, int], Awaitable[dict[str, object]]] | None = None,
     on_activity_stop: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     self_activity: SelfActivityOwner | None = None,
+    self_notes: SelfNotes | None = None,
+    on_share_note: Callable[[str, str], Awaitable[None]] | None = None,
     on_improvement_proposal: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     feature_status: Callable[[], dict[str, object]] | None = None,
     memory_organizer: MemoryOrganizer | None = None,
@@ -1322,6 +1325,14 @@ def create_app(
                 status_code=503, detail="improvement evidence is unavailable", headers=no_store
             ) from error
 
+    async def with_self_activity(result: dict[str, object]) -> dict[str, object]:
+        if self_activity is None or result.get("status") != "ok":
+            return result
+        own: dict[str, object] = {"paused": self_activity.paused}
+        if self_notes is not None:
+            own["unshared"] = await self_notes.unshared()
+        return {**result, "self_activity": own}
+
     @app.get("/v1/activities")
     async def activity_snapshot(
         limit: int = Query(default=50, ge=1, le=100),
@@ -1334,8 +1345,7 @@ def create_app(
             if on_activity_snapshot is not None
             else {"status": "unavailable"}
         )
-        if self_activity is not None and result.get("status") == "ok":
-            result = {**result, "self_activity": {"paused": self_activity.paused}}
+        result = await with_self_activity(result)
         return JSONResponse(result, headers={"Cache-Control": "no-store"})
 
     @app.get("/v1/activities/changes")
@@ -1350,6 +1360,7 @@ def create_app(
             if on_activity_changes is not None
             else {"status": "unavailable"}
         )
+        result = await with_self_activity(result)
         return JSONResponse(result, headers={"Cache-Control": "no-store"})
 
     @app.post("/v1/activities/{activity_id}/stop")
@@ -1379,6 +1390,33 @@ def create_app(
         # Background scope only: the owner's foreground turns are left running.
         stopped = await self_activity.stop("owner stopped background work")
         return JSONResponse({"stopped": stopped}, headers={"Cache-Control": "no-store"})
+
+    @app.get("/v1/self-notes")
+    async def list_self_notes(authorization: str | None = Header(default=None)) -> Response:
+        require_token(authorization)
+        if self_notes is None:
+            raise HTTPException(status_code=503, detail="self notes are unavailable")
+        notes = await self_notes.notes()
+        return JSONResponse({"notes": notes}, headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/self-notes/{run_id}/{action}")
+    async def self_note_action(
+        run_id: str,
+        action: Literal["share", "dismiss"],
+        authorization: str | None = Header(default=None),
+    ) -> Response:
+        require_token(authorization)
+        if self_notes is None or (action == "share" and on_share_note is None):
+            raise HTTPException(status_code=503, detail="self notes are unavailable")
+        note = await self_notes.note(run_id[:128])
+        if note is None:
+            raise HTTPException(status_code=404, detail="note was not found")
+        # Sharing happens only on the owner's request; it never starts a model turn.
+        if action == "share":
+            assert on_share_note is not None
+            await on_share_note(*share_text(note))
+        self_notes.mark_shared(str(note["run_id"]))
+        return JSONResponse({"run_id": note["run_id"], "shared": True})
 
     @app.put("/v1/self-activity")
     async def pause_self_activity(
@@ -2587,6 +2625,10 @@ def _run_gateway(
             on_activity_changes=controller.activity_changes,
             on_activity_stop=stop_activity,
             self_activity=self_owner,
+            self_notes=SelfNotes(shared_store, data_dir / "self-notes-shared.json")
+            if self_owner is not None
+            else None,
+            on_share_note=controller.share_self_note,
             on_improvement_proposal=controller.improvement_proposal,
             on_turn=controller.respond,
             memory_organizer=organizer,

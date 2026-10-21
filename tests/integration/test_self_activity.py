@@ -206,3 +206,52 @@ def test_gateway_controls_reach_only_the_background_owner() -> None:
         ("cancel", "t1"),
         ("stop", "owner stop"),
     ]
+
+
+def test_notes_are_shared_only_on_request_and_reach_the_change_feed() -> None:
+    origin = "http://testserver"
+    shared: list[tuple[str, str]] = []
+    marked: list[str] = []
+    note = {"run_id": "n1", "topic": "M42", "text": "筆記", "sources": [], "shared": False}
+
+    class FakeOwner:
+        paused = False
+
+    class FakeNotes:
+        async def unshared(self) -> list[str]:
+            return [] if marked else ["n1"]
+
+        async def notes(self) -> list[dict[str, object]]:
+            return [note]
+
+        async def note(self, run_id: str) -> dict[str, object] | None:
+            return note if run_id == "n1" else None
+
+        def mark_shared(self, run_id: str) -> None:
+            marked.append(run_id)
+
+    async def share(text: str, spoken: str) -> None:
+        shared.append((text, spoken))
+
+    async def changes(after: int, limit: int) -> dict[str, object]:
+        return {"status": "ok", "events": []}
+
+    app = create_app(
+        allowed_origins={origin},
+        on_activity_changes=changes,
+        self_activity=FakeOwner(),  # type: ignore[arg-type]
+        self_notes=FakeNotes(),  # type: ignore[arg-type]
+        on_share_note=share,
+    )
+    with TestClient(app) as client:
+        token = client.post("/v1/session", headers={"origin": origin}).json()["token"]
+        auth = {"authorization": f"Bearer {token}"}
+        feed = client.get("/v1/activities/changes?after=0", headers=auth).json()
+        assert feed["self_activity"] == {"paused": False, "unshared": ["n1"]}
+        assert client.get("/v1/self-notes", headers=auth).json() == {"notes": [note]}
+        assert client.post("/v1/self-notes/zz/share", headers=auth).status_code == 404
+        assert client.post("/v1/self-notes/n1/share", headers=auth).json()["shared"] is True
+        assert client.post("/v1/self-notes/n1/dismiss", headers=auth).status_code == 200
+        assert client.post("/v1/self-notes/n1/delete", headers=auth).status_code == 422
+    assert len(shared) == 1 and shared[0][0].startswith("我剛剛自己查了「M42」")
+    assert marked == ["n1", "n1"]
