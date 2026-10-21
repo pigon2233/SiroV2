@@ -182,6 +182,8 @@ function updateShape() {
             // Leave a rescue control area while the page is still loading.
             if (occupied === 0) region.unionRectangle({x: 0, y: 0, width: width, height: 48});
             window.get_window()?.input_shape_combine_region(region, 0, 0);
+            // X11 only (WSLg frames and shadows the whole rectangle): clip the window itself to her.
+            if (GLib.getenv('GDK_BACKEND') === 'x11') window.get_window()?.shape_combine_region(region, 0, 0);
             lastRegion = region.numRectangles(); samples++;
             state.input_regions = lastRegion; state.occupied_fraction = occupied / (width * height);
             state.alpha = image.get_has_alpha() && occupied < width * height * .95;
