@@ -295,3 +295,21 @@ async def test_owner_pause_survives_a_restart_but_a_shutdown_does_not(tmp_path: 
     await first.set_paused(False)
     await first.close()
     assert not make().paused
+
+
+async def test_what_she_shared_is_known_to_her_next_reply(tmp_path: Path) -> None:
+    class Recording(ScriptedModel):
+        seen: list[str] = []  # noqa: RUF012
+
+        async def stream(self, request: Any, cancellation: Any) -> Any:
+            self.seen.append(repr(request))
+            async for chunk in super().stream(request, cancellation):
+                yield chunk
+
+    model = Recording(["好"])
+    controller, _ = await companion(tmp_path, model, {})
+    await controller.respond("s1", "你好")
+    assert not any("self-note-share" in seen for seen in model.seen)
+    await controller.share_self_note("我剛剛自己查了「星雲」。", "星雲")
+    await controller.respond("s1", "剛剛那個是什麼")
+    assert "星雲" in model.seen[-1] and "self-note-share" in model.seen[-1]
