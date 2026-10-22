@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from pathlib import Path
 from uuid import uuid4
 
 from siro.ports.models import (
@@ -74,6 +76,7 @@ class SelfActivityOwner:
         *,
         allowed: Callable[[], bool],
         close_browser: Callable[[str], Awaitable[None]] | None = None,
+        state_path: Path | None = None,
     ) -> None:
         self._runs = runs
         self._orchestrator = orchestrator
@@ -84,7 +87,8 @@ class SelfActivityOwner:
         self._run_id: str | None = None
         self._cancellation: CancellationToken | None = None
         self._stop_reason: str | None = None
-        self._paused = False
+        self._state_path = state_path
+        self._paused = self._load_paused()
         self._control = asyncio.Lock()
 
     @property
@@ -133,6 +137,24 @@ class SelfActivityOwner:
     async def set_paused(self, paused: bool) -> None:
         # Pausing stops new work; the running step finishes, then the run ends (explicit policy).
         self._paused = paused
+        self._save_paused()
+
+    def _load_paused(self) -> bool:
+        if self._state_path is None:
+            return False
+        try:
+            return json.loads(self._state_path.read_text(encoding="utf-8")).get("paused") is True
+        except (OSError, ValueError, AttributeError):
+            return False
+
+    def _save_paused(self) -> None:
+        # Only the owner's switch is stored; a shutdown pause (close) must not survive a restart.
+        if self._state_path is None:
+            return
+        temporary = self._state_path.with_suffix(".tmp")
+        with suppress(OSError):
+            temporary.write_text(json.dumps({"paused": self._paused}), encoding="utf-8")
+            os.replace(temporary, self._state_path)
 
     async def stop(self, reason: str, run_id: str | None = None) -> bool:
         """Cancel the current run (or only `run_id`); returns whether something was stopped."""

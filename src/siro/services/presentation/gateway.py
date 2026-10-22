@@ -2521,6 +2521,7 @@ def _run_gateway(
             model,
             allowed=lambda: state.kill_switches["tools"],
             close_browser=browser_sessions.close_session if browser_sessions is not None else None,
+            state_path=data_dir / "self-activity-state.json",
         )
         if runtime_profile == "candidate"
         else None

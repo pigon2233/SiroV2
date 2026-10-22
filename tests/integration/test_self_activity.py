@@ -271,3 +271,27 @@ async def test_nothing_starts_when_dispatches_cannot_be_audited(tmp_path: Path) 
     owner._orchestrator.journal_hook = hook
     assert await owner.start("審計恢復後可以開始") is not None
     await settle(owner)
+
+
+async def test_owner_pause_survives_a_restart_but_a_shutdown_does_not(tmp_path: Path) -> None:
+    controller, store = await companion(tmp_path, ScriptedModel(["x"]), {})
+    orchestrator = controller._tool_orchestrator
+    assert orchestrator is not None
+    state = tmp_path / "self-activity-state.json"
+
+    def make() -> SelfActivityOwner:
+        return SelfActivityOwner(
+            SQLiteAgentRunRepository(store),
+            orchestrator,
+            ScriptedModel(["x"]),
+            allowed=lambda: True,
+            state_path=state,
+        )
+
+    first = make()
+    assert not first.paused
+    await first.set_paused(True)
+    assert make().paused
+    await first.set_paused(False)
+    await first.close()
+    assert not make().paused
