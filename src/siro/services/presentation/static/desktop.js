@@ -294,6 +294,12 @@
       if (!numbers.every(key => Number.isFinite(update[key]))) return;
       toRole(update);
     };
+    // The host reports the desktop cursor in window pixels; hand it to the role in her own frame's.
+    const pointerUpdate = (x, y) => {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      const box = frame.getBoundingClientRect();
+      try { frame.contentWindow?.postMessage({type: "siro.desktop.pointer", v: 1, x: x - box.left, y: y - box.top}, location.origin); } catch (_) { /* renderer gone */ }
+    };
     const walkRequest = data => {
       if (typeof data.id !== "string" || data.id.length > 40) return;
       if (data.action === "stop") { nativeCommand({type: "desktop.walk.stop", id: data.id}); return; }
@@ -304,7 +310,7 @@
       if (Number.isFinite(data.cycle)) message.cycle = data.cycle;
       if (chatOpen || !nativeCommand(message)) toRole({id: data.id, state: "refused", reason: chatOpen ? "chat" : "native"});
     };
-    window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false), setLayout, walkUpdate});
+    window.siroDesktopView = Object.freeze({toggleChat: () => setChat(!chatOpen), openChat: () => setChat(true), closeChat: () => setChat(false), setLayout, walkUpdate, pointerUpdate});
     window.addEventListener("message", event => {
       if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
       if (event.data?.type === "siro.renderer.ready") nativeCommand({type: "desktop.ready"});

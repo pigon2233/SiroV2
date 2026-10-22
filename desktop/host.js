@@ -132,6 +132,59 @@ function finishWalk(reason) {
     queueShape();
 }
 function haltWalk(reason) { if (walk) finishWalk(reason); }
+// ---- The desktop cursor, so she can glance at it wherever it is: the page gets its position in
+// window pixels about ten times a second, only when it moved. Under WSL the X server cannot see the
+// Windows cursor, so a small fixed PowerShell loop reports it (already in the X screen's origin).
+let cursorProcess = null, cursorTimer = 0, lastCursor = null;
+function cursorMoved(x, y) {
+    if (!window || !web || !window.get_visible()) return;
+    const [wx, wy] = window.get_position();
+    const rx = x - wx, ry = y - wy;
+    if (lastCursor && Math.hypot(rx - lastCursor[0], ry - lastCursor[1]) < 4) return;
+    lastCursor = [rx, ry];
+    evaluate(`window.siroDesktopView?.pointerUpdate(${rx}, ${ry})`);
+}
+const CURSOR_SCRIPT = "$ErrorActionPreference='Stop';Add-Type -AssemblyName System.Windows.Forms;" +
+    "Add-Type -MemberDefinition '[DllImport(\"user32.dll\")] public static extern bool SetProcessDPIAware();' -Name D -Namespace W;" +
+    "[void][W.D]::SetProcessDPIAware();$v=[System.Windows.Forms.SystemInformation]::VirtualScreen;" +
+    "try{while($true){$p=[System.Windows.Forms.Cursor]::Position;[Console]::Out.WriteLine(($p.X-$v.X).ToString()+' '+($p.Y-$v.Y).ToString());[Console]::Out.Flush();Start-Sleep -Milliseconds 100}}catch{exit}";
+// -EncodedCommand (UTF-16LE base64) keeps the quotes in the script away from the argument parser.
+function encodedCommand(script) {
+    const bytes = new Uint8Array(script.length * 2);
+    for (let i = 0; i < script.length; i++) { bytes[2 * i] = script.charCodeAt(i) & 255; bytes[2 * i + 1] = script.charCodeAt(i) >> 8; }
+    return GLib.base64_encode(bytes);
+}
+function readCursorLines(stream) {
+    stream.read_line_async(GLib.PRIORITY_DEFAULT, null, (source, result) => {
+        let line;
+        try { [line] = source.read_line_finish_utf8(result); } catch (_) { return; }
+        if (line === null || line === undefined) return;
+        const [x, y] = line.trim().split(' ').map(Number);
+        if (Number.isFinite(x) && Number.isFinite(y)) cursorMoved(x, y);
+        readCursorLines(source);
+    });
+}
+function startCursorFeed() {
+    try {
+        if (GLib.getenv('WSL_DISTRO_NAME')) {
+            cursorProcess = Gio.Subprocess.new(['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', encodedCommand(CURSOR_SCRIPT)],
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE);
+            readCursorLines(new Gio.DataInputStream({base_stream: cursorProcess.get_stdout_pipe()}));
+        } else {
+            const pointer = Gdk.Display.get_default().get_default_seat().get_pointer();
+            cursorTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                const [, x, y] = pointer.get_position();
+                cursorMoved(x, y);
+                return GLib.SOURCE_CONTINUE;
+            });
+        }
+    } catch (error) { state.cursor_error = String(error); }
+}
+function stopCursorFeed() {
+    if (cursorTimer) GLib.source_remove(cursorTimer);
+    cursorTimer = 0;
+    cursorProcess?.force_exit(); cursorProcess = null;
+}
 function applyLayout() {
     if (!window || !web) return;
     haltWalk('layout');
@@ -287,11 +340,12 @@ function activate() {
     });
     web.load_uri(url);
     timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, updateShape);
+    startCursorFeed();
     saveState();
 }
 app.connect('activate', activate);
 app.connect('shutdown', () => {
-    haltWalk('closed');
+    haltWalk('closed'); stopCursorFeed();
     if (timer) GLib.source_remove(timer);
     if (layoutTimer) GLib.source_remove(layoutTimer);
     state.closed = true; saveState(); center?.destroy(); window?.destroy(); window = null; web = null;

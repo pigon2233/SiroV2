@@ -865,6 +865,33 @@ def test_desktop_draws_lightly_when_resting_and_not_at_all_when_hidden(tmp_path:
             browser.close()
 
 
+def test_desktop_cursor_far_outside_the_window_draws_an_occasional_glance(tmp_path: Path) -> None:
+    gateway = MockGateway(built_renderer(tmp_path), model=synthetic_vrm())
+    with sync_playwright() as playwright:
+        browser, page = open_renderer(playwright, gateway, "?presentation=desktop")
+        try:
+            page.wait_for_function("window.__siroVrm && window.__siroVrm.loaded()", timeout=60000)
+            page.wait_for_function("window.__siroVrm.activity() !== null", timeout=30000)
+            idle_before = page.evaluate("window.__siroVrm.nextIdleBehaviour()")
+            move = (
+                "window.postMessage({type: 'siro.desktop.pointer', v: 1, x: %d, y: %d},"
+                " location.origin)"
+            )
+            page.evaluate(move % (-900, 300))
+            page.evaluate(move % (-1400, 700))
+            assert page.evaluate("window.__siroVrm.cursorGazing()") is True
+            # She looks to the left of the frame, where the cursor is, and her pastimes go on.
+            page.wait_for_function("window.__siroVrm.lookTarget()[0] < -0.2", timeout=5000)
+            assert page.evaluate("window.__siroVrm.nextIdleBehaviour()") <= idle_before + 1
+            # The glance ends by itself, and the next one waits out a pause.
+            page.wait_for_function("window.__siroVrm.cursorGazing() === false", timeout=8000)
+            page.evaluate(move % (500, 900))
+            page.evaluate(move % (900, 100))
+            assert page.evaluate("window.__siroVrm.cursorGazing()") is False
+        finally:
+            browser.close()
+
+
 def test_chat_input_shares_its_position_with_the_character() -> None:
     html = (ROOT / "src/siro/services/presentation/static/index.html").read_text(encoding="utf-8")
     hook = html[html.index("const shareFocus") : html.index('chatInput.addEventListener("focus"')]

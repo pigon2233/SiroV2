@@ -241,6 +241,7 @@ window.addEventListener('message', event => {
     interest.until = elapsed + 1.6;
     engage();
   } else if (data.type === 'siro.desktop.walk.state') walkState(data);
+  else if (data.type === 'siro.desktop.pointer') cursorSeen(Number(data.x), Number(data.y));
 });
 
 // Anything that engages her (Core, speech, the pointer) postpones her idle pastimes.
@@ -536,6 +537,7 @@ function updateLife(delta) {
     focus = bone('head').getWorldPosition(headAhead).add(gazeDir.set(0, -0.1, 2).applyQuaternion(headTurn));
   } else if (reading) focus = notebook.position;
   else if (free && elapsed < interest.until) focus = interest.point;
+  else if (free && elapsed < cursorGaze.until) focus = cursorGaze.point;
   const curious = Boolean(focus);
   const talking = mouth.talk > 0.5;
   if (free && !curious && elapsed >= life.nextGlance) {
@@ -842,6 +844,22 @@ function pointerPoint(event, target) {
     .unproject(camera).sub(camera.position).normalize();
   if (Math.abs(rayPoint.z) < 1e-6) return null;
   return target.copy(camera.position).addScaledVector(rayPoint, (planeZ - camera.position.z) / rayPoint.z);
+}
+
+// The desktop cursor anywhere on the screen (the host reports it in this frame's pixels, outside
+// the frame too). Now and then, after it has travelled, she glances at it for a moment. It is only
+// a gaze layer: no engage(), so her pastimes and gestures carry on, and not more than once in a
+// while.
+const cursorGaze = { point: new THREE.Vector3(), until: -1, nextAt: 0, from: null };
+function cursorSeen(x, y) {
+  if (!vrm || !Number.isFinite(x) || !Number.isFinite(y)) return;
+  const moved = cursorGaze.from ? Math.hypot(x - cursorGaze.from.x, y - cursorGaze.from.y) : 0;
+  cursorGaze.from = { x, y };
+  const looking = elapsed < cursorGaze.until;
+  if (!looking && (moved < 40 || elapsed < cursorGaze.nextAt)) return;
+  if (!pointerPoint({ clientX: x, clientY: y }, cursorGaze.point) || looking) return;
+  cursorGaze.until = elapsed + 1.5 + Math.random() * 2;
+  cursorGaze.nextAt = cursorGaze.until + 5 + Math.random() * 10;
 }
 
 // Where her head is on screen (pixels) and roughly how big, for pats and clicks on the head.
@@ -1325,6 +1343,8 @@ window.__siroVrm = Object.freeze({
   motions: () => ({ state: motionStatus.state, missing: [...motionStatus.missing] }),
   depth: () => depth,
   stroll: () => stroll?.phase ?? null,
+  cursorGazing: () => elapsed < cursorGaze.until,
+  nextIdleBehaviour: () => nextIdleBehaviour,
   walkSpeed: () => walkSpeed,
   facing: () => facing,
   activity: () => Object.keys(actions).find(name => actions[name] === currentAction) ?? null,
