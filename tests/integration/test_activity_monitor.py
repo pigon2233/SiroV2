@@ -678,3 +678,26 @@ def test_navigation_errors_map_to_reasons_the_model_can_act_on() -> None:
     assert navigation_reason("Timeout 30000ms exceeded.") == "timeout"
     assert navigation_reason("net::ERR_CERT_DATE_INVALID") == "tls_error"
     assert navigation_reason("Target page, context or browser has been closed") is None
+
+
+async def test_stopping_one_session_keeps_the_shared_body_for_another(tmp_path: Path) -> None:
+    controller, _ = await companion(tmp_path, ScriptedModel(["x"]), {})
+    cancelled: list[str] = []
+
+    class Body:
+        async def cancel(self, generation_id: str, reason: str = "") -> bool:
+            cancelled.append(generation_id)
+            return True
+
+    class Conversation:
+        async def cancel(self, session_id: str) -> None:
+            return None
+
+    controller._body = Body()  # type: ignore[assignment]
+    controller._conversation = Conversation()  # type: ignore[assignment]
+    controller._active_sessions.update({"a", "b"})
+    await controller.cancel("active", "owner stop", session_id="a")
+    assert cancelled == []
+    controller._active_sessions.discard("b")
+    await controller.cancel("active", "owner stop", session_id="a")
+    assert cancelled == ["active"]

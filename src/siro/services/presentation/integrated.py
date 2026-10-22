@@ -1170,6 +1170,11 @@ class IntegratedCompanion:
         for target_session in tuple(self._active_sessions):
             if session_id is None or target_session == session_id:
                 await conversation.cancel(target_session)
+        if session_id is not None and any(
+            other != session_id for other in (*self._active_sessions, *self._run_ids)
+        ):
+            # One shared body: stopping one activity must not cut another session's voice and motion.
+            return
         await self._body.cancel("active", reason)
 
     async def invalidate_memory_context(self) -> None:

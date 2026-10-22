@@ -269,7 +269,7 @@ function fitCamera() {
     let bottom = hips ? 0 : modelBox.min.y;
     if (!desktop && hips) bottom = hips.y - (crown - hips.y) * 0.5;
     const size = modelBox.getSize(new THREE.Vector3());
-    const [headroom, share] = desktop ? [0.03, 0.94] : [0.2, 0.68];
+    const [headroom, share] = desktop ? [0.07, 0.90] : [0.2, 0.68];
     const below = 1 - share - headroom; // the gap under the framed body, as a share of the frame
     // A raised hand first uses the headroom above the hair (on the stage card, the band under its
     // title); only if it reaches higher than that does the frame grow, and then just enough.

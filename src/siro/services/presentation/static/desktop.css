@@ -124,16 +124,16 @@ body.siro-desktop #desktop-voice-auto[aria-pressed="true"] { background: var(--t
 body.siro-desktop #desktop-bubble {
   position: fixed;
   z-index: 4;
-  top: 8px;
+  top: 4px;
   left: calc(var(--desktop-pet-left, 0px) + 12px);
   width: calc(var(--desktop-pet-width, 360px) - 24px);
   box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 4px 12px;
   border: 1px solid rgba(255, 255, 255, .85);
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(250, 252, 255, .97);
   box-shadow: 0 6px 20px rgba(20, 28, 45, .28);
   font-size: 14px;
@@ -143,14 +143,12 @@ body.siro-desktop #desktop-bubble[hidden] { display: none; }
 body.siro-desktop #desktop-bubble[data-tone="warn"] { border-color: #e8cdb8; }
 body.siro-desktop #desktop-bubble[data-tone="bad"] { border-color: #d9b3b9; }
 body.siro-desktop .desktop-bubble-icon { width: 16px; text-align: center; }
-/* Two lines at most; the full text is in the tooltip and on the activity page. */
+/* One line, kept inside the headroom above her hair; the full text is in the tooltip and on the activity page. */
 body.siro-desktop .desktop-bubble-label {
   flex: 1;
   min-width: 0;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   overflow: hidden;
-  overflow-wrap: anywhere;
 }
 body.siro-desktop #desktop-bubble button { padding: 2px 8px; font-size: 12px; border-radius: 8px; }
