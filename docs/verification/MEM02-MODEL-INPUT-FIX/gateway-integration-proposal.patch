@@ -1,0 +1,53 @@
+--- a/src/siro/services/presentation/gateway.py
++++ b/src/siro/services/presentation/gateway.py
+@@ -1923,7 +1923,15 @@
+     cloud_model = os.environ.get("SIRO_OPENAI_MODEL")
+     model: LanguageModel
+     if ollama_model:
+-        model = OllamaAdapter(model=ollama_model)
++        thinking_mode = os.environ.get("SIRO_OLLAMA_THINKING", "native")
++        if thinking_mode not in {"native", "true", "false"}:
++            raise ValueError("SIRO_OLLAMA_THINKING must be native, true or false")
++        context_length = os.environ.get("SIRO_OLLAMA_CONTEXT_LENGTH")
++        model = OllamaAdapter(
++            model=ollama_model,
++            thinking={"native": None, "true": True, "false": False}[thinking_mode],
++            context_length=int(context_length) if context_length is not None else None,
++        )
+         backend = f"ollama:{ollama_model}"
+     elif cloud_key and cloud_model:
+         model = OpenAICompatibleAdapter(
+@@ -2008,12 +2016,19 @@
+                 except (FileNotFoundError, ContextBudgetUnavailable):
+                     # Explicit failure on request, never substitute a byte/token guess.
+                     token_budget = UnavailableTokenBudget()
++        output_budget_raw = os.environ.get("SIRO_MODEL_MAX_OUTPUT_TOKENS")
++        output_budget = int(output_budget_raw) if output_budget_raw is not None else None
++        if output_budget is not None and not 1 <= output_budget <= 32768:
++            raise ValueError("SIRO_MODEL_MAX_OUTPUT_TOKENS must be between 1 and 32768")
++        if output_budget is not None and not (context_max_bytes or token_budget is not None):
++            raise ValueError("explicit generation budget requires an active context guard")
+         if context_max_bytes or token_budget is not None:
+             model = ContextBudgetModel(
+                 model,
+                 max_bytes=context_max_bytes or None,
+                 token_budget=token_budget,
+                 summary_enabled=summary_enabled,
++                max_output_tokens=output_budget,
+             )
+     state = GatewayState()
+     state.routes["model"] = backend
+--- a/scripts/launch_companion.py
++++ b/scripts/launch_companion.py
+@@ -52,6 +52,11 @@
+         "SIRO_OPENAI_MODEL",
+         "SIRO_OPENAI_API_KEY",
+         "SIRO_OLLAMA_MODEL",
++        "SIRO_OLLAMA_THINKING",
++        "SIRO_OLLAMA_CONTEXT_LENGTH",
++        "SIRO_MODEL_MAX_OUTPUT_TOKENS",
++        "SIRO_CONTEXT_TOKEN_BUDGET_ENABLED",
++        "SIRO_CONTEXT_MAX_BYTES",
+     }
+     if settings.is_file():
+         for line in settings.read_text().splitlines():

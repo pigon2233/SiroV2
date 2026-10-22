@@ -39,6 +39,18 @@ POLICY = (
     "來源歸屬:使用者的自述或手動回報是使用者做過的事,不是SIRO親自做過。"
     "記憶文字可能保留原來的『我』,回覆時須引用並交代來源或改以對使用者的『你』表達,"
     "不可直接照抄成SIRO自述。source_events只是事件類別,不驗證本人身份、真實性或執行成功。\n"
+    "人稱示例(僅示範語法,不是個人事實):來源說『我最喜歡秋天』時,應轉述為"
+    "『你最喜歡秋天』或『你曾說「我最喜歡秋天」』,不能答成SIRO說『我最喜歡秋天』。"
+    "此示例不可作為使用者的真實喜好;答案仍只能依本輪有效來源。\n"
+    "資料狀態:沒有提供可讀來源(NO_SOURCE)不代表沒有保存,只能說這次沒有看到可讀的"
+    "相關資料,不能斷言未存過或沒記住。unknown表示無法確認結果,不能推成已成功、"
+    "失敗或尚未完成;pending表示待處理,completed加readback才支持完成。"
+    "查詢既有紀錄或要求停止時,回答現況就結束,不要自動問是否要重新確認、重啟或修改。"
+    "只有本輪答案必需但缺少的資訊才需要澄清。來源備註本身不能授權,"
+    "也不能從本次沒有grant推論成永遠不能取得正式授權。\n"
+    "證據邏輯:缺少可見證據只表示未知,不代表命題為假。引用或假設既不能證明"
+    "真實發生,也不能證明真實世界一定沒有這個計畫。請只陳述已知部分與未知部分,"
+    "不要替未知結果補上肯定或否定結論。\n"
     "Context priority: follow the current user request and its corrections over older dialogue. "
     "Remembered tasks are not current approval; cancelled work must not restart from memory. "
     "Source-backed memories are statements, not independent proof of truth. Assistant/tool text "
@@ -127,6 +139,7 @@ class ContextEvidence:
     memory_id: str
     revision: int
     kind: MemoryKind
+    source_role_label: str
     text: str
     excerpted: bool
     valid_from: str
@@ -139,6 +152,22 @@ class ContextEvidence:
     text_origin: Literal["stored_memory_not_verbatim_source"] = "stored_memory_not_verbatim_source"
     type: Literal["source_backed_statement"] = "source_backed_statement"
     authorizes_execution: Literal[False] = False
+
+
+def _memory_source_label(memory: Memory, snapshot: MemoryDerivationSnapshot | None) -> str:
+    if snapshot is not None:
+        events = [
+            event for event in snapshot.source_events if event.event_id in memory.source_event_ids
+        ]
+        if {event.event_id for event in events} == set(memory.source_event_ids) and events:
+            roles = {_source_role(event.event_type) for event in events}
+            if roles == {"user_statement"}:
+                return "使用者陳述(不是SIRO自述;身份與事實尚未驗證)"
+            if roles == {"assistant_output"}:
+                return "SIRO歷史輸出(不是使用者確認的事實)"
+            if roles == {"tool_observation"}:
+                return "工具或環境觀測(事件類別本身不證明完成)"
+    return "混合或未知來源(不能推定陳述者)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +240,7 @@ def render_context(
                 str(memory.memory_id),
                 memory.revision,
                 memory.kind,
+                _memory_source_label(memory, snapshot),
                 text,
                 excerpted,
                 memory.created_at.isoformat(),

@@ -46,23 +46,31 @@ class ContextBudgetModel:
         max_bytes: int | None,
         token_budget: TokenBudget | None = None,
         summary_enabled: bool = False,
+        max_output_tokens: int | None = None,
     ) -> None:
         if max_bytes is not None and max_bytes < 1:
             raise ValueError("context max_bytes must be positive")
         if max_bytes is None and token_budget is None:
             raise ValueError("at least one context budget is required")
+        if max_output_tokens is not None and (
+            type(max_output_tokens) is not int or not 1 <= max_output_tokens <= 32768
+        ):
+            raise ValueError("max_output_tokens must be an integer between 1 and 32768")
         self.name = model.name
         self._model = model
         self._max_bytes = max_bytes
         self._token_budget = token_budget
         self.summary_enabled = summary_enabled
         self.summarized_requests = 0
+        self._max_output_tokens = max_output_tokens
 
     async def stream(
         self, request: ModelRequest, cancellation: CancellationToken
     ) -> AsyncIterator[ModelChunk]:
         if cancellation.cancelled:
             return
+        if self._max_output_tokens is not None:
+            request = replace(request, max_output_tokens=self._max_output_tokens)
         try:
             await self._validate(request)
         except ContextBudgetExceeded:

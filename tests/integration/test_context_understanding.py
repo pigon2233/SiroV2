@@ -197,6 +197,82 @@ async def test_frozen_quality_holdout_keeps_source_fences_and_native_request(
     assert result["semantic_passed"] is None  # Capture is never model quality evidence.
 
 
+@pytest.mark.parametrize("kind,code", [("clean", 0), ("one_soft", 0), ("two_soft", 1), ("hard", 1)])
+def test_holdout_review_keeps_its_frozen_threshold_and_zero_hard_failures(
+    tmp_path: Path, kind: str, code: int
+) -> None:
+    """Synthetic review records exercise parser policy, never real model understanding."""
+    import hashlib
+    import importlib.util
+    import json
+
+    root = Path(__file__).resolve().parents[2]
+    spec = importlib.util.spec_from_file_location(
+        "holdout_review_test", root / "docs/verification/MEM02-MODEL-INPUT-FIX/run_holdout.py"
+    )
+    assert spec and spec.loader
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    rows = []
+    for case in quality_holdout_cases():
+        expected = case["expected"]
+        assert isinstance(expected, dict)
+        rows.append(
+            {
+                "id": case["id"],
+                "state": "completed",
+                "capture_passed": True,
+                "response": json.dumps(
+                    {
+                        "answer": next(iter(expected.get("any", [])), "synthetic"),
+                        "needs_clarification": expected["clarify"],
+                        "action_authorized": False,
+                        "verified_tool_completion": expected.get("verified_completion", False),
+                    }
+                ),
+            }
+        )
+    evaluation = tmp_path / "synthetic-evaluation.json"
+    evaluation.write_text(
+        json.dumps(
+            {
+                "mode": "real",
+                "synthetic_only": True,
+                "state": "COMPLETE",
+                "complete": True,
+                "source_before": {"synthetic": "stable"},
+                "source_after": {"synthetic": "stable"},
+                "fixture_sha256": hashlib.sha256(runner.FIXTURE.read_bytes()).hexdigest(),
+                "cases": rows,
+            }
+        )
+    )
+    template = tmp_path / "template.json"
+    runner.review_result(evaluation, None, template)
+    review = json.loads(template.read_text())
+    review["reviewer"] = "Synthetic parser test; not real model evidence"
+    for row in review["cases"]:
+        row["checks"] = dict.fromkeys(row["checks"], True)
+    if kind != "clean":
+        review["cases"][0]["checks"][
+            "source_attribution" if kind == "hard" else "clarification"
+        ] = False
+        review["cases"][0]["note"] = "Synthetic counterexample"
+    if kind == "two_soft":
+        review["cases"][1]["checks"]["clarification"] = False
+        review["cases"][1]["note"] = "Second synthetic counterexample"
+    review_path = tmp_path / "review.json"
+    review_path.write_text(json.dumps(review))
+    result = tmp_path / "result.json"
+    assert runner.review_result(evaluation, review_path, result) == code
+    report = json.loads(result.read_text())
+    assert report["semantic_target"] == 11 and report["shared_parser_target"] == 27
+    if kind == "hard":
+        assert (
+            report["semantic_passed"] == 11 and report["semantic_status"] == "FAILED_VERIFICATION"
+        )
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", fixed_cases(), ids=lambda case: case["id"])
 async def test_fixed_context_capture_is_not_semantic_evidence(
@@ -355,6 +431,9 @@ def test_existing_model_configuration_is_required_without_network_or_key_output(
         "SIRO_OPENAI_API_KEY",
         "SIRO_OLLAMA_MODEL",
         "SIRO_OLLAMA_BASE_URL",
+        "SIRO_OLLAMA_THINKING",
+        "SIRO_OLLAMA_CONTEXT_LENGTH",
+        "SIRO_MODEL_MAX_OUTPUT_TOKENS",
     ):
         monkeypatch.delenv(key, raising=False)
     helper = cast(Any, evaluator)
@@ -370,6 +449,9 @@ def test_existing_model_configuration_is_required_without_network_or_key_output(
             "model": "synthetic-existing-model",
             "provider_host": "127.0.0.1",
             "protocol": "ollama",
+            "thinking": "native",
+            "context_length": "provider_default",
+            "max_output_tokens": "2048",
         }
         assert backend.name == "ollama"
     else:
@@ -472,6 +554,15 @@ async def test_memory_source_roles_come_from_bound_events_not_owner_scope(
     record = data["memories"][0]
     assert record["text"] == stored.text
     assert record["person_id"] == "owner"
+    assert (
+        record["source_role_label"]
+        == {
+            "user_statement": "使用者陳述(不是SIRO自述;身份與事實尚未驗證)",
+            "assistant_output": "SIRO歷史輸出(不是使用者確認的事實)",
+            "tool_observation": "工具或環境觀測(事件類別本身不證明完成)",
+            "unclassified": "混合或未知來源(不能推定陳述者)",
+        }[expected_role]
+    )
     assert record["source_events"] == [
         {
             "event_id": str(source.event_id),
@@ -504,7 +595,43 @@ async def test_legacy_snapshot_never_invents_user_source_from_owner_scope(tmp_pa
         render_context("legacy", "siro", [stored], legacy).split(START)[1]
     )
     assert data["memories"][0]["source_events"] == []
+    assert data["memories"][0]["source_role_label"] == "混合或未知來源(不能推定陳述者)"
     assert await service.context_sources_current(legacy)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("partial", [False, True])
+async def test_mixed_or_partial_source_labels_never_invent_a_user_speaker(
+    tmp_path: Path, partial: bool
+) -> None:
+    import json
+    from dataclasses import replace
+
+    from siro.core.context import START, render_context
+    from siro.core.memory import MemorySourceEvent
+
+    _, service, _ = await setup(tmp_path / "mixed-source.sqlite")
+    stored = await remember(service, "synthetic quoted statement")
+    snapshot = await service.context_snapshot(
+        "siro", [stored], route_privacy=EventPrivacy.LOCAL_ONLY
+    )
+    assert snapshot is not None
+    second_id = uuid4()
+    combined = replace(stored, source_event_ids=(*stored.source_event_ids, second_id))
+    if not partial:
+        snapshot = replace(
+            snapshot,
+            source_events=(
+                *snapshot.source_events,
+                MemorySourceEvent(second_id, "conversation.text_delta.v1"),
+            ),
+        )
+    data, _ = json.JSONDecoder().raw_decode(
+        render_context("mixed", "siro", [combined], snapshot).split(START)[1]
+    )
+    record = data["memories"][0]
+    assert record["source_role_label"] == "混合或未知來源(不能推定陳述者)"
+    assert record["text"] == stored.text and record["authorizes_execution"] is False
 
 
 @pytest.mark.asyncio

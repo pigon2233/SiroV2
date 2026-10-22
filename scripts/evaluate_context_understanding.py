@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import AsyncIterator
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
@@ -147,6 +148,7 @@ class AuditedModel:
         self.requests: list[ModelRequest] = []
         self.failures: list[str] = []
         self.http_status: int | None = None
+        self.usage_tokens: int | None = None
 
     async def stream(
         self, request: ModelRequest, cancellation: CancellationToken
@@ -164,6 +166,8 @@ class AuditedModel:
             async for chunk in self.backend.stream(
                 replace(request, max_output_tokens=2048), cancellation
             ):
+                if chunk.kind == "usage" and chunk.usage_tokens is not None:
+                    self.usage_tokens = (self.usage_tokens or 0) + chunk.usage_tokens
                 yield chunk
         except httpx.HTTPStatusError as error:
             self.http_status = error.response.status_code
@@ -271,6 +275,7 @@ async def execute_case(
                     ModelMessage("user", current),
                 )
             )
+        started = time.monotonic()
         outcome = await core.respond(
             case["id"],
             "siro",
@@ -296,6 +301,8 @@ async def execute_case(
             "error_class": outcome.error,
             "http_status": audited.http_status,
             "response": outcome.text if backend else None,
+            "usage_tokens": audited.usage_tokens,
+            "elapsed_seconds": round(time.monotonic() - started, 3),
         }
 
 
@@ -308,7 +315,14 @@ def configured_backend(env_file: Path | None) -> tuple[LanguageModel, dict[str, 
 
     values = dict(os.environ)
     cloud = ("SIRO_OPENAI_BASE_URL", "SIRO_OPENAI_MODEL", "SIRO_OPENAI_API_KEY")
-    allowed = {*cloud, "SIRO_OLLAMA_MODEL", "SIRO_OLLAMA_BASE_URL"}
+    allowed = {
+        *cloud,
+        "SIRO_OLLAMA_MODEL",
+        "SIRO_OLLAMA_BASE_URL",
+        "SIRO_OLLAMA_THINKING",
+        "SIRO_OLLAMA_CONTEXT_LENGTH",
+        "SIRO_MODEL_MAX_OUTPUT_TOKENS",
+    }
     if env_file:
         for line in env_file.read_text().splitlines():
             if "=" in line and not line.lstrip().startswith("#"):
@@ -316,6 +330,7 @@ def configured_backend(env_file: Path | None) -> tuple[LanguageModel, dict[str, 
                 if key.strip() in allowed:
                     values.setdefault(key.strip(), value.strip().strip("\"'"))
     adapter: LanguageModel
+    local_options: dict[str, str] = {}
     if all(values.get(key) for key in cloud):
         endpoint = values["SIRO_OPENAI_BASE_URL"]
         model = values["SIRO_OPENAI_MODEL"]
@@ -326,14 +341,32 @@ def configured_backend(env_file: Path | None) -> tuple[LanguageModel, dict[str, 
     elif values.get("SIRO_OLLAMA_MODEL"):
         endpoint = values.get("SIRO_OLLAMA_BASE_URL", "http://127.0.0.1:11434")
         model = values["SIRO_OLLAMA_MODEL"]
-        adapter = OllamaAdapter(base_url=endpoint, model=model, timeout=45)
+        thinking = values.get("SIRO_OLLAMA_THINKING", "native")
+        if thinking not in {"native", "true", "false"}:
+            raise ValueError("unsupported local thinking mode")
+        context = values.get("SIRO_OLLAMA_CONTEXT_LENGTH")
+        adapter = OllamaAdapter(
+            base_url=endpoint,
+            model=model,
+            timeout=45,
+            thinking={"native": None, "true": True, "false": False}[thinking],
+            context_length=int(context) if context is not None else None,
+        )
+        local_options = {"thinking": thinking, "context_length": context or "provider_default"}
         protocol = "ollama"
     else:
         raise ValueError("configured model unavailable")
-    return ContextBudgetModel(adapter, max_bytes=131072), {
+    output_budget = values.get("SIRO_MODEL_MAX_OUTPUT_TOKENS")
+    return ContextBudgetModel(
+        adapter,
+        max_bytes=131072,
+        max_output_tokens=int(output_budget) if output_budget is not None else None,
+    ), {
         "model": model,
         "provider_host": urlsplit(endpoint).hostname or "unknown",
         "protocol": protocol,
+        **local_options,
+        "max_output_tokens": output_budget or "2048",
     }
 
 
@@ -368,6 +401,8 @@ async def evaluate(
                 ROOT / "src/siro/core/conversation.py",
                 ROOT / "src/siro/core/memory.py",
                 ROOT / "src/siro/persistence/memory.py",
+                ROOT / "src/siro/adapters/models/ollama.py",
+                ROOT / "src/siro/services/agent/context.py",
             )
         },
         "fixture_sha256": hashlib.sha256(FIXTURES.read_bytes()).hexdigest(),

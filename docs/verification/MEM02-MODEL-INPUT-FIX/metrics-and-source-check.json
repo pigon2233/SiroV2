@@ -1,0 +1,113 @@
+{
+  "batches": [
+    {
+      "batch": "real-v1",
+      "cases": 30,
+      "capture": 28,
+      "automatic": 27,
+      "usage_tokens_known_total": 71591,
+      "unknown_usage_cases": 2,
+      "completion_seconds_median": 17.8405,
+      "completion_seconds_p95_nearest_rank": 35.625,
+      "completion_seconds_max": 35.685,
+      "profile": {
+        "model": "qwen3:4b",
+        "provider_host": "127.0.0.1",
+        "protocol": "ollama",
+        "thinking": "true",
+        "context_length": "8192"
+      }
+    },
+    {
+      "batch": "real-v2",
+      "cases": 30,
+      "capture": 30,
+      "automatic": 27,
+      "usage_tokens_known_total": 79191,
+      "unknown_usage_cases": 0,
+      "completion_seconds_median": 16.837,
+      "completion_seconds_p95_nearest_rank": 26.7,
+      "completion_seconds_max": 30.515,
+      "profile": {
+        "model": "qwen3:4b",
+        "provider_host": "127.0.0.1",
+        "protocol": "ollama",
+        "thinking": "true",
+        "context_length": "8192",
+        "max_output_tokens": "4096"
+      }
+    },
+    {
+      "batch": "real-v3",
+      "cases": 30,
+      "capture": 30,
+      "automatic": 29,
+      "usage_tokens_known_total": 84485,
+      "unknown_usage_cases": 0,
+      "completion_seconds_median": 18.111,
+      "completion_seconds_p95_nearest_rank": 41.48,
+      "completion_seconds_max": 44.198,
+      "profile": {
+        "model": "qwen3:4b",
+        "provider_host": "127.0.0.1",
+        "protocol": "ollama",
+        "thinking": "true",
+        "context_length": "8192",
+        "max_output_tokens": "4096"
+      }
+    },
+    {
+      "batch": "real-v4",
+      "cases": 30,
+      "capture": 30,
+      "automatic": 29,
+      "usage_tokens_known_total": 88700,
+      "unknown_usage_cases": 0,
+      "completion_seconds_median": 17.6815,
+      "completion_seconds_p95_nearest_rank": 38.513,
+      "completion_seconds_max": 43.028,
+      "profile": {
+        "model": "qwen3:4b",
+        "provider_host": "127.0.0.1",
+        "protocol": "ollama",
+        "thinking": "true",
+        "context_length": "8192",
+        "max_output_tokens": "4096"
+      }
+    },
+    {
+      "batch": "holdout-v4",
+      "cases": 12,
+      "capture": 12,
+      "automatic": 12,
+      "usage_tokens_known_total": 34369,
+      "unknown_usage_cases": 0,
+      "completion_seconds_median": 15.184000000000001,
+      "completion_seconds_p95_nearest_rank": 45.475,
+      "completion_seconds_max": 45.475,
+      "profile": {
+        "model": "qwen3:4b",
+        "provider_host": "127.0.0.1",
+        "protocol": "ollama",
+        "thinking": "true",
+        "context_length": "8192",
+        "max_output_tokens": "4096"
+      }
+    }
+  ],
+  "v4_source_matches_current": {
+    "scripts/evaluate_context_understanding.py": true,
+    "src/siro/core/context.py": true,
+    "src/siro/core/companion.py": true,
+    "src/siro/core/conversation.py": true,
+    "src/siro/core/memory.py": true,
+    "src/siro/persistence/memory.py": true,
+    "src/siro/adapters/models/ollama.py": true,
+    "src/siro/services/agent/context.py": true
+  },
+  "limitations": [
+    "Usage is input plus generated tokens including thinking, not a cost-minimum claim.",
+    "Latency is Core reply completion in this local run, not first-token/production UI or an SLO.",
+    "Each model variant is one sample batch; different model defaults and UUID/time tokens limit causal comparisons."
+  ]
+}
