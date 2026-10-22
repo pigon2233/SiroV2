@@ -270,7 +270,7 @@ def _run_view(c: sqlite3.Connection, run: sqlite3.Row) -> dict[str, object]:
 
         found = note_for(c, str(run["run_id"]))
         if found is not None:
-            keys = ("text", "truncated", "sources", "reported_by_codex", "open_questions")
+            keys = ("text", "truncated", "sources", "reported_by_codex", "checks", "open_questions")
             note = {key: found[key] for key in keys}
         topic = c.execute(
             "SELECT payload_json FROM agent_steps WHERE run_id=? AND kind='self_topic'",

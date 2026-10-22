@@ -594,7 +594,9 @@
         const title = activityTitle(item), note = ACTIVITY_STATES[item.state]?.[2];
         const result = item.state === "failed" ? ACTIVITY_ERRORS[item.error] || "沒有完成" : note;
         const legacy = item.coverage?.tools === "legacy_unjournaled" ? "<p>這是舊格式的紀錄，工具細節不完整。</p>" : "";
-        const sources = item.note?.sources || [];
+        const sources = item.note?.sources || [], checks = item.note?.checks || [];
+        const verdicts = {supported: "頁面支持", contradicted: "頁面反駁", not_found: "頁面沒提到", unreachable: "打不開", unchecked: "沒判斷出來"};
+        const checkBlock = checks.length ? `<p>她核對過 Codex 的說法（讀過頁面不代表內容一定對）：</p><ul class="act-sources">${checks.map(check => `<li>${activityEscape(check.claim)}：<strong>${verdicts[check.verdict] || "沒判斷出來"}</strong><br><span class="act-target">${activityEscape(check.url.url)}</span></li>`).join("")}</ul>` : "";
         const noteBlock = item.note ? `<h4>她的筆記</h4><p class="act-note">${activityEscape(item.note.text)}${item.note.truncated ? "…" : ""}</p>`
           + (sources.length ? `<p>她讀過的頁面：</p><ul class="act-gaps act-sources">${sources.map(source => `<li class="act-target">${activityEscape(source.title ? `${source.title}：` : "")}${activityEscape(source.url.url)}</li>`).join("")}</ul>` : item.note.reported_by_codex?.length ? "" : "<p>這份筆記沒有成功讀到的頁面，內容可能不可靠。</p>")
           + (item.note.reported_by_codex?.length ? `<p>Codex 提供的來源（SIRO 沒有直接打開）：</p><ul class="act-gaps act-sources">${item.note.reported_by_codex.map(url => `<li class="act-target">${activityEscape(url.url)}</li>`).join("")}</ul>` : "") : "";
@@ -602,7 +604,7 @@
           <div><h3>${activityEscape(title)}</h3><div class="act-why">${activityEscape(activityWhy(item))} · 用了 ${item.tools.length} 個工具</div>
           ${result ? `<p>${activityEscape(result)}</p>` : ""}
           <details><summary>看細節<span class="sr-only">：${activityEscape(title)}</span></summary>
-          ${noteBlock}${item.tools.length ? `<ul class="act-tools">${item.tools.map(activityToolBlock).join("")}</ul>` : "<p>停下時還沒有呼叫任何工具。</p>"}${legacy}</details></div>
+          ${noteBlock}${checkBlock}${item.tools.length ? `<ul class="act-tools">${item.tools.map(activityToolBlock).join("")}</ul>` : "<p>停下時還沒有呼叫任何工具。</p>"}${legacy}</details></div>
           ${activityBadge(item.state)}</div></li>`;
       }
       function renderActivity() {
