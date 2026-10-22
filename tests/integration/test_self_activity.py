@@ -255,3 +255,19 @@ def test_notes_are_shared_only_on_request_and_reach_the_change_feed() -> None:
         assert client.post("/v1/self-notes/n1/delete", headers=auth).status_code == 422
     assert len(shared) == 1 and shared[0][0].startswith("我剛剛自己查了「M42」")
     assert marked == ["n1", "n1"]
+
+
+async def test_nothing_starts_when_dispatches_cannot_be_audited(tmp_path: Path) -> None:
+    async def read(arguments: dict[str, object], context: ExecutionContext) -> object:
+        raise AssertionError("an unaudited dispatch must never run")
+
+    owner, store, _ = await owner_for(
+        tmp_path, ScriptedModel([[read_call("r1")]]), {READ: read}, [True]
+    )
+    hook = owner._orchestrator.journal_hook
+    owner._orchestrator.journal_hook = None
+    assert await owner.start("沒有審計就不開始") is None
+    assert not owner.busy and activities_of(await ActivityMonitor(store).snapshot()) == []
+    owner._orchestrator.journal_hook = hook
+    assert await owner.start("審計恢復後可以開始") is not None
+    await settle(owner)
