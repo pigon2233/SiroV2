@@ -291,6 +291,14 @@
           <section class="page-view reading-width" data-page="settings" hidden inert aria-labelledby="settings-heading">
             <div class="page-heading"><h1 id="settings-heading" data-page-heading tabindex="-1">相處與設定</h1><p>資料、權限與系統狀態分開查看。語音開關與全文重聽在對話畫面。</p></div>
             <div class="destination-list"><a href="#/permissions" data-nav="permissions"><span><strong>權限與停止開關</strong><small>查看目前模式，控制工具與資料外送</small></span><span aria-hidden="true">›</span></a><a href="#/system" data-nav="system"><span><strong>系統與診斷</strong><small>長對話續作、內在狀態與連線紀錄</small></span><span aria-hidden="true">›</span></a><a href="#/chat" data-nav="chat"><span><strong>回到對話</strong><small>語音播放與全文重聽</small></span><span aria-hidden="true">›</span></a></div>
+            <details class="content-section" id="desktop-details"><summary>桌寵設定</summary>
+              <form id="desktop-settings" autocomplete="off">
+                <p><label><input type="checkbox" id="desktop-gpu"> 使用 GPU 繪製（WSL；會關閉 WebKit 沙盒，只載入本機頁面）</label></p>
+                <p><label><input type="checkbox" id="desktop-position-on"> 指定每次開啟的位置</label>
+                  <label>X <input type="number" id="desktop-x" min="-20000" max="20000" step="1" value="0" style="width:6em"></label>
+                  <label>Y <input type="number" id="desktop-y" min="-20000" max="20000" step="1" value="0" style="width:6em"></label></p>
+                <p><button type="submit">儲存</button> <span id="desktop-settings-status" role="status" aria-live="polite">下次啟動桌寵時生效。</span></p>
+              </form></details>
             <p class="section-note" style="margin-top:22px">桌面自由活動、新角色與動作包尚未完成。此版本沿用目前角色，不提供未驗證的角色切換。</p>
           </section>
           <section class="page-view reading-width" data-page="permissions" hidden inert aria-labelledby="permissions-heading">
@@ -400,6 +408,32 @@
       }
       const pageTitles = Object.freeze({chat:"對話", tasks:"任務", activity:"活動", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
       let activePage = "chat", navigationInitialized = false, selectedGoalTaskId = null;
+      const desktopForm = {
+        gpu: document.querySelector("#desktop-gpu"), on: document.querySelector("#desktop-position-on"),
+        x: document.querySelector("#desktop-x"), y: document.querySelector("#desktop-y"),
+        status: document.querySelector("#desktop-settings-status"),
+      };
+      async function loadDesktopSettings() {
+        try {
+          const response = await authorizedFetch("/v1/desktop/settings");
+          if (!response.ok) throw new Error("unavailable");
+          const settings = await response.json();
+          desktopForm.gpu.checked = settings.gpu !== false;
+          desktopForm.on.checked = Boolean(settings.position);
+          desktopForm.x.value = settings.position?.x ?? 0; desktopForm.y.value = settings.position?.y ?? 0;
+        } catch { desktopForm.status.textContent = "目前讀不到桌寵設定。"; }
+      }
+      document.querySelector("#desktop-details").addEventListener("toggle", event => { if (event.target.open) loadDesktopSettings(); });
+      document.querySelector("#desktop-settings").addEventListener("submit", async event => {
+        event.preventDefault();
+        const x = Number.parseInt(desktopForm.x.value, 10), y = Number.parseInt(desktopForm.y.value, 10);
+        if (desktopForm.on.checked && !(Number.isFinite(x) && Number.isFinite(y))) { desktopForm.status.textContent = "請填入整數座標。"; return; }
+        const body = {gpu: desktopForm.gpu.checked, position: desktopForm.on.checked ? {x, y} : null};
+        try {
+          const response = await authorizedFetch("/v1/desktop/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+          desktopForm.status.textContent = response.ok ? "已儲存，下次啟動桌寵時生效。" : "沒有儲存成功，請再按一次。";
+        } catch { desktopForm.status.textContent = "沒有儲存成功，請再按一次。"; }
+      });
       function showPage(hash = location.hash, moveFocus = false) {
         const detail = typeof hash === "string" ? /^#\/tasks\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.exec(hash) : null;
         selectedGoalTaskId = detail ? detail[1] : null;

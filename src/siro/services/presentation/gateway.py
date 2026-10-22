@@ -56,6 +56,10 @@ from siro.services.audio.tts import (
     QwenVoiceProfile,
     plan_speech,
 )
+from siro.services.presentation.desktop_settings import (
+    load_desktop_settings,
+    save_desktop_settings,
+)
 from siro.services.tools.execution import (
     ExecutionCancelled,
     ExecutionCleanupError,
@@ -397,6 +401,18 @@ class SelfActivityPauseInput(BaseModel):
     paused: bool
 
 
+class DesktopPositionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    x: int = Field(ge=-20000, le=20000)
+    y: int = Field(ge=-20000, le=20000)
+
+
+class DesktopSettingsInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    gpu: bool
+    position: DesktopPositionInput | None = None
+
+
 class KillSwitchInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     enabled: bool
@@ -620,6 +636,7 @@ def create_app(
     skill_activation: SkillActivationOwner | None = None,
     verified_release: VerifiedRelease | None = None,
     read_task_owner: ReadTaskOwner | None = None,
+    desktop_settings_path: Path | None = None,
 ) -> FastAPI:
     if (vrm_dist is None) != (vrm_model is None):
         raise ValueError("vrm_dist and vrm_model must be configured together")
@@ -1417,6 +1434,24 @@ def create_app(
             await on_share_note(*share_text(note))
         self_notes.mark_shared(str(note["run_id"]))
         return JSONResponse({"run_id": note["run_id"], "shared": True})
+
+    @app.get("/v1/desktop/settings")
+    async def get_desktop_settings(authorization: str | None = Header(default=None)) -> Response:
+        require_token(authorization)
+        if desktop_settings_path is None:
+            raise HTTPException(status_code=503, detail="desktop settings are unavailable")
+        settings = load_desktop_settings(desktop_settings_path)
+        return JSONResponse(settings, headers={"Cache-Control": "no-store"})
+
+    @app.put("/v1/desktop/settings")
+    async def put_desktop_settings(
+        body: DesktopSettingsInput, authorization: str | None = Header(default=None)
+    ) -> Response:
+        require_token(authorization)
+        if desktop_settings_path is None:
+            raise HTTPException(status_code=503, detail="desktop settings are unavailable")
+        saved = save_desktop_settings(desktop_settings_path, body.model_dump())
+        return JSONResponse(saved, headers={"Cache-Control": "no-store"})
 
     @app.put("/v1/self-activity")
     async def pause_self_activity(
@@ -2643,6 +2678,7 @@ def _run_gateway(
             tool_orchestrator=tool_orchestrator,
             skill_candidates=skill_candidates,
             skill_activation=skill_activation,
+            desktop_settings_path=data_dir / "desktop-settings.json",
         ),
         host="127.0.0.1",
         port=port,

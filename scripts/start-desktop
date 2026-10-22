@@ -73,6 +73,14 @@ fi
 # Without a GPU path (WSLg's WebKit falls back to Mesa's llvmpipe) WebGL draws on the CPU with one
 # thread per core; four are plenty for the pet and leave the rest to speech and transcription.
 export LP_NUM_THREADS="${LP_NUM_THREADS:-4}"
+# Owner settings (control console > settings): gpu on/off and the start position.
+settings_file="${SIRO_DATA_DIR:-.siro-data}/desktop-settings.json"
+if [[ -r "$settings_file" ]]; then
+  settings="$("$uv_command" run --no-sync python -c 'import json,sys; d=json.load(open(sys.argv[1])); p=d.get("position"); print("gpu=%d" % (d.get("gpu") is not False)); print("pos=%d,%d" % (p["x"], p["y"]) if isinstance(p, dict) else "pos=")' "$settings_file" 2>/dev/null || true)"
+  [[ "$settings" == *gpu=0* ]] && export SIRO_DESKTOP_GPU=0
+  position="$(sed -n 's/^pos=//p' <<<"$settings")"
+  [[ -n "$position" ]] && export SIRO_DESKTOP_POSITION="$position"
+fi
 # WSL: Mesa's D3D12 driver reaches the Windows GPU through /dev/dxg once /dev/dri is readable (the
 # user must be in the render group). WebKit's sandbox cannot expose /dev/dxg, so on this path the
 # web process runs unsandboxed (owner's decision, DECISIONS.md); the host still loads only the
