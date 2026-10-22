@@ -175,6 +175,28 @@ def fixed_cases() -> list[dict[str, object]]:
     return json.loads(path.read_text(encoding="utf-8-sig"))  # type: ignore[no-any-return]
 
 
+def quality_holdout_cases() -> list[dict[str, object]]:
+    import json
+
+    path = Path(__file__).resolve().parents[1] / "fixtures/context_quality_holdout.json"
+    cases: list[dict[str, object]] = json.loads(path.read_text(encoding="utf-8-sig"))
+    assert len(cases) == 12 and len({case["id"] for case in cases}) == 12
+    return cases
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", quality_holdout_cases(), ids=lambda case: str(case["id"]))
+async def test_frozen_quality_holdout_keeps_source_fences_and_native_request(
+    evaluator: object, case: dict[str, object]
+) -> None:
+    from typing import Any, cast
+
+    result = await cast(Any, evaluator).execute_case(case)
+    assert result["capture_passed"] is True
+    assert result["capture_failures"] == []
+    assert result["semantic_passed"] is None  # Capture is never model quality evidence.
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", fixed_cases(), ids=lambda case: case["id"])
 async def test_fixed_context_capture_is_not_semantic_evidence(
