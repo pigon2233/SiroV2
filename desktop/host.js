@@ -167,7 +167,7 @@ function readCursorLines(stream) {
 function startCursorFeed() {
     try {
         if (GLib.getenv('WSL_DISTRO_NAME')) {
-            cursorProcess = Gio.Subprocess.new(['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', encodedCommand(CURSOR_SCRIPT)],
+            cursorProcess = Gio.Subprocess.new(['/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', encodedCommand(CURSOR_SCRIPT)],
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE);
             readCursorLines(new Gio.DataInputStream({base_stream: cursorProcess.get_stdout_pipe()}));
         } else {
