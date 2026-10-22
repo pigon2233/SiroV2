@@ -73,6 +73,13 @@ fi
 # Without a GPU path (WSLg's WebKit falls back to Mesa's llvmpipe) WebGL draws on the CPU with one
 # thread per core; four are plenty for the pet and leave the rest to speech and transcription.
 export LP_NUM_THREADS="${LP_NUM_THREADS:-4}"
+# WSL: Mesa's D3D12 driver reaches the Windows GPU through /dev/dxg once /dev/dri is readable (the
+# user must be in the render group). WebKit's sandbox cannot expose /dev/dxg, so on this path the
+# web process runs unsandboxed (owner's decision, DECISIONS.md); the host still loads only the
+# loopback /desktop page. SIRO_DESKTOP_GPU=0 keeps the sandbox and the CPU rasteriser.
+if [[ -n "${WSL_DISTRO_NAME:-}" && "${SIRO_DESKTOP_GPU:-1}" == 1 && -r /dev/dri/renderD128 && -w /dev/dri/renderD128 && -e /dev/dxg ]]; then
+  export GALLIUM_DRIVER=d3d12 MESA_LOADER_DRIVER_OVERRIDE=d3d12 WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 SIRO_DESKTOP_GPU=1
+fi
 # The host can die from a WebKit snapshot failure inside GJS that no script can catch. A crash
 # (non-zero exit) relaunches it after 2 s, at most 5 times in 10 minutes; a clean exit, which is
 # the owner closing it, or an interrupt does not.

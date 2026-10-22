@@ -200,9 +200,11 @@ function updateShape() {
 function activate() {
     if (window) { window.deiconify(); window.show_all(); return; }
     const context = WebKit.WebContext.new_ephemeral();
-    context.set_sandbox_enabled(true);
-    state.sandbox = context.get_sandbox_enabled();
-    if (!state.sandbox) throw new Error('WebKit sandbox must remain enabled');
+    // Only the WSL GPU path (start-desktop) runs the web process unsandboxed; it needs /dev/dxg.
+    const gpu = GLib.getenv('SIRO_DESKTOP_GPU') === '1' && GLib.getenv('GALLIUM_DRIVER') === 'd3d12';
+    if (!gpu) context.set_sandbox_enabled(true);
+    state.sandbox = context.get_sandbox_enabled(); state.gpu = gpu;
+    if (!state.sandbox && !gpu) throw new Error('WebKit sandbox must remain enabled');
     const manager = new WebKit.UserContentManager();
     const css = 'html,body{background:transparent!important;}';
     manager.add_style_sheet(new WebKit.UserStyleSheet(css, WebKit.UserContentInjectedFrames.ALL_FRAMES, WebKit.UserStyleLevel.USER, null, null));
