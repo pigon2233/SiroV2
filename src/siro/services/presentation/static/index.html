@@ -498,16 +498,18 @@
         unknown: ["結果未確認", "?", "停止時工具可能已經在執行，SIRO 讀不回結果，所以不知道它有沒有做完。請自己確認一次。"],
       });
       const ACTIVITY_ORIGINS = Object.freeze({owner_request: "你要求的", self_interest: "SIRO 自己想做的", scheduled_followup: "先前約好的後續"});
-      const ACTIVITY_TOOLS = Object.freeze({"browser.navigate+read": "開網頁並讀內容", "computer.execute": "在電腦上執行程式"});
+      const ACTIVITY_TOOLS = Object.freeze({"browser.navigate+read": "開網頁並讀內容", "computer.execute": "在電腦上執行程式", "codex.ask": "請 Codex 幫忙查"});
       const ACTIVITY_GAPS = Object.freeze({
         http_status_not_captured: "沒有記錄網站回應的狀態碼",
         subresource_requests_not_listed: "頁面另外載入的圖片、腳本等沒有列出",
         page_interaction_requests_not_listed: "在頁面上操作時的請求沒有列出",
         subprocess_network_not_monitored: "這個程式自己連網的話，這裡看不到",
         tool_not_instrumented: "這個工具沒有網路監測",
+        external_agent_network_not_monitored: "Codex 自己上網讀了哪些頁面，這裡看不到",
       });
       const ACTIVITY_COVERAGE = Object.freeze({browser_adapter: "瀏覽器：有網址與轉址", unobserved: "沒有網路監測", none_recorded: "沒有任何網路紀錄"});
       const ACTIVITY_ERRORS = Object.freeze({
+        CodexUnavailable: "Codex 沒有回答（可能沒登入、沒網路或額度用完）",
         navigation_failed: "打不開網頁（連不上或被拒絕）", NavigationFailed: "打不開這個網站（網址可能過時或連不上）", agent_step_limit: "步驟太多，先停下來了",
         outcome_unknown: "中途被打斷，有些操作的結果不知道", ExecutionCancelled: "執行中被停止", interrupted_restart: "SIRO 重新啟動時中斷",
       });
@@ -558,6 +560,7 @@
       function activityTarget(target) {
         if (!target) return "沒有記錄目標";
         if (target.url) return activityEscape(target.url) + (target.redacted ? "<br><small>網址後面的查詢參數已隱藏</small>" : "");
+        if (target.task) return `「${activityEscape(target.task)}」`;
         if (target.program) return `${activityEscape(target.program)}（另有 ${Number(target.argument_count) || 0} 個參數，內容不保存）`;
         return target.redacted ? "網址已隱藏" : "沒有記錄目標";
       }
@@ -593,7 +596,8 @@
         const legacy = item.coverage?.tools === "legacy_unjournaled" ? "<p>這是舊格式的紀錄，工具細節不完整。</p>" : "";
         const sources = item.note?.sources || [];
         const noteBlock = item.note ? `<h4>她的筆記</h4><p class="act-note">${activityEscape(item.note.text)}${item.note.truncated ? "…" : ""}</p>`
-          + (sources.length ? `<p>她讀過的頁面：</p><ul class="act-gaps act-sources">${sources.map(source => `<li class="act-target">${activityEscape(source.title ? `${source.title}：` : "")}${activityEscape(source.url.url)}</li>`).join("")}</ul>` : "<p>這份筆記沒有成功讀到的頁面，內容可能不可靠。</p>") : "";
+          + (sources.length ? `<p>她讀過的頁面：</p><ul class="act-gaps act-sources">${sources.map(source => `<li class="act-target">${activityEscape(source.title ? `${source.title}：` : "")}${activityEscape(source.url.url)}</li>`).join("")}</ul>` : item.note.reported_by_codex?.length ? "" : "<p>這份筆記沒有成功讀到的頁面，內容可能不可靠。</p>")
+          + (item.note.reported_by_codex?.length ? `<p>Codex 提供的來源（SIRO 沒有直接打開）：</p><ul class="act-gaps act-sources">${item.note.reported_by_codex.map(url => `<li class="act-target">${activityEscape(url.url)}</li>`).join("")}</ul>` : "") : "";
         return `<li><div class="act-row"><time datetime="${activityEscape(item.created_at)}">${activityClock(item.created_at)}</time>
           <div><h3>${activityEscape(title)}</h3><div class="act-why">${activityEscape(activityWhy(item))} · 用了 ${item.tools.length} 個工具</div>
           ${result ? `<p>${activityEscape(result)}</p>` : ""}

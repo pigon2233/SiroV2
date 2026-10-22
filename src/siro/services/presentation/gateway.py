@@ -60,6 +60,15 @@ from siro.services.presentation.desktop_settings import (
     load_desktop_settings,
     save_desktop_settings,
 )
+from siro.services.tools.codex import (
+    CODEX_DEFINITION,
+    CODEX_TOOL,
+    ask_codex,
+    codex_binary,
+    codex_ready,
+)
+from siro.services.tools.codex import DEFAULT_MODEL as CODEX_DEFAULT_MODEL
+from siro.services.tools.codex import TIMEOUT_SECONDS as CODEX_TIMEOUT_SECONDS
 from siro.services.tools.execution import (
     ExecutionCancelled,
     ExecutionCleanupError,
@@ -1342,9 +1351,9 @@ def create_app(
                 status_code=503, detail="improvement evidence is unavailable", headers=no_store
             ) from error
 
-    async def with_self_activity(result: dict[str, object]) -> dict[str, object]:
+    async def with_self_activity(result: Mapping[str, object]) -> dict[str, object]:
         if self_activity is None or result.get("status") != "ok":
-            return result
+            return dict(result)
         own: dict[str, object] = {"paused": self_activity.paused}
         if self_notes is not None:
             own["unshared"] = await self_notes.unshared()
@@ -2320,6 +2329,14 @@ def _run_gateway(
             handlers[name] = browser_without_context
             browser_contextual[name] = partial(session_browser, action)
 
+    # Codex is a tool SIRO's own model may call; it only runs while the cloud switch is on.
+    codex_path = codex_binary()
+    codex_model = os.environ.get("SIRO_CODEX_MODEL", CODEX_DEFAULT_MODEL)
+    codex_contextual = {}
+    if runtime_profile == "candidate" and os.environ.get("SIRO_CODEX_ENABLED", "1") == "1":
+        handlers[CODEX_TOOL] = browser_without_context
+        codex_contextual[CODEX_TOOL] = partial(ask_codex, binary=codex_path, model=codex_model)
+
     workspace_contextual = {}
     if workspace is not None:
         for definition in WORKSPACE_TOOLS:
@@ -2331,11 +2348,18 @@ def _run_gateway(
         definitions.update({d.name: d for d in WORKSPACE_TOOLS})
     if browser_sessions is not None:
         definitions.update({d.name: d for d in BROWSER_SESSION_TOOLS})
+    definitions[CODEX_TOOL] = CODEX_DEFINITION
 
     def readiness(name: str) -> ToolAvailability:
         if not state.kill_switches["tools"]:
             return ToolAvailability(
                 AvailabilityState.UNAVAILABLE, AvailabilityReason.TOOLS_DISABLED
+            )
+        if name == CODEX_TOOL:
+            ready = state.kill_switches["cloud"] and codex_ready(codex_path)
+            return ToolAvailability(
+                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
+                AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,
             )
         if name.startswith("filesystem."):
             ready = workspace is not None and workspace.available
@@ -2365,8 +2389,10 @@ def _run_gateway(
             "browser.close": "關閉目前網頁",
             "filesystem.read": "讀取工作目錄文字檔",
             "filesystem.list": "查看工作目錄檔案",
+            CODEX_TOOL: "請 Codex 幫忙查",
         }
         read_only = name in {
+            CODEX_TOOL,
             "browser.navigate+read",
             "browser.read",
             "filesystem.read",
@@ -2382,6 +2408,8 @@ def _run_gateway(
             provenance="siro_builtin",
             timeout_seconds=120
             if name == "computer.execute"
+            else CODEX_TIMEOUT_SECONDS
+            if name == CODEX_TOOL
             else (30 if name.startswith("browser.") and browser_sessions is not None else None),
             failure_behavior="Failures produce failed observations. Unknown effects are not "
             "automatically repeated. Availability is not proof of successful execution.",
@@ -2397,10 +2425,15 @@ def _run_gateway(
                     available=partial(readiness, name),
                     backend="rust.scoped"
                     if name.startswith("filesystem.")
-                    else ("playwright" if name.startswith("browser.") else "python.argv"),
+                    else (
+                        "playwright"
+                        if name.startswith("browser.")
+                        else ("codex.exec" if name == CODEX_TOOL else "python.argv")
+                    ),
                     effect="read"
                     if name
                     in {
+                        CODEX_TOOL,
                         "browser.navigate+read",
                         "browser.read",
                         "filesystem.read",
@@ -2409,7 +2442,11 @@ def _run_gateway(
                     else "computer",
                     contextual_executor=execute_computer
                     if name == "computer.execute"
-                    else (browser_contextual.get(name) or workspace_contextual.get(name)),
+                    else (
+                        browser_contextual.get(name)
+                        or workspace_contextual.get(name)
+                        or codex_contextual.get(name)
+                    ),
                     metadata=tool_metadata(name),
                 )
                 for name, handler in handlers.items()
@@ -2441,6 +2478,7 @@ def _run_gateway(
             "computer.execute": execute_computer,
             **browser_contextual,
             **workspace_contextual,
+            **codex_contextual,
         }
         if runtime_profile == "candidate"
         else None,

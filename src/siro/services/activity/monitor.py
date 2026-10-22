@@ -83,6 +83,16 @@ def describe_tool(capability: str, arguments: object, observation: object) -> di
                 "gaps": ["page_interaction_requests_not_listed"],
             },
         }
+    if capability == "codex.ask":
+        task = args.get("task")
+        return {
+            "target": {"task": task[:MAX_REASON]} if isinstance(task, str) else None,
+            "network": {
+                "coverage": "unobserved",
+                "requests": [],
+                "gaps": ["external_agent_network_not_monitored"],
+            },
+        }
     if capability == "computer.execute":
         argv = args.get("argv")
         program = None
@@ -260,7 +270,8 @@ def _run_view(c: sqlite3.Connection, run: sqlite3.Row) -> dict[str, object]:
 
         found = note_for(c, str(run["run_id"]))
         if found is not None:
-            note = {key: found[key] for key in ("text", "truncated", "sources", "open_questions")}
+            keys = ("text", "truncated", "sources", "reported_by_codex", "open_questions")
+            note = {key: found[key] for key in keys}
         topic = c.execute(
             "SELECT payload_json FROM agent_steps WHERE run_id=? AND kind='self_topic'",
             (run["run_id"],),

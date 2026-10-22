@@ -976,7 +976,11 @@ class IntegratedCompanion:
             ):
                 return
             capability = call.name
-            risk = "observe/read-only" if capability == "browser.navigate+read" else "computer"
+            risk = (
+                "observe/read-only"
+                if capability in {"browser.navigate+read", "codex.ask"}
+                else "computer"
+            )
             try:
                 proposal = await orchestrator.propose(
                     session_id,

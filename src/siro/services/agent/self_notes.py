@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -48,6 +49,19 @@ def note_for(c: sqlite3.Connection, run_id: str) -> dict[str, object] | None:
         url = redact_url(seen.get("url"))
         if url is not None and url.get("url") and url not in [s["url"] for s in sources]:
             sources.append({"url": url, "title": str(seen.get("title") or "")[:120]})
+    # Links in Codex answers are what Codex says it read; SIRO did not open them itself.
+    reported: list[dict[str, object]] = []
+    for row in c.execute(
+        "SELECT observation_json FROM run_journal_calls WHERE run_id=? AND capability=? "
+        "AND observation_json IS NOT NULL",
+        (run_id, "codex.ask"),
+    ):
+        seen = json.loads(row[0])
+        answer = seen.get("answer") if isinstance(seen, dict) else None
+        for raw in re.findall(r"https?://[^\s)\]>」，。]+", str(answer or "")):  # noqa: RUF001
+            url = redact_url(raw)
+            if url is not None and url.get("url") and url not in reported:
+                reported.append(url)
     return {
         "run_id": run_id,
         "topic": run["goal"],
@@ -56,6 +70,7 @@ def note_for(c: sqlite3.Connection, run_id: str) -> dict[str, object] | None:
         "text": text[:MAX_NOTE],
         "truncated": len(text) > MAX_NOTE,
         "sources": sources,
+        "reported_by_codex": reported[:10],
         "open_questions": [line.strip() for line in text.splitlines() if "待查" in line][:5],
     }
 
@@ -103,7 +118,9 @@ class SelfNotes:
         return [
             str(note["run_id"])
             for note in await self.notes()
-            if not note["shared"] and note["sources"] and str(note["updated_at"]) >= since
+            if not note["shared"]
+            and (note["sources"] or note["reported_by_codex"])
+            and str(note["updated_at"]) >= since
         ]
 
     def mark_shared(self, run_id: str) -> None:
@@ -123,4 +140,10 @@ def share_text(note: dict[str, object]) -> tuple[str, str]:
     text = f"我剛剛自己查了「{note['topic']}」。\n\n{note['text']}"
     if links:
         text += f"\n\n我讀過的頁面：\n{links}"  # noqa: RUF001
+    reported = note.get("reported_by_codex") or []
+    assert isinstance(reported, list)
+    if reported:
+        text += "\n\nCodex 提供的來源（我沒有直接打開）：\n" + "\n".join(  # noqa: RUF001
+            f"- {item['url']}" for item in reported
+        )
     return text, f"我剛剛查了{note['topic']}，整理在對話裡了。"  # noqa: RUF001

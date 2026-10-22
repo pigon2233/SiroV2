@@ -28,6 +28,8 @@ from siro.services.tools.orchestrator import PriorOutcomeUnknown, ToolOrchestrat
 
 SELF_SESSION = "siro.self"
 READ_TOOL = "browser.navigate+read"
+# Codex can also help with her own research; it is offered only while the cloud switch is on.
+SELF_TOOLS = frozenset({READ_TOOL, "codex.ask"})
 MAX_ROUNDS = 6
 MAX_CALLS_PER_ROUND = 3
 SYSTEM_PROMPT = (
@@ -134,7 +136,7 @@ class SelfActivityOwner:
         proposals: list[str] = []
         state, text = AgentRunState.FAILED, ""
         error: str | None = "agent_step_limit"
-        tools = tuple(item for item in self._orchestrator.model_tools() if item.name == READ_TOOL)
+        tools = tuple(item for item in self._orchestrator.model_tools() if item.name in SELF_TOOLS)
         try:
             for _ in range(MAX_ROUNDS):
                 if self._ended(cancellation):
@@ -204,8 +206,9 @@ class SelfActivityOwner:
         proposals: list[str],
         cancellation: CancellationToken,
     ) -> object:
-        if call.name != READ_TOOL or self._ended(cancellation):
-            refused = {"error": "stopped" if call.name == READ_TOOL else "read_only_self_activity"}
+        offered = call.name in SELF_TOOLS
+        if not offered or self._ended(cancellation):
+            refused = {"error": "stopped" if offered else "read_only_self_activity"}
             await self._runs.record_observation(run_id, call.call_id, refused)
             return refused
         proposal = await self._orchestrator.propose(
