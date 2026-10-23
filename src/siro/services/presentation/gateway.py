@@ -14,7 +14,7 @@ from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
@@ -42,6 +42,7 @@ from siro.services.agent.organization import MemoryOrganizer
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
 from siro.services.agent.self_notes import SelfNotes, share_text
+from siro.services.context.work_context import AppSnapshot, ScopeStore, WorkContext
 from siro.services.audio.protocol import (
     AudioFrame,
     AudioMetadata,
@@ -410,6 +411,27 @@ class SelfActivityPauseInput(BaseModel):
     paused: bool
 
 
+class WorkContextScopeInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    app_metadata: bool | None = None
+    screen: bool | None = None
+
+
+class WorkContextSharedInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1, max_length=200)
+    ttl_minutes: int = Field(default=240, ge=1, le=720)
+
+
+class WorkContextAppInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    app_name: str = Field(min_length=1, max_length=128)
+    window_title: str = Field(default="", max_length=512)
+    locked: bool = False
+    fullscreen: bool = False
+    focus_mode: bool = False
+
+
 class DesktopPositionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     x: int = Field(ge=-20000, le=20000)
@@ -634,6 +656,7 @@ def create_app(
     on_activity_changes: Callable[[int, int], Awaitable[dict[str, object]]] | None = None,
     on_activity_stop: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     self_activity: SelfActivityOwner | None = None,
+    work_context: WorkContext | None = None,
     self_notes: SelfNotes | None = None,
     on_share_note: Callable[[str, str], Awaitable[None]] | None = None,
     on_improvement_proposal: Callable[[str], Awaitable[dict[str, object]]] | None = None,
@@ -1461,6 +1484,65 @@ def create_app(
             raise HTTPException(status_code=503, detail="desktop settings are unavailable")
         saved = save_desktop_settings(desktop_settings_path, body.model_dump())
         return JSONResponse(saved, headers={"Cache-Control": "no-store"})
+
+    @app.get("/v1/work-context")
+    async def get_work_context(authorization: str | None = Header(default=None)) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
+
+    @app.put("/v1/work-context/scope")
+    async def put_work_context_scope(
+        body: WorkContextScopeInput, authorization: str | None = Header(default=None)
+    ) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        # Only the sources named here change; the global authorization mode is not consulted.
+        work_context.update_scope(body.model_dump(exclude_none=True))
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/work-context/shared")
+    async def share_work_context(
+        body: WorkContextSharedInput, authorization: str | None = Header(default=None)
+    ) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        work_context.share(body.text, timedelta(minutes=body.ttl_minutes))
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/work-context/app")
+    async def report_work_context_app(
+        body: WorkContextAppInput, authorization: str | None = Header(default=None)
+    ) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        # An adapter that keeps reporting after the switch is off is told to stop.
+        if not work_context.source_enabled("app_metadata"):
+            raise HTTPException(status_code=409, detail="app metadata is switched off")
+        work_context.ingest_app(AppSnapshot(**body.model_dump()))
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/work-context/{observation_id}/{action}")
+    async def work_context_action(
+        observation_id: str,
+        action: Literal["retract", "correct"],
+        authorization: str | None = Header(default=None),
+    ) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        found = (
+            work_context.retract(observation_id[:64])
+            if action == "retract"
+            else work_context.correct(observation_id[:64])
+        )
+        if not found:
+            raise HTTPException(status_code=404, detail="observation was not found")
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
 
     @app.put("/v1/self-activity")
     async def pause_self_activity(
@@ -2567,11 +2649,16 @@ def _run_gateway(
             item.subject for item in items if item.status == "committed" and item.polarity > 0
         )
 
+    work_context = WorkContext(
+        ScopeStore(data_dir / "work-context-scope.json"), clock=lambda: datetime.now(UTC)
+    )
+
     self_scheduler = (
         SelfActivityScheduler(
             self_owner,
             InterestPicker(shared_store, model, own_preferences),
             shared_store,
+            quiet=lambda: not work_context.may_interrupt(),
             foreground=lambda: (
                 controller.foreground_active
                 or (read_tasks is not None and read_tasks.busy)
@@ -2699,6 +2786,7 @@ def _run_gateway(
             on_activity_changes=controller.activity_changes,
             on_activity_stop=stop_activity,
             self_activity=self_owner,
+            work_context=work_context,
             self_notes=SelfNotes(shared_store, data_dir / "self-notes-shared.json")
             if self_owner is not None
             else None,

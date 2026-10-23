@@ -1,3 +1,11 @@
+# Companion CP-P05：有 scope 的工作情境 — 2026-10-23，PARTIAL
+
+新增 `services/context/work_context.py`：來源分開開關（主人自己說的／app metadata／選定畫面，後兩者預設關，`work-context-scope.json` 重啟保留，損壞視為全關）。每筆 observation 有 source／kind（stated／seen／inferred 分開）／observed_at／expires_at／privacy／permission_revision；關來源或改 revision 立即失效，視窗標題不存，鎖屏／敏感視窗（密碼、銀行、無痕等）不留紀錄並丟掉前一筆，編輯器只推測並反問「你是在寫程式嗎？」，更正後不再猜，Focus／全螢幕時 P04 排程不啟動自主活動，雲端模型拿不到任何情境。端點 `/v1/work-context`（GET／scope／shared／app／{id}/retract|correct）；關閉後 adapter 回報得 409。
+
+命令與結果：`test_work_context.py` 9 PASS，加 self_activity／self_interests 共 24 PASS；新檔 Ruff／format／mypy PASS（`integrated.py` 既有 2 個 E501／format 問題非本卡）。本機 commit，未 push。
+
+限制：沒有真的 OS 前景視窗 provider 與螢幕擷取 provider（只有 adapter 介面、`/v1/work-context/app` 推送端點與 `ScreenObserver`，gateway 未組裝擷取來源）；沒有 UI 開關頁、情境也未接進對話 prompt（`prompt_lines` 已備、未被 caller 使用）；Windows／WSLg 未驗。回退：撤 commit；無觀察時聊天不受影響。
+
 # Companion CP-O01：程序層網路監測 — 2026-10-23，PARTIAL
 
 新增 `adapters/process_network.py`：Linux 免權限取樣 `/proc`，把 subprocess 的外送連線歸屬到它的 process group；其他平台回 unsupported。實測持有中的連線可歸屬，短連線看不到，因此只標 sampled，不能稱完整稽核。見 [REPORT](evidence/CP-O01-2026-10-23/REPORT.md)。

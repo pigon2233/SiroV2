@@ -164,6 +164,7 @@ class SelfActivityScheduler:
         store: SQLiteStore,
         *,
         foreground: Callable[[], bool],
+        quiet: Callable[[], bool] = lambda: False,
         interval: float = 600.0,
         owner_quiet: timedelta = timedelta(minutes=10),
         cooldown: timedelta = timedelta(minutes=45),
@@ -174,6 +175,7 @@ class SelfActivityScheduler:
         self._picker = picker
         self._store = store
         self._foreground = foreground
+        self._quiet = quiet
         self._interval = interval
         self._owner_quiet = owner_quiet
         self._cooldown = cooldown
@@ -183,7 +185,8 @@ class SelfActivityScheduler:
 
     async def tick(self) -> str | None:
         """One decision: the started run id, or None when she waits."""
-        if self._owner.paused or self._owner.busy or self._foreground():
+        # Focus or fullscreen: she keeps to herself, like an owner who should not be disturbed.
+        if self._owner.paused or self._owner.busy or self._foreground() or self._quiet():
             return None
         now = self._clock()
 
