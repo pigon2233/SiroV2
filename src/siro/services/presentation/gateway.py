@@ -12,7 +12,7 @@ import shutil
 import time
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from functools import partial
@@ -42,7 +42,7 @@ from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
-from siro.services.agent.self_notes import SelfNotes, share_text
+from siro.services.agent.self_notes import SelfNotes, remember_note, share_text
 from siro.services.audio.protocol import (
     AudioFrame,
     AudioMetadata,
@@ -2770,6 +2770,9 @@ def _run_gateway(
             if note is not None:
                 await controller.share_self_note(*share_text(note), speak=False)
                 self_notes_service.mark_shared(run_id)
+                # Owner decision: sourced notes go into memory by themselves (short, deletable).
+                with suppress(Exception):
+                    await remember_note(memory_service, note)
 
     self_scheduler = (
         SelfActivityScheduler(

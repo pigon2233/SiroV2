@@ -12,7 +12,15 @@ import os
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import NAMESPACE_URL, uuid5
 
+from siro.contracts.events import (
+    Priority,
+    Privacy,
+    WorldObservedEvent,
+    WorldObservedPayload,
+)
+from siro.core.memory import Memory, MemoryKind, MemoryService
 from siro.persistence.sqlite import SQLiteStore
 from siro.services.activity.monitor import redact_url
 from siro.services.agent.self_activity import READ_TOOL, SELF_SESSION, URL_PATTERN
@@ -201,3 +209,46 @@ def share_text(note: dict[str, object]) -> tuple[str, str]:
             for check in checks
         )
     return text, f"我剛剛查了{note['topic']}，整理在對話裡了。"  # noqa: RUF001
+
+
+async def remember_note(memory_service: MemoryService, note: dict[str, object]) -> bool:
+    """Keep a short, sourced line about her own research; never the page text (untrusted)."""
+    sources = note["sources"]
+    assert isinstance(sources, list)
+    if not sources:
+        return False
+    topic = " ".join(str(note["topic"]).split())[:80]
+    names = [
+        " ".join(str(source["title"] or source["url"]["url"]).split())[:60]
+        for source in sources[:3]
+    ]
+    run_id = str(note["run_id"])
+    now = datetime.now(UTC)
+    event = WorldObservedEvent(
+        event_id=uuid5(NAMESPACE_URL, f"siro:self-research-event:{run_id}"),
+        type="world.observed.v1",
+        source="siro.self-research",
+        occurred_at=now,
+        received_at=now,
+        trace_id=run_id[:128],
+        sequence=0,
+        priority=Priority.BACKGROUND,
+        privacy=Privacy.LOCAL_ONLY,
+        payload=WorldObservedPayload(
+            entity_id="siro",
+            property="research_note",
+            value={"run_id": run_id, "topic": topic},
+            confidence=0.6,
+        ),
+    )
+    memory = Memory(
+        uuid5(NAMESPACE_URL, f"siro:self-research-memory:{run_id}"),
+        "siro",
+        f"我自己查過「{topic}」，看過：{'、'.join(names)}。",  # noqa: RUF001
+        (event.event_id,),
+        now,
+        kind=MemoryKind.SELF,
+        confidence=0.6,
+    )
+    await memory_service.remember(memory, event)
+    return True
