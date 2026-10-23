@@ -148,6 +148,7 @@ def test_audio_channels_negotiate_frames_and_enforce_single_playback_owner() -> 
 
 def test_authenticated_microphone_transcription_obeys_kill_switch() -> None:
     state = GatewayState()
+    state.kill_switches["microphone"] = False
     stt = MockSpeechToText("你好 SIRO", "zh")
     client = TestClient(create_app(allowed_origins={ORIGIN}, state=state, speech_to_text=stt))
     token = issue_token(client)
@@ -169,6 +170,7 @@ def test_authenticated_neural_speech_obeys_cloud_switch() -> None:
             return b"mp3-audio"
 
     state = GatewayState()
+    state.kill_switches["cloud"] = False
     state.routes["tts"] = "edge:test"
     client = TestClient(
         create_app(allowed_origins={ORIGIN}, state=state, text_to_speech=FakeSpeech())

@@ -315,7 +315,7 @@
       </div>
     </div>
     <script>
-      let socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
+      let handsFreeAutoStarted = false, socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
       let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
       let submissionGeneration = 0, pendingSubmission;
       let improvementEpoch = 0, improvementController, improvementTimeout;
@@ -1603,6 +1603,11 @@
         microphoneEnabled = Boolean(data.kill_switches.microphone);
         if (!microphoneEnabled) document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop"));
         updateMicrophoneControls();
+        // Hands-free listening is on by default, started once when the switch state first loads.
+        if (microphoneEnabled && !handsFreeAutoStarted) {
+          handsFreeAutoStarted = true;
+          try { if (!handsFree.on && !pageClosing) startHandsFree(); } catch { /* not ready: the owner can press it */ }
+        }
         const switchLabels = {cloud:"雲端功能", tools:"電腦與工具操作", microphone:"麥克風輸入"};
         const switchButtons = [];
         Object.entries(data.kill_switches).forEach(([name, enabled]) => {
@@ -2372,10 +2377,6 @@
         listen(document.querySelector("#microphone-toggle"), "click", () => { if (microphoneEnabled && handsFree.on) stopHandsFree(); }, {capture: true});
         listen(globalThis, "pagehide", () => stopHandsFree(), {once: true});
       }
-      // Hands-free listening is on by default once the microphone switch state has loaded.
-      setTimeout(() => { if (microphoneEnabled && !handsFree.on && !pageClosing) startHandsFree(); }, 1500);
-      // Hands-free listening is on by default once the microphone switch state has loaded.
-      setTimeout(() => { if (microphoneEnabled && !handsFree.on && !pageClosing) startHandsFree(); }, 1500);
       if (document.body?.classList?.contains("siro-control")) {
         document.querySelector("#voice-output").checked = false;
         document.querySelector("#voice-output").disabled = true;

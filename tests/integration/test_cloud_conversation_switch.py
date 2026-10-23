@@ -25,6 +25,7 @@ def authorization(client: TestClient, origin: str = ORIGIN) -> dict[str, str]:
 
 def test_cloud_switch_blocks_callback_until_explicitly_enabled() -> None:
     state = GatewayState()
+    state.kill_switches["cloud"] = False
     state.routes["model"] = "cloud:synthetic"
     received: list[tuple[str, str, str]] = []
 
@@ -87,6 +88,7 @@ def test_disabling_cloud_cancels_active_work_and_blocks_next_turn() -> None:
 @pytest.mark.parametrize("backend", ["ollama:synthetic", "offline"])
 def test_cloud_disabled_does_not_block_local_conversation(backend: str) -> None:
     state = GatewayState()
+    state.kill_switches["cloud"] = False
     state.routes["model"] = backend
     received: list[str] = []
 
