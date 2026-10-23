@@ -4,7 +4,7 @@
 
 命令與結果：`test_work_context.py` 9 PASS，加 self_activity／self_interests 共 24 PASS；新檔 Ruff／format／mypy PASS（`integrated.py` 既有 2 個 E501／format 問題非本卡）。本機 commit，未 push。
 
-限制：視窗／螢幕 provider 只在 Windows 與 WSL（經 PowerShell）實測；原生 Linux／macOS 沒有 provider，情境只剩主人自己說的。Windows Focus assist 讀不到，Focus 只靠全螢幕判斷；螢幕只量亮度與主色，不辨識內容。情境在本機模型 prompt 中標明 seen／inferred，雲端不帶。UI 在控制台「工作情境」區塊，未做視覺／200%／讀屏驗收。全測 2410 PASS／33 FAIL，其中 23（gateway_main、runtime_product、native_context_budget、desktop_snapshot_privacy、ci_secret_gate）在 HEAD 乾淨狀態同樣失敗，另 test_capability_product 切片順序問題也是既有，其餘 skill_registry 等 10 個未逐一比對。回退：撤 commit；無觀察時聊天不受影響。
+限制：視窗／螢幕 provider 只在 Windows 與 WSL（經 PowerShell）實測；原生 Linux／macOS 沒有 provider，情境只剩主人自己說的。Windows Focus assist 讀不到，Focus 只靠全螢幕判斷；螢幕只量亮度與主色，不辨識內容。情境在本機模型 prompt 中標明 seen／inferred，雲端不帶。UI 在控制台「工作情境」區塊，已加進 reflow／對比／Tab 順序的 playwright 壓力資料（320–960 寬含 200% 縮放，8 PASS；修了三筆觀察的按鈕重名）；沒有真人讀屏器試用。全測 2410 PASS／33 FAIL，其中 23（gateway_main、runtime_product、native_context_budget、desktop_snapshot_privacy、ci_secret_gate）在 HEAD 乾淨狀態同樣失敗，另 test_capability_product 切片順序問題也是既有，其餘 skill_registry 等 10 個未逐一比對。回退：撤 commit；無觀察時聊天不受影響。
 
 # Companion CP-O01：程序層網路監測 — 2026-10-23，PARTIAL
 

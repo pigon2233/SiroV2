@@ -53,6 +53,11 @@ L => {
   activityView.fetchedAt = '2026-10-18T10:05:00+08:00'; activityView.status = 'ok';
   activityView.truncated = true; renderActivity();
   for (const details of document.querySelectorAll('#activity-body details')) details.open = true;
+  renderContext({providers: true, scope: {app_metadata: true, screen: true, revision: 3},
+    status: 'known', quiet: true, hint: L, question: null, observations: ['stated', 'seen',
+    'inferred'].map((kind, i) => ({id: 'o' + i, kind, source: 'app_metadata', subject: 'editor',
+      detail: L, confidence: 1, expires_at: '2026-10-23T09:00:00+08:00'}))});
+  document.querySelector('#context-details').open = true;
   appendMessage('user', L); appendMessage('assistant', L);
   productRequest = async () => ({items: [{memory_id: 'm1', text: L, revision: 2,
     source_event_ids: ['evt-' + 'c'.repeat(60)]}]});

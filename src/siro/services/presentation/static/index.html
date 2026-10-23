@@ -1539,9 +1539,9 @@
         for (const item of data.observations) {
           const row = document.createElement("p");
           row.textContent = `${contextKinds[item.kind] || item.kind}：${item.detail}（到 ${new Date(item.expires_at).toLocaleTimeString()}）`;
-          const forget = document.createElement("button"); forget.type = "button"; forget.textContent = "忘掉";
+          const forget = document.createElement("button"); forget.type = "button"; forget.textContent = "忘掉"; forget.id = `context-forget-${item.id}`; forget.setAttribute("aria-label", `忘掉：${item.detail.slice(0, 40)}`);
           forget.onclick = () => contextAction(`/v1/work-context/${encodeURIComponent(item.id)}/retract`);
-          const wrong = document.createElement("button"); wrong.type = "button"; wrong.textContent = "不對";
+          const wrong = document.createElement("button"); wrong.type = "button"; wrong.textContent = "不對"; wrong.id = `context-wrong-${item.id}`; wrong.setAttribute("aria-label", `這不對：${item.detail.slice(0, 40)}`);
           wrong.onclick = () => contextAction(`/v1/work-context/${encodeURIComponent(item.id)}/correct`);
           row.append(" ", forget, " ", wrong); contextEls.items.append(row);
         }
