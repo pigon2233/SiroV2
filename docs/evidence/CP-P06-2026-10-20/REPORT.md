@@ -49,4 +49,4 @@
 
 ## 2026-10-23 實機補記（WSLg）
 
-原生 Wayland 的桌寵視窗不能 `window.move`，散步因此只有動畫；WSL 改走 XWayland/X11 後 owner 實機確認會移動。同日 owner 確認開啟位置與看滑鼠正常。仍未驗：鎖屏、全螢幕、螢幕移除、DPI；WSLg 的隱形外框（見 STATUS）。結果維持 PARTIAL。
+原生 Wayland 的桌寵視窗不能 `window.move`，散步因此只有動畫；WSL 改走 XWayland/X11 後 owner 實機確認會移動。同日 owner 確認開啟位置與看滑鼠正常。仍未驗：鎖屏、全螢幕、螢幕移除、DPI；WSLg 的隱形外框（見 STATUS）。Owner 接受隱形外框為已知限制並結案（STATUS 標 DONE，未驗項目不宣稱通過）。
