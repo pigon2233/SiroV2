@@ -258,9 +258,15 @@ class WorkerSupervisor:
         project_root = source_root.parent
         directories: list[str] = []
         current = Path("/")
+        python_prefix = Path(sys.prefix)
         for part in project_root.parts[1:]:
             current /= part
             directories.extend(("--dir", str(current)))
+        if not python_prefix.is_relative_to(project_root):
+            current = Path("/")
+            for part in python_prefix.parts[1:-1]:
+                current /= part
+                directories.extend(("--dir", str(current)))
         workspace = await _request(validated)
         try:
             command = (
@@ -285,8 +291,8 @@ class WorkerSupervisor:
                 "/tmp",
                 *directories,
                 "--ro-bind",
-                str(project_root / ".venv"),
-                str(project_root / ".venv"),
+                str(python_prefix),
+                str(python_prefix),
                 "--ro-bind",
                 str(source_root),
                 str(source_root),
