@@ -504,11 +504,13 @@
         http_status_not_captured: "沒有記錄網站回應的狀態碼",
         subresource_requests_not_listed: "頁面另外載入的圖片、腳本等沒有列出",
         page_interaction_requests_not_listed: "在頁面上操作時的請求沒有列出",
+        short_connections_may_be_missed: "只定時抽查，很快連上又關掉的連線可能沒看到",
+        destination_is_ip_only: "只看得到對方的 IP 與連接埠，不知道網站名稱或內容",
         subprocess_network_not_monitored: "這個程式自己連網的話，這裡看不到",
         tool_not_instrumented: "這個工具沒有網路監測",
         external_agent_network_not_monitored: "Codex 自己上網讀了哪些頁面，這裡看不到",
       });
-      const ACTIVITY_COVERAGE = Object.freeze({browser_adapter: "瀏覽器：有網址與轉址", unobserved: "沒有網路監測", none_recorded: "沒有任何網路紀錄"});
+      const ACTIVITY_COVERAGE = Object.freeze({browser_adapter: "瀏覽器：有網址與轉址", process_sampled: "程式連線：定時抽查，不保證完整", unobserved: "沒有網路監測", none_recorded: "沒有任何網路紀錄"});
       const ACTIVITY_ERRORS = Object.freeze({
         CodexUnavailable: "Codex 沒有回答（可能沒登入、沒網路或額度用完）",
         navigation_failed: "打不開網頁（連不上或被拒絕）", NavigationFailed: "打不開這個網站（網址可能過時或連不上）", agent_step_limit: "步驟太多，先停下來了",
@@ -567,7 +569,9 @@
       }
       function activityToolBlock(tool) {
         const network = tool.network || {coverage: "unobserved", requests: [], gaps: []};
-        const requests = (network.requests || []).map(request => request.redirected === true && request.final?.url
+        const requests = (network.requests || []).map(request => request.kind === "connection"
+          ? `連到 <span class="act-target">${activityEscape(request.remote)}:${Number(request.port) || 0}</span>`
+          : request.redirected === true && request.final?.url
           ? `轉到 <span class="act-target">${activityEscape(request.final.url)}</span>` : request.final == null ? "沒有拿到頁面" : request.redirected === false ? "沒有轉址" : "不知道有沒有轉址").join("；");
         const error = tool.error ? `<dt>原因</dt><dd>${activityEscape(ACTIVITY_ERRORS[tool.error] || "沒有更詳細的原因")}</dd>` : "";
         const gaps = (network.gaps || []).length ? `<ul class="act-gaps">${network.gaps.map(gap => `<li>${activityEscape(ACTIVITY_GAPS[gap] || "有一部分網路活動沒有記錄")}</li>`).join("")}</ul>` : "";

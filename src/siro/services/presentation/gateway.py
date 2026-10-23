@@ -2355,6 +2355,7 @@ def _run_gateway(
                 timeout=timeout,
                 detach=detach,
                 context=context,
+                sample_network=True,
             )
         process = await asyncio.create_subprocess_exec(
             *argv,

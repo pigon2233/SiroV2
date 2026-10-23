@@ -10,7 +10,9 @@
 
 新增 `adapters/process_network.py`：Linux 免權限取樣 `/proc`，把 subprocess 的外送連線歸屬到它的 process group；其他平台回 unsupported。實測持有中的連線可歸屬，短連線看不到，因此只標 sampled，不能稱完整稽核。見 [REPORT](evidence/CP-O01-2026-10-23/REPORT.md)。
 
-限制：只在 WSL2 測；Windows 原生／macOS 無免權限方法；尚未接進 `computer.execute` 或監測頁，監測頁仍標「沒有網路監測」。下一步：決定是否接線。
+接線：candidate 的 `computer.execute` 每 0.1 秒抽查，監測頁顯示「程式連線：定時抽查，不保證完整」與對方 IP:port；其他平台維持「沒有網路監測」。
+
+限制：只在 WSL2 測；Windows 原生／macOS 無免權限方法；detach 的程式不取樣；V05 稿未同步；owner 未實機看。
 
 # Companion CP-P04：她自己的活動、研究筆記與分享 — 2026-10-22，PARTIAL
 

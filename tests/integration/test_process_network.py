@@ -79,3 +79,31 @@ def test_capability_is_unsupported_without_proc(tmp_path, monkeypatch):
     assert probe_capability(tmp_path).status == "unsupported"
     monkeypatch.setattr(sys, "platform", "win32")
     assert probe_capability().status == "unsupported"
+
+
+@pytest.mark.asyncio
+async def test_bounded_execution_reports_sampled_connection(server, tmp_path):
+    from siro.adapters.process_execution import execute_bounded_argv
+    from siro.services.activity.monitor import describe_tool
+
+    port = server.getsockname()[1]
+    code = _HOLD.replace("print('up',flush=True);", "") + ";"
+    result = await execute_bounded_argv(
+        (sys.executable, "-c", code, str(port), "1"),
+        cwd=tmp_path,
+        environment={},
+        timeout=10,
+        sample_network=True,
+    )
+    sample = result["network_sample"]
+    assert sample["status"] == "sampled"
+    assert {"protocol": "tcp", "remote": "127.0.0.1", "port": port} in sample["connections"]
+    network = describe_tool("computer.execute", {"argv": ["x"]}, result)["network"]
+    assert network["coverage"] == "process_sampled"
+    assert network["requests"][0]["kind"] == "connection"
+    assert "short_connections_may_be_missed" in network["gaps"]
+    # Off by default: the model-facing result keeps its old shape.
+    plain = await execute_bounded_argv(
+        (sys.executable, "-c", "pass"), cwd=tmp_path, environment={}, timeout=10
+    )
+    assert "network_sample" not in plain

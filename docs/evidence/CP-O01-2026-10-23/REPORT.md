@@ -1,6 +1,6 @@
 # CP-O01：程序層網路監測（2026-10-23）
 
-**結果：PARTIAL。** 只在 WSL2 Linux 實測，並以取樣方式歸屬；Windows 原生、macOS 標 unsupported；尚未接進監測頁或工具執行。
+**結果：PARTIAL。** 只在 WSL2 Linux 實測，並以取樣方式歸屬；Windows 原生、macOS 標 unsupported。已接進 candidate 的 `computer.execute` 與監測頁（見「接線」）。
 
 ## 第一版覆蓋盲區（來源：`monitor.describe_tool`）
 
@@ -28,9 +28,14 @@ adapter log 只是工具自述的網路，**不是**完整封包稽核。
 - 無 `/proc` 或非 Linux：`probe_capability` 回 unsupported，測試在不支援平台 skip，不假裝通過。
 - Ruff、format、mypy 通過。未跑全套 check；Windows 原生未測。
 
-## 沒做
+## 接線
 
-- 沒接進 `computer.execute` 的取樣迴圈，也沒有新的 coverage 值給監測頁；接線需決定取樣頻率並更新 V05 文案，另開卡。
+- `execute_bounded_argv(sample_network=True)`（預設關，只有 gateway 的 `computer.execute` 開）每 0.1 秒抽查，結果放 `network_sample`（最多 20 筆不重複的 協定／IP／port）。
+- 監測頁新 coverage `process_sampled`，gap：`short_connections_may_be_missed`、`destination_is_ip_only`；不支援平台維持 `unobserved`。
+- 測試：`test_bounded_execution_reports_sampled_connection`；`test_bounded_execution` 的精確比對改為容許 `network_sample`。相關 35 測試 PASS；Ruff 對本卡檔案乾淨（repo 另有 3 個既有 E501 在未改的檔案）。
+- 未做：偏好 `detach` 的程式不取樣；V05 設計稿未同步新文案；沒有 owner 實機看過畫面。
+
+## 沒做
 - 不解密 TLS、不抓全機封包、不改權限。
 
 ## 回退
