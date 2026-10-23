@@ -2150,6 +2150,11 @@
         samples.forEach((sample, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sample)) * (sample < 0 ? 32768 : 32767), true));
         return new Blob([data], {type: "audio/wav"});
       }
+      async function openMicrophone(constraints) {
+        // Some WebKit builds reject the processing hints; fall back to the plain device.
+        try { return await navigator.mediaDevices.getUserMedia({audio: constraints}); }
+        catch (error) { if (error?.name === "NotAllowedError" || error?.name === "NotFoundError") throw error; return await navigator.mediaDevices.getUserMedia({audio: true}); }
+      }
       let microphoneEpoch = 0, microphoneCapture, transcriptionController, permissionPending = false;
       function updateMicrophoneControls() {
         const toggle = document.querySelector("#microphone-toggle");
@@ -2212,7 +2217,7 @@
         cancelRecording(); const epoch = microphoneEpoch;
         permissionPending = true; button.disabled = true; status.textContent = "正在請求麥克風權限…";
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, channelCount: 1}});
+          const stream = await openMicrophone({echoCancellation: true, noiseSuppression: true, channelCount: 1});
           if (epoch !== microphoneEpoch || pageClosing || !microphoneEnabled) { stream.getTracks().forEach(track => track.stop()); return; }
           const chunks = [];
           try {
@@ -2320,7 +2325,7 @@
         handsFree.on = true; button.textContent = "免手動：開"; button.setAttribute?.("aria-pressed", "true");
         status.textContent = "正在請求麥克風權限…";
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1}});
+          const stream = await openMicrophone({echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1});
           if (!handsFree.on || !microphoneEnabled || pageClosing) { stream.getTracks().forEach(track => track.stop()); return; }
           const context = new AudioContext(), source = context.createMediaStreamSource(stream);
           const node = context.createScriptProcessor(1024, 1, 1);

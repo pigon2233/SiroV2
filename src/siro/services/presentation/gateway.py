@@ -2076,7 +2076,12 @@ def _run_gateway(
     cloud_model = os.environ.get("SIRO_OPENAI_MODEL")
     model: LanguageModel
     if ollama_model:
-        model = OllamaAdapter(model=ollama_model)
+        context_length = os.environ.get("SIRO_OLLAMA_CONTEXT_LENGTH")
+        model = OllamaAdapter(
+            model=ollama_model,
+            thinking=False,
+            context_length=int(context_length) if context_length else None,
+        )
         backend = f"ollama:{ollama_model}"
     elif cloud_key and cloud_model:
         model = OpenAICompatibleAdapter(
