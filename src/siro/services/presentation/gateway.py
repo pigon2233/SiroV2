@@ -30,6 +30,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from siro.adapters.body.assets import verified_vrm_model
 from siro.adapters.body.web import WebSocketBodyTransport
+from siro.adapters.vision import PixelScreenAnalyzer
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.memory import Memory, MemoryService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
@@ -42,7 +43,6 @@ from siro.services.agent.organization import MemoryOrganizer
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
 from siro.services.agent.self_notes import SelfNotes, share_text
-from siro.services.context.work_context import AppSnapshot, ScopeStore, WorkContext
 from siro.services.audio.protocol import (
     AudioFrame,
     AudioMetadata,
@@ -56,6 +56,17 @@ from siro.services.audio.tts import (
     QwenReferenceTTS,
     QwenVoiceProfile,
     plan_speech,
+)
+from siro.services.context.windows_providers import (
+    AppObserver,
+    powershell_runner,
+    screen_capture,
+)
+from siro.services.context.work_context import (
+    AppSnapshot,
+    ScopeStore,
+    ScreenObserver,
+    WorkContext,
 )
 from siro.services.presentation.desktop_settings import (
     load_desktop_settings,
@@ -2581,6 +2592,21 @@ def _run_gateway(
     touch_setting = os.environ.get("SIRO_TOUCH_REPLY_ENABLED", "1")
     if touch_setting not in {"0", "1"}:
         raise ValueError("SIRO_TOUCH_REPLY_ENABLED must be 0 or 1")
+    work_context = WorkContext(
+        ScopeStore(data_dir / "work-context-scope.json"),
+        clock=lambda: datetime.now(UTC),
+        vision=PixelScreenAnalyzer(),
+    )
+    context_run = powershell_runner()
+    context_observers: list[AppObserver | ScreenObserver] = (
+        [
+            AppObserver(work_context, context_run),
+            ScreenObserver(work_context, screen_capture(context_run)),
+        ]
+        if context_run is not None and runtime_profile == "candidate"
+        else []
+    )
+    work_context.providers = bool(context_observers)
     controller = IntegratedCompanion(
         data_dir,
         model,
@@ -2593,6 +2619,7 @@ def _run_gateway(
         memory_ingress_enabled=memory_ingress_enabled,
         summary_enabled=summary_enabled,
         touch_replies=TouchReplies(enabled=touch_setting == "1"),
+        situation_lines=work_context.prompt_lines,
         auto_authorize=lambda: state.authorization_mode == "full" and state.kill_switches["tools"],
     )
 
@@ -2649,10 +2676,6 @@ def _run_gateway(
             item.subject for item in items if item.status == "committed" and item.polarity > 0
         )
 
-    work_context = WorkContext(
-        ScopeStore(data_dir / "work-context-scope.json"), clock=lambda: datetime.now(UTC)
-    )
-
     self_notes_service = (
         SelfNotes(shared_store, data_dir / "self-notes-shared.json")
         if self_owner is not None
@@ -2697,8 +2720,12 @@ def _run_gateway(
             await browser_sessions.start()
         if self_scheduler is not None:
             self_scheduler.start()
+        for observer in context_observers:
+            observer.start()
 
     async def stop_controller() -> None:
+        for observer in context_observers:
+            await observer.close()
         if self_scheduler is not None:
             await self_scheduler.close()
         if self_owner is not None:

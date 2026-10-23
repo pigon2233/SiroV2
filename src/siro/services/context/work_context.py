@@ -176,6 +176,7 @@ class WorkContext:
         self._scope = scope
         self._clock = clock
         self._vision = vision
+        self.providers = False  # set by whoever wires real window/screen sources
         self._kept: list[ContextObservation] = []
         self._retracted: set[str] = set()
         self._corrected: dict[str, datetime] = {}  # subject the owner said was wrong -> until
@@ -322,6 +323,7 @@ class WorkContext:
     def status(self) -> dict[str, object]:
         situation = self.situation()
         return {
+            "providers": self.providers,
             "scope": {**self._scope.enabled, "revision": self._scope.revision},
             "status": situation.status,
             "quiet": situation.quiet,

@@ -171,3 +171,55 @@ def test_gateway_endpoints_scope_and_adapter_stop(tmp_path: Path) -> None:
         off = client.put("/v1/work-context/scope", json={"app_metadata": False}, headers=auth)
         assert off.json()["scope"]["app_metadata"] is False
         assert client.post("/v1/work-context/app", json=report, headers=auth).status_code == 409
+
+
+def test_foreground_report_parsing_rejects_garbage() -> None:
+    from siro.services.context.windows_providers import parse_foreground, parse_screen
+
+    ok = parse_foreground('{"app":"Code","title":"t","locked":false,"fullscreen":true}')
+    assert ok is not None and ok.fullscreen and not ok.locked
+    assert parse_foreground(None) is None and parse_foreground("nope") is None
+    assert parse_foreground('{"app":1,"title":"x"}') is None
+    assert parse_screen("!!!") is None and parse_screen("cG5n") == b"png"
+
+
+@pytest.mark.asyncio
+async def test_app_observer_runs_powershell_only_while_switched_on() -> None:
+    from siro.services.context.windows_providers import AppObserver
+
+    context, _ = make()
+    runs: list[str] = []
+
+    async def run(script: str) -> str | None:
+        runs.append(script)
+        return '{"app":"nvim","title":"x","locked":false,"fullscreen":false}'
+
+    observer = AppObserver(context, run)
+    assert not await observer.sample() and runs == []  # off: nothing is even asked
+    context.update_scope({"app_metadata": True})
+    assert await observer.sample() and len(runs) == 1
+    assert context.situation().observations[0].subject == "editor"
+
+
+@pytest.mark.asyncio
+async def test_situation_reaches_a_local_prompt_but_never_a_cloud_one(tmp_path: Path) -> None:
+    from test_activity_monitor import ScriptedModel, companion
+
+    context, _ = make()
+    context.share("正在整理報稅資料")
+    model = ScriptedModel(["好"])
+    seen: list[str] = []
+    stream = model.stream
+
+    async def spy(request, cancellation):  # type: ignore[no-untyped-def]
+        seen.append(repr(request))
+        async for chunk in stream(request, cancellation):
+            yield chunk
+
+    model.stream = spy  # type: ignore[method-assign]
+    controller, _ = await companion(tmp_path, model, {})
+    controller._situation_lines = context.prompt_lines
+    await controller.respond("s1", "你好")
+    assert any("報稅" in text and "source:work-context" in text for text in seen)
+
+    assert context.prompt_lines(Privacy.CLOUD_ALLOWED) == ()
