@@ -1,3 +1,9 @@
+# Companion CP-O01：程序層網路監測 — 2026-10-23，PARTIAL
+
+新增 `adapters/process_network.py`：Linux 免權限取樣 `/proc`，把 subprocess 的外送連線歸屬到它的 process group；其他平台回 unsupported。實測持有中的連線可歸屬，短連線看不到，因此只標 sampled，不能稱完整稽核。見 [REPORT](evidence/CP-O01-2026-10-23/REPORT.md)。
+
+限制：只在 WSL2 測；Windows 原生／macOS 無免權限方法；尚未接進 `computer.execute` 或監測頁，監測頁仍標「沒有網路監測」。下一步：決定是否接線。
+
 # Companion CP-P04：她自己的活動、研究筆記與分享 — 2026-10-22，PARTIAL
 
 Owner 決定：可讀任何網頁；興趣清單由她自己找。本機 commit（未 push）：`473b8a6` 背景 owner：保留 session `siro.self`，一次一件、只准 `browser.navigate+read`、只用本機請求、不說話、不寫 owner facts；新 turn、全域停止、工具開關、`POST /v1/activities/stop-background` 會取消；`PUT /v1/self-activity` 暫停（目前這步做完再停）。`778851a` 她自己挑題目：線索為三天內對話、她的 committed 喜好、舊筆記「待查」；本機模型選一題或選擇等待；排程每 10 分鐘，owner 安靜 10 分鐘、距上一件 45 分鐘（失敗也算）、一天最多 6 件；理由存成 `self_topic` 步驟並顯示在活動頁。`7d07dc1` 修 owner 回報：氣象查詢開了已停用的 `www.cwb.gov.tw`，失敗只回 `Error`，模型因此說自己不能上網；改為 `NavigationFailed`＋原因（DNS 查詢區分找不到網站），工具說明提示換站與維基搜尋（DuckDuckGo 有 CAPTCHA、Bing 讀不到結果）。本次：研究筆記從完成的 self run 讀回，來源只列 journal 中確實讀成功的頁面（模型自己寫的連結不算），`GET /v1/self-notes`；氣泡「查好了，要聽嗎？」，按「聽」才把筆記與來源放進對話並說一句短話，Esc 標成已看；活動頁「看細節」顯示她的筆記與讀過的頁面。
