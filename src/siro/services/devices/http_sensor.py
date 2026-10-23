@@ -13,6 +13,7 @@ from typing import Any
 
 from siro.contracts.events import Privacy
 from siro.core.devices import DeviceDescriptor, DeviceProperty, DeviceRegistry
+from siro.core.world import WorldModel, WorldStatus
 
 _EVENTS = {"light_update", "motion_detected", "motion_cleared", "button_pressed"}
 _MAX_LUX = 65535 / 1.2
@@ -94,3 +95,21 @@ class Esp32HttpSensorProjector:
             await self._registry.record_property(
                 self._device_id, "last_button_press_at", now.isoformat(), observed_at=now
             )
+
+
+async def http_sensor_state_snapshot(
+    world: WorldModel, *, device_id: str, now: datetime
+) -> dict[str, Any]:
+    properties: dict[str, dict[str, object]] = {}
+    for name in ("illuminance", "motion", "last_button_press_at"):
+        current = await world.current(device_id, name, now=now)
+        if current.status is WorldStatus.KNOWN and current.observation is not None:
+            properties[name] = {
+                "status": "known",
+                "value": current.observation.value,
+                "observed_at": current.observation.observed_at.isoformat(),
+                "source_id": current.observation.source_id,
+            }
+        else:
+            properties[name] = {"status": "unknown", "value": None}
+    return {"device_id": device_id, "properties": properties}

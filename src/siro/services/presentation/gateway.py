@@ -88,6 +88,10 @@ class JsonSocket(Protocol):
     async def close(self, code: int = 1000, reason: str | None = None) -> None: ...
 
 
+class Esp32HttpEventHandler(Protocol):
+    async def __call__(self, payload: bytes, *, now: datetime) -> None: ...
+
+
 class _UncachedImprovementResponses:
     """Keep the explicit source-derived views uncached without owning work."""
 
@@ -617,9 +621,14 @@ def create_app(
     skill_activation: SkillActivationOwner | None = None,
     verified_release: VerifiedRelease | None = None,
     read_task_owner: ReadTaskOwner | None = None,
+    on_esp32_http_event: Esp32HttpEventHandler | None = None,
+    on_esp32_http_state: Callable[[], Awaitable[dict[str, Any]]] | None = None,
+    esp32_relay_token: str | None = None,
 ) -> FastAPI:
     if (vrm_dist is None) != (vrm_model is None):
         raise ValueError("vrm_dist and vrm_model must be configured together")
+    if esp32_relay_token is not None and len(esp32_relay_token) < 32:
+        raise ValueError("ESP32 relay token must contain at least 32 characters")
     allowed = allowed_origins or {"http://127.0.0.1:8000", "http://localhost:8000"}
     gateway_state = state or GatewayState()
     gateway_hub = hub or GatewayHub()
@@ -822,6 +831,39 @@ def create_app(
                 "source_sha256": verified_release.source_sha256,
             },
         }
+
+    @app.post("/v1/devices/esp32/events")
+    async def esp32_http_event(request: Request) -> dict[str, bool]:
+        if on_esp32_http_event is None or esp32_relay_token is None:
+            raise HTTPException(status_code=503, detail="ESP32 HTTP ingress is disabled")
+        if request.client is None or request.client.host != "127.0.0.1":
+            raise HTTPException(status_code=403, detail="ESP32 relay must use loopback")
+        presented = request.headers.get("X-SIRO-ESP32-Relay-Token", "")
+        if not secrets.compare_digest(presented, esp32_relay_token):
+            raise HTTPException(status_code=401, detail="ESP32 relay token is invalid")
+        if request.headers.get("content-type", "").split(";", 1)[0].lower() != "application/json":
+            raise HTTPException(status_code=415, detail="JSON content type is required")
+        body = bytearray()
+        async for chunk in request.stream():
+            if len(body) + len(chunk) > 4096:
+                raise HTTPException(status_code=413, detail="ESP32 event is too large")
+            body.extend(chunk)
+        try:
+            await on_esp32_http_event(bytes(body), now=datetime.now(UTC))
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="invalid ESP32 event") from error
+        except KeyError as error:
+            raise HTTPException(status_code=503, detail="ESP32 device is unavailable") from error
+        return {"accepted": True}
+
+    @app.get("/v1/devices/esp32/state")
+    async def esp32_http_state(
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        require_token(authorization)
+        if on_esp32_http_state is None:
+            raise HTTPException(status_code=503, detail="ESP32 HTTP ingress is disabled")
+        return await on_esp32_http_state()
 
     @app.post("/v1/session")
     async def issue_session(request: Request) -> dict[str, object]:
@@ -1826,14 +1868,23 @@ def _run_gateway(
     from siro.adapters.models.ollama import OllamaAdapter
     from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
     from siro.adapters.skill_worker import SkillDispatcher, WorkerSupervisor
+    from siro.core.devices import DeviceRegistry
     from siro.core.memory import MemoryService
     from siro.core.touch import TouchReplies
+    from siro.core.world import WorldModel
+    from siro.persistence.devices import SQLiteDeviceRepository
     from siro.persistence.memory import SQLiteMemoryRepository
     from siro.persistence.skills import SQLiteSkillRegistry
     from siro.persistence.sqlite import SQLiteStore
+    from siro.persistence.state import SQLiteWorldRepository
     from siro.ports.models import LanguageModel, ModelRequest
     from siro.ports.models import Privacy as ModelPrivacy
     from siro.services.audio.stt import GroqWhisper
+    from siro.services.devices.http_sensor import (
+        Esp32HttpSensorProjector,
+        http_sensor_descriptor,
+        http_sensor_state_snapshot,
+    )
     from siro.services.presentation.integrated import IntegratedCompanion
     from siro.services.tools.orchestrator import SQLiteToolProposalRepository
 
@@ -2001,6 +2052,34 @@ def _run_gateway(
     )
     shared_store = SQLiteStore(data_dir / "siro.db")
     asyncio.run(shared_store.initialize(), loop_factory=loop_factory)
+    esp32_relay_token = os.environ.get("SIRO_ESP32_RELAY_TOKEN") or None
+    on_esp32_http_event: Esp32HttpEventHandler | None = None
+    on_esp32_http_state: Callable[[], Awaitable[dict[str, Any]]] | None = None
+    if esp32_relay_token is not None:
+        if len(esp32_relay_token) < 32:
+            raise ValueError("SIRO_ESP32_RELAY_TOKEN must contain at least 32 characters")
+        device_id = os.environ.get("SIRO_ESP32_HTTP_DEVICE_ID", "siro-node-01")
+        location = os.environ.get("SIRO_ESP32_HTTP_LOCATION") or None
+        device_repository = SQLiteDeviceRepository(shared_store)
+        device_world = WorldModel(SQLiteWorldRepository(shared_store))
+        device_registry = DeviceRegistry(device_repository, device_world)
+
+        async def ensure_http_sensor() -> None:
+            existing = await device_repository.get(device_id)
+            if existing is not None and existing.descriptor.adapter != "esp32_http":
+                raise ValueError("ESP32 HTTP device ID belongs to another adapter")
+            if existing is None:
+                await device_registry.register(http_sensor_descriptor(device_id, location=location))
+
+        asyncio.run(ensure_http_sensor(), loop_factory=loop_factory)
+        on_esp32_http_event = Esp32HttpSensorProjector(device_registry, device_id=device_id).handle
+
+        async def read_esp32_http_state() -> dict[str, Any]:
+            return await http_sensor_state_snapshot(
+                device_world, device_id=device_id, now=datetime.now(UTC)
+            )
+
+        on_esp32_http_state = read_esp32_http_state
     memory_service = MemoryService(SQLiteMemoryRepository(shared_store))
 
     from siro.services.tools.browser_session import BrowserSessions
@@ -2601,6 +2680,9 @@ def _run_gateway(
             tool_orchestrator=tool_orchestrator,
             skill_candidates=skill_candidates,
             skill_activation=skill_activation,
+            on_esp32_http_event=on_esp32_http_event,
+            on_esp32_http_state=on_esp32_http_state,
+            esp32_relay_token=esp32_relay_token,
         ),
         host="127.0.0.1",
         port=port,
