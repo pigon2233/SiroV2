@@ -6,3 +6,4 @@
 - 契約界線：不新增正式 HTTP route、不讓外部程序寫 SIRO 主資料庫、不賦予事件設備控制權。正式接入 `/event` 涉及入口認證與路由契約，待 `docs/DECISIONS.md` 與受影響測試由共享文件 owner 審核後實作；這份文件不是決策紀錄或共享鎖。
 - 驗收：合成 payload 經 parser、Registry、SQLite World 觀測；拒絕格式錯誤、偽造 device、異常 lux；驗證時間與失效、PIR 低電平不推斷房間無人。實板 POST 仍由使用者舊接收器單獨接收，不宣稱 SIRO 已線上感知。
 - 結果：20 項相關測試 PASS／4.81s；Ruff check／format、mypy、diff PASS。詳見 [本輪證據](../evidence/T27-http-event-projector-2026-10-23/REPORT.md)。沒有 live ingress 或實板驗收。
+- 本地實作 commit：`acf3f66`。無互動 `git push --dry-run` 回覆 `could not read Username for 'https://github.com'`；未推送、未建立 Issue／Draft PR。正式接續前先恢復 GitHub 認證並重查共享狀態。
