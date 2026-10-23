@@ -34,3 +34,5 @@ PIR 低電平只表示目前沒有動作，不是無人，故屬性名為 `motio
 正式 SIRO 啟動流程尚未連接 MQTT projector，這輪 World State 成功只在真 Broker＋合成 state 的整合測試中成立。真板型號、GPIO、BH1750 I²C、PIR 暖機／動作、NTP、MQTT pairing、LED 視覺 readback、斷線回復與 HA/A18 L3 均待實體驗收；不能把交叉編譯或舊 HTTP receiver 的 200 當成這些項目通過。沒有讀取／提交真 Wi-Fi、MQTT 密碼或私人 sensor log。
 
 GitHub 未結 Issue／PR 在開始時查得為空；當時 GitHub 寫入 API 回 401，因此先保留獨立本地分支。2026-10-23 重新登入並重查後，已建立 [Issue #2](https://github.com/pigon2233/SiroV2/issues/2)、推送分支與 [Draft PR #3](https://github.com/pigon2233/SiroV2/pull/3)。仍未合併或部署；由整合者更新共享 `docs/STATUS.md`。產品下一張切片是設備配對與正式 MQTT projector 啟動接線，另需實板 flash／人工驗收。
+
+遠端驗證追加：PR #3 的 `python` job 於 `ruff format --check` 失敗，指出 `design/companion/blender-style-study/0.1.0/{build_siro,inspect_glb,inspect_preview}.py` 與 `tests/integration/test_vrm_renderer.py` 共四檔；這些檔案與 `origin/main` 比較無差異，並不在本 PR 範圍。遠端完整檢查尚未到達後續步驟，不能標示 CI 通過。保留 Draft，由相關 owner／整合者處理基線格式阻礙。
