@@ -11,7 +11,10 @@ if ! curl --fail --silent --max-time 2 "http://127.0.0.1:$port/health/ready" >/d
   data_dir="${SIRO_DATA_DIR:-.siro-data}"
   log_dir="${SIRO_LOG_DIR:-$data_dir}"
   mkdir -p "$data_dir" "$log_dir"
-  scripts/start "$data_dir/companion-service.pid" >> "$log_dir/companion-service.log" 2>&1 </dev/null &
+  (
+    source scripts/load-esp32-relay-token
+    exec scripts/start "$data_dir/companion-service.pid"
+  ) >> "$log_dir/companion-service.log" 2>&1 </dev/null &
   ready=0
   for ((attempt=0; attempt<60; attempt++)); do
     if curl --fail --silent --max-time 1 "http://127.0.0.1:$port/health/ready" >/dev/null; then ready=1; break; fi
