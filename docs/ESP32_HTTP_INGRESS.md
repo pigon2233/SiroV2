@@ -6,7 +6,7 @@
 
 ## 啟用前
 
-1. 先確認 ESP32 的區網 IP。Windows 接收器要求 `SIRO_ESP32_ALLOWED_IP` 為**那台 ESP32**的 IPv4 位址；它不是電腦的 `192.168.1.193`。
+1. 先確認 ESP32 的區網 IP。2026-10-23 15:20 的短暫現場觀察是 `192.168.1.182`；DHCP 可能改變，啟用當下要再核對。Windows 接收器要求 `SIRO_ESP32_ALLOWED_IP` 為**那台 ESP32**的 IPv4 位址；它不是電腦的 `192.168.1.193`。
 2. 產生至少 32 字元的隨機 `SIRO_ESP32_RELAY_TOKEN`，在 Windows 接收器與 WSL SIRO gateway 使用相同值。將它放在各自的私人環境設定中，勿貼在聊天、記錄或 Git。Gateway 未設定時，入口回 503，不會建立設備 descriptor。
 3. WSL gateway 設 `SIRO_ESP32_HTTP_DEVICE_ID=siro-node-01`（須與 ESP32 payload 的 `device` 相同），可選設 `SIRO_ESP32_HTTP_LOCATION`；已有同 ID 但不同 adapter 的設備會拒絕啟動，避免覆寫 MQTT 設備。
 4. 用包含本變更的 SIRO 版本重新啟動主程序。**本地編譯／測試不會更新目前執行中的 8000 服務。** 先停掉原本的 `C:\Users\pepepig\siro_receiver.py`，再於 Windows 執行 `python scripts/esp32_http_receiver.py`；兩者不能同時占用 8765。

@@ -1,6 +1,6 @@
 # T27 ESP32 HTTP 接入與回讀：隔離驗證
 
-日期：2026-10-23 Asia/Taipei。結果：**SYNTHETIC_INGRESS_VERIFIED / REAL_BOARD_PENDING / DRAFT_PR**。
+日期：2026-10-23 Asia/Taipei。結果：**REAL_BOARD_HTTP_LIGHT_TO_ISOLATED_WORLD_VERIFIED / PRODUCT_DEPLOY_PENDING / DRAFT_PR**。
 
 ## 實作
 
@@ -17,6 +17,10 @@
 
 ## 未完成
 
-使用者的 ESP32 區網來源 IP 尚待提供，因此沒有設定 allowlist、啟動 Windows 8765 relay 或更換 `C:/Users/pepepig/siro_receiver.py`；沒有重啟 8000、沒有燒錄或對實板發請求，沒有可核對的現場 World State 觀測。正式啟用要先取得 gateway 主程序與共享 `docs/DECISIONS.md` 的整合權，依[啟用說明](../../ESP32_HTTP_INGRESS.md)設定私人 token，接著做「ESP32 HTTP 200 → 同一 SIRO owner session 新鮮 state」人工驗收。GitHub 已重新登入並建立 [Issue #1](https://github.com/pigon2233/SiroV2/issues/1)／[Draft PR #4](https://github.com/pigon2233/SiroV2/pull/4)，依賴 [PR #3](https://github.com/pigon2233/SiroV2/pull/3)；本地交接見[協作紀錄](../../collaboration/T27-HTTP-EVENT-INGRESS.md)。
+### 真板對隔離 SIRO 的短暫閉環
+
+2026-10-23 15:20 Asia/Taipei，短暫啟動使用者既有 `C:/Users/pepepig/siro_receiver.py`，實際收到來自 `192.168.1.182`／device `siro-node-01` 的三筆 `light_update`：239.2、236.7、235.8 lx，接收器分別記錄 HTTP 200。停掉舊 receiver 後，在 WSL `127.0.0.1:19001` 啟動**本分支程式組成的隔離 gateway**，資料庫位於臨時 `/tmp`；Windows 新 relay 限定來源 `192.168.1.182`、目的 port 19001，使用短期測試 token。透過該 gateway 的 owner session token 呼叫 `GET /v1/devices/esp32/state`，讀到 `illuminance: known`、235.0 lx、`observed_at: 2026-10-23T15:22:33.505166+08:00`、`source_id: device:siro-node-01:esp32_http`。這是**實板 HTTP 光度資料到隔離 World State 的證據**；不是正在運作的 8000 產品 DB。沒有讀到 PIR 或按鈕邊緣，也未取得新 relay 這次回給 ESP32 的序列埠狀態碼。測試後兩個臨時服務都已停止，8765／19001 無 listener，臨時 DB 已刪除；不保存原始 sensor log 或測試 token。
+
+正式 8000 仍跑另一工作分支，沒有重啟、合併、部署、燒錄或替換 `C:/Users/pepepig/siro_receiver.py`。ESP32 的 IP 目前觀察為 `192.168.1.182`，正式設定前須再核對 DHCP 是否變更。正式啟用要先取得 gateway 主程序與共享 `docs/DECISIONS.md` 的整合權，依[啟用說明](../../ESP32_HTTP_INGRESS.md)設定**新產生的私人 token**，接著做正式 owner session 的新鮮 state／PIR／按鈕人工驗收。GitHub 已重新登入並建立 [Issue #1](https://github.com/pigon2233/SiroV2/issues/1)／[Draft PR #4](https://github.com/pigon2233/SiroV2/pull/4)，依賴 [PR #3](https://github.com/pigon2233/SiroV2/pull/3)；本地交接見[協作紀錄](../../collaboration/T27-HTTP-EVENT-INGRESS.md)。
 
 遠端驗證追加：PR #4 的 `python` job 同樣於 `ruff format --check` 失敗，指出 `design/companion/blender-style-study/0.1.0/{build_siro,inspect_glb,inspect_preview}.py` 與 `tests/integration/test_vrm_renderer.py`。四檔與 `origin/main` 比較無差異，也不在 PR #3／#4 修改檔清單中；CI 因此尚未執行後續完整驗收，不能宣稱通過。保留 Draft，不在本任務搶寫其他 owner 的檔案。
