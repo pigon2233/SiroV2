@@ -21,3 +21,13 @@
 - 先前 P05 回報的「33 失敗」與這次 47 不同：兩次環境不同（這次是不含 ignored 檔案的匯出，缺 rust 產物、`.venv/bin/siro-gateway`、node 依賴），失敗根因沒有逐一判定，只確認「P05 前後相同」。這 47 個是否在 owner 完整環境也失敗，未驗；I01 前需在完整 checkout 重跑。
 - 只在 WSL 跑。Windows 原生、WSLg 之外的環境、跨機沒驗。
 - 沒有啟動服務、沒有 journal／工具／音訊／程序層實測，也沒有已知失敗（T10 取消／刷新）的真環境重測。
+
+## 完整 checkout 重跑（owner 要求）
+
+在 owner 的完整 checkout（WSL，`node_modules` 存在，含其他串未 commit 的修改）重跑同一批 47 個失敗的檔案：**仍是 47 failed／4 passed**，與乾淨匯出相同。根因抽查（每檔第一個錯誤）：
+
+- 缺建置產物，環境問題：test_goal_task_api、test_workspace_runtime 缺 Rust runtime；test_gateway_main 缺 `.venv/bin/siro-gateway`；test_native_context_budget 缺 `.siro-data/tokenizers/gpt-oss-20b/tokenizer.json`。
+- 疑似過期測試：test_tool_catalog 的預期工具集少了 `codex.ask`（`d2a654e` 新增）；test_capability_product 的前端腳本 `renderCapabilities is not defined`。
+- 未判定：test_skill_registry／test_skill_worker_lifecycle（skill worker failed，疑似沙盒環境）、test_desktop_snapshot_privacy（node assert）、test_runtime_product、test_skill_package_identity、test_goal_task_loop。
+
+所以 47 個不是 P05／P06 回歸，但其中部分是要補的建置或過期測試，I01 驗收前須修或明列為已知失敗，不能當作通過。
