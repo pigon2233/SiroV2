@@ -11,4 +11,4 @@
 - 變更：`firmware/esp32/src/main.cpp`、`include/sensor_telemetry.h`、`include/secrets.example.h`、`README.md`；新測試 `tests/integration/test_esp32_sensor_telemetry.py`；[詳細結果](../evidence/T27-sensor-telemetry-2026-10-23/REPORT.md)。`docs/STATUS.md` 不在本分支改動。
 - 最終 `.python-version` 3.14.4 WSL venv：68 項 T27／World／room 相關回歸 **PASS／33.13s**，新測試含真 broker＋合成 state；Ruff、format、mypy、diff PASS。PlatformIO Core 6.1.19／pinned esp32dev 最終編譯 SUCCESS；沒有刷板。3.12 舊 broker/LWT 個案曾逾時，3.14 獨立重跑 2 PASS，失敗保留在報告。
 - 限制：使用者提供 ESP32-S3 N16R8；本輪以先前草稿的 GPIO 4／5／8／9 作編譯設定，仍需核對實際接線與模組標示。目前設備仍跑獨立 HTTP 草稿，未切換 MQTT；正式 SIRO Gateway 尚未訂閱並投影此 MQTT state。PIR `motion=false` 不等於無人，不能直接作房間 presence。沒有 LED，故 T27 actuator 真板與 A18 L3 仍 HARDWARE_PENDING。超音波感測器尚未裝，暫不納入。
-- 同步：GitHub API 寫入 401；本地 commit SHA、push／Draft PR 結果在最後交付時補記。未取得線上認領，不由此文件推定共享 STATUS owner。
+- 同步：本地先前 commit `7b5a803`，S3 無 LED 更正 commit `9f1d3b9`。GitHub API 寫入先前回 401；本輪 `git push --dry-run` 在未完成登入時等待憑證，取消後以無互動模式重試，回覆 `Cannot prompt because user interactivity has been disabled`。**未 push、未開 Issue／Draft PR、未完成線上認領**。恢復 GitHub 登入後須先重查競爭認領與遠端基線，不由此文件推定共享 STATUS owner。
