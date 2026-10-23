@@ -18,3 +18,5 @@
 ## 未完成
 
 使用者的 ESP32 區網來源 IP 尚待提供，因此沒有設定 allowlist、啟動 Windows 8765 relay 或更換 `C:/Users/pepepig/siro_receiver.py`；沒有重啟 8000、沒有燒錄或對實板發請求，沒有可核對的現場 World State 觀測。正式啟用要先取得 gateway 主程序與共享 `docs/DECISIONS.md` 的整合權，依[啟用說明](../../ESP32_HTTP_INGRESS.md)設定私人 token，接著做「ESP32 HTTP 200 → 同一 SIRO owner session 新鮮 state」人工驗收。GitHub 已重新登入並建立 [Issue #1](https://github.com/pigon2233/SiroV2/issues/1)／[Draft PR #4](https://github.com/pigon2233/SiroV2/pull/4)，依賴 [PR #3](https://github.com/pigon2233/SiroV2/pull/3)；本地交接見[協作紀錄](../../collaboration/T27-HTTP-EVENT-INGRESS.md)。
+
+遠端驗證追加：PR #4 的 `python` job 同樣於 `ruff format --check` 失敗，指出 `design/companion/blender-style-study/0.1.0/{build_siro,inspect_glb,inspect_preview}.py` 與 `tests/integration/test_vrm_renderer.py`。四檔與 `origin/main` 比較無差異，也不在 PR #3／#4 修改檔清單中；CI 因此尚未執行後續完整驗收，不能宣稱通過。保留 Draft，不在本任務搶寫其他 owner 的檔案。
