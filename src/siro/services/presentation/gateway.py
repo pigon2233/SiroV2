@@ -2653,12 +2653,27 @@ def _run_gateway(
         ScopeStore(data_dir / "work-context-scope.json"), clock=lambda: datetime.now(UTC)
     )
 
+    self_notes_service = (
+        SelfNotes(shared_store, data_dir / "self-notes-shared.json")
+        if self_owner is not None
+        else None
+    )
+
+    async def share_finished_note() -> None:
+        assert self_notes_service is not None
+        for run_id in (await self_notes_service.unshared())[:1]:
+            note = await self_notes_service.note(run_id)
+            if note is not None:
+                await controller.share_self_note(*share_text(note), speak=False)
+                self_notes_service.mark_shared(run_id)
+
     self_scheduler = (
         SelfActivityScheduler(
             self_owner,
             InterestPicker(shared_store, model, own_preferences),
             shared_store,
             quiet=lambda: not work_context.may_interrupt(),
+            share=share_finished_note,
             foreground=lambda: (
                 controller.foreground_active
                 or (read_tasks is not None and read_tasks.busy)
@@ -2787,9 +2802,7 @@ def _run_gateway(
             on_activity_stop=stop_activity,
             self_activity=self_owner,
             work_context=work_context,
-            self_notes=SelfNotes(shared_store, data_dir / "self-notes-shared.json")
-            if self_owner is not None
-            else None,
+            self_notes=self_notes_service,
             on_share_note=controller.share_self_note,
             on_improvement_proposal=controller.improvement_proposal,
             on_turn=controller.respond,

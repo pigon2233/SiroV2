@@ -123,6 +123,7 @@ class IntegratedCompanion:
         memory_ingress_enabled: bool = True,
         summary_enabled: bool = False,
         touch_replies: TouchReplies | None = None,
+        situation_lines: Callable[[Privacy], tuple[str, ...]] | None = None,
     ) -> None:
         if runtime_profile not in {"legacy", "candidate"}:
             raise ValueError("runtime_profile must be legacy or candidate")
@@ -167,6 +168,7 @@ class IntegratedCompanion:
         self._touching = False
         self._last_session: str | None = None
         self._recent_shares: list[tuple[datetime, str]] = []
+        self._situation_lines = situation_lines
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
 
     @property
@@ -306,8 +308,8 @@ class IntegratedCompanion:
         finally:
             self._touching = False
 
-    async def share_self_note(self, text: str, spoken: str) -> None:
-        """Tell the owner about her own research, only when they asked to hear it."""
+    async def share_self_note(self, text: str, spoken: str, *, speak: bool = True) -> None:
+        """Tell the owner about her own research; `speak=False` leaves it in the chat only."""
         session_id = self._last_session or "browser"
         stream_id = str(uuid4())
         # Remembered for her next replies only (not in the saved dialogue, and lost on restart).
@@ -327,7 +329,8 @@ class IntegratedCompanion:
                 "error": None,
             },
         )
-        await self._speak(SpeechIntent(str(uuid4()), spoken, str(uuid4())))
+        if speak:
+            await self._speak(SpeechIntent(str(uuid4()), spoken, str(uuid4())))
 
     async def _touch_line(self, kind: str, count: int, now: datetime) -> str | None:
         request = ModelRequest(
@@ -614,11 +617,22 @@ class IntegratedCompanion:
                     "by the fact; SIRO records the source automatically. Never ask the owner to "
                     "provide sources for their own statements. [source:runtime-capabilities]",
                 )
-            shares = [t for at, t in self._recent_shares if datetime.now(UTC) - at < timedelta(days=1)]
+            shares = [
+                t for at, t in self._recent_shares if datetime.now(UTC) - at < timedelta(days=1)
+            ]
             if shares:
                 verified_preferences += (
                     "SIRO herself told the owner about her own research in this chat, so she "
                     "remembers saying it: " + " | ".join(shares) + " [source:self-note-share]",
+                )
+            situation = self._situation_lines(self._privacy) if self._situation_lines else ()
+            if situation:
+                verified_preferences += (
+                    "Owner's present situation, within the scope the owner switched on. Items "
+                    "marked seen were measured, inferred ones are guesses: never state a guess "
+                    "as fact, ask when unsure, and do not read it out unless it helps. "
+                    + " | ".join(situation)
+                    + " [source:work-context]",
                 )
             if self._runtime_profile == "candidate" and self._session_restore_enabled:
                 verified_preferences += (
@@ -1182,7 +1196,7 @@ class IntegratedCompanion:
         if session_id is not None and any(
             other != session_id for other in (*self._active_sessions, *self._run_ids)
         ):
-            # One shared body: stopping one activity must not cut another session's voice and motion.
+            # One shared body: stopping one activity keeps another session's voice and motion.
             return
         await self._body.cancel("active", reason)
 
