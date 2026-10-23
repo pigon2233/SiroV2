@@ -9,16 +9,22 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from siro.persistence.sqlite import SQLiteStore
 from siro.services.activity.monitor import redact_url
-from siro.services.agent.self_activity import READ_TOOL, SELF_SESSION
+from siro.services.agent.self_activity import READ_TOOL, SELF_SESSION, URL_PATTERN
 
 MAX_NOTE = 1200
+VERDICT_LABELS = {
+    "supported": "頁面支持",
+    "contradicted": "頁面反駁",
+    "not_found": "頁面沒提到",
+    "unreachable": "打不開",
+    "unchecked": "沒判斷出來",
+}
 MAX_SHARED = 200
 FRESH = timedelta(days=1)
 
@@ -58,10 +64,22 @@ def note_for(c: sqlite3.Connection, run_id: str) -> dict[str, object] | None:
     ):
         seen = json.loads(row[0])
         answer = seen.get("answer") if isinstance(seen, dict) else None
-        for raw in re.findall(r"https?://[^\s)\]>」，。]+", str(answer or "")):  # noqa: RUF001
+        for raw in URL_PATTERN.findall(str(answer or "")):
             url = redact_url(raw)
             if url is not None and url.get("url") and url not in reported:
                 reported.append(url)
+    checks: list[dict[str, object]] = []
+    for row in c.execute(
+        "SELECT payload_json FROM agent_steps WHERE run_id=? AND kind='verification' "
+        "ORDER BY step_index",
+        (run_id,),
+    ):
+        for check in json.loads(row[0]).get("checks", []):
+            url = redact_url(check.get("url"))
+            if url is not None and url.get("url"):
+                checks.append(
+                    {"url": url, "claim": check.get("claim"), "verdict": check.get("verdict")}
+                )
     return {
         "run_id": run_id,
         "topic": run["goal"],
@@ -71,6 +89,7 @@ def note_for(c: sqlite3.Connection, run_id: str) -> dict[str, object] | None:
         "truncated": len(text) > MAX_NOTE,
         "sources": sources,
         "reported_by_codex": reported[:10],
+        "checks": checks,
         "open_questions": [line.strip() for line in text.splitlines() if "待查" in line][:5],
     }
 
@@ -145,5 +164,13 @@ def share_text(note: dict[str, object]) -> tuple[str, str]:
     if reported:
         text += "\n\nCodex 提供的來源（我沒有直接打開）：\n" + "\n".join(  # noqa: RUF001
             f"- {item['url']}" for item in reported
+        )
+    checks = note.get("checks") or []
+    assert isinstance(checks, list)
+    if checks:
+        text += "\n\n我核對過 Codex 的說法：\n" + "\n".join(  # noqa: RUF001
+            f"- {check['claim']}：{VERDICT_LABELS.get(str(check['verdict']), '沒判斷出來')}"  # noqa: RUF001
+            f"（{check['url']['url']}）"  # noqa: RUF001
+            for check in checks
         )
     return text, f"我剛剛查了{note['topic']}，整理在對話裡了。"  # noqa: RUF001

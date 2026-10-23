@@ -166,6 +166,7 @@ class IntegratedCompanion:
         self._touch_lines = 0
         self._touching = False
         self._last_session: str | None = None
+        self._recent_shares: list[tuple[datetime, str]] = []
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
 
     @property
@@ -309,6 +310,8 @@ class IntegratedCompanion:
         """Tell the owner about her own research, only when they asked to hear it."""
         session_id = self._last_session or "browser"
         stream_id = str(uuid4())
+        # Remembered for her next replies only (not in the saved dialogue, and lost on restart).
+        self._recent_shares = [*self._recent_shares, (datetime.now(UTC), text[:300])][-3:]
         await self._broadcast_stream(
             stream_id, {"type": "assistant_started", "session_id": session_id}
         )
@@ -610,6 +613,12 @@ class IntegratedCompanion:
                     "The owner just says 記住 followed "
                     "by the fact; SIRO records the source automatically. Never ask the owner to "
                     "provide sources for their own statements. [source:runtime-capabilities]",
+                )
+            shares = [t for at, t in self._recent_shares if datetime.now(UTC) - at < timedelta(days=1)]
+            if shares:
+                verified_preferences += (
+                    "SIRO herself told the owner about her own research in this chat, so she "
+                    "remembers saying it: " + " | ".join(shares) + " [source:self-note-share]",
                 )
             if self._runtime_profile == "candidate" and self._session_restore_enabled:
                 verified_preferences += (
@@ -1170,6 +1179,11 @@ class IntegratedCompanion:
         for target_session in tuple(self._active_sessions):
             if session_id is None or target_session == session_id:
                 await conversation.cancel(target_session)
+        if session_id is not None and any(
+            other != session_id for other in (*self._active_sessions, *self._run_ids)
+        ):
+            # One shared body: stopping one activity must not cut another session's voice and motion.
+            return
         await self._body.cancel("active", reason)
 
     async def invalidate_memory_context(self) -> None:

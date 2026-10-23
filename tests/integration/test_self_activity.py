@@ -255,3 +255,61 @@ def test_notes_are_shared_only_on_request_and_reach_the_change_feed() -> None:
         assert client.post("/v1/self-notes/n1/delete", headers=auth).status_code == 422
     assert len(shared) == 1 and shared[0][0].startswith("我剛剛自己查了「M42」")
     assert marked == ["n1", "n1"]
+
+
+async def test_nothing_starts_when_dispatches_cannot_be_audited(tmp_path: Path) -> None:
+    async def read(arguments: dict[str, object], context: ExecutionContext) -> object:
+        raise AssertionError("an unaudited dispatch must never run")
+
+    owner, store, _ = await owner_for(
+        tmp_path, ScriptedModel([[read_call("r1")]]), {READ: read}, [True]
+    )
+    hook = owner._orchestrator.journal_hook
+    owner._orchestrator.journal_hook = None
+    assert await owner.start("沒有審計就不開始") is None
+    assert not owner.busy and activities_of(await ActivityMonitor(store).snapshot()) == []
+    owner._orchestrator.journal_hook = hook
+    assert await owner.start("審計恢復後可以開始") is not None
+    await settle(owner)
+
+
+async def test_owner_pause_survives_a_restart_but_a_shutdown_does_not(tmp_path: Path) -> None:
+    controller, store = await companion(tmp_path, ScriptedModel(["x"]), {})
+    orchestrator = controller._tool_orchestrator
+    assert orchestrator is not None
+    state = tmp_path / "self-activity-state.json"
+
+    def make() -> SelfActivityOwner:
+        return SelfActivityOwner(
+            SQLiteAgentRunRepository(store),
+            orchestrator,
+            ScriptedModel(["x"]),
+            allowed=lambda: True,
+            state_path=state,
+        )
+
+    first = make()
+    assert not first.paused
+    await first.set_paused(True)
+    assert make().paused
+    await first.set_paused(False)
+    await first.close()
+    assert not make().paused
+
+
+async def test_what_she_shared_is_known_to_her_next_reply(tmp_path: Path) -> None:
+    class Recording(ScriptedModel):
+        seen: list[str] = []  # noqa: RUF012
+
+        async def stream(self, request: Any, cancellation: Any) -> Any:
+            self.seen.append(repr(request))
+            async for chunk in super().stream(request, cancellation):
+                yield chunk
+
+    model = Recording(["好"])
+    controller, _ = await companion(tmp_path, model, {})
+    await controller.respond("s1", "你好")
+    assert not any("self-note-share" in seen for seen in model.seen)
+    await controller.share_self_note("我剛剛自己查了「星雲」。", "星雲")
+    await controller.respond("s1", "剛剛那個是什麼")
+    assert "星雲" in model.seen[-1] and "self-note-share" in model.seen[-1]

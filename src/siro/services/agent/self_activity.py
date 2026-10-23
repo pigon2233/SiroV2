@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import re
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from pathlib import Path
 from uuid import uuid4
 
 from siro.ports.models import (
@@ -30,6 +33,15 @@ SELF_SESSION = "siro.self"
 READ_TOOL = "browser.navigate+read"
 # Codex can also help with her own research; it is offered only while the cloud switch is on.
 SELF_TOOLS = frozenset({READ_TOOL, "codex.ask"})
+CODEX_TOOL = "codex.ask"
+# A link inside a Codex answer, up to the first space, bracket or CJK punctuation.
+URL_PATTERN = re.compile(r"https?://[^\s)\]>」，。]+")  # noqa: RUF001
+MAX_CHECKS = 2
+VERDICTS = ("supported", "contradicted", "not_found")
+JUDGE_PROMPT = (
+    "下面是一個說法和一個網頁的文字。只回一個英文詞：supported（網頁支持這個說法）、"  # noqa: RUF001
+    "contradicted（網頁和說法矛盾）、not_found（網頁沒提到）。\n\n說法："  # noqa: RUF001
+)
 MAX_ROUNDS = 6
 MAX_CALLS_PER_ROUND = 3
 SYSTEM_PROMPT = (
@@ -41,6 +53,20 @@ SYSTEM_PROMPT = (
 )
 
 
+def claims_with_urls(answer: str) -> list[tuple[str, str]]:
+    """(claim, url) pairs: each linked line of a Codex answer, with its first new link."""
+    pairs: list[tuple[str, str]] = []
+    for line in answer.splitlines():
+        urls = [url for url in URL_PATTERN.findall(line) if url not in {u for _, u in pairs}]
+        if not urls:
+            continue
+        claim = re.sub(r"\]\(\S*?\)", "", URL_PATTERN.sub("", line))
+        claim = " ".join(claim.replace("[", "").replace("**", "").split()).strip(" -：:（(")  # noqa: RUF001
+        if claim:
+            pairs.append((claim[:200], urls[0]))
+    return pairs
+
+
 class SelfActivityOwner:
     def __init__(
         self,
@@ -50,6 +76,7 @@ class SelfActivityOwner:
         *,
         allowed: Callable[[], bool],
         close_browser: Callable[[str], Awaitable[None]] | None = None,
+        state_path: Path | None = None,
     ) -> None:
         self._runs = runs
         self._orchestrator = orchestrator
@@ -60,7 +87,8 @@ class SelfActivityOwner:
         self._run_id: str | None = None
         self._cancellation: CancellationToken | None = None
         self._stop_reason: str | None = None
-        self._paused = False
+        self._state_path = state_path
+        self._paused = self._load_paused()
         self._control = asyncio.Lock()
 
     @property
@@ -109,6 +137,24 @@ class SelfActivityOwner:
     async def set_paused(self, paused: bool) -> None:
         # Pausing stops new work; the running step finishes, then the run ends (explicit policy).
         self._paused = paused
+        self._save_paused()
+
+    def _load_paused(self) -> bool:
+        if self._state_path is None:
+            return False
+        try:
+            return json.loads(self._state_path.read_text(encoding="utf-8")).get("paused") is True
+        except (OSError, ValueError, AttributeError):
+            return False
+
+    def _save_paused(self) -> None:
+        # Only the owner's switch is stored; a shutdown pause (close) must not survive a restart.
+        if self._state_path is None:
+            return
+        temporary = self._state_path.with_suffix(".tmp")
+        with suppress(OSError):
+            temporary.write_text(json.dumps({"paused": self._paused}), encoding="utf-8")
+            os.replace(temporary, self._state_path)
 
     async def stop(self, reason: str, run_id: str | None = None) -> bool:
         """Cancel the current run (or only `run_id`); returns whether something was stopped."""
@@ -153,6 +199,7 @@ class SelfActivityOwner:
                 if not calls:
                     state, error = AgentRunState.COMPLETED, None
                     break
+                answers: list[str] = []
                 for call in calls:
                     observation = await self._use_tool(run_id, call, proposals, cancellation)
                     history.append(
@@ -162,7 +209,14 @@ class SelfActivityOwner:
                             tool_call_id=call.call_id,
                         )
                     )
+                    if call.name == CODEX_TOOL and isinstance(observation, dict):
+                        answer = observation.get("answer")
+                        if isinstance(answer, str):
+                            answers.append(answer)
                 await self._runs.checkpoint(run_id, history)
+                # Checks need her own page reader; without it the Codex links stay unopened.
+                for answer in answers if any(tool.name == READ_TOOL for tool in tools) else ():
+                    await self._verify(run_id, history, answer, proposals, cancellation)
             if self._ended(cancellation) and state is not AgentRunState.COMPLETED:
                 paused = "autonomy_paused" if self._paused else "tools_disabled"
                 state, error = AgentRunState.CANCELLED, self._stop_reason or paused
@@ -231,6 +285,64 @@ class SelfActivityOwner:
         observation = result.model_observation()
         await self._runs.record_observation(run_id, call.call_id, observation)
         return observation
+
+    async def _verify(
+        self,
+        run_id: str,
+        history: list[ModelMessage],
+        answer: str,
+        proposals: list[str],
+        cancellation: CancellationToken,
+    ) -> None:
+        """Open what Codex cited and record, per claim, what the page actually says.
+
+        Reading a page is not proof; each check is supported, contradicted, not_found,
+        unreachable or unchecked (the judge did not answer), never assumed correct.
+        """
+        pairs = claims_with_urls(answer)[:MAX_CHECKS]
+        if not pairs or self._ended(cancellation):
+            return
+        calls = tuple(
+            ToolCall(f"verify-{uuid4().hex[:12]}", READ_TOOL, {"url": url}) for _, url in pairs
+        )
+        history.append(ModelMessage("assistant", "核對 Codex 給的來源", tool_calls=calls))
+        await self._runs.checkpoint(run_id, history)
+        checks: list[dict[str, object]] = []
+        for (claim, url), call in zip(pairs, calls, strict=True):
+            observation = await self._use_tool(run_id, call, proposals, cancellation)
+            history.append(
+                ModelMessage(
+                    "tool", json.dumps(observation, ensure_ascii=False), tool_call_id=call.call_id
+                )
+            )
+            page = None
+            if isinstance(observation, dict) and "error" not in observation:
+                page = observation.get("text")
+            if not isinstance(page, str):
+                verdict = "unreachable"
+            else:
+                verdict = await self._judge(claim, page, cancellation)
+            checks.append({"url": url, "claim": claim, "verdict": verdict})
+        await self._runs.checkpoint(run_id, history)
+        await self._runs.append(run_id, "verification", {"checks": checks})
+
+    async def _judge(self, claim: str, page: str, cancellation: CancellationToken) -> str:
+        request = ModelRequest(
+            JUDGE_PROMPT + claim + "\n\n網頁：\n" + page[:6000],  # noqa: RUF001
+            str(uuid4()),
+            privacy=Privacy.LOCAL_ONLY,
+            max_output_tokens=16,
+        )
+        parts: list[str] = []
+        try:
+            async for chunk in self._model.stream(request, cancellation):
+                if chunk.kind == "text":
+                    parts.append(chunk.text)
+        except Exception:  # an unanswered judge leaves the claim unchecked
+            return "unchecked"
+        reply = "".join(parts).lower()
+        found = [verdict for verdict in VERDICTS if verdict in reply]
+        return found[0] if len(found) == 1 else "unchecked"
 
     async def _finish(
         self,

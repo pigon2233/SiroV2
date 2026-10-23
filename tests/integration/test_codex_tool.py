@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from test_activity_monitor import ScriptedModel, activities_of, companion
 
-from siro.ports.models import ToolCall
+from siro.ports.models import ModelChunk, ToolCall
 from siro.services.activity.monitor import ActivityMonitor, describe_tool
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
@@ -98,3 +99,89 @@ async def test_her_note_lists_codex_links_apart_from_pages_she_read(tmp_path: Pa
     [activity] = activities_of(await ActivityMonitor(store).snapshot())
     assert activity["tools"][0]["capability"] == "codex.ask"
     assert activity["tools"][0]["target"] == {"task": "M42 是什麼"}
+
+
+def test_claims_pair_each_linked_line_with_its_first_new_link() -> None:
+    from siro.services.agent.self_activity import claims_with_urls
+
+    answer = (
+        "**明天台中多雲**，23–29°C。[氣象署](https://www.cwa.gov.tw/a)\n"  # noqa: RUF001
+        "沒有連結的句子\n"
+        "- 晚上可能下雨 https://news.example.test/b，請帶傘\n"  # noqa: RUF001
+        "重複 https://www.cwa.gov.tw/a\n"
+    )
+    assert claims_with_urls(answer) == [
+        ("明天台中多雲，23–29°C。氣象署", "https://www.cwa.gov.tw/a"),  # noqa: RUF001
+        ("晚上可能下雨 ，請帶傘", "https://news.example.test/b"),  # noqa: RUF001
+    ]
+
+
+class JudgingModel(ScriptedModel):
+    """Scripted rounds for the run; claim checks get a fixed verdict."""
+
+    def __init__(self, rounds: list[object], verdict: str) -> None:
+        super().__init__(rounds)  # type: ignore[arg-type]
+        self.verdict = verdict
+        self.judged: list[str] = []
+
+    async def stream(self, request: Any, cancellation: Any) -> Any:  # type: ignore[override]
+        if request.prompt.startswith("下面是一個說法"):
+            self.judged.append(request.prompt)
+            yield ModelChunk("text", self.verdict)
+            yield ModelChunk("finished")
+            return
+        async for chunk in super().stream(request, cancellation):
+            yield chunk
+
+
+async def test_she_opens_codex_links_and_records_what_each_page_says(tmp_path: Path) -> None:
+    read: list[object] = []
+
+    async def codex(arguments: dict[str, object], context: ExecutionContext) -> object:
+        return {
+            "answer": "M42 是恆星形成區 https://example.test/m42\n距離 1344 光年 https://down.test/x",
+            "truncated": False,
+        }
+
+    async def browse(arguments: dict[str, object], context: ExecutionContext) -> object:
+        read.append(arguments["url"])
+        if "down.test" in str(arguments["url"]):
+            raise ConnectionError("synthetic outage")
+        return {"url": arguments["url"], "title": "M42", "text": "獵戶座大星雲是恆星形成區"}
+
+    model = JudgingModel(
+        [[ToolCall("c1", "codex.ask", {"task": "M42 是什麼"})], "筆記：M42 是恆星形成區"],  # noqa: RUF001
+        "supported",
+    )
+    controller, store = await companion(
+        tmp_path, model, {"codex.ask": codex, "browser.navigate+read": browse}
+    )
+    orchestrator = controller._tool_orchestrator
+    assert orchestrator is not None
+    owner = SelfActivityOwner(
+        SQLiteAgentRunRepository(store), orchestrator, model, allowed=lambda: True
+    )
+    assert await owner.start("M42 是什麼") is not None
+    for _ in range(300):
+        if not owner.busy:
+            break
+        await asyncio.sleep(0.01)
+    [note] = await SelfNotes(store, tmp_path / "shared.json").notes()
+    assert read == ["https://example.test/m42", "https://down.test/x"]
+    assert note["checks"] == [
+        {
+            "url": {"url": "https://example.test/m42"},
+            "claim": "M42 是恆星形成區",
+            "verdict": "supported",
+        },
+        {
+            "url": {"url": "https://down.test/x"},
+            "claim": "距離 1344 光年",
+            "verdict": "unreachable",
+        },
+    ]
+    # The page she opened herself now counts as read; the unreachable one does not.
+    assert [source["url"] for source in note["sources"]] == [{"url": "https://example.test/m42"}]
+    assert len(model.judged) == 1
+    text, _ = share_text(note)
+    assert "M42 是恆星形成區：頁面支持" in text and "距離 1344 光年：打不開" in text  # noqa: RUF001
