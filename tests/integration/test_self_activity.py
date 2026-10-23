@@ -313,3 +313,52 @@ async def test_what_she_shared_is_known_to_her_next_reply(tmp_path: Path) -> Non
     await controller.share_self_note("我剛剛自己查了「星雲」。", "星雲")
     await controller.respond("s1", "剛剛那個是什麼")
     assert "星雲" in model.seen[-1] and "self-note-share" in model.seen[-1]
+
+
+async def test_her_recent_attempts_including_failures_are_available_for_recall(
+    tmp_path: Path,
+) -> None:
+    from siro.services.agent.self_notes import SelfNotes
+
+    async def read(arguments: dict[str, object], context: ExecutionContext) -> object:
+        return {"url": arguments["url"], "title": "synthetic nebula page", "text": "M42"}
+
+    class Broken(ScriptedModel):
+        async def stream(self, request: Any, cancellation: Any) -> Any:
+            raise RuntimeError("model unavailable")
+            yield
+
+    model = ScriptedModel([[read_call("r1")], "筆記：獵戶座星雲 M42 [https://example.test/nebula]"])  # noqa: RUF001
+    owner, store, _ = await owner_for(tmp_path, model, {READ: read}, [True])
+    await owner.start("讀一篇關於獵戶座星雲的介紹")
+    await settle(owner)
+    broken, _, _ = await owner_for(tmp_path / "b", Broken([]), {READ: read}, [True])
+    assert await broken.start("台中的歷史建築") is not None
+    await settle(broken)
+    lines = await SelfNotes(store, tmp_path / "shared.json").recent_lines()
+    assert any("獵戶座星雲" in line and "finished" in line and "M42" in line for line in lines)
+    # The failed attempt is in another store; its own lines must say it did not finish.
+    failed_store = broken._runs._store
+    failed = await SelfNotes(failed_store, tmp_path / "s2.json").recent_lines()
+    assert any("台中的歷史建築" in line and "did not finish" in line for line in failed)
+
+
+async def test_recent_attempts_reach_her_next_reply(tmp_path: Path) -> None:
+    class Recording(ScriptedModel):
+        seen: list[str] = []  # noqa: RUF012
+
+        async def stream(self, request: Any, cancellation: Any) -> Any:
+            self.seen.append(repr(request))
+            async for chunk in super().stream(request, cancellation):
+                yield chunk
+
+    async def lines() -> tuple[str, ...]:
+        return ("台中的歷史建築: did not finish, failed (HTTPStatusError)",)
+
+    model = Recording(["好"])
+    controller, _ = await companion(tmp_path, model, {})
+    await controller.respond("s1", "你好")
+    assert not any("self-activity" in seen for seen in model.seen)
+    controller.self_activity_lines = lines
+    await controller.respond("s1", "你剛剛查了什麼")
+    assert "台中的歷史建築" in model.seen[-1] and "self-activity" in model.seen[-1]

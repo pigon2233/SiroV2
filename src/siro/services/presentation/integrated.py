@@ -169,6 +169,8 @@ class IntegratedCompanion:
         self._last_session: str | None = None
         self._recent_shares: list[tuple[datetime, str]] = []
         self._situation_lines = situation_lines
+        # Set by the gateway once her notes service exists; reads her own recent attempts.
+        self.self_activity_lines: Callable[[], Awaitable[tuple[str, ...]]] | None = None
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
 
     @property
@@ -624,6 +626,16 @@ class IntegratedCompanion:
                 verified_preferences += (
                     "SIRO herself told the owner about her own research in this chat, so she "
                     "remembers saying it: " + " | ".join(shares) + " [source:self-note-share]",
+                )
+            attempts = await self.self_activity_lines() if self.self_activity_lines else ()
+            if attempts:
+                verified_preferences += (
+                    "What SIRO herself recently tried to look up on her own, newest first, "
+                    "including attempts that did not finish. When the owner asks what she looked "
+                    "up, answer from this and say plainly which did not finish; it is her own "
+                    "research, not facts about the owner: "
+                    + " | ".join(attempts)
+                    + " [source:self-activity]",
                 )
             situation = self._situation_lines(self._privacy) if self._situation_lines else ()
             if situation:

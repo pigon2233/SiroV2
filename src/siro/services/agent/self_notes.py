@@ -127,6 +127,33 @@ class SelfNotes:
         notes = await self._store.run_transaction(read)
         return [{**note, "shared": note["run_id"] in self._shared} for note in notes]
 
+    async def recent_lines(
+        self, limit: int = 5, within: timedelta = timedelta(days=3)
+    ) -> tuple[str, ...]:
+        """What she herself tried lately, finished or not, for her own recall when asked."""
+
+        def read(c: sqlite3.Connection) -> list[str]:
+            floor = (datetime.now(UTC) - within).isoformat()
+            lines: list[str] = []
+            for run in c.execute(
+                "SELECT run_id, goal, state, error FROM agent_runs WHERE session_id=? "
+                "AND updated_at>=? AND state NOT IN ('running','waiting_tool') "
+                "ORDER BY updated_at DESC LIMIT ?",
+                (SELF_SESSION, floor, limit),
+            ):
+                goal = str(run["goal"])[:80]
+                state = str(run["state"])
+                if state == "completed":
+                    found = note_for(c, str(run["run_id"]))
+                    gist = str(found["text"])[:160].replace("\n", " ") if found else ""
+                    lines.append(f"{goal}: finished" + (f", note: {gist}" if gist else ""))
+                else:
+                    cause = f" ({run['error']})" if run["error"] else ""
+                    lines.append(f"{goal}: did not finish, {state}{cause}")
+            return lines
+
+        return tuple(await self._store.run_transaction(read))
+
     async def note(self, run_id: str) -> dict[str, object] | None:
         found = await self._store.run_transaction(lambda c: note_for(c, run_id))
         return None if found is None else {**found, "shared": run_id in self._shared}

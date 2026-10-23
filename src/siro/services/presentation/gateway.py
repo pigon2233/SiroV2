@@ -2681,6 +2681,8 @@ def _run_gateway(
         if self_owner is not None
         else None
     )
+    if self_notes_service is not None:
+        controller.self_activity_lines = self_notes_service.recent_lines
 
     async def share_finished_note() -> None:
         assert self_notes_service is not None
