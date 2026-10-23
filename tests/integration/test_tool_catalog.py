@@ -179,6 +179,7 @@ def test_real_main_effective_config_and_live_switch(
                     "browser.close",
                     "filesystem.read",
                     "filesystem.list",
+                    "codex.ask",
                 }
             assert set(tools) == expected
             assert tools["process.start"]["model_visible"] is False
@@ -355,6 +356,7 @@ def test_main_model_catalog_routes_every_visible_tool(
                 "browser.close",
                 "filesystem.read",
                 "filesystem.list",
+                "codex.ask",
             }
             tool_message = next(m for m in requests[1].messages if m.role == "tool")
             assert tool_message.tool_call_id == "route"

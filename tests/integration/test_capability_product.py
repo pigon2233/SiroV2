@@ -186,7 +186,7 @@ async def test_model_round_inventory_is_current_and_preserves_native_pairs(
 def test_frontend_inventory_is_read_only_refreshable_and_uses_text_content() -> None:
     html = Path("src/siro/services/presentation/static/index.html").read_text()
     script = html[
-        html.index("      function renderCapabilities(") : html.index("      let memorySearchEpoch")
+        html.index("      function renderCapabilities(") : html.index("      async function refreshProduct(")
     ]
     assert "renderCapabilities(runtime.tools)" in html
     code = r"""
