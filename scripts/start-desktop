@@ -87,6 +87,8 @@ fi
 # loopback /desktop page. SIRO_DESKTOP_GPU=0 keeps the sandbox and the CPU rasteriser.
 if [[ -n "${WSL_DISTRO_NAME:-}" && "${SIRO_DESKTOP_GPU:-1}" == 1 && -r /dev/dri/renderD128 && -w /dev/dri/renderD128 && -e /dev/dxg ]]; then
   export GALLIUM_DRIVER=d3d12 MESA_LOADER_DRIVER_OVERRIDE=d3d12 WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 SIRO_DESKTOP_GPU=1
+  # Page painting (borders, text) stays on the CPU: D3D12 tore diagonal lines across boxes; WebGL still uses the GPU.
+  export WEBKIT_SKIA_ENABLE_CPU_RENDERING=1
 fi
 # The host can die from a WebKit snapshot failure inside GJS that no script can catch. A crash
 # (non-zero exit) relaunches it after 2 s, at most 5 times in 10 minutes; a clean exit, which is
