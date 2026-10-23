@@ -136,8 +136,8 @@ def test_prompt_sets_short_default_and_respects_explicit_detail_request() -> Non
         identity, "颱風", (), now=datetime(2026, 10, 23, 17, 30, tzinfo=ZoneInfo("Asia/Taipei"))
     )
     assert "2026-10-23 17:30 星期五" in dated
-    assert "Call a lookup tool first" in dated
-    assert "Never claim you asked Codex" in dated
+    assert "Use an available tool to check them" in dated
+    assert "claim an action only if a tool result" in dated
 
 
 @pytest.mark.asyncio
