@@ -11,6 +11,44 @@ inline float luxFromBh1750Raw(uint16_t raw) {
   return static_cast<float>(raw) / 1.2f;
 }
 
+class ButtonSampler {
+ public:
+  void reset(bool rawDown) {
+    down_ = rawDown;
+    candidateActive_ = false;
+    pressCount_ = 0;
+  }
+
+  // Count stable presses, not boot-time held state or electrical bounce.
+  bool update(uint32_t now, bool rawDown) {
+    if (rawDown == down_) {
+      candidateActive_ = false;
+      return false;
+    }
+    if (!candidateActive_ || candidate_ != rawDown) {
+      candidateActive_ = true;
+      candidate_ = rawDown;
+      candidateSince_ = now;
+      return false;
+    }
+    if (!sensorIntervalElapsed(now, candidateSince_, 50UL)) return false;
+    down_ = rawDown;
+    candidateActive_ = false;
+    if (down_) ++pressCount_;
+    return true;
+  }
+
+  bool down() const { return down_; }
+  uint32_t pressCount() const { return pressCount_; }
+
+ private:
+  uint32_t candidateSince_ = 0;
+  uint32_t pressCount_ = 0;
+  bool down_ = false;
+  bool candidateActive_ = false;
+  bool candidate_ = false;
+};
+
 class PirMotionSampler {
  public:
   explicit PirMotionSampler(uint32_t bootMs) : bootMs_(bootMs) {}

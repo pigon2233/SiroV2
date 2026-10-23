@@ -2,6 +2,14 @@
 
 日期：2026-10-23 Asia/Taipei。結果：**BUILD_VERIFIED + SYNTHETIC_INTEGRATION_VERIFIED / HARDWARE_PENDING / BLOCKED_SYNC**。
 
+## 實板更正與本輪追加
+
+使用者確認實板為 **ESP32-S3 N16R8，只有 BH1750、PIR、一顆按鈕，沒有 LED**；原草稿的接線設定為按鈕 GPIO 4、PIR GPIO 5、I²C SDA 8／SCL 9。下文初版的 LED／`power` 敘述是更正前的歷史驗證，**不適用於實板**。現行 `secrets.example.h` 預設 `SIRO_HAS_LED 0`，firmware 不初始化 LED、不訂閱 command，也不發 `power`／ACK。按鈕以 50 ms 穩定狀態上報 `button_down` 與開機歸零的 `button_press_count`；沒有設備控制作用。超音波尚未安裝，不宣稱支援或驗收。原 `esp32dev` LED 範例需明確設定 `SIRO_HAS_LED 1` 並確認腳位才啟用。
+
+本輪已把真 broker 合成資料→World 測試改成無 actuator descriptor，加入按鈕兩屬性與 host C++ 去彈跳、開機按住、`millis()` 回捲檢查。六份相關測試 **68 passed／36.04s**（Python 3.14 WSL，實際命令與下表相同）。S3 專用 PlatformIO 環境以官方 WROOM-1 N16R8 的 16 MB QSPI flash／8 MB OPI PSRAM 設定；實板模組標示仍待核對。此輪 S3 build／靜態檢查結果如下，不能用舊 `esp32dev` 編譯數字替代。
+
+追加驗證：WSL 自有隔離目錄用 `include/secrets.example.h` 的假設定作 compile-only `secrets.h`；`platformio==6.1.19` 與 pinned `espressif32@6.12.0`，執行 `pio run --project-dir /home/pepepig/.local/share/siro/t27-s3-build-20261023/project --environment esp32s3_n16r8 --jobs 2`，**SUCCESS／87.78s**。RAM 45,176／327,680 bytes、Flash 746,881／6,553,600 bytes；`firmware.bin` 747,248 bytes，SHA256 `cdbe06d15e8d1d24a66608af97ed220e9eea415f8d982ba849f8350af3114f29`。這是 example-only、未燒錄的產物。PlatformIO banner 沿用 board manifest 的「N8／無 PSRAM」標題，專用環境覆寫 16 MB partition／QSPI flash／OPI PSRAM；無真板啟動測試，故不能由編譯成功推論 flash／PSRAM 設定在實板已驗證。Ruff check／format、mypy（新測試）及 `git diff --check` PASS。
+
 ## 範圍
 
 以 `origin/main` `89b80fbf17dee5e311c5f1c3123cb92833b6cc68` 為基線，在獨立 worktree 更新原有 ESP32 MQTT firmware：PIR 經 60 秒暖機、500 ms 穩定後作 `motion` boolean，BH1750 經 `Wire` 作 `illuminance` lux。兩者跟 `power` 共用帶 `observed_at_epoch` 的 retained `state`，每 10 秒刷新，PIR 邊緣即時發送。I²C 失敗時省略光度；Broker 重連時先撤銷舊感測快照，避免重貼時間戳。原 LED `light.set`／ACK／readback、已認證 MQTT topic 與依賴 pin 保留。

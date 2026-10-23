@@ -16,7 +16,7 @@ from amqtt.broker import Broker  # type: ignore[import-untyped]
 from argon2 import PasswordHasher
 
 from siro.contracts.events import Privacy
-from siro.core.devices import DeviceAction, DeviceDescriptor, DeviceProperty, DeviceRegistry
+from siro.core.devices import DeviceDescriptor, DeviceProperty, DeviceRegistry
 from siro.core.world import WorldModel, WorldStatus
 from siro.persistence.devices import SQLiteDeviceRepository
 from siro.persistence.sqlite import SQLiteStore
@@ -63,6 +63,25 @@ int main() {
   assert(wrapped.ready() && !wrapped.motion());
   assert(std::fabs(luxFromBh1750Raw(120) - 100.0f) < 0.01f);
   assert(luxFromBh1750Raw(0) == 0.0f);
+
+  ButtonSampler button;
+  button.reset(true); // held during boot is not counted as a new press
+  assert(button.down() && button.pressCount() == 0);
+  assert(!button.update(10, false));
+  assert(!button.update(59, false));
+  assert(button.update(60, false));
+  assert(!button.down());
+  assert(!button.update(70, true));
+  assert(!button.update(90, false)); // bounce cancels the candidate
+  assert(!button.update(100, true));
+  assert(!button.update(149, true));
+  assert(button.update(150, true));
+  assert(button.down() && button.pressCount() == 1);
+  assert(!button.update(151, true));
+  assert(!button.update(UINT32_MAX - 25u, false));
+  assert(!button.update(23u, false));
+  assert(button.update(24u, false)); // millis rollover
+  assert(!button.down() && button.pressCount() == 1);
 }
 """,
         encoding="utf-8",
@@ -107,11 +126,12 @@ async def test_authenticated_sensor_state_reaches_world_with_source_and_expiry(
         adapter="esp32_mqtt",
         location="lab",
         properties={
-            "power": DeviceProperty(type="boolean"),
             "motion": DeviceProperty(type="boolean"),
             "illuminance": DeviceProperty(type="number", unit="lx"),
+            "button_down": DeviceProperty(type="boolean"),
+            "button_press_count": DeviceProperty(type="number"),
         },
-        actions={"light.set": DeviceAction(input_schema="light_set.v1")},
+        actions={},
         availability_ttl_ms=20_000,
         privacy=Privacy.LOCAL_ONLY,
     )
@@ -120,7 +140,12 @@ async def test_authenticated_sensor_state_reaches_world_with_source_and_expiry(
     payload = json.dumps(
         {
             "observed_at_epoch": int(now.timestamp()),
-            "properties": {"power": False, "motion": True, "illuminance": 235.8},
+            "properties": {
+                "motion": True,
+                "illuminance": 235.8,
+                "button_down": False,
+                "button_press_count": 3,
+            },
         }
     ).encode()
     port = free_port()
@@ -155,7 +180,12 @@ async def test_authenticated_sensor_state_reaches_world_with_source_and_expiry(
     finally:
         await broker.shutdown()
 
-    for name, expected in (("power", False), ("motion", True), ("illuminance", 235.8)):
+    for name, expected in (
+        ("motion", True),
+        ("illuminance", 235.8),
+        ("button_down", False),
+        ("button_press_count", 3),
+    ):
         current = await world.current(descriptor.device_id, name, now=now + timedelta(seconds=1))
         assert current.status is WorldStatus.KNOWN
         assert current.observation is not None

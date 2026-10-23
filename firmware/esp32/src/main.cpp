@@ -11,10 +11,13 @@
 WiFiClient network;
 MqttClient mqtt(network);
 String prefix = String("siro/devices/") + SIRO_DEVICE_ID + "/";
+#if SIRO_HAS_LED
 String lastCommandId;
+#endif
 constexpr time_t minimumSyncedTime = 1700000000;
 constexpr uint32_t sensorIntervalMs = 10000UL;
 PirMotionSampler pir(0);
+ButtonSampler button;
 uint32_t lastLightRead = 0;
 uint32_t lastStatePublish = 0;
 bool lightSensorReady = false;
@@ -58,13 +61,18 @@ void publishJson(const String &topic, JsonDocument &document, bool retain) {
 void publishState() {
   JsonDocument state;
   state["observed_at_epoch"] = time(nullptr);
+#if SIRO_HAS_LED
   state["properties"]["power"] = digitalRead(SIRO_LED_PIN) == HIGH;
+#endif
+  state["properties"]["button_down"] = button.down();
+  state["properties"]["button_press_count"] = button.pressCount();
   if (pir.ready()) state["properties"]["motion"] = pir.motion();
   if (lightValid) state["properties"]["illuminance"] = lastLux;
   publishJson(prefix + "state", state, true);
   lastStatePublish = millis();
 }
 
+#if SIRO_HAS_LED
 void publishAck(const String &commandId, const char *status) {
   JsonDocument ack;
   ack["command_id"] = commandId;
@@ -98,6 +106,7 @@ void onMessage(int size) {
   publishAck(commandId, "applied");
   publishState();  // Ack alone is not success; gateway confirms this state readback.
 }
+#endif
 
 void connectMqtt() {
   if (connectedOnce) {
@@ -109,19 +118,27 @@ void connectMqtt() {
   mqtt.beginWill(prefix + "availability", 7, true, 1);
   mqtt.print("offline");
   mqtt.endWill();
+#if SIRO_HAS_LED
   mqtt.onMessage(onMessage);
+#endif
   while (!mqtt.connect(SIRO_MQTT_HOST, SIRO_MQTT_PORT)) delay(1000);
   mqtt.beginMessage(prefix + "availability", 6, true, 1, false);
   mqtt.print("online");
   mqtt.endMessage();
+#if SIRO_HAS_LED
   mqtt.subscribe(prefix + "command", 1);
+#endif
   publishState();
   connectedOnce = true;
 }
 
 void setup() {
+#if SIRO_HAS_LED
   pinMode(SIRO_LED_PIN, OUTPUT);
+#endif
   pinMode(SIRO_PIR_PIN, INPUT);
+  pinMode(SIRO_BUTTON_PIN, INPUT_PULLUP);
+  button.reset(digitalRead(SIRO_BUTTON_PIN) == LOW);
   Serial.begin(115200);
   pir.reset(millis());
   Wire.begin(SIRO_I2C_SDA_PIN, SIRO_I2C_SCL_PIN);
@@ -149,6 +166,7 @@ void loop() {
   mqtt.poll();
   const uint32_t now = millis();
   const bool motionChanged = pir.update(now, digitalRead(SIRO_PIR_PIN) == HIGH);
+  const bool buttonChanged = button.update(now, digitalRead(SIRO_BUTTON_PIN) == LOW);
   if (sensorIntervalElapsed(now, lastLightRead, sensorIntervalMs)) {
     lastLightRead = now;
     if (!lightSensorReady) {
@@ -163,7 +181,8 @@ void loop() {
       }
     }
   }
-  if (motionChanged || sensorIntervalElapsed(now, lastStatePublish, sensorIntervalMs)) {
+  if (motionChanged || buttonChanged ||
+      sensorIntervalElapsed(now, lastStatePublish, sensorIntervalMs)) {
     publishState();
   }
   delay(10);
