@@ -1,3 +1,11 @@
+# Companion CP-I02：發布與回退準備 — 2026-10-24，PARTIAL
+
+授權整合者（owner 2026-10-23 同意）範圍僅限本機隔離演練與共享狀態更新。以合成資料、臨時目錄跑 `ReleaseManager` 啟用→回退→重新套用→healthcheck 失敗保持原版，以及 `backup_to`→`restore_from`；每步資料 hash 與起始值相同。見[準備文件](companion-workflow/CP-I02-RELEASE-PREP.md)、`evidence/CP-I02-2026-10-23/`。
+
+命令與結果：release／backup 相關 8 個測試檔 223 PASS；`drill.py` 全步驟通過。本機 commit，未 push。
+
+限制：只有 source／套件層，不是正式部署回退。舊版 `974cdd7` 只認 15 個 migration、演練 DB 為 18，未證明舊程式能讀 schema 18（回退點須先確認 016～018 相容或還原備份）；healthcheck 為 `python -c pass`，未驗 drain／服務停止、Windows／WSLg／跨機；未部署、未動另一台。P05 仍 PARTIAL、I01 owner 試用未完成，故 I02 不標 DONE。下一步：I01 完成後在真服務上重演，並釐清 schema 18 回退點。
+
 # Companion CP-P05：有 scope 的工作情境 — 2026-10-23，PARTIAL
 
 新增 `services/context/work_context.py`：來源分開開關（主人自己說的／app metadata／選定畫面，後兩者預設關，`work-context-scope.json` 重啟保留，損壞視為全關）。每筆 observation 有 source／kind（stated／seen／inferred 分開）／observed_at／expires_at／privacy／permission_revision；關來源或改 revision 立即失效，視窗標題不存，鎖屏／敏感視窗（密碼、銀行、無痕等）不留紀錄並丟掉前一筆，編輯器只推測並反問「你是在寫程式嗎？」，更正後不再猜，Focus／全螢幕時 P04 排程不啟動自主活動，雲端模型拿不到任何情境。端點 `/v1/work-context`（GET／scope／shared／app／{id}/retract|correct）；關閉後 adapter 回報得 409。
