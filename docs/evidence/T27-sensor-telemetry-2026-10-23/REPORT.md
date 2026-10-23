@@ -33,4 +33,4 @@ PIR 低電平只表示目前沒有動作，不是無人，故屬性名為 `motio
 
 正式 SIRO 啟動流程尚未連接 MQTT projector，這輪 World State 成功只在真 Broker＋合成 state 的整合測試中成立。真板型號、GPIO、BH1750 I²C、PIR 暖機／動作、NTP、MQTT pairing、LED 視覺 readback、斷線回復與 HA/A18 L3 均待實體驗收；不能把交叉編譯或舊 HTTP receiver 的 200 當成這些項目通過。沒有讀取／提交真 Wi-Fi、MQTT 密碼或私人 sensor log。
 
-GitHub 未結 Issue／PR 在開始時查得為空；GitHub 寫入 API 回 401，故尚未完成線上認領／推送／Draft PR。保留獨立本地分支及 [協作交接](../../collaboration/T27-ESP32-SENSOR-TELEMETRY.md)，不得宣稱其他電腦已能讀取。恢復寫入後先重查競爭認領，再推分支開 Draft PR；由整合者更新共享 `docs/STATUS.md`。產品下一張切片是設備配對與正式 MQTT projector 啟動接線，另需實板 flash／人工驗收。
+GitHub 未結 Issue／PR 在開始時查得為空；當時 GitHub 寫入 API 回 401，因此先保留獨立本地分支。2026-10-23 重新登入並重查後，已建立 [Issue #2](https://github.com/pigon2233/SiroV2/issues/2)、推送分支與 [Draft PR #3](https://github.com/pigon2233/SiroV2/pull/3)。仍未合併或部署；由整合者更新共享 `docs/STATUS.md`。產品下一張切片是設備配對與正式 MQTT projector 啟動接線，另需實板 flash／人工驗收。
