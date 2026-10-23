@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -131,6 +132,12 @@ def test_prompt_sets_short_default_and_respects_explicit_detail_request() -> Non
     assert "within 120 Chinese characters" in prompt
     assert "when the owner asks for it or the task needs it" in prompt
     assert "Do not pad, repeat, or announce that you will continue" in prompt
+    dated = assemble_prompt(
+        identity, "颱風", (), now=datetime(2026, 10, 23, 17, 30, tzinfo=ZoneInfo("Asia/Taipei"))
+    )
+    assert "2026-10-23 17:30 星期五" in dated
+    assert "Call a lookup tool first" in dated
+    assert "Never claim you asked Codex" in dated
 
 
 @pytest.mark.asyncio

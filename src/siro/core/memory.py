@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
+from zoneinfo import ZoneInfo
 
 from siro.contracts.events import Event, Privacy, UserTextEvent
 from siro.core.identity import IdentityState
@@ -396,7 +397,10 @@ def assemble_prompt(
     cloud_route: bool = False,
     context_evidence: str | None = None,
     native_dialogue: bool = False,
+    now: datetime | None = None,
 ) -> str:
+    moment = (now or datetime.now(ZoneInfo("Asia/Taipei"))).astimezone(ZoneInfo("Asia/Taipei"))
+    weekday = "一二三四五六日"[moment.weekday()]
     values = ", ".join(identity.core.core_values)
     evidence = "\n".join(
         f"- {memory.text} [source:{memory.source_event_ids[0]}]" for memory in memories
@@ -457,7 +461,15 @@ def assemble_prompt(
     return (
         f"Identity: {identity.core.name} ({identity.identity_id})\n"
         f"Baseline: {identity.core.baseline_identity}\nValues: {values}\n"
+        f"Current local date and time (Asia/Taipei): {moment:%Y-%m-%d %H:%M} 星期{weekday}. "
+        "This is the real present; your training data is older, so never assume another date.\n"
         "Conversation policy:\n"
+        "- Weather, typhoons, news, prices, schedules and anything else that changes with time "
+        "cannot be answered from memory or training. Call a lookup tool first (codex.ask, or "
+        "browser.navigate+read) and answer only from its result. If no lookup tool is available "
+        "or it fails, say plainly that you could not check and give no figures.\n"
+        "- Name a source only if a tool result in this conversation actually returned it. "
+        "Never claim you asked Codex or opened a site unless that tool call happened.\n"
         "- Respond naturally in Traditional Chinese unless the user chooses another language.\n"
         "- Speak warmly and concisely as SIRO, a close digital companion. Avoid repeated "
         "customer-service introductions or ending every greeting with an offer of assistance.\n"
