@@ -1,6 +1,6 @@
 # T27 ESP32 HTTP 接入與回讀：隔離驗證
 
-日期：2026-10-23 Asia/Taipei。結果：**SYNTHETIC_INGRESS_VERIFIED / REAL_BOARD_PENDING / LOCAL_ONLY / BLOCKED_SYNC**。
+日期：2026-10-23 Asia/Taipei。結果：**SYNTHETIC_INGRESS_VERIFIED / REAL_BOARD_PENDING / DRAFT_PR**。
 
 ## 實作
 
@@ -17,4 +17,4 @@
 
 ## 未完成
 
-使用者的 ESP32 區網來源 IP 尚待提供，因此沒有設定 allowlist、啟動 Windows 8765 relay 或更換 `C:/Users/pepepig/siro_receiver.py`；沒有重啟 8000、沒有燒錄或對實板發請求，沒有可核對的現場 World State 觀測。正式啟用要先取得 gateway 主程序與共享 `docs/DECISIONS.md` 的整合權，依[啟用說明](../../ESP32_HTTP_INGRESS.md)設定私人 token，接著做「ESP32 HTTP 200 → 同一 SIRO owner session 新鮮 state」人工驗收。GitHub 寫入仍待認證；本地交接見[協作紀錄](../../collaboration/T27-HTTP-EVENT-INGRESS.md)。
+使用者的 ESP32 區網來源 IP 尚待提供，因此沒有設定 allowlist、啟動 Windows 8765 relay 或更換 `C:/Users/pepepig/siro_receiver.py`；沒有重啟 8000、沒有燒錄或對實板發請求，沒有可核對的現場 World State 觀測。正式啟用要先取得 gateway 主程序與共享 `docs/DECISIONS.md` 的整合權，依[啟用說明](../../ESP32_HTTP_INGRESS.md)設定私人 token，接著做「ESP32 HTTP 200 → 同一 SIRO owner session 新鮮 state」人工驗收。GitHub 已重新登入並建立 [Issue #1](https://github.com/pigon2233/SiroV2/issues/1)／[Draft PR #4](https://github.com/pigon2233/SiroV2/pull/4)，依賴 [PR #3](https://github.com/pigon2233/SiroV2/pull/3)；本地交接見[協作紀錄](../../collaboration/T27-HTTP-EVENT-INGRESS.md)。

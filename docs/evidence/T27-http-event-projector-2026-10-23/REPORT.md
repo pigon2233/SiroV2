@@ -1,6 +1,6 @@
 # T27 ESP32 HTTP 事件投影驗證
 
-日期：2026-10-23 Asia/Taipei。結果：**SYNTHETIC_INTEGRATION_VERIFIED / LIVE_INGRESS_PENDING / BLOCKED_SYNC**。
+日期：2026-10-23 Asia/Taipei。這是初版 parser／投影階段的歷史紀錄；同日接續加入 HTTP route、Windows relay 並推送 [Draft PR #4](https://github.com/pigon2233/SiroV2/pull/4)，現況以[接續驗收](../T27-http-relay-2026-10-23/REPORT.md)為準。初版結果：**SYNTHETIC_INTEGRATION_VERIFIED / LIVE_INGRESS_PENDING**。
 
 使用者提供的 `C:/Users/pepepig/siro_receiver.py` 已唯讀核對：目前只接受 `/event` JSON、印出內容並回覆 HTTP 200，不保存也不寫 SIRO World State。本輪檢查時 8765 沒有監聽程序；未重啟或替換該接收器。
 

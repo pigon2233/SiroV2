@@ -1,7 +1,7 @@
 # T27 ESP32 HTTP 事件轉 SIRO 狀態：本機交接
 
-- Owner：Codex；2026-10-23 Asia/Taipei；**LOCAL_ONLY／BLOCKED_SYNC**。修改前查詢 GitHub 未結 Issue／PR 為空，`origin/main` 為 `89b80fbf17dee5e311c5f1c3123cb92833b6cc68`；先前 GitHub 寫入憑證不可用，故尚未線上認領。恢復認證後須重查競爭認領。
-- Base：本機 `codex/t27-esp32-sensor-telemetry`@`a5f79e5`（該分支尚未推送）；本分支 `codex/t27-http-event-ingress`、獨立 worktree `E:/coding/Worktrees/t27-http-event-ingress/SiroV2`。與先前 T27 感測韌體變更有前置依賴。
+- Owner：Codex；2026-10-23 Asia/Taipei；目前 **DRAFT_PR／LIVE_HARDWARE_PENDING**。[Issue #1](https://github.com/pigon2233/SiroV2/issues/1) 已線上認領，[Draft PR #4](https://github.com/pigon2233/SiroV2/pull/4) 已推送。修改前 GitHub 未結 Issue／PR 為空，`origin/main` 為 `89b80fbf17dee5e311c5f1c3123cb92833b6cc68`；先前寫入憑證不可用，以下保留當時的離線經過。
+- Base：`codex/t27-esp32-sensor-telemetry`（[前置 PR #3](https://github.com/pigon2233/SiroV2/pull/3)）；本分支 `codex/t27-http-event-ingress`、獨立 worktree `E:/coding/Worktrees/t27-http-event-ingress/SiroV2`。
 - 範圍：只在 `src/siro/services/devices/http_sensor.py` 建立使用者現有 HTTP `light_update`、`motion_detected`、`motion_cleared`、`button_pressed` 的嚴格 parser 與 World State 投影元件，測試在 `tests/integration/test_esp32_http_sensor.py`；保留 `C:/Users/pepepig/siro_receiver.py` 原檔與原服務。
 - 契約界線：不新增正式 HTTP route、不讓外部程序寫 SIRO 主資料庫、不賦予事件設備控制權。正式接入 `/event` 涉及入口認證與路由契約，待 `docs/DECISIONS.md` 與受影響測試由共享文件 owner 審核後實作；這份文件不是決策紀錄或共享鎖。
 - 驗收：合成 payload 經 parser、Registry、SQLite World 觀測；拒絕格式錯誤、偽造 device、異常 lux；驗證時間與失效、PIR 低電平不推斷房間無人。實板 POST 仍由使用者舊接收器單獨接收，不宣稱 SIRO 已線上感知。
@@ -16,4 +16,4 @@
 
 實作與驗證：新增 `scripts/esp32_http_receiver.py`、`tests/integration/test_esp32_http_gateway.py`、`docs/ESP32_HTTP_INGRESS.md`、[接續證據](../evidence/T27-http-relay-2026-10-23/REPORT.md)，並修改 `src/siro/services/devices/http_sensor.py` 與 `src/siro/services/presentation/gateway.py`。Python 3.14 WSL 相關 45 tests PASS／11.18s；Ruff check／format 與新檔 targeted mypy PASS；完整 gateway mypy 仍有兩項先存錯誤。Windows→WSL loopback 與 Windows relay 缺設定拒絕啟動已驗。當前 8000 是舊版本、8765 未運行新版；無實板 World State 驗收。未取得 ESP32 區網 IP、未設定 token、未更新共享 `docs/DECISIONS.md`／`docs/STATUS.md`，不能宣稱正式部署或安全配對。整合者需先核對與其他 gateway owner 的檔案衝突，再納入共享決策與狀態。
 
-本地接續 commit `569ef0c`；`git push --dry-run` 在無互動模式回覆 `could not read Username for 'https://github.com'`。故未 push、未建立 Issue／Draft PR，本文件仍是 LOCAL_ONLY／BLOCKED_SYNC，不能當作線上認領。完成 GitHub 登入後先重新 fetch 並讀全部未結 claim，再協調 `gateway.py` owner 後推送。
+本地接續 commits `569ef0c`、`73a2ada` 已推送到 `origin/codex/t27-http-event-ingress`。先前 `git push --dry-run` 缺登入回覆屬歷史失敗；重新登入並重查後已建立 Issue #1／Draft PR #4，PR 以 PR #3 的分支為 base。**仍未合併／部署／切換 8765**；整合前須確認 `gateway.py` owner、共享決策與 STATUS 交接。
