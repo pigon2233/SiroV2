@@ -61,3 +61,24 @@ Ruff／mypy／JS，也未在 Windows／WSLg／跨機驗。
 
 - P05（`0da2178` 已有 work_context 實作，尚無 STATUS 驗收紀錄）、P06、I01 owner 試用未完成。
 - 本機無 `gh`，GitHub 認領／PR 狀態未核對；本分支未 push，其他 AI 無法讀到。
+
+## 隔離演練結果（2026-10-23，WSL，合成資料，臨時目錄，未部署）
+
+腳本與輸出：`docs/evidence/CP-I02-2026-10-23/drill.py`、`drill-result.json`。
+舊版 = `974cdd7` 的 `src/siro`，新版 = 當時 HEAD `a541756` 的 `src/siro`。
+
+| 步驟 | 結果 |
+| --- | --- |
+| 初始化 DB | 18 個 migration（基線表中的 15 已過時，main 已新增 016～018） |
+| 啟用舊版／新版 | activated；資料 hash 不變 |
+| `rollback()` | rolled_back 回 1.0.0；資料 hash 不變 |
+| 重新套用新版 | activated（1.1.1）；資料 hash 不變 |
+| healthcheck 失敗 | healthcheck_failed，active 維持不變 |
+| `backup_to`→`restore_from` | 還原後資料 hash 相同 |
+
+**限制（不可誇大）**
+- 通過的是 `ReleaseManager`＋SQLite 備份還原的 **source／套件層**，不是正式部署回退。
+- 舊版 `974cdd7` 只認得 15 個 migration，但演練 DB 是 18；manifest 的 `max_schema` 是演練腳本填的，
+  所以**沒有證明舊程式真的能讀 schema 18**（真實回退需確認 016～018 對舊版向下相容或限制回退點）。
+- healthcheck 是 `python -c pass`，沒有啟動真服務；沒驗 drain、服務停止、Windows／WSLg／跨機。
+- 資料是合成的 50 筆；未碰 owner 真實資料或服務。
