@@ -1,4 +1,6 @@
-# 自己的研究筆記進記憶與對話歷史（NOT PUSHED，等記憶分支合併）
+# 自己的研究筆記進記憶與對話歷史（NOT PUSHED）
+
+狀態 2026-10-23：記憶部分已做（`remember_note`，commit 51c60b0，用 `MemoryService.remember`，未走候選審核，依 owner 決定自動通過）；分享進正式對話歷史仍未做（需改 run journal 契約）。
 
 Owner 決定（2026-10-23）：她自己的研究筆記進記憶**自動通過**，不需要 owner 審核或按鈕；owner 的目標是自己做得越少越好。
 
