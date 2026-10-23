@@ -36,8 +36,8 @@ O01 非第一版 blocker；若未做，監測頁須明確揭示未覆蓋程序�
 ### CP-00：協作與契約基線
 
 - Codex：提交視覺／契約草案與預定素材路徑；Claude：提交 runtime path／觀測能力／配置核對。
-- 雙方在 GitHub 留接收回覆及各自 owner／branch／base SHA／精確 owned paths。
-  若 Issue／PR 權限未修復，保留 pushed branch 與明確待交接，不當共享鎖。
+- 雙方在各自本機交接文件留接收回覆及 owner／branch／base SHA／精確 owned paths。
+  預設必須 commit、不得 push 或建立／更新遠端 PR；本機紀錄不當共享鎖。
 - 核對單 writer、BodyAdapter、Core affect、speech owner、journal、browser session、proactivity caller。
 - 驗收：契約欄位對映到實際 caller／consumer；不存在之 API 標為提案，沒有未指定 owner 的共享檔。
 - 回退：撤規劃 commit，不更動生產狀態。此卡不自動接受任何後續 protocol migration。

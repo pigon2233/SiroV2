@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -20,9 +21,12 @@ class SQLiteConsolidationRepository:
     ) -> tuple[str, int]:
         def write(connection: sqlite3.Connection) -> tuple[str, int]:
             row = connection.execute(
-                "SELECT run_id, checkpoint FROM consolidation_runs WHERE run_key = ?", (run_key,)
+                "SELECT run_id, checkpoint, identity_id FROM consolidation_runs WHERE run_key = ?",
+                (run_key,),
             ).fetchone()
             if row is not None:
+                if row["identity_id"] != identity_id:
+                    raise ValueError("consolidation run identity mismatch")
                 checkpoint = int(row["checkpoint"] or 0)
                 connection.execute(
                     "UPDATE consolidation_runs SET status = 'running', updated_at = ? "
@@ -49,9 +53,19 @@ class SQLiteConsolidationRepository:
         checkpoint: int,
         now: datetime,
     ) -> bool:
+        scoped_key = hashlib.sha256(json.dumps([identity_id, candidate.key]).encode()).hexdigest()
+
         def write(connection: sqlite3.Connection) -> bool:
+            owner = connection.execute(
+                "SELECT identity_id FROM consolidation_runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            if owner is None or owner["identity_id"] != identity_id:
+                raise ValueError("consolidation run identity mismatch")
             existing = connection.execute(
-                "SELECT 1 FROM consolidation_outputs WHERE candidate_key = ?", (candidate.key,)
+                "SELECT 1 FROM consolidation_outputs o JOIN memories m "
+                "ON m.memory_id = o.memory_id WHERE o.candidate_key IN (?, ?) "
+                "AND m.identity_id = ?",
+                (scoped_key, candidate.key, identity_id),
             ).fetchone()
             if existing is not None:
                 connection.execute(
@@ -59,6 +73,26 @@ class SQLiteConsolidationRepository:
                     (str(checkpoint), now.astimezone(UTC).isoformat(), run_id),
                 )
                 return False
+            if any(
+                connection.execute(
+                    "SELECT 1 FROM memory_source_revocations WHERE source_event_id=?",
+                    (str(source),),
+                ).fetchone()
+                for source in candidate.source_event_ids
+            ):
+                raise ValueError("candidate source revoked")
+            if any(
+                connection.execute(
+                    "SELECT 1 FROM memory_sources s JOIN memories m ON m.memory_id=s.memory_id "
+                    "WHERE s.source_event_id=? AND (m.deleted_at IS NOT NULL "
+                    "OR m.status='superseded' OR m.revision>1) LIMIT 1",
+                    (str(source),),
+                ).fetchone()
+                for source in candidate.source_event_ids
+            ):
+                raise ValueError(
+                    "candidate source has changed memory history; use bound derivation"
+                )
             placeholders = ",".join("?" for _ in candidate.source_event_ids)
             count = connection.execute(
                 f"SELECT count(*) FROM events WHERE event_id IN ({placeholders})",
@@ -66,7 +100,15 @@ class SQLiteConsolidationRepository:
             ).fetchone()[0]
             if int(count) != len(set(candidate.source_event_ids)):
                 raise ValueError("candidate references unknown source events")
-            memory_id = str(uuid5(NAMESPACE_URL, f"siro:consolidation:{candidate.key}"))
+            legacy_key_taken = (
+                connection.execute(
+                    "SELECT 1 FROM consolidation_outputs WHERE candidate_key = ?", (candidate.key,)
+                ).fetchone()
+                is not None
+            )
+            # Keep single-identity keys compatible with older releases. Scope only collisions.
+            storage_key = scoped_key if legacy_key_taken else candidate.key
+            memory_id = str(uuid5(NAMESPACE_URL, f"siro:consolidation:{storage_key}"))
             timestamp = now.astimezone(UTC).isoformat()
             status = (
                 "candidate"
@@ -116,7 +158,7 @@ class SQLiteConsolidationRepository:
             connection.execute(
                 "INSERT INTO consolidation_outputs(candidate_key, run_id, memory_id, created_at) "
                 "VALUES (?, ?, ?, ?)",
-                (candidate.key, run_id, memory_id, timestamp),
+                (storage_key, run_id, memory_id, timestamp),
             )
             connection.execute(
                 "UPDATE consolidation_runs SET checkpoint = ?, updated_at = ? WHERE run_id = ?",
@@ -150,6 +192,13 @@ class SQLiteConsolidationRepository:
         week_start = (now - timedelta(days=now.weekday())).date().isoformat()
 
         def write(connection: sqlite3.Connection) -> float:
+            placeholders = ",".join("?" for _ in source_ids)
+            known = connection.execute(
+                f"SELECT count(*) FROM events WHERE event_id IN ({placeholders})",
+                tuple(str(value) for value in source_ids),
+            ).fetchone()[0]
+            if int(known) != len(set(source_ids)):
+                raise ValueError("trait references unknown source events")
             row = connection.execute(
                 "SELECT value, weekly_delta, week_start, revision FROM trait_projections "
                 "WHERE identity_id = ? AND trait = ?",

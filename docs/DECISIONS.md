@@ -1,5 +1,12 @@
 # 決策紀錄
 
+## MEM-03-A / 2026-10-20 / owner來源接納邊界
+
+沿既有events與conversations／MEM01 tombstones，不加schema。對自動owner來源明定UserTextEvent
+subject_id為可信producer填的人物scope；缺失不補造，現有服務須待owner接線。Policy唯讀view
+來自可信應用，不由模型輸出設定；snapshot不授權候選保存／外送／工具操作。
+完整邊界見memory-evolution/MEM-03-A-CONTRACT.md，已於程式與測試新增前記錄。
+
 ## D78 / 2026-10-19 / accepted / CP-P02 活動紀錄：同交易事件流＋唯讀投影
 
 （編號跳過 D76／D77：已由未合併的 CP-P01 分支使用。）
@@ -615,3 +622,49 @@ D63 已將 `done_reason=length` 判為未完成，保留 partial 並禁止自動
 使用者在決策卡選「告訴 SIRO」：互動送進 Core，她可能說一句回應，會多跑本機模型。決定：renderer 的動畫照舊回應每次觸碰；Core 一律記住近期觸碰給下一輪對話，說話則刻意稀少（間隔、同種冷卻、每日上限、忙碌時不說），避免變成碎念或蓋過正在播放的回覆，也避免拖慢本機 TTS／Whisper。慢於 6 秒的模型句子不如不用，所以改用固定短句。不加安靜時段：觸碰是使用者本人當下的動作，不是主動社交。不經 agent run／記憶寫入，觸碰不是使用者發言。契約見 CONTRACTS D79。
 
 桌寵 GPU（WSL）：WebKit 沙盒無法對 web 行程開放 /dev/dxg，桌寵在 CPU（llvmpipe）上渲染而卡頓。經 owner 決定，WSL 下 `scripts/start-desktop` 在 /dev/dri 可讀且有 /dev/dxg 時改用 Mesa D3D12 並關閉 WebKit 沙盒（`SIRO_DESKTOP_GPU`，host.js 僅在此路徑允許無沙盒）；host 仍只載入 loopback /desktop。`SIRO_DESKTOP_GPU=0` 可回到沙盒＋CPU。
+
+## D76 — MEM-01 / 可撤銷記憶衍生關係（2026-10-20）
+
+沿用既有memories/revisions/FTS與memory_derivations；revision明確表示parent的被採用版本。
+新增schema16：edge source_hash、typed child生成metadata、source event撤銷tombstone。
+Snapshot是typed且有界的本機資料，綁scope、parent revision及來源內容/分類hash、時間、
+生成版本、policy revision與route；不授權寫入。adopt在同一SQLite寫入交易重驗，
+來源更正/刪除/撤銷/過期/降為local-only時拒絕晚到結果且零部分寫入。
+correct使既有descendants superseded並移除FTS，保留revisions；delete仍標deleted。
+source revoke是不可逆的來源停用tombstone，不等於原文physical purge；原資料政策保持。
+新producer未啟用，Gateway未改。schema16禁止直接用舊程式操作新derived資料，
+release actual-schema gate不放寬；停producer後回退需相容版本，不還原舊私人DB。
+
+## D77 — MEM-02 / 有來源的上下文選取與dispatch fence（2026-10-20）
+
+有界canonical引用補充：不再增加同義指令，以最近最多4則user/assistant的原文資料投影
+補足說話者／相對native index／hash，長則前後各256字且明示partial／excerpt。
+保留完整原生對話，無語意分類、批准、事實升格或memory寫入。源於格式對照對取消情境的
+診斷線索，不以小樣本命中證明泛化；固定30case、原標準與正文審閱仍須完成。
+
+對話表示補充：native模式不輸出「近期對話none」與空User欄位；legacy模式收到canonical
+recent_messages仍須保留原role／文字。Context指引由assemble_prompt獨立置於來源資料之前，
+render_context只提供原V1 JSON框架。無新model port、權限或executor；工具評測也沿用assembler。
+本補充與驗收一起補記；本輪CONTRACTS與認領已先記錄，未宣稱D77補充在實作之前完成。
+
+後續來源角色補充：在既有snapshot新增optional source_events（UUID/type）原子metadata，
+以既有envelope hash＋metadata重驗維持binding。無新schema、無按文字猜來源、無owner真實身份
+或工具成功推論；缺欄位的歷史snapshot只保留未知。這是context data的出處說明，非授權機制。
+
+不重造RT010/011。語境記憶檢索採有界Unicode詞／中文片段與最近user topic回退；
+相關度只是查詢線索，不把指代猜測當已確認事實。明確新話題不自動帶入上一話題。
+新typed packet分開owner statement、assistant statement、runtime observation、source-backed memory，
+所有資料不授權；保留native messages及pending tool pairs，current request與system/goals不剪裁。
+舊recall的all-terms語意保持；新增context retrieval用OR候選並仍先驗scope/privacy/時間/lineage。
+cloud route即使legacy caller省略memory route也不送local-only記憶或短期訊息。
+本次引用來源使用MEM01 snapshot，在ConversationEngine真正呼叫model前再次驗證；
+工具continuation從owned packet取來源綁定，過期結果報失敗，不重播工具、不自動重試模型。
+模型理解分數另由固定合成情境實測；capture通過不是27/30語義gate通過。
+
+## MEM-03-C：候選持久審閱與原子採用（2026-10-20）
+
+沿既有Memory candidate／revision／FTS新增schema17 review metadata與無原文action ledger。
+source gate只授權讀，寫入另需既有Policy的序列化lease；取消等待交易結束才釋放lease。
+原子source重驗＋revision CAS＋命令hash readback，未知不盲重送，編輯以新owner來源替換。
+詳[memory-evolution/MEM-03-C-CONTRACT.md](memory-evolution/MEM-03-C-CONTRACT.md)。
+正式Policy adapter／UI未接，MEM02與主MEM03 gate保留，release schema上限不放寬。

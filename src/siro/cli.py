@@ -24,18 +24,25 @@ from siro.doctor import checks_as_dicts, collect_checks
 async def _run_demo(arguments: argparse.Namespace) -> int:
     from siro.adapters.models.mock import OfflineDemoModel
     from siro.core.companion import CompanionCore
-    from siro.core.conversation import ConversationEngine
+    from siro.core.context import ContextSourceChanged
+    from siro.core.conversation import ConversationEngine, TurnState
     from siro.core.identity import (
         IdentityService,
         ImmutableCore,
         OwnerAuthorization,
     )
-    from siro.core.memory import MemoryService
     from siro.persistence.conversation import SQLiteConversationRepository
-    from siro.persistence.memory import SQLiteMemoryRepository
     from siro.persistence.sqlite import SQLiteStore
     from siro.persistence.state import SQLiteIdentityRepository
+    from siro.ports.embeddings import RetrievalUnavailable
+    from siro.services.agent.local_memory import build_local_memory, load_local_memory_profile
 
+    profile_path = getattr(arguments, "memory_profile", None)
+    try:
+        profile = load_local_memory_profile(Path(profile_path)) if profile_path else None
+    except ValueError:
+        print("記憶設定無法載入或格式不正確。尚未開啟資料庫。")
+        return 2
     store = SQLiteStore(Path(arguments.data) / "siro.db")
     await store.initialize()
     identities = SQLiteIdentityRepository(store)
@@ -59,16 +66,29 @@ async def _run_demo(arguments: argparse.Namespace) -> int:
         )
     conversation = ConversationEngine(OfflineDemoModel(), SQLiteConversationRepository(store))
     companion = CompanionCore(
-        identities, MemoryService(SQLiteMemoryRepository(store)), conversation
+        identities,
+        build_local_memory(store, profile),
+        conversation,
+        memory_context_bytes=profile.context_bytes if profile else None,
     )
 
-    async def answer(text: str) -> None:
-        result = await companion.respond("cli", "siro", text)
+    if profile is not None:
+        print("本機記憶檢索試用。回答仍使用離線示範模型。不會自動保存記憶。")
+
+    async def answer(text: str) -> int:
+        try:
+            result = await companion.respond("cli", "siro", text)
+        except (RetrievalUnavailable, ContextSourceChanged):
+            print("記憶查詢目前無法使用。這次沒有送出回答。請檢查本機模型與設定。")
+            return 1
+        if result.state is not TurnState.COMPLETED:
+            print("這次回答未完成。請稍後重試。")
+            return 1
         print(f"{core.name}: {result.text}")
+        return 0
 
     if arguments.once is not None:
-        await answer(arguments.once)
-        return 0
+        return await answer(arguments.once)
     print("SIRO offline demo: 輸入 /quit 結束。")
     while True:
         try:
@@ -345,6 +365,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="apply --name/--persona to an existing identity as the owner",
     )
     demo_parser.add_argument("--once", help="answer one message and exit")
+    demo_parser.add_argument(
+        "--memory-profile",
+        help="explicit local retrieval JSON profile; replies still use the offline demo model",
+    )
     demo_parser.set_defaults(handler=_demo)
 
     patch_parser = subparsers.add_parser(

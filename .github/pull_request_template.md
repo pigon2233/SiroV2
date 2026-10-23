@@ -1,3 +1,4 @@
+<!-- 僅在使用者明確授權建立／更新 PR 後使用；預設必須 commit、不得 push 或建立 PR。 -->
 ## Problem and resulting behavior
 
 <!-- Explain the concrete problem and final change. -->
@@ -24,6 +25,6 @@
 - [ ] Verified affected existing behavior and recorded unverified items honestly.
 - [ ] Preserved others' changes; no secrets, private data or unlicensed assets.
 - [ ] Updated task evidence / status, or linked a per-task handoff for the shared-document owner.
-- [ ] Pushed the reported head commit; no unreported local-only deliverables.
+- [ ] Recorded explicit user authorization for this remote operation and reported its actual sync status.
 
 <!-- This checklist is a contributor declaration, not an automatic lock or branch protection. -->

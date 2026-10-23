@@ -1,3 +1,5 @@
+> 2026-10-20 規範更新：依根 AGENTS.md 採 LOCAL_ONLY／NOT PUSHED。下方歷史推送紀錄僅為歷史證據，不構成新遠端操作授權。
+
 # Claude 交接入口
 
 日期：2026-10-18（Asia/Taipei）。狀態：**計畫已寫，程式任務尚未認領／開始**。
@@ -39,7 +41,7 @@ P04 前 P01／P03 要驗收，I01／I02 才做整體與發布。
 這是 dependency 次序，不要求一口氣做完所有卡；一次只做一張 executable task。
 
 整合文件由 Claude 接收後更新 STATUS／DECISIONS／roadmap，引用本計畫與 Codex 的各卡 evidence。
-Codex 只寫專屬交接以避免共享文件撞檔。每卡檢查 diff，精確 stage，commit／push／Draft PR，
+Codex 只寫專屬交接以避免共享文件撞檔。每卡檢查 diff，精確 stage，必須本機 commit，預設不得 push 或建立／更新遠端 PR，
 交接需實際 head SHA、測試與限制；不直推 main、不 force push、未授權不部署。
 
 ## 本規劃交付紀錄

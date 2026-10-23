@@ -49,6 +49,49 @@ class CaptureModel:
 
 
 @pytest.mark.asyncio
+async def test_explicit_generation_budget_is_checked_before_provider_dispatch() -> None:
+    provider = CaptureModel()
+    seen: list[int] = []
+
+    class Budget:
+        def validate(self, request: ModelRequest) -> int:
+            seen.append(request.max_output_tokens)
+            if request.max_output_tokens > 2048:
+                raise ContextBudgetExceeded("synthetic total context capacity")
+            return 1
+
+    model = ContextBudgetModel(
+        provider, max_bytes=10000, token_budget=Budget(), max_output_tokens=4096
+    )
+    request = ModelRequest("unchanged original input", "g", max_output_tokens=512)
+    with pytest.raises(ContextBudgetExceeded):
+        _ = [chunk async for chunk in model.stream(request, CancellationToken())]
+    assert seen == [4096] and provider.requests == []
+    assert request.max_output_tokens == 512  # Caller request is immutable.
+
+
+@pytest.mark.asyncio
+async def test_explicit_generation_budget_preserves_native_messages_and_pending_tools() -> None:
+    provider = CaptureModel()
+    messages = (
+        ModelMessage("assistant", "", (ToolCall("pending", "synthetic", {}),)),
+        ModelMessage("tool", "synthetic readback", tool_call_id="pending"),
+    )
+    request = ModelRequest("original", "g", messages=messages)
+    model = ContextBudgetModel(provider, max_bytes=10000, max_output_tokens=4096)
+    _ = [chunk async for chunk in model.stream(request, CancellationToken())]
+    assert provider.requests[0].max_output_tokens == 4096
+    assert provider.requests[0].messages == messages
+    assert request.max_output_tokens == 512
+
+
+@pytest.mark.parametrize("value", [0, True, 32769, 1.5])
+def test_generation_budget_is_bounded(value: object) -> None:
+    with pytest.raises(ValueError):
+        ContextBudgetModel(CaptureModel(), max_bytes=10000, max_output_tokens=value)  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("offset", [-1, 0, 1])
 async def test_exact_byte_boundary_preserves_complete_request(offset: int) -> None:
     call = ToolCall("pending", "computer.execute", {"argv": ["true"]})

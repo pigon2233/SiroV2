@@ -1,0 +1,36 @@
+{
+  "runtime_only": true,
+  "repository_source_unchanged": true,
+  "results": [
+    {
+      "mutation": "bypass_review_revalidation",
+      "pytest_returncode": 1,
+      "counts": {
+        "tests": 12,
+        "failures": 12,
+        "errors": 0,
+        "skipped": 0
+      },
+      "targets": [
+        "test_forged_draft_cannot_survive_source_reconstruction",
+        "test_source_or_policy_change_invalidates_draft",
+        "test_ephemeral_draft_expires_even_if_source_does_not"
+      ],
+      "plugin": "def pytest_configure(config):\n from siro.core.memory_candidates import MemoryCandidateGenerator,CandidateDecision,CandidateReason\n async def unchecked(self,draft):\n  return CandidateDecision(CandidateReason.READY_FOR_REVIEW,draft)\n MemoryCandidateGenerator.revalidate=unchecked\n"
+    },
+    {
+      "mutation": "disable_sensitive_screen",
+      "pytest_returncode": 1,
+      "counts": {
+        "tests": 6,
+        "failures": 6,
+        "errors": 0,
+        "skipped": 0
+      },
+      "targets": [
+        "test_mixed_chinese_english_sensitive_markers_are_not_hidden_by_word_boundaries"
+      ],
+      "plugin": "def pytest_configure(config):\n import re\n import siro.core.memory_candidates as m\n m._SENSITIVE=re.compile(r'(?!)')\n"
+    }
+  ]
+}

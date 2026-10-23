@@ -53,11 +53,21 @@ class OllamaAdapter:
         model: str,
         transport: JsonTransport | StreamingJsonTransport | None = None,
         timeout: float = 120,
+        thinking: bool | None = None,
+        context_length: int | None = None,
     ) -> None:
+        if thinking is not None and type(thinking) is not bool:
+            raise ValueError("thinking must be a boolean or native default")
+        if context_length is not None and (
+            type(context_length) is not int or not 512 <= context_length <= 32768
+        ):
+            raise ValueError("context_length must be an integer between 512 and 32768")
         self._url = f"{base_url.rstrip('/')}/api/chat"
         self._model = model
         self._transport = transport or HttpxStreamingTransport()
         self._timeout = timeout
+        self._thinking = thinking
+        self._context_length = context_length
 
     async def stream(
         self, request: ModelRequest, cancellation: CancellationToken
@@ -72,9 +82,15 @@ class OllamaAdapter:
                 else [{"role": "user", "content": request.prompt}]
             ),
             "stream": hasattr(self._transport, "stream_lines"),
-            "think": False,
             "options": {"num_predict": request.max_output_tokens},
         }
+        if self._thinking is not None:
+            payload["think"] = self._thinking
+        if self._context_length is not None:
+            payload["options"] = {
+                "num_predict": request.max_output_tokens,
+                "num_ctx": self._context_length,
+            }
         if request.tools:
             payload["tools"] = [
                 {
