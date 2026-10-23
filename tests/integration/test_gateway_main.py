@@ -26,7 +26,8 @@ def test_gateway_main_starts_and_stops_with_isolated_data(tmp_path: Path) -> Non
     environment = {key: value for key, value in os.environ.items() if not key.startswith("SIRO_")}
     environment.pop("GROQ_API_KEY", None)
     environment.update(SIRO_DATA_DIR=str(tmp_path), SIRO_GATEWAY_PORT=str(port))
-    executable = Path(__file__).parents[2] / ".venv/bin/siro-gateway"
+    environment_root = Path(os.environ.get("UV_PROJECT_ENVIRONMENT") or Path(__file__).parents[2] / ".venv")
+    executable = environment_root / "bin/siro-gateway"
     with (tmp_path / "gateway.log").open("wb") as log:
         process = subprocess.Popen([str(executable)], env=environment, stdout=log, stderr=log)
         try:
