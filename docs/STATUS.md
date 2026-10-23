@@ -4,7 +4,7 @@
 
 命令與結果：release／backup 相關 8 個測試檔 223 PASS；`drill.py` 全步驟通過。本機 commit，未 push。
 
-限制：只有 source／套件層，不是正式部署回退。舊版 `974cdd7` 只認 15 個 migration、演練 DB 為 18，未證明舊程式能讀 schema 18（回退點須先確認 016～018 相容或還原備份）；healthcheck 為 `python -c pass`，未驗 drain／服務停止、Windows／WSLg／跨機；未部署、未動另一台。P05 仍 PARTIAL、I01 owner 試用未完成，故 I02 不標 DONE。下一步：I01 完成後在真服務上重演，並釐清 schema 18 回退點。
+限制：只有 source／套件層，不是正式部署回退。舊版 `974cdd7` 只認 15 個 migration、演練 DB 為 18，未證明舊程式能讀 schema 18（回退點須先確認 016～018 相容或還原備份）；healthcheck 為 `python -c pass`，未驗 drain／服務停止、Windows／WSLg／跨機；本演練未部署、未動另一台。更正：I01 串回報新版已部署重啟（DB 15→18，非本演練執行、未經此回退演練驗證），47 個舊失敗已修，最新回歸 3120 過／15 個失敗（此為該串回報，我未重跑）；因此「舊程式讀 schema 18」更是真實回退的前置風險。P05 仍 PARTIAL、I01 owner 試用未完成，故 I02 不標 DONE。下一步：I01 完成後在真服務上重演，並釐清 schema 18 回退點。
 
 # Companion CP-P05：有 scope 的工作情境 — 2026-10-23，PARTIAL
 
