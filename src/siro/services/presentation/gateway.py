@@ -197,7 +197,7 @@ class GatewayState:
         default_factory=lambda: {"model": "local", "audio": "disabled", "body": "disabled"}
     )
     kill_switches: dict[str, bool] = field(
-        default_factory=lambda: {"cloud": False, "tools": True, "microphone": False}
+        default_factory=lambda: {"cloud": True, "tools": True, "microphone": True}
     )
     authorization_mode: str = "full"
 
@@ -2119,7 +2119,6 @@ def _run_gateway(
             )
     state = GatewayState()
     state.routes["model"] = backend
-    state.kill_switches["cloud"] = privacy is ModelPrivacy.CLOUD_ALLOWED
     state.routes["body"] = "websocket"
     local_whisper = os.environ.get("SIRO_WHISPER_MODEL_DIR")
     speech_to_text: SpeechToText | None

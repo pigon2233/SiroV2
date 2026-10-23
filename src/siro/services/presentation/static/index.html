@@ -2372,6 +2372,10 @@
         listen(document.querySelector("#microphone-toggle"), "click", () => { if (microphoneEnabled && handsFree.on) stopHandsFree(); }, {capture: true});
         listen(globalThis, "pagehide", () => stopHandsFree(), {once: true});
       }
+      // Hands-free listening is on by default once the microphone switch state has loaded.
+      setTimeout(() => { if (microphoneEnabled && !handsFree.on && !pageClosing) startHandsFree(); }, 1500);
+      // Hands-free listening is on by default once the microphone switch state has loaded.
+      setTimeout(() => { if (microphoneEnabled && !handsFree.on && !pageClosing) startHandsFree(); }, 1500);
       if (document.body?.classList?.contains("siro-control")) {
         document.querySelector("#voice-output").checked = false;
         document.querySelector("#voice-output").disabled = true;
