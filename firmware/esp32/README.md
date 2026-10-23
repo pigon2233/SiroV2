@@ -1,38 +1,27 @@
-# SIRO ESP32 MQTT 範例
+# SIRO ESP32-S3 感測節點範例
 
-狀態：2026-10-16 已以 PlatformIO Core 6.1.19／既有 pinned `esp32dev` 設定完成真實交叉編譯；實體板燒錄／NTP／目視 LED 仍待驗。
+使用者現有設備是 ESP32-S3 N16R8，接有 BH1750 光度感測器、PIR 人體動作感測器與一顆按鈕；**沒有 LED**。此版預設 `SIRO_HAS_LED 0`，因此不初始化 LED GPIO、不訂閱 `command`、不發布 `power`／`ack`。超音波感測器尚未安裝，不在本版讀取或宣稱驗收。
 
-編譯使用自建暫存環境與 example 帳密，來源未改，RAM 45,276／327,680 bytes，Flash
-777,901／1,310,720 bytes。編譯產物僅供驗證，沒有燒錄或納入 Git；重現、工具版本與清理見
-[編譯證據](../../docs/evidence/T27-firmware-build-2026-10-16/REPORT.md)。
-
-此範例使用 ESP32 DevKit 內建 LED（預設 GPIO 2）作低風險 actuator。複製
-`include/secrets.example.h` 為被 Git 忽略的 `include/secrets.h`，設定 Wi-Fi、loopback/LAN MQTT
-broker、每台裝置獨立帳密與 `SIRO_DEVICE_ID`，再執行：
+複製 `include/secrets.example.h` 為被 Git 忽略的 `include/secrets.h`，填入每台裝置專用 Wi-Fi／MQTT 設定。範例依使用者先前 HTTP 草稿列出 PIR GPIO 5、按鈕 GPIO 4、BH1750 SDA GPIO 8／SCL GPIO 9、I²C 位址 `0x23`；刷機前核對實際板上標示與接線。這些 GPIO 在 [Espressif ESP32-S3 GPIO 文件](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32s3/api-reference/peripherals/gpio.html)中不是 S3 strapping pins。N16R8 為 16 MB QSPI flash／8 MB OPI PSRAM，依 [Espressif Arduino 模組表](https://docs.espressif.com/projects/arduino-esp32/en/latest/troubleshooting.html)設定專用編譯環境；仍須核實模組是 WROOM-1 N16R8 而非其他變體。
 
 ```bash
-pio run
-pio run --target upload
+pio run --environment esp32s3_n16r8
+# 核對板型、腳位與序列埠後，才可人工刷機：
+pio run --environment esp32s3_n16r8 --target upload
 pio device monitor
 ```
 
-topic：`siro/devices/{id}/{state|availability|command|ack}`。availability/state retained；command/
-ack 不 retained。LWT 為 retained `offline`。firmware 明確拒絕 retained command、過期 command、
-重複 command ID 與非 `light.set` action；ack 後另發 state，gateway 必須以 state readback 判定成功。
+`state` topic 為 `siro/devices/{id}/state`，另有 retained `availability`／LWT。感測屬性：
 
-命令同時帶 ISO `expires_at` 與整數 `expires_at_epoch`；firmware 以後者檢查到期。
-state 使用 UTC 秒數 `observed_at_epoch`，Python gateway 同時支援此格式與原 ISO
-`observed_at`。啟動時呼叫 `configTime` 後最多等 30 秒，直到
-`time(nullptr) > 1700000000` 才連 MQTT；對時逾時重啟，主迴圈亦禁止時鐘未就緒時連線。
+| 屬性 | 行為 |
+| --- | --- |
+| `motion` | PIR 暖機 60 秒後上報；變化需穩定 500 ms。`false` 僅表示目前未偵測動作，不表示無人。 |
+| `illuminance` | BH1750 每 10 秒讀取，原始值除以 1.2 得 lx；讀取失敗就省略。 |
+| `button_down` | `INPUT_PULLUP`，按下為 true；穩定 50 ms 的變化即時上報。 |
+| `button_press_count` | 每次穩定按下加一；開機歸零，不能用它跨重啟計數，也不觸發動作或授權。 |
 
-真 Broker 的單次 Python 閉環驗收與操作限制見
-[ESP32 MQTT 驗收指南](../../docs/ESP32_MQTT_VERIFICATION.md)。本機 client 使用
-`127.0.0.1:1883`（Broker 可監聽 `0.0.0.0:1883`），只發布一次 `light.set {"power": true}`，
-必須收到同 ID 的 `applied` ACK 與新的 `power: true` state 才確認。驗收會點亮 LED，
-不自動重送或另送關燈；Broker／合成設備通過不能取代真板編譯、燒錄與 LED 驗證。
+每 10 秒重發狀態。MQTT 重連時先撤銷 PIR 與光度的舊觀測；按鈕狀態仍來自本機採樣。連線阻塞期間的短按可能漏記，故它不是可靠的緊急控制通道。所有值帶 `observed_at_epoch`，World State descriptor 應設定 20 秒有效期與 `LOCAL_ONLY` privacy。此 firmware 使用已認證 MQTT；使用者目前燒在實板的獨立 HTTP 草稿不會自動換成此版本，正式 SIRO 啟動程序也尚未接入 MQTT projector。
 
-接線：使用板載 LED 時不需外接。改用外接 LED 時，GPIO → 220–330 Ω 電阻 → LED 陽極，LED
-陰極 → GND；依板型修改 `SIRO_LED_PIN`。不可直接驅動市電、馬達或大電流負載。
+原有 `esp32dev`／LED 範例仍可作可選編譯；只有確認 LED 實際存在與腳位後，才把 `SIRO_HAS_LED` 設為 `1`。此時恢復 `light.set` 的 command／ack／`power` readback。**此路徑不適用使用者目前的無 LED 實板，也不算 T27 LED 硬體驗收。**
 
-正式 LAN 部署需 TLS 或隔離可信網段、每設備 ACL 與可撤銷憑證。此 simulator broker 僅綁
-127.0.0.1，不代表明文帳密適合 LAN。
+BH1750 命令與 lux 換算參考 [ROHM 技術資料](https://www.mouser.com/datasheet/2/348/bh1750fvi-e-186247.pdf)。沒有新增 firmware 依賴；正式 LAN MQTT 仍需隔離網段或 TLS、每設備 ACL 與可撤銷憑證。編譯與整合測試證據見[本輪報告](../../docs/evidence/T27-sensor-telemetry-2026-10-23/REPORT.md)。
