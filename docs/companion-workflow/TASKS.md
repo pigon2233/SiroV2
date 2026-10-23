@@ -1,6 +1,6 @@
 # 施工卡、依賴與驗收
 
-所有卡初始狀態 **PLANNED**。CP 編號只屬本計畫，不重新編排既有 T／RT。
+所有卡初始狀態 **PLANNED**（V01–V05 已於 2026-10-23 標 DONE）。CP 編號只屬本計畫，不重新編排既有 T／RT。
 每卡須在開始時重新核對實作、caller、consumer、配置、MUST NOT CHANGE 與 owner，
 在結束時交 commit SHA／檔案／測試結果／限制／回退，未完整驗收不可標 DONE。
 「雙方」表示兩份各自有 owner 的產出，不表示同時修改同一檔案。
@@ -10,11 +10,11 @@
 | ID | 負責人 | 交付 | Depends on |
 | --- | --- | --- | --- |
 | CP-00 | Codex＋Claude，各自產出 | 基線、檔案認領、契約接收、測試資產與平台確認 | — |
-| CP-V01 | Codex | 現有動作盤點、自然度基線、鏡頭與動作分鏡 | CP-00 |
-| CP-V02 | Codex | 現有 rig 動作／過渡／channel 資料包與預覽 | CP-V01 |
-| CP-V03 | Codex | 原創全身設計、分層及 Editor 匯出工具鏈 | CP-V01 |
-| CP-V04 | Codex | 可編輯全身 rig、首批完整活動資產包 | CP-V03 |
-| CP-V05 | Codex | 氣泡與活動監測頁的畫面／狀態／響應式稿 | CP-00 |
+| CP-V01 | Claude | 現有動作盤點、自然度基線、鏡頭與動作分鏡｜DONE（Live2D 版，已被 VRM 取代） | CP-00 |
+| CP-V02 | Claude | 現有 rig 動作／過渡／channel 資料包與預覽｜DONE（Live2D 版，已被 VRM 取代） | CP-V01 |
+| CP-V03 | Claude | 原創全身設計、分層及 Editor 匯出工具鏈｜DONE（Live2D 版，已被 VRM 取代） | CP-V01 |
+| CP-V04 | Claude | 可編輯全身 rig、首批完整活動資產包｜DONE（VRM，見 design/companion/CP-V04/README.md） | CP-V03 |
+| CP-V05 | Claude | 氣泡與活動監測頁的畫面／狀態／響應式稿｜DONE（見 STATUS.md） | CP-00 |
 | CP-P00 | Claude | T10 已知取消／刷新、放大與記憶問題修復並重驗 | CP-00 |
 | CP-P01 | Claude | 素材載入、動畫混合與可打斷狀態接線 | CP-P00, CP-V02 |
 | CP-P02 | Claude | 真工具／網路活動紀錄、持久讀回與狀態契約 | CP-P00 |

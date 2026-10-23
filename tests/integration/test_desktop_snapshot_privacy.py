@@ -74,7 +74,7 @@ const Gdk={pixbuf_get_from_surface:(value,x,y,width,height)=>{
 // The former file decoder remains available so the old implementation reaches
 // the zero-write assertion rather than failing on a missing test double.
 const GdkPixbuf={Pixbuf:{new_from_file:()=>image}};
-const GLib={SOURCE_CONTINUE:1,build_filenamev:parts=>parts.join('/')};
+const GLib={SOURCE_CONTINUE:1,build_filenamev:parts=>parts.join('/'),getenv:()=>null};
 const Cairo={Region:class {
  constructor(){this.rectangles=[];} unionRectangle(value){this.rectangles.push(value);}
  numRectangles(){return this.rectangles.length;}

@@ -187,6 +187,8 @@ def test_production_main_routes_real_argv_and_preserves_result(
     assert bounded.await_count == (1 if profile == "candidate" else 0)
     if profile == "candidate":
         observation = json.loads(model.requests[1].messages[-1].content)
+        # The gateway opts in to the sampled network record; nothing else may change.
+        assert observation.pop("network_sample")["status"] in {"sampled", "unsupported"}
         assert observation == {
             "argv": [
                 sys.executable,

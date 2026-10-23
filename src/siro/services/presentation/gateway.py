@@ -14,7 +14,7 @@ from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
@@ -30,6 +30,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from siro.adapters.body.assets import verified_vrm_model
 from siro.adapters.body.web import WebSocketBodyTransport
+from siro.adapters.vision import PixelScreenAnalyzer
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.memory import Memory, MemoryService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
@@ -55,6 +56,17 @@ from siro.services.audio.tts import (
     QwenReferenceTTS,
     QwenVoiceProfile,
     plan_speech,
+)
+from siro.services.context.windows_providers import (
+    AppObserver,
+    powershell_runner,
+    screen_capture,
+)
+from siro.services.context.work_context import (
+    AppSnapshot,
+    ScopeStore,
+    ScreenObserver,
+    WorkContext,
 )
 from siro.services.presentation.desktop_settings import (
     load_desktop_settings,
@@ -185,7 +197,7 @@ class GatewayState:
         default_factory=lambda: {"model": "local", "audio": "disabled", "body": "disabled"}
     )
     kill_switches: dict[str, bool] = field(
-        default_factory=lambda: {"cloud": False, "tools": True, "microphone": False}
+        default_factory=lambda: {"cloud": True, "tools": True, "microphone": True}
     )
     authorization_mode: str = "full"
 
@@ -408,6 +420,27 @@ class CancelInput(BaseModel):
 class SelfActivityPauseInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     paused: bool
+
+
+class WorkContextScopeInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    app_metadata: bool | None = None
+    screen: bool | None = None
+
+
+class WorkContextSharedInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1, max_length=200)
+    ttl_minutes: int = Field(default=240, ge=1, le=720)
+
+
+class WorkContextAppInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    app_name: str = Field(min_length=1, max_length=128)
+    window_title: str = Field(default="", max_length=512)
+    locked: bool = False
+    fullscreen: bool = False
+    focus_mode: bool = False
 
 
 class DesktopPositionInput(BaseModel):
@@ -634,6 +667,7 @@ def create_app(
     on_activity_changes: Callable[[int, int], Awaitable[dict[str, object]]] | None = None,
     on_activity_stop: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     self_activity: SelfActivityOwner | None = None,
+    work_context: WorkContext | None = None,
     self_notes: SelfNotes | None = None,
     on_share_note: Callable[[str, str], Awaitable[None]] | None = None,
     on_improvement_proposal: Callable[[str], Awaitable[dict[str, object]]] | None = None,
@@ -1462,6 +1496,65 @@ def create_app(
         saved = save_desktop_settings(desktop_settings_path, body.model_dump())
         return JSONResponse(saved, headers={"Cache-Control": "no-store"})
 
+    @app.get("/v1/work-context")
+    async def get_work_context(authorization: str | None = Header(default=None)) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
+
+    @app.put("/v1/work-context/scope")
+    async def put_work_context_scope(
+        body: WorkContextScopeInput, authorization: str | None = Header(default=None)
+    ) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        # Only the sources named here change; the global authorization mode is not consulted.
+        work_context.update_scope(body.model_dump(exclude_none=True))
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/work-context/shared")
+    async def share_work_context(
+        body: WorkContextSharedInput, authorization: str | None = Header(default=None)
+    ) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        work_context.share(body.text, timedelta(minutes=body.ttl_minutes))
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/work-context/app")
+    async def report_work_context_app(
+        body: WorkContextAppInput, authorization: str | None = Header(default=None)
+    ) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        # An adapter that keeps reporting after the switch is off is told to stop.
+        if not work_context.source_enabled("app_metadata"):
+            raise HTTPException(status_code=409, detail="app metadata is switched off")
+        work_context.ingest_app(AppSnapshot(**body.model_dump()))
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/work-context/{observation_id}/{action}")
+    async def work_context_action(
+        observation_id: str,
+        action: Literal["retract", "correct"],
+        authorization: str | None = Header(default=None),
+    ) -> Response:
+        require_token(authorization)
+        if work_context is None:
+            raise HTTPException(status_code=503, detail="work context is unavailable")
+        found = (
+            work_context.retract(observation_id[:64])
+            if action == "retract"
+            else work_context.correct(observation_id[:64])
+        )
+        if not found:
+            raise HTTPException(status_code=404, detail="observation was not found")
+        return JSONResponse(work_context.status(), headers={"Cache-Control": "no-store"})
+
     @app.put("/v1/self-activity")
     async def pause_self_activity(
         body: SelfActivityPauseInput, authorization: str | None = Header(default=None)
@@ -2026,7 +2119,6 @@ def _run_gateway(
             )
     state = GatewayState()
     state.routes["model"] = backend
-    state.kill_switches["cloud"] = privacy is ModelPrivacy.CLOUD_ALLOWED
     state.routes["body"] = "websocket"
     local_whisper = os.environ.get("SIRO_WHISPER_MODEL_DIR")
     speech_to_text: SpeechToText | None
@@ -2262,6 +2354,7 @@ def _run_gateway(
                 timeout=timeout,
                 detach=detach,
                 context=context,
+                sample_network=True,
             )
         process = await asyncio.create_subprocess_exec(
             *argv,
@@ -2499,6 +2592,21 @@ def _run_gateway(
     touch_setting = os.environ.get("SIRO_TOUCH_REPLY_ENABLED", "1")
     if touch_setting not in {"0", "1"}:
         raise ValueError("SIRO_TOUCH_REPLY_ENABLED must be 0 or 1")
+    work_context = WorkContext(
+        ScopeStore(data_dir / "work-context-scope.json"),
+        clock=lambda: datetime.now(UTC),
+        vision=PixelScreenAnalyzer(),
+    )
+    context_run = powershell_runner()
+    context_observers: list[AppObserver | ScreenObserver] = (
+        [
+            AppObserver(work_context, context_run),
+            ScreenObserver(work_context, screen_capture(context_run)),
+        ]
+        if context_run is not None and runtime_profile == "candidate"
+        else []
+    )
+    work_context.providers = bool(context_observers)
     controller = IntegratedCompanion(
         data_dir,
         model,
@@ -2511,6 +2619,7 @@ def _run_gateway(
         memory_ingress_enabled=memory_ingress_enabled,
         summary_enabled=summary_enabled,
         touch_replies=TouchReplies(enabled=touch_setting == "1"),
+        situation_lines=work_context.prompt_lines,
         auto_authorize=lambda: state.authorization_mode == "full" and state.kill_switches["tools"],
     )
 
@@ -2567,11 +2676,27 @@ def _run_gateway(
             item.subject for item in items if item.status == "committed" and item.polarity > 0
         )
 
+    self_notes_service = (
+        SelfNotes(shared_store, data_dir / "self-notes-shared.json")
+        if self_owner is not None
+        else None
+    )
+
+    async def share_finished_note() -> None:
+        assert self_notes_service is not None
+        for run_id in (await self_notes_service.unshared())[:1]:
+            note = await self_notes_service.note(run_id)
+            if note is not None:
+                await controller.share_self_note(*share_text(note), speak=False)
+                self_notes_service.mark_shared(run_id)
+
     self_scheduler = (
         SelfActivityScheduler(
             self_owner,
             InterestPicker(shared_store, model, own_preferences),
             shared_store,
+            quiet=lambda: not work_context.may_interrupt(),
+            share=share_finished_note,
             foreground=lambda: (
                 controller.foreground_active
                 or (read_tasks is not None and read_tasks.busy)
@@ -2595,8 +2720,12 @@ def _run_gateway(
             await browser_sessions.start()
         if self_scheduler is not None:
             self_scheduler.start()
+        for observer in context_observers:
+            observer.start()
 
     async def stop_controller() -> None:
+        for observer in context_observers:
+            await observer.close()
         if self_scheduler is not None:
             await self_scheduler.close()
         if self_owner is not None:
@@ -2699,9 +2828,8 @@ def _run_gateway(
             on_activity_changes=controller.activity_changes,
             on_activity_stop=stop_activity,
             self_activity=self_owner,
-            self_notes=SelfNotes(shared_store, data_dir / "self-notes-shared.json")
-            if self_owner is not None
-            else None,
+            work_context=work_context,
+            self_notes=self_notes_service,
             on_share_note=controller.share_self_note,
             on_improvement_proposal=controller.improvement_proposal,
             on_turn=controller.respond,

@@ -1,3 +1,19 @@
+# Companion CP-P05：有 scope 的工作情境 — 2026-10-23，PARTIAL
+
+新增 `services/context/work_context.py`：來源分開開關（主人自己說的／app metadata／選定畫面，後兩者預設關，`work-context-scope.json` 重啟保留，損壞視為全關）。每筆 observation 有 source／kind（stated／seen／inferred 分開）／observed_at／expires_at／privacy／permission_revision；關來源或改 revision 立即失效，視窗標題不存，鎖屏／敏感視窗（密碼、銀行、無痕等）不留紀錄並丟掉前一筆，編輯器只推測並反問「你是在寫程式嗎？」，更正後不再猜，Focus／全螢幕時 P04 排程不啟動自主活動，雲端模型拿不到任何情境。端點 `/v1/work-context`（GET／scope／shared／app／{id}/retract|correct）；關閉後 adapter 回報得 409。
+
+命令與結果：`test_work_context.py` 9 PASS，加 self_activity／self_interests 共 24 PASS；新檔 Ruff／format／mypy PASS（`integrated.py` 既有 2 個 E501／format 問題非本卡）。本機 commit，未 push。
+
+限制：視窗／螢幕 provider 只在 Windows 與 WSL（經 PowerShell）實測；原生 Linux／macOS 沒有 provider，情境只剩主人自己說的。Windows Focus assist 讀不到，Focus 只靠全螢幕判斷；螢幕只量亮度與主色，不辨識內容。情境在本機模型 prompt 中標明 seen／inferred，雲端不帶。UI 在控制台「工作情境」區塊，已加進 reflow／對比／Tab 順序的 playwright 壓力資料（320–960 寬含 200% 縮放，8 PASS；修了三筆觀察的按鈕重名）；沒有真人讀屏器試用。全測 2410 PASS／33 FAIL，其中 23（gateway_main、runtime_product、native_context_budget、desktop_snapshot_privacy、ci_secret_gate）在 HEAD 乾淨狀態同樣失敗，另 test_capability_product 切片順序問題也是既有，其餘 skill_registry 等 10 個未逐一比對。回退：撤 commit；無觀察時聊天不受影響。
+
+# Companion CP-O01：程序層網路監測 — 2026-10-23，PARTIAL
+
+新增 `adapters/process_network.py`：Linux 免權限取樣 `/proc`，把 subprocess 的外送連線歸屬到它的 process group；其他平台回 unsupported。實測持有中的連線可歸屬，短連線看不到，因此只標 sampled，不能稱完整稽核。見 [REPORT](evidence/CP-O01-2026-10-23/REPORT.md)。
+
+接線：candidate 的 `computer.execute` 每 0.1 秒抽查，監測頁顯示「程式連線：定時抽查，不保證完整」與對方 IP:port；其他平台維持「沒有網路監測」。
+
+限制：只在 WSL2 測；Windows 原生／macOS 無免權限方法；detach 的程式不取樣；V05 稿未同步；owner 未實機看。
+
 # Companion CP-P04：她自己的活動、研究筆記與分享 — 2026-10-22，PARTIAL
 
 Owner 決定：可讀任何網頁；興趣清單由她自己找。本機 commit（未 push）：`473b8a6` 背景 owner：保留 session `siro.self`，一次一件、只准 `browser.navigate+read`、只用本機請求、不說話、不寫 owner facts；新 turn、全域停止、工具開關、`POST /v1/activities/stop-background` 會取消；`PUT /v1/self-activity` 暫停（目前這步做完再停）。`778851a` 她自己挑題目：線索為三天內對話、她的 committed 喜好、舊筆記「待查」；本機模型選一題或選擇等待；排程每 10 分鐘，owner 安靜 10 分鐘、距上一件 45 分鐘（失敗也算）、一天最多 6 件；理由存成 `self_topic` 步驟並顯示在活動頁。`7d07dc1` 修 owner 回報：氣象查詢開了已停用的 `www.cwb.gov.tw`，失敗只回 `Error`，模型因此說自己不能上網；改為 `NavigationFailed`＋原因（DNS 查詢區分找不到網站），工具說明提示換站與維基搜尋（DuckDuckGo 有 CAPTCHA、Bing 讀不到結果）。本次：研究筆記從完成的 self run 讀回，來源只列 journal 中確實讀成功的頁面（模型自己寫的連結不算），`GET /v1/self-notes`；氣泡「查好了，要聽嗎？」，按「聽」才把筆記與來源放進對話並說一句短話，Esc 標成已看；活動頁「看細節」顯示她的筆記與讀過的頁面。

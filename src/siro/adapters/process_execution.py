@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from siro.adapters.process_network import probe_capability, sample_group
 from siro.ports.models import CancellationToken
 
 
@@ -85,6 +86,28 @@ async def _protected_cleanup(
                 return
 
 
+_SAMPLE_INTERVAL = 0.1
+_SAMPLE_LIMIT = 20
+
+
+async def _sample_network(pgid: int, seen: dict[tuple[str, str, int], None]) -> None:
+    while True:
+        for c in await asyncio.to_thread(sample_group, pgid):
+            if len(seen) < _SAMPLE_LIMIT:
+                seen.setdefault((c.protocol, c.remote, c.port))
+        await asyncio.sleep(_SAMPLE_INTERVAL)
+
+
+def _network_sample(seen: dict[tuple[str, str, int], None]) -> dict[str, object]:
+    capability = probe_capability()
+    if capability.status != "sampled":
+        return {"status": "unsupported", "reason": capability.reason, "connections": []}
+    return {
+        "status": "sampled",
+        "connections": [{"protocol": p, "remote": r, "port": n} for p, r, n in seen],
+    }
+
+
 async def execute_bounded_argv(
     argv: tuple[str, ...],
     *,
@@ -95,6 +118,7 @@ async def execute_bounded_argv(
     output_limit: int = 64 * 1024,
     context: ExecutionContext | None = None,
     stdout_errors: Literal["replace", "strict"] = "replace",
+    sample_network: bool = False,
     _signal_group: SignalGroup | None = None,
 ) -> dict[str, object]:
     """Drain both pipes within one byte budget; cancel only the owned process group.
@@ -165,6 +189,12 @@ async def execute_bounded_argv(
         return stdout, stderr
 
     result_task = asyncio.create_task(collect())
+    seen: dict[tuple[str, str, int], None] = {}
+    sampler = (
+        asyncio.create_task(_sample_network(process.pid, seen))
+        if sample_network and not detach and probe_capability().status == "sampled"
+        else None
+    )
     cancel_task = asyncio.create_task(context.cancellation.wait()) if context is not None else None
     try:
         if context is not None:
@@ -190,12 +220,13 @@ async def execute_bounded_argv(
             await asyncio.gather(result_task, return_exceptions=True)
         raise
     finally:
-        if cancel_task is not None:
-            cancel_task.cancel()
-            await asyncio.gather(cancel_task, return_exceptions=True)
+        for task in (cancel_task, sampler):
+            if task is not None:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
     if detach:
         return {"argv": list(argv), "pid": process.pid, "state": "started"}
-    return {
+    result: dict[str, object] = {
         "argv": list(argv),
         "cwd": str(cwd),
         "returncode": process.returncode,
@@ -203,3 +234,6 @@ async def execute_bounded_argv(
         "stderr": stderr.decode(errors="replace"),
         "truncated": truncated,
     }
+    if sample_network:
+        result["network_sample"] = _network_sample(seen)
+    return result

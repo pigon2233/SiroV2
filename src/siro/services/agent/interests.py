@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sqlite3
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
@@ -20,6 +21,7 @@ from siro.persistence.sqlite import SQLiteStore
 from siro.ports.models import CancellationToken, LanguageModel, ModelRequest, Privacy
 from siro.services.agent.self_activity import SELF_SESSION, SelfActivityOwner
 
+LOGGER = logging.getLogger(__name__)
 SOURCES = frozenset({"conversation", "self_preference", "open_question"})
 MAX_TOPIC = 80
 MAX_WHY = 120
@@ -28,8 +30,9 @@ PICK_PROMPT = (
     "你是 SIRO。下面是你最近的生活線索。想想有沒有一件你自己真的想多了解的事，"  # noqa: RUF001
     "可以上網讀資料。如果沒有特別想查的，也可以選擇等待。"  # noqa: RUF001
     "不要重複最近查過的題目。只回一行 JSON："  # noqa: RUF001
-    '{"topic": "想查的題目或 null", "why": "一句話說為什麼想查", '
-    '"source": "conversation|self_preference|open_question"}'
+    '{"topic": "想查的題目或 null", "why": "一句話說為什麼想查", "source": "conversation"}'
+    "。source 只能填一個：conversation（來自聊天）、self_preference（來自你的喜好）、"  # noqa: RUF001
+    "open_question（來自筆記的待查）。"  # noqa: RUF001
 )
 
 
@@ -146,6 +149,9 @@ def parse_choice(text: str, recent: tuple[str, ...]) -> TopicChoice | None:
     if not isinstance(data, dict):
         return None
     topic, why, source = data.get("topic"), data.get("why"), data.get("source")
+    if isinstance(source, str) and source not in SOURCES:
+        named = [part.strip() for part in source.split("|") if part.strip() in SOURCES]
+        source = named[0] if named else source
     if not isinstance(topic, str) or not isinstance(why, str) or source not in SOURCES:
         return None
     topic, why = " ".join(topic.split()), " ".join(why.split())
@@ -164,6 +170,8 @@ class SelfActivityScheduler:
         store: SQLiteStore,
         *,
         foreground: Callable[[], bool],
+        quiet: Callable[[], bool] = lambda: False,
+        share: Callable[[], Awaitable[None]] | None = None,
         interval: float = 600.0,
         owner_quiet: timedelta = timedelta(minutes=10),
         cooldown: timedelta = timedelta(minutes=45),
@@ -174,6 +182,8 @@ class SelfActivityScheduler:
         self._picker = picker
         self._store = store
         self._foreground = foreground
+        self._quiet = quiet
+        self._share = share
         self._interval = interval
         self._owner_quiet = owner_quiet
         self._cooldown = cooldown
@@ -183,8 +193,18 @@ class SelfActivityScheduler:
 
     async def tick(self) -> str | None:
         """One decision: the started run id, or None when she waits."""
-        if self._owner.paused or self._owner.busy or self._foreground():
-            return None
+        decision, run_id = await self._decide()
+        LOGGER.info("self activity tick: %s", decision)
+        return run_id
+
+    async def _decide(self) -> tuple[str, str | None]:
+        # Focus or fullscreen: she keeps to herself, like an owner who should not be disturbed.
+        if self._owner.paused or self._owner.busy or self._foreground() or self._quiet():
+            return "busy_paused_or_quiet", None
+        if self._share is not None:
+            # She tells the owner about one finished note per tick, in the chat only (no voice).
+            with suppress(Exception):
+                await self._share()
         now = self._clock()
 
         def read(c: sqlite3.Connection) -> tuple[str | None, str | None, int]:
@@ -202,16 +222,19 @@ class SelfActivityScheduler:
 
         last_owner, last_own, count = await self._store.run_transaction(read)
         if last_owner is not None and now - datetime.fromisoformat(last_owner) < self._owner_quiet:
-            return None
+            return "owner_recent", None
         # A failed run also counts: the same moment is never retried in a loop.
         if last_own is not None and now - datetime.fromisoformat(last_own) < self._cooldown:
-            return None
+            return "cooldown", None
         if count >= self._daily_limit:
-            return None
+            return "daily_limit", None
         choice = await self._picker.choose(now)
-        if choice is None or self._foreground():
-            return None
-        return await self._owner.start(choice.topic, choice.why, choice.source)
+        if choice is None:
+            return "no_topic", None
+        if self._foreground():
+            return "busy_or_paused", None
+        run_id = await self._owner.start(choice.topic, choice.why, choice.source)
+        return ("started" if run_id else "start_refused"), run_id
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -227,5 +250,7 @@ class SelfActivityScheduler:
     async def _loop(self) -> None:
         while True:
             await asyncio.sleep(self._interval)
-            with suppress(Exception):  # one bad tick must not end her own time for good
+            try:
                 await self.tick()
+            except Exception:  # one bad tick must not end her own time for good
+                LOGGER.exception("self activity tick failed")

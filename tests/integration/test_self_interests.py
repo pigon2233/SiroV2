@@ -33,6 +33,8 @@ def test_choice_parsing_rejects_waiting_repeats_and_made_up_sources() -> None:
     assert parse_choice(choice("x" * 81), ()) is None
     assert parse_choice(choice("題目", source="owner_said_so"), ()) is None
     assert parse_choice("not json", ()) is None
+    echoed = parse_choice(choice("題目", source="conversation|self_preference|open_question"), ())
+    assert echoed is not None and echoed.source == "conversation"
 
 
 async def setup(
@@ -162,3 +164,22 @@ async def test_notes_list_only_pages_she_read_and_remember_what_was_told(tmp_pat
         if item["activity_id"] == run_id
     ]
     assert activity["note"]["sources"] == note["sources"]
+
+
+async def test_each_tick_tells_the_owner_about_a_finished_note_unless_busy_or_foreground(
+    tmp_path: Path,
+) -> None:
+    clock = [datetime.now(UTC) + timedelta(minutes=11)]
+    scheduler, _, _, _, foreground = await setup(tmp_path, [choice(None)], clock)
+    shared: list[int] = []
+
+    async def share() -> None:
+        shared.append(1)
+
+    scheduler._share = share
+    foreground[0] = True
+    await scheduler.tick()
+    assert shared == []
+    foreground[0] = False
+    await scheduler.tick()
+    assert shared == [1]

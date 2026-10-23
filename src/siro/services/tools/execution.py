@@ -41,6 +41,7 @@ async def execute_bounded_argv(
     detach: bool = False,
     output_limit: int = 64 * 1024,
     context: ExecutionContext | None = None,
+    sample_network: bool = False,
 ) -> dict[str, object]:
     """Delegate without adding a process, queue, retry, or cancellation owner."""
     return await _process_execution.execute_bounded_argv(
@@ -51,5 +52,6 @@ async def execute_bounded_argv(
         detach=detach,
         output_limit=output_limit,
         context=context,
+        sample_network=sample_network,
         _signal_group=_forward_signal_owned_group,
     )

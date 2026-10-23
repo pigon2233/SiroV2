@@ -98,6 +98,26 @@ def describe_tool(capability: str, arguments: object, observation: object) -> di
         program = None
         if isinstance(argv, list) and argv and isinstance(argv[0], str):
             program = {"program": PurePosixPath(argv[0]).name, "argument_count": len(argv) - 1}
+        sample = seen.get("network_sample")
+        if isinstance(sample, dict) and sample.get("status") == "sampled":
+            conns = sample.get("connections")
+            return {
+                "target": program,
+                "network": {
+                    "coverage": "process_sampled",
+                    "requests": [
+                        {
+                            "kind": "connection",
+                            "protocol": c.get("protocol"),
+                            "remote": c.get("remote"),
+                            "port": c.get("port"),
+                        }
+                        for c in (conns if isinstance(conns, list) else [])
+                        if isinstance(c, dict)
+                    ],
+                    "gaps": ["short_connections_may_be_missed", "destination_is_ip_only"],
+                },
+            }
         return {
             "target": program,
             "network": {
