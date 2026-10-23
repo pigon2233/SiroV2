@@ -2,6 +2,8 @@
 
 **結果：PARTIAL。** 只在 WSL2 Linux 實測，並以取樣方式歸屬；Windows 原生、macOS 標 unsupported。已接進 candidate 的 `computer.execute` 與監測頁（見「接線」）。
 
+**交接：NOT PUSHED。** 只有本機 commit，分支 `claude/cp-o01-process-network`（`a93a106`、`1f8e118`）；未建立遠端 PR。
+
 ## 第一版覆蓋盲區（來源：`monitor.describe_tool`）
 
 | 工具 | 現況 | 看不到 |
