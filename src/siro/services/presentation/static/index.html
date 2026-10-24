@@ -280,6 +280,11 @@
         body.siro-control .companion-layout { grid-template-columns:minmax(0,1fr) 250px; }
         .context-panel { display:block; }
       }
+      /* Stage 4: capabilities, computer, skills, permissions and diagnostics live under one settings area. */
+      .settings-tabs { display:flex; flex-wrap:wrap; gap:4px; margin:0 0 20px; padding:4px; background:var(--soft); border:1px solid var(--line); border-radius:12px; width:max-content; max-width:100%; }
+      .settings-tabs a { padding:7px 14px; border-radius:9px; font-size:14px; color:var(--muted); text-decoration:none; }
+      .settings-tabs a:hover { color:var(--text); }
+      .settings-tabs a[aria-current="page"] { background:var(--surface); color:var(--action); font-weight:650; box-shadow:0 1px 3px rgba(31,45,70,.12); }
     </style>
   </head>
   <body>
@@ -293,11 +298,8 @@
           <a href="#/tasks" data-nav="tasks"><span class="nav-mark" aria-hidden="true">☑</span>任務</a>
           <a href="#/activity" data-nav="activity"><span class="nav-mark" aria-hidden="true">◎</span>活動</a>
           <a href="#/memory" data-nav="memory"><span class="nav-mark" aria-hidden="true">◇</span>記憶</a>
-          <a href="#/capabilities" data-nav="capabilities"><span class="nav-mark" aria-hidden="true">✧</span>能力</a>
-          <div class="nav-group" aria-hidden="true">工具與管理</div>
-          <a href="#/computer" data-nav="computer"><span class="nav-mark" aria-hidden="true">⌘</span>電腦</a>
-          <a href="#/skills" data-nav="skills"><span class="nav-mark" aria-hidden="true">▧</span>技能</a>
-          <a href="#/settings" data-nav="settings"><span class="nav-mark" aria-hidden="true">⚙</span>設定</a>
+          <div class="nav-group" aria-hidden="true">管理</div>
+          <a href="#/settings" data-nav="settings"><span class="nav-mark" aria-hidden="true">⚙</span>設定與能力</a>
         </nav>
       </aside>
       <div class="workspace">
@@ -340,6 +342,7 @@
           </section>
           <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
             <div class="page-heading"><h1 id="computer-heading" data-page-heading tabindex="-1">電腦協助</h1><p>查看檔案、開啟程式或瀏覽網頁。每個操作都保留授權與結果，範圍以實際能力為準。</p></div>
+            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
             <details id="computer-panel" open><summary>操作與授權</summary><p id="authorization-status"></p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div></details>
             <section class="content-section"><h2>指定工作目錄讀取</h2><p id="workspace-status">讀取狀態中…</p><p class="section-note">這個入口只允許讀取指定工作目錄內的文字檔，每份最多 8 KiB；一般電腦操作仍依操作授權。</p><label class="field-label" for="workspace-file">檔案相對路徑</label><input id="workspace-file" placeholder="例如 notes.txt"><div class="quick-actions"><button id="workspace-list" type="button">列出檔案</button><button id="workspace-read" type="button">讀取檔案</button></div><pre id="workspace-result" aria-live="polite"></pre></section>
           </section>
@@ -370,6 +373,7 @@
           </section>
           <section class="page-view reading-width" data-page="skills" hidden inert aria-labelledby="skills-heading">
             <div class="page-heading"><h1 id="skills-heading" data-page-heading tabindex="-1">技能與改善</h1><p>從可追溯的來源準備新能力。驗證、審查與啟用，各有清楚的界線。</p></div>
+            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
             <section class="content-section" id="skill-candidate-panel"><h2>學習新能力</h2><p>解析貼上的 Markdown 待辦清單。先準備一份待審技能與隔離測試紀錄，再由你檢查；這一步不會安裝或啟用技能。</p><div class="quick-actions"><button id="skill-candidate-prepare" type="button" disabled>準備待審技能</button><button id="skill-candidate-cancel" type="button" disabled>取消準備</button><button id="skill-candidate-export" type="button" disabled>匯出審查資料 JSON</button></div><p id="skill-candidate-status" aria-live="polite">確認準備功能狀態中…</p><details><summary>來源與驗證紀錄</summary><pre id="skill-candidate-review"></pre></details><details><summary>待審技能內容</summary><pre id="skill-candidate-files"></pre></details></section>
             <section class="content-section" id="skill-activation-panel"><h2>批准與使用待辦清單技能</h2><p>先閱讀上方來源、程式內容與驗證紀錄。確認後可安裝，初始保持停用；啟用需要你再按一次。技能只解析你貼上的文字，使用時仍沿用對話中的操作授權。</p><div class="quick-actions"><button id="skill-activation-install" type="button" disabled>安裝（保持停用）</button><button id="skill-activation-enable" type="button" disabled>啟用已批准技能</button><button id="skill-activation-revoke" type="button" disabled>撤銷啟用</button><button id="skill-activation-fill" type="button" disabled>將待辦範例填入對話</button><button id="skill-activation-refresh" type="button">確認技能狀態</button></div><p id="skill-activation-status" aria-live="polite">確認技能狀態中…</p></section>
             <section class="content-section" id="improvement-proposal-panel"><h2>改善建議</h2><p>查看這段對話最近的可追溯失敗，先整理需要調查與驗證的地方。來源不足時會明說；確認原因後才討論修復。</p><button id="improvement-proposal-refresh" type="button" disabled>查看這段對話的改善建議</button><p id="improvement-proposal-status" aria-live="polite">連線完成後可手動查詢；建議只供審閱。</p><pre id="improvement-proposal-review" aria-live="polite"></pre></section>
@@ -382,10 +386,12 @@
           </section>
           <section class="page-view reading-width" data-page="capabilities" hidden inert aria-labelledby="capabilities-heading">
             <div class="page-heading"><h1 id="capabilities-heading" data-page-heading tabindex="-1">現在能做什麼</h1><p>以目前註冊與實際就緒狀態為準。查看能力不會執行操作，也不代表已授權。</p></div>
+            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
             <div class="quick-actions"><a class="button-link" href="#/computer" data-nav="computer">開啟電腦協助</a><a class="button-link" href="#/skills" data-nav="skills">管理技能</a><button id="capabilities-refresh" type="button">更新能力狀態</button></div><div id="capability-items" aria-live="polite">讀取狀態中…</div>
           </section>
           <section class="page-view reading-width" data-page="settings" hidden inert aria-labelledby="settings-heading">
             <div class="page-heading"><h1 id="settings-heading" data-page-heading tabindex="-1">相處與設定</h1><p>資料、權限與系統狀態分開查看。語音開關與全文重聽在對話畫面。</p></div>
+            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
             <div class="destination-list"><a href="#/permissions" data-nav="permissions"><span><strong>權限與停止開關</strong><small>查看目前模式，控制工具與資料外送</small></span><span aria-hidden="true">›</span></a><a href="#/system" data-nav="system"><span><strong>系統與診斷</strong><small>長對話續作、內在狀態與連線紀錄</small></span><span aria-hidden="true">›</span></a><a href="#/chat" data-nav="chat"><span><strong>回到對話</strong><small>語音播放與全文重聽</small></span><span aria-hidden="true">›</span></a></div>
             <details class="content-section" id="desktop-details"><summary>桌寵設定</summary>
               <form id="desktop-settings" autocomplete="off">
@@ -399,10 +405,12 @@
           </section>
           <section class="page-view reading-width" data-page="permissions" hidden inert aria-labelledby="permissions-heading">
             <div class="page-heading"><h1 id="permissions-heading" data-page-heading tabindex="-1">權限與停止開關</h1><p>按下開關立即生效，不需要再問 SIRO。即使功能開著，她能做的事仍受你電腦帳號的權限限制。</p></div>
+            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
             <section class="content-section"><h2>操作模式</h2><p id="permissions-authorization-status">正在確認目前模式…</p><h2>功能開關</h2><p>「已開啟」表示允許使用這項功能；按下開關可開啟或關閉。開啟功能不會取得額外的操作權限。</p><div id="switches"></div><p id="switch-status" role="status" aria-live="polite"></p></section><a href="#/settings" data-nav="settings">返回設定</a>
           </section>
           <section class="page-view reading-width" data-page="system" hidden inert aria-labelledby="system-heading">
             <div class="page-heading"><h1 id="system-heading" data-page-heading tabindex="-1">系統與診斷</h1><p>這是目前服務的實際狀態，排查問題時才需要看；這裡沒出現的功能不代表已經做好。</p></div>
+            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
             <section class="content-section"><h2>長對話續作</h2><p id="summary-status">讀取狀態中…</p><p class="section-note">較舊的長回覆採摘錄摘要，省略處會標示；目標、授權與尚未完成的工具結果保留。摘要不是永久記憶。</p></section>
             <details><summary>內在狀態</summary><p id="affect-summary">尚無事件評估</p><div id="affect-grid"></div></details><details><summary>連線資訊</summary><pre id="snapshot"></pre></details><details><summary>事件紀錄</summary><pre id="events"></pre></details><div class="quick-actions"><a class="button-link" href="/audio-field-test">音訊驗收工具</a><a class="button-link" href="#/settings" data-nav="settings">返回設定</a></div>
           </section>
@@ -545,6 +553,7 @@
           if (link.dataset.nav === page) link.setAttribute("aria-current", "page");
           else link.removeAttribute("aria-current");
         }
+        if (["settings", "permissions", "capabilities", "computer", "skills", "system"].includes(page)) document.querySelector('.primary-nav [data-nav="settings"]')?.setAttribute("aria-current", "page");
         activePage = page;
         activityPageChanged();
         const title = selectedGoalTaskId ? "任務詳情" : pageTitles[page];
