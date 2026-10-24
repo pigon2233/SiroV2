@@ -56,6 +56,17 @@ scripts/start-companion
 
 桌面角色提供「聊聊／移動／控制台／暫藏／退出」，控制台也可從 [SIRO](http://127.0.0.1:8000/?view=control) 開啟。若只需要後端，執行 `scripts/start-runtime-product`。頁面應顯示「雲端對話」或「本機對話」，以及「Live2D 已就緒」；缺少模型或角色時入口會明確停止。詳細設定與功能限制見 [產品操作說明](docs/runtime-evolution/PRODUCT_QUICKSTART.md)。
 
+### Windows 桌面開啟與退出（VRM 角色）
+
+| 動作 | 做法 |
+|---|---|
+| 開啟 | 雙擊桌面 `SIRO-VRM-Start`（即根目錄 `Start-SIRO-VRM.cmd`），載入已登記的 `config/body-assets/siro-vrm/model.vrm` |
+| 只關視窗 | 關閉桌寵視窗；後端與資料保留，下次開啟會接回同一服務 |
+| 完全退出 | 雙擊桌面 `SIRO-Stop`（`Stop-SIRO.cmd`），停止後端與桌寵並確認 port 8000 已無回應 |
+| 預覽候選模型 | 先完全退出，再執行 `Start-SIRO-VRM-Candidate.cmd`；後端仍在執行時會拒絕，避免誤載正式模型。候選 manifest 在 Git 忽略的 `.siro-data/vroid/candidate-registered/` |
+
+桌面捷徑與 WSL 啟動腳本（`~/.local/bin/siro-companion-vrm`、`siro-companion-vrm-candidate`、`siro-stop`）在 Git 外，細節見 [WSL 操作說明](docs/WSL_SETUP.md)。
+
 需要 PID 管理可用 `scripts/start .siro-data/companion-service.pid`，停止用 `scripts/stop .siro-data/companion-service.pid`。這兩種正式入口使用同一個 launcher。
 
 開發用離線示範另用 `scripts/start /tmp/siro-demo.pid --demo` 或 `uv run siro-gateway`。低階 gateway 不讀 `.env.local` 或自動選角色；沒有明確模型／renderer 環境設定時，會使用固定示範回覆與替身，不是日常可用的 SIRO。下載的 Cubism Core、角色資產與授權接受紀錄不得提交 Git；準備方式見 `config/body-assets/README.md`。
