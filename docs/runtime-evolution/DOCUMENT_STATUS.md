@@ -1,6 +1,6 @@
 # Document status
 
-Phase 1 文件稽核已完成；Phase 2 設計已於 2026-09-30 經使用者授權完成，implementation 未開始。這不等同 SIRO 功能驗收完成。可信範圍是當前 source/caller 地圖與本次 automated baseline；真硬體、provider、畫面、24h 與第二節點仍未驗證。
+（2026-10-24 更新）Phase 1 稽核與 Phase 2 設計（2026-09-30）已完成，RT-001–015 均已實作（RT-001–014 DONE；RT-011/013/015 為有界產品切片 DONE，見 RUNTIME_EVOLUTION_ROADMAP.md 各卡 Status）。全專案任務現況：T/RT/CP 卡除 T35／T39／T40（需真硬體、第二台機器、24 小時運行）外均已完成，I01 已由 owner 於 2026-10-24 實機試用驗收；總覽見 docs/STATUS.md 頂部。Phase 1 各報告是當時（2026-09-30 前）的歷史快照，只保留設計脈絡與證據，結論不代表現況。真硬體、真 provider、24h 與第二節點仍未驗證。
 
 | 文件 | 狀態 / 用途 |
 |---|---|
@@ -21,6 +21,6 @@ Phase 1 文件稽核已完成；Phase 2 設計已於 2026-09-30 經使用者授�
 - RUNTIME_EVOLUTION_SPEC.md：責任、run/message/tool/state/lifecycle 契約與提議量測門檻。
 - COMPATIBILITY_PLAN.md：舊API、配置、schema、音色、授權與回滾相容。
 - MIGRATION_PLAN.md：G0–G5 分段、故障注入、切換與停止條件。
-- RUNTIME_EVOLUTION_ROADMAP.md：RT-001–015 小型任務卡，全部 PLANNED。
+- RUNTIME_EVOLUTION_ROADMAP.md：RT-001–015 小型任務卡，設計時全部為 PLANNED，現已全數實作完成（以 roadmap 各卡 Status 為準）。
 
-Phase 1 報告保持當時的歷史敘述；本頁是最新文件階段狀態。此次只改文件，未完成或執行任何 RT 任務；實作應從 RT-001 開始。
+Phase 1 報告保持當時的歷史敘述；本頁是最新文件階段狀態。（舊版此處寫「實作應從 RT-001 開始」，已過時，2026-10-24 更正。）
