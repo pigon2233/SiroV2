@@ -238,7 +238,8 @@ def test_work_pages_have_separate_dom_and_global_stop_is_outside_them() -> None:
     assert owners["messages"] == owners["chat"] == owners["companion"] == "chat"
     assert owners["goal-task-panel"] == "tasks"
     assert owners["memory-items"] == "memory"
-    assert owners["tool-proposals"] == owners["workspace-file"] == "computer"
+    assert owners["tool-proposals"] == "chat"  # operation cards live in the conversation
+    assert owners["workspace-file"] == "computer"
     assert owners["capability-items"] == "capabilities"
     assert owners["skill-candidate-panel"] == owners["improvement-proposal-panel"] == "skills"
     assert owners["cancel"] is None

@@ -255,6 +255,16 @@
         .user { border-color:#34395a; } .act-banner { background:#2b2118; border-color:#5a4126; } .act-banner[data-tone="info"] { background:var(--tint); border-color:#34395a; }
         #chat button[type="submit"], #chat button { color:#14161d; }
       }
+      /* Stage 2: operation cards sit in the conversation, voice controls sit by the composer. */
+      #tool-proposals { max-height:34vh; overflow:auto; padding:0 0 8px; }
+      #tool-proposals:empty { display:none; }
+      #tool-proposals .proposal { margin:0 0 8px; padding:12px 14px; background:var(--soft); border:1px solid var(--line); border-left:4px solid var(--action); border-radius:12px; font-size:13px; }
+      #tool-proposals .proposal:has(> button) { background:#fff8ec; border-color:#f0d6a6; border-left-color:var(--warning); }
+      #tool-proposals .proposal p { margin:0 0 8px; color:var(--text); }
+      #tool-proposals .proposal .tool-status { margin:8px 0 0; padding-top:8px; border-top:1px solid var(--line); color:var(--muted); }
+      #tool-proposals .proposal > button { background:var(--action); border-color:var(--action); color:#fff; border-radius:999px; }
+      .conversation-actions button { border-radius:999px; }
+      @media(prefers-color-scheme:dark) { :root:not([data-theme="light"]) #tool-proposals .proposal:has(> button) { background:#2b2118; border-color:#5a4126; } :root:not([data-theme="light"]) #tool-proposals .proposal > button { color:#14161d; } }
     </style>
   </head>
   <body>
@@ -280,9 +290,6 @@
           <span id="page-title">對話</span>
           <div class="toolbar-actions">
             <button id="connection" class="connection-pill" type="button" title="重新連線，不會重新執行工作">連線中</button>
-            <button id="microphone-toggle" type="button" aria-pressed="false">麥克風：關</button>
-            <button id="voice" type="button">開始說話</button>
-            <button id="voice-auto" type="button" aria-pressed="false" title="偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音">免手動：關</button>
             <button id="cancel" type="button">停止回覆與語音</button>
           </div>
         </header>
@@ -302,14 +309,18 @@
               <section class="conversation" aria-label="對話內容與輸入">
                 <div class="conversation-heading"><h2>我們的對話</h2><span id="model-status">確認對話連線中</span></div>
                 <div id="messages" aria-live="polite"><div class="empty-state"><strong>嗨，我在這裡。</strong><p>從一句「你好」開始。<br>想讓我留下的事，可以說「記住：…」。</p><div class="prompt-chips"><button type="button" data-prompt="你好，今天過得怎麼樣？">打個招呼</button><button type="button" data-prompt="記住：">請你記住一件事</button><button type="button" data-prompt="你可以做什麼？">你可以做什麼？</button></div></div></div>
+                <div id="tool-proposals" aria-label="操作授權與結果"></div>
                 <form id="chat"><textarea id="text" required maxlength="32768" placeholder="想和 SIRO 說什麼？" aria-label="對話內容"></textarea><button type="submit">送出</button></form>
-                <div class="conversation-actions"><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
+                <div class="conversation-actions">
+                <button id="microphone-toggle" type="button" aria-pressed="false">麥克風：關</button>
+                <button id="voice" type="button">開始說話</button>
+                <button id="voice-auto" type="button" aria-pressed="false" title="偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音">免手動：關</button><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
               </section>
             </div>
           </section>
           <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
             <div class="page-heading"><h1 id="computer-heading" data-page-heading tabindex="-1">電腦協助</h1><p>查看檔案、開啟程式或瀏覽網頁。每個操作都保留授權與結果，範圍以實際能力為準。</p></div>
-            <details id="computer-panel" open><summary>操作與授權</summary><p id="authorization-status"></p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div><div id="tool-proposals"></div></details>
+            <details id="computer-panel" open><summary>操作與授權</summary><p id="authorization-status"></p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div></details>
             <section class="content-section"><h2>指定工作目錄讀取</h2><p id="workspace-status">讀取狀態中…</p><p class="section-note">這個入口只允許讀取指定工作目錄內的文字檔，每份最多 8 KiB；一般電腦操作仍依操作授權。</p><label class="field-label" for="workspace-file">檔案相對路徑</label><input id="workspace-file" placeholder="例如 notes.txt"><div class="quick-actions"><button id="workspace-list" type="button">列出檔案</button><button id="workspace-read" type="button">讀取檔案</button></div><pre id="workspace-result" aria-live="polite"></pre></section>
           </section>
           <section class="page-view reading-width" data-page="tasks" hidden inert aria-labelledby="tasks-heading">
