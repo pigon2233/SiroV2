@@ -6,7 +6,7 @@
 
 已解除本四卡的local BLOCKED_BY_FIX；不以軟體PASS宣告發布或真ESP32完成。T27仍需真Broker／toolchain／板子驗收，擴大process權限與正式release仍有原先獨立gate。
 
-所有任務初始為 TODO；實際狀態以 [STATUS.md](STATUS.md) 的任務表為準。依賴是開工前條件；每張卡還必須遵守 [契約](CONTRACTS.md)、[體驗](EXPERIENCE.md)、[安全與隱私](SECURITY_PRIVACY.md)、[驗收](ACCEPTANCE.md) 和 [操作手冊](SOL_RUNBOOK.md)。路徑為目標產出；目前尚未建立的程式檔不代表遺漏。
+所有任務初始為 TODO；實際狀態請看 [STATUS.md](STATUS.md) 頂部「狀態總覽」，T／R 逐項見其中「產品整合狀態」表。依賴是開工前條件；每張卡還必須遵守 [契約](CONTRACTS.md)、[體驗](EXPERIENCE.md)、[安全與隱私](SECURITY_PRIVACY.md)、[驗收](ACCEPTANCE.md) 和 [操作手冊](SOL_RUNBOOK.md)。路徑為目標產出；目前尚未建立的程式檔不代表遺漏。
 
 每張卡執行同一流程：讀輸入 → 檢查現況 → 補驗收 fixture → 實作 → 跑相關檢查 → 記錄證據 → 更新狀態。每張卡的證據放 `docs/evidence/Txx/`，至少含環境、執行命令、結果、限制；真實私人資料只保存脫敏摘要。任務不應越界實作後續整個階段。
 

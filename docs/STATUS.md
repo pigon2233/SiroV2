@@ -1,3 +1,23 @@
+# 狀態總覽（2026-10-24 整理；先看這裡，下面是由新到舊的時間序列紀錄）
+
+T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–T40、R01–R03）與 `runtime-evolution/RUNTIME_EVOLUTION_ROADMAP.md` 各卡 Status；CP 的規格在 `companion-workflow/TASKS.md`。更早日期的「待做／下一步」是當時的 checkpoint，不是現況。
+
+| 範圍 | 現況 | 備註 |
+|---|---|---|
+| T00–T34、T36–T38、R02、R03 | DONE，但只到各列標示的驗證層級（L1／L2／simulator） | 不等於真硬體或正式產品驗收 |
+| T35、T39、T40、R01 | BLOCKED-EXTERNAL | 需要 24 小時運行、第二台真實節點、真硬體 |
+| RT-001–015 | 均已實作（RT-011／013／015 為有界產品切片 DONE） | 見 runtime-evolution 各卡 Status |
+| CP-V01–V05 | DONE | V01–V03 為 Live2D 版，已被 VRM 取代 |
+| CP-00 | PARTIAL（2026-10-18 接收紀錄） | Codex 當時未回覆 |
+| CP-P00、CP-P01 | 沒有收尾紀錄 | 只有零散修復紀錄，須另補驗證或標明 |
+| CP-P02、P03、P04、P05 | STATUS 最後紀錄為 PARTIAL | 各條限制見下方各自段落；紀錄日期 2026-10-19～23 |
+| CP-P06 | DONE（owner 接受已知限制） | WSLg 隱形框、鎖屏／全螢幕／DPI 未實機驗 |
+| CP-O01 | PARTIAL | 只在 WSL2 抽樣，短連線看不到 |
+| CP-I01 | ACCEPTED_BY_OWNER（2026-10-24） | owner 實機試用，無逐步勾選紀錄，無 Codex 視覺證據 |
+| CP-I02 | PARTIAL | 隔離演練通過；未驗舊程式讀 schema 18，非正式部署回退 |
+
+驗證來源請分開看：「本機直接驗證」（該紀錄寫明命令與結果）、「owner 回報」（實機試用或口頭）、「遠端 CI」（本專案不 push，目前沒有）、「尚未重驗」（沿用舊數字，例如各紀錄的回歸統計；最新回歸 3120 PASS／15 FAIL 是 I01 串回報，未由整理者重跑）。
+
 # Companion CP-I01：整體體驗驗收 — 2026-10-24，ACCEPTED_BY_OWNER
 
 owner 2026-10-24 實機試用後表示體感沒有問題，要求視為全部完成。這是 owner 驗收，沒有逐步勾選紀錄，也沒有 Codex 視覺證據。本機 commit（未 push）：試用清單 `docs/companion-workflow/CP-I01-OWNER-TRIAL-DRAFT.md`、Claude 側回歸報告 `docs/evidence/CP-I01-2026-10-23/REPORT.md`；所有分支已併進本機 `main`，新快照 `deployments/fcb92433…`（`a541756`）已部署重啟，正式資料庫升到結構 18（升級前備份在 `~/.local/share/siro/backups/pre-i01-deploy-*`，回退舊快照前須先還原）。
