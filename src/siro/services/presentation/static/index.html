@@ -266,25 +266,21 @@
       .conversation-actions button { border-radius:999px; }
       @media(prefers-color-scheme:dark) { :root:not([data-theme="light"]) #tool-proposals .proposal:has(> button) { background:#2b2118; border-color:#5a4126; } :root:not([data-theme="light"]) #tool-proposals .proposal > button { color:#14161d; } }
       /* Stage 3: a status panel beside wide conversations, and switch buttons that show on/off at a glance. */
-      .context-panel { display:none; }
-      .ctx-list { list-style:none; margin:0 0 10px; padding:0; }
-      .ctx-list li, #switches button { display:flex; align-items:center; gap:8px; }
-      .ctx-list li { padding:5px 0; font-size:13px; color:var(--muted); }
-      .ctx-list li::before, #switches button::before { content:""; flex:none; width:26px; height:15px; border-radius:99px; background:var(--field-line); box-shadow:inset 0 0 0 2px var(--field-line); }
-      .ctx-list li.sw-on::before, #switches button.sw-on::before { background:linear-gradient(90deg,var(--success) 0 100%); box-shadow:inset -9px 0 0 -2px var(--surface), inset 0 0 0 2px var(--success); }
-      .context-panel h2 { font-size:12px; letter-spacing:.5px; color:var(--muted); margin:0 0 8px; }
-      .context-panel section { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-bottom:12px; font-size:13px; }
-      .context-panel p { margin:0 0 6px; font-size:13px; }
-      @media(min-width:1360px) {
-        .companion-layout { grid-template-columns:minmax(240px,.8fr) minmax(0,1.35fr) 250px; }
-        body.siro-control .companion-layout { grid-template-columns:minmax(0,1fr) 250px; }
-        .context-panel { display:block; }
-      }
+      #switches button { display:flex; align-items:center; gap:8px; }
+      #switches button::before { content:""; flex:none; width:26px; height:15px; border-radius:99px; background:var(--field-line); box-shadow:inset 0 0 0 2px var(--field-line); }
+      #switches button.sw-on::before { background:linear-gradient(90deg,var(--success) 0 100%); box-shadow:inset -9px 0 0 -2px var(--surface), inset 0 0 0 2px var(--success); }
       /* Stage 4: capabilities, computer, skills, permissions and diagnostics live under one settings area. */
       .settings-tabs { display:flex; flex-wrap:wrap; gap:4px; margin:0 0 20px; padding:4px; background:var(--soft); border:1px solid var(--line); border-radius:12px; width:max-content; max-width:100%; }
       .settings-tabs a { padding:7px 14px; border-radius:9px; font-size:14px; color:var(--muted); text-decoration:none; }
       .settings-tabs a:hover { color:var(--text); }
       .settings-tabs a[aria-current="page"] { background:var(--surface); color:var(--action); font-weight:650; box-shadow:0 1px 3px rgba(31,45,70,.12); }
+      /* Stage 5: quiet by default - secondary controls are tucked away until needed. */
+      .voice-menu { border:0; padding:0; margin:0; background:none; box-shadow:none; }
+      .voice-menu summary { font-size:12px; font-weight:400; color:var(--muted); padding:6px 10px; border:1px solid var(--line); border-radius:999px; list-style:none; }
+      .voice-menu summary::-webkit-details-marker { display:none; }
+      .voice-menu[open]>summary { margin-bottom:8px; }
+      .voice-menu-body { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+      .advanced-links { margin-top:18px; } .advanced-links .destination-list { box-shadow:none; }
     </style>
   </head>
   <body>
@@ -296,7 +292,6 @@
           <div class="nav-group" aria-hidden="true">工作</div>
           <a href="#/chat" data-nav="chat" aria-current="page"><span class="nav-mark" aria-hidden="true">◌</span>對話</a>
           <a href="#/tasks" data-nav="tasks"><span class="nav-mark" aria-hidden="true">☑</span>任務</a>
-          <a href="#/activity" data-nav="activity"><span class="nav-mark" aria-hidden="true">◎</span>活動</a>
           <a href="#/memory" data-nav="memory"><span class="nav-mark" aria-hidden="true">◇</span>記憶</a>
           <div class="nav-group" aria-hidden="true">管理</div>
           <a href="#/settings" data-nav="settings"><span class="nav-mark" aria-hidden="true">⚙</span>設定與能力</a>
@@ -307,7 +302,7 @@
           <span id="page-title">對話</span>
           <div class="toolbar-actions">
             <button id="connection" class="connection-pill" type="button" title="重新連線，不會重新執行工作">連線中</button>
-            <button id="cancel" type="button">停止回覆與語音</button>
+            <button id="cancel" type="button" hidden>停止回覆與語音</button>
           </div>
         </header>
         <div class="live-status" aria-live="polite"><span id="voice-status">麥克風待命</span><span id="tts-status">TTS 待命</span></div>
@@ -329,15 +324,11 @@
                 <div id="tool-proposals" aria-label="操作授權與結果"></div>
                 <form id="chat"><textarea id="text" required maxlength="32768" placeholder="想和 SIRO 說什麼？" aria-label="對話內容"></textarea><button type="submit">送出</button></form>
                 <div class="conversation-actions">
-                <button id="microphone-toggle" type="button" aria-pressed="false">麥克風：關</button>
                 <button id="voice" type="button">開始說話</button>
-                <button id="voice-auto" type="button" aria-pressed="false" title="偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音">免手動：關</button><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
+                <details class="voice-menu"><summary>語音選項</summary><div class="voice-menu-body"><button id="microphone-toggle" type="button" aria-pressed="false">麥克風：關</button>
+                
+                <button id="voice-auto" type="button" aria-pressed="false" title="偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音">免手動：關</button><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div></details></div>
               </section>
-              <aside class="context-panel" aria-label="目前狀態">
-                <section><h2>操作模式</h2><p id="ctx-mode">確認中…</p></section>
-                <section><h2>功能開關</h2><ul id="ctx-switches" class="ctx-list"></ul><a href="#/permissions" data-nav="permissions">調整權限與開關</a></section>
-                <section><h2>查看紀錄</h2><p><a href="#/activity" data-nav="activity">活動紀錄</a>　<a href="#/memory" data-nav="memory">共同記憶</a></p></section>
-              </aside>
             </div>
           </section>
           <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
@@ -390,9 +381,8 @@
             <div class="quick-actions"><a class="button-link" href="#/computer" data-nav="computer">開啟電腦協助</a><a class="button-link" href="#/skills" data-nav="skills">管理技能</a><button id="capabilities-refresh" type="button">更新能力狀態</button></div><div id="capability-items" aria-live="polite">讀取狀態中…</div>
           </section>
           <section class="page-view reading-width" data-page="settings" hidden inert aria-labelledby="settings-heading">
-            <div class="page-heading"><h1 id="settings-heading" data-page-heading tabindex="-1">相處與設定</h1><p>資料、權限與系統狀態分開查看。語音開關與全文重聽在對話畫面。</p></div>
-            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
-            <div class="destination-list"><a href="#/permissions" data-nav="permissions"><span><strong>權限與停止開關</strong><small>查看目前模式，控制工具與資料外送</small></span><span aria-hidden="true">›</span></a><a href="#/system" data-nav="system"><span><strong>系統與診斷</strong><small>長對話續作、內在狀態與連線紀錄</small></span><span aria-hidden="true">›</span></a><a href="#/chat" data-nav="chat"><span><strong>回到對話</strong><small>語音播放與全文重聽</small></span><span aria-hidden="true">›</span></a></div>
+            <div class="page-heading"><h1 id="settings-heading" data-page-heading tabindex="-1">設定</h1><p>平常只需要這裡。其他都收在「進階」。語音選項在對話畫面輸入框下方。</p></div>
+            <div class="destination-list"><a href="#/permissions" data-nav="permissions"><span><strong>權限與開關</strong><small>操作要不要先問你、雲端與麥克風開關</small></span><span aria-hidden="true">›</span></a></div>
             <details class="content-section" id="desktop-details"><summary>桌寵設定</summary>
               <form id="desktop-settings" autocomplete="off">
                 <p><label><input type="checkbox" id="desktop-gpu"> 使用 GPU 繪製（比較順，但要放寬桌寵視窗的一項安全限制；只載入本機頁面）</label></p>
@@ -401,6 +391,7 @@
                   <label>Y <input type="number" id="desktop-y" min="-20000" max="20000" step="1" value="0" style="width:6em"></label></p>
                 <p><button type="submit">儲存</button> <span id="desktop-settings-status" role="status" aria-live="polite">下次啟動桌寵時生效。</span></p>
               </form></details>
+            <details class="content-section advanced-links"><summary>進階</summary><div class="destination-list"><a href="#/capabilities" data-nav="capabilities"><span><strong>能力</strong><small>她現在能做什麼</small></span><span aria-hidden="true">›</span></a><a href="#/computer" data-nav="computer"><span><strong>電腦協助</strong><small>檔案、程式與網頁操作</small></span><span aria-hidden="true">›</span></a><a href="#/skills" data-nav="skills"><span><strong>技能</strong><small>新能力的審查與啟用</small></span><span aria-hidden="true">›</span></a><a href="#/activity" data-nav="activity"><span><strong>活動紀錄</strong><small>她做過什麼、為什麼</small></span><span aria-hidden="true">›</span></a><a href="#/system" data-nav="system"><span><strong>系統與診斷</strong><small>連線資訊與事件紀錄</small></span><span aria-hidden="true">›</span></a></div></details>
             <p class="section-note" style="margin-top:22px">桌寵自己到處走動、更換角色和新動作都還沒完成；目前只能使用現在這個角色。</p>
           </section>
           <section class="page-view reading-width" data-page="permissions" hidden inert aria-labelledby="permissions-heading">
@@ -1713,13 +1704,6 @@
           try { if (!handsFree.on && !pageClosing) startHandsFree(); } catch { /* not ready: the owner can press it */ }
         }
         const switchLabels = {cloud:"雲端功能", tools:"電腦與工具操作", microphone:"麥克風輸入"};
-        document.querySelector("#ctx-mode").textContent = authorizationMode === "full" ? "完整權限：一般操作自動授權" : "安全模式：操作逐次授權";
-        const ctxList = document.querySelector("#ctx-switches"); ctxList.textContent = "";
-        Object.entries(data.kill_switches).forEach(([name, enabled]) => {
-          const row = document.createElement("li"); row.className = enabled ? "sw-on" : "sw-off";
-          row.textContent = `${Object.hasOwn(switchLabels, name) ? switchLabels[name] : name}：${enabled ? "已開啟" : "已關閉"}`;
-          ctxList.appendChild(row);
-        });
         const switchButtons = [];
         Object.entries(data.kill_switches).forEach(([name, enabled]) => {
           const label = Object.hasOwn(switchLabels, name) ? switchLabels[name] : name;
@@ -2381,6 +2365,11 @@
         } catch (error) { document.querySelector("#voice-status").textContent = `麥克風開關未確認：${error.message}`; }
         finally { toggle.disabled = false; }
       };
+      // The stop button only shows while there is something to stop.
+      const stopWatcher = setInterval(() => {
+        const stop = document.querySelector("#cancel"); if (!stop) return;
+        stop.hidden = !(currentTurn || runningTools.size || pendingSubmission || window.siroSpeechBusy?.());
+      }, 400); stopWatcher?.unref?.();
       document.querySelector("#cancel").onclick = async () => { clearRetryNotice(); submissionGeneration += 1; document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop")); speechCancelled = true; stopTts(); foregroundControl.stop(); };
       document.querySelector("#voice-output").onchange = event => { if (!event.target.checked) stopTts(); };
       document.querySelector("#replay-speech").onclick = async () => {
