@@ -1,0 +1,204 @@
+{
+  "old_rev": "974cdd7",
+  "steps": [
+    {
+      "step": "versions",
+      "old_migrations": 15,
+      "new_migrations": 18
+    },
+    {
+      "step": "old_db",
+      "schema": 15,
+      "tables": 53,
+      "data_hash": "01bda6daf1c7161e5387fec644a28225d31a58a6a24cb497d863889b6137ceb9"
+    },
+    {
+      "step": "activate_old_era",
+      "status": "activated",
+      "active": "1.0.0",
+      "healthcheck": {
+        "bundle": "/tmp/tmp_ej_izvo/mgr/staging/1.0.0",
+        "ready": {
+          "state": "healthy"
+        },
+        "live": {
+          "state": "alive"
+        },
+        "second_owner_exit": 1,
+        "ws_close_code": 1012,
+        "exit_code": -15,
+        "stop_seconds": 0.19,
+        "log_shutdown_lines": [
+          "INFO:     Shutting down",
+          "INFO:     Waiting for application shutdown.",
+          "INFO:     Application shutdown complete."
+        ],
+        "clean_shutdown_logged": true,
+        "port_closed": true,
+        "restart_after_stop_ready": true,
+        "restart_after_stop_exit": -15
+      }
+    },
+    {
+      "step": "deploy_new",
+      "status": "activated",
+      "active": "1.1.0",
+      "healthcheck": {
+        "bundle": "/tmp/tmp_ej_izvo/mgr/staging/1.1.0",
+        "ready": {
+          "state": "healthy"
+        },
+        "live": {
+          "state": "alive"
+        },
+        "second_owner_exit": 1,
+        "ws_close_code": 1012,
+        "exit_code": -15,
+        "stop_seconds": 0.14,
+        "log_shutdown_lines": [
+          "INFO:     Shutting down",
+          "INFO:     Waiting for application shutdown.",
+          "INFO:     Application shutdown complete."
+        ],
+        "clean_shutdown_logged": true,
+        "port_closed": true,
+        "restart_after_stop_ready": true,
+        "restart_after_stop_exit": -15
+      }
+    },
+    {
+      "step": "migrated",
+      "schema": 18
+    },
+    {
+      "step": "pre_deploy_backup",
+      "exists": true,
+      "schema": 15
+    },
+    {
+      "step": "old_code_opens_new_schema_db",
+      "returncode": 0,
+      "stdout": "ok 55 18",
+      "stderr": ""
+    },
+    {
+      "step": "old_gateway_on_new_schema_db",
+      "healthcheck_exit": 0,
+      "report": {
+        "bundle": "/tmp/tmp_ej_izvo/b_old",
+        "ready": {
+          "state": "healthy"
+        },
+        "live": {
+          "state": "alive"
+        },
+        "second_owner_exit": 1,
+        "ws_close_code": 1012,
+        "exit_code": -15,
+        "stop_seconds": 0.18,
+        "log_shutdown_lines": [
+          "INFO:     Shutting down",
+          "INFO:     Waiting for application shutdown.",
+          "INFO:     Application shutdown complete."
+        ],
+        "clean_shutdown_logged": true,
+        "port_closed": true,
+        "restart_after_stop_ready": true,
+        "restart_after_stop_exit": -15
+      }
+    },
+    {
+      "step": "rollback_on_new_schema",
+      "status": "incompatible_schema",
+      "active": "1.1.0"
+    },
+    {
+      "step": "restore_with_new_code",
+      "schema": 18,
+      "data_hash_same": true
+    },
+    {
+      "step": "rollback_after_new_code_restore",
+      "status": "incompatible_schema",
+      "active": "1.1.0"
+    },
+    {
+      "step": "restore_with_old_code",
+      "schema": 15,
+      "data_hash_same": true,
+      "post_deploy_rows_left": 0
+    },
+    {
+      "step": "rollback_after_restore",
+      "status": "rolled_back",
+      "active": "1.0.0",
+      "data_hash_same": true
+    },
+    {
+      "step": "old_gateway_after_rollback",
+      "healthcheck_exit": 0,
+      "report": {
+        "bundle": "/tmp/tmp_ej_izvo/mgr/releases/1.0.0",
+        "ready": {
+          "state": "healthy"
+        },
+        "live": {
+          "state": "alive"
+        },
+        "second_owner_exit": 1,
+        "ws_close_code": 1012,
+        "exit_code": -15,
+        "stop_seconds": 0.2,
+        "log_shutdown_lines": [
+          "INFO:     Shutting down",
+          "INFO:     Waiting for application shutdown.",
+          "INFO:     Application shutdown complete."
+        ],
+        "clean_shutdown_logged": true,
+        "port_closed": true,
+        "restart_after_stop_ready": true,
+        "restart_after_stop_exit": -15
+      }
+    },
+    {
+      "step": "reapply",
+      "status": "activated",
+      "active": "1.1.1",
+      "healthcheck": {
+        "bundle": "/tmp/tmp_ej_izvo/mgr/staging/1.1.1",
+        "ready": {
+          "state": "healthy"
+        },
+        "live": {
+          "state": "alive"
+        },
+        "second_owner_exit": 1,
+        "ws_close_code": 1012,
+        "exit_code": -15,
+        "stop_seconds": 0.14,
+        "log_shutdown_lines": [
+          "INFO:     Shutting down",
+          "INFO:     Waiting for application shutdown.",
+          "INFO:     Application shutdown complete."
+        ],
+        "clean_shutdown_logged": true,
+        "port_closed": true,
+        "restart_after_stop_ready": true,
+        "restart_after_stop_exit": -15
+      }
+    },
+    {
+      "step": "reapply_migrated",
+      "schema": 18,
+      "data_hash_same": true
+    },
+    {
+      "step": "failed_healthcheck_keeps_active",
+      "status": "healthcheck_failed",
+      "active": "1.1.1"
+    }
+  ],
+  "old_sha": "974cdd76e92220d27fcb40e8948afedda42d1348",
+  "new_sha": "811c62fc598e6a4e11c5c028ea85e457db279a3e",
+  "data_hashes_match": true
+}
