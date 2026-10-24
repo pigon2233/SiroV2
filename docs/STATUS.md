@@ -14,9 +14,17 @@ T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–
 | CP-P06 | DONE（owner 接受已知限制） | WSLg 隱形框、鎖屏／全螢幕／DPI 未實機驗 |
 | CP-O01 | PARTIAL | 只在 WSL2 抽樣，短連線看不到 |
 | CP-I01 | ACCEPTED_BY_OWNER（2026-10-24） | owner 實機試用，無逐步勾選紀錄，無 Codex 視覺證據 |
-| CP-I02 | PARTIAL | 隔離演練通過；未驗舊程式讀 schema 18，非正式部署回退 |
+| CP-I02 | PARTIAL | 隔離演練 v2 通過：舊程式能開 schema 18，但回退必須用舊版 restore 還原部署前備份；真 healthcheck 與停止已驗，進行中 run 的 drain 未驗；非正式部署回退 |
 
 驗證來源請分開看：「本機直接驗證」（該紀錄寫明命令與結果）、「owner 回報」（實機試用或口頭）、「遠端 CI」（本專案不 push，目前沒有）、「尚未重驗」（沿用舊數字，例如各紀錄的回歸統計；最新回歸 3120 PASS／15 FAIL 是 I01 串回報，未由整理者重跑）。
+
+# Companion T10-UI-01 設定用語切片 — 2026-10-24，PARTIAL
+
+`653f0a7`：桌寵 GPU 選項、權限頁、系統頁、設定頁備註四處內部術語（WSL／WebKit 沙盒、控制路徑、完整權限模式、診斷資料、動作包）改為白話，只改 `index.html` 文字；新增 `test_settings_pages_avoid_internal_jargon`。任務詳情早已完成（`#/tasks/<UUID>`）。命令與結果：accessibility／reflow／navigation／keyboard_skip／control／task_detail 63 PASS，Ruff check／format PASS。限制：T10-UI-01 整體仍 PARTIAL；真人三輪流程、讀屏、WSLg 桌寵實機未驗；本機 commit，未 push。
+
+# Companion T15 首音延遲 — 2026-10-24，未量測
+
+沒有數字：`8a4e07f` 加的 `speech synthesized` 計時 log 目前沒有任何輸出（`SIRO_LOG_DIR` 未設，`companion-service.log` 只有模型未設定訊息）；沒有 faster-qwen3-tts 路徑的既有量測；`nvidia-smi` 顯示 GPU 使用率 41%、已用約 3.9／8 GB，依指示不啟動新 GPU 負載。文件裡唯一目標是 FIX-005 的「首段 ≤1 秒」（沒有 p95 數值 SLO）；舊 SDPA 路徑實測首段 7.8～10.1 秒、warm RTF 約 1.75，未達標。注意該 log 記的是整段合成時間，不是首個音訊 chunk，要量首音需另加計時並在 GPU 空閒時跑。
 
 # Companion CP-I01：整體體驗驗收 — 2026-10-24，ACCEPTED_BY_OWNER
 
@@ -30,7 +38,7 @@ owner 2026-10-24 實機試用後表示體感沒有問題，要求視為全部完
 
 命令與結果：release／backup 相關 8 個測試檔 223 PASS；`drill.py` 全步驟通過。本機 commit，未 push。
 
-限制：只有 source／套件層，不是正式部署回退。舊版 `974cdd7` 只認 15 個 migration、演練 DB 為 18，未證明舊程式能讀 schema 18（回退點須先確認 016～018 相容或還原備份）；healthcheck 為 `python -c pass`，未驗 drain／服務停止、Windows／WSLg／跨機；本演練未部署、未動另一台。更正：I01 串回報新版已部署重啟（DB 15→18，非本演練執行、未經此回退演練驗證），47 個舊失敗已修，最新回歸 3120 過／15 個失敗（此為該串回報，我未重跑）；因此「舊程式讀 schema 18」更是真實回退的前置風險。P05 仍 PARTIAL、I01 owner 試用未完成，故 I02 不標 DONE。下一步：I01 完成後在真服務上重演，並釐清 schema 18 回退點。
+限制：只有 source／套件層，不是正式部署回退。（以下為 v1 當時的限制，已由下方 v2 補記取代：v2 證明舊程式能讀 schema 18、healthcheck 改為真 gateway、已驗停止；仍未驗進行中 run 的 drain、Windows／WSLg／跨機。）舊版 `974cdd7` 只認 15 個 migration、演練 DB 為 18；healthcheck 為 `python -c pass`；本演練未部署、未動另一台。更正：I01 串回報新版已部署重啟（DB 15→18，非本演練執行、未經此回退演練驗證），47 個舊失敗已修，最新回歸 3120 過／15 個失敗（此為該串回報，我未重跑）；因此「舊程式讀 schema 18」更是真實回退的前置風險。P05 仍 PARTIAL、I01 owner 試用未完成，故 I02 不標 DONE。下一步：I01 完成後在真服務上重演，並釐清 schema 18 回退點。
 
 **CP-I02 隔離演練 v2 補記（2026-10-24，PARTIAL）**：以 `974cdd7` 舊版與 `811c62f` 新版在臨時目錄／備用埠演練。舊程式能開 schema 18 資料庫且 gateway 健康，但舊版 manifest（max_schema 15）使 `ReleaseManager.rollback()` 回 `incompatible_schema`；回退必須用**舊版程式**的 restore 還原部署前備份（新版程式的 restore 會再 migrate 回 18），部署後新寫的資料會消失。真實 gateway healthcheck（`/health/ready`）取代 `python -c pass`；SIGTERM 後 websocket 收到 1012、記錄 `Application shutdown complete`、同資料目錄的第二個 gateway 被拒、結束碼 -15（uvicorn 正常行為）。回退→重新套用資料 hash 全程相同。未驗：進行中 run 的 drain、Windows 行程停止、跨機、正式部署。見 [CP-I02-RELEASE-PREP](companion-workflow/CP-I02-RELEASE-PREP.md)、`evidence/CP-I02-2026-10-23/`。上一段「舊程式讀 schema 18 未證明」已由此演練回答（可讀，但 release rollback 被 manifest 擋）。
 
