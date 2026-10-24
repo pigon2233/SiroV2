@@ -10,7 +10,7 @@ T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–
 | CP-V01–V05 | DONE | V01–V03 為 Live2D 版，已被 VRM 取代 |
 | CP-00 | PARTIAL（2026-10-18 接收紀錄） | Codex 當時未回覆 |
 | CP-P00、CP-P01 | 沒有收尾紀錄 | 只有零散修復紀錄，須另補驗證或標明 |
-| CP-P02、P03、P04、P05 | STATUS 最後紀錄為 PARTIAL | 各條限制見下方各自段落；紀錄日期 2026-10-19～23 |
+| CP-P02、P03、P04、P05 | 各自段落標題仍為 PARTIAL | P03／P04 的限制已在各段「更新」補記為已解決（2026-10-24）；P02／P05 限制見各段 |
 | CP-P06 | DONE（owner 接受已知限制） | WSLg 隱形框、鎖屏／全螢幕／DPI 未實機驗 |
 | CP-O01 | PARTIAL | 只在 WSL2 抽樣，短連線看不到 |
 | CP-I01 | ACCEPTED_BY_OWNER（2026-10-24） | owner 實機試用，無逐步勾選紀錄，無 Codex 視覺證據 |
@@ -31,6 +31,8 @@ owner 2026-10-24 實機試用後表示體感沒有問題，要求視為全部完
 命令與結果：release／backup 相關 8 個測試檔 223 PASS；`drill.py` 全步驟通過。本機 commit，未 push。
 
 限制：只有 source／套件層，不是正式部署回退。舊版 `974cdd7` 只認 15 個 migration、演練 DB 為 18，未證明舊程式能讀 schema 18（回退點須先確認 016～018 相容或還原備份）；healthcheck 為 `python -c pass`，未驗 drain／服務停止、Windows／WSLg／跨機；本演練未部署、未動另一台。更正：I01 串回報新版已部署重啟（DB 15→18，非本演練執行、未經此回退演練驗證），47 個舊失敗已修，最新回歸 3120 過／15 個失敗（此為該串回報，我未重跑）；因此「舊程式讀 schema 18」更是真實回退的前置風險。P05 仍 PARTIAL、I01 owner 試用未完成，故 I02 不標 DONE。下一步：I01 完成後在真服務上重演，並釐清 schema 18 回退點。
+
+**CP-I02 隔離演練 v2 補記（2026-10-24，PARTIAL）**：以 `974cdd7` 舊版與 `811c62f` 新版在臨時目錄／備用埠演練。舊程式能開 schema 18 資料庫且 gateway 健康，但舊版 manifest（max_schema 15）使 `ReleaseManager.rollback()` 回 `incompatible_schema`；回退必須用**舊版程式**的 restore 還原部署前備份（新版程式的 restore 會再 migrate 回 18），部署後新寫的資料會消失。真實 gateway healthcheck（`/health/ready`）取代 `python -c pass`；SIGTERM 後 websocket 收到 1012、記錄 `Application shutdown complete`、同資料目錄的第二個 gateway 被拒、結束碼 -15（uvicorn 正常行為）。回退→重新套用資料 hash 全程相同。未驗：進行中 run 的 drain、Windows 行程停止、跨機、正式部署。見 [CP-I02-RELEASE-PREP](companion-workflow/CP-I02-RELEASE-PREP.md)、`evidence/CP-I02-2026-10-23/`。上一段「舊程式讀 schema 18 未證明」已由此演練回答（可讀，但 release rollback 被 manifest 擋）。
 
 # Companion CP-P05：有 scope 的工作情境 — 2026-10-23，PARTIAL
 
@@ -67,6 +69,8 @@ Owner 決定：可讀任何網頁；興趣清單由她自己找。本機 commit�
 
 限制：qwen3:4b 挑題目、叫工具與換站的能力未在真環境驗；背景推論與前景共用 GPU；暫停狀態與「已告訴主人」清單（`self-notes-shared.json`）不在 DB，暫停重開會重置；筆記不進記憶服務；分享不寫入對話歷史，她之後不記得說過。下一步：owner 重開後閒置觀察真紀錄，再決定 P05 或調整排程參數。
 
+**更新（2026-10-24，由盤點串回報，commit 為證）**：下列限制已補：`7d136b2` 長網頁文字截斷（原本 Ollama ctx 超出回 500）；自動分享筆記、筆記進記憶、暫停狀態持久化已完成；分享的筆記不寫入對話歷史為 owner 決定不做。上方「限制」中這些項目不再成立。
+
 # Companion CP-P03：活動監測頁、停止與桌寵氣泡 — 2026-10-21，PARTIAL
 
 依 V05 規格實作，三個本機 commit（未 push）：`02707ce` 新增 `POST /v1/activities/{id}/stop`，停正在跑的 run（取消工具、語音、動畫並關瀏覽器分頁）或擋下待確認的單獨提案；已結束 409、找不到 404、這個程序沒有 owner 的 run 409 not_owned。run id 本身就是 generation，所以不另帶 revision。`1364847` 主畫面新增「活動」頁（`#/activity`）：快照＋每 3 秒 cursor 增量，只在頁面打開且已連線時讀；gap 重讀快照；斷線保留舊資料並停用停止；401／紀錄不可用只顯示橫幅；沒用工具的已完成回覆只計數不列出。`d47ecb3` 桌寵頭上一行氣泡，讀同一份紀錄；只有 journal 有 running 工具才寫「正在…」，聊天開、說話中、打字中不出；「看看」用 `desktop.console` 的 `page: "activity"` 打開控制台活動頁。
@@ -74,6 +78,8 @@ Owner 決定：可讀任何網頁；興趣清單由她自己找。本機 commit�
 命令與結果：`test_activity_monitor.py` 14 PASS（新 3）；前端＋桌寵＋活動相關 441 PASS（新增活動頁 reflow／導航與 2 個氣泡測試）；Ruff check／format PASS；mypy 只剩 gateway 既有的 create_task 型別錯誤。合成資料截圖：桌面、320 px、200% 縮放皆無橫向捲動。2026-10-21 owner 重開服務後，以 curl 確認線上停止 API 回 `not_found`、`index.html` 與 `desktop.js` 已是新版；真資料與氣泡位置尚待 owner 看過。
 
 限制：「暫停 SIRO 自己找事做」「停止所有背景工作」沒做，目前沒有背景 producer，等 P04；夜間／專心模式只顯示重要氣泡等 P05；停止一件事時 body cancel 是 `active`，同時有兩個前景 session 時也會停到另一個的動畫語音；氣泡固定在角色區頂端 8px，可能蓋到頭。下一步：owner 試用確認後，CP-P04。
+
+**更新（2026-10-24，由盤點串回報）**：夜間／專心模式氣泡只顯示需要 owner 的內容已做（`811c62f`，quiet 旗標）；氣泡蓋到頭、停止一件事會停到另一個 session 動畫語音，已由 `003723c` 修正。上方「限制」中這三項不再成立；仍無 owner 在真桌面上對氣泡位置的逐項確認紀錄。
 
 # Companion CP-00：Claude runtime 接收 — 2026-10-18
 

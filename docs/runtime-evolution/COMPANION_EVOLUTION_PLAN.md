@@ -1,5 +1,7 @@
 # SIRO 桌寵、主動陪伴與安全技能成長規劃
 
+> **歷史快照（2026-10-24 標註）**：規劃文件（PLANNING_ONLY）。後續落實的工作與驗收見 `docs/companion-workflow/TASKS.md` 與 `docs/STATUS.md`。
+
 ## 2026-10-15 更新：介面重設計加入未完成
 
 續作結果：T10-UI-01已完成首個網頁切片的局部驗收（九個獨立工作畫面、333前端PASS、三次真main／Rust／SQLite與24 CUA檢查），**整體PARTIAL**。[實際證據](../evidence/T10-UI-01-2026-10-15/REPORT.md)。下列「本輪只有研究」是前一輪規劃快照，不能再當網頁尚未實作；真Live2D切頁、桌面宿主、全身與動作仍保持未完成。

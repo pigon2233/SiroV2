@@ -1,5 +1,7 @@
 # Regression baseline
 
+> **歷史快照（2026-10-24 標註）**：各段為當時執行的基線，數字不隨後續改動更新；最新回歸統計見 `docs/STATUS.md` 並注意其驗證來源。
+
 ## 2026-10-18 — T10-UI-01-INTEGRATION baseline
 
 新test_frontend_accessibility.py（真Chrome：九頁＋detail文字／輸入框外框／placeholder對比；1280與320整圈Tab可見焦點、不在隱藏頁、不被完全遮、iframe不在Tab順序）2 PASS；test_frontend_state_feedback.py（開關處理中／確認後reload／失敗不reload且單次PUT；記憶更正刪除錯誤顯示於記憶頁且單次請求；取消對話框不送出；重啟後只換被拒token）8 PASS。修改前8 FAIL、2例守原行為。相關frontend／gateway／main／goal／memory-search 525 PASS、desktop 69 PASS，無新skip／xfail。

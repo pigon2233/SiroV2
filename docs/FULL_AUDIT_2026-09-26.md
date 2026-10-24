@@ -1,5 +1,7 @@
 # SIRO 2 全面稽核（2026-09-26）
 
+> **歷史快照（2026-10-24 標註）**：2026-09-26 的稽核快照。其後狀態以 `STATUS.md` 頂部「狀態總覽」為準；T10 之後的整合稽核見 `runtime-evolution/`。
+
 ## 稽核範圍
 
 本次從 `AGENTS.md`、README、TASKS、ACCEPTANCE、STATUS 逐項核對到實作、測試、證據目錄、Git 狀態與

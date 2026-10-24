@@ -1,5 +1,7 @@
 # SIRO 介面重設計與角色存在形式
 
+> **歷史快照（2026-10-24 標註）**：規劃文件。落實與驗收見 `docs/STATUS.md`（T10-UI-01）與 `docs/companion-workflow/TASKS.md`；歷史「現況補充」段落是當時狀態。
+
 2026-10-18現況補充：D74／T10-UI-01-INTEGRATION自動可驗範圍LOCAL_VERIFIED：對比、鍵盤／焦點、錯誤／等待／取消、三條日常流程、真Live2D換頁不重載與重啟重連，真main整合9/9。[證據](../evidence/T10-INTEGRATION-2026-10-18/REPORT.md)。真人／讀屏／WSLg／真聲音／跨機待[手動驗收](../evidence/T10-INTEGRATION-2026-10-18/MANUAL_TEST_GUIDE.md)，整體PARTIAL。
 
 2026-10-18現況補充：D73／T10-UI-01-REFLOW水平reflow限定切片LOCAL_VERIFIED；320／375／414／768與200%等效寬度九頁＋detail無溢出，修權限頁長開關按鈕被裁。[證據](../evidence/T10-REFLOW-2026-10-18/REPORT.md)。對比／讀屏／真人／平台gate保持。

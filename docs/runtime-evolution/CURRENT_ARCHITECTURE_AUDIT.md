@@ -1,5 +1,7 @@
 # SIRO V2 現況稽核
 
+> **歷史快照（2026-10-24 標註）**：依日期由新到舊累積的稽核紀錄；各段只代表當時狀態。目前總覽見 `docs/STATUS.md` 頂部，文件階段見 `DOCUMENT_STATUS.md`。
+
 ## 2026-10-12 — RI-005 D50 owner / FIX-014 限定切片 VERIFIED
 
 受管Gateway與CLI demo/backup/restore/有DBrelease在實際操作前取得同一canonical data owner，持有到startup/server drain/owned SQLite IO完成；備份來源、explicit目的地、ZIP固定.tmp共同有序去重（最多3keys）、一份IOjoin fence。真正foreignowner/alias與連續SIGINT反例先RED→局部修復；禁止output/tmp覆寫sourceDB/inputsettings/archive或tmp指向final，不改Core/SQLite/operations/release/權限/voice/UI/launcher/deps。沒有第二套registry/restore/lockmanager或globalstate。FIX-014 **DONE/VERIFIED**。
