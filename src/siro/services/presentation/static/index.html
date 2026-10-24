@@ -235,6 +235,26 @@
         .toolbar { padding:10px 20px; min-height:56px; } .live-status { padding:6px 20px; } .page-content { padding:18px 16px 32px; }
         .conversation { height:min(620px,calc(100dvh - 120px)); min-height:460px; padding:14px; } .empty-state { padding-top:28px; }
       }
+      /* Console redesign stage 1: shell tokens, grouped navigation, one status pill, a clear stop button, dark mode. */
+      :root { --page:#f5f6fb; --action:#4258d6; --focus:#4258d6; --tint:#eef1ff; --soft:#f7f8fc; --line:#e4e7f0; --user:#eef1ff; --radius:14px; }
+      .sidebar { background:var(--surface); }
+      .nav-group { padding:14px 13px 4px; font-size:11px; letter-spacing:.6px; color:var(--muted); }
+      .primary-nav a { font-size:14px; padding:8px 12px; border-radius:10px; }
+      .primary-nav a[aria-current="page"] { background:var(--tint); box-shadow:none; }
+      .nav-mark { background:transparent; }
+      .connection-pill { border-radius:999px; padding:5px 12px 5px 22px; position:relative; }
+      .connection-pill::before { content:""; position:absolute; left:10px; top:50%; width:8px; height:8px; margin-top:-4px; border-radius:50%; background:var(--muted); }
+      .connection-pill.ok::before { background:var(--success); } .connection-pill.warn::before { background:var(--warning); }
+      #cancel { background:#fff; border-color:#d9a2ac; color:#a22f43; font-weight:600; }
+      #cancel:hover { background:#a22f43; border-color:#a22f43; color:#fff; }
+      #chat button[type="submit"] { background:var(--action); border-color:var(--action); }
+      @media(prefers-color-scheme:dark) {
+        :root:not([data-theme="light"]) { color-scheme:dark; --page:#14161d; --surface:#1c1f29; --text:#e8eaf2; --muted:#a3a9bd; --action:#9db0ff; --focus:#9db0ff; --tint:#262b3d; --soft:#222634; --line:#2d3243; --field-line:#5a6180; --user:#262b3d; --assistant:#222634; --success:#5fcfa8; --warning:#f0a35c; --shadow:0 1px 2px rgba(0,0,0,.3); }
+        .sidebar { background:var(--surface); }
+        #cancel { background:var(--surface); border-color:#7d3a47; color:#ff9bab; } #cancel:hover { background:#ff9bab; color:#14161d; }
+        .user { border-color:#34395a; } .act-banner { background:#2b2118; border-color:#5a4126; } .act-banner[data-tone="info"] { background:var(--tint); border-color:#34395a; }
+        #chat button[type="submit"], #chat button { color:#14161d; }
+      }
     </style>
   </head>
   <body>
@@ -242,19 +262,18 @@
     <div class="app-shell">
       <aside class="sidebar" aria-label="主要導覽">
         <a class="brand" href="#/chat" data-nav="chat" aria-label="SIRO 對話"><span class="brand-mark" aria-hidden="true"></span>SIRO</a>
-        <p class="sidebar-note">一起生活，也一起把事情做好。</p>
         <nav class="primary-nav" aria-label="工作畫面">
+          <div class="nav-group" aria-hidden="true">工作</div>
           <a href="#/chat" data-nav="chat" aria-current="page"><span class="nav-mark" aria-hidden="true">◌</span>對話</a>
           <a href="#/tasks" data-nav="tasks"><span class="nav-mark" aria-hidden="true">☑</span>任務</a>
           <a href="#/activity" data-nav="activity"><span class="nav-mark" aria-hidden="true">◎</span>活動</a>
           <a href="#/memory" data-nav="memory"><span class="nav-mark" aria-hidden="true">◇</span>記憶</a>
           <a href="#/capabilities" data-nav="capabilities"><span class="nav-mark" aria-hidden="true">✧</span>能力</a>
-          <div class="nav-divider" aria-hidden="true"></div>
+          <div class="nav-group" aria-hidden="true">工具與管理</div>
           <a href="#/computer" data-nav="computer"><span class="nav-mark" aria-hidden="true">⌘</span>電腦</a>
           <a href="#/skills" data-nav="skills"><span class="nav-mark" aria-hidden="true">▧</span>技能</a>
           <a href="#/settings" data-nav="settings"><span class="nav-mark" aria-hidden="true">⚙</span>設定</a>
         </nav>
-        <div class="sidebar-footer">角色桌面活動與新動作<br>仍在製作規劃中。</div>
       </aside>
       <div class="workspace">
         <header class="toolbar">
