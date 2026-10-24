@@ -386,3 +386,13 @@ async def test_her_sourced_note_becomes_a_short_deletable_memory_without_page_te
     assert not await remember_note(service, {**note, "run_id": "run-2", "sources": []})
     assert await service.delete(memory.memory_id, reason="test")
     assert await service.browse("siro", limit=10) == []
+
+
+def test_long_page_text_is_trimmed_for_the_local_model() -> None:
+    from siro.services.agent.self_activity import MAX_PAGE_CHARS, _trimmed
+
+    long = {"text": "x" * (MAX_PAGE_CHARS + 50), "url": "u"}
+    trimmed = _trimmed(long)
+    assert isinstance(trimmed, dict)
+    assert len(trimmed["text"]) == MAX_PAGE_CHARS and trimmed["truncated"] is True
+    assert _trimmed({"text": "short"}) == {"text": "short"}

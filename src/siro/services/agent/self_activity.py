@@ -43,6 +43,8 @@ JUDGE_PROMPT = (
     "contradicted（網頁和說法矛盾）、not_found（網頁沒提到）。\n\n說法："  # noqa: RUF001
 )
 MAX_ROUNDS = 6
+# The local model has a small context; a long page must not push the prompt past it.
+MAX_PAGE_CHARS = 4000
 MAX_CALLS_PER_ROUND = 3
 SYSTEM_PROMPT = (
     "你是 SIRO，正在為自己的興趣讀資料，不是在回答主人。"  # noqa: RUF001
@@ -65,6 +67,14 @@ def claims_with_urls(answer: str) -> list[tuple[str, str]]:
         if claim:
             pairs.append((claim[:200], urls[0]))
     return pairs
+
+
+def _trimmed(observation: object) -> object:
+    if isinstance(observation, dict):
+        text = observation.get("text")
+        if isinstance(text, str) and len(text) > MAX_PAGE_CHARS:
+            return {**observation, "text": text[:MAX_PAGE_CHARS], "truncated": True}
+    return observation
 
 
 class SelfActivityOwner:
@@ -205,7 +215,7 @@ class SelfActivityOwner:
                     history.append(
                         ModelMessage(
                             "tool",
-                            json.dumps(observation, ensure_ascii=False),
+                            json.dumps(_trimmed(observation), ensure_ascii=False),
                             tool_call_id=call.call_id,
                         )
                     )
