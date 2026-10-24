@@ -142,3 +142,23 @@ def test_settings_pages_avoid_internal_jargon() -> None:
     html = INDEX.read_text(encoding="utf-8")
     for jargon in ("控制路徑", "WebKit 沙盒", "診斷資料與日常聊天", "動作包"):
         assert jargon not in html, jargon
+
+
+def test_prompt_chips_fill_the_message_box_without_sending() -> None:
+    executable = shutil.which("google-chrome") or shutil.which("chromium")
+    assert executable, "accessibility check needs a local Chrome/Chromium"
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(executable_path=executable, headless=True)
+        try:
+            page = browser.new_page(viewport={"width": 1280, "height": 900})
+            page.goto(INDEX.as_uri() + "#/chat")
+            page.evaluate(
+                "() => document.querySelectorAll('button,textarea')"
+                ".forEach(b => b.removeAttribute('disabled'))"
+            )
+            page.click(".prompt-chips button:last-child")
+            assert page.input_value("#text") == "你可以做什麼？"  # noqa: RUF001
+            assert page.evaluate("document.activeElement.id") == "text"
+            assert page.evaluate("document.querySelectorAll('#messages .message').length") == 0
+        finally:
+            browser.close()

@@ -190,6 +190,51 @@
         .act-coverage th, .act-coverage td { display:block; width:auto; border:0; padding:2px 0; }
         .act-coverage tr { display:block; border-top:1px solid var(--line); padding:8px 0; }
       }
+      /* Console refresh: calmer chrome, a compact toolbar, a chat card and a floating composer. */
+      :root { --radius:16px; --shadow:0 1px 2px rgba(31,45,70,.05),0 10px 28px rgba(31,45,70,.07); }
+      body { background:var(--page); }
+      .sidebar { background:linear-gradient(180deg,#ffffff 0%,#f5f8fc 100%); padding:22px 14px 16px; }
+      .brand { font-size:22px; letter-spacing:2px; }
+      .brand-mark { width:20px; height:26px; background:linear-gradient(160deg,#f0c4d4,#d99ab4); }
+      .sidebar-note { margin:6px 12px 22px; }
+      .primary-nav { gap:4px; }
+      .primary-nav a { padding:9px 12px; border-radius:12px; transition:background .15s,color .15s; }
+      .primary-nav a[aria-current="page"] { box-shadow:inset 3px 0 0 var(--action); }
+      .nav-mark { width:26px; height:26px; border-radius:8px; background:var(--soft); display:inline-grid; place-items:center; font-size:14px; }
+      .primary-nav a[aria-current="page"] .nav-mark { background:var(--surface); }
+      .toolbar { min-height:60px; padding:10px 28px; box-shadow:0 1px 0 var(--line); }
+      #page-title { font-size:16px; font-weight:650; }
+      .toolbar-actions button { padding:6px 13px; font-size:13px; border-radius:999px; }
+      #cancel { border-color:#e3c3ad; background:#fff8f3; }
+      .live-status { padding:6px 28px; background:var(--surface); }
+      .page-content { padding:24px 28px 40px; }
+      h1 { font-size:26px; }
+      button, .button-link { transition:background .15s,border-color .15s,box-shadow .15s; }
+      button:hover, .button-link:hover { box-shadow:0 2px 8px rgba(31,45,70,.1); }
+      .content-section, details, .destination-list { border-radius:var(--radius); box-shadow:var(--shadow); }
+      details .content-section { box-shadow:none; }
+      [data-page="chat"] .page-heading { margin-bottom:16px; }
+      [data-page="chat"] .page-heading h1 { font-size:22px; margin-bottom:2px; }
+      .stage { border-radius:20px; box-shadow:var(--shadow); }
+      .conversation { background:var(--surface); border:1px solid var(--line); border-radius:20px; box-shadow:var(--shadow); padding:16px 20px 14px; height:min(680px,calc(100dvh - 190px)); min-height:520px; }
+      .conversation-heading { padding:0 0 12px; }
+      #messages { padding:18px 2px 10px; scroll-behavior:smooth; }
+      .message { border-radius:16px; }
+      .user { background:var(--tint); border:1px solid #d3deee; margin-left:12%; }
+      .assistant { background:var(--soft); border:1px solid var(--line); margin-right:6%; }
+      .empty-state { padding:56px 8px 20px; text-align:center; }
+      .empty-state strong { display:block; font-size:28px; font-weight:600; color:var(--text); }
+      .prompt-chips { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:18px; }
+      .prompt-chips button { border-radius:999px; background:var(--soft); font-size:13px; padding:7px 14px; }
+      #chat { border-radius:18px; padding:10px 10px 10px 14px; box-shadow:var(--shadow); transition:border-color .15s,box-shadow .15s; }
+      #chat:focus-within { border-color:var(--action); box-shadow:0 0 0 3px rgba(54,93,141,.18); }
+      #text { min-height:56px; }
+      #chat button { border-radius:999px; padding:9px 20px; }
+      .conversation-actions { padding-top:10px; }
+      @media(max-width:900px) {
+        .toolbar { padding:10px 20px; min-height:56px; } .live-status { padding:6px 20px; } .page-content { padding:18px 16px 32px; }
+        .conversation { height:min(620px,calc(100dvh - 120px)); min-height:460px; padding:14px; } .empty-state { padding-top:28px; }
+      }
     </style>
   </head>
   <body>
@@ -237,7 +282,7 @@
               </section>
               <section class="conversation" aria-label="對話內容與輸入">
                 <div class="conversation-heading"><h2>我們的對話</h2><span id="model-status">確認對話連線中</span></div>
-                <div id="messages" aria-live="polite"><div class="empty-state"><strong>嗨，我在這裡。</strong><p>從一句「你好」開始。<br>想讓我留下的事，可以說「記住：…」。</p></div></div>
+                <div id="messages" aria-live="polite"><div class="empty-state"><strong>嗨，我在這裡。</strong><p>從一句「你好」開始。<br>想讓我留下的事，可以說「記住：…」。</p><div class="prompt-chips"><button type="button" data-prompt="你好，今天過得怎麼樣？">打個招呼</button><button type="button" data-prompt="記住：">請你記住一件事</button><button type="button" data-prompt="你可以做什麼？">你可以做什麼？</button></div></div></div>
                 <form id="chat"><textarea id="text" required maxlength="32768" placeholder="想和 SIRO 說什麼？" aria-label="對話內容"></textarea><button type="submit">送出</button></form>
                 <div class="conversation-actions"><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
               </section>
@@ -2415,6 +2460,7 @@
         document.querySelector("#companion-state").textContent = labels[event.data.emotion] || "陪著你";
         document.querySelector("#renderer-status").textContent = `${event.data.renderer === "VRM" ? "VRM" : "Live2D"} 已就緒 · 情緒與對話同步`;
       });
+      document.querySelectorAll(".prompt-chips button").forEach(button => button.onclick = () => { const field = document.querySelector("#text"); field.value = button.dataset.prompt; field.focus(); });
       document.querySelectorAll(".computer-prompt").forEach(button => button.onclick = () => { if (navigationInitialized) navigateToPage("chat", false); document.querySelector("#text").value = button.dataset.prompt; document.querySelector("#text").focus(); document.querySelector("#chat").scrollIntoView({behavior:"smooth",block:"center"}); });
       let chatInputComposing = false;
       const chatInput = document.querySelector("#text");
