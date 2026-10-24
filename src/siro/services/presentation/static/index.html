@@ -265,6 +265,21 @@
       #tool-proposals .proposal > button { background:var(--action); border-color:var(--action); color:#fff; border-radius:999px; }
       .conversation-actions button { border-radius:999px; }
       @media(prefers-color-scheme:dark) { :root:not([data-theme="light"]) #tool-proposals .proposal:has(> button) { background:#2b2118; border-color:#5a4126; } :root:not([data-theme="light"]) #tool-proposals .proposal > button { color:#14161d; } }
+      /* Stage 3: a status panel beside wide conversations, and switch buttons that show on/off at a glance. */
+      .context-panel { display:none; }
+      .ctx-list { list-style:none; margin:0 0 10px; padding:0; }
+      .ctx-list li, #switches button { display:flex; align-items:center; gap:8px; }
+      .ctx-list li { padding:5px 0; font-size:13px; color:var(--muted); }
+      .ctx-list li::before, #switches button::before { content:""; flex:none; width:26px; height:15px; border-radius:99px; background:var(--field-line); box-shadow:inset 0 0 0 2px var(--field-line); }
+      .ctx-list li.sw-on::before, #switches button.sw-on::before { background:linear-gradient(90deg,var(--success) 0 100%); box-shadow:inset -9px 0 0 -2px var(--surface), inset 0 0 0 2px var(--success); }
+      .context-panel h2 { font-size:12px; letter-spacing:.5px; color:var(--muted); margin:0 0 8px; }
+      .context-panel section { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-bottom:12px; font-size:13px; }
+      .context-panel p { margin:0 0 6px; font-size:13px; }
+      @media(min-width:1360px) {
+        .companion-layout { grid-template-columns:minmax(240px,.8fr) minmax(0,1.35fr) 250px; }
+        body.siro-control .companion-layout { grid-template-columns:minmax(0,1fr) 250px; }
+        .context-panel { display:block; }
+      }
     </style>
   </head>
   <body>
@@ -316,6 +331,11 @@
                 <button id="voice" type="button">開始說話</button>
                 <button id="voice-auto" type="button" aria-pressed="false" title="偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音">免手動：關</button><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div>
               </section>
+              <aside class="context-panel" aria-label="目前狀態">
+                <section><h2>操作模式</h2><p id="ctx-mode">確認中…</p></section>
+                <section><h2>功能開關</h2><ul id="ctx-switches" class="ctx-list"></ul><a href="#/permissions" data-nav="permissions">調整權限與開關</a></section>
+                <section><h2>查看紀錄</h2><p><a href="#/activity" data-nav="activity">活動紀錄</a>　<a href="#/memory" data-nav="memory">共同記憶</a></p></section>
+              </aside>
             </div>
           </section>
           <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
@@ -1684,10 +1704,17 @@
           try { if (!handsFree.on && !pageClosing) startHandsFree(); } catch { /* not ready: the owner can press it */ }
         }
         const switchLabels = {cloud:"雲端功能", tools:"電腦與工具操作", microphone:"麥克風輸入"};
+        document.querySelector("#ctx-mode").textContent = authorizationMode === "full" ? "完整權限：一般操作自動授權" : "安全模式：操作逐次授權";
+        const ctxList = document.querySelector("#ctx-switches"); ctxList.textContent = "";
+        Object.entries(data.kill_switches).forEach(([name, enabled]) => {
+          const row = document.createElement("li"); row.className = enabled ? "sw-on" : "sw-off";
+          row.textContent = `${Object.hasOwn(switchLabels, name) ? switchLabels[name] : name}：${enabled ? "已開啟" : "已關閉"}`;
+          ctxList.appendChild(row);
+        });
         const switchButtons = [];
         Object.entries(data.kill_switches).forEach(([name, enabled]) => {
           const label = Object.hasOwn(switchLabels, name) ? switchLabels[name] : name;
-          const button = document.createElement("button"); button.textContent = `${label}：${enabled ? "已開啟" : "已關閉"}`;
+          const button = document.createElement("button"); button.textContent = `${label}：${enabled ? "已開啟" : "已關閉"}`; button.className = enabled ? "sw-on" : "sw-off";
           button.title = `按一下${enabled ? "關閉" : "開啟"}${label}`;
           button.onclick = async () => {
             const status = document.querySelector("#switch-status");
