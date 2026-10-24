@@ -294,20 +294,20 @@
             <div class="destination-list"><a href="#/permissions" data-nav="permissions"><span><strong>權限與停止開關</strong><small>查看目前模式，控制工具與資料外送</small></span><span aria-hidden="true">›</span></a><a href="#/system" data-nav="system"><span><strong>系統與診斷</strong><small>長對話續作、內在狀態與連線紀錄</small></span><span aria-hidden="true">›</span></a><a href="#/chat" data-nav="chat"><span><strong>回到對話</strong><small>語音播放與全文重聽</small></span><span aria-hidden="true">›</span></a></div>
             <details class="content-section" id="desktop-details"><summary>桌寵設定</summary>
               <form id="desktop-settings" autocomplete="off">
-                <p><label><input type="checkbox" id="desktop-gpu"> 使用 GPU 繪製（WSL；會關閉 WebKit 沙盒，只載入本機頁面）</label></p>
+                <p><label><input type="checkbox" id="desktop-gpu"> 使用 GPU 繪製（比較順，但要放寬桌寵視窗的一項安全限制；只載入本機頁面）</label></p>
                 <p><label><input type="checkbox" id="desktop-position-on"> 指定每次開啟的位置</label>
                   <label>X <input type="number" id="desktop-x" min="-20000" max="20000" step="1" value="0" style="width:6em"></label>
                   <label>Y <input type="number" id="desktop-y" min="-20000" max="20000" step="1" value="0" style="width:6em"></label></p>
                 <p><button type="submit">儲存</button> <span id="desktop-settings-status" role="status" aria-live="polite">下次啟動桌寵時生效。</span></p>
               </form></details>
-            <p class="section-note" style="margin-top:22px">桌面自由活動、新角色與動作包尚未完成。此版本沿用目前角色，不提供未驗證的角色切換。</p>
+            <p class="section-note" style="margin-top:22px">桌寵自己到處走動、更換角色和新動作都還沒完成；目前只能使用現在這個角色。</p>
           </section>
           <section class="page-view reading-width" data-page="permissions" hidden inert aria-labelledby="permissions-heading">
-            <div class="page-heading"><h1 id="permissions-heading" data-page-heading tabindex="-1">權限與停止開關</h1><p>開關直接作用於現有控制路徑，不需要模型同意。完整權限模式的操作仍受實際帳戶與工具範圍限制。</p></div>
+            <div class="page-heading"><h1 id="permissions-heading" data-page-heading tabindex="-1">權限與停止開關</h1><p>按下開關立即生效，不需要再問 SIRO。即使功能開著，她能做的事仍受你電腦帳號的權限限制。</p></div>
             <section class="content-section"><h2>操作模式</h2><p id="permissions-authorization-status">正在確認目前模式…</p><h2>功能開關</h2><p>「已開啟」表示允許使用這項功能；按下開關可開啟或關閉。開啟功能不會取得額外的操作權限。</p><div id="switches"></div><p id="switch-status" role="status" aria-live="polite"></p></section><a href="#/settings" data-nav="settings">返回設定</a>
           </section>
           <section class="page-view reading-width" data-page="system" hidden inert aria-labelledby="system-heading">
-            <div class="page-heading"><h1 id="system-heading" data-page-heading tabindex="-1">系統與診斷</h1><p>這些是目前服務的實際狀態。診斷資料與日常聊天分開，不代表缺少的產品能力已完成。</p></div>
+            <div class="page-heading"><h1 id="system-heading" data-page-heading tabindex="-1">系統與診斷</h1><p>這是目前服務的實際狀態，排查問題時才需要看；這裡沒出現的功能不代表已經做好。</p></div>
             <section class="content-section"><h2>長對話續作</h2><p id="summary-status">讀取狀態中…</p><p class="section-note">較舊的長回覆採摘錄摘要，省略處會標示；目標、授權與尚未完成的工具結果保留。摘要不是永久記憶。</p></section>
             <details><summary>內在狀態</summary><p id="affect-summary">尚無事件評估</p><div id="affect-grid"></div></details><details><summary>連線資訊</summary><pre id="snapshot"></pre></details><details><summary>事件紀錄</summary><pre id="events"></pre></details><div class="quick-actions"><a class="button-link" href="/audio-field-test">音訊驗收工具</a><a class="button-link" href="#/settings" data-nav="settings">返回設定</a></div>
           </section>

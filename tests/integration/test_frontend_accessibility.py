@@ -136,3 +136,9 @@ def test_tab_order_has_visible_uncovered_focus_and_skips_decorative_renderer() -
                 assert "skip-to-content" in seen, (width, name, seen[:3])
                 assert len(seen) == len(set(seen)), (width, name, "focus cycle repeated early")
     assert failures == [], "\n".join(failures)
+
+
+def test_settings_pages_avoid_internal_jargon() -> None:
+    html = INDEX.read_text(encoding="utf-8")
+    for jargon in ("控制路徑", "WebKit 沙盒", "診斷資料與日常聊天", "動作包"):
+        assert jargon not in html, jargon
