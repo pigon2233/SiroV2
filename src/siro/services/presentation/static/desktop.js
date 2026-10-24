@@ -218,7 +218,9 @@
       if (proposed) return {icon: "◔", text: `等你允許：${toolName(proposed.tools[0])}`, action: "查看", run: () => setChat(true)};
       if (live.some(item => item.state === "cancelling" || view.stopping?.has(item.activity_id))) return {icon: "◌", text: "停止中…", tone: "warn"};
       // Her motions are only a show: "正在" needs a tool the journal records as running.
-      const working = live.find(item => item.tools.some(tool => tool.state === "running"));
+      // Focus or night mode: only things that need the owner or went wrong, not what she is doing.
+      const calm = Boolean(view.selfActivity?.quiet);
+      const working = calm ? undefined : live.find(item => item.tools.some(tool => tool.state === "running"));
       if (working) {
         const tool = working.tools.find(item => item.state === "running");
         if (working.origin === "self_interest") {
@@ -227,10 +229,11 @@
         }
         return {icon: "●", text: `${tool.capability.startsWith("browser.") ? "正在查" : "正在執行"}：${subject(working)}`};
       }
-      const note = view.selfActivity?.unshared?.[0];
+      const note = calm ? undefined : view.selfActivity?.unshared?.[0];
       if (note) return {icon: "✓", text: "查好了，要聽嗎？", action: "聽", run: () => window.siroShareNote?.(note), note};
       if (flash && Date.now() < flash.until) {
         const {item} = flash;
+        if (calm && item.state === "completed") return null;
         if (item.state === "completed") return {icon: "✓", text: `做好了：${subject(item)}`, action: "看看", run: openActivity};
         if (item.state === "unknown") return {icon: "?", text: `結果沒確認：${subject(item)}`, action: "看看", run: openActivity, tone: "warn"};
         return {icon: "✕", text: `沒做成：${subject(item)}`, action: "看看", run: openActivity, tone: "bad"};

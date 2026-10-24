@@ -612,3 +612,23 @@ assert.deepEqual(seen,['n1']); assert.equal(bubble.hidden,true); assert.equal(st
 """,  # noqa: RUF001
         before=BUBBLE_FEED,
     )
+
+
+def test_bubble_in_focus_mode_hides_what_she_is_doing_but_keeps_what_needs_the_owner() -> None:
+    run_desktop(
+        """
+const bubble=document.querySelector('#desktop-bubble');
+const running=view([act('a','running',[tool('browser.navigate+read','running')])]);
+running.selfActivity={paused:false,quiet:true,unshared:['n1']};
+feed(running);
+assert.equal(bubble.hidden,true);
+const proposed=view([act('b','proposed',[tool('computer.execute','proposed',{program:'git'})])]);
+proposed.selfActivity={paused:false,quiet:true};
+feed(proposed);
+assert.equal(bubble.hidden,false); assert.equal(bubble.children[1].textContent,'等你允許：執行 git');
+running.selfActivity={paused:false};
+feed(running);
+assert.equal(bubble.children[1].textContent,'正在查：查今晚的星雲');
+""",  # noqa: E501, RUF001
+        before=BUBBLE_FEED,
+    )

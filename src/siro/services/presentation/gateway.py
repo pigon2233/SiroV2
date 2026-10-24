@@ -1446,6 +1446,8 @@ def create_app(
         if self_activity is None or result.get("status") != "ok":
             return dict(result)
         own: dict[str, object] = {"paused": self_activity.paused}
+        if work_context is not None and not work_context.may_interrupt():
+            own["quiet"] = True
         if self_notes is not None:
             own["unshared"] = await self_notes.unshared()
         return {**result, "self_activity": own}

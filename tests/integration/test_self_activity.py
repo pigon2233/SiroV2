@@ -396,3 +396,31 @@ def test_long_page_text_is_trimmed_for_the_local_model() -> None:
     assert isinstance(trimmed, dict)
     assert len(trimmed["text"]) == MAX_PAGE_CHARS and trimmed["truncated"] is True
     assert _trimmed({"text": "short"}) == {"text": "short"}
+
+
+def test_activity_feed_says_quiet_only_while_the_owner_is_focused() -> None:
+    origin = "http://127.0.0.1:8000"
+    focused = [True]
+
+    class FakeOwner:
+        paused = False
+
+    class FakeContext:
+        def may_interrupt(self) -> bool:
+            return not focused[0]
+
+    async def snapshot(limit: int) -> dict[str, object]:
+        return {"status": "ok", "activities": []}
+
+    app = create_app(
+        allowed_origins={origin},
+        on_activity_snapshot=snapshot,
+        self_activity=FakeOwner(),  # type: ignore[arg-type]
+        work_context=FakeContext(),  # type: ignore[arg-type]
+    )
+    with TestClient(app) as client:
+        token = client.post("/v1/session", headers={"origin": origin}).json()["token"]
+        auth = {"authorization": f"Bearer {token}"}
+        assert client.get("/v1/activities", headers=auth).json()["self_activity"]["quiet"] is True
+        focused[0] = False
+        assert "quiet" not in client.get("/v1/activities", headers=auth).json()["self_activity"]
