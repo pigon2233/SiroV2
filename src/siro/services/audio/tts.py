@@ -7,6 +7,7 @@ import base64
 import contextlib
 import io
 import json
+import logging
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -316,6 +317,11 @@ class QwenReferenceTTS:
         ):
             raise RuntimeError("Qwen TTS worker failed to initialize")
         self._completion_protocol = 2 if protocol == 2 else 0
+        logging.getLogger(__name__).info(
+            "qwen tts worker ready backend=%s device=%s",
+            response.get("backend"),
+            response.get("device"),
+        )
 
     def _decode_audio(self, response: dict[str, object]) -> bytes:
         if "error" in response:

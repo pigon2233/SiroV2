@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from functools import partial
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -1004,7 +1004,14 @@ def create_app(
         require_origin(request.headers.get("origin"))
         require_token(authorization)
         try:
-            return plan_speech(body.text)
+            plan = plan_speech(body.text)
+            logging.getLogger(__name__).info(
+                "speech planned chars=%d spoken=%d segments=%d",
+                len(body.text),
+                len(str(plan["spoken_text"])),
+                len(cast(list[str], plan["segments"])),
+            )
+            return plan
         except OverflowError as error:
             raise HTTPException(status_code=413, detail=str(error)) from error
         except ValueError as error:
@@ -1045,6 +1052,7 @@ def create_app(
             raise HTTPException(status_code=403, detail="cloud speech is disabled")
         if text_to_speech is None:
             raise HTTPException(status_code=503, detail="speech synthesis is unavailable")
+        started = time.monotonic()
         try:
             if isinstance(text_to_speech, QwenReferenceTTS) and text_to_speech.lifecycle_enabled:
                 audio = await render_owned_speech(body, request)
@@ -1052,6 +1060,13 @@ def create_app(
                 audio = await text_to_speech.render(
                     body.text, rate=body.rate, pitch=body.pitch, energy=body.energy
                 )
+            logging.getLogger(__name__).info(
+                "speech synthesized route=%s chars=%d bytes=%d seconds=%.2f",
+                gateway_state.routes.get("tts"),
+                len(body.text),
+                len(audio),
+                time.monotonic() - started,
+            )
         except Exception as error:
             logging.getLogger(__name__).warning("speech synthesis failed: %s", type(error).__name__)
             raise HTTPException(status_code=502, detail="speech synthesis failed") from error

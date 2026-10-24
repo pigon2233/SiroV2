@@ -2034,6 +2034,17 @@
           while (index < chars.length && pause.test(chars[index])) index++;
           return chars.slice(index).join("");
         };
+        // Where already-read text first stops matching the full plan, so a failure says what differed.
+        const divergence = (spoken, heard) => {
+          const pause = /[\s。．.，,！!？?；;：:、…~～—-]/;
+          const need = Array.from(heard).filter(c => !pause.test(c)), chars = Array.from(spoken);
+          let index = 0, matched = 0;
+          while (index < chars.length && matched < need.length) {
+            if (!pause.test(chars[index])) { if (chars[index] !== need[matched]) break; matched++; }
+            index++;
+          }
+          return `已讀「${need.slice(Math.max(0, matched - 4), matched + 4).join("")}」與全文「${chars.slice(Math.max(0, index - 4), index + 4).join("")}」`;
+        };
         const followLive = async () => {
           let planned = 0, deadlineSet = false;
           for (;;) {
@@ -2071,7 +2082,11 @@
               // Already-read text no longer lines up with the full plan: read only what is left.
               const heard = segments.join("");
               const rest = unheardRest(value.spoken_text, heard);
-              if (rest === undefined) throw new Error("朗讀內容與完整回覆不一致，沒有續播");
+              if (rest === undefined) {
+                const detail = divergence(value.spoken_text, heard);
+                console.error("speech mismatch", {heard, spoken: value.spoken_text});
+                throw new Error(`朗讀內容與完整回覆不一致，沒有續播（${detail}）`);
+              }
               if (rest.trim()) segments.push(...(await plan({text: rest})).segments);
             }
             total = segments.length; closed = true; notify(); return;
