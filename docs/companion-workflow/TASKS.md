@@ -145,6 +145,11 @@ O01 非第一版 blocker；若未做，監測頁須明確揭示未覆蓋程序�
 - 驗收：TASKS 各項＋既有相鄰回歸、owner 實機、已知失敗重測；任何未驗平台保留明示，
   不因單一 Linux 可用宣稱 Windows／WSLg／跨機也通過。
 - 回退：I02 演練前只在隔離／owner 試用，未獲部署授權不碰另一台。
+- 狀態（2026-10-24）：**ACCEPTED_BY_OWNER**。owner 實機試用後表示體感沒有問題，決定視為完成；
+  這是 owner 驗收，不是自動化通過。證據：[REPORT](../evidence/CP-I01-2026-10-23/REPORT.md)、
+  [試用清單](CP-I01-OWNER-TRIAL-DRAFT.md)（沒有逐步勾選紀錄）。未驗保留：Codex 視覺證據、
+  部署快照對應的 digest、回歸 15 個失敗（3 個既有 secret gate，其餘為乾淨工作區要求與暫存檔）、
+  P06 已知限制、讀屏器（owner 略過）。
 
 ### CP-I02：發布與回退
 

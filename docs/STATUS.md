@@ -1,3 +1,9 @@
+# Companion CP-I01：整體體驗驗收 — 2026-10-24，ACCEPTED_BY_OWNER
+
+owner 2026-10-24 實機試用後表示體感沒有問題，要求視為全部完成。這是 owner 驗收，沒有逐步勾選紀錄，也沒有 Codex 視覺證據。本機 commit（未 push）：試用清單 `docs/companion-workflow/CP-I01-OWNER-TRIAL-DRAFT.md`、Claude 側回歸報告 `docs/evidence/CP-I01-2026-10-23/REPORT.md`；所有分支已併進本機 `main`，新快照 `deployments/fcb92433…`（`a541756`）已部署重啟，正式資料庫升到結構 18（升級前備份在 `~/.local/share/siro/backups/pre-i01-deploy-*`，回退舊快照前須先還原）。
+
+限制：合併後完整回歸 3120 PASS／15 FAIL（3 個既有 secret gate；`test_acceptance_runner` 需乾淨工作區；`test_fail`、`test_fixture` 為暫存檔；`test_operational_cli` 未判定）；報告 digest 是部署前的 commit；P06 已知限制（WSLg 隱形框、鎖屏／全螢幕／螢幕移除／DPI 未實機驗）與讀屏器（owner 略過）維持未驗；只在 WSL／Windows 11 實測，其他平台未驗；Rust runtime 沿用舊二進位。下一步：I02 發布與回退演練。
+
 # Companion CP-I02：發布與回退準備 — 2026-10-24，PARTIAL
 
 授權整合者（owner 2026-10-23 同意）範圍僅限本機隔離演練與共享狀態更新。以合成資料、臨時目錄跑 `ReleaseManager` 啟用→回退→重新套用→healthcheck 失敗保持原版，以及 `backup_to`→`restore_from`；每步資料 hash 與起始值相同。見[準備文件](companion-workflow/CP-I02-RELEASE-PREP.md)、`evidence/CP-I02-2026-10-23/`。
