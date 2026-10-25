@@ -232,3 +232,20 @@ def test_transcription_stops_on_disconnect_or_microphone_revoke(
     assert response.status_code == (499 if reason == "disconnect" else 403)
     assert observation["cancelled"]
     assert "synthetic must not" not in response.text
+
+
+def _segment(text: str, no_speech: float, logprob: float) -> Any:
+    from types import SimpleNamespace
+
+    return SimpleNamespace(text=text, no_speech_prob=no_speech, avg_logprob=logprob)
+
+
+def test_worker_drops_silence_hallucinations() -> None:
+    from siro.services.audio.whisper_worker import recognized_text
+
+    credit = [_segment("字幕製作人Zither Harp", 0.2, -0.3)]
+    assert recognized_text(credit, 0.1) == ""  # VAD heard almost no speech
+    assert recognized_text([_segment("字幕by索兰娅", 0.9, -0.4)], 3.0) == ""
+    assert recognized_text([_segment("字幕by索兰娅", 0.1, -1.6)], 3.0) == ""
+    kept = [_segment("你好", 0.05, -0.2), _segment("世界", 0.05, -0.3)]
+    assert recognized_text(kept, 2.0) == "你好世界"

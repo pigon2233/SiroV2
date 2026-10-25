@@ -11,11 +11,31 @@ from __future__ import annotations
 import io
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 # Whisper otherwise drifts between scripts; the owner writes Traditional Chinese.
 _LANGUAGE_PROMPTS = {"zh": "以下是繁體中文的句子。"}
 _MAX_AUDIO = 3 * 1024 * 1024
+# Whisper invents subtitle credits for silence or noise, so speech must be proven, not assumed.
+_MIN_SPEECH_SECONDS = 0.4
+_NO_SPEECH_PROBABILITY = 0.5
+_MIN_AVG_LOGPROB = -1.0
+
+
+def recognized_text(segments: Iterable[Any], speech_seconds: float) -> str:
+    """Text of confident segments; empty when VAD found too little speech to trust."""
+    if speech_seconds < _MIN_SPEECH_SECONDS:
+        return ""
+    return "".join(
+        segment.text
+        for segment in segments
+        if not (
+            segment.no_speech_prob > _NO_SPEECH_PROBABILITY
+            or segment.avg_logprob < _MIN_AVG_LOGPROB
+        )
+    ).strip()
 
 
 def main() -> int:
@@ -45,10 +65,13 @@ def main() -> int:
                 language=language,
                 beam_size=3,
                 vad_filter=True,
+                vad_parameters={"threshold": 0.5, "min_silence_duration_ms": 500},
+                no_speech_threshold=_NO_SPEECH_PROBABILITY,
+                log_prob_threshold=_MIN_AVG_LOGPROB,
                 condition_on_previous_text=False,
                 initial_prompt=_LANGUAGE_PROMPTS.get(language or ""),
             )
-            text = "".join(segment.text for segment in segments).strip()
+            text = recognized_text(segments, info.duration_after_vad)
             if len(text) > 20_000:
                 raise ValueError("speech response limit exceeded")
             stdout.write(json.dumps({"text": text, "language": info.language}, ensure_ascii=False))
