@@ -38,7 +38,9 @@ def test_list_link_opens_one_task_and_history_never_dispatches() -> None:
     detail_scenario(
         r"""
 await readyControl(); await showTasks([goalView(), goalView({goal_id:secondId})]);
-const before = calls.length;
+const readCount = () =>
+  calls.filter(call => !call.url.startsWith('/v1/activities')).length;
+const before = readCount();
 const link = taskCards.querySelector('a');
 assert.equal(link.getAttribute('href'), detailHash);
 await clickLink(link); assertPage('tasks');
@@ -50,8 +52,9 @@ history.back(); assertPage('tasks'); assert.equal(location.hash, '#/tasks');
 assert.equal(taskCards.children.length, 2); assert(!compose.hidden && !compose.inert);
 history.forward(); assert.equal(taskCards.children.length, 1);
 await back.onclick(); assert.equal(location.hash, '#/tasks');
-assert.equal(taskCards.children.length, 2); assert.equal(calls.length, before);
-assert.equal(sockets.length, 1); assert.equal(timers.size, 0);
+assert.equal(taskCards.children.length, 2); assert.equal(readCount(), before);
+// only the read-only activity poll may keep a timer
+assert.equal(sockets.length, 1); assert.equal(timers.size, activityView.timer ? 1 : 0);
 """
     )
 

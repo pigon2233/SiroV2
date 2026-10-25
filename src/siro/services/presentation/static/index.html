@@ -281,6 +281,18 @@
       .voice-menu[open]>summary { margin-bottom:8px; }
       .voice-menu-body { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
       .advanced-links { margin-top:18px; } .advanced-links .destination-list { box-shadow:none; }
+      /* Live activity beside the conversation: the owner always sees what SIRO is doing. */
+      .chat-activity { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; align-self:start; font-size:13px; min-width:0; }
+      .chat-activity h2 { font-size:14px; margin:0 0 10px; } .chat-activity h3 { font-size:12px; color:var(--muted); margin:14px 0 6px; font-weight:600; }
+      .chat-activity p { margin:0 0 8px; font-size:13px; }
+      .ca-item { border:1px solid var(--line); border-left:4px solid var(--action); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+      .ca-title { font-weight:600; overflow-wrap:anywhere; } .ca-meta { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; margin:4px 0 8px; color:var(--muted); font-size:12px; }
+      .ca-empty { color:var(--muted); } .ca-past { list-style:none; margin:0; padding:0; } .ca-past li { padding:5px 0; border-top:1px solid var(--line); overflow-wrap:anywhere; }
+      .ca-past time { color:var(--muted); font-variant-numeric:tabular-nums; margin-right:4px; }
+      @media(min-width:1200px) {
+        .companion-layout { grid-template-columns:minmax(240px,.8fr) minmax(0,1.35fr) 270px; }
+        body.siro-control .companion-layout { grid-template-columns:minmax(0,1fr) 270px; }
+      }
     </style>
   </head>
   <body>
@@ -329,6 +341,7 @@
                 
                 <button id="voice-auto" type="button" aria-pressed="false" title="偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音">免手動：關</button><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div></details></div>
               </section>
+              <aside class="chat-activity" aria-label="SIRO 正在做什麼"><h2>正在做什麼</h2><div id="chat-activity-body"></div><p><a href="#/activity" data-nav="activity">完整活動紀錄</a></p></aside>
             </div>
           </section>
           <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
@@ -578,6 +591,7 @@
         }
         window.addEventListener("hashchange", () => showPage(location.hash, true));
         window.addEventListener("popstate", () => showPage(location.hash, true));
+        watchActivity(renderChatActivity);
         showPage();
       }
       // Activity page (CP-V05): a read-only projection; viewing never runs a tool, model or voice.
@@ -620,6 +634,23 @@
         return () => { activityWatchers.delete(listener); activityPageChanged(); };
       }
       window.siroWatchActivity = watchActivity;
+      // A compact, always-visible view of the same read-only feed the activity page uses.
+      function renderChatActivity(view) {
+        const body = document.querySelector("#chat-activity-body"); if (!body) return;
+        if (view.status !== "ok" && !view.fetchedAt) { body.innerHTML = `<p class="ca-empty">${view.status === "offline" ? "和 SIRO 斷線，連回後會顯示。" : "讀取中…"}</p>`; return; }
+        const items = [...view.items.values()].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+        const current = items.filter(item => ACTIVITY_LIVE.has(item.state));
+        const past = items.filter(item => !ACTIVITY_LIVE.has(item.state) && (item.tools.length || item.state !== "completed")).slice(0, 5);
+        const offline = view.status !== "ok" ? `<p class="ca-empty">和 SIRO 斷線，下面是 ${activityClock(view.fetchedAt, true)} 的資料。</p>` : "";
+        body.innerHTML = offline + (current.length ? current.map(item => `<div class="ca-item" data-state="${activityEscape(item.state)}"><div class="ca-title">${activityEscape(activityTitle(item))}</div>`
+          + `<div class="ca-meta">${activityBadge(item.state)}<span>${activityEscape(activityWhy(item))}</span></div>`
+          + `<button type="button" class="act-stop" data-activity-stop="${activityEscape(item.activity_id)}"${view.status !== "ok" || view.stopping.has(item.activity_id) ? " disabled" : ""}>停止這件事</button></div>`).join("")
+          : `<p class="ca-empty">現在沒有在做事。</p>`)
+          + (past.length ? `<h3>稍早</h3><ul class="ca-past">${past.map(item => `<li><time datetime="${activityEscape(item.created_at)}">${activityClock(item.created_at)}</time> ${activityEscape(activityTitle(item))} ${activityBadge(item.state)}</li>`).join("")}</ul>` : "");
+      }
+      document.querySelector("#chat-activity-body")?.addEventListener("click", event => {
+        const stop = event.target.closest?.("[data-activity-stop]"); if (stop) stopActivity(stop.dataset.activityStop);
+      });
       window.siroSpeechBusy = () => Boolean(ttsController || ttsAudio);
       window.siroStopActivity = id => stopActivity(id);
       // Her notes are told only when the owner asks; dismissing just marks one as seen.

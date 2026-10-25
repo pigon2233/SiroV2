@@ -99,7 +99,8 @@ const readyControl = async (state = {}) => {
   const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
   await connecting; return owner;
 };
-const targetCalls = () => calls.filter(call => call.url !== '/v1/session');
+const targetCalls = () => calls.filter(
+  call => call.url !== '/v1/session' && !call.url.startsWith('/v1/activities'));
 let finished = false;
 process.on('beforeExit', () => {
   if (!finished) {
