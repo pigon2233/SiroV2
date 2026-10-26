@@ -193,3 +193,45 @@ async def test_engine_passes_the_configured_output_limit(tmp_path: Path) -> None
 
     await conversation.respond("s1", "siro", "你好", on_delta=ignore)
     assert seen == [1536]
+
+
+@pytest.mark.asyncio
+async def test_reply_cut_at_the_output_limit_is_continued(tmp_path: Path) -> None:
+    class Truncated(Exception):
+        pass
+
+    Truncated.__name__ = "ProviderOutputTruncated"
+    seen: list[list[str]] = []
+
+    class Cutting:
+        name = "cutting"
+
+        async def stream(
+            self, request: ModelRequest, cancellation: CancellationToken
+        ) -> AsyncIterator[ModelChunk]:
+            seen.append([message.role for message in request.messages])
+            if len(seen) == 1:
+                yield ModelChunk("text", "前半段")
+                raise Truncated("limit")
+            yield ModelChunk("text", "後半段")
+
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    await IdentityService(SQLiteIdentityRepository(store)).create(
+        "siro",
+        ImmutableCore(
+            name="SIRO",
+            baseline_identity="A persistent companion",
+            core_values=("honesty",),
+            creator_relationship="owner",
+        ),
+        now=datetime.now(UTC),
+    )
+    conversation = ConversationEngine(Cutting(), SQLiteConversationRepository(store))  # type: ignore[arg-type]
+
+    async def ignore(_text: str) -> None:
+        return None
+
+    result = await conversation.respond("s1", "siro", "寫一篇長文", on_delta=ignore)
+    assert (result.state, result.text) == (TurnState.COMPLETED, "前半段後半段")
+    assert seen == [[], ["user", "assistant", "user"]]

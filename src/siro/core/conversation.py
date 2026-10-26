@@ -19,6 +19,9 @@ from siro.ports.models import (
     ToolDefinition,
 )
 
+MAX_CONTINUATIONS = 3
+CONTINUE_PROMPT = "請從剛才中斷的地方直接接著寫，不要重複已經寫過的內容，也不要加開場白。"  # noqa: RUF001
+
 
 class TurnState(StrEnum):
     RESPONDING = "responding"
@@ -126,29 +129,60 @@ class ConversationEngine:
                 )
                 if on_before_request is not None:
                     await on_before_request()
-                if token.cancelled:
-                    state = TurnState.CANCELLED
-                else:
-                    async for chunk in self._model.stream(request, token):
-                        if token.cancelled or not await self._is_current(session_id, generation_id):
-                            state = TurnState.CANCELLED
-                            break
-                        if chunk.kind == "text" and chunk.text:
-                            pieces.append(chunk.text)
-                            await self._on_signal(
-                                ConversationSignal(
-                                    "text_delta",
-                                    trace_id,
-                                    turn_id,
-                                    generation_id,
-                                    index=len(pieces) - 1,
-                                    text=chunk.text,
+                continuations = 0
+                while not token.cancelled:
+                    try:
+                        async for chunk in self._model.stream(request, token):
+                            if token.cancelled or not await self._is_current(
+                                session_id, generation_id
+                            ):
+                                state = TurnState.CANCELLED
+                                break
+                            if chunk.kind == "text" and chunk.text:
+                                pieces.append(chunk.text)
+                                await self._on_signal(
+                                    ConversationSignal(
+                                        "text_delta",
+                                        trace_id,
+                                        turn_id,
+                                        generation_id,
+                                        index=len(pieces) - 1,
+                                        text=chunk.text,
+                                    )
                                 )
-                            )
-                            if on_delta is not None:
-                                await on_delta(chunk.text)
-                        elif chunk.kind == "tool_request" and chunk.tool_call is not None:
-                            tool_calls.append(chunk.tool_call)
+                                if on_delta is not None:
+                                    await on_delta(chunk.text)
+                            elif chunk.kind == "tool_request" and chunk.tool_call is not None:
+                                tool_calls.append(chunk.tool_call)
+                    except Exception as exception:
+                        # A plain reply cut at the output limit is continued, not shown unfinished.
+                        # Named rather than imported: core does not depend on provider adapters.
+                        truncated = any(
+                            cls.__name__ == "ProviderOutputTruncated"
+                            for cls in type(exception).__mro__
+                        )
+                        if (
+                            not truncated
+                            or not pieces
+                            or tool_calls
+                            or continuations >= MAX_CONTINUATIONS
+                            or token.cancelled
+                        ):
+                            raise
+                        continuations += 1
+                        request = ModelRequest(
+                            prompt,
+                            generation_id,
+                            privacy,
+                            max_output_tokens=self._max_output_tokens,
+                            messages=(
+                                *(messages or (ModelMessage("user", prompt),)),
+                                ModelMessage("assistant", "".join(pieces)),
+                                ModelMessage("user", CONTINUE_PROMPT),
+                            ),
+                        )
+                        continue
+                    break
         except TimeoutError:
             token.cancel()
             state, error = TurnState.FAILED, "timeout"
