@@ -1,12 +1,13 @@
 'use strict';
-const {app, BrowserWindow, ipcMain, screen, session} = require('electron');
+const {app, BrowserWindow, ipcMain, Menu, nativeImage, screen, session, Tray} = require('electron');
+const {spawn} = require('node:child_process');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 
 if (process.env.SIRO_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.SIRO_DEBUG_PORT);
 const origin = process.env.SIRO_DESKTOP_ORIGIN || 'http://127.0.0.1:8000';
 const permitted = url => { try { return new URL(url).origin === origin; } catch (_) { return false; } };
-let win, center, desktopLayout, wander, mask, dragging = false, walk = null, lastCursor = null, scale = 1, chat = false, controlsHeight = 132, layout, dragTimer = 0;
+let tray, win, center, desktopLayout, wander, mask, dragging = false, walk = null, lastCursor = null, scale = 1, chat = false, controlsHeight = 132, layout, dragTimer = 0;
 
 function applyLayout() {
   if (!win || !desktopLayout) return;
@@ -121,6 +122,25 @@ function pollCursor() {
   if (!lastCursor || Math.hypot(rx - lastCursor[0], ry - lastCursor[1]) >= 4) { lastCursor = [rx, ry]; toPage('pointerUpdate', `${rx}, ${ry}`); }
 }
 
+// ---- Tray icon: she has no taskbar button, so show/hide, console and quit live here.
+function showPet() { if (win.isMinimized()) win.restore(); win.showInactive(); }
+function setupTray() {
+  tray = new Tray(nativeImage.createFromPath(path.join(__dirname, 'tray.png')));
+  tray.setToolTip('SIRO 桌寵');
+  const toggle = () => { if (win.isVisible() && !win.isMinimized()) { haltWalk('hidden'); win.hide(); } else showPet(); };
+  tray.on('click', toggle);
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {label: '顯示／隱藏桌寵', click: toggle},
+    {label: '開啟控制台', click: () => openCenter()},
+    {type: 'separator'},
+    {label: '結束桌寵（SIRO 服務繼續）', click: () => app.quit()},
+    {label: '結束 SIRO（連同服務）', click: () => {
+      spawn('wsl.exe', ['-d', 'Ubuntu', '--', 'bash', '-lc', '~/.local/bin/siro-stop'], {stdio: 'ignore', windowsHide: true, detached: true}).unref();
+      app.quit();
+    }},
+  ]));
+}
+
 function openCenter(page) {
   const hash = page === 'activity' ? '#/activity' : '';
   if (!center || center.isDestroyed()) {
@@ -134,7 +154,7 @@ function openCenter(page) {
 function handle(message) {
   switch (message.type) {
     case 'desktop.quit': app.quit(); break;
-    case 'desktop.hide': haltWalk('hidden'); win.minimize(); break;
+    case 'desktop.hide': haltWalk('hidden'); win.hide(); break; // the tray icon brings her back
     case 'desktop.console': openCenter(message.page); break;
     case 'desktop.chat':
       if (typeof message.open !== 'boolean') break;
@@ -194,6 +214,7 @@ app.whenReady().then(async () => {
     win.setPosition(area.x + area.width - 390, area.y + area.height - 670);
     win.showInactive();
   });
+  setupTray();
   win.loadURL(`${origin}/desktop`);
   setInterval(pollCursor, 50);
   setInterval(refreshMask, 700);
