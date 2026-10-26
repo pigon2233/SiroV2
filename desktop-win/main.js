@@ -6,10 +6,11 @@ const {pathToFileURL} = require('node:url');
 if (process.env.SIRO_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.SIRO_DEBUG_PORT);
 const origin = process.env.SIRO_DESKTOP_ORIGIN || 'http://127.0.0.1:8000';
 const permitted = url => { try { return new URL(url).origin === origin; } catch (_) { return false; } };
-let win, center, desktopLayout, scale = 1, chat = false, controlsHeight = 132, layout, dragTimer = 0;
+let win, center, desktopLayout, wander, mask, dragging = false, walk = null, lastCursor = null, scale = 1, chat = false, controlsHeight = 132, layout, dragTimer = 0;
 
 function applyLayout() {
   if (!win || !desktopLayout) return;
+  haltWalk('layout');
   const [x, y] = win.getPosition();
   const area = screen.getDisplayMatching(win.getBounds()).workArea;
   const roleX = x + (layout?.petX || 0), roleBottom = y + (layout?.petHeight || 640);
@@ -23,9 +24,9 @@ function applyLayout() {
   win.webContents.executeJavaScript(`window.siroDesktopView?.setLayout(${JSON.stringify(next)})`).catch(() => {});
 }
 
-function stopDrag() { clearInterval(dragTimer); dragTimer = 0; }
+function stopDrag() { clearInterval(dragTimer); dragTimer = 0; dragging = false; }
 function startDrag(point) {
-  stopDrag();
+  stopDrag(); haltWalk('dragged'); dragging = true;
   const [startX, startY] = win.getPosition(), began = Date.now();
   const fromX = point.screenX, fromY = point.screenY;
   // The page reports CSS pixels; the cursor poll uses the same DIP space as the window.
@@ -36,6 +37,88 @@ function startDrag(point) {
     win.setPosition(Math.round(startX + now.x - origin0.x), Math.round(startY + now.y - origin0.y));
   }, 8);
   void fromX; void fromY;
+}
+
+// ---- Walking: the window travels on the same speed curve as her steps, inside the work area.
+const clock = () => performance.now() / 1000;
+const toPage = (name, payload) => win?.webContents.executeJavaScript(`window.siroDesktopView?.${name}(${payload})`).catch(() => {});
+const walkReport = update => toPage('walkUpdate', JSON.stringify(update));
+function startWalk(message) {
+  haltWalk('replaced');
+  if (chat || !layout) return walkReport({id: message.id, state: 'refused', reason: chat ? 'chat' : 'layout'});
+  const area = screen.getDisplayMatching(win.getBounds()).workArea, [x, y] = win.getPosition();
+  const room = wander.walkRoom(x, layout.petX, layout.petWidth, area, message.direction, message.distance);
+  const plan = wander.walkPlan(room.distance, message.speed, message.ramp, message.cycle ?? 0);
+  if (!plan) return walkReport({id: message.id, state: 'refused', reason: 'room'});
+  walk = {id: message.id, direction: room.direction, startX: x, y, plan, began: clock() + message.delay, stop: null, area};
+  walk.timer = setInterval(stepWalk, 16);
+  walkReport({id: walk.id, state: 'started', direction: walk.direction, distance: plan.distance, ramp: plan.ramp, cruise: plan.cruise, delay: message.delay});
+}
+function stepWalk() {
+  if (!walk || !win) return;
+  const now = clock();
+  let offset, done;
+  if (walk.stop) { const t = now - walk.stop.since; offset = walk.stop.base + walk.stop.plan.at(t); done = t >= walk.plan.ramp; }
+  else { const t = now - walk.began; offset = walk.plan.at(t); done = t >= walk.plan.duration; }
+  const {area} = walk;
+  let next = walk.startX + walk.direction * offset;
+  if (layout) next = Math.max(area.x - layout.petX, Math.min(next, area.x + area.width - layout.petX - layout.petWidth));
+  win.setPosition(Math.round(next), walk.y);
+  if (done) finishWalk('arrived');
+}
+function stopWalk(id) {
+  if (!walk || walk.id !== id || walk.stop) return;
+  const now = clock(), t = now - walk.began;
+  if (t <= 0) return haltWalk('cancelled');
+  const plan = wander.stopPlan(walk.plan, t);
+  walk.stop = {since: now, base: walk.plan.at(t), plan};
+  walkReport({id, state: 'stopping', remaining: plan.remaining});
+}
+function finishWalk(reason) {
+  if (!walk) return;
+  const id = walk.id;
+  clearInterval(walk.timer); walk = null;
+  walkReport({id, state: 'ended', reason});
+}
+function haltWalk(reason) { if (walk) finishWalk(reason); }
+
+// ---- Click-through: transparent pixels pass clicks to whatever is behind her. A snapshot of the
+// page gives an opaque-cell mask; the cursor poll flips mouse capture on only over those cells.
+const CELL = 4;
+function buildMask(image) {
+  const {width, height} = image.getSize(), bitmap = image.toBitmap();
+  const columns = Math.ceil(width / CELL), rows = Math.ceil(height / CELL), cells = new Uint8Array(columns * rows);
+  let occupied = 0;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    if (bitmap[(y * width + x) * 4 + 3] > 16) { const i = Math.floor(y / CELL) * columns + Math.floor(x / CELL); if (!cells[i]) { cells[i] = 1; occupied++; } }
+  }
+  return {width, height, columns, rows, cells, occupied};
+}
+let capturing = false;
+async function refreshMask() {
+  if (!win || capturing || !win.isVisible()) return;
+  capturing = true;
+  try { mask = buildMask(await win.webContents.capturePage()); } catch (_) { /* keep the last mask */ } finally { capturing = false; }
+}
+function overOpaque(point, bounds) {
+  if (!mask || mask.occupied === 0) return point.y - bounds.y < 48; // rescue strip while the page loads
+  const px = (point.x - bounds.x) * mask.width / bounds.width, py = (point.y - bounds.y) * mask.height / bounds.height;
+  if (px < 0 || py < 0 || px >= mask.width || py >= mask.height) return false;
+  const cx = Math.floor(px / CELL), cy = Math.floor(py / CELL);
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const x = cx + dx, y = cy + dy;
+    if (x >= 0 && y >= 0 && x < mask.columns && y < mask.rows && mask.cells[y * mask.columns + x]) return true;
+  }
+  return false;
+}
+let ignoring = false;
+function pollCursor() {
+  if (!win || win.isDestroyed()) return;
+  const point = screen.getCursorScreenPoint(), bounds = win.getBounds();
+  const wantIgnore = !dragging && !overOpaque(point, bounds);
+  if (wantIgnore !== ignoring) { ignoring = wantIgnore; win.setIgnoreMouseEvents(ignoring); if (process.env.SIRO_DEBUG_LOG) console.log('ignore', ignoring, point.x, point.y, JSON.stringify(bounds), mask && mask.occupied); }
+  const rx = point.x - bounds.x, ry = point.y - bounds.y;
+  if (!lastCursor || Math.hypot(rx - lastCursor[0], ry - lastCursor[1]) >= 4) { lastCursor = [rx, ry]; toPage('pointerUpdate', `${rx}, ${ry}`); }
 }
 
 function openCenter(page) {
@@ -51,7 +134,7 @@ function openCenter(page) {
 function handle(message) {
   switch (message.type) {
     case 'desktop.quit': app.quit(); break;
-    case 'desktop.hide': win.minimize(); break;
+    case 'desktop.hide': haltWalk('hidden'); win.minimize(); break;
     case 'desktop.console': openCenter(message.page); break;
     case 'desktop.chat':
       if (typeof message.open !== 'boolean') break;
@@ -70,12 +153,21 @@ function handle(message) {
       if (message.button === 1 && Number.isFinite(message.screenX) && Number.isFinite(message.screenY)) startDrag(message);
       break;
     case 'desktop.ready': applyLayout(); break;
-    default: break; // walking, shaping and the like come in stage 2
+    case 'desktop.walk':
+      if (typeof message.id === 'string' && message.id.length <= 40 && [-1, 0, 1].includes(message.direction) &&
+          [message.distance, message.speed, message.ramp, message.delay].every(Number.isFinite) &&
+          message.distance > 0 && message.distance <= 4096 && message.speed >= 10 && message.speed <= 2000 &&
+          message.ramp >= .2 && message.ramp <= 5 && message.delay >= 0 && message.delay <= 5 &&
+          (message.cycle === undefined || (Number.isFinite(message.cycle) && message.cycle >= 0 && message.cycle <= 5))) startWalk(message);
+      break;
+    case 'desktop.walk.stop': if (typeof message.id === 'string') stopWalk(message.id); break;
+    default: break;
   }
 }
 
 app.whenReady().then(async () => {
   ({desktopLayout} = await import(pathToFileURL(path.join(__dirname, '..', 'desktop', 'layout.mjs')).href));
+  wander = await import(pathToFileURL(path.join(__dirname, '..', 'desktop', 'wander.mjs')).href);
   session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
     callback(permission === 'media' && permitted(details.requestingUrl || contents.getURL()) && !(details.mediaTypes || []).includes('video'));
   });
@@ -103,5 +195,7 @@ app.whenReady().then(async () => {
     win.showInactive();
   });
   win.loadURL(`${origin}/desktop`);
+  setInterval(pollCursor, 50);
+  setInterval(refreshMask, 700);
 });
 app.on('window-all-closed', () => app.quit());

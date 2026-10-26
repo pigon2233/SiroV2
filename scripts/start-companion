@@ -22,5 +22,7 @@ if ! curl --fail --silent --max-time 2 "http://127.0.0.1:$port/health/ready" >/d
     exit 1
   fi
 fi
+# The Windows-native pet (desktop-win) only needs the backend; it opens its own window.
+[[ -n "${COMPANION_BACKEND_ONLY:-}" ]] && exit 0
 export SIRO_DESKTOP_URL="http://127.0.0.1:$port/desktop"
 exec scripts/start-desktop

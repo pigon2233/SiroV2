@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Start the backend detached (the Windows pet needs only it), then wait until it answers.
+set -u
+COMPANION_BACKEND_ONLY=1 setsid -f "$HOME/.local/bin/siro-companion-vrm" >/tmp/siro-vrm.log 2>&1 </dev/null
+for _ in $(seq 120); do
+  curl -fs -m1 http://127.0.0.1:8000/health/ready >/dev/null && exit 0
+  sleep .5
+done
+exit 1
