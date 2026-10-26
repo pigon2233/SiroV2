@@ -45,12 +45,10 @@
     conversation.inert = true;
     const forward = id => document.querySelector(id)?.click();
     const microphoneButton = button("desktop-microphone", "麥克風：關", "開啟或關閉麥克風；不會自動開始錄音", () => forward("#microphone-toggle"));
-    const voiceButton = button("desktop-voice", "說話", "沿用對話的麥克風與語音輸入", () => {
-      setChat(true);
-      forward("#voice");
-    });
+    const voiceButton = button("desktop-voice", "說話", "沿用對話的麥克風與語音輸入", () => forward("#voice"));
     const handsFreeButton = button("desktop-voice-auto", "免手動：關", "偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音", () => forward("#voice-auto"));
-    button("desktop-stop", "停止", "停止回覆、工具與語音", () => forward("#cancel"));
+    const stopButton = button("desktop-stop", "停止", "停止回覆、工具與語音", () => forward("#cancel"));
+    stopButton.hidden = true;
     const output = document.querySelector("#voice-output");
     const speechButton = button("desktop-speech", "朗讀：關", "朗讀 SIRO 的回覆", () => {
       if (!output || output.disabled) return;
@@ -65,6 +63,12 @@
     const scaleButton = button("desktop-scale", "100%", "還原角色大小", () => nativeCommand({type: "desktop.scale", step: 0}));
     button("desktop-larger", "＋", "放大角色", () => nativeCommand({type: "desktop.scale", step: 1}))
       .setAttribute("aria-label", "放大角色");
+    const moreButton = button("desktop-more", "更多", "顯示或收起其他選項", () => {
+      const open = controls.classList.toggle("desktop-controls-more");
+      moreButton.setAttribute("aria-expanded", String(open));
+      nativeCommand({type: "desktop.controls", height: Math.min(320, Math.max(64, Math.ceil(controls.getBoundingClientRect().height + 20)))});
+    });
+    moreButton.setAttribute("aria-expanded", "false");
     const moveButton = button("desktop-move", "移動", "按住這裡拖曳桌寵視窗", () => {});
     moveButton.addEventListener("pointerdown", event => {
       if (event.button !== 0) return;
@@ -101,7 +105,9 @@
       event.preventDefault();
       event.stopImmediatePropagation();
     };
-    const roleEvents = {pointerdown: roleDown, pointermove: roleMove, pointerup: roleUp, pointercancel: roleUp, click: roleClick};
+    const roleEvents = {pointerdown: roleDown, pointermove: roleMove, pointerup: roleUp, pointercancel: roleUp, click: roleClick,
+      // Typing without the microphone: double-click her to bring the chat up.
+      dblclick: event => { if (!roleDragged) { event.preventDefault?.(); setChat(!chatOpen); } }};
     const detachRole = () => {
       if (roleDocument) for (const [name, handler] of Object.entries(roleEvents)) roleDocument.removeEventListener(name, handler, true);
       roleDocument = null;
@@ -138,6 +144,7 @@
       const activity = document.querySelector("#activity-notice");
       consoleButton.textContent = activity && !activity.hidden ? "控制台 · 有更新" : "控制台";
       voiceButton.textContent = source("#voice") || "說話";
+      stopButton.hidden = Boolean(document.querySelector("#cancel")?.hidden ?? true);
       const microphone = document.querySelector("#microphone-toggle");
       microphoneButton.textContent = source("#microphone-toggle") || "麥克風：未提供";
       microphoneButton.disabled = !microphone || microphone.disabled;
@@ -156,13 +163,24 @@
     };
     const observer = new MutationObserver(updateStatus);
     output?.addEventListener("change", updateStatus);
-    for (const id of ["#connection", "#voice", "#voice-auto", "#microphone-toggle", "#voice-status", "#tts-status", "#activity-notice", "#service-notice", "#runtime-notice"]) {
+    for (const id of ["#cancel", "#connection", "#voice", "#voice-auto", "#microphone-toggle", "#voice-status", "#tts-status", "#activity-notice", "#service-notice", "#runtime-notice"]) {
       const node = document.querySelector(id);
       if (node) observer.observe(node, {childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["hidden", "disabled", "aria-pressed"]});
     }
     const messages = document.querySelector("#messages");
+    // Replies speak from the bubble while the chat is folded; the full text stays in the chat.
+    const startedAt = Date.now();
+    let reply, replyTimer;
     const unreadObserver = new MutationObserver(() => {
-      if (!chatOpen) chatButton.classList.add("desktop-unread");
+      if (chatOpen) return;
+      chatButton.classList.add("desktop-unread");
+      const last = [...(document.querySelectorAll?.("#messages .assistant") ?? [])].pop();
+      const text = last?.textContent?.trim();
+      if (!text || Date.now() - startedAt < 3000) return;
+      reply = {text, until: Date.now() + Math.min(25000, 6000 + text.length * 90)};
+      clearTimeout(replyTimer);
+      replyTimer = setTimeout(() => renderBubble(), reply.until - Date.now() + 50);
+      renderBubble();
     });
     if (messages) unreadObserver.observe(messages, {childList: true, characterData: true, subtree: true});
     window.addEventListener("message", event => {
@@ -242,12 +260,14 @@
     };
     const renderBubble = () => {
       const quiet = chatOpen || window.siroSpeechBusy?.() || document.activeElement === document.querySelector("#text");
-      const next = lastView && !quiet ? bubbleFor(lastView) : null;
+      if (reply && (chatOpen || Date.now() >= reply.until)) reply = undefined;
+      const next = reply ? {icon: "", text: reply.text, kind: "reply"} : lastView && !quiet ? bubbleFor(lastView) : null;
       const show = next && next.text !== dismissed ? next : null;
       if (!next) dismissed = "";
       bubble.hidden = !show;
       if (!show) { bubbleRun = bubbleNote = undefined; return; }
       bubble.setAttribute("data-tone", show.tone || "");
+      bubble.setAttribute("data-kind", show.kind || "");
       bubbleIcon.textContent = show.icon;
       bubbleLabel.textContent = show.text;
       bubble.title = show.text;
@@ -317,7 +337,7 @@
     window.addEventListener("message", event => {
       if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
       if (event.data?.type === "siro.renderer.ready") nativeCommand({type: "desktop.ready"});
-      if (event.data?.type === "siro.renderer.interact" && !roleDragged) setChat(true);
+      if (event.data?.type === "siro.renderer.interact" && !roleDragged) { /* a click on her does nothing: open the chat with 聊聊 */ }
       if (event.data?.type === "siro.desktop.walk" && event.data.v === 1) walkRequest(event.data);
     });
     updateStatus();

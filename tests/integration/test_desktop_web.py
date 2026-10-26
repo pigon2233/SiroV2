@@ -116,7 +116,7 @@ role.events.get('pointerdown')(event(120,115));
 role.events.get('pointerup')(event(120,115));
 dispatch('message',{origin:location.origin,source:existing.get('#companion').contentWindow,
  data:{type:'siro.renderer.interact'}});
-assert.equal(conversation.inert,false);
+assert.equal(conversation.inert,true);
 """,
         """
 const role=new Element('document');
@@ -339,7 +339,7 @@ def test_native_controls_and_escape_keep_real_stop_and_voice_paths_reachable() -
 document.querySelector('#desktop-stop').click();
 document.querySelector('#desktop-voice').click();
 assert.equal(stopped,1);assert.equal(voiced,1);
-assert.equal(conversation.inert,false);
+assert.equal(conversation.inert,true);
 let prevented=0;
 document.querySelector('#desktop-move').events.get('pointerdown')({
   button:0,screenX:123,screenY:234,preventDefault(){prevented++;}

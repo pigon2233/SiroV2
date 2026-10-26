@@ -153,3 +153,13 @@ body.siro-desktop .desktop-bubble-label {
   overflow: hidden;
 }
 body.siro-desktop #desktop-bubble button { padding: 2px 8px; font-size: 12px; border-radius: 8px; }
+/* Quiet by default: the everyday buttons only; the rest opens behind 更多. */
+body.siro-desktop .desktop-controls:not(.desktop-controls-more) :is(#desktop-microphone, #desktop-voice-auto, #desktop-speech, #desktop-smaller, #desktop-scale, #desktop-larger, #desktop-hide, #desktop-quit) { display: none; }
+body.siro-desktop .desktop-controls:not(.desktop-controls-more) #desktop-status:empty { display: none; }
+body.siro-desktop .desktop-controls button[hidden] { display: none; }
+body.siro-desktop #desktop-bubble[data-kind="reply"] { align-items: flex-start; padding: 8px 12px; max-height: 7.5em; }
+body.siro-desktop #desktop-bubble[data-kind="reply"] .desktop-bubble-icon { display: none; }
+body.siro-desktop #desktop-bubble[data-kind="reply"] .desktop-bubble-label {
+  white-space: normal; line-height: 1.5; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4;
+}
