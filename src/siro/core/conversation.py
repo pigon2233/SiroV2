@@ -79,8 +79,10 @@ class ConversationEngine:
         *,
         timeout_seconds: float = 120,
         on_signal: SignalHandler = _ignore_signal,
+        max_output_tokens: int = 512,
     ) -> None:
         self._model = model
+        self._max_output_tokens = max_output_tokens
         self._repository = repository
         self._timeout = timeout_seconds
         self._on_signal = on_signal
@@ -115,7 +117,12 @@ class ConversationEngine:
         try:
             async with asyncio.timeout(self._timeout):
                 request = ModelRequest(
-                    prompt, generation_id, privacy, tools=tools, messages=messages
+                    prompt,
+                    generation_id,
+                    privacy,
+                    max_output_tokens=self._max_output_tokens,
+                    tools=tools,
+                    messages=messages,
                 )
                 if on_before_request is not None:
                     await on_before_request()

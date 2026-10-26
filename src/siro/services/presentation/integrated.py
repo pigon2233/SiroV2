@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
@@ -1404,8 +1405,12 @@ class IntegratedCompanion:
                             1,
                         )
                     )
+            # A reply cut at the model's output limit is shown as unfinished, so the cap is
+            # generous; chatty or reasoning models can exceed the 512 default.
             self._conversation = ConversationEngine(
-                self._model, SQLiteConversationRepository(store)
+                self._model,
+                SQLiteConversationRepository(store),
+                max_output_tokens=int(os.environ.get("SIRO_MODEL_MAX_OUTPUT_TOKENS", "1536")),
             )
             self._memory_service = MemoryService(SQLiteMemoryRepository(store))
             self._core = CompanionCore(

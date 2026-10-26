@@ -158,3 +158,38 @@ async def test_cancel_race_is_generation_safe_100_times(tmp_path: Path) -> None:
         assert old.state is TurnState.CANCELLED
         assert old.text != "abc"
         assert new.state is TurnState.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_engine_passes_the_configured_output_limit(tmp_path: Path) -> None:
+    seen: list[int] = []
+
+    class Recording(MockModel):
+        async def stream(
+            self, request: ModelRequest, cancellation: CancellationToken
+        ) -> AsyncIterator[ModelChunk]:
+            seen.append(request.max_output_tokens)
+            async for chunk in super().stream(request, cancellation):
+                yield chunk
+
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    await IdentityService(SQLiteIdentityRepository(store)).create(
+        "siro",
+        ImmutableCore(
+            name="SIRO",
+            baseline_identity="A persistent companion",
+            core_values=("honesty",),
+            creator_relationship="owner",
+        ),
+        now=datetime.now(UTC),
+    )
+    conversation = ConversationEngine(
+        Recording(("好",)), SQLiteConversationRepository(store), max_output_tokens=1536
+    )
+
+    async def ignore(_text: str) -> None:
+        return None
+
+    await conversation.respond("s1", "siro", "你好", on_delta=ignore)
+    assert seen == [1536]
