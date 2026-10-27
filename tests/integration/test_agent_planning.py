@@ -224,3 +224,36 @@ async def test_real_orchestrator_and_journal(tmp_path: Path) -> None:
 def test_flag_default_off() -> None:
     assert planner_enabled({}) is False
     assert planner_enabled({"SIRO_AGENT_PLANNER_ENABLED": "1"}) is True
+
+
+@pytest.mark.asyncio
+async def test_integrated_entry_is_off_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+    from siro.adapters.models.mock import MockModel
+    from siro.ports.models import Privacy
+    from siro.services.presentation.gateway import GatewayHub
+    from siro.services.presentation.integrated import IntegratedCompanion
+
+    built: list[object] = []
+
+    def factory(runs: SQLiteAgentRunRepository) -> Coordinator:
+        built.append(runs)
+        return Coordinator(
+            ScriptedModel(plan_json(task()), [good("x")]), FakePort({"s1": "x"}), read_tools=READ
+        )
+
+    companion = IntegratedCompanion(
+        tmp_path,
+        MockModel(),
+        GatewayHub(),
+        MinimalWebBodyAdapter(WebSocketBodyTransport()),
+        privacy=Privacy.LOCAL_ONLY,
+        agent_planner_factory=factory,
+    )
+    monkeypatch.delenv("SIRO_AGENT_PLANNER_ENABLED", raising=False)
+    assert await companion.run_agent_plan("s", "g") is None and not built
+    monkeypatch.setenv("SIRO_AGENT_PLANNER_ENABLED", "1")
+    report = await companion.run_agent_plan("s", "g")
+    assert report is not None and report.state is PlanState.COMPLETED and len(built) == 1

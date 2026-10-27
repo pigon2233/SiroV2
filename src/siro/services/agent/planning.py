@@ -108,6 +108,7 @@ class PlanCheckpoint:
     state: PlanState
     plan: Plan | None
     results: tuple[SubtaskResult, ...]
+    subtask_id: str | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False, default=str)

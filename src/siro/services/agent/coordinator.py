@@ -106,9 +106,12 @@ class Coordinator:
         state: PlanState,
         plan: Plan | None,
         results: Iterable[SubtaskResult],
+        subtask_id: str | None = None,
     ) -> None:
         if self._hook is not None:
-            await self._hook(PlanCheckpoint(plan_id, point, state, plan, tuple(results)))
+            await self._hook(
+                PlanCheckpoint(plan_id, point, state, plan, tuple(results), subtask_id)
+            )
 
     async def cancel(self, plan_id: str) -> None:
         self._cancelled.add(plan_id)  # fence new dispatch before the first await
@@ -234,7 +237,9 @@ class Coordinator:
         pid, sid = plan.plan_id, subtask.subtask_id
 
         async def finish(result: SubtaskResult, point: CheckpointPoint) -> SubtaskResult:
-            await self._emit(pid, point, PlanState.RUNNING, plan, [*results.values(), result])
+            await self._emit(
+                pid, point, PlanState.RUNNING, plan, [*results.values(), result], result.subtask_id
+            )
             return result
 
         if prior is not None and prior.state is SubtaskState.VERIFIED:
@@ -253,7 +258,12 @@ class Coordinator:
             observed = prior  # tool already ran; only verification remains
         else:
             await self._emit(
-                pid, CheckpointPoint.SUBTASK_DISPATCH, PlanState.RUNNING, plan, results.values()
+                pid,
+                CheckpointPoint.SUBTASK_DISPATCH,
+                PlanState.RUNNING,
+                plan,
+                results.values(),
+                sid,
             )
             if pid in self._cancelled:
                 raise asyncio.CancelledError

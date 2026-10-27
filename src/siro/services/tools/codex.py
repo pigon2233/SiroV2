@@ -64,9 +64,11 @@ async def ask_codex(
     binary: Path,
     model: str = DEFAULT_MODEL,
     run: Runner = execute_bounded_argv,
+    prefix: str = PROMPT,
+    limit: int = MAX_TASK,
 ) -> dict[str, object]:
     task = arguments.get("task")
-    if not isinstance(task, str) or not 2 <= len(task.strip()) <= MAX_TASK:
+    if not isinstance(task, str) or not 2 <= len(task.strip()) <= limit:
         raise ValueError("codex.ask requires a task of 2-2000 characters")
     environment = {
         key: value
@@ -91,7 +93,7 @@ async def ask_codex(
             scratch,
             "-o",
             str(answer_file),
-            PROMPT + task.strip(),
+            prefix + task.strip(),
         )
         result = await run(
             argv,

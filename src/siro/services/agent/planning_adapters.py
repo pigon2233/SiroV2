@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from uuid import uuid4
 
 from siro.ports.models import (
@@ -15,6 +16,7 @@ from siro.ports.models import (
 )
 from siro.services.agent.planning import ModelReply, Subtask, ToolRunResult
 from siro.services.agent.runs import SQLiteAgentRunRepository
+from siro.services.tools.codex import ask_codex
 from siro.services.tools.orchestrator import PriorOutcomeUnknown, ProposalState, ToolOrchestrator
 
 PLANNER_FLAG = "SIRO_AGENT_PLANNER_ENABLED"
@@ -50,6 +52,26 @@ class CloudPlannerModel:
         if not text:
             raise RuntimeError(f"{role}_empty_reply")
         return ModelReply(text, str(getattr(self._model, "last_model_name", self._model.name)))
+
+
+class CodexPlannerModel:
+    """Planner/verifier/reporter through the already-wired codex CLI (default gpt-6-luna)."""
+
+    JSON_PREFIX = "Follow the instructions below exactly. Output only what is asked.\n\n"
+
+    def __init__(self, binary: Path, model: str) -> None:
+        self._binary, self._model = binary, model
+
+    async def complete(self, role: str, prompt: str) -> ModelReply:
+        result = await ask_codex(
+            {"task": prompt},
+            None,
+            binary=self._binary,
+            model=self._model,
+            prefix=self.JSON_PREFIX,
+            limit=12_000,
+        )
+        return ModelReply(str(result["answer"]), str(result.get("model", self._model)))
 
 
 class OrchestratorToolPort:
