@@ -67,7 +67,9 @@ def test_real_main_provider_policy_and_dispatch_gate(
     class Local:
         name = "synthetic-local"
 
-        def __init__(self, *, model: str) -> None:
+        def __init__(
+            self, *, model: str, thinking: bool | None = None, context_length: int | None = None
+        ) -> None:
             pass
 
         async def stream(
