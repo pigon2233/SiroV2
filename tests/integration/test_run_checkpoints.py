@@ -193,3 +193,20 @@ async def test_double_dispatch_is_refused(tmp_path: Path) -> None:
     await repo.mark_dispatched(RUN, "s1")
     with pytest.raises(DuplicateDispatch):
         await repo.mark_dispatched(RUN, "s1")
+
+
+@pytest.mark.asyncio
+async def test_save_payload_and_close_unrun(tmp_path: Path) -> None:
+    repo = await _open(tmp_path)
+    await repo.plan(RUN, "s1", "demo.tool", {}, Effect.READ)
+    await repo.mark_dispatched(RUN, "s1")
+    await repo.ack(RUN, "s1", Outcome.SUCCESS, {"v": 1})
+    await repo.save(RUN, "s1", {"v": 2})
+    cp = await repo.get(RUN, "s1")
+    assert cp is not None and cp.observation == {"v": 2} and cp.phase is Phase.SAVED
+    await repo.plan(RUN, "s2", "demo.tool", {}, Effect.READ)
+    await repo.close_unrun(RUN, "s2", "dependency_failed:s1")
+    cp = await repo.get(RUN, "s2")
+    assert cp is not None and cp.outcome is Outcome.FAILED and cp.phase is Phase.SAVED
+    with pytest.raises(CheckpointError):
+        await repo.close_unrun(RUN, "s1", "x")  # dispatched steps are never closed unrun

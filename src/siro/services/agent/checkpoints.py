@@ -71,6 +71,15 @@ class Checkpoint:
 
 
 @dataclass(frozen=True, slots=True)
+class Snapshot:
+    plan_id: str
+    session_id: str
+    goal: str
+    state: str
+    snapshot: object
+
+
+@dataclass(frozen=True, slots=True)
 class ResumeStep:
     step_id: str
     action: ResumeAction
@@ -167,15 +176,34 @@ class SQLiteCheckpointRepository:
 
         await self._store.run_transaction(write)
 
-    async def save(self, run_id: str, step_id: str) -> None:
+    async def save(self, run_id: str, step_id: str, payload: object | None = None) -> None:
+        """Mark the result as merged. ``payload`` (if given) replaces the stored snapshot."""
+        encoded = None if payload is None else json.dumps(payload, ensure_ascii=False)
+
         def write(c: sqlite3.Connection) -> None:
             changed = c.execute(
-                "UPDATE run_checkpoints SET phase='saved',updated_at=? "
+                "UPDATE run_checkpoints SET phase='saved',updated_at=?,"
+                "observation_json=COALESCE(?,observation_json) "
                 "WHERE run_id=? AND step_id=? AND phase='acked'",
-                (_now(), run_id, step_id),
+                (_now(), encoded, run_id, step_id),
             ).rowcount
             if changed != 1:
                 raise CheckpointError("step has no acknowledged result to save")
+
+        await self._store.run_transaction(write)
+
+    async def close_unrun(self, run_id: str, step_id: str, reason: str) -> None:
+        """Close a step that was never dispatched (e.g. blocked by a failed dependency)."""
+
+        def write(c: sqlite3.Connection) -> None:
+            changed = c.execute(
+                "UPDATE run_checkpoints SET phase='saved',outcome='failed',"
+                "observation_json=?,updated_at=? "
+                "WHERE run_id=? AND step_id=? AND phase='planned'",
+                (json.dumps({"error": reason}), _now(), run_id, step_id),
+            ).rowcount
+            if changed != 1:
+                raise CheckpointError("only a never-dispatched step can be closed unrun")
 
         await self._store.run_transaction(write)
 
@@ -236,6 +264,47 @@ class SQLiteCheckpointRepository:
 
         await self._store.run_transaction(write)
 
+    async def put_snapshot(
+        self, plan_id: str, session_id: str, goal: str, snapshot: object, state: str = "running"
+    ) -> None:
+        encoded = json.dumps(snapshot, ensure_ascii=False)
+
+        def write(c: sqlite3.Connection) -> None:
+            c.execute(
+                "INSERT INTO plan_snapshots(plan_id,session_id,goal,state,snapshot_json,"
+                "updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(plan_id) DO UPDATE SET "
+                "state=excluded.state,snapshot_json=excluded.snapshot_json,"
+                "updated_at=excluded.updated_at",
+                (plan_id, session_id, goal, state, encoded, _now()),
+            )
+
+        await self._store.run_transaction(write)
+
+    async def finish_snapshot(self, plan_id: str, state: str) -> None:
+        await self._store.run_transaction(
+            lambda c: c.execute(
+                "UPDATE plan_snapshots SET state=?,updated_at=? WHERE plan_id=?",
+                (state, _now(), plan_id),
+            )
+        )
+
+    async def get_snapshot(self, plan_id: str) -> Snapshot | None:
+        def read(c: sqlite3.Connection) -> Snapshot | None:
+            row = c.execute("SELECT * FROM plan_snapshots WHERE plan_id=?", (plan_id,)).fetchone()
+            return None if row is None else _snapshot(row)
+
+        return await self._store.run_transaction(read)
+
+    async def unfinished_plans(self) -> tuple[Snapshot, ...]:
+        def read(c: sqlite3.Connection) -> tuple[Snapshot, ...]:
+            rows = c.execute(
+                "SELECT * FROM plan_snapshots WHERE state IN ('planning','running') "
+                "ORDER BY updated_at"
+            ).fetchall()
+            return tuple(_snapshot(r) for r in rows)
+
+        return await self._store.run_transaction(read)
+
     async def get(self, run_id: str, step_id: str) -> Checkpoint | None:
         def read(c: sqlite3.Connection) -> Checkpoint | None:
             row = self._row(c, run_id, step_id)
@@ -285,6 +354,16 @@ class SQLiteCheckpointRepository:
             row["resolved_by"],
             json.loads(raw) if raw is not None else None,
         )
+
+
+def _snapshot(row: sqlite3.Row) -> Snapshot:
+    return Snapshot(
+        str(row["plan_id"]),
+        str(row["session_id"]),
+        str(row["goal"]),
+        str(row["state"]),
+        json.loads(row["snapshot_json"]),
+    )
 
 
 def _now() -> str:

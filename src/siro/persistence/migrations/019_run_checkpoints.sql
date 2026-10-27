@@ -16,3 +16,11 @@ CREATE TABLE run_checkpoints (
     PRIMARY KEY (run_id, step_id)
 );
 CREATE UNIQUE INDEX idx_run_checkpoints_seq ON run_checkpoints(run_id, seq);
+CREATE TABLE plan_snapshots (
+    plan_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    goal TEXT NOT NULL,
+    state TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL CHECK (json_valid(snapshot_json)),
+    updated_at TEXT NOT NULL
+);
