@@ -163,6 +163,37 @@ def test_authenticated_microphone_transcription_obeys_kill_switch() -> None:
     assert stt.calls == 1
 
 
+def test_cloud_speech_recognition_obeys_cloud_switch_and_local_stays_available() -> None:
+    class CloudSpeechToText(MockSpeechToText):
+        is_cloud = True
+
+    state = GatewayState()
+    state.kill_switches["cloud"] = False
+    cloud = CloudSpeechToText("雲端", "zh")
+    client = TestClient(create_app(allowed_origins={ORIGIN}, state=state, speech_to_text=cloud))
+    token = issue_token(client)
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {token}"}
+    denied = client.post("/v1/audio/transcriptions", headers=headers, content=b"wav")
+    assert denied.status_code == 403
+    assert cloud.calls == 0
+    state.kill_switches["cloud"] = True
+    assert (
+        client.post("/v1/audio/transcriptions", headers=headers, content=b"wav").status_code == 200
+    )
+
+    local_state = GatewayState()
+    local_state.kill_switches["cloud"] = False
+    local = MockSpeechToText("本機", "zh")
+    local_client = TestClient(
+        create_app(allowed_origins={ORIGIN}, state=local_state, speech_to_text=local)
+    )
+    local_token = issue_token(local_client)
+    local_headers = {"origin": ORIGIN, "authorization": f"Bearer {local_token}"}
+    ok = local_client.post("/v1/audio/transcriptions", headers=local_headers, content=b"wav")
+    assert ok.status_code == 200
+    assert local.calls == 1
+
+
 def test_authenticated_neural_speech_obeys_cloud_switch() -> None:
     class FakeSpeech:
         async def render(self, text: str, *, rate: float, pitch: float, energy: float) -> bytes:

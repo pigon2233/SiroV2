@@ -951,15 +951,22 @@ def create_app(
             raise HTTPException(status_code=403, detail="microphone is disabled")
         if speech_to_text is None:
             raise HTTPException(status_code=503, detail="speech recognition is unavailable")
+        cloud_recognizer = bool(getattr(speech_to_text, "is_cloud", False))
+
+        def recognition_allowed() -> bool:
+            return gateway_state.kill_switches.get("microphone", False) and (
+                not cloud_recognizer or gateway_state.kill_switches.get("cloud", False)
+            )
+
+        if cloud_recognizer and not gateway_state.kill_switches.get("cloud", False):
+            raise HTTPException(status_code=403, detail="cloud speech recognition is disabled")
         audio = await request.body()
         if not audio or len(audio) > 10 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="audio must be between 1 byte and 10 MiB")
         recognition_finished = asyncio.Event()
 
         async def input_closed() -> int:
-            while not recognition_finished.is_set() and gateway_state.kill_switches.get(
-                "microphone", False
-            ):
+            while not recognition_finished.is_set() and recognition_allowed():
                 if await request.is_disconnected():
                     return 499
                 await asyncio.sleep(0.05)
@@ -974,7 +981,7 @@ def create_app(
             if disconnected in done:
                 raise HTTPException(status_code=disconnected.result(), detail="capture cancelled")
             transcript = transcription.result()
-            if not gateway_state.kill_switches.get("microphone", False):
+            if not recognition_allowed():
                 raise HTTPException(status_code=403, detail="microphone is disabled")
         except HTTPException:
             raise
