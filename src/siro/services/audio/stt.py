@@ -20,6 +20,9 @@ class SpeechToText(Protocol):
 
 
 class GroqWhisper:
+    # The gateway refuses cloud recognizers while the cloud switch is off.
+    is_cloud = True
+
     def __init__(
         self,
         api_key: str,

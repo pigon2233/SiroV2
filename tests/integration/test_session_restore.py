@@ -40,7 +40,9 @@ def test_main_three_restarts_restore_only_canonical_session_dialogue(
     class Model:
         name = "synthetic-session"
 
-        def __init__(self, *, model: str) -> None:
+        def __init__(
+            self, *, model: str, thinking: bool | None = None, context_length: int | None = None
+        ) -> None:
             pass
 
         async def stream(
@@ -194,7 +196,9 @@ def test_completed_tool_run_restores_dialogue_without_replaying_intents(
     class Model:
         name = "synthetic-tool-session"
 
-        def __init__(self, *, model: str) -> None:
+        def __init__(
+            self, *, model: str, thinking: bool | None = None, context_length: int | None = None
+        ) -> None:
             pass
 
         async def stream(

@@ -163,6 +163,92 @@ def test_authenticated_microphone_transcription_obeys_kill_switch() -> None:
     assert stt.calls == 1
 
 
+def test_cloud_speech_recognition_obeys_cloud_switch_and_local_stays_available() -> None:
+    class CloudSpeechToText(MockSpeechToText):
+        is_cloud = True
+
+    state = GatewayState()
+    state.kill_switches["cloud"] = False
+    cloud = CloudSpeechToText("雲端", "zh")
+    client = TestClient(create_app(allowed_origins={ORIGIN}, state=state, speech_to_text=cloud))
+    token = issue_token(client)
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {token}"}
+    denied = client.post("/v1/audio/transcriptions", headers=headers, content=b"wav")
+    assert denied.status_code == 403
+    assert cloud.calls == 0
+    state.kill_switches["cloud"] = True
+    assert (
+        client.post("/v1/audio/transcriptions", headers=headers, content=b"wav").status_code == 200
+    )
+
+    local_state = GatewayState()
+    local_state.kill_switches["cloud"] = False
+    local = MockSpeechToText("本機", "zh")
+    local_client = TestClient(
+        create_app(allowed_origins={ORIGIN}, state=local_state, speech_to_text=local)
+    )
+    local_token = issue_token(local_client)
+    local_headers = {"origin": ORIGIN, "authorization": f"Bearer {local_token}"}
+    ok = local_client.post("/v1/audio/transcriptions", headers=local_headers, content=b"wav")
+    assert ok.status_code == 200
+    assert local.calls == 1
+
+
+def test_cloud_speech_failure_falls_back_to_local_and_says_so() -> None:
+    class BrokenCloud(MockSpeechToText):
+        is_cloud = True
+
+        async def transcribe(self, wav: bytes, *, language: str | None = None):  # type: ignore[override]
+            self.calls += 1
+            raise RuntimeError("cloud down")
+
+    state = GatewayState()
+    state.kill_switches["cloud"] = True
+    cloud = BrokenCloud()
+    local = MockSpeechToText("本機", "zh")
+    client = TestClient(
+        create_app(
+            allowed_origins={ORIGIN},
+            state=state,
+            speech_to_text=cloud,
+            fallback_speech_to_text=local,
+        )
+    )
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {issue_token(client)}"}
+    failed_over = client.post("/v1/audio/transcriptions", headers=headers, content=b"wav")
+    assert failed_over.status_code == 200
+    assert failed_over.json() == {
+        "text": "本機",
+        "language": "zh",
+        "final": True,
+        "fallback": "local",
+    }
+    assert (cloud.calls, local.calls) == (1, 1)
+
+    state.kill_switches["cloud"] = False
+    offline = client.post("/v1/audio/transcriptions", headers=headers, content=b"wav")
+    assert offline.status_code == 200
+    assert "fallback" not in offline.json()
+    assert (cloud.calls, local.calls) == (1, 2)
+
+
+def test_cloud_speech_failure_without_fallback_is_502() -> None:
+    class BrokenCloud(MockSpeechToText):
+        is_cloud = True
+
+        async def transcribe(self, wav: bytes, *, language: str | None = None):  # type: ignore[override]
+            raise RuntimeError("cloud down")
+
+    state = GatewayState()
+    state.kill_switches["cloud"] = True
+    client = TestClient(
+        create_app(allowed_origins={ORIGIN}, state=state, speech_to_text=BrokenCloud())
+    )
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {issue_token(client)}"}
+    failed = client.post("/v1/audio/transcriptions", headers=headers, content=b"wav")
+    assert failed.status_code == 502
+
+
 def test_authenticated_neural_speech_obeys_cloud_switch() -> None:
     class FakeSpeech:
         async def render(self, text: str, *, rate: float, pitch: float, energy: float) -> bytes:
@@ -414,3 +500,24 @@ async def test_disconnect_cleanup_is_idempotent_when_peer_is_already_gone() -> N
     await hub.disconnect(channel)
     await hub.disconnect(channel)
     assert hub.client_count == 0
+
+
+def test_effective_config_reports_values_and_where_they_came_from() -> None:
+    state = GatewayState()
+    state.routes["model"] = "ollama:synthetic"
+    state.setting_sources["model_route"] = "env"
+    client = TestClient(create_app(allowed_origins={ORIGIN}, state=state))
+    assert client.get("/v1/effective-config").status_code == 401
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {issue_token(client)}"}
+
+    before = client.get("/v1/effective-config", headers=headers).json()
+    assert before["kill_switches"]["cloud"] == {"value": True, "source": "default"}
+    assert before["authorization_mode"] == {"value": "full", "source": "default"}
+    assert before["model_route"] == {"value": "ollama:synthetic", "source": "env"}
+    assert before["stt_route"] == {"value": "disabled", "source": "default"}
+
+    flipped = client.put("/v1/kill-switches/cloud", headers=headers, json={"enabled": False})
+    assert flipped.status_code == 200
+    after = client.get("/v1/effective-config", headers=headers).json()
+    assert after["kill_switches"]["cloud"] == {"value": False, "source": "ui"}
+    assert after["kill_switches"]["tools"] == {"value": True, "source": "default"}

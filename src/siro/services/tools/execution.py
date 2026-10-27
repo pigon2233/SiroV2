@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from siro.adapters import process_execution as _process_execution
@@ -16,6 +18,27 @@ from siro.adapters.process_execution import (
 from siro.adapters.process_execution import (
     ExecutionContext as ExecutionContext,
 )
+
+CHILD_ENVIRONMENT_ALLOWLIST = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "TERM",
+    "TMPDIR",
+    "SYSTEMROOT",
+    "USERPROFILE",
+)
+
+
+def restricted_environment(
+    extra: Iterable[str] = (), source: Mapping[str, str] | None = None
+) -> dict[str, str]:
+    """Build a child environment from an explicit allowlist; nothing else is inherited."""
+    names = (*CHILD_ENVIRONMENT_ALLOWLIST, *extra)
+    environment = os.environ if source is None else source
+    return {name: environment[name] for name in names if name in environment}
+
 
 _signal_owned_group = _process_execution._signal_owned_group
 

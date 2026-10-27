@@ -22,6 +22,7 @@ from typing import Any, Literal, Protocol, cast
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
+import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -49,7 +50,7 @@ from siro.services.audio.protocol import (
     AudioRingBuffer,
     PlaybackOwnership,
 )
-from siro.services.audio.stt import SpeechToText
+from siro.services.audio.stt import SpeechToText, Transcript
 from siro.services.audio.tts import (
     EdgeNeuralTTS,
     KokoroLocalTTS,
@@ -204,6 +205,8 @@ class GatewayState:
         default_factory=lambda: {"cloud": True, "tools": True, "microphone": True}
     )
     authorization_mode: str = "full"
+    # Where a setting last came from ("env" or "ui"); anything absent is still its default.
+    setting_sources: dict[str, str] = field(default_factory=dict)
 
     def snapshot(self) -> dict[str, object]:
         return {
@@ -649,6 +652,7 @@ def create_app(
     memory_service: MemoryService | None = None,
     playback_ownership: PlaybackOwnership | None = None,
     speech_to_text: SpeechToText | None = None,
+    fallback_speech_to_text: SpeechToText | None = None,
     text_to_speech: SpeechSynthesizer | None = None,
     live2d_dist: Path | None = None,
     vrm_dist: Path | None = None,
@@ -781,9 +785,10 @@ def create_app(
                                 if speech_warmup is not None:
                                     speech_warmup.cancel()
                                     await asyncio.gather(speech_warmup, return_exceptions=True)
-                                close = getattr(speech_to_text, "close", None)
-                                if callable(close):
-                                    await close()
+                                for recognizer_owner in (speech_to_text, fallback_speech_to_text):
+                                    close = getattr(recognizer_owner, "close", None)
+                                    if callable(close):
+                                        await close()
                             finally:
                                 await gateway_hub.shutdown()
 
@@ -951,21 +956,51 @@ def create_app(
             raise HTTPException(status_code=403, detail="microphone is disabled")
         if speech_to_text is None:
             raise HTTPException(status_code=503, detail="speech recognition is unavailable")
+        recognizer: SpeechToText = speech_to_text
+        cloud_active = [bool(getattr(recognizer, "is_cloud", False))]
+
+        def recognition_allowed() -> bool:
+            return gateway_state.kill_switches.get("microphone", False) and (
+                not cloud_active[0] or gateway_state.kill_switches.get("cloud", False)
+            )
+
+        if cloud_active[0] and not gateway_state.kill_switches.get("cloud", False):
+            if fallback_speech_to_text is None:
+                raise HTTPException(status_code=403, detail="cloud speech recognition is disabled")
+            recognizer = fallback_speech_to_text
+            cloud_active[0] = False
         audio = await request.body()
         if not audio or len(audio) > 10 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="audio must be between 1 byte and 10 MiB")
         recognition_finished = asyncio.Event()
 
         async def input_closed() -> int:
-            while not recognition_finished.is_set() and gateway_state.kill_switches.get(
-                "microphone", False
-            ):
+            while not recognition_finished.is_set() and recognition_allowed():
                 if await request.is_disconnected():
                     return 499
                 await asyncio.sleep(0.05)
             return 403
 
-        transcription = asyncio.create_task(speech_to_text.transcribe(audio, language=language))
+        fell_back = [False]
+
+        async def recognize() -> Transcript:
+            if not cloud_active[0]:
+                return await recognizer.transcribe(audio, language=language)
+            try:
+                return await recognizer.transcribe(audio, language=language)
+            except Exception as error:
+                logging.getLogger(__name__).warning(
+                    "cloud speech recognition failed: %s", type(error).__name__
+                )
+                if fallback_speech_to_text is None:
+                    if isinstance(error, httpx.TransportError):
+                        return await recognizer.transcribe(audio, language=language)
+                    raise
+                cloud_active[0] = False
+                fell_back[0] = True
+                return await fallback_speech_to_text.transcribe(audio, language=language)
+
+        transcription = asyncio.create_task(recognize())
         disconnected = asyncio.create_task(input_closed())
         try:
             done, _ = await asyncio.wait(
@@ -974,7 +1009,7 @@ def create_app(
             if disconnected in done:
                 raise HTTPException(status_code=disconnected.result(), detail="capture cancelled")
             transcript = transcription.result()
-            if not gateway_state.kill_switches.get("microphone", False):
+            if not recognition_allowed():
                 raise HTTPException(status_code=403, detail="microphone is disabled")
         except HTTPException:
             raise
@@ -989,11 +1024,14 @@ def create_app(
                 if not task.done():
                     task.cancel()
             await asyncio.gather(transcription, disconnected, return_exceptions=True)
-        return {
+        result: dict[str, object] = {
             "text": transcript.text,
             "language": transcript.language,
             "final": transcript.final,
         }
+        if fell_back[0]:
+            result["fallback"] = "local"
+        return result
 
     @app.post("/v1/audio/speech/plan")
     async def prepare_speech_plan(
@@ -1098,6 +1136,26 @@ def create_app(
             "tools": tool_orchestrator.tool_status() if tool_orchestrator is not None else [],
             "skill_candidates": candidate_metadata(),
             "skill_activation": activation_metadata(),
+        }
+
+    @app.get("/v1/effective-config")
+    async def effective_configuration(
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, object]:
+        require_token(authorization)
+        sources = gateway_state.setting_sources
+
+        def entry(key: str, value: object) -> dict[str, object]:
+            return {"value": value, "source": sources.get(key, "default")}
+
+        return {
+            "kill_switches": {
+                name: entry(f"kill_switch.{name}", gateway_state.kill_switches[name])
+                for name in ("cloud", "tools", "microphone")
+            },
+            "authorization_mode": entry("authorization_mode", gateway_state.authorization_mode),
+            "model_route": entry("model_route", gateway_state.routes.get("model")),
+            "stt_route": entry("stt_route", gateway_state.routes.get("audio")),
         }
 
     @app.post("/v1/skills/candidates")
@@ -1704,6 +1762,7 @@ def create_app(
         if name not in gateway_state.kill_switches:
             raise HTTPException(status_code=404, detail="unknown kill switch")
         gateway_state.kill_switches[name] = body.enabled
+        gateway_state.setting_sources[f"kill_switch.{name}"] = "ui"
         if name == "tools" and not body.enabled and self_activity is not None:
             await self_activity.stop("tools_disabled")
         if name == "tools" and not body.enabled:
@@ -2195,7 +2254,13 @@ def _run_gateway(
     state.routes["body"] = "websocket"
     local_whisper = os.environ.get("SIRO_WHISPER_MODEL_DIR")
     speech_to_text: SpeechToText | None
-    if local_whisper:
+    fallback_speech_to_text: SpeechToText | None = None
+    if local_whisper and cloud_key and os.environ.get("SIRO_STT_CLOUD_FIRST") == "1":
+        from siro.services.audio.local_stt import LocalWhisper
+
+        speech_to_text = GroqWhisper(cloud_key)
+        fallback_speech_to_text = LocalWhisper(Path(local_whisper))
+    elif local_whisper:
         from siro.services.audio.local_stt import LocalWhisper
 
         speech_to_text = LocalWhisper(Path(local_whisper))
@@ -2246,6 +2311,10 @@ def _run_gateway(
         if speech_to_text
         else "disabled"
     )
+    if backend != "offline":
+        state.setting_sources["model_route"] = "env"
+    if speech_to_text is not None:
+        state.setting_sources["stt_route"] = "env"
     shared_store = SQLiteStore(data_dir / "siro.db")
     asyncio.run(shared_store.initialize(), loop_factory=loop_factory)
     esp32_relay_token = os.environ.get("SIRO_ESP32_RELAY_TOKEN") or None
@@ -2434,9 +2503,9 @@ def _run_gateway(
         detach = arguments.get("detach", False)
         if not isinstance(detach, bool):
             raise ValueError("computer.execute detach must be boolean")
-        child_env = os.environ.copy()
-        for secret_name in ("SIRO_OPENAI_API_KEY", "GROQ_API_KEY"):
-            child_env.pop(secret_name, None)
+        from siro.services.tools.execution import restricted_environment
+
+        child_env = restricted_environment()
         if runtime_profile == "candidate":
             from siro.services.tools.execution import execute_bounded_argv
 
@@ -2922,6 +2991,7 @@ def _run_gateway(
             body_transport=body_transport,
             memory_service=memory_service,
             speech_to_text=speech_to_text,
+            fallback_speech_to_text=fallback_speech_to_text,
             text_to_speech=text_to_speech,
             live2d_dist=live2d_dist,
             vrm_dist=vrm_dist,

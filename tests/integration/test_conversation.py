@@ -235,3 +235,49 @@ async def test_reply_cut_at_the_output_limit_is_continued(tmp_path: Path) -> Non
     result = await conversation.respond("s1", "siro", "寫一篇長文", on_delta=ignore)
     assert (result.state, result.text) == (TurnState.COMPLETED, "前半段後半段")
     assert seen == [[], ["user", "assistant", "user"]]
+
+
+@pytest.mark.asyncio
+async def test_reply_cut_while_emitting_a_tool_call_fails_instead_of_dropping_it(
+    tmp_path: Path,
+) -> None:
+    class Truncated(Exception):
+        pass
+
+    Truncated.__name__ = "ProviderOutputTruncated"
+    requests = 0
+
+    class Cutting:
+        name = "cutting"
+
+        async def stream(
+            self, request: ModelRequest, cancellation: CancellationToken
+        ) -> AsyncIterator[ModelChunk]:
+            nonlocal requests
+            requests += 1
+            yield ModelChunk("text", "我先查一下")
+            error = Truncated("limit")
+            error.add_note("siro: provider tool intent emitted")
+            raise error
+
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    await IdentityService(SQLiteIdentityRepository(store)).create(
+        "siro",
+        ImmutableCore(
+            name="SIRO",
+            baseline_identity="A persistent companion",
+            core_values=("honesty",),
+            creator_relationship="owner",
+        ),
+        now=datetime.now(UTC),
+    )
+    conversation = ConversationEngine(Cutting(), SQLiteConversationRepository(store))  # type: ignore[arg-type]
+
+    async def ignore(_text: str) -> None:
+        return None
+
+    result = await conversation.respond("s1", "siro", "查一下天氣", on_delta=ignore)
+    assert requests == 1
+    assert result.state == TurnState.FAILED
+    assert result.error == "ProviderOutputTruncated"

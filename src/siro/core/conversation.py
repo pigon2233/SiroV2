@@ -20,6 +20,9 @@ from siro.ports.models import (
 )
 
 MAX_CONTINUATIONS = 3
+# Adapters add this note to an error when the model had begun emitting a tool call. Named here
+# rather than imported: core does not depend on provider adapters.
+TOOL_INTENT_NOTE = "siro: provider tool intent emitted"
 CONTINUE_PROMPT = "請從剛才中斷的地方直接接著寫，不要重複已經寫過的內容，也不要加開場白。"  # noqa: RUF001
 
 
@@ -156,6 +159,8 @@ class ConversationEngine:
                                 tool_calls.append(chunk.tool_call)
                     except Exception as exception:
                         # A plain reply cut at the output limit is continued, not shown unfinished.
+                        # One that was also emitting a tool call fails: continuing as text would
+                        # silently drop the call.
                         # Named rather than imported: core does not depend on provider adapters.
                         truncated = any(
                             cls.__name__ == "ProviderOutputTruncated"
@@ -165,6 +170,7 @@ class ConversationEngine:
                             not truncated
                             or not pieces
                             or tool_calls
+                            or TOOL_INTENT_NOTE in getattr(exception, "__notes__", ())
                             or continuations >= MAX_CONTINUATIONS
                             or token.cancelled
                         ):

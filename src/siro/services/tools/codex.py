@@ -13,7 +13,11 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from siro.ports.models import ToolDefinition
-from siro.services.tools.execution import ExecutionContext, execute_bounded_argv
+from siro.services.tools.execution import (
+    ExecutionContext,
+    execute_bounded_argv,
+    restricted_environment,
+)
 
 CODEX_TOOL = "codex.ask"
 MAX_TASK = 2000
@@ -68,11 +72,7 @@ async def ask_codex(
     task = arguments.get("task")
     if not isinstance(task, str) or not 2 <= len(task.strip()) <= MAX_TASK:
         raise ValueError("codex.ask requires a task of 2-2000 characters")
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key not in {"SIRO_OPENAI_API_KEY", "GROQ_API_KEY"}
-    }
+    environment = restricted_environment(("CODEX_HOME", "SIRO_CODEX_BIN"))
     with tempfile.TemporaryDirectory(prefix="siro-codex-") as scratch:
         answer_file = Path(scratch) / "answer.txt"
         argv = (
