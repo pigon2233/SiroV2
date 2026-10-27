@@ -324,3 +324,56 @@ async def test_selected_provider_name_stays_stable_after_fallback() -> None:
     assert (await consume(model, ModelRequest("goal", "g")))[0].text == "fallback"
     assert len(primary.requests) == len(fallback.requests) == 1
     assert model.name == "selected-local"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [status_error(429), TimeoutError()])
+async def test_cloud_failure_falls_back_to_local(error: Exception) -> None:
+    cloud = ScriptModel((error,))
+    local = ScriptModel((ModelChunk("text", "local answer"), ModelChunk("finished")))
+    local.name = "local"
+    model = FailoverModel(
+        (cloud, local), backoff_seconds=0, cloud_indices=frozenset({0}), cloud_request_budget=0
+    )
+    chunks = await consume(model, ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED))
+    assert chunks[0].text == "local answer"
+    assert model.last_model_name == "local"
+    assert len(cloud.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_local_only_privacy_skips_cloud_for_local() -> None:
+    cloud = ScriptModel((ModelChunk("text", "cloud"),))
+    local = ScriptModel((ModelChunk("text", "local"),))
+    model = FailoverModel((cloud, local), cloud_indices=frozenset({0}))
+    assert (await consume(model, ModelRequest("private", "g")))[0].text == "local"
+    assert not cloud.requests
+
+
+@pytest.mark.asyncio
+async def test_local_unavailable_surfaces_error_and_no_replay_after_output() -> None:
+    cloud = ScriptModel((status_error(503),))
+    local = ScriptModel((ConnectionError(),))
+    model = FailoverModel((cloud, local), backoff_seconds=0, cloud_indices=frozenset({0}))
+    with pytest.raises(ConnectionError):
+        await consume(model, ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED))
+    started = ScriptModel((ModelChunk("text", "partial"), TimeoutError()))
+    spare = ScriptModel((ModelChunk("text", "x"),))
+    model = FailoverModel((started, spare), backoff_seconds=0, cloud_indices=frozenset({0}))
+    with pytest.raises(TimeoutError):
+        await consume(model, ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED))
+    assert not spare.requests
+
+
+@pytest.mark.asyncio
+async def test_on_provider_reports_each_attempted_provider() -> None:
+    cloud = ScriptModel((status_error(503),))
+    cloud.name = "cloud"
+    local = ScriptModel((ModelChunk("text", "ok"),))
+    local.name = "local"
+    seen: list[str] = []
+    model = FailoverModel(
+        (cloud, local), backoff_seconds=0, cloud_indices=frozenset({0}), on_provider=seen.append
+    )
+    await consume(model, ModelRequest("goal", "g", Privacy.CLOUD_ALLOWED))
+    assert seen == ["cloud", "local"]
