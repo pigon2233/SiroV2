@@ -280,7 +280,7 @@ def test_schema17_to18_preserves_checksums_and_failed_upgrade_rolls_back(tmp_pat
         apply_migrations(c, migrations)
         apply_migrations(c, migrations)
         assert c.execute("SELECT * FROM schema_migrations WHERE version<=17").fetchall() == old
-        assert c.execute("SELECT max(version) FROM schema_migrations").fetchone()[0] == 18
+        assert c.execute("SELECT max(version) FROM schema_migrations").fetchone()[0] == len(migrations)
 
 
 class Capture:

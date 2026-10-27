@@ -223,7 +223,7 @@ async def test_existing_schema_upgrade_and_reopen_preserves_old_checksums(
     await SQLiteStore(path).initialize()
     await SQLiteStore(path).initialize()
     with sqlite3.connect(path) as c:
-        assert c.execute("SELECT max(version) FROM schema_migrations").fetchone()[0] == 18
+        assert c.execute("SELECT max(version) FROM schema_migrations").fetchone()[0] == len(load_migrations())
         assert (
             c.execute(
                 "SELECT * FROM schema_migrations WHERE version<=? ORDER BY version", (version,)
