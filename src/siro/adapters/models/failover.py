@@ -93,6 +93,8 @@ class FailoverModel:
         self._rate_limit_max_wait = rate_limit_max_wait_seconds
         self._clock = clock or (lambda: datetime.now(UTC))
         self._on_retry = on_retry
+        # Provider that served (or is serving) the latest request, for display.
+        self.active_name = self._models[0].name
 
     async def stream(
         self, request: ModelRequest, cancellation: CancellationToken
@@ -101,11 +103,21 @@ class FailoverModel:
         for attempt in range(2):
             if cancellation.cancelled:
                 return
-            if index in self._cloud_indices:
-                if request.privacy is not Privacy.CLOUD_ALLOWED:
+            if index in self._cloud_indices and request.privacy is not Privacy.CLOUD_ALLOWED:
+                local = next(
+                    (
+                        i
+                        for i in range(index + 1, len(self._models))
+                        if i not in self._cloud_indices
+                    ),
+                    None,
+                )
+                if local is None:
                     raise PermissionError("cloud egress requires cloud_allowed privacy")
-                if attempt and self._cloud_budget == 0:
-                    raise PermissionError("additional cloud attempt has no request budget")
+                index = local
+            self.active_name = self._models[index].name
+            if index in self._cloud_indices and attempt and self._cloud_budget == 0:
+                raise PermissionError("additional cloud attempt has no request budget")
             provider_request = (
                 request if attempt == 0 else replace(request, generation_id=str(uuid4()))
             )

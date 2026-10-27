@@ -2151,6 +2151,10 @@ def _run_gateway(
         and os.environ.get("SIRO_CONTEXT_SUMMARY_ENABLED", "1") == "1"
     )
     selected_provider = model
+    local_fallback: LanguageModel | None = None
+    fallback_model = os.environ.get("SIRO_LOCAL_FALLBACK_OLLAMA_MODEL")
+    if fallback_model and privacy is ModelPrivacy.CLOUD_ALLOWED:
+        local_fallback = OllamaAdapter(model=fallback_model, thinking=False)
     if runtime_profile == "candidate":
         from siro.adapters.models.failover import FailoverModel
 
@@ -2170,7 +2174,7 @@ def _run_gateway(
 
         if retry_enabled == "1":
             model = FailoverModel(
-                (model,),
+                (model,) if local_fallback is None else (model, local_fallback),
                 cloud_indices=frozenset({0})
                 if privacy is ModelPrivacy.CLOUD_ALLOWED
                 else frozenset(),
