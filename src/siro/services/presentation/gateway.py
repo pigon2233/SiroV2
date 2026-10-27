@@ -205,6 +205,8 @@ class GatewayState:
         default_factory=lambda: {"cloud": True, "tools": True, "microphone": True}
     )
     authorization_mode: str = "full"
+    # Where a setting last came from ("env" or "ui"); anything absent is still its default.
+    setting_sources: dict[str, str] = field(default_factory=dict)
 
     def snapshot(self) -> dict[str, object]:
         return {
@@ -1136,6 +1138,26 @@ def create_app(
             "skill_activation": activation_metadata(),
         }
 
+    @app.get("/v1/effective-config")
+    async def effective_configuration(
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, object]:
+        require_token(authorization)
+        sources = gateway_state.setting_sources
+
+        def entry(key: str, value: object) -> dict[str, object]:
+            return {"value": value, "source": sources.get(key, "default")}
+
+        return {
+            "kill_switches": {
+                name: entry(f"kill_switch.{name}", gateway_state.kill_switches[name])
+                for name in ("cloud", "tools", "microphone")
+            },
+            "authorization_mode": entry("authorization_mode", gateway_state.authorization_mode),
+            "model_route": entry("model_route", gateway_state.routes.get("model")),
+            "stt_route": entry("stt_route", gateway_state.routes.get("audio")),
+        }
+
     @app.post("/v1/skills/candidates")
     async def prepare_skill_candidate(
         request: Request,
@@ -1740,6 +1762,7 @@ def create_app(
         if name not in gateway_state.kill_switches:
             raise HTTPException(status_code=404, detail="unknown kill switch")
         gateway_state.kill_switches[name] = body.enabled
+        gateway_state.setting_sources[f"kill_switch.{name}"] = "ui"
         if name == "tools" and not body.enabled and self_activity is not None:
             await self_activity.stop("tools_disabled")
         if name == "tools" and not body.enabled:
@@ -2288,6 +2311,10 @@ def _run_gateway(
         if speech_to_text
         else "disabled"
     )
+    if backend != "offline":
+        state.setting_sources["model_route"] = "env"
+    if speech_to_text is not None:
+        state.setting_sources["stt_route"] = "env"
     shared_store = SQLiteStore(data_dir / "siro.db")
     asyncio.run(shared_store.initialize(), loop_factory=loop_factory)
     esp32_relay_token = os.environ.get("SIRO_ESP32_RELAY_TOKEN") or None

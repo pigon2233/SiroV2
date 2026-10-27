@@ -500,3 +500,24 @@ async def test_disconnect_cleanup_is_idempotent_when_peer_is_already_gone() -> N
     await hub.disconnect(channel)
     await hub.disconnect(channel)
     assert hub.client_count == 0
+
+
+def test_effective_config_reports_values_and_where_they_came_from() -> None:
+    state = GatewayState()
+    state.routes["model"] = "ollama:synthetic"
+    state.setting_sources["model_route"] = "env"
+    client = TestClient(create_app(allowed_origins={ORIGIN}, state=state))
+    assert client.get("/v1/effective-config").status_code == 401
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {issue_token(client)}"}
+
+    before = client.get("/v1/effective-config", headers=headers).json()
+    assert before["kill_switches"]["cloud"] == {"value": True, "source": "default"}
+    assert before["authorization_mode"] == {"value": "full", "source": "default"}
+    assert before["model_route"] == {"value": "ollama:synthetic", "source": "env"}
+    assert before["stt_route"] == {"value": "disabled", "source": "default"}
+
+    flipped = client.put("/v1/kill-switches/cloud", headers=headers, json={"enabled": False})
+    assert flipped.status_code == 200
+    after = client.get("/v1/effective-config", headers=headers).json()
+    assert after["kill_switches"]["cloud"] == {"value": False, "source": "ui"}
+    assert after["kill_switches"]["tools"] == {"value": True, "source": "default"}
