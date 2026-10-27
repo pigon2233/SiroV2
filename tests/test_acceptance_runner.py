@@ -12,6 +12,12 @@ from typing import Any
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _child_pytest_writes_no_bytecode(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The child pytest runs inside a tiny git repo; stray __pycache__ there reads as a source change.
+    monkeypatch.setenv("PYTHONDONTWRITEBYTECODE", "1")
+
+
 @pytest.fixture
 def helper() -> ModuleType:
     spec = importlib.util.spec_from_file_location(
