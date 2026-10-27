@@ -36,3 +36,9 @@
 - Claude 依使用者指示接手 Codex 的 T27 ESP32 工作（分支 `codex/t27-esp32-sensor-telemetry`、`codex/t27-http-event-ingress`、本分支）；仍沿用本 worktree，LOCAL_ONLY／NOT PUSHED，不 push、不改 PR。
 - 唯讀核對：8000 Gateway 與 8765 relay 皆在監聽；d4ed0cd 只在本分支，未進 main。
 - 待辦：PIR 與按鈕經新流程實機驗收（需使用者在板子前操作）；整合到 main 需使用者另行指定目標；MQTT 韌體未刷板；兩個 Draft PR 的 CI 失敗源自 main 既有格式問題。
+
+## 使用者驗收回報（2026-10-28 Asia/Taipei）
+
+- 使用者表示 PIR 與按鈕都已確認沒問題，不需再測。此為使用者口頭回報，我沒有獨立讀到 SIRO 端的 motion／按鈕事件，故 PIR／按鈕記為 OWNER-REPORTED，不是自動化證據。
+- Gateway 與 8765 中繼的整合已在本分支（含 `569ef0c` HTTP 入口）；光度已有 live World State 證據。
+- 剩餘：合併到 main 的目標與時機由使用者決定；MQTT 版韌體未刷板；PR #3／#4 的 CI 失敗源自 main 既有格式問題。全部 LOCAL_ONLY／NOT PUSHED。
