@@ -18,7 +18,6 @@ from siro.adapters.models.openai_compatible import (
     ProviderOutputIncomplete,
     ProviderOutputTruncated,
 )
-from siro.core.conversation import MAX_CONTINUATIONS
 from siro.persistence.sqlite import SQLiteStore
 from siro.ports.models import CancellationToken, ModelChunk, ModelRequest, Privacy, ToolCall
 from siro.services.agent.runs import SQLiteAgentRunRepository
@@ -417,16 +416,13 @@ async def test_ollama_real_http_incomplete_preserves_failed_partial_without_effe
         runtime = controller(hub)
         await asyncio.wait_for(runtime.respond("session", "synthetic goal"), 10)
         expected = "ProviderOutputTruncated" if ending == "length" else "ProviderOutputIncomplete"
-        # A length cut is continued up to MAX_CONTINUATIONS times (the provider keeps cutting it);
-        # a bare EOF gets no continuation. Its cut tool calls are never dispatched either way.
-        extra = MAX_CONTINUATIONS if ending == "length" else 0
-        assert len(requests) == 1 + extra and effects == []
+        assert len(requests) == 1 and effects == []
         terminals = [event for event in hub.events if event["type"] == "assistant_terminal"]
         assert len(terminals) == 1
         assert terminals[0]["state"] == "failed" and terminals[0]["error"] == expected
         assert [event["text"] for event in hub.events if event["type"] == "assistant_delta"] == [
             PARTIAL
-        ] * (1 + extra)
+        ]
         assert not any(event["type"] == "tool_proposal" for event in hub.events)
         readback = await runtime.recovery_readback("session")
         assert readback is not None and readback["state"] == "failed"
@@ -434,7 +430,7 @@ async def test_ollama_real_http_incomplete_preserves_failed_partial_without_effe
         steps = await repository.steps(str(readback["run_id"]))
         finals = [step.payload for step in steps if step.kind == "final"]
         assert len(finals) == 1 and isinstance(finals[0], dict)
-        assert finals[0]["text"] == PARTIAL * (1 + extra)
+        assert finals[0]["text"] == PARTIAL
         assert (
             await store.run_transaction(
                 lambda connection: connection.execute(
@@ -447,5 +443,5 @@ async def test_ollama_real_http_incomplete_preserves_failed_partial_without_effe
         restarted = controller(restarted_hub)
         await restarted.startup()
         assert await restarted.recovery_readback("session") == readback
-        assert len(requests) == 1 + extra and effects == [] and restarted_hub.events == []
+        assert len(requests) == 1 and effects == [] and restarted_hub.events == []
         assert await repository.recent_session_messages("session", privacy="local_only") == ()

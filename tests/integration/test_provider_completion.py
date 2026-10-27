@@ -12,7 +12,6 @@ import pytest
 from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
 from siro.adapters.models.failover import FailoverModel
 from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
-from siro.core.conversation import MAX_CONTINUATIONS
 from siro.persistence.sqlite import SQLiteStore
 from siro.ports.models import Privacy
 from siro.services.agent.runs import SQLiteAgentRunRepository
@@ -144,12 +143,9 @@ async def test_provider_incomplete_generation_never_dispatches_or_replays(
                 "[DONE]",
             )
         )
-    # A reply cut at the output limit is continued up to MAX_CONTINUATIONS times, so the provider
-    # keeps cutting it; a bare EOF is not a length cut and gets no continuation request.
-    extra = MAX_CONTINUATIONS if ending == "length" else 0
     responses.extend(
         (
-            *(_incomplete_response(ending) for _ in range(1 + extra)),
+            _incomplete_response(ending),
             _sse(
                 _delta({"content": _COMPLETE}), {"choices": [{"finish_reason": "stop"}]}, "[DONE]"
             ),
@@ -192,7 +188,7 @@ async def test_provider_incomplete_generation_never_dispatches_or_replays(
             auto_authorize=lambda: True,
         )
         await asyncio.wait_for(controller.respond("session", _GOAL), 10)
-        assert len(requests) == 1 + int(continuation) + extra
+        assert len(requests) == 1 + int(continuation)
         assert effects == ([_PRIOR_ARGUMENTS] if continuation else [])
         proposals = [event for event in hub.events if event["type"] == "tool_proposal"]
         assert [event["call_id"] for event in proposals] == (["prior"] if continuation else [])
@@ -200,9 +196,9 @@ async def test_provider_incomplete_generation_never_dispatches_or_replays(
         assert len(terminals) == 1
         assert terminals[0]["state"] == "failed"
         assert terminals[0]["error"] == expected_error
-        assert [event["text"] for event in hub.events if event["type"] == "assistant_delta"] == (
-            [_PARTIAL] * (1 + extra)
-        )
+        assert [event["text"] for event in hub.events if event["type"] == "assistant_delta"] == [
+            _PARTIAL
+        ]
         assert hub.events[-1] is terminals[0]
         readback = await controller.recovery_readback("session")
         assert readback is not None and readback["state"] == "failed"
@@ -230,7 +226,7 @@ async def test_provider_incomplete_generation_never_dispatches_or_replays(
         )
         finals = [step.payload for step in steps if step.kind == "final"]
         assert len(finals) == 1
-        assert cast(dict[str, object], finals[0])["text"] == _PARTIAL * (1 + extra)
+        assert cast(dict[str, object], finals[0])["text"] == _PARTIAL
         turns = await store.run_transaction(
             lambda c: c.execute("SELECT state FROM turns ORDER BY rowid").fetchall()
         )
@@ -241,7 +237,7 @@ async def test_provider_incomplete_generation_never_dispatches_or_replays(
             assert readback["recovery_status"] == "terminal"
             assert readback["tool_calls"] == int(continuation)
             messages = cast(list[dict[str, object]], readback["messages"])
-            assert messages[-1]["content"] == _PARTIAL * (1 + extra)
+            assert messages[-1]["content"] == _PARTIAL
             assert messages[-1]["tool_calls"] == []
             calls = cast(list[dict[str, object]], readback["calls"])
             assert [call["call_id"] for call in calls] == (["prior"] if continuation else [])
@@ -252,8 +248,7 @@ async def test_provider_incomplete_generation_never_dispatches_or_replays(
                 assert calls[0]["proposal_id"] == proposals[0]["proposal_id"]
                 assert observations[0]["tool_call_id"] == "prior"
                 assert json.loads(str(observations[0]["content"])) == _OBSERVATION
-                # The request right after the tool ran, before any length continuation.
-                provider_messages = cast(list[dict[str, object]], requests[1]["messages"])
+                provider_messages = cast(list[dict[str, object]], requests[-1]["messages"])
                 assert provider_messages[-1]["role"] == "tool"
                 assert json.loads(str(provider_messages[-1]["content"])) == _OBSERVATION
 
@@ -273,14 +268,14 @@ async def test_provider_incomplete_generation_never_dispatches_or_replays(
         )
         await restarted.startup()
         assert await restarted.recovery_readback("session") == readback
-        assert len(requests) == 1 + int(continuation) + extra
+        assert len(requests) == 1 + int(continuation)
         assert effects == ([_PRIOR_ARGUMENTS] if continuation else [])
         assert restarted_hub.events == []
         assert await repository.recent_session_messages("session", privacy="cloud_allowed") == ()
 
         # A real stop after restart proves failure does not poison later turns or hydration.
         await asyncio.wait_for(restarted.respond("session", _FOLLOW_UP), 10)
-        assert len(requests) == 2 + int(continuation) + extra
+        assert len(requests) == 2 + int(continuation)
         assert effects == ([_PRIOR_ARGUMENTS] if continuation else [])
         next_terminals = [
             event for event in restarted_hub.events if event["type"] == "assistant_terminal"
