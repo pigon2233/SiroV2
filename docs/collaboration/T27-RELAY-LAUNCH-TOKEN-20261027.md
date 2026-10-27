@@ -30,3 +30,9 @@
 - Successful Gateway PID 20351 runs from this worktree with the private token loader. `/health/live` returned 200; authenticated unknown-event probe returned 400, proving ingress was enabled and reached validation.
 - Fresh World State rows from `device:siro-node-01:esp32_http` recorded illuminance 228.3 → 233.3 → 230.8 lux at 2026-10-26T16:41:02Z–16:42:02Z. See [`T27-esp32-live-2026-10-27`](../evidence/T27-esp32-live-2026-10-27/REPORT.md).
 - A first restart attempt failed closed because `uv` created an E-drive `.venv` and missed readiness; the successful run used `/home/pepepig/.venvs/sirov2` via `UV_PROJECT_ENVIRONMENT` guidance.
+
+## 接手（2026-10-28 Asia/Taipei）
+
+- Claude 依使用者指示接手 Codex 的 T27 ESP32 工作（分支 `codex/t27-esp32-sensor-telemetry`、`codex/t27-http-event-ingress`、本分支）；仍沿用本 worktree，LOCAL_ONLY／NOT PUSHED，不 push、不改 PR。
+- 唯讀核對：8000 Gateway 與 8765 relay 皆在監聽；d4ed0cd 只在本分支，未進 main。
+- 待辦：PIR 與按鈕經新流程實機驗收（需使用者在板子前操作）；整合到 main 需使用者另行指定目標；MQTT 韌體未刷板；兩個 Draft PR 的 CI 失敗源自 main 既有格式問題。
