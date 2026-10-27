@@ -11,6 +11,7 @@ import sqlite3
 import stat
 import subprocess
 from collections.abc import Mapping
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Self
@@ -275,6 +276,66 @@ class ReleaseManager:
             return ReleaseResult("incompatible_schema", self.active_version())
         self._atomic_json(self._root / "active.json", {"version": version})
         return ReleaseResult("rolled_back", version)
+
+    def restore_backup(self, version: str) -> ReleaseResult:
+        """Explicitly replace the database with ``before-<version>`` data.
+
+        Never runs implicitly. The current database is first snapshotted to
+        ``backups/pre-restore-<n>.sqlite3`` so newer rows are never lost.
+        """
+        if self._database is None:
+            return ReleaseResult("no_database", self.active_version())
+        try:
+            ReleaseManifest.model_validate(
+                {
+                    "version": version,
+                    "source_sha256": "0" * 64,
+                    "signature": "0" * 64,
+                    "min_schema": 1,
+                    "max_schema": 1,
+                }
+            )
+        except ValueError:
+            return ReleaseResult("invalid_backup", self.active_version())
+        backup = self._root / "backups" / f"before-{version}.sqlite3"
+        if backup.is_symlink() or not backup.is_file():
+            return ReleaseResult("no_backup", self.active_version())
+        with closing(sqlite3.connect(f"file:{backup}?mode=ro", uri=True)) as probe:
+            check = probe.execute("PRAGMA integrity_check").fetchone()
+        if check is None or check[0] != "ok":
+            return ReleaseResult("invalid_backup", self.active_version())
+        number = len(list((self._root / "backups").glob("pre-restore-*.sqlite3"))) + 1
+        self._backup_database(self._root / "backups" / f"pre-restore-{number}.sqlite3")
+        with (
+            closing(sqlite3.connect(f"file:{backup}?mode=ro", uri=True)) as source,
+            closing(sqlite3.connect(self._database)) as target,
+        ):
+            source.backup(target)
+        return ReleaseResult("restored", self.active_version())
+
+    def activate(self, version: str) -> ReleaseResult:
+        """Re-activate an already published, verified release; no data effects."""
+        try:
+            manifest = ReleaseManifest.model_validate(
+                self._json_record(self._root / "manifests" / f"{version}.json")
+            )
+            target = self._root / "releases" / version
+            if (
+                manifest.version != version
+                or target.is_symlink()
+                or not target.is_dir()
+                or not self._verified(target, manifest)
+            ):
+                raise ValueError("unverified release")
+        except (OSError, ValueError, RecursionError):
+            return ReleaseResult("invalid_release", self.active_version())
+        schema = self._rollback_schema()
+        if schema is None:
+            return ReleaseResult("schema_unknown", self.active_version())
+        if schema > self._schema or not manifest.min_schema <= schema <= manifest.max_schema:
+            return ReleaseResult("incompatible_schema", self.active_version())
+        self._atomic_json(self._root / "active.json", {"version": version})
+        return ReleaseResult("activated", version)
 
     @staticmethod
     def _json_record(path: Path) -> dict[str, object]:
