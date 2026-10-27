@@ -1128,7 +1128,7 @@ def create_app(
             },
             "routes": {
                 k: gateway_state.routes[k]
-                for k in ("model", "audio", "body", "tts")
+                for k in ("model", "model_actual", "audio", "body", "tts")
                 if k in gateway_state.routes
             },
             "tools": tool_orchestrator.tool_status() if tool_orchestrator is not None else [],
@@ -2181,6 +2181,7 @@ def _run_gateway(
                 cloud_request_budget=1 if recovery_enabled else 0,
                 rate_limit_max_wait_seconds=retry_wait_limit if recovery_enabled else None,
                 on_retry=notify_model_retry if recovery_enabled else None,
+                on_provider=lambda name: state.routes.__setitem__("model_actual", name),
             )
         from siro.services.agent.context import (
             ContextBudgetModel,
