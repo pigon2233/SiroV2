@@ -118,6 +118,14 @@ def _local_status_command(text: str) -> tuple[str, str] | None:
     return None
 
 
+def _plan_goal(text: str) -> str | None:
+    stripped = text.strip()
+    for prefix in ("/plan ", "規劃：", "規劃:"):  # noqa: RUF001
+        if stripped.startswith(prefix) and stripped[len(prefix) :].strip():
+            return stripped[len(prefix) :].strip()
+    return None
+
+
 class IntegratedCompanion:
     def __init__(
         self,
@@ -382,6 +390,11 @@ class IntegratedCompanion:
                 self._run_ids[session_id], session_id, TurnState.CANCELLED, "superseded"
             )
         direct_command = _local_status_command(text) or _emotion_command(text)
+        plan_goal = _plan_goal(text) if direct_command is None else None
+        if plan_goal is not None and (not planner_enabled() or self._agent_planner_factory is None):
+            plan_goal = None
+        if plan_goal is not None:
+            direct_command = ("neutral", "")
         recent_messages = None
         runtime_status = None
         if (
@@ -408,6 +421,13 @@ class IntegratedCompanion:
         await emit({"type": "assistant_started", "session_id": session_id})
         if direct_command is not None:
             emotion, reply = direct_command
+            if plan_goal is not None:
+                try:
+                    report = await self.run_agent_plan(session_id, plan_goal)
+                    reply = (report.summary if report else "") or "這件事我沒能規劃出結果。"
+                except Exception:
+                    logging.getLogger(__name__).exception("agent plan failed")
+                    reply = "規劃時出了問題，這次沒有完成。"  # noqa: RUF001
             generation_id = str(uuid4())
             await self._body.set_emotion(EmotionIntent(emotion, 0.85))
             await emit({"type": "assistant_delta", "session_id": session_id, "text": reply})

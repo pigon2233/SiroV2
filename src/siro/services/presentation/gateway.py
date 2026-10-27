@@ -38,9 +38,15 @@ from siro.core.releases import ReleaseLaunchError, VerifiedRelease
 from siro.persistence.affect import SQLiteAffectRepository
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
+from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
+from siro.services.agent.planning_adapters import (
+    CodexPlannerModel,
+    OrchestratorToolPort,
+    planner_enabled,
+)
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
 from siro.services.agent.self_notes import SelfNotes, remember_note, share_text
@@ -2782,6 +2788,21 @@ def _run_gateway(
         else []
     )
     work_context.providers = bool(context_observers)
+    planner_factory = None
+    planner_schemas = (
+        {tool.name: tool.input_schema for tool in WORKSPACE_TOOLS} if workspace is not None else {}
+    )
+    if planner_enabled() and planner_schemas and codex_ready(codex_binary()):
+        planner_model = os.environ.get("SIRO_CODEX_MODEL", CODEX_DEFAULT_MODEL)
+
+        def planner_factory(runs: SQLiteAgentRunRepository) -> Coordinator:
+            return Coordinator(
+                CodexPlannerModel(codex_binary(), planner_model),
+                OrchestratorToolPort(tool_orchestrator, runs, backend=f"codex:{planner_model}"),
+                read_tools=planner_schemas,
+                expected_models=frozenset({planner_model}),
+            )
+
     controller = IntegratedCompanion(
         data_dir,
         model,
@@ -2790,6 +2811,7 @@ def _run_gateway(
         privacy=privacy,
         tool_orchestrator=tool_orchestrator,
         runtime_profile=runtime_profile,
+        agent_planner_factory=planner_factory,
         session_restore_enabled=session_restore_enabled,
         memory_ingress_enabled=memory_ingress_enabled,
         summary_enabled=summary_enabled,

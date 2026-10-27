@@ -34,6 +34,8 @@ PLAN_PROMPT = (
     '{{"subtasks":[{{"title":"..","capability":"<one of {tools}>",'
     '"arguments":{{...}},"depends_on":["s1"],"expect":"what evidence proves it"}}]}}\n'
     "Subtasks are named s1, s2, s3 in order; depends_on may only name earlier ones.\n"
+    'File paths are relative to the tool workspace, never absolute: use "." for its root '
+    "and bare names such as note.txt.\n"
     "Tool schemas: {schemas}\nGoal: {goal}"
 )
 VERIFY_PROMPT = (
