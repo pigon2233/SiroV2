@@ -9,7 +9,7 @@ T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–
 | RT-001–015 | 均已實作（RT-011／013／015 為有界產品切片 DONE） | 見 runtime-evolution 各卡 Status |
 | CP-V01–V05 | DONE | V01–V03 為 Live2D 版，已被 VRM 取代 |
 | CP-00 | PARTIAL（2026-10-18 接收紀錄） | Codex 當時未回覆 |
-| CP-P00、CP-P01 | 沒有收尾紀錄 | 只有零散修復紀錄，須另補驗證或標明 |
+| CP-P00、CP-P01 | DONE（自動可驗範圍，2026-10-27 收尾核對） | 取消／terminal fence、body 隔離、body adapter／assets、記憶 ingress、VRM renderer、200% reflow、proactivity 共 45 測試 PASS（WSL）；hold 清除、取消只收該 reply 的手勢、clip 逐一載入見 `86048e0`。未驗：owner 在真桌面重測刷新後不復活的第二輪、Firefox 實機 200%（無逐步紀錄） |
 | CP-P02、P03、P04、P05 | 各自段落標題仍為 PARTIAL | P03／P04 的限制已在各段「更新」補記為已解決（2026-10-24）；P02／P05 限制見各段 |
 | CP-P06 | DONE（owner 接受已知限制） | WSLg 隱形框、鎖屏／全螢幕／DPI 未實機驗 |
 | CP-O01 | PARTIAL | 只在 WSL2 抽樣，短連線看不到 |
