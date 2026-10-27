@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, replace
@@ -63,9 +64,16 @@ from siro.ports.models import (
 )
 from siro.services.activity.monitor import ACTIVE_STATES, ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
+from siro.services.agent.checkpoints import SQLiteCheckpointRepository
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.planning import PlanReport
 from siro.services.agent.planning_adapters import planner_enabled
+from siro.services.agent.resume import (
+    CURRENT_SESSION,
+    ResumeWorker,
+    make_checkpoint_hook,
+    resume_enabled,
+)
 from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
 from siro.services.presentation.gateway import GatewayHub
 from siro.services.tools.execution import ExecutionCleanupError
@@ -154,6 +162,8 @@ class IntegratedCompanion:
         self._tool_orchestrator = tool_orchestrator
         self._agent_planner_factory = agent_planner_factory
         self._agent_planner: Coordinator | None = None
+        self._checkpoints: SQLiteCheckpointRepository | None = None
+        self._resume_task: asyncio.Task[None] | None = None
         self._max_agent_steps = max_agent_steps
         self._auto_authorize = auto_authorize or (lambda: False)
         self._agent_steps: dict[str, int] = {}
@@ -1368,9 +1378,28 @@ class IntegratedCompanion:
             return None
         await self._ensure_core()
         assert self._agent_runs is not None
-        if self._agent_planner is None:
+        planner = self._planner()
+        assert planner is not None
+        CURRENT_SESSION.set(session_id)
+        return await planner.run(session_id, goal)
+
+    def _planner(self) -> Coordinator | None:
+        if self._agent_planner is None and self._agent_planner_factory is not None:
+            assert self._agent_runs is not None
             self._agent_planner = self._agent_planner_factory(self._agent_runs)
-        return await self._agent_planner.run(session_id, goal)
+            if self._checkpoints is not None:
+                self._agent_planner.add_hook(make_checkpoint_hook(self._checkpoints))
+        return self._agent_planner
+
+    async def _resume_plans(self) -> None:
+        """Resume unfinished read-only plans after a restart (SIRO_AGENT_RESUME_ENABLED=1)."""
+        planner = self._planner()
+        if self._checkpoints is None or planner is None:
+            return
+        try:
+            await ResumeWorker(self._checkpoints, planner).resume_all()
+        except Exception:
+            logging.getLogger(__name__).exception("agent plan resume failed")
 
     async def _ensure_core(self) -> None:
         if self._core is not None:
@@ -1388,6 +1417,10 @@ class IntegratedCompanion:
                 await self._agent_runs.reconcile()
                 if self._tool_orchestrator is not None:
                     self._tool_orchestrator.journal_hook = self._journal_event
+            if resume_enabled() and planner_enabled() and self._agent_planner_factory is not None:
+                self._checkpoints = SQLiteCheckpointRepository(store)
+                await self._checkpoints.reconcile()
+                self._resume_task = asyncio.create_task(self._resume_plans())
             identities = SQLiteIdentityRepository(store)
             if await identities.get("siro") is None:
                 await IdentityService(identities).create(

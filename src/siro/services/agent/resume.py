@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +28,9 @@ from siro.services.agent.checkpoints import (
 
 if TYPE_CHECKING:
     from siro.services.agent.planning import PlanCheckpoint, SubtaskResult
+
+# Set by the entry point so the hook can record which session owns a new plan.
+CURRENT_SESSION: ContextVar[str] = ContextVar("siro_plan_session", default="")
 
 _UNKNOWN_ERRORS = ("outcome_unknown", "prior_outcome_unknown")
 
@@ -101,7 +105,7 @@ def _current_subtask(cp: PlanCheckpoint) -> str | None:
 def make_checkpoint_hook(
     repo: SQLiteCheckpointRepository,
     *,
-    session_of: Callable[[str], str] = lambda _plan_id: "",
+    session_of: Callable[[str], str] = lambda _plan_id: CURRENT_SESSION.get(),
 ) -> Callable[[PlanCheckpoint], Awaitable[None]]:
     """Build the R05 ``CheckpointHook``. Checkpoints are written before the coordinator goes on."""
 

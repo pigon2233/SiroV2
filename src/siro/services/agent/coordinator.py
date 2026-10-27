@@ -96,6 +96,19 @@ class Coordinator:
         self._active: dict[str, asyncio.Task[PlanReport]] = {}
         self._partial: dict[str, tuple[SubtaskResult, ...]] = {}
 
+    def add_hook(self, hook: CheckpointHook) -> None:
+        """Chain another checkpoint hook after the existing one (R06 durable checkpoints)."""
+        previous = self._hook
+        if previous is None:
+            self._hook = hook
+            return
+
+        async def both(cp: PlanCheckpoint) -> None:
+            await previous(cp)
+            await hook(cp)
+
+        self._hook = both
+
     def _degraded(self, model: str) -> bool:
         return bool(self._expected) and model not in self._expected
 

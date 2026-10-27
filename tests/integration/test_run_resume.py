@@ -266,3 +266,68 @@ async def test_side_effect_unknown_step_waits_for_owner_and_never_resumes(tmp_pa
     assert port.ran == []
     cp = await repo.get("p1", "s1")
     assert cp is not None and cp.outcome is Outcome.UNKNOWN and cp.phase is Phase.DISPATCHED
+
+
+def _companion(path: Path, port: Port, quotes: list[str]) -> object:
+    from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+    from siro.adapters.models.mock import MockModel
+    from siro.ports.models import Privacy
+    from siro.services.agent.runs import SQLiteAgentRunRepository
+    from siro.services.presentation.gateway import GatewayHub
+    from siro.services.presentation.integrated import IntegratedCompanion
+
+    def factory(runs: SQLiteAgentRunRepository) -> Coordinator:
+        return Coordinator(Model(quotes), port, read_tools=READ)
+
+    return IntegratedCompanion(
+        path,
+        MockModel(),
+        GatewayHub(),
+        MinimalWebBodyAdapter(WebSocketBodyTransport()),
+        privacy=Privacy.LOCAL_ONLY,
+        agent_planner_factory=factory,
+    )
+
+
+@pytest.mark.asyncio
+async def test_integrated_flag_off_writes_no_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SIRO_AGENT_PLANNER_ENABLED", "1")
+    monkeypatch.delenv("SIRO_AGENT_RESUME_ENABLED", raising=False)
+    port = Port()
+    companion = _companion(tmp_path, port, ["alpha s1", "alpha s2"])
+    report = await companion.run_agent_plan("sess", "goal")  # type: ignore[attr-defined]
+    assert report is not None and report.state is PlanState.COMPLETED
+    assert companion._resume_task is None and companion._checkpoints is None  # type: ignore[attr-defined]
+    repo = await _repo(tmp_path)
+    assert await repo.unfinished_plans() == () and await repo.get_snapshot(report.plan_id) is None
+
+
+@pytest.mark.asyncio
+async def test_integrated_flag_on_records_and_resumes_after_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SIRO_AGENT_PLANNER_ENABLED", "1")
+    monkeypatch.setenv("SIRO_AGENT_RESUME_ENABLED", "1")
+    port = Port(crash_after_tool="s2")  # s1 finishes, process dies during s2
+    first = _companion(tmp_path, port, ["alpha s1", "alpha s2"])
+    with pytest.raises(CrashPoint):
+        await first.run_agent_plan("sess", "goal")  # type: ignore[attr-defined]
+    assert port.ran == ["s1", "s2"]
+    repo = await _repo(tmp_path)
+    (snap,) = await repo.unfinished_plans()
+    assert snap.session_id == "sess"
+
+    second = _companion(tmp_path, port, ["alpha s2"])  # restart on the same data dir
+    await second._ensure_core()  # type: ignore[attr-defined]
+    task = second._resume_task  # type: ignore[attr-defined]
+    assert task is not None
+    await task
+    assert port.ran == ["s1", "s2", "s2"]  # s1 not repeated; read-only s2 re-read once
+    done = await repo.get_snapshot(snap.plan_id)
+    assert done is not None and done.state == "completed"
+    assert all(
+        c.phase is Phase.SAVED and c.outcome is Outcome.SUCCESS
+        for c in await repo.steps(snap.plan_id)
+    )
