@@ -273,7 +273,7 @@ async def test_status_wiring_before_new_run_start_and_egress_gates(
     assert "SECRET" not in request.prompt
     assert "every completed reply aloud" not in request.prompt
     assert "complete playback require observations" in request.prompt
-    assert request.max_output_tokens == 512
+    assert request.max_output_tokens == 1536
     if expected:
         assert prior_id in request.messages[0].content
         observations = (
