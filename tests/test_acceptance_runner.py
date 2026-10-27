@@ -14,7 +14,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _child_pytest_writes_no_bytecode(monkeypatch: pytest.MonkeyPatch) -> None:
-    # The child pytest runs inside a tiny git repo; stray __pycache__ there reads as a source change.
+    # The child pytest runs in a tiny git repo; stray __pycache__ there reads as a source change.
     monkeypatch.setenv("PYTHONDONTWRITEBYTECODE", "1")
 
 
