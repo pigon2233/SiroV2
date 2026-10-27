@@ -63,6 +63,9 @@ from siro.ports.models import (
 )
 from siro.services.activity.monitor import ACTIVE_STATES, ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
+from siro.services.agent.coordinator import Coordinator
+from siro.services.agent.planning import PlanReport
+from siro.services.agent.planning_adapters import planner_enabled
 from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
 from siro.services.presentation.gateway import GatewayHub
 from siro.services.tools.execution import ExecutionCleanupError
@@ -125,6 +128,7 @@ class IntegratedCompanion:
         summary_enabled: bool = False,
         touch_replies: TouchReplies | None = None,
         situation_lines: Callable[[Privacy], tuple[str, ...]] | None = None,
+        agent_planner_factory: Callable[[SQLiteAgentRunRepository], Coordinator] | None = None,
     ) -> None:
         if runtime_profile not in {"legacy", "candidate"}:
             raise ValueError("runtime_profile must be legacy or candidate")
@@ -148,6 +152,8 @@ class IntegratedCompanion:
         self._body = body
         self._privacy = privacy
         self._tool_orchestrator = tool_orchestrator
+        self._agent_planner_factory = agent_planner_factory
+        self._agent_planner: Coordinator | None = None
         self._max_agent_steps = max_agent_steps
         self._auto_authorize = auto_authorize or (lambda: False)
         self._agent_steps: dict[str, int] = {}
@@ -1355,6 +1361,16 @@ class IntegratedCompanion:
             await self._agent_runs.record_dispatch(run_id, call_id)
         else:
             await self._agent_runs.record_observation(run_id, call_id, value)
+
+    async def run_agent_plan(self, session_id: str, goal: str) -> PlanReport | None:
+        """R05 planner entry; None unless SIRO_AGENT_PLANNER_ENABLED=1 and a factory is wired."""
+        if not planner_enabled() or self._agent_planner_factory is None:
+            return None
+        await self._ensure_core()
+        assert self._agent_runs is not None
+        if self._agent_planner is None:
+            self._agent_planner = self._agent_planner_factory(self._agent_runs)
+        return await self._agent_planner.run(session_id, goal)
 
     async def _ensure_core(self) -> None:
         if self._core is not None:
