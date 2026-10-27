@@ -194,6 +194,61 @@ def test_cloud_speech_recognition_obeys_cloud_switch_and_local_stays_available()
     assert local.calls == 1
 
 
+def test_cloud_speech_failure_falls_back_to_local_and_says_so() -> None:
+    class BrokenCloud(MockSpeechToText):
+        is_cloud = True
+
+        async def transcribe(self, wav: bytes, *, language: str | None = None):  # type: ignore[override]
+            self.calls += 1
+            raise RuntimeError("cloud down")
+
+    state = GatewayState()
+    state.kill_switches["cloud"] = True
+    cloud = BrokenCloud()
+    local = MockSpeechToText("本機", "zh")
+    client = TestClient(
+        create_app(
+            allowed_origins={ORIGIN},
+            state=state,
+            speech_to_text=cloud,
+            fallback_speech_to_text=local,
+        )
+    )
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {issue_token(client)}"}
+    failed_over = client.post("/v1/audio/transcriptions", headers=headers, content=b"wav")
+    assert failed_over.status_code == 200
+    assert failed_over.json() == {
+        "text": "本機",
+        "language": "zh",
+        "final": True,
+        "fallback": "local",
+    }
+    assert (cloud.calls, local.calls) == (1, 1)
+
+    state.kill_switches["cloud"] = False
+    offline = client.post("/v1/audio/transcriptions", headers=headers, content=b"wav")
+    assert offline.status_code == 200
+    assert "fallback" not in offline.json()
+    assert (cloud.calls, local.calls) == (1, 2)
+
+
+def test_cloud_speech_failure_without_fallback_is_502() -> None:
+    class BrokenCloud(MockSpeechToText):
+        is_cloud = True
+
+        async def transcribe(self, wav: bytes, *, language: str | None = None):  # type: ignore[override]
+            raise RuntimeError("cloud down")
+
+    state = GatewayState()
+    state.kill_switches["cloud"] = True
+    client = TestClient(
+        create_app(allowed_origins={ORIGIN}, state=state, speech_to_text=BrokenCloud())
+    )
+    headers = {"origin": ORIGIN, "authorization": f"Bearer {issue_token(client)}"}
+    failed = client.post("/v1/audio/transcriptions", headers=headers, content=b"wav")
+    assert failed.status_code == 502
+
+
 def test_authenticated_neural_speech_obeys_cloud_switch() -> None:
     class FakeSpeech:
         async def render(self, text: str, *, rate: float, pitch: float, energy: float) -> bytes:

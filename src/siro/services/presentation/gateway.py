@@ -22,6 +22,7 @@ from typing import Any, Literal, Protocol, cast
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
+import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -49,7 +50,7 @@ from siro.services.audio.protocol import (
     AudioRingBuffer,
     PlaybackOwnership,
 )
-from siro.services.audio.stt import SpeechToText
+from siro.services.audio.stt import SpeechToText, Transcript
 from siro.services.audio.tts import (
     EdgeNeuralTTS,
     KokoroLocalTTS,
@@ -649,6 +650,7 @@ def create_app(
     memory_service: MemoryService | None = None,
     playback_ownership: PlaybackOwnership | None = None,
     speech_to_text: SpeechToText | None = None,
+    fallback_speech_to_text: SpeechToText | None = None,
     text_to_speech: SpeechSynthesizer | None = None,
     live2d_dist: Path | None = None,
     vrm_dist: Path | None = None,
@@ -781,9 +783,10 @@ def create_app(
                                 if speech_warmup is not None:
                                     speech_warmup.cancel()
                                     await asyncio.gather(speech_warmup, return_exceptions=True)
-                                close = getattr(speech_to_text, "close", None)
-                                if callable(close):
-                                    await close()
+                                for recognizer_owner in (speech_to_text, fallback_speech_to_text):
+                                    close = getattr(recognizer_owner, "close", None)
+                                    if callable(close):
+                                        await close()
                             finally:
                                 await gateway_hub.shutdown()
 
@@ -951,15 +954,19 @@ def create_app(
             raise HTTPException(status_code=403, detail="microphone is disabled")
         if speech_to_text is None:
             raise HTTPException(status_code=503, detail="speech recognition is unavailable")
-        cloud_recognizer = bool(getattr(speech_to_text, "is_cloud", False))
+        recognizer: SpeechToText = speech_to_text
+        cloud_active = [bool(getattr(recognizer, "is_cloud", False))]
 
         def recognition_allowed() -> bool:
             return gateway_state.kill_switches.get("microphone", False) and (
-                not cloud_recognizer or gateway_state.kill_switches.get("cloud", False)
+                not cloud_active[0] or gateway_state.kill_switches.get("cloud", False)
             )
 
-        if cloud_recognizer and not gateway_state.kill_switches.get("cloud", False):
-            raise HTTPException(status_code=403, detail="cloud speech recognition is disabled")
+        if cloud_active[0] and not gateway_state.kill_switches.get("cloud", False):
+            if fallback_speech_to_text is None:
+                raise HTTPException(status_code=403, detail="cloud speech recognition is disabled")
+            recognizer = fallback_speech_to_text
+            cloud_active[0] = False
         audio = await request.body()
         if not audio or len(audio) > 10 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="audio must be between 1 byte and 10 MiB")
@@ -972,7 +979,26 @@ def create_app(
                 await asyncio.sleep(0.05)
             return 403
 
-        transcription = asyncio.create_task(speech_to_text.transcribe(audio, language=language))
+        fell_back = [False]
+
+        async def recognize() -> Transcript:
+            if not cloud_active[0]:
+                return await recognizer.transcribe(audio, language=language)
+            try:
+                return await recognizer.transcribe(audio, language=language)
+            except Exception as error:
+                logging.getLogger(__name__).warning(
+                    "cloud speech recognition failed: %s", type(error).__name__
+                )
+                if fallback_speech_to_text is None:
+                    if isinstance(error, httpx.TransportError):
+                        return await recognizer.transcribe(audio, language=language)
+                    raise
+                cloud_active[0] = False
+                fell_back[0] = True
+                return await fallback_speech_to_text.transcribe(audio, language=language)
+
+        transcription = asyncio.create_task(recognize())
         disconnected = asyncio.create_task(input_closed())
         try:
             done, _ = await asyncio.wait(
@@ -996,11 +1022,14 @@ def create_app(
                 if not task.done():
                     task.cancel()
             await asyncio.gather(transcription, disconnected, return_exceptions=True)
-        return {
+        result: dict[str, object] = {
             "text": transcript.text,
             "language": transcript.language,
             "final": transcript.final,
         }
+        if fell_back[0]:
+            result["fallback"] = "local"
+        return result
 
     @app.post("/v1/audio/speech/plan")
     async def prepare_speech_plan(
@@ -2202,7 +2231,13 @@ def _run_gateway(
     state.routes["body"] = "websocket"
     local_whisper = os.environ.get("SIRO_WHISPER_MODEL_DIR")
     speech_to_text: SpeechToText | None
-    if local_whisper:
+    fallback_speech_to_text: SpeechToText | None = None
+    if local_whisper and cloud_key and os.environ.get("SIRO_STT_CLOUD_FIRST") == "1":
+        from siro.services.audio.local_stt import LocalWhisper
+
+        speech_to_text = GroqWhisper(cloud_key)
+        fallback_speech_to_text = LocalWhisper(Path(local_whisper))
+    elif local_whisper:
         from siro.services.audio.local_stt import LocalWhisper
 
         speech_to_text = LocalWhisper(Path(local_whisper))
@@ -2929,6 +2964,7 @@ def _run_gateway(
             body_transport=body_transport,
             memory_service=memory_service,
             speech_to_text=speech_to_text,
+            fallback_speech_to_text=fallback_speech_to_text,
             text_to_speech=text_to_speech,
             live2d_dist=live2d_dist,
             vrm_dist=vrm_dist,
