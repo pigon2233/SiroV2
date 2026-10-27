@@ -2476,9 +2476,9 @@ def _run_gateway(
         detach = arguments.get("detach", False)
         if not isinstance(detach, bool):
             raise ValueError("computer.execute detach must be boolean")
-        child_env = os.environ.copy()
-        for secret_name in ("SIRO_OPENAI_API_KEY", "GROQ_API_KEY"):
-            child_env.pop(secret_name, None)
+        from siro.services.tools.execution import restricted_environment
+
+        child_env = restricted_environment()
         if runtime_profile == "candidate":
             from siro.services.tools.execution import execute_bounded_argv
 
