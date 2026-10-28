@@ -69,6 +69,14 @@ from siro.services.agent.checkpoints import SQLiteCheckpointRepository
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.planning import PlanReport
 from siro.services.agent.planning_adapters import planner_enabled
+from siro.services.agent.reminders import (
+    Reminder,
+    ReminderService,
+    intent_prompt,
+    may_hold_event,
+    parse_intent,
+    spoken_text,
+)
 from siro.services.agent.resume import (
     CURRENT_SESSION,
     ResumeWorker,
@@ -197,6 +205,9 @@ class IntegratedCompanion:
         self._situation_lines = situation_lines
         # Set by the gateway once her notes service exists; reads her own recent attempts.
         self.self_activity_lines: Callable[[], Awaitable[tuple[str, ...]]] | None = None
+        # Set by the gateway when reminders are enabled.
+        self.reminders: ReminderService | None = None
+        self._background: set[asyncio.Task[None]] = set()
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
         self._planning = False
 
@@ -361,6 +372,56 @@ class IntegratedCompanion:
         if speak:
             await self._speak(SpeechIntent(str(uuid4()), spoken, str(uuid4())))
 
+    async def _reminder_from_intent(self, session_id: str, text: str) -> None:
+        """Ask the model once whether the owner's message holds an event worth a reminder."""
+        try:
+            for _ in range(240):  # wait for the reply; never compete with it for the model
+                if session_id not in self._active_sessions:
+                    break
+                await asyncio.sleep(0.5)
+            else:
+                return
+            assert self.reminders is not None
+            now = datetime.now(UTC)
+            request = ModelRequest(
+                intent_prompt(text, now),
+                str(uuid4()),
+                privacy=self._privacy,
+                max_output_tokens=120,
+            )
+            cancellation = CancellationToken()
+            parts: list[str] = []
+
+            async def collect() -> None:
+                async for chunk in self._model.stream(request, cancellation):
+                    if chunk.kind == "text":
+                        parts.append(chunk.text)
+
+            try:
+                await asyncio.wait_for(collect(), 20.0)
+            except Exception:
+                cancellation.cancel()
+                return
+            found = parse_intent("".join(parts), now)
+            if found is None:
+                return
+            reply = self.reminders.add_from_intent(*found)
+            if reply is not None:
+                await self.share_self_note(reply, reply, speak=False)
+        except Exception:
+            logging.getLogger(__name__).exception("reminder intent failed")
+
+    async def deliver_reminder(self, item: Reminder, late: bool) -> None:
+        """A due reminder: the bubble/chat text, her voice, and one finished Activity entry."""
+        text, spoken = spoken_text(item, late)
+        await self.share_self_note(text, spoken, speak=True)
+        await self._ensure_core()
+        assert self._agent_runs is not None
+        run = await self._agent_runs.start("reminder", f"提醒：{item.text}", max_steps=2)
+        await self._agent_runs.append(
+            run.run_id, "reminder", {"due": item.due.isoformat()}, state=AgentRunState.COMPLETED
+        )
+
     async def _touch_line(self, kind: str, count: int, now: datetime) -> str | None:
         request = ModelRequest(
             touch_prompt(kind, count, now, self._touch_zone),
@@ -392,6 +453,15 @@ class IntegratedCompanion:
                 self._run_ids[session_id], session_id, TurnState.CANCELLED, "superseded"
             )
         direct_command = _local_status_command(text) or _emotion_command(text)
+        if direct_command is None and self.reminders is not None:
+            reminder_reply = self.reminders.handle(text)
+            if reminder_reply is not None:
+                direct_command = ("happy", reminder_reply)
+            elif may_hold_event(text):
+                # She decides from the conversation: checked after this reply is finished.
+                task = asyncio.create_task(self._reminder_from_intent(session_id, text))
+                self._background.add(task)
+                task.add_done_callback(self._background.discard)
         plan_goal = _plan_goal(text) if direct_command is None else None
         if (
             plan_goal is None

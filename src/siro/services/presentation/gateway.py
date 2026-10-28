@@ -47,6 +47,7 @@ from siro.services.agent.planning_adapters import (
     OrchestratorToolPort,
     planner_enabled,
 )
+from siro.services.agent.reminders import ReminderService, reminders_enabled
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
 from siro.services.agent.self_notes import SelfNotes, remember_note, share_text
@@ -2953,10 +2954,19 @@ def _run_gateway(
         else None
     )
 
+    reminder_service = (
+        ReminderService(data_dir / "reminders.json", controller.deliver_reminder)
+        if reminders_enabled()
+        else None
+    )
+    controller.reminders = reminder_service
+
     async def start_controller() -> None:
         await controller.startup()
         if esp32_mqtt is not None:
             esp32_mqtt.start()
+        if reminder_service is not None:
+            reminder_service.start()
         if organizer is not None:
             await organizer.start()
         if workspace is not None:
@@ -2973,6 +2983,8 @@ def _run_gateway(
             await esp32_mqtt.close()
         for observer in context_observers:
             await observer.close()
+        if reminder_service is not None:
+            await reminder_service.close()
         if self_scheduler is not None:
             await self_scheduler.close()
         if self_owner is not None:
