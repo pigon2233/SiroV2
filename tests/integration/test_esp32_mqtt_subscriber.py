@@ -96,3 +96,75 @@ async def test_subscriber_survives_unreachable_broker_and_closes(tmp_path: Path)
     await asyncio.sleep(0.3)
     assert not subscriber.connected.is_set()
     await subscriber.close()
+
+
+@pytest.mark.asyncio
+async def test_mqtt_state_snapshot_reports_known_and_unknown(tmp_path: Path) -> None:
+    from siro.services.devices.mqtt_subscriber import mqtt_sensor_state_snapshot
+
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    world = WorldModel(SQLiteWorldRepository(store))
+    registry = DeviceRegistry(SQLiteDeviceRepository(store), world)
+    await registry.register(mqtt_sensor_descriptor("node-mqtt"))
+    now = datetime.now(UTC)
+    await registry.record_property("node-mqtt", "illuminance", 12.5, observed_at=now)
+    snapshot = await mqtt_sensor_state_snapshot(world, device_id="node-mqtt", now=now)
+    assert snapshot["device_id"] == "node-mqtt"
+    assert snapshot["properties"]["illuminance"]["value"] == 12.5
+    assert snapshot["properties"]["illuminance"]["source_id"] == "device:node-mqtt:esp32_mqtt"
+    assert snapshot["properties"]["motion"] == {"status": "unknown", "value": None}
+
+
+@pytest.mark.asyncio
+async def test_esp32_state_endpoint_merges_mqtt_device_and_keeps_http_fields(
+    tmp_path: Path,
+) -> None:
+    import httpx
+
+    from siro.services.presentation.gateway import create_app
+
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    world = WorldModel(SQLiteWorldRepository(store))
+    registry = DeviceRegistry(SQLiteDeviceRepository(store), world)
+    await registry.register(mqtt_sensor_descriptor("node-mqtt"))
+    await registry.record_property("node-mqtt", "illuminance", 7.0, observed_at=datetime.now(UTC))
+
+    async def mqtt_state() -> dict[str, object]:
+        from siro.services.devices.mqtt_subscriber import mqtt_sensor_state_snapshot
+
+        return await mqtt_sensor_state_snapshot(world, device_id="node-mqtt", now=datetime.now(UTC))
+
+    async def http_state() -> dict[str, object]:
+        return {"device_id": "siro-node-01", "properties": {}}
+
+    for http, expected_keys in (
+        (http_state, {"device_id", "properties", "mqtt"}),
+        (None, {"mqtt"}),
+    ):
+        app = create_app(on_esp32_mqtt_state=mqtt_state, on_esp32_http_state=http)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, client=("127.0.0.1", 12345)),
+            base_url="http://127.0.0.1:8000",
+        ) as client:
+            session = await client.post("/v1/session", headers={"Origin": "http://127.0.0.1:8000"})
+            state = await client.get(
+                "/v1/devices/esp32/state",
+                headers={"Authorization": f"Bearer {session.json()['token']}"},
+            )
+        assert state.status_code == 200
+        body = state.json()
+        assert set(body) == expected_keys
+        assert body["mqtt"]["properties"]["illuminance"]["value"] == 7.0
+    disabled = create_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=disabled, client=("127.0.0.1", 12345)),
+        base_url="http://127.0.0.1:8000",
+    ) as client:
+        session = await client.post("/v1/session", headers={"Origin": "http://127.0.0.1:8000"})
+        off = await client.get(
+            "/v1/devices/esp32/state",
+            headers={"Authorization": f"Bearer {session.json()['token']}"},
+        )
+    assert off.status_code == 503

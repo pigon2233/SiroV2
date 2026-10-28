@@ -6,6 +6,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any
 
 import aiomqtt
 
@@ -16,6 +17,7 @@ from siro.core.devices import (
     DeviceProperty,
     DeviceRegistry,
 )
+from siro.core.world import WorldModel, WorldStatus
 from siro.services.devices.mqtt import MqttStateProjector
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,6 +39,27 @@ def mqtt_sensor_descriptor(device_id: str, *, location: str | None = None) -> De
         availability_ttl_ms=_TTL_MS,
         privacy=Privacy.LOCAL_ONLY,
     )
+
+
+_STATE_PROPERTIES = ("illuminance", "motion", "button_down", "button_press_count")
+
+
+async def mqtt_sensor_state_snapshot(
+    world: WorldModel, *, device_id: str, now: datetime
+) -> dict[str, Any]:
+    properties: dict[str, dict[str, object]] = {}
+    for name in _STATE_PROPERTIES:
+        current = await world.current(device_id, name, now=now)
+        if current.status is WorldStatus.KNOWN and current.observation is not None:
+            properties[name] = {
+                "status": "known",
+                "value": current.observation.value,
+                "observed_at": current.observation.observed_at.isoformat(),
+                "source_id": current.observation.source_id,
+            }
+        else:
+            properties[name] = {"status": "unknown", "value": None}
+    return {"device_id": device_id, "properties": properties}
 
 
 class Esp32MqttSubscriber:
@@ -124,4 +147,4 @@ class Esp32MqttSubscriber:
             _LOGGER.warning("ESP32 MQTT message rejected: %s", type(error).__name__)
 
 
-__all__ = ["Esp32MqttSubscriber", "mqtt_sensor_descriptor"]
+__all__ = ["Esp32MqttSubscriber", "mqtt_sensor_descriptor", "mqtt_sensor_state_snapshot"]

@@ -723,6 +723,7 @@ def create_app(
     desktop_settings_path: Path | None = None,
     on_esp32_http_event: Esp32HttpEventHandler | None = None,
     on_esp32_http_state: Callable[[], Awaitable[dict[str, Any]]] | None = None,
+    on_esp32_mqtt_state: Callable[[], Awaitable[dict[str, Any]]] | None = None,
     esp32_relay_token: str | None = None,
     profile_service: ProfileService | None = None,
     profile_source: SQLiteProfileSource | None = None,
@@ -984,9 +985,12 @@ def create_app(
         authorization: str | None = Header(default=None),
     ) -> dict[str, Any]:
         require_token(authorization)
-        if on_esp32_http_state is None:
+        if on_esp32_http_state is None and on_esp32_mqtt_state is None:
             raise HTTPException(status_code=503, detail="ESP32 HTTP ingress is disabled")
-        return await on_esp32_http_state()
+        state: dict[str, Any] = {} if on_esp32_http_state is None else await on_esp32_http_state()
+        if on_esp32_mqtt_state is not None:
+            state["mqtt"] = await on_esp32_mqtt_state()
+        return state
 
     @app.post("/v1/session")
     async def issue_session(request: Request) -> dict[str, object]:
@@ -2241,6 +2245,7 @@ def _run_gateway(
     from siro.services.devices.mqtt_subscriber import (
         Esp32MqttSubscriber,
         mqtt_sensor_descriptor,
+        mqtt_sensor_state_snapshot,
     )
     from siro.services.presentation.integrated import IntegratedCompanion
     from siro.services.tools.orchestrator import SQLiteToolProposalRepository
@@ -2509,6 +2514,7 @@ def _run_gateway(
 
         on_esp32_http_state = read_esp32_http_state
     esp32_mqtt: Esp32MqttSubscriber | None = None
+    on_esp32_mqtt_state: Callable[[], Awaitable[dict[str, Any]]] | None = None
     if os.environ.get("SIRO_ESP32_MQTT_ENABLED") == "1":
         mqtt_host = os.environ.get("SIRO_ESP32_MQTT_HOST")
         if not mqtt_host:
@@ -2516,10 +2522,8 @@ def _run_gateway(
         mqtt_device_id = os.environ.get("SIRO_ESP32_MQTT_DEVICE_ID", "siro-node-mqtt-01")
         if mqtt_device_id == os.environ.get("SIRO_ESP32_HTTP_DEVICE_ID", "siro-node-01"):
             raise ValueError("SIRO_ESP32_MQTT_DEVICE_ID must differ from the HTTP device ID")
-        mqtt_registry = DeviceRegistry(
-            SQLiteDeviceRepository(shared_store),
-            WorldModel(SQLiteWorldRepository(shared_store)),
-        )
+        mqtt_world = WorldModel(SQLiteWorldRepository(shared_store))
+        mqtt_registry = DeviceRegistry(SQLiteDeviceRepository(shared_store), mqtt_world)
         mqtt_repository = SQLiteDeviceRepository(shared_store)
 
         async def ensure_mqtt_sensor() -> None:
@@ -2542,6 +2546,13 @@ def _run_gateway(
             username=os.environ.get("SIRO_ESP32_MQTT_USERNAME") or None,
             password=os.environ.get("SIRO_ESP32_MQTT_PASSWORD") or None,
         )
+
+        async def read_esp32_mqtt_state() -> dict[str, Any]:
+            return await mqtt_sensor_state_snapshot(
+                mqtt_world, device_id=mqtt_device_id, now=datetime.now(UTC)
+            )
+
+        on_esp32_mqtt_state = read_esp32_mqtt_state
     memory_service = MemoryService(SQLiteMemoryRepository(shared_store))
     profile_setting = os.environ.get("SIRO_PROFILE_ENABLED", "1")
     if profile_setting not in {"0", "1"}:
@@ -3329,6 +3340,7 @@ def _run_gateway(
             desktop_settings_path=data_dir / "desktop-settings.json",
             on_esp32_http_event=on_esp32_http_event,
             on_esp32_http_state=on_esp32_http_state,
+            on_esp32_mqtt_state=on_esp32_mqtt_state,
             esp32_relay_token=esp32_relay_token,
         ),
         host="127.0.0.1",
