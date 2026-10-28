@@ -64,6 +64,7 @@ from siro.services.agent.profile_auto import ProfileAuto
 from siro.services.agent.reminders import ReminderService, reminders_enabled
 from siro.services.agent.routine import RoutineWatcher
 from siro.services.agent.runs import SQLiteAgentRunRepository
+from siro.services.agent.scene import detect_scene
 from siro.services.agent.self_activity import SelfActivityOwner
 from siro.services.agent.self_notes import SelfNotes, remember_note, share_text
 from siro.services.audio.protocol import (
@@ -3197,6 +3198,10 @@ def _run_gateway(
             with suppress(Exception):
                 routine_facts = await routine_watcher.check()
                 if routine_facts is not None:
+                    now = datetime.now(UTC)
+                    view = await routine_watcher.view(now)
+                    zone = ProactivitySettings().timezone
+                    routine_facts["scene"] = detect_scene(view, now=now, zone=zone)
                     await controller.react_to_sensor(routine_facts)
 
     recap_time = os.environ.get("SIRO_DAILY_RECAP_TIME", "23:00")

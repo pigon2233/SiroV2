@@ -111,6 +111,14 @@ def detect(
     return None
 
 
+@dataclass(frozen=True)
+class RoutineView:
+    profile: RoutineProfile | None
+    last_motion: datetime | None
+    last_lux: float | None
+    last_seen: datetime | None
+
+
 class RoutineWatcher:
     def __init__(self, store: SQLiteStore, *, zone: str = "Asia/Taipei") -> None:
         self._store = store
@@ -121,17 +129,16 @@ class RoutineWatcher:
         """Facts of an anomaly that may be raised now (cooldown applied), else None."""
 
         now = now or datetime.now(UTC)
-        motion, last_lux, last_seen = await self._read(now)
-        profile = build_profile(motion, now, self._zone)
-        if profile is None:
+        view = await self.view(now)
+        if view.profile is None:
             return None
         found = detect(
-            profile,
+            view.profile,
             now=now,
             zone=self._zone,
-            last_motion=max(motion) if motion else None,
-            last_lux=last_lux,
-            last_seen=last_seen,
+            last_motion=view.last_motion,
+            last_lux=view.last_lux,
+            last_seen=view.last_seen,
         )
         if found is None:
             return None
@@ -141,6 +148,17 @@ class RoutineWatcher:
             return None
         self._last_by[trigger] = now
         return found
+
+    async def view(self, now: datetime) -> RoutineView:
+        """What the sensors and history say right now; shared by anomaly detection and scenes."""
+
+        motion, last_lux, last_seen = await self._read(now)
+        return RoutineView(
+            build_profile(motion, now, self._zone),
+            max(motion) if motion else None,
+            last_lux,
+            last_seen,
+        )
 
     async def _read(self, now: datetime) -> tuple[list[datetime], float | None, datetime | None]:
         since = (now - timedelta(days=HISTORY_DAYS)).isoformat()
