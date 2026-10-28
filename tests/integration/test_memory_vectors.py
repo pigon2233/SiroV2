@@ -356,12 +356,50 @@ async def test_low_similarity_is_not_recalled_and_distinct_conflicts_not_dedupli
         ) -> tuple[tuple[float, ...], ...]:
             return ((0.0, 1.0) + (0.0,) * 30,) if query else await super().embed(texts, query=query)
 
-    assert (
-        await HybridMemoryRetriever(cache, Orthogonal()).recall(
-            "siro", "unrelated", [left, right], route=ROUTE
-        )
-        == []
+    # Dense-only matches below the floor are dropped; lexical hits are kept.
+    assert await HybridMemoryRetriever(cache, Orthogonal()).recall(
+        "siro", "unrelated", [], route=ROUTE
+    ) == []
+    kept = await HybridMemoryRetriever(cache, Orthogonal()).recall(
+        "siro", "unrelated", [left, right], route=ROUTE
     )
+    assert {m.memory_id for m in kept} == {left.memory_id, right.memory_id}
+
+
+@pytest.mark.asyncio
+async def test_embedder_unavailable_keeps_lexical_hits(tmp_path: Path) -> None:
+    from siro.ports.embeddings import RetrievalUnavailable
+
+    _, repo, cache = await setup(tmp_path / "degrade.sqlite")
+    hit = await add(repo, "我喜歡茶")
+
+    class Down(FakeEmbedder):
+        async def embed(self, texts, *, query):  # type: ignore[no-untyped-def]
+            raise RetrievalUnavailable("down")
+
+    found = await HybridMemoryRetriever(cache, Down()).recall(
+        "siro", "茶", [hit], route=ROUTE
+    )
+    assert [m.memory_id for m in found] == [hit.memory_id]
+
+
+@pytest.mark.asyncio
+async def test_steady_state_recall_reads_corpus_at_most_twice(tmp_path: Path) -> None:
+    _, repo, cache = await setup(tmp_path / "reads.sqlite")
+    hit = await add(repo, "我喜歡茶")
+    retriever = HybridMemoryRetriever(cache, FakeEmbedder())
+    await retriever.recall("siro", "茶", [hit], route=ROUTE)  # warm vectors
+    calls = 0
+    original = cache.documents
+
+    async def counting(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return await original(*args, **kwargs)
+
+    cache.documents = counting  # type: ignore[method-assign]
+    await retriever.recall("siro", "茶", [hit], route=ROUTE)
+    assert calls <= 2
 
 
 def test_release_manifest_max17_refuses_schema18(tmp_path: Path) -> None:
@@ -380,7 +418,7 @@ def test_release_manifest_max17_refuses_schema18(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_embedding_timeout_propagates_without_lexical_success_claim(tmp_path: Path) -> None:
+async def test_embedding_timeout_degrades_to_lexical_hits(tmp_path: Path) -> None:
     _, repo, cache = await setup(tmp_path / "timeout.sqlite")
     memory = await add(repo, "synthetic")
 
@@ -391,10 +429,10 @@ async def test_embedding_timeout_propagates_without_lexical_success_claim(tmp_pa
             await asyncio.Event().wait()
             raise AssertionError("unreachable")
 
-    with pytest.raises(RetrievalUnavailable, match="timed out"):
-        await HybridMemoryRetriever(cache, Slow(), timeout=0.01).recall(
-            "siro", "synthetic", [memory], route=ROUTE
-        )
+    found = await HybridMemoryRetriever(cache, Slow(), timeout=0.01).recall(
+        "siro", "synthetic", [memory], route=ROUTE
+    )
+    assert [m.memory_id for m in found] == [memory.memory_id]
 
 
 @pytest.mark.asyncio

@@ -197,7 +197,7 @@ async def test_no_profile_never_calls_models_and_preserves_lexical_recall(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_retrieval_failure_does_not_fallback_or_dispatch_answer(tmp_path: Path) -> None:
+async def test_retrieval_failure_degrades_to_lexical_and_still_answers(tmp_path: Path) -> None:
     store, _ = await seed(tmp_path / "siro.db")
     model = Capture()
     core = CompanionCore(
@@ -205,9 +205,8 @@ async def test_retrieval_failure_does_not_fallback_or_dispatch_answer(tmp_path: 
         build_local_memory(store, profile(), transport=transport([], fail=True)),
         ConversationEngine(model, SQLiteConversationRepository(store)),
     )
-    with pytest.raises(RetrievalUnavailable):
-        await core.respond("query", "siro", "charger")
-    assert model.requests == []
+    await core.respond("query", "siro", "charger")
+    assert len(model.requests) == 1
 
 
 @pytest.mark.asyncio
@@ -277,9 +276,9 @@ async def test_cli_opt_in_success_failure_and_default(
     assert await cli._run_demo(args) == 0
     assert "離線示範模型" in capsys.readouterr().out
     fail = True
-    assert await cli._run_demo(args) == 1
+    assert await cli._run_demo(args) == 0
     output = capsys.readouterr().out
-    assert "沒有送出回答" in output and "PRIVATE" not in output
+    assert "PRIVATE" not in output
     args.memory_profile = None
     before = len(seen)
     assert await cli._run_demo(args) == 0

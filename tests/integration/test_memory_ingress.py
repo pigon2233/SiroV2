@@ -346,3 +346,58 @@ def test_actual_tool_observation_cannot_commit_memory(
         assert not client.get(
             "/v1/memories", headers=headers, params={"identity_id": "siro"}
         ).json()["items"]
+
+
+@pytest.mark.asyncio
+async def test_explicit_remember_trigger_without_colon_and_empty_rejected(tmp_path: Path) -> None:
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from siro.contracts.events import Priority, UserTextEvent, UserTextPayload
+    from siro.core.identity import IdentityService, ImmutableCore
+    from siro.persistence.state import SQLiteIdentityRepository
+
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    await IdentityService(SQLiteIdentityRepository(store)).create(
+        "siro",
+        ImmutableCore(
+            name="SIRO",
+            baseline_identity="test",
+            core_values=("honesty",),
+            creator_relationship="owner",
+        ),
+        now=datetime.now(UTC),
+    )
+    service = MemoryService(SQLiteMemoryRepository(store))
+
+    def event(text: str) -> UserTextEvent:
+        now = datetime.now(UTC)
+        return UserTextEvent(
+            event_id=uuid4(),
+            type="conversation.user_text.v1",
+            source="siro.presentation",
+            occurred_at=now,
+            received_at=now,
+            trace_id="synthetic",
+            session_id="A",
+            turn_id="synthetic-turn",
+            sequence=0,
+            priority=Priority.INTERACTIVE,
+            privacy=EventPrivacy.LOCAL_ONLY,
+            payload=UserTextPayload(text=text, language="zh"),
+        )
+
+    for text, saved in [
+        ("請記住我喜歡咖啡", "我喜歡咖啡"),
+        ("記住 我養了一隻貓", "我養了一隻貓"),
+        ("幫我記住明天要開會", "明天要開會"),
+        ("請記住：我住台中", "我住台中"),
+    ]:
+        memory = await service.ingest_owner_request("siro", event(text))
+        assert memory is not None and memory.text == saved
+    for text in ["我記不住這個", "你記得我嗎", "remember me?"]:
+        assert await service.ingest_owner_request("siro", event(text)) is None
+    for text in ["請記住", "記住：", "幫我記住  "]:
+        with pytest.raises(ValueError):
+            await service.ingest_owner_request("siro", event(text))

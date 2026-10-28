@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict, deque
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -185,6 +186,13 @@ class MemoryRepository(Protocol):
     ) -> list[SemanticFact]: ...
 
 
+_EXPLICIT_REMEMBER = re.compile(
+    r"^\s*(?:(?:請你|請|麻煩你|麻煩|幫我|幫忙)?記住[:：,，\s]*|(?:please\s+)?remember\s*[:：]\s*)"  # noqa: RUF001
+    r"(?P<statement>.*)$",
+    re.I | re.S,
+)
+
+
 class MemoryService:
     def __init__(
         self,
@@ -205,20 +213,10 @@ class MemoryService:
         if source.source != "siro.presentation" or not source.session_id:
             raise PermissionError("memory ingress requires the trusted user entry")
         text = source.payload.text.strip()
-        prefixes = (
-            "請記住\uff1a",
-            "幫我記住\uff1a",
-            "記住\uff1a",
-            "請記住:",
-            "幫我記住:",
-            "記住:",
-            "please remember:",
-            "remember:",
-        )
-        prefix = next((p for p in prefixes if text.lower().startswith(p)), None)
-        if prefix is None:
+        match = _EXPLICIT_REMEMBER.match(text)
+        if match is None:
             return None
-        statement = text[len(prefix) :].strip()
+        statement = match.group("statement").strip()
         if not statement:
             raise ValueError("explicit memory statement is empty")
         existing = await self.recall(identity_id, statement, source_event_id=source.event_id)

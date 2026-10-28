@@ -90,7 +90,20 @@ class HybridMemoryRetriever:
             async with asyncio.timeout(self._timeout), self._lock:
                 return await self._recall(identity_id, current, lexical, route)
         except TimeoutError:
-            raise RetrievalUnavailable("hybrid retrieval timed out") from None
+            return await self._lexical_only(identity_id, lexical, route, "timed out")
+
+    async def _lexical_only(
+        self, identity_id: str, lexical: list[Memory], route: Privacy, reason: str
+    ) -> list[Memory]:
+        """Embeddings unavailable: keep lexical hits that are still eligible sources."""
+        try:
+            fresh = await self._repository.documents(
+                identity_id, "owner", route, self._embedder.profile, self._cap
+            )
+        except Exception:
+            raise RetrievalUnavailable(f"hybrid retrieval {reason}") from None
+        eligible = {d.memory.memory_id: d.memory for d in fresh}
+        return [m for m in lexical if eligible.get(m.memory_id) == m][:5]
 
     async def _recall(
         self,
@@ -108,20 +121,27 @@ class HybridMemoryRetriever:
         missing = [d for d in documents if d.vector is None]
         for start in range(0, len(missing), 32):
             batch = missing[start : start + 32]
-            current_documents = {
-                d.memory.memory_id: d
-                for d in await self._repository.documents(
-                    identity_id, "owner", route, profile, self._cap
+            if start:
+                # The first batch follows the read above directly; later ones may be stale.
+                current_documents = {
+                    d.memory.memory_id: d
+                    for d in await self._repository.documents(
+                        identity_id, "owner", route, profile, self._cap
+                    )
+                }
+                if any(
+                    (preflight_doc := current_documents.get(d.memory.memory_id)) is None
+                    or preflight_doc.memory != d.memory
+                    or preflight_doc.source_hash != d.source_hash
+                    for d in batch
+                ):
+                    raise RetrievalUnavailable("embedding sources changed before dispatch")
+            try:
+                vectors = await self._embedder.embed(
+                    tuple(d.memory.text for d in batch), query=False
                 )
-            }
-            if any(
-                (preflight_doc := current_documents.get(d.memory.memory_id)) is None
-                or preflight_doc.memory != d.memory
-                or preflight_doc.source_hash != d.source_hash
-                for d in batch
-            ):
-                raise RetrievalUnavailable("embedding sources changed before dispatch")
-            vectors = await self._embedder.embed(tuple(d.memory.text for d in batch), query=False)
+            except RetrievalUnavailable:
+                return await self._lexical_only(identity_id, lexical, route, "unavailable")
             if len(vectors) != len(batch):
                 raise RetrievalUnavailable("embedding batch mismatch")
             updated = tuple(
@@ -129,7 +149,10 @@ class HybridMemoryRetriever:
                 for d, v in zip(batch, vectors, strict=True)
             )
             await self._repository.save(updated, profile, route)
-        query_vectors = await self._embedder.embed((current,), query=True)
+        try:
+            query_vectors = await self._embedder.embed((current,), query=True)
+        except RetrievalUnavailable:
+            return await self._lexical_only(identity_id, lexical, route, "unavailable")
         if len(query_vectors) != 1:
             raise RetrievalUnavailable("embedding query mismatch")
         query = normalized(query_vectors[0], profile.dimensions)
@@ -144,14 +167,9 @@ class HybridMemoryRetriever:
             key=lambda pair: (-pair[0], str(pair[1].memory.memory_id)),
         )
         eligible = {d.memory.memory_id: d.memory for d in fresh}
-        similarity = {d.memory.memory_id: score for score, d in dense}
-        # Broad lexical overlaps must not bypass the dense relevance floor.
-        lexical_ids = [
-            m.memory_id
-            for m in lexical
-            if eligible.get(m.memory_id) == m
-            and similarity.get(m.memory_id, -1) >= self._candidate_floor
-        ]
+        # Lexical hits stay even without a vector or below the dense floor; a relevance
+        # filter, when configured, still prunes them.
+        lexical_ids = [m.memory_id for m in lexical if eligible.get(m.memory_id) == m]
         dense_ids = [d.memory.memory_id for score, d in dense if score >= self._candidate_floor][
             :20
         ]
@@ -183,11 +201,7 @@ class HybridMemoryRetriever:
             latest = {
                 d.memory.memory_id: d
                 for d in await self._repository.documents(
-                    identity_id,
-                    "owner",
-                    route,
-                    profile,
-                    self._cap,
+                    identity_id, "owner", route, profile, self._cap
                 )
             }
             if any(
