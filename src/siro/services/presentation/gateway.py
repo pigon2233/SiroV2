@@ -34,8 +34,10 @@ from siro.adapters.body.web import WebSocketBodyTransport
 from siro.adapters.vision import PixelScreenAnalyzer
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.memory import Memory, MemoryService
+from siro.core.profile import ProfileEntry, ProfileService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
 from siro.persistence.affect import SQLiteAffectRepository
+from siro.persistence.profile import SQLiteProfileSource
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
 from siro.services.agent.coordinator import Coordinator
@@ -583,6 +585,19 @@ def _memory_json(memory: Memory) -> dict[str, object]:
     }
 
 
+def _profile_json(entry: ProfileEntry, message: UserTextEvent | None) -> dict[str, object]:
+    return {
+        "memory_id": str(entry.memory_id),
+        "category": entry.category,
+        "text": entry.text,
+        "quote": entry.quote,
+        "source_event_id": str(entry.source_event_id),
+        "occurred_at": entry.occurred_at.isoformat(),
+        "message_text": message.payload.text if message else None,
+        "message_at": message.occurred_at.isoformat() if message else None,
+    }
+
+
 TurnHandler = Callable[[str, str, str], Awaitable[None]]
 CancelHandler = Callable[[str, str], Awaitable[None]]
 BodyTouchHandler = Callable[[str, int], Awaitable[None]]
@@ -699,6 +714,8 @@ def create_app(
     on_esp32_http_event: Esp32HttpEventHandler | None = None,
     on_esp32_http_state: Callable[[], Awaitable[dict[str, Any]]] | None = None,
     esp32_relay_token: str | None = None,
+    profile_service: ProfileService | None = None,
+    profile_source: SQLiteProfileSource | None = None,
 ) -> FastAPI:
     if (vrm_dist is None) != (vrm_model is None):
         raise ValueError("vrm_dist and vrm_model must be configured together")
@@ -1818,6 +1835,32 @@ def create_app(
         )
         return {"items": [_memory_json(item) for item in items]}
 
+    @app.get("/v1/profile")
+    async def list_profile(authorization: str | None = Header(default=None)) -> dict[str, object]:
+        require_token(authorization)
+        if profile_service is None or profile_source is None:
+            raise HTTPException(status_code=503, detail="profile is unavailable")
+        entries = await profile_service.entries()
+        messages = await profile_source.messages([entry.source_event_id for entry in entries])
+        return {
+            "items": [
+                _profile_json(entry, messages.get(entry.source_event_id)) for entry in entries
+            ]
+        }
+
+    @app.post("/v1/profile/rebuild")
+    async def rebuild_profile(
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, object]:
+        require_token(authorization)
+        if profile_service is None or profile_source is None:
+            raise HTTPException(status_code=503, detail="profile is unavailable")
+        try:
+            created = await profile_service.build(await profile_source.unseen_user_events())
+        except Exception as error:
+            raise HTTPException(status_code=502, detail="profile extraction failed") from error
+        return {"created": len(created)}
+
     @app.get("/v1/memories/{memory_id}/revisions")
     async def memory_revisions(
         memory_id: UUID,
@@ -2397,6 +2440,18 @@ def _run_gateway(
             password=os.environ.get("SIRO_ESP32_MQTT_PASSWORD") or None,
         )
     memory_service = MemoryService(SQLiteMemoryRepository(shared_store))
+    profile_setting = os.environ.get("SIRO_PROFILE_ENABLED", "1")
+    if profile_setting not in {"0", "1"}:
+        raise ValueError("SIRO_PROFILE_ENABLED must be 0 or 1")
+    profile_source = profile_service = None
+    if profile_setting == "1" and codex_ready(codex_binary()):
+        profile_source = SQLiteProfileSource(shared_store)
+        profile_service = ProfileService(
+            memory_service,
+            CodexPlannerModel(
+                codex_binary(), os.environ.get("SIRO_CODEX_MODEL", CODEX_DEFAULT_MODEL)
+            ),
+        )
 
     from siro.services.tools.browser_session import BrowserSessions
     from siro.services.tools.orchestrator import BROWSER_SESSION_TOOLS
@@ -3078,6 +3133,8 @@ def _run_gateway(
             allowed_origins={f"http://127.0.0.1:{port}", f"http://localhost:{port}"},
             body_transport=body_transport,
             memory_service=memory_service,
+            profile_service=profile_service,
+            profile_source=profile_source,
             speech_to_text=speech_to_text,
             fallback_speech_to_text=fallback_speech_to_text,
             text_to_speech=text_to_speech,

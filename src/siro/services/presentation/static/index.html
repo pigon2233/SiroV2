@@ -385,6 +385,7 @@
           <section class="page-view reading-width" id="memories-panel" data-page="memory" hidden inert aria-labelledby="memory-heading">
             <div class="page-heading"><h1 id="memory-heading" data-page-heading tabindex="-1">共同記憶</h1><p>留下的事情可以查來源，也能更正與刪除。對我說「記住：…」即可新增。</p></div>
             <section class="content-section"><h2>記住的事情</h2><p class="section-note">更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p><form id="memory-search-form" role="search" aria-label="搜尋共同記憶"><label for="memory-query">搜尋記憶內容</label><input id="memory-query" type="search" maxlength="4096" placeholder="輸入想找的事情" autocomplete="off"><button type="submit">搜尋記憶</button><button id="memory-search-clear" type="button">清除搜尋</button></form><p id="memory-search-status" role="status" aria-live="polite">每次最多顯示 100 筆記憶。</p><button id="product-refresh" type="button">重新整理記憶</button><div id="memory-items"></div></section>
+            <details class="content-section" id="profile-section"><summary><strong>個人檔案</strong></summary><p class="section-note">從你說過的話整理出的喜好與習慣；每筆都附原話和時間，可以刪除。</p><button id="profile-rebuild" type="button">整理個人檔案</button><p id="profile-status" role="status" aria-live="polite"></p><div id="profile-items"></div></details>
             <details id="context-details"><summary>工作情境（預設全關）</summary><p>只在你打開的範圍內，讓 SIRO 知道你現在大概在做什麼：看到的、推測的、不知道的分開。關掉後立刻停止取得，也不再使用舊的內容；不開相機或麥克風，標題不保存，鎖屏與密碼／銀行視窗不記錄，也不會送到雲端模型。</p><p id="context-status" aria-live="polite">讀取狀態中…</p><div class="quick-actions"><label><input id="context-app" type="checkbox"> 讓她知道目前用哪類應用程式</label><label><input id="context-screen" type="checkbox"> 讓她偶爾看一眼主螢幕（只量亮度／顏色，不辨識內容）</label></div><form id="context-share" class="quick-actions"><input id="context-text" maxlength="200" aria-label="告訴她你現在在做什麼" placeholder="例如：正在整理報稅資料"><button type="submit">告訴她</button></form><div id="context-items"></div></details>
             <details><summary>閒置記憶整理</summary><p>只在本機整理已記住的內容，將相同內容放在一起；保留原記憶，不推測新的事實，也不主動打擾。</p><p id="organization-status" aria-live="polite">讀取狀態中…</p><div class="quick-actions"><button id="organization-on" type="button">開啟閒置整理</button><button id="organization-off" type="button">暫停整理</button><button id="organization-refresh" type="button">現在整理</button></div><div id="organization-items"></div></details>
           </section>
@@ -1597,6 +1598,36 @@
           if (epoch === memorySearchEpoch) { memorySearchController = undefined; memorySearchTimeout = undefined; }
         }
       }
+      async function refreshProfile() {
+        const status = document.querySelector("#profile-status"), root = document.querySelector("#profile-items");
+        try {
+          const profile = await productRequest("/v1/profile");
+          if (!Array.isArray(profile.items)) throw new Error("invalid profile");
+          root.textContent = "";
+          status.textContent = profile.items.length ? `共 ${profile.items.length} 筆。` : "還沒有個人檔案，可以按「整理個人檔案」。";
+          for (const entry of profile.items) {
+            const card = document.createElement("div"); card.className = "message";
+            const text = document.createElement("p"); text.textContent = `${entry.category === "habit" ? "習慣" : "偏好"}：${entry.text}`;
+            const quote = document.createElement("small"); quote.textContent = `原話「${entry.quote}」 · ${new Date(entry.message_at || entry.occurred_at).toLocaleString()}`;
+            const remove = document.createElement("button"); remove.textContent = "刪除";
+            remove.onclick = async () => {
+              if (!window.confirm("刪除這筆個人檔案？原始對話不會一併刪除。")) return;
+              remove.disabled = true;
+              try { await productRequest(`/v1/memories/${entry.memory_id}`, {method:"DELETE"}); await refreshProfile(); }
+              catch (error) { status.textContent = `刪除未確認：${error.message}`; remove.disabled = false; }
+            };
+            card.append(text, quote, remove); root.appendChild(card);
+          }
+        } catch { root.textContent = ""; status.textContent = "個人檔案目前無法使用（此執行模式未啟用）。"; }
+      }
+      document.querySelector("#profile-section").ontoggle = event => { if (event.target.open) refreshProfile(); };
+      document.querySelector("#profile-rebuild").onclick = async () => {
+        const status = document.querySelector("#profile-status"), button = document.querySelector("#profile-rebuild");
+        button.disabled = true; status.textContent = "正在整理…";
+        try { const result = await productRequest("/v1/profile/rebuild", {method:"POST"}); await refreshProfile(); status.textContent = `新增 ${result.created} 筆。` + " " + status.textContent; }
+        catch (error) { status.textContent = `整理未完成：${error.message}`; }
+        finally { button.disabled = false; }
+      };
       document.querySelector("#memory-search-form").onsubmit = event => { event.preventDefault(); return refreshMemories(); };
       document.querySelector("#memory-search-clear").onclick = () => { document.querySelector("#memory-query").value = ""; return refreshMemories(); };
       function renderCapabilities(tools = []) {
