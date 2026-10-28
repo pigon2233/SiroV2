@@ -29,6 +29,7 @@ from siro.core.conversation import ConversationEngine, TurnState
 from siro.core.expression import ExpressionPolicy, expression_context_from_text
 from siro.core.identity import IdentityService, ImmutableCore
 from siro.core.memory import Memory, MemoryService
+from siro.core.memory_autonomy import AutonomousMemory, memory_nomination_prompt, parse_nominations
 from siro.core.preferences import extract_explicit_preference
 from siro.core.relationships import (
     RelationshipEvent,
@@ -62,12 +63,12 @@ from siro.ports.models import (
     ToolCall,
     ToolDefinition,
 )
-from siro.core.memory_autonomy import AutonomousMemory, memory_nomination_prompt, parse_nominations
 from siro.services.activity.monitor import ACTIVE_STATES, ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
 from siro.services.agent.auto_plan import Classifier, auto_plan_enabled, should_plan
 from siro.services.agent.checkpoints import SQLiteCheckpointRepository
 from siro.services.agent.coordinator import Coordinator
+from siro.services.agent.daily_recap import build_recap
 from siro.services.agent.planning import PlanReport
 from siro.services.agent.planning_adapters import planner_enabled
 from siro.services.agent.reminders import (
@@ -209,6 +210,8 @@ class IntegratedCompanion:
         # Set by the gateway when reminders are enabled.
         self.reminders: ReminderService | None = None
         self._background: set[asyncio.Task[None]] = set()
+        # Set by the gateway when the cloud summarizer exists; None means a local summary.
+        self.recap_summarizer: Callable[[str], Awaitable[str]] | None = None
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
         self._planning = False
         # Set by the gateway when the luna planner is wired.
@@ -475,6 +478,15 @@ class IntegratedCompanion:
         await self._agent_runs.append(
             run.run_id, "reminder", {"due": item.due.isoformat()}, state=AgentRunState.COMPLETED
         )
+
+    async def daily_recap(self, *, speak: bool = True) -> str:
+        """Bedtime recap of today's dialogue and activity: chat reply, and spoken if asked."""
+        if self._store is None:
+            await self._ensure_core()
+        assert self._store is not None
+        text = await build_recap(self._store, self.recap_summarizer, zone=self._touch_zone.key)
+        await self.share_self_note(text, text, speak=speak)
+        return text
 
     async def _touch_line(self, kind: str, count: int, now: datetime) -> str | None:
         request = ModelRequest(

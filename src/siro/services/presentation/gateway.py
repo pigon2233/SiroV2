@@ -14,13 +14,14 @@ from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from functools import partial
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
@@ -32,6 +33,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from siro.adapters.body.assets import verified_vrm_model
 from siro.adapters.body.web import WebSocketBodyTransport
 from siro.adapters.vision import PixelScreenAnalyzer
+from siro.config import ProactivitySettings
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.memory import Memory, MemoryService
 from siro.core.profile import ProfileEntry, ProfileService
@@ -40,11 +42,12 @@ from siro.persistence.affect import SQLiteAffectRepository
 from siro.persistence.profile import SQLiteProfileSource
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
+from siro.services.agent.auto_plan import luna_classifier
 from siro.services.agent.coordinator import Coordinator
+from siro.services.agent.daily_recap import BedtimeTrigger
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
-from siro.services.agent.auto_plan import luna_classifier
 from siro.services.agent.planning_adapters import (
     CodexPlannerModel,
     OrchestratorToolPort,
@@ -718,6 +721,7 @@ def create_app(
     profile_service: ProfileService | None = None,
     profile_source: SQLiteProfileSource | None = None,
     profile_auto: ProfileAuto | None = None,
+    on_recap: Callable[[], Awaitable[str]] | None = None,
 ) -> FastAPI:
     if (vrm_dist is None) != (vrm_model is None):
         raise ValueError("vrm_dist and vrm_model must be configured together")
@@ -950,6 +954,24 @@ def create_app(
         except KeyError as error:
             raise HTTPException(status_code=503, detail="ESP32 device is unavailable") from error
         return {"accepted": True}
+
+    @app.post("/v1/recap")
+    async def daily_recap(
+        request: Request, authorization: str | None = Header(default=None)
+    ) -> dict[str, str]:
+        """Bedtime recap trigger: session token, or the loopback ESP32 relay token."""
+        presented = request.headers.get("X-SIRO-ESP32-Relay-Token", "")
+        relay_ok = (
+            esp32_relay_token is not None
+            and request.client is not None
+            and request.client.host == "127.0.0.1"
+            and secrets.compare_digest(presented, esp32_relay_token)
+        )
+        if not relay_ok:
+            require_token(authorization)
+        if on_recap is None:
+            raise HTTPException(status_code=503, detail="daily recap is unavailable")
+        return {"text": await on_recap()}
 
     @app.get("/v1/devices/esp32/state")
     async def esp32_http_state(
@@ -2193,6 +2215,7 @@ def _run_gateway(
         Esp32HttpSensorProjector,
         http_sensor_descriptor,
         http_sensor_state_snapshot,
+        parse_http_sensor_event,
     )
     from siro.services.devices.mqtt_subscriber import (
         Esp32MqttSubscriber,
@@ -2384,6 +2407,7 @@ def _run_gateway(
         state.setting_sources["stt_route"] = "env"
     shared_store = SQLiteStore(data_dir / "siro.db")
     asyncio.run(shared_store.initialize(), loop_factory=loop_factory)
+    recap_tasks: list[asyncio.Task[None]] = []
     esp32_relay_token = os.environ.get("SIRO_ESP32_RELAY_TOKEN") or None
     on_esp32_http_event: Esp32HttpEventHandler | None = None
     on_esp32_http_state: Callable[[], Awaitable[dict[str, Any]]] | None = None
@@ -2404,7 +2428,28 @@ def _run_gateway(
                 await device_registry.register(http_sensor_descriptor(device_id, location=location))
 
         asyncio.run(ensure_http_sensor(), loop_factory=loop_factory)
-        on_esp32_http_event = Esp32HttpSensorProjector(device_registry, device_id=device_id).handle
+        projector = Esp32HttpSensorProjector(device_registry, device_id=device_id)
+        bedtime = (
+            BedtimeTrigger(
+                dark_lux=float(os.environ.get("SIRO_DAILY_RECAP_DARK_LUX", "5")),
+                zone=ProactivitySettings().timezone,
+            )
+            if os.environ.get("SIRO_DAILY_RECAP_ESP32", "1") != "0"
+            else None
+        )
+
+        async def project_and_recap(payload: bytes, *, now: datetime) -> None:
+            await projector.handle(payload, now=now)
+            if bedtime is not None and bedtime.observe(
+                *parse_http_sensor_event(payload, device_id=device_id), now
+            ):
+
+                async def recap() -> None:
+                    await controller.daily_recap()
+
+                recap_tasks.append(asyncio.create_task(recap()))
+
+        on_esp32_http_event = project_and_recap
 
         async def read_esp32_http_state() -> dict[str, Any]:
             return await http_sensor_state_snapshot(
@@ -2999,6 +3044,16 @@ def _run_gateway(
     if self_notes_service is not None:
         controller.self_activity_lines = self_notes_service.recent_lines
 
+    async def recap_summary(prompt: str) -> str:
+        if not (state.kill_switches["cloud"] and codex_ready(codex_path)):
+            raise RuntimeError("cloud summary unavailable")
+        result = await ask_codex(
+            {"task": prompt}, binary=codex_path, model=codex_model, prefix="", limit=6000
+        )
+        return str(result["answer"])
+
+    controller.recap_summarizer = recap_summary
+
     async def share_finished_note() -> None:
         assert self_notes_service is not None
         for run_id in (await self_notes_service.unshared())[:1]:
@@ -3040,12 +3095,33 @@ def _run_gateway(
     if planner_factory is not None:
         controller.auto_plan_classifier = luna_classifier(codex_binary(), planner_model)
 
+    async def recap_daily() -> None:
+        # Opt-in only (SIRO_DAILY_RECAP_ENABLED=1); manual /v1/recap always works.
+        hour, minute = (int(part) for part in recap_time.split(":"))
+        zone = ZoneInfo(ProactivitySettings().timezone)
+        started = datetime.now(zone)
+        # Started after the hour: wait for tomorrow instead of firing on every restart.
+        last: date | None = (
+            started.date() if (started.hour, started.minute) >= (hour, minute) else None
+        )
+        while True:
+            await asyncio.sleep(30)
+            local = datetime.now(zone)
+            if (local.hour, local.minute) >= (hour, minute) and last != local.date():
+                last = local.date()
+                with suppress(Exception):
+                    await controller.daily_recap()
+
+    recap_time = os.environ.get("SIRO_DAILY_RECAP_TIME", "23:00")
+
     async def start_controller() -> None:
         await controller.startup()
         if esp32_mqtt is not None:
             esp32_mqtt.start()
         if reminder_service is not None:
             reminder_service.start()
+        if os.environ.get("SIRO_DAILY_RECAP_ENABLED") == "1":
+            recap_tasks.append(asyncio.create_task(recap_daily()))
         if organizer is not None:
             await organizer.start()
         if profile_auto is not None:
@@ -3062,6 +3138,8 @@ def _run_gateway(
     async def stop_controller() -> None:
         if esp32_mqtt is not None:
             await esp32_mqtt.close()
+        for task in recap_tasks:
+            task.cancel()
         for observer in context_observers:
             await observer.close()
         if reminder_service is not None:
@@ -3177,6 +3255,7 @@ def _run_gateway(
             work_context=work_context,
             self_notes=self_notes_service,
             on_share_note=controller.share_self_note,
+            on_recap=controller.daily_recap,
             on_improvement_proposal=controller.improvement_proposal,
             on_turn=controller.respond,
             memory_organizer=organizer,
