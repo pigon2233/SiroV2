@@ -930,6 +930,7 @@
           if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);
           if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean" && typeof applyGoalTaskTools === "function") applyGoalTaskTools(data.enabled);
           if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
+          if (data.type === "sensor_listen" && microphoneEnabled && recorder?.state !== "recording") document.querySelector("#voice")?.click();
           if (data.type === "affect_state") { renderAffect(data); }
           if (data.type === "assistant_started") {
             assistantBubble = appendMessage("assistant", "");

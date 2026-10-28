@@ -38,6 +38,12 @@ from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayl
 from siro.core.memory import Memory, MemoryService
 from siro.core.profile import ProfileEntry, ProfileService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
+from siro.core.sensor_reactions import (
+    BRIGHT_LUX,
+    DARK_LUX,
+    SensorReactions,
+    parse_quiet_hours,
+)
 from siro.persistence.affect import SQLiteAffectRepository
 from siro.persistence.profile import SQLiteProfileSource
 from siro.ports.models import ToolCall
@@ -2185,6 +2191,21 @@ def main(*, verified_release: VerifiedRelease | None = None) -> None:
         raise SystemExit(str(error)) from None
 
 
+def _sensor_reactions_from_env() -> SensorReactions:
+    try:
+        dark = float(os.environ.get("SIRO_SENSOR_DARK_LUX", DARK_LUX))
+        bright = float(os.environ.get("SIRO_SENSOR_BRIGHT_LUX", BRIGHT_LUX))
+    except ValueError as error:
+        raise ValueError(
+            "SIRO_SENSOR_DARK_LUX and SIRO_SENSOR_BRIGHT_LUX must be numbers"
+        ) from error
+    return SensorReactions(
+        dark_lux=dark,
+        bright_lux=bright,
+        quiet_hours=parse_quiet_hours(os.environ.get("SIRO_SENSOR_QUIET_HOURS")),
+    )
+
+
 def _run_gateway(
     data_dir: Path,
     loop_factory: Callable[[], asyncio.AbstractEventLoop],
@@ -2409,6 +2430,22 @@ def _run_gateway(
     asyncio.run(shared_store.initialize(), loop_factory=loop_factory)
     recap_tasks: list[asyncio.Task[None]] = []
     esp32_relay_token = os.environ.get("SIRO_ESP32_RELAY_TOKEN") or None
+    reactions_setting = os.environ.get("SIRO_SENSOR_REACTIONS_ENABLED", "1")
+    if reactions_setting not in {"0", "1"}:
+        raise ValueError("SIRO_SENSOR_REACTIONS_ENABLED must be 0 or 1")
+    sensor_reactions = _sensor_reactions_from_env() if reactions_setting == "1" else None
+
+    async def apply_sensor_effect(effect: str) -> None:
+        # `controller` is built later in this function; the relay only fires after startup.
+        if effect.startswith("speak:"):
+            assert sensor_reactions is not None
+            trigger = effect.split(":", 1)[1]
+            await controller.react_to_sensor(sensor_reactions.facts(trigger, datetime.now(UTC)))
+        elif effect == "listen":
+            await hub.broadcast({"type": "sensor_listen"}, urgent=True)
+        else:
+            await hub.broadcast({"type": "sensor_mode", "quiet": effect == "quiet_on"}, urgent=True)
+
     on_esp32_http_event: Esp32HttpEventHandler | None = None
     on_esp32_http_state: Callable[[], Awaitable[dict[str, Any]]] | None = None
     if esp32_relay_token is not None:
@@ -2437,17 +2474,31 @@ def _run_gateway(
             if os.environ.get("SIRO_DAILY_RECAP_ESP32", "1") != "0"
             else None
         )
+        sensor_tick_task: list[asyncio.Task[None]] = []
+
+        async def sensor_ticks() -> None:
+            assert sensor_reactions is not None
+            while True:
+                await asyncio.sleep(60)
+                for effect in sensor_reactions.tick(datetime.now(UTC)):
+                    with suppress(Exception):
+                        await apply_sensor_effect(effect)
 
         async def project_and_recap(payload: bytes, *, now: datetime) -> None:
             await projector.handle(payload, now=now)
-            if bedtime is not None and bedtime.observe(
-                *parse_http_sensor_event(payload, device_id=device_id), now
-            ):
+            event, lux = parse_http_sensor_event(payload, device_id=device_id)
+            if bedtime is not None and bedtime.observe(event, lux, now):
 
                 async def recap() -> None:
                     await controller.daily_recap()
 
                 recap_tasks.append(asyncio.create_task(recap()))
+            if sensor_reactions is not None:
+                if not sensor_tick_task:
+                    sensor_tick_task.append(asyncio.create_task(sensor_ticks()))
+                for effect in sensor_reactions.handle(event, lux, now):
+                    with suppress(Exception):
+                        await apply_sensor_effect(effect)
 
         on_esp32_http_event = project_and_recap
 
@@ -2941,7 +2992,8 @@ def _run_gateway(
     )
     if (
         planner_enabled(default="1" if runtime_profile == "candidate" else "0")
-        and planner_schemas and codex_ready(codex_binary())
+        and planner_schemas
+        and codex_ready(codex_binary())
     ):
         planner_model = os.environ.get("SIRO_CODEX_MODEL", CODEX_DEFAULT_MODEL)
 
@@ -3022,8 +3074,9 @@ def _run_gateway(
             profile_auto = ProfileAuto(
                 profile_service,
                 profile_source,
-                lambda: controller.foreground_active
-                or (read_tasks is not None and read_tasks.busy),
+                lambda: (
+                    controller.foreground_active or (read_tasks is not None and read_tasks.busy)
+                ),
             )
 
     self_setting = os.environ.get("SIRO_SELF_ACTIVITY_ENABLED", "1")
@@ -3070,7 +3123,10 @@ def _run_gateway(
             self_owner,
             InterestPicker(shared_store, model, own_preferences),
             shared_store,
-            quiet=lambda: not work_context.may_interrupt(),
+            quiet=lambda: (
+                not work_context.may_interrupt()
+                or (sensor_reactions is not None and sensor_reactions.quiet)
+            ),
             share=share_finished_note,
             foreground=lambda: (
                 controller.foreground_active

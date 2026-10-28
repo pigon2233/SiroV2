@@ -36,6 +36,7 @@ from siro.core.relationships import (
     RelationshipSystem,
     relationship_event_from_text,
 )
+from siro.core.sensor_reactions import decide_sensor_line
 from siro.core.touch import (
     TOUCH_REPLY_SECONDS,
     TOUCH_REPLY_TOKENS,
@@ -323,34 +324,51 @@ class IntegratedCompanion:
                 line = touch_template(kind, self._touch_lines)
             self._touch_lines += 1
             self._touches.add(Touch(kind, count, now, line))
-            session_id = self._last_session or "touch"
-            stream_id = str(uuid4())
-            prosody = touch_prosody(kind)
+            await self._say_line(line, touch_prosody(kind), "touch")
+        finally:
+            self._touching = False
 
-            async def emit(message: dict[str, object]) -> None:
-                await self._broadcast_stream(stream_id, message)
+    async def _say_line(self, line: str, prosody: dict[str, float], fallback_session: str) -> None:
+        session_id = self._last_session or fallback_session
+        stream_id = str(uuid4())
 
-            await emit({"type": "assistant_started", "session_id": session_id})
-            await emit({"type": "assistant_delta", "session_id": session_id, "text": line})
-            await emit(
-                {
-                    "type": "assistant_terminal",
-                    "session_id": session_id,
-                    "state": TurnState.COMPLETED,
-                    "error": None,
-                    "prosody": prosody,
-                }
+        async def emit(message: dict[str, object]) -> None:
+            await self._broadcast_stream(stream_id, message)
+
+        await emit({"type": "assistant_started", "session_id": session_id})
+        await emit({"type": "assistant_delta", "session_id": session_id, "text": line})
+        await emit(
+            {
+                "type": "assistant_terminal",
+                "session_id": session_id,
+                "state": TurnState.COMPLETED,
+                "error": None,
+                "prosody": prosody,
+            }
+        )
+        await self._speak(
+            SpeechIntent(
+                str(uuid4()),
+                line,
+                str(uuid4()),
+                prosody["rate"],
+                prosody["pitch"],
+                prosody["energy"],
             )
-            await self._speak(
-                SpeechIntent(
-                    str(uuid4()),
-                    line,
-                    str(uuid4()),
-                    prosody["rate"],
-                    prosody["pitch"],
-                    prosody["energy"],
-                )
-            )
+        )
+
+    async def react_to_sensor(self, facts: dict[str, object]) -> None:
+        """A change in the room: she decides whether to say one short line, or nothing."""
+
+        if self.foreground_active or self._touching or datetime.now(UTC) < self._speaking_until:
+            return
+        self._touching = True
+        try:
+            line = await decide_sensor_line(self._ask_short, facts, self._touch_lines)
+            if line is None:
+                return
+            self._touch_lines += 1
+            await self._say_line(line, {"rate": 1.0, "pitch": 0.05, "energy": 0.55}, "sensor")
         finally:
             self._touching = False
 
@@ -489,8 +507,12 @@ class IntegratedCompanion:
         return text
 
     async def _touch_line(self, kind: str, count: int, now: datetime) -> str | None:
+        raw = await self._ask_short(touch_prompt(kind, count, now, self._touch_zone))
+        return None if raw is None else clean_touch_line(raw)
+
+    async def _ask_short(self, prompt: str) -> str | None:
         request = ModelRequest(
-            touch_prompt(kind, count, now, self._touch_zone),
+            prompt,
             str(uuid4()),
             privacy=self._privacy,
             max_output_tokens=TOUCH_REPLY_TOKENS,
@@ -508,7 +530,7 @@ class IntegratedCompanion:
         except Exception:  # a slow or failing model falls back to a ready-made line
             cancellation.cancel()
             return None
-        return clean_touch_line("".join(parts))
+        return "".join(parts)
 
     async def respond(self, session_id: str, text: str, input_mode: str = "text") -> None:
         self._last_session = session_id
