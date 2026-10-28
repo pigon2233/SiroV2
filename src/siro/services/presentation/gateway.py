@@ -51,7 +51,6 @@ from siro.services.activity.monitor import ActivityMonitor
 from siro.services.agent.auto_plan import luna_classifier
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.daily_recap import BedtimeTrigger
-from siro.services.agent.routine import RoutineWatcher
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
@@ -62,6 +61,7 @@ from siro.services.agent.planning_adapters import (
 )
 from siro.services.agent.profile_auto import ProfileAuto
 from siro.services.agent.reminders import ReminderService, reminders_enabled
+from siro.services.agent.routine import RoutineWatcher
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
 from siro.services.agent.self_notes import SelfNotes, remember_note, share_text
