@@ -2447,7 +2447,7 @@
       // submits after a short pause. It never listens while SIRO is answering or speaking,
       // so her own voice is not captured; the microphone kill switch still owns the device.
       const handsFree = {on: false, stream: undefined, context: undefined, node: undefined, timer: undefined};
-      const HANDS_FREE = {frameMs: 30, startMs: 150, endSilenceMs: 800, prerollMs: 300, maxMs: 29000, rate: 16000};
+      const HANDS_FREE = {frameMs: 30, startMs: 150, endSilenceMs: 800, prerollMs: 300, tailHoldMs: 1500, minVoicedMs: 350, maxFloor: 0.05, maxMs: 29000, rate: 16000};
       function handsFreeBusy() {
         return Boolean(currentTurn || ttsController || ttsAudio || transcriptionController || microphoneCapture || permissionPending);
       }
@@ -2511,21 +2511,24 @@
           const node = context.createScriptProcessor(1024, 1, 1);
           Object.assign(handsFree, {stream, context, node});
           const frames = [], preroll = [], prerollLimit = Math.ceil(HANDS_FREE.prerollMs / 1000 * context.sampleRate / 1024);
-          let speaking = false, loudMs = 0, quietMs = 0, spokenMs = 0, floor = 0.01, epoch = microphoneEpoch;
+          let speaking = false, loudMs = 0, quietMs = 0, spokenMs = 0, floor = 0.01, holdUntil = 0, epoch = microphoneEpoch;
           const idle = () => { status.textContent = "免手動聆聽中，直接說話即可"; status.className = "ok"; };
           idle();
           node.onaudioprocess = event => {
             const input = event.inputBuffer.getChannelData(0), chunk = Float32Array.from(input);
             event.outputBuffer?.getChannelData(0).fill(0);
             if (!microphoneEnabled || pageClosing) { stopHandsFree("麥克風已關閉"); return; }
-            if (handsFreeBusy() && !speaking) { preroll.length = 0; loudMs = 0; return; }
+            // Her voice keeps ringing in the room after playback ends, so stay deaf a moment longer.
+            if (handsFreeBusy()) holdUntil = performance.now() + HANDS_FREE.tailHoldMs;
+            if (!speaking && performance.now() < holdUntil) { preroll.length = 0; loudMs = 0; return; }
             let sum = 0;
             for (const value of chunk) sum += value * value;
             const level = Math.sqrt(sum / chunk.length), ms = chunk.length / context.sampleRate * 1000;
             const threshold = Math.max(0.012, floor * 3);
             if (!speaking) {
               preroll.push(chunk); if (preroll.length > prerollLimit) preroll.shift();
-              if (level > threshold) loudMs += ms; else { loudMs = 0; floor = floor * 0.95 + level * 0.05; }
+              if (level > threshold) { loudMs += ms; floor = Math.min(HANDS_FREE.maxFloor, floor * 0.995 + level * 0.005); } // steady video/game sound slowly becomes the floor
+              else { loudMs = 0; floor = floor * 0.95 + level * 0.05; }
               if (loudMs >= HANDS_FREE.startMs) {
                 speaking = true; quietMs = 0; spokenMs = 0; epoch = microphoneEpoch;
                 frames.push(...preroll); preroll.length = 0;
@@ -2537,7 +2540,8 @@
             quietMs = level > threshold * 0.7 ? 0 : quietMs + ms;
             if (quietMs >= HANDS_FREE.endSilenceMs || spokenMs >= HANDS_FREE.maxMs) {
               speaking = false; loudMs = 0;
-              const wav = downsampledWav(frames.splice(0), context.sampleRate);
+              const voicedMs = spokenMs - quietMs, wav = downsampledWav(frames.splice(0), context.sampleRate);
+              if (voicedMs < HANDS_FREE.minVoicedMs) { idle(); return; } // a click or blip is not an utterance
               if (epoch === microphoneEpoch) submitUtterance(wav, epoch).finally(() => { if (handsFree.on && !handsFreeBusy()) idle(); });
             }
           };
