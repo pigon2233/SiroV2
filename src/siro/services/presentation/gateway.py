@@ -53,6 +53,7 @@ from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.daily_recap import BedtimeTrigger
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
+from siro.services.agent.node_health import NodeHealthWatcher
 from siro.services.agent.organization import MemoryOrganizer
 from siro.services.agent.planning_adapters import (
     CodexPlannerModel,
@@ -3185,13 +3186,18 @@ def _run_gateway(
         raise ValueError("SIRO_ROUTINE_ENABLED must be 0 or 1")
     routine_watcher = RoutineWatcher(shared_store, zone=ProactivitySettings().timezone)
 
+    node_health = NodeHealthWatcher(SQLiteDeviceRepository(shared_store))
+
     async def watch_routine() -> None:
         while True:
-            await asyncio.sleep(600)
+            await asyncio.sleep(120)
             with suppress(Exception):
-                facts = await routine_watcher.check()
-                if facts is not None:
+                for facts in await node_health.check():
                     await controller.react_to_sensor(facts)
+            with suppress(Exception):
+                routine_facts = await routine_watcher.check()
+                if routine_facts is not None:
+                    await controller.react_to_sensor(routine_facts)
 
     recap_time = os.environ.get("SIRO_DAILY_RECAP_TIME", "23:00")
 

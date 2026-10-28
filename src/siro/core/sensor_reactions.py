@@ -165,6 +165,8 @@ def sensor_prompt(facts: dict[str, object]) -> str:
         "long_active": "主人已經在房間裡待了很長一段時間沒有離開",
         "late_awake": "主人比平常的就寢時間晚了很久還醒著（背景有平常作息）",
         "unexpected_absence": "平常這個時段主人都在家，現在卻很久沒偵測到人（背景有平常作息）",
+        "node_offline": "房間裡的感測節點已經很久沒有回報了（可能斷電或斷線）",
+        "node_back": "剛才斷線的感測節點又恢復回報了",
     }[str(facts["trigger"])]
     details = "，".join(f"{key}={value}" for key, value in facts.items() if key != "trigger")
     return (
