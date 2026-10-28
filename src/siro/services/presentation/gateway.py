@@ -48,7 +48,7 @@ from siro.persistence.affect import SQLiteAffectRepository
 from siro.persistence.profile import SQLiteProfileSource
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
-from siro.services.agent.auto_plan import luna_classifier
+from siro.services.agent.auto_plan import claude_classifier
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.daily_recap import BedtimeTrigger
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
@@ -57,7 +57,7 @@ from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.node_health import NodeHealthWatcher
 from siro.services.agent.organization import MemoryOrganizer
 from siro.services.agent.planning_adapters import (
-    CodexPlannerModel,
+    ClaudePlannerModel,
     OrchestratorToolPort,
     planner_enabled,
 )
@@ -100,11 +100,10 @@ from siro.services.presentation.desktop_settings import (
 from siro.services.tools.codex import (
     CODEX_DEFINITION,
     CODEX_TOOL,
-    ask_codex,
-    codex_binary,
-    codex_ready,
+    ask_claude,
+    claude_model,
+    claude_ready,
 )
-from siro.services.tools.codex import DEFAULT_MODEL as CODEX_DEFAULT_MODEL
 from siro.services.tools.codex import TIMEOUT_SECONDS as CODEX_TIMEOUT_SECONDS
 from siro.services.tools.execution import (
     ExecutionCancelled,
@@ -2562,13 +2561,11 @@ def _run_gateway(
     if profile_setting not in {"0", "1"}:
         raise ValueError("SIRO_PROFILE_ENABLED must be 0 or 1")
     profile_source = profile_service = None
-    if profile_setting == "1" and codex_ready(codex_binary()):
+    if profile_setting == "1" and claude_ready():
         profile_source = SQLiteProfileSource(shared_store)
         profile_service = ProfileService(
             memory_service,
-            CodexPlannerModel(
-                codex_binary(), os.environ.get("SIRO_CODEX_MODEL", CODEX_DEFAULT_MODEL)
-            ),
+            ClaudePlannerModel(claude_model()),
         )
 
     from siro.services.tools.browser_session import BrowserSessions
@@ -2816,13 +2813,12 @@ def _run_gateway(
             handlers[name] = browser_without_context
             browser_contextual[name] = partial(session_browser, action)
 
-    # Codex is a tool SIRO's own model may call; it only runs while the cloud switch is on.
-    codex_path = codex_binary()
-    codex_model = os.environ.get("SIRO_CODEX_MODEL", CODEX_DEFAULT_MODEL)
+    # Claude (Haiku) is a tool SIRO's own model may call; it only runs while the cloud switch is on.
+    codex_model = claude_model()
     codex_contextual = {}
     if runtime_profile == "candidate" and os.environ.get("SIRO_CODEX_ENABLED", "1") == "1":
         handlers[CODEX_TOOL] = browser_without_context
-        codex_contextual[CODEX_TOOL] = partial(ask_codex, binary=codex_path, model=codex_model)
+        codex_contextual[CODEX_TOOL] = partial(ask_claude, model=codex_model)
 
     workspace_contextual = {}
     if workspace is not None:
@@ -2843,7 +2839,7 @@ def _run_gateway(
                 AvailabilityState.UNAVAILABLE, AvailabilityReason.TOOLS_DISABLED
             )
         if name == CODEX_TOOL:
-            ready = state.kill_switches["cloud"] and codex_ready(codex_path)
+            ready = state.kill_switches["cloud"] and claude_ready()
             return ToolAvailability(
                 AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
                 AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,
@@ -2915,7 +2911,7 @@ def _run_gateway(
                     else (
                         "playwright"
                         if name.startswith("browser.")
-                        else ("codex.exec" if name == CODEX_TOOL else "python.argv")
+                        else ("anthropic.api" if name == CODEX_TOOL else "python.argv")
                     ),
                     effect="read"
                     if name
@@ -3008,14 +3004,14 @@ def _run_gateway(
     if (
         planner_enabled(default="1" if runtime_profile == "candidate" else "0")
         and planner_schemas
-        and codex_ready(codex_binary())
+        and claude_ready()
     ):
-        planner_model = os.environ.get("SIRO_CODEX_MODEL", CODEX_DEFAULT_MODEL)
+        planner_model = claude_model()
 
         def planner_factory(runs: SQLiteAgentRunRepository) -> Coordinator:
             return Coordinator(
-                CodexPlannerModel(codex_binary(), planner_model),
-                OrchestratorToolPort(tool_orchestrator, runs, backend=f"codex:{planner_model}"),
+                ClaudePlannerModel(planner_model),
+                OrchestratorToolPort(tool_orchestrator, runs, backend=f"claude:{planner_model}"),
                 read_tools=planner_schemas,
                 expected_models=frozenset({planner_model}),
             )
@@ -3113,10 +3109,10 @@ def _run_gateway(
         controller.self_activity_lines = self_notes_service.recent_lines
 
     async def recap_summary(prompt: str) -> str:
-        if not (state.kill_switches["cloud"] and codex_ready(codex_path)):
+        if not (state.kill_switches["cloud"] and claude_ready()):
             raise RuntimeError("cloud summary unavailable")
-        result = await ask_codex(
-            {"task": prompt}, binary=codex_path, model=codex_model, prefix="", limit=6000
+        result = await ask_claude(
+            {"task": prompt}, model=codex_model, prefix="", limit=6000, search=False
         )
         return str(result["answer"])
 
@@ -3164,7 +3160,7 @@ def _run_gateway(
     controller.reminders = reminder_service
 
     if planner_factory is not None:
-        controller.auto_plan_classifier = luna_classifier(codex_binary(), planner_model)
+        controller.auto_plan_classifier = claude_classifier(planner_model)
 
     async def recap_daily() -> None:
         # Opt-in only (SIRO_DAILY_RECAP_ENABLED=1); manual /v1/recap always works.

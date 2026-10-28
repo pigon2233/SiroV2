@@ -27,32 +27,6 @@ def test_restricted_environment_keeps_only_the_allowlist(monkeypatch: pytest.Mon
     assert restricted_environment(("CODEX_HOME",))["CODEX_HOME"] == "/synthetic/codex"
 
 
-@pytest.mark.asyncio
-async def test_codex_child_gets_no_secrets_but_keeps_codex_settings(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from siro.services.tools.codex import ask_codex
-
-    for name, value in CANARIES.items():
-        monkeypatch.setenv(name, value)
-    monkeypatch.setenv("CODEX_HOME", "/synthetic/codex")
-    monkeypatch.setenv("SIRO_CODEX_BIN", "/synthetic/codex-bin")
-    seen: dict[str, object] = {}
-
-    async def run(argv: tuple[str, ...], **options: object) -> dict[str, object]:
-        seen.update(options)
-        Path(argv[argv.index("-o") + 1]).write_text("answer", encoding="utf-8")
-        return {"returncode": 0}
-
-    await ask_codex({"task": "synthetic task"}, binary=Path("/opt/codex"), run=run)
-    environment = seen["environment"]
-    assert isinstance(environment, dict)
-    assert not set(CANARIES) & set(environment)
-    assert environment["CODEX_HOME"] == "/synthetic/codex"
-    assert environment["SIRO_CODEX_BIN"] == "/synthetic/codex-bin"
-    assert environment["PATH"] == os.environ["PATH"]
-
-
 @pytest.mark.parametrize("profile", ["legacy", "candidate"])
 def test_gateway_computer_execute_child_gets_no_secrets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str

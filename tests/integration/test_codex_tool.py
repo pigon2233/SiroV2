@@ -1,8 +1,9 @@
-"""Codex as a read-only tool: only the task goes out, and its answer is labelled as Codex's."""
+"""Claude as a read-only tool: only the task goes out, and its answer is labelled as Claude's."""
 
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -15,47 +16,64 @@ from siro.services.activity.monitor import ActivityMonitor, describe_tool
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
 from siro.services.agent.self_notes import SelfNotes, share_text
-from siro.services.tools.codex import CodexUnavailable, ask_codex
+from siro.services.tools.codex import CodexUnavailable, ask_claude
 from siro.services.tools.execution import ExecutionContext
 
 pytestmark = pytest.mark.asyncio
 
 
-async def test_codex_runs_read_only_with_only_the_task(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SIRO_OPENAI_API_KEY", "not-for-codex")  # pragma: allowlist secret
+async def test_claude_runs_with_only_the_task_and_a_restricted_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_OPENAI_API_KEY", "not-for-claude")  # pragma: allowlist secret
     seen: dict[str, object] = {}
 
     async def run(argv: tuple[str, ...], **options: object) -> dict[str, object]:
         seen.update(argv=argv, **options)
-        answer = Path(argv[argv.index("-o") + 1])
-        answer.write_text("明天晚上台中多雲，23 度 https://www.cwa.gov.tw/x\n", encoding="utf-8")  # noqa: RUF001
-        return {"returncode": 0}
+        stdout = json.dumps(
+            {"is_error": False, "result": "明天晚上台中多雲，23 度 https://www.cwa.gov.tw/x\n"}  # noqa: RUF001
+        )
+        return {"returncode": 0, "stdout": stdout}
 
-    result = await ask_codex(
-        {"task": "查明天晚上台中的天氣"}, binary=Path("/opt/codex"), model="gpt-6-luna", run=run
-    )
+    result = await ask_claude({"task": "查明天晚上台中的天氣"}, binary=Path("/opt/claude"), run=run)
     assert result == {
         "answer": "明天晚上台中多雲，23 度 https://www.cwa.gov.tw/x",  # noqa: RUF001
         "truncated": False,
-        "model": "gpt-6-luna",
+        "model": "claude-haiku-5-5",
     }
     argv = seen["argv"]
     assert isinstance(argv, tuple)
-    assert argv[:3] == ("/opt/codex", "--search", "exec")
-    assert argv[argv.index("--sandbox") + 1] == "read-only" and "--ephemeral" in argv
-    assert argv[-1].endswith("查明天晚上台中的天氣")
+    assert (
+        argv[:2] == ("/opt/claude", "-p") and argv[argv.index("--model") + 1] == "claude-haiku-5-5"
+    )
+    assert argv[argv.index("--tools") + 1] == "WebSearch" and argv[-1].endswith(
+        "查明天晚上台中的天氣"
+    )
     environment = seen["environment"]
     assert isinstance(environment, dict) and "SIRO_OPENAI_API_KEY" not in environment
 
+    async def quiet(argv: tuple[str, ...], **options: object) -> dict[str, object]:
+        seen["argv"] = argv
+        return {"returncode": 0, "stdout": '{"result": "YES"}'}
 
-async def test_codex_without_an_answer_fails_honestly() -> None:
-    async def run(argv: tuple[str, ...], **options: object) -> dict[str, object]:
-        return {"returncode": 0}  # e.g. not logged in: exits but writes no answer
+    await ask_claude({"task": "分類"}, binary=Path("/opt/claude"), run=quiet, search=False)
+    quiet_argv = seen["argv"]
+    assert isinstance(quiet_argv, tuple) and quiet_argv[quiet_argv.index("--tools") + 1] == ""
+    assert "--allowedTools" not in quiet_argv
 
-    with pytest.raises(CodexUnavailable):
-        await ask_codex({"task": "查天氣"}, binary=Path("/opt/codex"), run=run)
+
+async def test_claude_without_an_answer_fails_honestly() -> None:
+    async def failing(argv: tuple[str, ...], **options: object) -> dict[str, object]:
+        return {"returncode": 1, "stdout": ""}
+
+    async def errored(argv: tuple[str, ...], **options: object) -> dict[str, object]:
+        return {"returncode": 0, "stdout": '{"is_error": true, "result": "Not logged in"}'}
+
+    for run in (failing, errored):
+        with pytest.raises(CodexUnavailable):
+            await ask_claude({"task": "查天氣"}, binary=Path("/opt/claude"), run=run)
     with pytest.raises(ValueError):
-        await ask_codex({"task": "x"}, binary=Path("/opt/codex"), run=run)
+        await ask_claude({"task": "x"}, binary=Path("/opt/claude"), run=failing)
 
 
 def test_monitor_shows_the_task_and_says_codex_network_is_unseen() -> None:

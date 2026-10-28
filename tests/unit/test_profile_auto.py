@@ -51,7 +51,7 @@ class Service:
     async def build(self, events: list[UserTextEvent]) -> list[object]:
         self.calls.append(len(events))
         if self.fail:
-            raise RuntimeError("codex down")
+            raise RuntimeError("claude down")
         return []
 
 

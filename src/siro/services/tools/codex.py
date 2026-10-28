@@ -1,13 +1,17 @@
-"""Codex as a tool: SIRO's own model stays the mind and hands Codex a task when it needs one.
+"""Claude as a tool: SIRO's own model stays the mind and hands Claude a task when it needs one.
 
-Codex runs read-only in an empty scratch directory with live web search. Only the task
-text is sent (no chat history or memories); its own network use is not visible to SIRO,
-and the activity monitor says so. Cancelling the run ends the Codex process group.
+Claude (Haiku, through the logged-in `claude` CLI) answers read-only in an empty scratch
+directory, with only the WebSearch tool for the research path. Only the task text is sent (no
+chat history or memories); its network use is not visible to SIRO, and the activity monitor
+says so. The child gets the restricted environment only. The tool name stays `codex.ask` so
+saved runs, the catalog and the UI keep working.
 """
 
 from __future__ import annotations
 
+import json
 import os
+import shutil
 import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -23,10 +27,12 @@ CODEX_TOOL = "codex.ask"
 MAX_TASK = 2000
 MAX_ANSWER = 8000
 TIMEOUT_SECONDS = 240
-DEFAULT_MODEL = "gpt-6-luna"
+DEFAULT_MODEL = "claude-haiku-5-5"
+SYSTEM_PROMPT = "Answer the user's task directly and briefly. Do not ask questions."
+Runner = Callable[..., Awaitable[dict[str, object]]]
 CODEX_DEFINITION = ToolDefinition(
     CODEX_TOOL,
-    "Ask Codex, a stronger cloud model that can search the live web, to look something up or "
+    "Ask Claude, a stronger cloud model that can search the live web, to look something up or "
     "work through a multi-step task. It is read-only and slower than you. Use it for current "
     "facts (weather, news, prices, schedules) or careful research, not for small talk. Send "
     "only the task in your own words; it returns a text answer with source links.",
@@ -43,56 +49,63 @@ PROMPT = (
     "這是唯讀任務，不要修改任何檔案。\n\n任務："  # noqa: RUF001
 )
 
-Runner = Callable[..., Awaitable[dict[str, object]]]
-
 
 class CodexUnavailable(RuntimeError):
-    """Codex ran but gave no answer (not logged in, offline, quota or a crash)."""
+    """Claude gave no answer (not logged in, offline, quota or a crash)."""
 
 
-def codex_binary() -> Path:
-    configured = os.environ.get("SIRO_CODEX_BIN")
-    return Path(configured) if configured else Path.home() / ".local/codex/node_modules/.bin/codex"
+def claude_model() -> str:
+    return os.environ.get("SIRO_CLAUDE_MODEL") or DEFAULT_MODEL
 
 
-def codex_ready(binary: Path) -> bool:
-    """Installed and logged in; this is not proof that a call will succeed."""
-    home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
-    return binary.is_file() and (home / "auth.json").is_file()
+def claude_binary() -> Path | None:
+    configured = os.environ.get("SIRO_CLAUDE_BIN")
+    found = configured or shutil.which("claude")
+    if not found:
+        # The launcher PATH has no Windows side; WSL can still run the npm-installed CLI.
+        shims = sorted(Path("/mnt/c/Users").glob("*/AppData/Roaming/npm/claude"))
+        found = str(shims[0]) if shims else None
+    return Path(found) if found else None
 
 
-async def ask_codex(
+def claude_ready(binary: Path | None = None) -> bool:
+    """The CLI is installed; login is only proven by a call that succeeds."""
+    binary = binary or claude_binary()
+    return binary is not None and binary.is_file()
+
+
+async def ask_claude(
     arguments: dict[str, object],
     context: ExecutionContext | None = None,
     *,
-    binary: Path,
     model: str = DEFAULT_MODEL,
+    binary: Path | None = None,
     run: Runner = execute_bounded_argv,
     prefix: str = PROMPT,
     limit: int = MAX_TASK,
+    search: bool = True,
 ) -> dict[str, object]:
     task = arguments.get("task")
     if not isinstance(task, str) or not 2 <= len(task.strip()) <= limit:
         raise ValueError("codex.ask requires a task of 2-2000 characters")
-    environment = restricted_environment(("CODEX_HOME", "SIRO_CODEX_BIN"))
-    with tempfile.TemporaryDirectory(prefix="siro-codex-") as scratch:
-        answer_file = Path(scratch) / "answer.txt"
+    binary = binary or claude_binary()
+    if binary is None:
+        raise CodexUnavailable("claude CLI not found")
+    environment = restricted_environment(("SIRO_CLAUDE_BIN", "CLAUDE_CONFIG_DIR"))
+    with tempfile.TemporaryDirectory(prefix="siro-claude-") as scratch:
         argv = (
             str(binary),
-            "--search",
-            "exec",
-            "--sandbox",
-            "read-only",
-            "--skip-git-repo-check",
-            "--ephemeral",
-            "--color",
-            "never",
-            "-m",
+            "-p",
+            "--model",
             model,
-            "-C",
-            scratch,
-            "-o",
-            str(answer_file),
+            "--output-format",
+            "json",
+            "--tools",
+            "WebSearch" if search else "",
+            "--system-prompt",
+            SYSTEM_PROMPT,
+            *(("--allowedTools", "WebSearch") if search else ()),
+            "--no-session-persistence",
             prefix + task.strip(),
         )
         result = await run(
@@ -102,7 +115,14 @@ async def ask_codex(
             timeout=TIMEOUT_SECONDS,
             context=context,
         )
-        answer = answer_file.read_text(encoding="utf-8").strip() if answer_file.is_file() else ""
-    if result.get("returncode") != 0 or not answer:
-        raise CodexUnavailable("codex did not return an answer")
+    answer = ""
+    if result.get("returncode") == 0:
+        try:
+            parsed = json.loads(str(result.get("stdout", "")))
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict) and not parsed.get("is_error"):
+            answer = str(parsed.get("result") or "").strip()
+    if not answer:
+        raise CodexUnavailable("claude did not return an answer")
     return {"answer": answer[:MAX_ANSWER], "truncated": len(answer) > MAX_ANSWER, "model": model}

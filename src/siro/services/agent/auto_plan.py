@@ -6,7 +6,6 @@ import asyncio
 import os
 import re
 from collections.abc import Awaitable, Callable
-from pathlib import Path
 
 AUTO_PLAN_FLAG = "SIRO_AUTO_PLAN_ENABLED"
 _MIN_CHARS = 24
@@ -47,17 +46,17 @@ _CLASSIFY_PROMPT = (
 )
 
 
-def luna_classifier(binary: Path, model: str) -> Classifier:
-    from siro.services.tools.codex import ask_codex
+def claude_classifier(model: str) -> Classifier:
+    from siro.services.tools.codex import ask_claude
 
     async def classify(text: str) -> bool:
-        result = await ask_codex(
+        result = await ask_claude(
             {"task": _CLASSIFY_PROMPT + text[:1000]},
             None,
-            binary=binary,
             model=model,
             prefix="Follow the instructions exactly. Output only what is asked.\n\n",
             limit=1_200 + len(_CLASSIFY_PROMPT),
+            search=False,
         )
         return str(result["answer"]).strip().upper().startswith("YES")
 
@@ -67,12 +66,12 @@ def luna_classifier(binary: Path, model: str) -> Classifier:
 async def should_plan(
     text: str, classifier: Classifier | None = None, *, timeout: float = CLASSIFY_TIMEOUT
 ) -> bool:
-    """Luna decides; the keyword heuristic answers when luna is absent, errors or times out."""
+    """Claude decides; the keyword heuristic answers when Claude is absent, errors or times out."""
 
     stripped = text.strip()
     if len(stripped) < _MIN_CLASSIFY_CHARS or stripped.startswith("/"):
         return False
-    # Casual chat never pays for a luna call: it needs a task verb or a sequencing word.
+    # Casual chat never pays for a Claude call: it needs a task verb or a sequencing word.
     if not (_TASK_VERBS.search(stripped) or _STEP_MARKERS.search(stripped)):
         return False
     if classifier is not None:

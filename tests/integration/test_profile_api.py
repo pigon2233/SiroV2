@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,6 +29,7 @@ class Completer:
 def test_profile_routes_list_rebuild_and_delete(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("SIRO_CLAUDE_BIN", sys.executable)
     _, _, captured = boot(tmp_path, monkeypatch)
     memory = captured["memory_service"]
     source = SQLiteProfileSource(memory._repository._store)
@@ -57,7 +59,7 @@ def test_profile_routes_list_rebuild_and_delete(
 def test_profile_routes_unavailable_without_service(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(gateway, "codex_ready", lambda binary: False)
+    monkeypatch.setattr(gateway, "claude_ready", lambda: False)
     client, _, _ = boot(tmp_path, monkeypatch)
     with client:
         headers = auth(client)

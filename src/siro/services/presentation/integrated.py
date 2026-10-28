@@ -215,7 +215,7 @@ class IntegratedCompanion:
         self.recap_summarizer: Callable[[str], Awaitable[str]] | None = None
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
         self._planning = False
-        # Set by the gateway when the luna planner is wired.
+        # Set by the gateway when the Claude planner is wired.
         self.auto_plan_classifier: Classifier | None = None
 
     @property

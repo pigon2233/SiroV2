@@ -330,6 +330,7 @@ def test_main_model_catalog_routes_every_visible_tool(
     monkeypatch.setattr("siro.adapters.models.ollama.OllamaAdapter", Model)
     monkeypatch.setattr("siro.adapters.browser.ScopedBrowserDriver", Browser)
     monkeypatch.setattr("shutil.which", lambda name: "/synthetic/browser")
+    monkeypatch.setenv("SIRO_CLAUDE_BIN", sys.executable)
 
     def run(app: FastAPI, **kwargs: object) -> None:
         with TestClient(app) as client:

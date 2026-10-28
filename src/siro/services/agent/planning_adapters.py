@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from uuid import uuid4
 
 from siro.ports.models import (
@@ -16,7 +15,7 @@ from siro.ports.models import (
 )
 from siro.services.agent.planning import ModelReply, Subtask, ToolRunResult
 from siro.services.agent.runs import SQLiteAgentRunRepository
-from siro.services.tools.codex import ask_codex
+from siro.services.tools.codex import ask_claude
 from siro.services.tools.orchestrator import PriorOutcomeUnknown, ProposalState, ToolOrchestrator
 
 PLANNER_FLAG = "SIRO_AGENT_PLANNER_ENABLED"
@@ -54,22 +53,22 @@ class CloudPlannerModel:
         return ModelReply(text, str(getattr(self._model, "last_model_name", self._model.name)))
 
 
-class CodexPlannerModel:
-    """Planner/verifier/reporter through the already-wired codex CLI (default gpt-6-luna)."""
+class ClaudePlannerModel:
+    """Planner/verifier/reporter through the Anthropic API (default Haiku 5.5)."""
 
     JSON_PREFIX = "Follow the instructions below exactly. Output only what is asked.\n\n"
 
-    def __init__(self, binary: Path, model: str) -> None:
-        self._binary, self._model = binary, model
+    def __init__(self, model: str) -> None:
+        self._model = model
 
     async def complete(self, role: str, prompt: str) -> ModelReply:
-        result = await ask_codex(
+        result = await ask_claude(
             {"task": prompt},
             None,
-            binary=self._binary,
             model=self._model,
             prefix=self.JSON_PREFIX,
             limit=12_000,
+            search=False,
         )
         return ModelReply(str(result["answer"]), str(result.get("model", self._model)))
 

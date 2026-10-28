@@ -43,7 +43,7 @@ async def _no(_t: str) -> bool:
 
 
 async def _boom(_t: str) -> bool:
-    raise RuntimeError("luna down")
+    raise RuntimeError("claude down")
 
 
 async def _slow(_t: str) -> bool:
@@ -56,7 +56,7 @@ PLAIN = "今天天氣真的很好呢你覺得呢"
 
 
 @pytest.mark.asyncio
-async def test_luna_decides_when_available() -> None:
+async def test_claude_decides_when_available() -> None:
     assert await should_plan(PLAIN + "，幫我查一下", _yes) is True
     assert await should_plan(MULTI, _no) is False
 
