@@ -18,6 +18,12 @@ T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–
 
 驗證來源請分開看：「本機直接驗證」（該紀錄寫明命令與結果）、「owner 回報」（實機試用或口頭）、「遠端 CI」（本專案不 push，目前沒有）、「尚未重驗」（沿用舊數字，例如各紀錄的回歸統計；最新回歸 3120 PASS／15 FAIL 是 I01 串回報，未由整理者重跑）。
 
+## 2026-10-27 — T27 HTTP ESP32 relay token continuity LOCAL_VERIFIED（本機隔離分支）
+
+使用者交接啟動流程後，將 `cccd49d` 的 private token loader 重放到目前主分支快照的隔離分支；Gateway 只在子程序載入 `~/.config/siro/esp32-relay-token`（owner／0600／非 symlink），不把 token 傳給桌面 host。舊 Gateway graceful stop 後，以 WSL ext4 venv 啟動新 Gateway；`/health/live` 回 200，帶私有 token 的未知 ESP32 事件回 400（已通過 token 驗證並進入 parser），Windows 8765 relay 保持運作。[live 證據](evidence/T27-esp32-live-2026-10-27/REPORT.md)
+
+重啟後 SQLite 出現新鮮 `device:siro-node-01:esp32_http` illuminance：228.3、231.7、233.3、230.0、230.8 lux，約十秒一筆；這證明 ESP32→8765→Gateway→World State 的本機 live 路徑。PIR 最新資料仍是較早人工測試時段，本輪沒有新 button row，故不把它們標成新的人工硬體驗收。自動回歸：token／desktop 49 PASS，ESP32 ingress／parser／telemetry／Gateway／device registry／room automation 45 PASS。分支與服務均 LOCAL_ONLY／NOT PUSHED；主工作區 `desktop/host.js` 未提交變更未碰，尚未合併到 main 或遠端。
+
 # Companion T10-UI-01 設定用語切片 — 2026-10-24，PARTIAL
 
 `653f0a7`：桌寵 GPU 選項、權限頁、系統頁、設定頁備註四處內部術語（WSL／WebKit 沙盒、控制路徑、完整權限模式、診斷資料、動作包）改為白話，只改 `index.html` 文字；新增 `test_settings_pages_avoid_internal_jargon`。任務詳情早已完成（`#/tasks/<UUID>`）。命令與結果：accessibility／reflow／navigation／keyboard_skip／control／task_detail 63 PASS，Ruff check／format PASS。限制：T10-UI-01 整體仍 PARTIAL；真人三輪流程、讀屏、WSLg 桌寵實機未驗；本機 commit，未 push。

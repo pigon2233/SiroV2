@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Source only in the gateway launch subshell, never in the desktop host.
+if [[ -n ${SIRO_ESP32_RELAY_TOKEN:-} ]]; then
+  return 0
+fi
+token_file="${XDG_CONFIG_HOME:-$HOME/.config}/siro/esp32-relay-token"
+if [[ ! -e "$token_file" && ! -L "$token_file" ]]; then
+  return 0
+fi
+if [[ ! -f "$token_file" || -L "$token_file" ]]; then
+  echo 'ESP32 relay token must be a regular private file' >&2
+  return 1
+fi
+mode="$(stat -c %a -- "$token_file")"
+if [[ "$(stat -c %u -- "$token_file")" != "$(id -u)" ]] || (( (8#$mode & 077) != 0 )); then
+  echo 'ESP32 relay token must be owned by this user with no group or other access' >&2
+  return 1
+fi
+token="$(cat -- "$token_file")"
+if (( ${#token} < 32 || ${#token} > 256 )) || [[ "$token" =~ [[:space:]] ]]; then
+  echo 'ESP32 relay token length or format is invalid' >&2
+  return 1
+fi
+export SIRO_ESP32_RELAY_TOKEN="$token"
+unset token
