@@ -24,6 +24,7 @@ for line in sys.stdin:
   w.writeframes(bytes([1,0,2,0]));w.close()
   print(json.dumps({**ident,'audio':base64.b64encode(b.getvalue()).decode(),
                     'completion':good}),flush=True);continue
+ if mode=='earlyerror':print(json.dumps({**ident,'error':'X'}),flush=True);continue
  print(json.dumps({**ident,'seq':0,'sample_rate':24000,'pcm':chunk(1)}),flush=True)
  if mode=='error':print(json.dumps({**ident,'error':'X'}),flush=True);continue
  if mode=='eof':sys.exit(0)
@@ -114,3 +115,46 @@ async def test_stream_needs_owned_worker(tmp_path: Path) -> None:
     tts._lifecycle = False
     with pytest.raises(RuntimeError):
         [item async for item in tts.render_stream("你好")]
+
+
+def client_for(tts: QwenReferenceTTS):  # type: ignore[no-untyped-def]
+    from fastapi.testclient import TestClient
+
+    from siro.services.presentation.gateway import SessionTokens, create_app
+
+    tokens = SessionTokens()
+    token, _ = tokens.issue()
+    app = create_app(allowed_origins={"http://test"}, tokens=tokens, text_to_speech=tts)
+    headers = {"origin": "http://test", "authorization": f"Bearer {token}"}
+    return TestClient(app), headers
+
+
+def test_stream_endpoint_returns_pcm_with_rate(tmp_path: Path) -> None:
+    client, headers = client_for(adapter(tmp_path, "normal"))
+    with client:
+        response = client.post("/v1/audio/speech/stream", json={"text": "你好"}, headers=headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/L16;rate=24000;channels=1"
+    assert response.content == b"\x01\x00\x01\x00\x02\x00\x02\x00"
+
+
+def test_stream_endpoint_error_before_audio_is_a_normal_502(tmp_path: Path) -> None:
+    client, headers = client_for(adapter(tmp_path, "earlyerror"))
+    with client:
+        response = client.post("/v1/audio/speech/stream", json={"text": "你好"}, headers=headers)
+    assert response.status_code == 502
+
+
+def test_stream_endpoint_needs_token_and_owned_worker(tmp_path: Path) -> None:
+    client, headers = client_for(adapter(tmp_path, "normal"))
+    with client:
+        assert client.post("/v1/audio/speech/stream", json={"text": "你好"}).status_code in {
+            401,
+            403,
+        }
+    plain = adapter(tmp_path, "normal")
+    plain._lifecycle = False
+    other, headers = client_for(plain)
+    with other:
+        response = other.post("/v1/audio/speech/stream", json={"text": "你好"}, headers=headers)
+    assert response.status_code == 501

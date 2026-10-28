@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -1172,6 +1172,61 @@ def create_app(
             raise HTTPException(status_code=502, detail="speech synthesis failed") from error
         media_type = "audio/wav" if audio.startswith(b"RIFF") else "audio/mpeg"
         return Response(audio, media_type=media_type)
+
+    @app.post("/v1/audio/speech/stream")
+    async def synthesize_speech_stream(
+        body: SpeechInput,
+        request: Request,
+        authorization: str | None = Header(default=None),
+    ) -> Response:
+        """Mono PCM16 as it decodes. The first chunk is awaited here so a failure that
+        happens before any audio still returns a normal error; a later failure aborts the
+        connection and the client must discard the partial audio."""
+        require_origin(request.headers.get("origin"))
+        require_token(authorization)
+        if not (isinstance(text_to_speech, QwenReferenceTTS) and text_to_speech.lifecycle_enabled):
+            raise HTTPException(status_code=501, detail="streaming speech is unavailable")
+        started = time.monotonic()
+        chunks = text_to_speech.render_stream(body.text)
+
+        async def disconnected() -> None:
+            while not await request.is_disconnected():
+                await asyncio.sleep(0.05)
+
+        first = asyncio.create_task(anext(chunks))
+        disconnect = asyncio.create_task(disconnected())
+        try:
+            done, _ = await asyncio.wait({first, disconnect}, return_when=asyncio.FIRST_COMPLETED)
+            if disconnect in done:
+                raise asyncio.CancelledError("speech client disconnected")
+            pcm, rate = await first
+        except Exception as error:
+            logging.getLogger(__name__).warning("speech stream failed: %s", type(error).__name__)
+            raise HTTPException(status_code=502, detail="speech synthesis failed") from error
+        finally:
+            disconnect.cancel()
+            if not first.done():
+                first.cancel()
+            await asyncio.gather(first, disconnect, return_exceptions=True)
+            if first.cancelled() or first.exception() is not None:
+                await chunks.aclose()
+        logging.getLogger(__name__).info(
+            "speech stream first chunk chars=%d seconds=%.2f",
+            len(body.text),
+            time.monotonic() - started,
+        )
+
+        async def pieces() -> AsyncIterator[bytes]:
+            try:
+                yield pcm
+                async for data, chunk_rate in chunks:
+                    if chunk_rate != rate:
+                        raise RuntimeError("speech stream changed sample rate")
+                    yield data
+            finally:
+                await chunks.aclose()
+
+        return StreamingResponse(pieces(), media_type=f"audio/L16;rate={rate};channels=1")
 
     @app.get("/v1/runtime")
     async def runtime_configuration(
