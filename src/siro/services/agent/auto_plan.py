@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
+from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 AUTO_PLAN_FLAG = "SIRO_AUTO_PLAN_ENABLED"
 _MIN_CHARS = 24
@@ -32,3 +35,46 @@ def looks_multistep(text: str) -> bool:
     if not _TASK_VERBS.search(stripped):
         return False
     return len({m.group(0).lower() for m in _STEP_MARKERS.finditer(stripped)}) >= 2
+
+
+Classifier = Callable[[str], Awaitable[bool]]
+CLASSIFY_TIMEOUT = 8.0
+_MIN_CLASSIFY_CHARS = 12
+_CLASSIFY_PROMPT = (
+    "Is the user message below a multi-step task that needs a read-only research plan "
+    "(search, read, compare, summarize across several steps)? Casual chat, single questions "
+    "and requests to change anything are NO. Answer only YES or NO.\n\nMessage:\n"
+)
+
+
+def luna_classifier(binary: Path, model: str) -> Classifier:
+    from siro.services.tools.codex import ask_codex
+
+    async def classify(text: str) -> bool:
+        result = await ask_codex(
+            {"task": _CLASSIFY_PROMPT + text[:1000]},
+            None,
+            binary=binary,
+            model=model,
+            prefix="Follow the instructions exactly. Output only what is asked.\n\n",
+            limit=1_200 + len(_CLASSIFY_PROMPT),
+        )
+        return str(result["answer"]).strip().upper().startswith("YES")
+
+    return classify
+
+
+async def should_plan(
+    text: str, classifier: Classifier | None = None, *, timeout: float = CLASSIFY_TIMEOUT
+) -> bool:
+    """Luna decides; the keyword heuristic answers when luna is absent, errors or times out."""
+
+    stripped = text.strip()
+    if len(stripped) < _MIN_CLASSIFY_CHARS or stripped.startswith("/"):
+        return False
+    if classifier is not None:
+        try:
+            return bool(await asyncio.wait_for(classifier(stripped), timeout))
+        except Exception:
+            pass
+    return looks_multistep(stripped)

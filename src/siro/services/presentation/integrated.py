@@ -64,7 +64,7 @@ from siro.ports.models import (
 )
 from siro.services.activity.monitor import ACTIVE_STATES, ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
-from siro.services.agent.auto_plan import auto_plan_enabled, looks_multistep
+from siro.services.agent.auto_plan import Classifier, auto_plan_enabled, should_plan
 from siro.services.agent.checkpoints import SQLiteCheckpointRepository
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.planning import PlanReport
@@ -210,6 +210,8 @@ class IntegratedCompanion:
         self._background: set[asyncio.Task[None]] = set()
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
         self._planning = False
+        # Set by the gateway when the luna planner is wired.
+        self.auto_plan_classifier: Classifier | None = None
 
     @property
     def foreground_active(self) -> bool:
@@ -473,7 +475,7 @@ class IntegratedCompanion:
             and self._agent_planner_factory is not None
         ):
             try:
-                plan_goal = text.strip() if looks_multistep(text) else None
+                plan_goal = text.strip() if await should_plan(text, self.auto_plan_classifier) else None
             except Exception:
                 plan_goal = None
         if plan_goal is not None and (not self._planner_on() or self._agent_planner_factory is None):

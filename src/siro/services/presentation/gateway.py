@@ -42,6 +42,7 @@ from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
+from siro.services.agent.auto_plan import luna_classifier
 from siro.services.agent.planning_adapters import (
     CodexPlannerModel,
     OrchestratorToolPort,
@@ -2960,6 +2961,9 @@ def _run_gateway(
         else None
     )
     controller.reminders = reminder_service
+
+    if planner_factory is not None:
+        controller.auto_plan_classifier = luna_classifier(codex_binary(), planner_model)
 
     async def start_controller() -> None:
         await controller.startup()
