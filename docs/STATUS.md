@@ -28,7 +28,12 @@ T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–
 
 `653f0a7`：桌寵 GPU 選項、權限頁、系統頁、設定頁備註四處內部術語（WSL／WebKit 沙盒、控制路徑、完整權限模式、診斷資料、動作包）改為白話，只改 `index.html` 文字；新增 `test_settings_pages_avoid_internal_jargon`。任務詳情早已完成（`#/tasks/<UUID>`）。命令與結果：accessibility／reflow／navigation／keyboard_skip／control／task_detail 63 PASS，Ruff check／format PASS。限制：T10-UI-01 整體仍 PARTIAL；真人三輪流程、讀屏、WSLg 桌寵實機未驗；本機 commit，未 push。
 
-# Companion T15 首音延遲 — 2026-10-24，未量測
+# Companion T15 首音延遲 — 2026-10-29，已量測，未達 ≤1 秒目標
+
+直接驅動 `scripts/qwen_tts_worker.py`（cuda-graph 後端、`qwen3-tts-0.6b-base`、`siro-sweet-b-v1` 聲線），GPU 當時約 1.4 GB／8 GB 被其他程式佔用。worker 載入 8.0 秒；5 個不重複短句（13–17 字，新句非快取）整句合成：第一句 5.28 秒（含 CUDA graph 首次擷取），之後 2.05／2.17／2.33／2.89 秒。worker 一次回整段 WAV，所以這是「整句完成」時間，是首音延遲的上界，不是首個音訊 chunk。結論：短句暖機後約 2–3 秒，未達 FIX-005 的「首段 ≤1 秒」；要達標需串流輸出首 chunk 或更小首段，屬新功能，未做。未量：長句、與 Ollama／STT 同時負載、p95。
+
+（以下為 2026-10-24 舊紀錄）
+## Companion T15 首音延遲 — 2026-10-24，未量測
 
 沒有數字：`8a4e07f` 加的 `speech synthesized` 計時 log 目前沒有任何輸出（`SIRO_LOG_DIR` 未設，`companion-service.log` 只有模型未設定訊息）；沒有 faster-qwen3-tts 路徑的既有量測；`nvidia-smi` 顯示 GPU 使用率 41%、已用約 3.9／8 GB，依指示不啟動新 GPU 負載。文件裡唯一目標是 FIX-005 的「首段 ≤1 秒」（沒有 p95 數值 SLO）；舊 SDPA 路徑實測首段 7.8～10.1 秒、warm RTF 約 1.75，未達標。注意該 log 記的是整段合成時間，不是首個音訊 chunk，要量首音需另加計時並在 GPU 空閒時跑。
 
