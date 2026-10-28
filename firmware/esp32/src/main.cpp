@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <ArduinoMqttClient.h>
 #include <WiFi.h>
@@ -16,6 +17,7 @@ String lastCommandId;
 #endif
 constexpr time_t minimumSyncedTime = 1700000000;
 constexpr uint32_t sensorIntervalMs = 10000UL;
+constexpr uint32_t mqttRetryMs = 5000UL;
 PirMotionSampler pir(0);
 ButtonSampler button;
 uint32_t lastLightRead = 0;
@@ -24,6 +26,10 @@ bool lightSensorReady = false;
 bool lightValid = false;
 bool connectedOnce = false;
 float lastLux = 0.0f;
+bool mqttUp = false;
+uint32_t mqttDownSince = 0;
+uint32_t lastMqttAttempt = 0;
+uint32_t lastHttpLight = 0;
 
 bool startLightSensor() {
   Wire.beginTransmission(SIRO_BH1750_ADDRESS);
@@ -108,11 +114,8 @@ void onMessage(int size) {
 }
 #endif
 
-void connectMqtt() {
-  if (connectedOnce) {
-    pir.invalidate();
-    lightValid = false;
-  }
+// One bounded connect attempt; returns false so loop() can fall back to HTTP.
+bool tryConnectMqtt() {
   mqtt.setId(SIRO_DEVICE_ID);
   mqtt.setUsernamePassword(SIRO_MQTT_USERNAME, SIRO_MQTT_PASSWORD);
   mqtt.beginWill(prefix + "availability", 7, true, 1);
@@ -121,7 +124,11 @@ void connectMqtt() {
 #if SIRO_HAS_LED
   mqtt.onMessage(onMessage);
 #endif
-  while (!mqtt.connect(SIRO_MQTT_HOST, SIRO_MQTT_PORT)) delay(1000);
+  if (!mqtt.connect(SIRO_MQTT_HOST, SIRO_MQTT_PORT)) return false;
+  if (connectedOnce) {
+    pir.invalidate();
+    lightValid = false;
+  }
   mqtt.beginMessage(prefix + "availability", 6, true, 1, false);
   mqtt.print("online");
   mqtt.endMessage();
@@ -130,6 +137,24 @@ void connectMqtt() {
 #endif
   publishState();
   connectedOnce = true;
+  return true;
+}
+
+// HTTP fallback uses the legacy receiver contract: POST /event {"device","event"[,"lux"]}.
+void postHttpEvent(const char *event, bool withLux) {
+  if (WiFi.status() != WL_CONNECTED) return;
+  JsonDocument body;
+  body["device"] = SIRO_HTTP_DEVICE_ID;
+  body["event"] = event;
+  if (withLux) body["lux"] = lastLux;
+  String payload;
+  serializeJson(body, payload);
+  HTTPClient http;
+  http.setTimeout(2000);
+  if (!http.begin(SIRO_HTTP_FALLBACK_URL)) return;
+  http.addHeader("Content-Type", "application/json");
+  http.POST(payload);
+  http.end();
 }
 
 void setup() {
@@ -153,7 +178,8 @@ void setup() {
     ESP.restart();
     return;
   }
-  connectMqtt();
+  mqttDownSince = millis();
+  lastMqttAttempt = mqttDownSince - mqttRetryMs;
 }
 
 void loop() {
@@ -162,9 +188,19 @@ void loop() {
     return;
   }
   if (WiFi.status() != WL_CONNECTED) ESP.restart();
-  if (!mqtt.connected()) connectMqtt();
-  mqtt.poll();
   const uint32_t now = millis();
+  if (mqtt.connected()) {
+    mqttUp = true;
+    mqtt.poll();
+  } else {
+    if (mqttUp) mqttDownSince = now;
+    mqttUp = false;
+    if (now - lastMqttAttempt >= mqttRetryMs) {
+      lastMqttAttempt = now;
+      if (tryConnectMqtt()) mqttUp = true;
+    }
+  }
+  const bool httpFallback = !mqttUp && now - mqttDownSince >= SIRO_MQTT_FALLBACK_AFTER_MS;
   const bool motionChanged = pir.update(now, digitalRead(SIRO_PIR_PIN) == HIGH);
   const bool buttonChanged = button.update(now, digitalRead(SIRO_BUTTON_PIN) == LOW);
   if (sensorIntervalElapsed(now, lastLightRead, sensorIntervalMs)) {
@@ -181,9 +217,18 @@ void loop() {
       }
     }
   }
-  if (motionChanged || buttonChanged ||
-      sensorIntervalElapsed(now, lastStatePublish, sensorIntervalMs)) {
-    publishState();
+  if (mqttUp) {
+    if (motionChanged || buttonChanged ||
+        sensorIntervalElapsed(now, lastStatePublish, sensorIntervalMs)) {
+      publishState();
+    }
+  } else if (httpFallback) {
+    if (motionChanged && pir.ready()) postHttpEvent(pir.motion() ? "motion_detected" : "motion_cleared", false);
+    if (buttonChanged && button.down()) postHttpEvent("button_pressed", false);
+    if (lightValid && sensorIntervalElapsed(now, lastHttpLight, sensorIntervalMs)) {
+      lastHttpLight = now;
+      postHttpEvent("light_update", true);
+    }
   }
   delay(10);
 }

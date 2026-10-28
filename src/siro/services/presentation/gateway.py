@@ -2142,6 +2142,10 @@ def _run_gateway(
         http_sensor_descriptor,
         http_sensor_state_snapshot,
     )
+    from siro.services.devices.mqtt_subscriber import (
+        Esp32MqttSubscriber,
+        mqtt_sensor_descriptor,
+    )
     from siro.services.presentation.integrated import IntegratedCompanion
     from siro.services.tools.orchestrator import SQLiteToolProposalRepository
 
@@ -2356,6 +2360,40 @@ def _run_gateway(
             )
 
         on_esp32_http_state = read_esp32_http_state
+    esp32_mqtt: Esp32MqttSubscriber | None = None
+    if os.environ.get("SIRO_ESP32_MQTT_ENABLED") == "1":
+        mqtt_host = os.environ.get("SIRO_ESP32_MQTT_HOST")
+        if not mqtt_host:
+            raise ValueError("SIRO_ESP32_MQTT_HOST is required when MQTT ingestion is enabled")
+        mqtt_device_id = os.environ.get("SIRO_ESP32_MQTT_DEVICE_ID", "siro-node-mqtt-01")
+        if mqtt_device_id == os.environ.get("SIRO_ESP32_HTTP_DEVICE_ID", "siro-node-01"):
+            raise ValueError("SIRO_ESP32_MQTT_DEVICE_ID must differ from the HTTP device ID")
+        mqtt_registry = DeviceRegistry(
+            SQLiteDeviceRepository(shared_store),
+            WorldModel(SQLiteWorldRepository(shared_store)),
+        )
+        mqtt_repository = SQLiteDeviceRepository(shared_store)
+
+        async def ensure_mqtt_sensor() -> None:
+            existing = await mqtt_repository.get(mqtt_device_id)
+            if existing is not None and existing.descriptor.adapter != "esp32_mqtt":
+                raise ValueError("ESP32 MQTT device ID belongs to another adapter")
+            if existing is None:
+                await mqtt_registry.register(
+                    mqtt_sensor_descriptor(
+                        mqtt_device_id, location=os.environ.get("SIRO_ESP32_MQTT_LOCATION") or None
+                    )
+                )
+
+        asyncio.run(ensure_mqtt_sensor(), loop_factory=loop_factory)
+        esp32_mqtt = Esp32MqttSubscriber(
+            mqtt_registry,
+            host=mqtt_host,
+            port=int(os.environ.get("SIRO_ESP32_MQTT_PORT", "1883")),
+            device_id=mqtt_device_id,
+            username=os.environ.get("SIRO_ESP32_MQTT_USERNAME") or None,
+            password=os.environ.get("SIRO_ESP32_MQTT_PASSWORD") or None,
+        )
     memory_service = MemoryService(SQLiteMemoryRepository(shared_store))
 
     from siro.services.tools.browser_session import BrowserSessions
@@ -2914,6 +2952,8 @@ def _run_gateway(
 
     async def start_controller() -> None:
         await controller.startup()
+        if esp32_mqtt is not None:
+            esp32_mqtt.start()
         if organizer is not None:
             await organizer.start()
         if workspace is not None:
@@ -2926,6 +2966,8 @@ def _run_gateway(
             observer.start()
 
     async def stop_controller() -> None:
+        if esp32_mqtt is not None:
+            await esp32_mqtt.close()
         for observer in context_observers:
             await observer.close()
         if self_scheduler is not None:

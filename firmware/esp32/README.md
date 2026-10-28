@@ -25,3 +25,9 @@ pio device monitor
 原有 `esp32dev`／LED 範例仍可作可選編譯；只有確認 LED 實際存在與腳位後，才把 `SIRO_HAS_LED` 設為 `1`。此時恢復 `light.set` 的 command／ack／`power` readback。**此路徑不適用使用者目前的無 LED 實板，也不算 T27 LED 硬體驗收。**
 
 BH1750 命令與 lux 換算參考 [ROHM 技術資料](https://www.mouser.com/datasheet/2/348/bh1750fvi-e-186247.pdf)。沒有新增 firmware 依賴；正式 LAN MQTT 仍需隔離網段或 TLS、每設備 ACL 與可撤銷憑證。編譯與整合測試證據見[本輪報告](../../docs/evidence/T27-sensor-telemetry-2026-10-23/REPORT.md)。
+
+## MQTT 優先、HTTP 備援與 SIRO 端啟用
+
+韌體每 5 秒嘗試一次 MQTT；連續 `SIRO_MQTT_FALLBACK_AFTER_MS`（預設 30 秒）連不上就改以舊接收器格式 POST 到 `SIRO_HTTP_FALLBACK_URL`（`light_update`／`motion_*`／`button_pressed`），MQTT 恢復後自動切回。MQTT 與 HTTP 使用**不同 device ID**（建議 MQTT `siro-node-mqtt-01`、HTTP `siro-node-01`），避免 registry 的 adapter 衝突。**此備援與 MQTT 路徑尚未編譯或上板驗證**（本機無 PlatformIO／arduino-cli 與 ArduinoMqttClient、ArduinoJson）。
+
+SIRO gateway 預設不訂閱 MQTT。啟用：`SIRO_ESP32_MQTT_ENABLED=1`、`SIRO_ESP32_MQTT_HOST`，可選 `SIRO_ESP32_MQTT_PORT`（1883）、`SIRO_ESP32_MQTT_USERNAME`／`PASSWORD`、`SIRO_ESP32_MQTT_DEVICE_ID`（預設 `siro-node-mqtt-01`，不可與 HTTP ID 相同）、`SIRO_ESP32_MQTT_LOCATION`。只訂閱該設備的 `state`／`availability`，忽略 retained state；broker 不通時背景重連，不影響 gateway。
