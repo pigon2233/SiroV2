@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 from collections.abc import AsyncIterator
 from typing import cast
 
@@ -55,6 +57,7 @@ class OllamaAdapter:
         timeout: float = 120,
         thinking: bool | None = None,
         context_length: int | None = None,
+        keep_alive: str | None = None,
     ) -> None:
         if thinking is not None and type(thinking) is not bool:
             raise ValueError("thinking must be a boolean or native default")
@@ -68,6 +71,13 @@ class OllamaAdapter:
         self._timeout = timeout
         self._thinking = thinking
         self._context_length = context_length
+        # Ollama unloads the model after 5 idle minutes; the next reply then pays a ~6 s reload.
+        configured = (
+            keep_alive if keep_alive is not None else os.environ.get("SIRO_OLLAMA_KEEP_ALIVE")
+        )
+        if configured is not None and not re.fullmatch(r"-?\d+|\d+[smh]", configured):
+            raise ValueError("keep_alive must be seconds or a duration such as 30m")
+        self._keep_alive = configured or None
 
     async def stream(
         self, request: ModelRequest, cancellation: CancellationToken
@@ -86,6 +96,8 @@ class OllamaAdapter:
         }
         if self._thinking is not None:
             payload["think"] = self._thinking
+        if self._keep_alive is not None:
+            payload["keep_alive"] = self._keep_alive
         if self._context_length is not None:
             payload["options"] = {
                 "num_predict": request.max_output_tokens,
