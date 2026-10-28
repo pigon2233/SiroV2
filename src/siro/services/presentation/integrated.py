@@ -62,6 +62,7 @@ from siro.ports.models import (
     ToolCall,
     ToolDefinition,
 )
+from siro.core.memory_autonomy import AutonomousMemory, memory_nomination_prompt, parse_nominations
 from siro.services.activity.monitor import ACTIVE_STATES, ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
 from siro.services.agent.auto_plan import Classifier, auto_plan_enabled, should_plan
@@ -413,6 +414,57 @@ class IntegratedCompanion:
         except Exception:
             logging.getLogger(__name__).exception("reminder intent failed")
 
+    async def _auto_memory(self, session_id: str, source_event: UserTextEvent) -> None:
+        """Ask the model once which of the owner's own words are worth keeping."""
+        try:
+            for _ in range(240):  # never compete with the reply for the model
+                if session_id not in self._active_sessions:
+                    break
+                await asyncio.sleep(0.5)
+            else:
+                return
+            assert self._memory_service is not None
+
+            async def nominate(text: str) -> list[str]:
+                request = ModelRequest(
+                    memory_nomination_prompt(text),
+                    str(uuid4()),
+                    privacy=self._privacy,
+                    max_output_tokens=200,
+                )
+                cancellation = CancellationToken()
+                parts: list[str] = []
+
+                async def collect() -> None:
+                    async for chunk in self._model.stream(request, cancellation):
+                        if chunk.kind == "text":
+                            parts.append(chunk.text)
+
+                try:
+                    await asyncio.wait_for(collect(), 20.0)
+                except Exception:
+                    cancellation.cancel()
+                    return []
+                return parse_nominations("".join(parts))
+
+            saved, confirm = await AutonomousMemory(self._memory_service, nominate).consider(
+                "siro", source_event
+            )
+            if saved:
+                await self.share_self_note(
+                    "我記下了：" + "；".join(m.text for m in saved) + "（不要的話可在記憶頁刪除）",
+                    "",
+                    speak=False,
+                )
+            if confirm:
+                await self.share_self_note(
+                    "這件事要我記下來嗎？" + "；".join(confirm) + "（說「請記住：…」我才會存）",
+                    "",
+                    speak=False,
+                )
+        except Exception:
+            logging.getLogger(__name__).exception("autonomous memory failed")
+
     async def deliver_reminder(self, item: Reminder, late: bool) -> None:
         """A due reminder: the bubble/chat text, her voice, and one finished Activity entry."""
         text, spoken = spoken_text(item, late)
@@ -699,6 +751,13 @@ class IntegratedCompanion:
                     stored_memory = await self._memory_service.ingest_owner_request(
                         "siro", source_event
                     )
+                except ValueError:
+                    hint = "你想讓我記住什麼呢？請在「請記住」後面告訴我內容。"
+                    await emit({"type": "assistant_delta", "session_id": session_id, "text": hint})
+                    await self._finish_candidate(
+                        agent_run.run_id, session_id, TurnState.COMPLETED, None, hint
+                    )
+                    return
                 except Exception as error:
                     await self._finish_candidate(
                         agent_run.run_id, session_id, TurnState.FAILED, type(error).__name__
@@ -706,6 +765,11 @@ class IntegratedCompanion:
                     return
                 if agent_run.run_id in self._terminated:
                     return
+                if stored_memory is None and os.environ.get("SIRO_AUTO_MEMORY", "1") != "0":
+                    # She decides after the reply what is worth keeping; undo = delete.
+                    auto = asyncio.create_task(self._auto_memory(session_id, source_event))
+                    self._background.add(auto)
+                    auto.add_done_callback(self._background.discard)
             prompt_owner_preferences, prompt_self_preferences = owner_preferences, self_preferences
             if self._privacy is Privacy.CLOUD_ALLOWED:
                 prompt_owner_preferences = await self._affect_repository.preferences(

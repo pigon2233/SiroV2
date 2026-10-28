@@ -65,3 +65,12 @@ async def test_autonomous_write_is_screened_sourced_and_undoable(tmp_path: Path)
         await auto.consider("siro", event("x", "tool.result"))
     none, _ = await auto.consider("siro", event("不要記 我下週三面試"))
     assert none == []
+
+
+def test_nomination_prompt_and_parser() -> None:
+    from siro.core.memory_autonomy import memory_nomination_prompt, parse_nominations
+
+    assert "我愛貓" in memory_nomination_prompt("我愛貓")
+    assert parse_nominations('x {"memories": ["我愛貓", 3]} y') == ["我愛貓"]
+    assert parse_nominations("not json") == []
+    assert parse_nominations('{"memories": "oops"}') == []

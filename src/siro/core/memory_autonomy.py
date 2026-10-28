@@ -1,7 +1,9 @@
 """Model-nominated memories from a user turn: screened, source-linked, revocable."""
 
+# ruff: noqa: RUF001
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -61,3 +63,26 @@ class AutonomousMemory:
         return await self._service._repository.delete(
             memory_id, reason="owner undid autonomous memory", deleted_at=datetime.now(UTC)
         )
+
+
+_RULES = (
+    "你是 SIRO 的記憶判斷。從使用者這句話挑出值得長期記住的個人事實（偏好、家人寵物、"
+    "習慣、重要事件）。每項必須是使用者原話中的連續片段，逐字複製，不可改寫或推測。"
+    "閒聊、問句、假設、一次性的事不要選。只輸出 JSON：{\"memories\": [\"片段\", ...]}，"
+    "沒有就輸出 {\"memories\": []}。"
+)
+
+
+def memory_nomination_prompt(text: str) -> str:
+    return f"{_RULES}\n使用者說：{text}"
+
+
+def parse_nominations(raw: str) -> list[str]:
+    start, end = raw.find("{"), raw.rfind("}")
+    if start < 0 or end <= start:
+        return []
+    try:
+        items = json.loads(raw[start : end + 1]).get("memories", [])
+    except (ValueError, AttributeError):
+        return []
+    return [i for i in items if isinstance(i, str)] if isinstance(items, list) else []
