@@ -51,6 +51,8 @@ def test_real_main_provider_policy_and_dispatch_gate(
         if key.startswith("SIRO_") or key == "GROQ_API_KEY":
             monkeypatch.delenv(key)
     monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+    # Autonomous memory makes its own model call; this test counts only the turn's requests.
+    monkeypatch.setenv("SIRO_AUTO_MEMORY", "0")
     # Synthetic providers have no native tokenizer; preserve this fixture scope.
     monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
     monkeypatch.setenv("SIRO_RUNTIME_PROFILE", profile)
