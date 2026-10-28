@@ -83,7 +83,7 @@ def describe_tool(capability: str, arguments: object, observation: object) -> di
                 "gaps": ["page_interaction_requests_not_listed"],
             },
         }
-    if capability == "codex.ask":
+    if capability in {"claude.ask", "codex.ask"}:  # codex.ask: runs saved before the switch
         task = args.get("task")
         return {
             "target": {"task": task[:MAX_REASON]} if isinstance(task, str) else None,

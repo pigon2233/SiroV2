@@ -47,7 +47,7 @@ _CLASSIFY_PROMPT = (
 
 
 def claude_classifier(model: str) -> Classifier:
-    from siro.services.tools.codex import ask_claude
+    from siro.services.tools.claude import ask_claude
 
     async def classify(text: str) -> bool:
         result = await ask_claude(

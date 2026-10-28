@@ -63,12 +63,12 @@ def note_for(c: sqlite3.Connection, run_id: str) -> dict[str, object] | None:
         url = redact_url(seen.get("url"))
         if url is not None and url.get("url") and url not in [s["url"] for s in sources]:
             sources.append({"url": url, "title": str(seen.get("title") or "")[:120]})
-    # Links in Codex answers are what Codex says it read; SIRO did not open them itself.
+    # Links in Claude answers are what Claude says it read; SIRO did not open them itself.
     reported: list[dict[str, object]] = []
     for row in c.execute(
-        "SELECT observation_json FROM run_journal_calls WHERE run_id=? AND capability=? "
+        "SELECT observation_json FROM run_journal_calls WHERE run_id=? AND capability IN (?, ?) "
         "AND observation_json IS NOT NULL",
-        (run_id, "codex.ask"),
+        (run_id, "claude.ask", "codex.ask"),
     ):
         seen = json.loads(row[0])
         answer = seen.get("answer") if isinstance(seen, dict) else None
@@ -197,13 +197,13 @@ def share_text(note: dict[str, object]) -> tuple[str, str]:
     reported = note.get("reported_by_codex") or []
     assert isinstance(reported, list)
     if reported:
-        text += "\n\nCodex 提供的來源（我沒有直接打開）：\n" + "\n".join(  # noqa: RUF001
+        text += "\n\nClaude 提供的來源（我沒有直接打開）：\n" + "\n".join(  # noqa: RUF001
             f"- {item['url']}" for item in reported
         )
     checks = note.get("checks") or []
     assert isinstance(checks, list)
     if checks:
-        text += "\n\n我核對過 Codex 的說法：\n" + "\n".join(  # noqa: RUF001
+        text += "\n\n我核對過 Claude 的說法：\n" + "\n".join(  # noqa: RUF001
             f"- {check['claim']}：{VERDICT_LABELS.get(str(check['verdict']), '沒判斷出來')}"  # noqa: RUF001
             f"（{check['url']['url']}）"  # noqa: RUF001
             for check in checks

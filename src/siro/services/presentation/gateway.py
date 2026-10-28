@@ -97,14 +97,14 @@ from siro.services.presentation.desktop_settings import (
     load_desktop_settings,
     save_desktop_settings,
 )
-from siro.services.tools.codex import (
-    CODEX_DEFINITION,
-    CODEX_TOOL,
+from siro.services.tools.claude import (
+    CLAUDE_DEFINITION,
+    CLAUDE_TOOL,
     ask_claude,
     claude_model,
     claude_ready,
 )
-from siro.services.tools.codex import TIMEOUT_SECONDS as CODEX_TIMEOUT_SECONDS
+from siro.services.tools.claude import TIMEOUT_SECONDS as CLAUDE_TIMEOUT_SECONDS
 from siro.services.tools.execution import (
     ExecutionCancelled,
     ExecutionCleanupError,
@@ -2869,11 +2869,11 @@ def _run_gateway(
             browser_contextual[name] = partial(session_browser, action)
 
     # Claude (Haiku) is a tool SIRO's own model may call; it only runs while the cloud switch is on.
-    codex_model = claude_model()
-    codex_contextual = {}
-    if runtime_profile == "candidate" and os.environ.get("SIRO_CODEX_ENABLED", "1") == "1":
-        handlers[CODEX_TOOL] = browser_without_context
-        codex_contextual[CODEX_TOOL] = partial(ask_claude, model=codex_model)
+    claude_tool_model = claude_model()
+    claude_contextual = {}
+    if runtime_profile == "candidate" and os.environ.get("SIRO_CLAUDE_ENABLED", "1") == "1":
+        handlers[CLAUDE_TOOL] = browser_without_context
+        claude_contextual[CLAUDE_TOOL] = partial(ask_claude, model=claude_tool_model)
 
     workspace_contextual = {}
     if workspace is not None:
@@ -2886,14 +2886,14 @@ def _run_gateway(
         definitions.update({d.name: d for d in WORKSPACE_TOOLS})
     if browser_sessions is not None:
         definitions.update({d.name: d for d in BROWSER_SESSION_TOOLS})
-    definitions[CODEX_TOOL] = CODEX_DEFINITION
+    definitions[CLAUDE_TOOL] = CLAUDE_DEFINITION
 
     def readiness(name: str) -> ToolAvailability:
         if not state.kill_switches["tools"]:
             return ToolAvailability(
                 AvailabilityState.UNAVAILABLE, AvailabilityReason.TOOLS_DISABLED
             )
-        if name == CODEX_TOOL:
+        if name == CLAUDE_TOOL:
             ready = state.kill_switches["cloud"] and claude_ready()
             return ToolAvailability(
                 AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
@@ -2927,10 +2927,10 @@ def _run_gateway(
             "browser.close": "關閉目前網頁",
             "filesystem.read": "讀取工作目錄文字檔",
             "filesystem.list": "查看工作目錄檔案",
-            CODEX_TOOL: "請 Codex 幫忙查",
+            CLAUDE_TOOL: "請 Claude 幫忙查",
         }
         read_only = name in {
-            CODEX_TOOL,
+            CLAUDE_TOOL,
             "browser.navigate+read",
             "browser.read",
             "filesystem.read",
@@ -2946,8 +2946,8 @@ def _run_gateway(
             provenance="siro_builtin",
             timeout_seconds=120
             if name == "computer.execute"
-            else CODEX_TIMEOUT_SECONDS
-            if name == CODEX_TOOL
+            else CLAUDE_TIMEOUT_SECONDS
+            if name == CLAUDE_TOOL
             else (30 if name.startswith("browser.") and browser_sessions is not None else None),
             failure_behavior="Failures produce failed observations. Unknown effects are not "
             "automatically repeated. Availability is not proof of successful execution.",
@@ -2966,12 +2966,12 @@ def _run_gateway(
                     else (
                         "playwright"
                         if name.startswith("browser.")
-                        else ("anthropic.api" if name == CODEX_TOOL else "python.argv")
+                        else ("anthropic.api" if name == CLAUDE_TOOL else "python.argv")
                     ),
                     effect="read"
                     if name
                     in {
-                        CODEX_TOOL,
+                        CLAUDE_TOOL,
                         "browser.navigate+read",
                         "browser.read",
                         "filesystem.read",
@@ -2983,7 +2983,7 @@ def _run_gateway(
                     else (
                         browser_contextual.get(name)
                         or workspace_contextual.get(name)
-                        or codex_contextual.get(name)
+                        or claude_contextual.get(name)
                     ),
                     metadata=tool_metadata(name),
                 )
@@ -3016,7 +3016,7 @@ def _run_gateway(
             "computer.execute": execute_computer,
             **browser_contextual,
             **workspace_contextual,
-            **codex_contextual,
+            **claude_contextual,
         }
         if runtime_profile == "candidate"
         else None,
@@ -3167,7 +3167,7 @@ def _run_gateway(
         if not (state.kill_switches["cloud"] and claude_ready()):
             raise RuntimeError("cloud summary unavailable")
         result = await ask_claude(
-            {"task": prompt}, model=codex_model, prefix="", limit=6000, search=False
+            {"task": prompt}, model=claude_tool_model, prefix="", limit=6000, search=False
         )
         return str(result["answer"])
 

@@ -31,10 +31,10 @@ from siro.services.tools.orchestrator import PriorOutcomeUnknown, ToolOrchestrat
 
 SELF_SESSION = "siro.self"
 READ_TOOL = "browser.navigate+read"
-# Codex can also help with her own research; it is offered only while the cloud switch is on.
-SELF_TOOLS = frozenset({READ_TOOL, "codex.ask"})
-CODEX_TOOL = "codex.ask"
-# A link inside a Codex answer, up to the first space, bracket or CJK punctuation.
+# Claude can also help with her own research; it is offered only while the cloud switch is on.
+SELF_TOOLS = frozenset({READ_TOOL, "claude.ask"})
+CLAUDE_TOOL = "claude.ask"
+# A link inside a Claude answer, up to the first space, bracket or CJK punctuation.
 URL_PATTERN = re.compile(r"https?://[^\s)\]>」，。]+")  # noqa: RUF001
 MAX_CHECKS = 2
 VERDICTS = ("supported", "contradicted", "not_found")
@@ -56,7 +56,7 @@ SYSTEM_PROMPT = (
 
 
 def claims_with_urls(answer: str) -> list[tuple[str, str]]:
-    """(claim, url) pairs: each linked line of a Codex answer, with its first new link."""
+    """(claim, url) pairs: each linked line of a Claude answer, with its first new link."""
     pairs: list[tuple[str, str]] = []
     for line in answer.splitlines():
         urls = [url for url in URL_PATTERN.findall(line) if url not in {u for _, u in pairs}]
@@ -219,12 +219,12 @@ class SelfActivityOwner:
                             tool_call_id=call.call_id,
                         )
                     )
-                    if call.name == CODEX_TOOL and isinstance(observation, dict):
+                    if call.name == CLAUDE_TOOL and isinstance(observation, dict):
                         answer = observation.get("answer")
                         if isinstance(answer, str):
                             answers.append(answer)
                 await self._runs.checkpoint(run_id, history)
-                # Checks need her own page reader; without it the Codex links stay unopened.
+                # Checks need her own page reader; without it the Claude links stay unopened.
                 for answer in answers if any(tool.name == READ_TOOL for tool in tools) else ():
                     await self._verify(run_id, history, answer, proposals, cancellation)
             if self._ended(cancellation) and state is not AgentRunState.COMPLETED:
@@ -304,7 +304,7 @@ class SelfActivityOwner:
         proposals: list[str],
         cancellation: CancellationToken,
     ) -> None:
-        """Open what Codex cited and record, per claim, what the page actually says.
+        """Open what Claude cited and record, per claim, what the page actually says.
 
         Reading a page is not proof; each check is supported, contradicted, not_found,
         unreachable or unchecked (the judge did not answer), never assumed correct.
@@ -315,7 +315,7 @@ class SelfActivityOwner:
         calls = tuple(
             ToolCall(f"verify-{uuid4().hex[:12]}", READ_TOOL, {"url": url}) for _, url in pairs
         )
-        history.append(ModelMessage("assistant", "核對 Codex 給的來源", tool_calls=calls))
+        history.append(ModelMessage("assistant", "核對 Claude 給的來源", tool_calls=calls))
         await self._runs.checkpoint(run_id, history)
         checks: list[dict[str, object]] = []
         for (claim, url), call in zip(pairs, calls, strict=True):

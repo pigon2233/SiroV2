@@ -16,7 +16,7 @@ from siro.services.activity.monitor import ActivityMonitor, describe_tool
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
 from siro.services.agent.self_notes import SelfNotes, share_text
-from siro.services.tools.codex import CodexUnavailable, ask_claude
+from siro.services.tools.claude import ClaudeUnavailable, ask_claude
 from siro.services.tools.execution import ExecutionContext
 
 pytestmark = pytest.mark.asyncio
@@ -70,14 +70,14 @@ async def test_claude_without_an_answer_fails_honestly() -> None:
         return {"returncode": 0, "stdout": '{"is_error": true, "result": "Not logged in"}'}
 
     for run in (failing, errored):
-        with pytest.raises(CodexUnavailable):
+        with pytest.raises(ClaudeUnavailable):
             await ask_claude({"task": "查天氣"}, binary=Path("/opt/claude"), run=run)
     with pytest.raises(ValueError):
         await ask_claude({"task": "x"}, binary=Path("/opt/claude"), run=failing)
 
 
-def test_monitor_shows_the_task_and_says_codex_network_is_unseen() -> None:
-    described = describe_tool("codex.ask", {"task": "查天氣"}, {"answer": "多雲"})
+def test_monitor_shows_the_task_and_says_claude_network_is_unseen() -> None:
+    described = describe_tool("claude.ask", {"task": "查天氣"}, {"answer": "多雲"})
     assert described == {
         "target": {"task": "查天氣"},
         "network": {
@@ -88,14 +88,14 @@ def test_monitor_shows_the_task_and_says_codex_network_is_unseen() -> None:
     }
 
 
-async def test_her_note_lists_codex_links_apart_from_pages_she_read(tmp_path: Path) -> None:
-    async def codex(arguments: dict[str, object], context: ExecutionContext) -> object:
+async def test_her_note_lists_claude_links_apart_from_pages_she_read(tmp_path: Path) -> None:
+    async def claude(arguments: dict[str, object], context: ExecutionContext) -> object:
         return {"answer": "M42 是恆星形成區 https://example.test/m42。", "truncated": False}
 
     model = ScriptedModel(
-        [[ToolCall("c1", "codex.ask", {"task": "M42 是什麼"})], "筆記：M42 是恆星形成區"]  # noqa: RUF001
+        [[ToolCall("c1", "claude.ask", {"task": "M42 是什麼"})], "筆記：M42 是恆星形成區"]  # noqa: RUF001
     )
-    controller, store = await companion(tmp_path, model, {"codex.ask": codex})
+    controller, store = await companion(tmp_path, model, {"claude.ask": claude})
     orchestrator = controller._tool_orchestrator
     assert orchestrator is not None
     owner = SelfActivityOwner(
@@ -113,9 +113,9 @@ async def test_her_note_lists_codex_links_apart_from_pages_she_read(tmp_path: Pa
     assert note["reported_by_codex"] == [{"url": "https://example.test/m42"}]
     assert await notes.unshared(datetime.now(UTC) + timedelta(minutes=1)) == [run_id]
     text, _ = share_text(note)
-    assert "Codex 提供的來源（我沒有直接打開）" in text  # noqa: RUF001
+    assert "Claude 提供的來源（我沒有直接打開）" in text  # noqa: RUF001
     [activity] = activities_of(await ActivityMonitor(store).snapshot())
-    assert activity["tools"][0]["capability"] == "codex.ask"
+    assert activity["tools"][0]["capability"] == "claude.ask"
     assert activity["tools"][0]["target"] == {"task": "M42 是什麼"}
 
 
@@ -152,10 +152,10 @@ class JudgingModel(ScriptedModel):
             yield chunk
 
 
-async def test_she_opens_codex_links_and_records_what_each_page_says(tmp_path: Path) -> None:
+async def test_she_opens_claude_links_and_records_what_each_page_says(tmp_path: Path) -> None:
     read: list[object] = []
 
-    async def codex(arguments: dict[str, object], context: ExecutionContext) -> object:
+    async def claude(arguments: dict[str, object], context: ExecutionContext) -> object:
         return {
             "answer": "M42 是恆星形成區 https://example.test/m42\n距離 1344 光年 https://down.test/x",
             "truncated": False,
@@ -168,11 +168,11 @@ async def test_she_opens_codex_links_and_records_what_each_page_says(tmp_path: P
         return {"url": arguments["url"], "title": "M42", "text": "獵戶座大星雲是恆星形成區"}
 
     model = JudgingModel(
-        [[ToolCall("c1", "codex.ask", {"task": "M42 是什麼"})], "筆記：M42 是恆星形成區"],  # noqa: RUF001
+        [[ToolCall("c1", "claude.ask", {"task": "M42 是什麼"})], "筆記：M42 是恆星形成區"],  # noqa: RUF001
         "supported",
     )
     controller, store = await companion(
-        tmp_path, model, {"codex.ask": codex, "browser.navigate+read": browse}
+        tmp_path, model, {"claude.ask": claude, "browser.navigate+read": browse}
     )
     orchestrator = controller._tool_orchestrator
     assert orchestrator is not None

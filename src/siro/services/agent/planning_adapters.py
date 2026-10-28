@@ -15,7 +15,7 @@ from siro.ports.models import (
 )
 from siro.services.agent.planning import ModelReply, Subtask, ToolRunResult
 from siro.services.agent.runs import SQLiteAgentRunRepository
-from siro.services.tools.codex import ask_claude
+from siro.services.tools.claude import ask_claude
 from siro.services.tools.orchestrator import PriorOutcomeUnknown, ProposalState, ToolOrchestrator
 
 PLANNER_FLAG = "SIRO_AGENT_PLANNER_ENABLED"

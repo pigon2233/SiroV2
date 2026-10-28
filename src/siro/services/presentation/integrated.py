@@ -561,10 +561,14 @@ class IntegratedCompanion:
             and self._agent_planner_factory is not None
         ):
             try:
-                plan_goal = text.strip() if await should_plan(text, self.auto_plan_classifier) else None
+                plan_goal = (
+                    text.strip() if await should_plan(text, self.auto_plan_classifier) else None
+                )
             except Exception:
                 plan_goal = None
-        if plan_goal is not None and (not self._planner_on() or self._agent_planner_factory is None):
+        if plan_goal is not None and (
+            not self._planner_on() or self._agent_planner_factory is None
+        ):
             plan_goal = None
         if plan_goal is not None:
             direct_command = ("neutral", "")
@@ -1238,7 +1242,7 @@ class IntegratedCompanion:
             capability = call.name
             risk = (
                 "observe/read-only"
-                if capability in {"browser.navigate+read", "codex.ask"}
+                if capability in {"browser.navigate+read", "claude.ask"}
                 else "computer"
             )
             try:

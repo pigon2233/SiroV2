@@ -3,7 +3,7 @@
 Claude (Haiku, through the logged-in `claude` CLI) answers read-only in an empty scratch
 directory, with only the WebSearch tool for the research path. Only the task text is sent (no
 chat history or memories); its network use is not visible to SIRO, and the activity monitor
-says so. The child gets the restricted environment only. The tool name stays `codex.ask` so
+says so. The child gets the restricted environment only. The tool name stays `claude.ask` so
 saved runs, the catalog and the UI keep working.
 """
 
@@ -23,15 +23,15 @@ from siro.services.tools.execution import (
     restricted_environment,
 )
 
-CODEX_TOOL = "codex.ask"
+CLAUDE_TOOL = "claude.ask"
 MAX_TASK = 2000
 MAX_ANSWER = 8000
 TIMEOUT_SECONDS = 240
 DEFAULT_MODEL = "claude-haiku-5-5"
 SYSTEM_PROMPT = "Answer the user's task directly and briefly. Do not ask questions."
 Runner = Callable[..., Awaitable[dict[str, object]]]
-CODEX_DEFINITION = ToolDefinition(
-    CODEX_TOOL,
+CLAUDE_DEFINITION = ToolDefinition(
+    CLAUDE_TOOL,
     "Ask Claude, a stronger cloud model that can search the live web, to look something up or "
     "work through a multi-step task. It is read-only and slower than you. Use it for current "
     "facts (weather, news, prices, schedules) or careful research, not for small talk. Send "
@@ -50,7 +50,7 @@ PROMPT = (
 )
 
 
-class CodexUnavailable(RuntimeError):
+class ClaudeUnavailable(RuntimeError):
     """Claude gave no answer (not logged in, offline, quota or a crash)."""
 
 
@@ -87,10 +87,10 @@ async def ask_claude(
 ) -> dict[str, object]:
     task = arguments.get("task")
     if not isinstance(task, str) or not 2 <= len(task.strip()) <= limit:
-        raise ValueError("codex.ask requires a task of 2-2000 characters")
+        raise ValueError("claude.ask requires a task of 2-2000 characters")
     binary = binary or claude_binary()
     if binary is None:
-        raise CodexUnavailable("claude CLI not found")
+        raise ClaudeUnavailable("claude CLI not found")
     environment = restricted_environment(("SIRO_CLAUDE_BIN", "CLAUDE_CONFIG_DIR"))
     with tempfile.TemporaryDirectory(prefix="siro-claude-") as scratch:
         argv = (
@@ -124,5 +124,5 @@ async def ask_claude(
         if isinstance(parsed, dict) and not parsed.get("is_error"):
             answer = str(parsed.get("result") or "").strip()
     if not answer:
-        raise CodexUnavailable("claude did not return an answer")
+        raise ClaudeUnavailable("claude did not return an answer")
     return {"answer": answer[:MAX_ANSWER], "truncated": len(answer) > MAX_ANSWER, "model": model}
