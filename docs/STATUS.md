@@ -35,6 +35,8 @@ T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–
 
 串流探針（2026-10-29，同環境、非產品路徑）：`generate_voice_clone_streaming(chunk_size=8)` 暖機後首個音訊 chunk 約 0.50–0.51 秒（首次呼叫 3.03 秒），整句仍 2.6–3.2 秒。所以 ≤1 秒首音在技術上可達，但需要改 worker 協定（目前一次回整段 WAV 並以 EOS 證明完整）、QwenReferenceTTS 用戶端與播放排隊；尚未實作，需 owner 同意這項產品音訊路徑變更。
 
+**串流已實作（2026-10-29，本機 commit，待重啟後人耳驗證）**：worker `stream` 模式、`QwenReferenceTTS.render_stream`、`POST /v1/audio/speech/stream`、前端第一段改用 WebAudio 邊收邊播（`/v1/runtime` 的 `speech_stream` 決定，預設開；`SIRO_TTS_STREAM=0` 關閉；串流在出聲前失敗會自動退回整句）。真模型 worker 首 chunk 約 0.51 秒；自動測試 192 PASS。未驗：真瀏覽器／桌寵的實際聽感、嘴型同步與取消、重啟後的線上服務；第二段以後仍是整句預取。
+
 （以下為 2026-10-24 舊紀錄）
 ## Companion T15 首音延遲 — 2026-10-24，未量測
 
