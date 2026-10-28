@@ -3247,7 +3247,11 @@ def _run_gateway(
         raise ValueError("SIRO_ROUTINE_ENABLED must be 0 or 1")
     routine_watcher = RoutineWatcher(shared_store, zone=ProactivitySettings().timezone)
 
-    node_health = NodeHealthWatcher(SQLiteDeviceRepository(shared_store))
+    # The same board may report over MQTT and, as fallback, HTTP: it is one node for health.
+    node_groups: dict[str, str] = {}
+    if esp32_mqtt is not None and esp32_relay_token is not None:
+        node_groups = {device_id: "esp32-node", mqtt_device_id: "esp32-node"}
+    node_health = NodeHealthWatcher(SQLiteDeviceRepository(shared_store), groups=node_groups)
 
     async def watch_routine() -> None:
         while True:

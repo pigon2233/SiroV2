@@ -10,6 +10,9 @@
 #include "secrets.h"
 #include "sensor_telemetry.h"
 
+#ifndef SIRO_HAS_OLED
+#define SIRO_HAS_OLED 1  // Set to 0 in secrets.h to rule the display out as PIR noise.
+#endif
 #ifndef SIRO_OLED_ADDRESS
 #define SIRO_OLED_ADDRESS 0x3C
 #endif
@@ -175,7 +178,9 @@ void setup() {
   pir.reset(millis());
   Wire.begin(SIRO_I2C_SDA_PIN, SIRO_I2C_SCL_PIN);
   Wire.setClock(400000);  // OLED frames are ~1 KB; 100 kHz would stall the sensors.
+#if SIRO_HAS_OLED
   face.begin(SIRO_OLED_ADDRESS);
+#endif
   lightSensorReady = startLightSensor();
   lastLightRead = millis();
   WiFi.begin(SIRO_WIFI_SSID, SIRO_WIFI_PASSWORD);

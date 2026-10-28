@@ -15,6 +15,11 @@ class SiroFace {
     Wire.beginTransmission(address);
     if (Wire.endTransmission() != 0) return false;  // No ACK: screen absent.
     ready_ = oled_.begin(SSD1306_SWITCHCAPVCC, address);
+    if (ready_) {
+      // Lower drive current: bright full-screen frames can disturb the nearby PIR.
+      oled_.ssd1306_command(SSD1306_SETCONTRAST);
+      oled_.ssd1306_command(0x28);
+    }
     return ready_;
   }
 
@@ -38,12 +43,6 @@ class SiroFace {
     } else if (link == FaceLink::Down) {
       mood = FaceMood::Confused;
     }
-    // Brief flash when a reaction starts so a detection is hard to miss.
-    const bool flash = reacting && now - moodStart_ < 150;
-    if (flash != inverted_) {
-      oled_.invertDisplay(flash);
-      inverted_ = flash;
-    }
     oled_.clearDisplay();
     switch (mood) {
       case FaceMood::Surprised: drawSurprised(now); break;
@@ -54,6 +53,12 @@ class SiroFace {
       default: drawIdle(now); break;
     }
     drawStatus(now, wifi, link, luxValid, lux);
+    // Only touch the I2C bus when the picture actually changed.
+    const uint8_t *buffer = oled_.getBuffer();
+    uint32_t hash = 2166136261u;
+    for (uint16_t i = 0; i < 1024; ++i) hash = (hash ^ buffer[i]) * 16777619u;
+    if (hash == lastHash_) return;
+    lastHash_ = hash;
     oled_.display();
   }
 
@@ -62,7 +67,7 @@ class SiroFace {
   static constexpr uint32_t dozeAfterMs = 150000;
   Adafruit_SSD1306 oled_{128, 64, &Wire, -1};
   bool ready_ = false;
-  bool inverted_ = false;
+  uint32_t lastHash_ = 0;
   FaceMood mood_ = FaceMood::Idle;
   uint32_t moodStart_ = 0;
   uint32_t moodUntil_ = 0;

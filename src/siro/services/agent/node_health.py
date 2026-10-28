@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from siro.core.devices import DeviceAvailability
+from siro.core.devices import DeviceAvailability, DeviceRecord
 from siro.persistence.devices import SQLiteDeviceRepository
 
 OFFLINE_AFTER = timedelta(minutes=10)
@@ -22,8 +22,12 @@ class NodeHealthWatcher:
         *,
         offline_after: timedelta = OFFLINE_AFTER,
         repeat_after: timedelta = REPEAT_AFTER,
+        groups: dict[str, str] | None = None,
     ) -> None:
         self._repository = repository
+        # device_id -> group key: one physical node reachable over several transports (MQTT
+        # with HTTP fallback) counts as alive while any of its devices is.
+        self._groups = groups or {}
         self._offline_after = offline_after
         self._repeat_after = repeat_after
         self._down_since: dict[str, datetime] = {}
@@ -32,7 +36,16 @@ class NodeHealthWatcher:
     async def check(self, now: datetime | None = None) -> list[dict[str, object]]:
         now = now or datetime.now(UTC)
         facts: list[dict[str, object]] = []
-        for record in await self._repository.list():
+        latest: dict[str, DeviceRecord] = {}
+        for item in await self._repository.list():
+            key = self._groups.get(item.descriptor.device_id, item.descriptor.device_id)
+            held = latest.get(key)
+            if held is None or (
+                item.last_seen is not None
+                and (held.last_seen is None or item.last_seen > held.last_seen)
+            ):
+                latest[key] = item
+        for record in latest.values():
             device_id = record.descriptor.device_id
             if record.last_seen is None:
                 continue  # never heard from: nothing to lose yet
