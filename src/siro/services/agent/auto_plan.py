@@ -72,6 +72,9 @@ async def should_plan(
     stripped = text.strip()
     if len(stripped) < _MIN_CLASSIFY_CHARS or stripped.startswith("/"):
         return False
+    # Casual chat never pays for a luna call: it needs a task verb or a sequencing word.
+    if not (_TASK_VERBS.search(stripped) or _STEP_MARKERS.search(stripped)):
+        return False
     if classifier is not None:
         try:
             return bool(await asyncio.wait_for(classifier(stripped), timeout))
