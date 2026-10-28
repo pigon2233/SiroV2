@@ -8,9 +8,9 @@ T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–
 | T35、T39、T40、R01 | BLOCKED-EXTERNAL | 需要 24 小時運行、第二台真實節點、真硬體 |
 | RT-001–015 | 均已實作（RT-011／013／015 為有界產品切片 DONE） | 見 runtime-evolution 各卡 Status |
 | CP-V01–V05 | DONE | V01–V03 為 Live2D 版，已被 VRM 取代 |
-| CP-00 | PARTIAL（2026-10-18 接收紀錄） | Codex 當時未回覆 |
-| CP-P00、CP-P01 | DONE（自動可驗範圍，2026-10-27 收尾核對） | 取消／terminal fence、body 隔離、body adapter／assets、記憶 ingress、VRM renderer、200% reflow、proactivity 共 45 測試 PASS（WSL）；hold 清除、取消只收該 reply 的手勢、clip 逐一載入見 `86048e0`。未驗：owner 在真桌面重測刷新後不復活的第二輪、Firefox 實機 200%（無逐步紀錄） |
-| CP-P02、P03、P04、P05 | 各自段落標題仍為 PARTIAL | P03／P04 的限制已在各段「更新」補記為已解決（2026-10-24）；P02／P05 限制見各段 |
+| CP-00 | DONE（Claude 側，2026-10-28 收尾） | 契約對映與接收紀錄完成；Codex 從未回覆接收，但 V01–V05、P06 已據此交付，視為無待辦 |
+| CP-P00、CP-P01 | DONE（自動可驗範圍，2026-10-27 收尾核對） | 取消／terminal fence、body 隔離、body adapter／assets、記憶 ingress、VRM renderer、200% reflow、proactivity 共 45 測試 PASS（WSL）；hold 清除、取消只收該 reply 的手勢、clip 逐一載入見 `86048e0`。owner 10/18 已回報停止後不再出現舊「等待完成」；未驗：重啟後記憶回答再確認、Firefox 實機 200%（無逐步紀錄） |
+| CP-P02、P03、P04、P05 | DONE（自動可驗範圍，2026-10-28 重跑 activity_monitor／work_context／activity_states／process_network／self_activity 共 50 PASS） | 段落標題的 PARTIAL 為歷史；仍未驗：P02 的 HTTP status／method 與 shell 網路為 unknown 設計限制；P05 僅 Windows／WSL 有 provider、無讀屏器試用 |
 | CP-P06 | DONE（owner 接受已知限制） | WSLg 隱形框、鎖屏／全螢幕／DPI 未實機驗 |
 | CP-O01 | PARTIAL | 只在 WSL2 抽樣，短連線看不到 |
 | CP-I01 | ACCEPTED_BY_OWNER（2026-10-24） | owner 實機試用，無逐步勾選紀錄，無 Codex 視覺證據 |
