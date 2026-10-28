@@ -20,6 +20,9 @@ from uuid import uuid4
 import edge_tts
 import httpx
 
+from siro.services.audio.idle import IdleRetirer
+from siro.services.audio.idle import idle_seconds as worker_idle_seconds
+
 if TYPE_CHECKING:
     import numpy as np
     from kokoro_onnx import Kokoro
@@ -268,6 +271,7 @@ class QwenReferenceTTS:
         render_timeout: float = 900,
         lifecycle: bool = False,
         max_pending: int = 8,
+        idle_seconds: float | None = None,
     ) -> None:
         required = (python, worker, model, reference_wav)
         if any(not path.exists() for path in required):
@@ -284,6 +288,7 @@ class QwenReferenceTTS:
         self._render_timeout = render_timeout
         self._process: asyncio.subprocess.Process | None = None
         self._lock = asyncio.Lock()
+        self._idle = IdleRetirer(worker_idle_seconds(idle_seconds), self._retire_if_idle)
         self._lifecycle = lifecycle
         if max_pending < 1:
             raise ValueError("Qwen max_pending must be positive")
@@ -311,7 +316,9 @@ class QwenReferenceTTS:
             process.stdin.write((json.dumps({"text": spoken}) + "\n").encode())
             await process.stdin.drain()
             response = await self._read_json(process, self._render_timeout)
-            return self._decode_audio(response)
+            audio = self._decode_audio(response)
+            self._idle.touch()
+            return audio
 
     def _log_queue_wait(self, queued: float, chars: int) -> None:
         # The gateway logs total time; this splits out time spent behind other renders.
@@ -503,7 +510,9 @@ class QwenReferenceTTS:
                             raise RuntimeError("Qwen response identity mismatch")
                         return self._decode_audio(response)
 
-                    return await asyncio.wait_for(exchange(), self._render_timeout)
+                    audio = await asyncio.wait_for(exchange(), self._render_timeout)
+                    self._idle.touch()
+                    return audio
                 except BaseException:
                     self._poisoned = True
                     await self._cleanup()
@@ -513,8 +522,15 @@ class QwenReferenceTTS:
         finally:
             self._pending -= 1
 
+    async def _retire_if_idle(self) -> None:
+        if self._lock.locked() or self._pending:
+            return
+        async with self._lock:
+            await self._cleanup()
+
     async def close(self) -> None:
         self._closed = True
+        self._idle.cancel()
         active = self._active
         if active is not None and active is not asyncio.current_task():
             active.cancel()

@@ -13,9 +13,11 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, TypeVar
 
+from siro.services.audio.idle import IdleRetirer, idle_seconds
 from siro.services.audio.stt import Transcript
 
 _T = TypeVar("_T")
+_idle_seconds = idle_seconds
 
 
 class LocalWhisper:
@@ -27,6 +29,7 @@ class LocalWhisper:
         *,
         timeout_seconds: float = 45,
         startup_timeout_seconds: float = 60,
+        idle_seconds: float | None = None,
     ) -> None:
         directory = model_directory.resolve()
         required = ("config.json", "model.bin", "tokenizer.json", "vocabulary.txt")
@@ -39,6 +42,13 @@ class LocalWhisper:
         self._startup_timeout = startup_timeout_seconds
         self._lock = asyncio.Lock()
         self._process: asyncio.subprocess.Process | None = None
+        self._idle = IdleRetirer(_idle_seconds(idle_seconds), self._retire_if_idle)
+
+    async def _retire_if_idle(self) -> None:
+        if self._lock.locked():
+            return
+        async with self._lock:
+            await self._retire()
 
     @property
     def busy(self) -> bool:
@@ -51,8 +61,10 @@ class LocalWhisper:
         async with self._lock:
             with suppress(Exception):
                 await self._owned(self._ensure_worker(), self._startup_timeout)
+                self._idle.touch()
 
     async def close(self) -> None:
+        self._idle.cancel()
         async with self._lock:
             await self._retire()
 
@@ -74,6 +86,7 @@ class LocalWhisper:
                 or not isinstance(result.get("language"), str)
             ):
                 raise ValueError("invalid local speech response")
+            self._idle.touch()
             return Transcript(result["text"].strip(), result["language"], True)
 
     async def _owned(self, work: Coroutine[Any, Any, _T], timeout: float) -> _T:
