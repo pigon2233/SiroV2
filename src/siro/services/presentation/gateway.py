@@ -41,7 +41,7 @@ from siro.persistence.affect import SQLiteAffectRepository
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
 from siro.services.agent.coordinator import Coordinator
-from siro.services.agent.daily_recap import BedtimeTrigger, is_recap_command
+from siro.services.agent.daily_recap import BedtimeTrigger
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
@@ -1449,9 +1449,6 @@ def create_app(
         ):
             raise HTTPException(status_code=403, detail="cloud conversation is disabled")
         turn_id = str(uuid4())
-        if on_recap is not None and is_recap_command(body.text):
-            await on_recap()
-            return {"turn_id": turn_id}
         gateway_state.active_turns[session_id] = {"turn_id": turn_id, "state": "responding"}
         if goal_owner is not None:
             await goal_owner.foreground()

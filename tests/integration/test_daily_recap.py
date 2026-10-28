@@ -10,7 +10,7 @@ import httpx
 import pytest
 
 from siro.persistence.sqlite import SQLiteStore
-from siro.services.agent.daily_recap import build_recap, is_recap_command
+from siro.services.agent.daily_recap import build_recap
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.presentation.gateway import create_app
 
@@ -22,11 +22,6 @@ async def seeded(tmp_path: Path) -> SQLiteStore:
     await store.initialize()
     await SQLiteAgentRunRepository(store).start("s1", "今天天氣如何")
     return store
-
-
-def test_commands() -> None:
-    assert is_recap_command(" /recap ") and is_recap_command("每日回顧")
-    assert not is_recap_command("幫我回顧一下程式")
 
 
 @pytest.mark.asyncio

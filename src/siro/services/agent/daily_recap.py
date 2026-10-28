@@ -16,7 +16,6 @@ from zoneinfo import ZoneInfo
 
 from siro.persistence.sqlite import SQLiteStore
 
-TRIGGERS = ("/recap", "每日回顧", "睡前回顧", "睡前每日回顧")
 MAX_ITEMS = 40
 MAX_FIELD = 160
 PROMPT = (
@@ -34,10 +33,6 @@ class RecapItem:
     goal: str
     state: str
     reply: str
-
-
-def is_recap_command(text: str) -> bool:
-    return text.strip().lower() in TRIGGERS
 
 
 def day_start(now: datetime, zone: str) -> datetime:
