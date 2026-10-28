@@ -22,8 +22,8 @@ from siro.services.tools.orchestrator import PriorOutcomeUnknown, ProposalState,
 PLANNER_FLAG = "SIRO_AGENT_PLANNER_ENABLED"
 
 
-def planner_enabled(env: dict[str, str] | None = None) -> bool:
-    return (os.environ if env is None else env).get(PLANNER_FLAG, "0").strip() == "1"
+def planner_enabled(env: dict[str, str] | None = None, *, default: str = "0") -> bool:
+    return (os.environ if env is None else env).get(PLANNER_FLAG, default).strip() == "1"
 
 
 class CloudPlannerModel:

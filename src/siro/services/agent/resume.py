@@ -35,8 +35,8 @@ CURRENT_SESSION: ContextVar[str] = ContextVar("siro_plan_session", default="")
 _UNKNOWN_ERRORS = ("outcome_unknown", "prior_outcome_unknown")
 
 
-def resume_enabled(env: dict[str, str] | None = None) -> bool:
-    return (env if env is not None else os.environ).get("SIRO_AGENT_RESUME_ENABLED", "0") == "1"
+def resume_enabled(env: dict[str, str] | None = None, *, default: str = "0") -> bool:
+    return (env if env is not None else os.environ).get("SIRO_AGENT_RESUME_ENABLED", default) == "1"
 
 
 def _dump(value: object) -> Any:

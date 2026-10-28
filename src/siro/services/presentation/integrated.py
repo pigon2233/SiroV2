@@ -64,18 +64,11 @@ from siro.ports.models import (
 )
 from siro.services.activity.monitor import ACTIVE_STATES, ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
+from siro.services.agent.auto_plan import auto_plan_enabled, looks_multistep
 from siro.services.agent.checkpoints import SQLiteCheckpointRepository
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.planning import PlanReport
 from siro.services.agent.planning_adapters import planner_enabled
-from siro.services.agent.reminders import (
-    Reminder,
-    ReminderService,
-    intent_prompt,
-    may_hold_event,
-    parse_intent,
-    spoken_text,
-)
 from siro.services.agent.resume import (
     CURRENT_SESSION,
     ResumeWorker,
@@ -204,10 +197,8 @@ class IntegratedCompanion:
         self._situation_lines = situation_lines
         # Set by the gateway once her notes service exists; reads her own recent attempts.
         self.self_activity_lines: Callable[[], Awaitable[tuple[str, ...]]] | None = None
-        # Set by the gateway when reminders are enabled.
-        self.reminders: ReminderService | None = None
-        self._background: set[asyncio.Task[None]] = set()
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
+        self._planning = False
 
     @property
     def foreground_active(self) -> bool:
@@ -370,56 +361,6 @@ class IntegratedCompanion:
         if speak:
             await self._speak(SpeechIntent(str(uuid4()), spoken, str(uuid4())))
 
-    async def _reminder_from_intent(self, session_id: str, text: str) -> None:
-        """Ask the model once whether the owner's message holds an event worth a reminder."""
-        try:
-            for _ in range(240):  # wait for the reply; never compete with it for the model
-                if session_id not in self._active_sessions:
-                    break
-                await asyncio.sleep(0.5)
-            else:
-                return
-            assert self.reminders is not None
-            now = datetime.now(UTC)
-            request = ModelRequest(
-                intent_prompt(text, now),
-                str(uuid4()),
-                privacy=self._privacy,
-                max_output_tokens=120,
-            )
-            cancellation = CancellationToken()
-            parts: list[str] = []
-
-            async def collect() -> None:
-                async for chunk in self._model.stream(request, cancellation):
-                    if chunk.kind == "text":
-                        parts.append(chunk.text)
-
-            try:
-                await asyncio.wait_for(collect(), 20.0)
-            except Exception:
-                cancellation.cancel()
-                return
-            found = parse_intent("".join(parts), now)
-            if found is None:
-                return
-            reply = self.reminders.add_from_intent(*found)
-            if reply is not None:
-                await self.share_self_note(reply, reply, speak=False)
-        except Exception:
-            logging.getLogger(__name__).exception("reminder intent failed")
-
-    async def deliver_reminder(self, item: Reminder, late: bool) -> None:
-        """A due reminder: the bubble/chat text, her voice, and one finished Activity entry."""
-        text, spoken = spoken_text(item, late)
-        await self.share_self_note(text, spoken, speak=True)
-        await self._ensure_core()
-        assert self._agent_runs is not None
-        run = await self._agent_runs.start("reminder", f"提醒：{item.text}", max_steps=2)
-        await self._agent_runs.append(
-            run.run_id, "reminder", {"due": item.due.isoformat()}, state=AgentRunState.COMPLETED
-        )
-
     async def _touch_line(self, kind: str, count: int, now: datetime) -> str | None:
         request = ModelRequest(
             touch_prompt(kind, count, now, self._touch_zone),
@@ -451,17 +392,21 @@ class IntegratedCompanion:
                 self._run_ids[session_id], session_id, TurnState.CANCELLED, "superseded"
             )
         direct_command = _local_status_command(text) or _emotion_command(text)
-        if direct_command is None and self.reminders is not None:
-            reminder_reply = self.reminders.handle(text)
-            if reminder_reply is not None:
-                direct_command = ("happy", reminder_reply)
-            elif may_hold_event(text):
-                # She decides from the conversation: checked after this reply is finished.
-                task = asyncio.create_task(self._reminder_from_intent(session_id, text))
-                self._background.add(task)
-                task.add_done_callback(self._background.discard)
         plan_goal = _plan_goal(text) if direct_command is None else None
-        if plan_goal is not None and (not planner_enabled() or self._agent_planner_factory is None):
+        if (
+            plan_goal is None
+            and direct_command is None
+            and self._runtime_profile == "candidate"
+            and not self._planning
+            and auto_plan_enabled(default="1")
+            and self._planner_on()
+            and self._agent_planner_factory is not None
+        ):
+            try:
+                plan_goal = text.strip() if looks_multistep(text) else None
+            except Exception:
+                plan_goal = None
+        if plan_goal is not None and (not self._planner_on() or self._agent_planner_factory is None):
             plan_goal = None
         if plan_goal is not None:
             direct_command = ("neutral", "")
@@ -493,11 +438,14 @@ class IntegratedCompanion:
             emotion, reply = direct_command
             if plan_goal is not None:
                 try:
+                    self._planning = True
                     report = await self.run_agent_plan(session_id, plan_goal)
                     reply = (report.summary if report else "") or "這件事我沒能規劃出結果。"
                 except Exception:
                     logging.getLogger(__name__).exception("agent plan failed")
                     reply = "規劃時出了問題，這次沒有完成。"  # noqa: RUF001
+                finally:
+                    self._planning = False
             generation_id = str(uuid4())
             await self._body.set_emotion(EmotionIntent(emotion, 0.85))
             await emit({"type": "assistant_delta", "session_id": session_id, "text": reply})
@@ -1464,7 +1412,7 @@ class IntegratedCompanion:
 
     async def run_agent_plan(self, session_id: str, goal: str) -> PlanReport | None:
         """R05 planner entry; None unless SIRO_AGENT_PLANNER_ENABLED=1 and a factory is wired."""
-        if not planner_enabled() or self._agent_planner_factory is None:
+        if not self._planner_on() or self._agent_planner_factory is None:
             return None
         await self._ensure_core()
         assert self._agent_runs is not None
@@ -1472,6 +1420,13 @@ class IntegratedCompanion:
         assert planner is not None
         CURRENT_SESSION.set(session_id)
         return await planner.run(session_id, goal)
+
+    def _planner_on(self) -> bool:
+        return planner_enabled(default=self._flag_default)
+
+    @property
+    def _flag_default(self) -> str:
+        return "1" if self._runtime_profile == "candidate" else "0"
 
     def _planner(self) -> Coordinator | None:
         if self._agent_planner is None and self._agent_planner_factory is not None:
@@ -1487,7 +1442,11 @@ class IntegratedCompanion:
         if self._checkpoints is None or planner is None:
             return
         try:
-            await ResumeWorker(self._checkpoints, planner).resume_all()
+            await ResumeWorker(
+                self._checkpoints,
+                planner,
+                enabled=lambda: resume_enabled(default=self._flag_default),
+            ).resume_all()
         except Exception:
             logging.getLogger(__name__).exception("agent plan resume failed")
 
@@ -1507,7 +1466,11 @@ class IntegratedCompanion:
                 await self._agent_runs.reconcile()
                 if self._tool_orchestrator is not None:
                     self._tool_orchestrator.journal_hook = self._journal_event
-            if resume_enabled() and planner_enabled() and self._agent_planner_factory is not None:
+            if (
+                resume_enabled(default=self._flag_default)
+                and self._planner_on()
+                and self._agent_planner_factory is not None
+            ):
                 self._checkpoints = SQLiteCheckpointRepository(store)
                 await self._checkpoints.reconcile()
                 self._resume_task = asyncio.create_task(self._resume_plans())

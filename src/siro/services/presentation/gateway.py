@@ -41,7 +41,6 @@ from siro.services.activity.monitor import ActivityMonitor
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
-from siro.services.agent.reminders import ReminderService, reminders_enabled
 from siro.services.agent.organization import MemoryOrganizer
 from siro.services.agent.planning_adapters import (
     CodexPlannerModel,
@@ -2831,7 +2830,10 @@ def _run_gateway(
     planner_schemas = (
         {tool.name: tool.input_schema for tool in WORKSPACE_TOOLS} if workspace is not None else {}
     )
-    if planner_enabled() and planner_schemas and codex_ready(codex_binary()):
+    if (
+        planner_enabled(default="1" if runtime_profile == "candidate" else "0")
+        and planner_schemas and codex_ready(codex_binary())
+    ):
         planner_model = os.environ.get("SIRO_CODEX_MODEL", CODEX_DEFAULT_MODEL)
 
         def planner_factory(runs: SQLiteAgentRunRepository) -> Coordinator:
@@ -2951,17 +2953,8 @@ def _run_gateway(
         else None
     )
 
-    reminder_service = (
-        ReminderService(data_dir / "reminders.json", controller.deliver_reminder)
-        if reminders_enabled()
-        else None
-    )
-    controller.reminders = reminder_service
-
     async def start_controller() -> None:
         await controller.startup()
-        if reminder_service is not None:
-            reminder_service.start()
         if esp32_mqtt is not None:
             esp32_mqtt.start()
         if organizer is not None:
@@ -2980,8 +2973,6 @@ def _run_gateway(
             await esp32_mqtt.close()
         for observer in context_observers:
             await observer.close()
-        if reminder_service is not None:
-            await reminder_service.close()
         if self_scheduler is not None:
             await self_scheduler.close()
         if self_owner is not None:
