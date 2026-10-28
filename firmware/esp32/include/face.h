@@ -23,6 +23,7 @@ class SiroFace {
     mood_ = mood;
     moodStart_ = now;
     moodUntil_ = now + holdMs;
+    lastActivity_ = now;
   }
 
   void update(uint32_t now, bool wifi, FaceLink link, bool luxValid, float lux) {
@@ -32,8 +33,8 @@ class SiroFace {
     FaceMood mood = FaceMood::Idle;
     if (reacting) {
       mood = mood_;
-    } else if (!wifi) {
-      mood = FaceMood::Sleep;
+    } else if (!wifi || now - lastActivity_ > dozeAfterMs) {
+      mood = FaceMood::Sleep;  // Dozes off when nothing has happened for a while.
     } else if (link == FaceLink::Down) {
       mood = FaceMood::Confused;
     }
@@ -58,6 +59,7 @@ class SiroFace {
 
  private:
   static constexpr uint32_t frameMs = 80;
+  static constexpr uint32_t dozeAfterMs = 150000;
   Adafruit_SSD1306 oled_{128, 64, &Wire, -1};
   bool ready_ = false;
   bool inverted_ = false;
@@ -72,6 +74,10 @@ class SiroFace {
   int8_t lookX_ = 0;
   uint32_t nextYawn_ = 40000;
   uint32_t yawnEnd_ = 0;
+  uint32_t lastActivity_ = 0;
+  uint32_t nextQuirk_ = 15000;
+  uint32_t quirkEnd_ = 0;
+  uint8_t quirk_ = 0;
 
   void eye(int cx, int cy, int w, int h, int lookX, int lookY, int pupil) {
     if (h <= 4) {
@@ -102,12 +108,21 @@ class SiroFace {
       yawnEnd_ = now + 1800;
       nextYawn_ = now + random(45000, 90000);
     }
+    if (static_cast<int32_t>(now - nextQuirk_) >= 0 && quirkEnd_ < nextQuirk_) {
+      quirk_ = random(0, 3);  // 0 wink, 1 cross-eyed, 2 gaze up
+      quirkEnd_ = now + (quirk_ == 1 ? 1200 : 600);
+      nextQuirk_ = now + random(12000, 25000);
+    }
+    const bool quirky = static_cast<int32_t>(quirkEnd_ - now) > 0;
     const bool yawning = static_cast<int32_t>(yawnEnd_ - now) > 0;
     const bool blinking = static_cast<int32_t>(blinkEnd_ - now) > 0;
     const int look = static_cast<int32_t>(lookEnd_ - now) > 0 ? lookX_ : 0;
     const int h = yawning ? 6 : (blinking ? 3 : 30);
-    eye(36, 26, 28, h, look, 0, 6);
-    eye(92, 26, 28, h, look, 0, 6);
+    const int cross = quirky && quirk_ == 1 ? 7 : 0;
+    const int up = quirky && quirk_ == 2 ? -7 : 0;
+    const int rightH = quirky && quirk_ == 0 ? 3 : h;
+    eye(36, 26, 28, h, cross ? cross : look, up, 6);
+    eye(92, 26, 28, rightH, cross ? -cross : look, up, 6);
     if (yawning) oled_.fillRoundRect(57, 42, 14, 16, 7, SSD1306_WHITE);
   }
 
