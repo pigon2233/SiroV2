@@ -206,6 +206,9 @@ app.whenReady().then(async () => {
     if (message && typeof message.type === 'string') handle(message);
   });
   ipcMain.on('siro.drag.end', stopDrag);
+  // Size the window as soon as the page is up: the renderer's ready message can come late or be
+  // missed, and until then the 640 px window crops the controls under her.
+  win.webContents.on('did-finish-load', applyLayout);
   win.on('closed', () => app.quit());
   // Keep her on top even after a full-screen app or the taskbar takes the top slot.
   win.on('blur', () => win.setAlwaysOnTop(true, 'screen-saver'));
