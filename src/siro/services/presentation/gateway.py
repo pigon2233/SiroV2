@@ -51,6 +51,7 @@ from siro.services.activity.monitor import ActivityMonitor
 from siro.services.agent.auto_plan import luna_classifier
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.daily_recap import BedtimeTrigger
+from siro.services.agent.routine import RoutineWatcher
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
@@ -3179,6 +3180,19 @@ def _run_gateway(
                 with suppress(Exception):
                     await controller.daily_recap()
 
+    routine_setting = os.environ.get("SIRO_ROUTINE_ENABLED", "1")
+    if routine_setting not in {"0", "1"}:
+        raise ValueError("SIRO_ROUTINE_ENABLED must be 0 or 1")
+    routine_watcher = RoutineWatcher(shared_store, zone=ProactivitySettings().timezone)
+
+    async def watch_routine() -> None:
+        while True:
+            await asyncio.sleep(600)
+            with suppress(Exception):
+                facts = await routine_watcher.check()
+                if facts is not None:
+                    await controller.react_to_sensor(facts)
+
     recap_time = os.environ.get("SIRO_DAILY_RECAP_TIME", "23:00")
 
     async def start_controller() -> None:
@@ -3189,6 +3203,8 @@ def _run_gateway(
             reminder_service.start()
         if os.environ.get("SIRO_DAILY_RECAP_ENABLED") == "1":
             recap_tasks.append(asyncio.create_task(recap_daily()))
+        if routine_setting == "1":
+            recap_tasks.append(asyncio.create_task(watch_routine()))
         if organizer is not None:
             await organizer.start()
         if profile_auto is not None:
