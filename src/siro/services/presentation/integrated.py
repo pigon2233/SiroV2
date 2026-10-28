@@ -66,6 +66,7 @@ from siro.services.activity.monitor import ACTIVE_STATES, ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
 from siro.services.agent.checkpoints import SQLiteCheckpointRepository
 from siro.services.agent.coordinator import Coordinator
+from siro.services.agent.daily_recap import build_recap
 from siro.services.agent.planning import PlanReport
 from siro.services.agent.planning_adapters import planner_enabled
 from siro.services.agent.resume import (
@@ -196,6 +197,8 @@ class IntegratedCompanion:
         self._situation_lines = situation_lines
         # Set by the gateway once her notes service exists; reads her own recent attempts.
         self.self_activity_lines: Callable[[], Awaitable[tuple[str, ...]]] | None = None
+        # Set by the gateway when the cloud summarizer exists; None means a local summary.
+        self.recap_summarizer: Callable[[str], Awaitable[str]] | None = None
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
 
     @property
@@ -358,6 +361,15 @@ class IntegratedCompanion:
         )
         if speak:
             await self._speak(SpeechIntent(str(uuid4()), spoken, str(uuid4())))
+
+    async def daily_recap(self, *, speak: bool = True) -> str:
+        """Bedtime recap of today's dialogue and activity: chat reply, and spoken if asked."""
+        if self._store is None:
+            await self._ensure_core()
+        assert self._store is not None
+        text = await build_recap(self._store, self.recap_summarizer, zone=self._touch_zone.key)
+        await self.share_self_note(text, text, speak=speak)
+        return text
 
     async def _touch_line(self, kind: str, count: int, now: datetime) -> str | None:
         request = ModelRequest(
