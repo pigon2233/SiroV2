@@ -35,6 +35,12 @@ from siro.adapters.vision import PixelScreenAnalyzer
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.memory import Memory, MemoryService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
+from siro.core.sensor_reactions import (
+    BRIGHT_LUX,
+    DARK_LUX,
+    SensorReactions,
+    parse_quiet_hours,
+)
 from siro.persistence.affect import SQLiteAffectRepository
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
@@ -2111,6 +2117,21 @@ def main(*, verified_release: VerifiedRelease | None = None) -> None:
         raise SystemExit(str(error)) from None
 
 
+def _sensor_reactions_from_env() -> SensorReactions:
+    try:
+        dark = float(os.environ.get("SIRO_SENSOR_DARK_LUX", DARK_LUX))
+        bright = float(os.environ.get("SIRO_SENSOR_BRIGHT_LUX", BRIGHT_LUX))
+    except ValueError as error:
+        raise ValueError(
+            "SIRO_SENSOR_DARK_LUX and SIRO_SENSOR_BRIGHT_LUX must be numbers"
+        ) from error
+    return SensorReactions(
+        dark_lux=dark,
+        bright_lux=bright,
+        quiet_hours=parse_quiet_hours(os.environ.get("SIRO_SENSOR_QUIET_HOURS")),
+    )
+
+
 def _run_gateway(
     data_dir: Path,
     loop_factory: Callable[[], asyncio.AbstractEventLoop],
@@ -2127,7 +2148,6 @@ def _run_gateway(
     from siro.adapters.skill_worker import SkillDispatcher, WorkerSupervisor
     from siro.core.devices import DeviceRegistry
     from siro.core.memory import MemoryService
-    from siro.core.sensor_reactions import SensorReactions
     from siro.core.touch import TouchReplies
     from siro.core.world import WorldModel
     from siro.persistence.devices import SQLiteDeviceRepository
@@ -2334,12 +2354,14 @@ def _run_gateway(
     reactions_setting = os.environ.get("SIRO_SENSOR_REACTIONS_ENABLED", "1")
     if reactions_setting not in {"0", "1"}:
         raise ValueError("SIRO_SENSOR_REACTIONS_ENABLED must be 0 or 1")
-    sensor_reactions = SensorReactions() if reactions_setting == "1" else None
+    sensor_reactions = _sensor_reactions_from_env() if reactions_setting == "1" else None
 
     async def apply_sensor_effect(effect: str) -> None:
         # `controller` is built later in this function; the relay only fires after startup.
-        if effect == "greet":
-            await controller.greet_arrival()
+        if effect.startswith("speak:"):
+            assert sensor_reactions is not None
+            trigger = effect.split(":", 1)[1]
+            await controller.react_to_sensor(sensor_reactions.facts(trigger, datetime.now(UTC)))
         elif effect == "listen":
             await hub.broadcast({"type": "sensor_listen"}, urgent=True)
         else:
@@ -2370,12 +2392,23 @@ def _run_gateway(
 
             async def project_and_react(payload: bytes, *, now: datetime) -> None:
                 await projector.handle(payload, now=now)
+                if not sensor_tick_task:
+                    sensor_tick_task.append(asyncio.create_task(sensor_ticks()))
                 event, lux = parse_http_sensor_event(payload, device_id=device_id)
                 for effect in sensor_reactions.handle(event, lux, now):
                     with suppress(Exception):
                         await apply_sensor_effect(effect)
 
             on_esp32_http_event = project_and_react
+
+            async def sensor_ticks() -> None:
+                while True:
+                    await asyncio.sleep(60)
+                    for effect in sensor_reactions.tick(datetime.now(UTC)):
+                        with suppress(Exception):
+                            await apply_sensor_effect(effect)
+
+            sensor_tick_task: list[asyncio.Task[None]] = []
 
         async def read_esp32_http_state() -> dict[str, Any]:
             return await http_sensor_state_snapshot(

@@ -35,6 +35,7 @@ from siro.core.relationships import (
     RelationshipSystem,
     relationship_event_from_text,
 )
+from siro.core.sensor_reactions import decide_sensor_line
 from siro.core.touch import (
     TOUCH_REPLY_SECONDS,
     TOUCH_REPLY_TOKENS,
@@ -337,15 +338,17 @@ class IntegratedCompanion:
             )
         )
 
-    async def greet_arrival(self) -> None:
-        """The room sensor saw the owner arrive: one short greeting, never over another reply."""
+    async def react_to_sensor(self, facts: dict[str, object]) -> None:
+        """A change in the room: she decides whether to say one short line, or nothing."""
 
         if self.foreground_active or self._touching or datetime.now(UTC) < self._speaking_until:
             return
         self._touching = True
         try:
-            hour = datetime.now(UTC).astimezone(self._touch_zone).hour
-            line = "早安，今天也請多指教。" if 5 <= hour < 12 else "歡迎回來。"  # noqa: RUF001
+            line = await decide_sensor_line(self._ask_short, facts, self._touch_lines)
+            if line is None:
+                return
+            self._touch_lines += 1
             await self._say_line(line, {"rate": 1.0, "pitch": 0.05, "energy": 0.55}, "sensor")
         finally:
             self._touching = False
@@ -375,8 +378,12 @@ class IntegratedCompanion:
             await self._speak(SpeechIntent(str(uuid4()), spoken, str(uuid4())))
 
     async def _touch_line(self, kind: str, count: int, now: datetime) -> str | None:
+        raw = await self._ask_short(touch_prompt(kind, count, now, self._touch_zone))
+        return None if raw is None else clean_touch_line(raw)
+
+    async def _ask_short(self, prompt: str) -> str | None:
         request = ModelRequest(
-            touch_prompt(kind, count, now, self._touch_zone),
+            prompt,
             str(uuid4()),
             privacy=self._privacy,
             max_output_tokens=TOUCH_REPLY_TOKENS,
@@ -394,7 +401,7 @@ class IntegratedCompanion:
         except Exception:  # a slow or failing model falls back to a ready-made line
             cancellation.cancel()
             return None
-        return clean_touch_line("".join(parts))
+        return "".join(parts)
 
     async def respond(self, session_id: str, text: str, input_mode: str = "text") -> None:
         self._last_session = session_id
