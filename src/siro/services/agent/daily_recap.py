@@ -112,3 +112,39 @@ async def build_recap(
     except Exception:
         return local_summary(items)
     return text[:600] or local_summary(items)
+
+
+class BedtimeTrigger:
+    """Fires once a night when the room has been dark for a while and someone still moves in it.
+
+    Switching the light off and leaving never fires: that gives no motion in the dark room.
+    """
+
+    def __init__(
+        self, *, dark_lux: float = 5.0, settle_seconds: float = 60.0, zone: str = "Asia/Taipei"
+    ) -> None:
+        self._dark_lux = dark_lux
+        self._settle = timedelta(seconds=settle_seconds)
+        self._zone = ZoneInfo(zone)
+        self._dark_since: datetime | None = None
+        self._fired_night: object = None
+
+    def observe(self, event: str, lux: float | None, now: datetime) -> bool:
+        if event == "light_update" and lux is not None:
+            if lux >= self._dark_lux:
+                self._dark_since = None
+            elif self._dark_since is None:
+                self._dark_since = now
+            return False
+        if event != "motion_detected" or self._dark_since is None:
+            return False
+        if now - self._dark_since < self._settle:
+            return False
+        local = now.astimezone(self._zone)
+        if not (local.hour >= 21 or local.hour < 3):
+            return False
+        night = (local - timedelta(hours=3)).date()
+        if night == self._fired_night:
+            return False
+        self._fired_night = night
+        return True

@@ -41,7 +41,7 @@ from siro.persistence.affect import SQLiteAffectRepository
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
 from siro.services.agent.coordinator import Coordinator
-from siro.services.agent.daily_recap import is_recap_command
+from siro.services.agent.daily_recap import BedtimeTrigger, is_recap_command
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.organization import MemoryOrganizer
@@ -2166,6 +2166,7 @@ def _run_gateway(
         Esp32HttpSensorProjector,
         http_sensor_descriptor,
         http_sensor_state_snapshot,
+        parse_http_sensor_event,
     )
     from siro.services.presentation.integrated import IntegratedCompanion
     from siro.services.tools.orchestrator import SQLiteToolProposalRepository
@@ -2353,6 +2354,7 @@ def _run_gateway(
         state.setting_sources["stt_route"] = "env"
     shared_store = SQLiteStore(data_dir / "siro.db")
     asyncio.run(shared_store.initialize(), loop_factory=loop_factory)
+    recap_tasks: list[asyncio.Task[None]] = []
     esp32_relay_token = os.environ.get("SIRO_ESP32_RELAY_TOKEN") or None
     on_esp32_http_event: Esp32HttpEventHandler | None = None
     on_esp32_http_state: Callable[[], Awaitable[dict[str, Any]]] | None = None
@@ -2373,7 +2375,28 @@ def _run_gateway(
                 await device_registry.register(http_sensor_descriptor(device_id, location=location))
 
         asyncio.run(ensure_http_sensor(), loop_factory=loop_factory)
-        on_esp32_http_event = Esp32HttpSensorProjector(device_registry, device_id=device_id).handle
+        projector = Esp32HttpSensorProjector(device_registry, device_id=device_id)
+        bedtime = (
+            BedtimeTrigger(
+                dark_lux=float(os.environ.get("SIRO_DAILY_RECAP_DARK_LUX", "5")),
+                zone=ProactivitySettings().timezone,
+            )
+            if os.environ.get("SIRO_DAILY_RECAP_ESP32") == "1"
+            else None
+        )
+
+        async def project_and_recap(payload: bytes, *, now: datetime) -> None:
+            await projector.handle(payload, now=now)
+            if bedtime is not None and bedtime.observe(
+                *parse_http_sensor_event(payload, device_id=device_id), now
+            ):
+
+                async def recap() -> None:
+                    await controller.daily_recap()
+
+                recap_tasks.append(asyncio.create_task(recap()))
+
+        on_esp32_http_event = project_and_recap
 
         async def read_esp32_http_state() -> dict[str, Any]:
             return await http_sensor_state_snapshot(
@@ -2946,8 +2969,6 @@ def _run_gateway(
         if self_owner is not None and self_setting == "1"
         else None
     )
-
-    recap_tasks: list[asyncio.Task[None]] = []
 
     async def recap_daily() -> None:
         # Opt-in only (SIRO_DAILY_RECAP_ENABLED=1); manual /v1/recap always works.
