@@ -9,6 +9,7 @@ import io
 import json
 import logging
 import re
+import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from enum import StrEnum
@@ -301,7 +302,9 @@ class QwenReferenceTTS:
         if self._lifecycle:
             return await self._render_owned(prepare_spoken_text(text))
         spoken = prepare_spoken_text(text)
+        queued = time.monotonic()
         async with self._lock:
+            self._log_queue_wait(queued, len(spoken))
             process = await self._ensure_worker()
             assert process.stdin is not None
             assert process.stdout is not None
@@ -309,6 +312,15 @@ class QwenReferenceTTS:
             await process.stdin.drain()
             response = await self._read_json(process, self._render_timeout)
             return self._decode_audio(response)
+
+    def _log_queue_wait(self, queued: float, chars: int) -> None:
+        # The gateway logs total time; this splits out time spent behind other renders.
+        logging.getLogger(__name__).info(
+            "qwen tts queue_wait=%.2fs pending=%d chars=%d",
+            time.monotonic() - queued,
+            self._pending,
+            chars,
+        )
 
     def _accept_ready(self, response: dict[str, object]) -> None:
         protocol = response.get("completion_protocol")
@@ -431,8 +443,10 @@ class QwenReferenceTTS:
         if self._pending >= self._max_pending:
             raise RuntimeError("Qwen render queue is full")
         self._pending += 1
+        queued = time.monotonic()
         try:
             async with self._lock:
+                self._log_queue_wait(queued, len(spoken))
                 if self._closed:
                     raise RuntimeError("Qwen worker is closed")
                 self._active = asyncio.current_task()
