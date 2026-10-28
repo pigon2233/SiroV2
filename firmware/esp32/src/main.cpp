@@ -6,8 +6,13 @@
 #include <Wire.h>
 #include <time.h>
 
+#include "face.h"
 #include "secrets.h"
 #include "sensor_telemetry.h"
+
+#ifndef SIRO_OLED_ADDRESS
+#define SIRO_OLED_ADDRESS 0x3C
+#endif
 
 WiFiClient network;
 MqttClient mqtt(network);
@@ -20,6 +25,7 @@ constexpr uint32_t sensorIntervalMs = 10000UL;
 constexpr uint32_t mqttRetryMs = 5000UL;
 PirMotionSampler pir(0);
 ButtonSampler button;
+SiroFace face;
 uint32_t lastLightRead = 0;
 uint32_t lastStatePublish = 0;
 bool lightSensorReady = false;
@@ -51,7 +57,8 @@ bool waitForTimeSync() {
   const uint32_t started = millis();
   while (time(nullptr) <= minimumSyncedTime) {
     if (millis() - started >= 30000UL) return false;
-    delay(250);
+    face.update(millis(), true, FaceLink::Down, false, 0.0f);
+    delay(50);
   }
   return true;
 }
@@ -167,11 +174,15 @@ void setup() {
   Serial.begin(115200);
   pir.reset(millis());
   Wire.begin(SIRO_I2C_SDA_PIN, SIRO_I2C_SCL_PIN);
-  Wire.setClock(100000);
+  Wire.setClock(400000);  // OLED frames are ~1 KB; 100 kHz would stall the sensors.
+  face.begin(SIRO_OLED_ADDRESS);
   lightSensorReady = startLightSensor();
   lastLightRead = millis();
   WiFi.begin(SIRO_WIFI_SSID, SIRO_WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) delay(250);
+  while (WiFi.status() != WL_CONNECTED) {
+    face.update(millis(), false, FaceLink::Down, false, 0.0f);
+    delay(50);
+  }
   configTime(0, 0, "pool.ntp.org");
   if (!waitForTimeSync()) {
     Serial.println("NTP synchronization timed out; MQTT remains disconnected.");
@@ -184,7 +195,8 @@ void setup() {
 
 void loop() {
   if (time(nullptr) <= minimumSyncedTime) {
-    delay(250);
+    face.update(millis(), true, FaceLink::Down, false, 0.0f);
+    delay(50);
     return;
   }
   if (WiFi.status() != WL_CONNECTED) ESP.restart();
@@ -209,14 +221,23 @@ void loop() {
       lightSensorReady = startLightSensor();
     } else {
       float value = 0.0f;
+      const bool hadLight = lightValid;
       lightValid = readLightSensor(value);
       if (lightValid) {
+        if (hadLight && fabsf(value - lastLux) > fmaxf(80.0f, lastLux * 0.5f)) {
+          face.react(FaceMood::Squint, now, 2500);
+        }
         lastLux = value;
       } else {
         lightSensorReady = false;
       }
     }
   }
+  if (motionChanged && pir.ready() && pir.motion()) face.react(FaceMood::Surprised, now, 3000);
+  if (buttonChanged && button.down()) face.react(FaceMood::Happy, now, 2500);
+  face.update(now, WiFi.status() == WL_CONNECTED,
+              mqttUp ? FaceLink::Mqtt : (httpFallback ? FaceLink::Http : FaceLink::Down),
+              lightValid, lastLux);
   if (mqttUp) {
     if (motionChanged || buttonChanged ||
         sensorIntervalElapsed(now, lastStatePublish, sensorIntervalMs)) {
