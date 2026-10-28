@@ -197,9 +197,10 @@ class ToolCatalogSnapshot:
     checked_at: str
 
     def model_context(self) -> str:
-        # Schemas already travel as tools. Hidden compatibility handlers are not model tools.
+        # Schemas and descriptions already travel as tools.
+        # Hidden compatibility handlers are not model tools.
         rows = [
-            {k: v for k, v in row.items() if k not in {"input_schema", "checked_at"}}
+            {k: v for k, v in row.items() if k not in {"input_schema", "checked_at", "description"}}
             for row in self.inventory
             if row["model_visible"]
         ]
