@@ -10,6 +10,8 @@ import json
 import os
 import sys
 import tempfile
+import wave
+from collections.abc import Iterator
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,7 @@ MAX_NEW_TOKENS = 512
 SEGMENT_VERSION = "sentence-v2-first24-rest80"
 CACHE_VERSION = "completion-v2"
 MAX_CACHE_BYTES = 16 * 1024 * 1024
+STREAM_CHUNK_STEPS = 8
 
 
 class QwenOutputIncomplete(ValueError):
@@ -203,6 +206,21 @@ class FastVoiceClone:
             raise QwenOutputIncomplete("missing fast completion observation")
         return wavs, sample_rate, fast_completion(steps[0])
 
+    def stream(self, text: str, voice: Any, chunk_size: int) -> Iterator[tuple[Any, int, int]]:
+        """Yield (audio, sample_rate, steps_so_far) chunks of the same call as synthesize()."""
+        for audio, sample_rate, timing in self.fast.generate_voice_clone_streaming(
+            text=text,
+            language="Chinese",
+            voice_clone_prompt=voice,
+            non_streaming_mode=True,
+            max_new_tokens=MAX_NEW_TOKENS,
+            chunk_size=chunk_size,
+        ):
+            steps = timing.get("total_steps_so_far") if isinstance(timing, dict) else None
+            if type(steps) is not int:
+                raise QwenOutputIncomplete("stream chunk has no step count")
+            yield audio, sample_rate, steps
+
 
 def load_fast_backend(model_path: str) -> FastVoiceClone | None:
     """Prefer the CUDA-graph backend when it and CUDA are present; else the official SDK."""
@@ -329,6 +347,64 @@ def write_cache(
             temporary.unlink(missing_ok=True)
 
 
+def pcm16(audio: Any) -> bytes:
+    import numpy as np
+
+    samples = np.asarray(audio, dtype=np.float32).reshape(-1)
+    return bytes((np.clip(samples, -1.0, 1.0) * 32767.0).astype("<i2").tobytes())
+
+
+def stream_chunks(
+    backend: FastVoiceClone,
+    text: str,
+    voice: Any,
+    identity: dict[str, object],
+    cached: Path,
+    digest: str,
+    fingerprint: str,
+) -> None:
+    """Emit PCM16 chunks as they decode; the final line carries the completion proof.
+
+    A stream that ends without the final line (or with an error line) is incomplete and
+    must be discarded by the reader. Only a verified complete stream enters the cache.
+    """
+    pieces: list[bytes] = []
+    sample_rate = 0
+    steps = 0
+    for audio, rate, steps_so_far in backend.stream(text, voice, STREAM_CHUNK_STEPS):
+        steps = steps_so_far
+        data = pcm16(audio)
+        if not data:
+            continue
+        sample_rate = rate
+        pieces.append(data)
+        print(
+            json.dumps(
+                {
+                    **identity,
+                    "seq": len(pieces) - 1,
+                    "sample_rate": rate,
+                    "pcm": base64.b64encode(data).decode(),
+                }
+            ),
+            flush=True,
+        )
+    if not pieces:
+        raise QwenOutputIncomplete("voice decoder returned no samples")
+    completion = fast_completion(steps)
+    output = io.BytesIO()
+    with wave.open(output, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(b"".join(pieces))
+    write_cache(cached, digest, fingerprint, output.getvalue(), completion)
+    print(
+        json.dumps({**identity, "done": True, "chunks": len(pieces), "completion": completion}),
+        flush=True,
+    )
+
+
 def main() -> int:
     if len(sys.argv) != 5:
         raise SystemExit("usage: qwen_tts_worker.py MODEL REF_WAV REF_TEXT CACHE_DIR")
@@ -395,6 +471,11 @@ def main() -> int:
             if cached_result is not None:
                 audio, completion = cached_result
                 hit = True
+            elif request.get("stream") is True:
+                if backend is None:
+                    raise QwenOutputIncomplete("streaming needs the CUDA-graph backend")
+                stream_chunks(backend, text, voice, identity, cached, digest, fingerprint)
+                continue
             else:
                 wavs, sample_rate, completion = (
                     backend.synthesize(text, voice)

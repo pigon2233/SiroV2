@@ -10,6 +10,7 @@ import json
 import logging
 import re
 import time
+import wave
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from enum import StrEnum
@@ -255,6 +256,13 @@ class KokoroLocalTTS:
         return output.getvalue()
 
 
+def _wav_pcm(wav: bytes) -> tuple[bytes, int]:
+    with wave.open(io.BytesIO(wav)) as reader:
+        if reader.getnchannels() != 1 or reader.getsampwidth() != 2:
+            raise RuntimeError("Qwen render failed")
+        return reader.readframes(reader.getnframes()), reader.getframerate()
+
+
 class QwenReferenceTTS:
     """Persistent isolated Qwen worker cloning a user-selected reference voice."""
 
@@ -342,25 +350,29 @@ class QwenReferenceTTS:
             response.get("device"),
         )
 
+    def _check_completion(self, response: dict[str, object]) -> None:
+        if self._completion_protocol != 2:
+            return
+        completion = response.get("completion")
+        if not isinstance(completion, dict):
+            raise RuntimeError("Qwen audio completion is unverified")
+        count, limit = completion.get("generated_tokens"), completion.get("max_new_tokens")
+        if (
+            completion.get("status") != "complete"
+            or completion.get("eos_observed") is not True
+            or completion.get("cap_reached") is not False
+            or type(count) is not int
+            or type(limit) is not int
+            or not 0 < count < limit
+            or type(completion.get("observer_calls")) is not int
+            or completion.get("observer_calls") != 1
+        ):
+            raise RuntimeError("Qwen audio completion is unverified")
+
     def _decode_audio(self, response: dict[str, object]) -> bytes:
         if "error" in response:
             raise RuntimeError("Qwen render failed")
-        if self._completion_protocol == 2:
-            completion = response.get("completion")
-            if not isinstance(completion, dict):
-                raise RuntimeError("Qwen audio completion is unverified")
-            count, limit = completion.get("generated_tokens"), completion.get("max_new_tokens")
-            if (
-                completion.get("status") != "complete"
-                or completion.get("eos_observed") is not True
-                or completion.get("cap_reached") is not False
-                or type(count) is not int
-                or type(limit) is not int
-                or not 0 < count < limit
-                or type(completion.get("observer_calls")) is not int
-                or completion.get("observer_calls") != 1
-            ):
-                raise RuntimeError("Qwen audio completion is unverified")
+        self._check_completion(response)
         audio = response.get("audio")
         if not isinstance(audio, str) or not audio:
             raise RuntimeError("Qwen render failed")
@@ -444,6 +456,33 @@ class QwenReferenceTTS:
                 continue  # keep ownership during repeated cancellation
         await cleanup
 
+    async def _ensure_owned_worker(self) -> None:
+        # A cancelled spawn must still transfer ownership before cleanup.
+        if self._poisoned or self._process is None or self._process.returncode is not None:
+            await self._cleanup()
+            self._epoch += 1
+            spawn = asyncio.create_task(
+                asyncio.create_subprocess_exec(
+                    *self._command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                    limit=16 * 1024 * 1024,
+                )
+            )
+            try:
+                self._process = await asyncio.shield(spawn)
+            except asyncio.CancelledError:
+                while not spawn.done():
+                    try:
+                        await asyncio.shield(spawn)
+                    except asyncio.CancelledError:
+                        continue
+                self._process = spawn.result()
+                raise
+            response = await self._read_json(self._process, self._startup_timeout)
+            self._accept_ready(response)
+
     async def _render_owned(self, spoken: str) -> bytes:
         if self._closed:
             raise RuntimeError("Qwen worker is closed")
@@ -458,35 +497,7 @@ class QwenReferenceTTS:
                     raise RuntimeError("Qwen worker is closed")
                 self._active = asyncio.current_task()
                 try:
-                    # A cancelled spawn must still transfer ownership before cleanup.
-                    if (
-                        self._poisoned
-                        or self._process is None
-                        or self._process.returncode is not None
-                    ):
-                        await self._cleanup()
-                        self._epoch += 1
-                        spawn = asyncio.create_task(
-                            asyncio.create_subprocess_exec(
-                                *self._command,
-                                stdin=asyncio.subprocess.PIPE,
-                                stdout=asyncio.subprocess.PIPE,
-                                stderr=asyncio.subprocess.DEVNULL,
-                                limit=16 * 1024 * 1024,
-                            )
-                        )
-                        try:
-                            self._process = await asyncio.shield(spawn)
-                        except asyncio.CancelledError:
-                            while not spawn.done():
-                                try:
-                                    await asyncio.shield(spawn)
-                                except asyncio.CancelledError:
-                                    continue
-                            self._process = spawn.result()
-                            raise
-                        response = await self._read_json(self._process, self._startup_timeout)
-                        self._accept_ready(response)
+                    await self._ensure_owned_worker()
                     process = self._process
                     assert process is not None and process.stdin is not None
                     request_id = str(uuid4())
@@ -518,6 +529,91 @@ class QwenReferenceTTS:
                     await self._cleanup()
                     raise
                 finally:
+                    self._active = None
+        finally:
+            self._pending -= 1
+
+    async def render_stream(self, text: str) -> AsyncIterator[tuple[bytes, int]]:
+        """Yield (PCM16 mono chunk, sample rate) as the worker decodes them.
+
+        Only a stream that ends with a verified completion line is complete. Anything
+        else, including an early close by the reader, retires the worker so no stale
+        chunk lines can reach the next request.
+        """
+        if not self._lifecycle:
+            raise RuntimeError("Qwen streaming needs the owned worker")
+        spoken = prepare_spoken_text(text)
+        if self._closed:
+            raise RuntimeError("Qwen worker is closed")
+        if self._pending >= self._max_pending:
+            raise RuntimeError("Qwen render queue is full")
+        self._pending += 1
+        queued = time.monotonic()
+        try:
+            async with self._lock:
+                self._log_queue_wait(queued, len(spoken))
+                if self._closed:
+                    raise RuntimeError("Qwen worker is closed")
+                self._active = asyncio.current_task()
+                finished = False
+                try:
+                    await self._ensure_owned_worker()
+                    process = self._process
+                    assert process is not None and process.stdin is not None
+                    request_id = str(uuid4())
+                    process.stdin.write(
+                        (
+                            json.dumps(
+                                {
+                                    "text": spoken,
+                                    "request_id": request_id,
+                                    "epoch": self._epoch,
+                                    "stream": True,
+                                }
+                            )
+                            + "\n"
+                        ).encode()
+                    )
+                    await process.stdin.drain()
+                    expected = 0
+                    while True:
+                        response = await self._read_json(process, self._render_timeout)
+                        if (
+                            response.get("request_id") != request_id
+                            or response.get("epoch") != self._epoch
+                        ):
+                            raise RuntimeError("Qwen response identity mismatch")
+                        if "error" in response:
+                            raise RuntimeError("Qwen render failed")
+                        if response.get("done") is True:
+                            self._check_completion(response)
+                            if response.get("chunks") != expected:
+                                raise RuntimeError("Qwen stream lost chunks")
+                            finished = True
+                            break
+                        if "pcm" not in response:  # whole-sentence reply, e.g. a cache hit
+                            wav = self._decode_audio(response)
+                            yield _wav_pcm(wav)
+                            finished = True
+                            break
+                        rate, pcm = response.get("sample_rate"), response.get("pcm")
+                        if response.get("seq") != expected or type(rate) is not int:
+                            raise RuntimeError("Qwen stream chunk out of order")
+                        if not isinstance(pcm, str):
+                            raise RuntimeError("Qwen render failed")
+                        data = base64.b64decode(pcm, validate=True)
+                        if not data or len(data) % 2:
+                            raise RuntimeError("Qwen render failed")
+                        expected += 1
+                        yield data, rate
+                    self._idle.touch()
+                except BaseException:
+                    finished = False
+                    raise
+                finally:
+                    if not finished:
+                        self._poisoned = True
+                        await self._cleanup()
                     self._active = None
         finally:
             self._pending -= 1
