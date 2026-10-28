@@ -2378,7 +2378,7 @@ def _run_gateway(
                 dark_lux=float(os.environ.get("SIRO_DAILY_RECAP_DARK_LUX", "5")),
                 zone=ProactivitySettings().timezone,
             )
-            if os.environ.get("SIRO_DAILY_RECAP_ESP32") == "1"
+            if os.environ.get("SIRO_DAILY_RECAP_ESP32", "1") != "0"
             else None
         )
 
