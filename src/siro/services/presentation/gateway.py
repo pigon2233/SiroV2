@@ -1173,6 +1173,13 @@ def create_app(
         media_type = "audio/wav" if audio.startswith(b"RIFF") else "audio/mpeg"
         return Response(audio, media_type=media_type)
 
+    def speech_stream_enabled() -> bool:
+        return (
+            isinstance(text_to_speech, QwenReferenceTTS)
+            and text_to_speech.lifecycle_enabled
+            and os.environ.get("SIRO_TTS_STREAM", "1") != "0"
+        )
+
     @app.post("/v1/audio/speech/stream")
     async def synthesize_speech_stream(
         body: SpeechInput,
@@ -1184,7 +1191,7 @@ def create_app(
         connection and the client must discard the partial audio."""
         require_origin(request.headers.get("origin"))
         require_token(authorization)
-        if not (isinstance(text_to_speech, QwenReferenceTTS) and text_to_speech.lifecycle_enabled):
+        if not speech_stream_enabled():
             raise HTTPException(status_code=501, detail="streaming speech is unavailable")
         started = time.monotonic()
         chunks = text_to_speech.render_stream(body.text)
@@ -1238,6 +1245,7 @@ def create_app(
             "runtime_profile": runtime_profile,
             "configuration_source": configuration_source,
             "presentation": {"owner": "desktop" if desktop_renderer is not None else "web"},
+            "speech_stream": speech_stream_enabled(),
             "catalog_enabled": tool_orchestrator is not None
             and tool_orchestrator.catalog is not None,
             "json_settings_applied": False,

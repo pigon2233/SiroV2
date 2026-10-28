@@ -1659,6 +1659,7 @@
         try {
           const runtime = await productRequest("/v1/runtime");
           renderCapabilities(runtime.tools);
+          speechStream = runtime.speech_stream === true;
           renderSkillCandidateAvailability(runtime);
           renderSkillActivation(runtime);
           const features = runtime.features || {}, workspace = features.workspace || {};
@@ -2033,6 +2034,7 @@
         delete notice.dataset.retryWait;
         notice.hidden = true;
       }
+      let speechStream = false; // the gateway can stream the first sentence (runtime.speech_stream)
       function stopTts() {
         const active = Boolean(ttsController || ttsAudio);
         ttsGeneration++;
@@ -2078,7 +2080,8 @@
           sent = level; quiet = 0;
           try { target.postMessage({type: "siro.speech.mouth", v: 1, level, tone}, location.origin); } catch (_) { /* renderer gone */ }
         };
-        speechEnvelope(blob).then(value => { envelope = value; });
+        if (Array.isArray(blob?.envelope)) envelope = blob.envelope; // streaming: grows as chunks arrive
+        else speechEnvelope(blob).then(value => { envelope = value; });
         const step = () => {
           if (ttsAudio !== audio || !current()) { send(0, 0.5); return; }
           const sample = envelope && !audio.paused ? envelope[Math.floor(audio.currentTime * MOUTH_RATE)] : null;
@@ -2162,6 +2165,16 @@
           try {
             const segment = await segmentAt(index);
             if (segment === undefined) return {done: true};
+            if (index === 0 && speechStream) {
+              // Only the first segment streams: later ones are prefetched while earlier ones play.
+              // Any failure before audio exists falls back to the whole-sentence request below.
+              try {
+                const response = await request("/v1/audio/speech/stream", {text: segment, ...(live ? live.prosody : prosody)});
+                const rate = Number(/rate=(\d+)/.exec(response.headers?.get?.("content-type") || "")?.[1]);
+                if (typeof response.body?.getReader === "function" && rate >= 8000 && rate <= 96000) return {stream: {response, rate}};
+                response.body?.cancel?.();
+              } catch (error) { assertCurrent(); }
+            }
             const response = await request("/v1/audio/speech", {text: segment, ...(live ? live.prosody : prosody)});
             const blob = await waitFor(response.blob()); assertCurrent();
             return {blob};
@@ -2253,6 +2266,69 @@
             total = segments.length; closed = true; notify(); return;
           }
         };
+        // Plays PCM16 chunks on a WebAudio clock as they arrive. It stands in for the Audio
+        // element (paused / currentTime / pause) so stopTts and the mouth sync need no changes.
+        const playStream = async ({response, rate}) => {
+          assertCurrent();
+          const Context = globalThis.AudioContext || globalThis.webkitAudioContext;
+          if (!Context) throw new Error("瀏覽器不支援串流播放");
+          let context;
+          try { context = new Context({sampleRate: rate}); } catch (_) { context = new Context(); }
+          const reader = response.body.getReader(), sources = [], envelope = [];
+          let startedAt, nextAt = 0, carry = new Uint8Array(0), peak = 0.02, low = 1, high = 0;
+          const player = {
+            src: "", paused: false, envelope,
+            get currentTime() { return startedAt === undefined ? 0 : Math.max(0, context.currentTime - startedAt); },
+            pause() {
+              player.paused = true;
+              for (const source of sources) { try { source.stop(); } catch (_) { /* already ended */ } }
+              reader.cancel().catch(() => {}); context.close?.().catch?.(() => {});
+            },
+          };
+          ttsAudio = player;
+          const cancel = () => player.pause();
+          controller.signal.addEventListener("abort", cancel, {once: true});
+          try {
+            await waitFor(context.resume?.());
+            for (;;) {
+              const {done, value} = await waitFor(reader.read()); assertCurrent();
+              if (done) break;
+              const bytes = carry.length ? Uint8Array.from([...carry, ...value]) : value;
+              const usable = bytes.length - (bytes.length % 2);
+              carry = bytes.slice(usable);
+              if (!usable) continue;
+              const view = new DataView(bytes.buffer, bytes.byteOffset, usable), count = usable / 2;
+              const buffer = context.createBuffer(1, count, rate), samples = buffer.getChannelData(0);
+              for (let i = 0; i < count; i++) samples[i] = view.getInt16(i * 2, true) / 32768;
+              // Best-effort mouth envelope with running normalisation (no whole-segment pass).
+              const step = rate / MOUTH_RATE;
+              for (let a = 0; a < count; a += step) {
+                const end = Math.min(count, Math.floor(a + step));
+                let sum = 0, crossings = 0;
+                for (let j = Math.floor(a); j < end; j++) { sum += samples[j] * samples[j]; if (j > a && (samples[j] >= 0) !== (samples[j - 1] >= 0)) crossings++; }
+                const loud = Math.sqrt(sum / Math.max(1, end - Math.floor(a))), bright = crossings / Math.max(1, end - Math.floor(a));
+                peak = Math.max(peak, loud); if (loud > peak * 0.3) { low = Math.min(low, bright); high = Math.max(high, bright); }
+                const clamp = x => Math.max(0, Math.min(1, x));
+                envelope.push([clamp((loud / peak - 0.1) / 0.8), clamp((bright - low) / Math.max(1e-6, high - low))]);
+              }
+              const source = context.createBufferSource();
+              source.buffer = buffer; source.connect(context.destination);
+              if (startedAt === undefined) {
+                nextAt = context.currentTime + 0.05; startedAt = nextAt;
+                syncMouth(player, player, current);
+                if (current()) { status.textContent = `SIRO 正在說話（已播 ${progress()} 段）`; status.className = "ok"; }
+              } else if (nextAt < context.currentTime) nextAt = context.currentTime + 0.02; // late chunk: audible gap, not a stall
+              source.start(nextAt); nextAt += buffer.duration; sources.push(source);
+            }
+            if (startedAt === undefined) throw new Error("沒有收到語音");
+            await waitFor(new Promise(resolve => setTimeout(resolve, Math.max(0, (nextAt - context.currentTime) * 1000) + 30)));
+            assertCurrent();
+          } finally {
+            controller.signal.removeEventListener("abort", cancel);
+            player.pause();
+            if (ttsAudio === player) ttsAudio = undefined;
+          }
+        };
         const playSegment = async blob => {
           assertCurrent();
           const url = URL.createObjectURL(blob);
@@ -2297,7 +2373,7 @@
             const result = await next; assertCurrent();
             if (result.error) throw result.error;
             if (result.done) break;
-            const playback = playSegment(result.blob);
+            const playback = result.stream ? playStream(result.stream) : playSegment(result.blob);
             next = !closed || index + 1 < total ? loadSegment(index + 1) : undefined;
             await playback; assertCurrent();
             played++;
