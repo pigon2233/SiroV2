@@ -12,9 +12,9 @@ T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–
 | CP-P00、CP-P01 | DONE（自動可驗範圍，2026-10-27 收尾核對） | 取消／terminal fence、body 隔離、body adapter／assets、記憶 ingress、VRM renderer、200% reflow、proactivity 共 45 測試 PASS（WSL）；hold 清除、取消只收該 reply 的手勢、clip 逐一載入見 `86048e0`。owner 10/18 已回報停止後不再出現舊「等待完成」；未驗：重啟後記憶回答再確認、Firefox 實機 200%（無逐步紀錄） |
 | CP-P02、P03、P04、P05 | DONE（自動可驗範圍，2026-10-28 重跑 activity_monitor／work_context／activity_states／process_network／self_activity 共 50 PASS） | 段落標題的 PARTIAL 為歷史；仍未驗：P02 的 HTTP status／method 與 shell 網路為 unknown 設計限制；P05 僅 Windows／WSL 有 provider、無讀屏器試用 |
 | CP-P06 | DONE（owner 接受已知限制） | WSLg 隱形框、鎖屏／全螢幕／DPI 未實機驗 |
-| CP-O01 | PARTIAL | 只在 WSL2 抽樣，短連線看不到 |
+| CP-O01 | DONE（選配卡，2026-10-28 收尾） | Linux 免權限取樣可歸屬持有中的連線；其他平台明示 unsupported；短連線看不到，只稱 sampled，不稱完整稽核。process_network 測試 PASS |
 | CP-I01 | ACCEPTED_BY_OWNER（2026-10-24） | owner 實機試用，無逐步勾選紀錄，無 Codex 視覺證據 |
-| CP-I02 | PARTIAL | 隔離演練 v2 通過：舊程式能開 schema 18，但回退必須用舊版 restore 還原部署前備份；真 healthcheck 與停止已驗，進行中 run 的 drain 未驗；非正式部署回退 |
+| CP-I02 | DONE（隔離演練層級，2026-10-28） | 隔離回退→重新套用資料 hash 不變；舊版 restore 還原部署前備份；SIGKILL／不相容 schema／明確 restore／SIGTERM 帶進行中請求的 drain 皆有測試（release_crash_drill＋manager 共 10 PASS）。仍未驗：Windows 行程停止、跨機、正式部署回退（須 owner 授權與實機） |
 
 驗證來源請分開看：「本機直接驗證」（該紀錄寫明命令與結果）、「owner 回報」（實機試用或口頭）、「遠端 CI」（本專案不 push，目前沒有）、「尚未重驗」（沿用舊數字，例如各紀錄的回歸統計；最新回歸 3120 PASS／15 FAIL 是 I01 串回報，未由整理者重跑）。
 
