@@ -2127,6 +2127,7 @@ def _run_gateway(
     from siro.adapters.skill_worker import SkillDispatcher, WorkerSupervisor
     from siro.core.devices import DeviceRegistry
     from siro.core.memory import MemoryService
+    from siro.core.sensor_reactions import SensorReactions
     from siro.core.touch import TouchReplies
     from siro.core.world import WorldModel
     from siro.persistence.devices import SQLiteDeviceRepository
@@ -2141,6 +2142,7 @@ def _run_gateway(
         Esp32HttpSensorProjector,
         http_sensor_descriptor,
         http_sensor_state_snapshot,
+        parse_http_sensor_event,
     )
     from siro.services.presentation.integrated import IntegratedCompanion
     from siro.services.tools.orchestrator import SQLiteToolProposalRepository
@@ -2329,6 +2331,20 @@ def _run_gateway(
     shared_store = SQLiteStore(data_dir / "siro.db")
     asyncio.run(shared_store.initialize(), loop_factory=loop_factory)
     esp32_relay_token = os.environ.get("SIRO_ESP32_RELAY_TOKEN") or None
+    reactions_setting = os.environ.get("SIRO_SENSOR_REACTIONS_ENABLED", "1")
+    if reactions_setting not in {"0", "1"}:
+        raise ValueError("SIRO_SENSOR_REACTIONS_ENABLED must be 0 or 1")
+    sensor_reactions = SensorReactions() if reactions_setting == "1" else None
+
+    async def apply_sensor_effect(effect: str) -> None:
+        # `controller` is built later in this function; the relay only fires after startup.
+        if effect == "greet":
+            await controller.greet_arrival()
+        elif effect == "listen":
+            await hub.broadcast({"type": "sensor_listen"}, urgent=True)
+        else:
+            await hub.broadcast({"type": "sensor_mode", "quiet": effect == "quiet_on"}, urgent=True)
+
     on_esp32_http_event: Esp32HttpEventHandler | None = None
     on_esp32_http_state: Callable[[], Awaitable[dict[str, Any]]] | None = None
     if esp32_relay_token is not None:
@@ -2348,7 +2364,18 @@ def _run_gateway(
                 await device_registry.register(http_sensor_descriptor(device_id, location=location))
 
         asyncio.run(ensure_http_sensor(), loop_factory=loop_factory)
-        on_esp32_http_event = Esp32HttpSensorProjector(device_registry, device_id=device_id).handle
+        projector = Esp32HttpSensorProjector(device_registry, device_id=device_id)
+        on_esp32_http_event = projector.handle
+        if sensor_reactions is not None:
+
+            async def project_and_react(payload: bytes, *, now: datetime) -> None:
+                await projector.handle(payload, now=now)
+                event, lux = parse_http_sensor_event(payload, device_id=device_id)
+                for effect in sensor_reactions.handle(event, lux, now):
+                    with suppress(Exception):
+                        await apply_sensor_effect(effect)
+
+            on_esp32_http_event = project_and_react
 
         async def read_esp32_http_state() -> dict[str, Any]:
             return await http_sensor_state_snapshot(
@@ -2897,7 +2924,10 @@ def _run_gateway(
             self_owner,
             InterestPicker(shared_store, model, own_preferences),
             shared_store,
-            quiet=lambda: not work_context.may_interrupt(),
+            quiet=lambda: (
+                not work_context.may_interrupt()
+                or (sensor_reactions is not None and sensor_reactions.quiet)
+            ),
             share=share_finished_note,
             foreground=lambda: (
                 controller.foreground_active

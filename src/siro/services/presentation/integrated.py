@@ -304,34 +304,49 @@ class IntegratedCompanion:
                 line = touch_template(kind, self._touch_lines)
             self._touch_lines += 1
             self._touches.add(Touch(kind, count, now, line))
-            session_id = self._last_session or "touch"
-            stream_id = str(uuid4())
-            prosody = touch_prosody(kind)
+            await self._say_line(line, touch_prosody(kind), "touch")
+        finally:
+            self._touching = False
 
-            async def emit(message: dict[str, object]) -> None:
-                await self._broadcast_stream(stream_id, message)
+    async def _say_line(self, line: str, prosody: dict[str, float], fallback_session: str) -> None:
+        session_id = self._last_session or fallback_session
+        stream_id = str(uuid4())
 
-            await emit({"type": "assistant_started", "session_id": session_id})
-            await emit({"type": "assistant_delta", "session_id": session_id, "text": line})
-            await emit(
-                {
-                    "type": "assistant_terminal",
-                    "session_id": session_id,
-                    "state": TurnState.COMPLETED,
-                    "error": None,
-                    "prosody": prosody,
-                }
+        async def emit(message: dict[str, object]) -> None:
+            await self._broadcast_stream(stream_id, message)
+
+        await emit({"type": "assistant_started", "session_id": session_id})
+        await emit({"type": "assistant_delta", "session_id": session_id, "text": line})
+        await emit(
+            {
+                "type": "assistant_terminal",
+                "session_id": session_id,
+                "state": TurnState.COMPLETED,
+                "error": None,
+                "prosody": prosody,
+            }
+        )
+        await self._speak(
+            SpeechIntent(
+                str(uuid4()),
+                line,
+                str(uuid4()),
+                prosody["rate"],
+                prosody["pitch"],
+                prosody["energy"],
             )
-            await self._speak(
-                SpeechIntent(
-                    str(uuid4()),
-                    line,
-                    str(uuid4()),
-                    prosody["rate"],
-                    prosody["pitch"],
-                    prosody["energy"],
-                )
-            )
+        )
+
+    async def greet_arrival(self) -> None:
+        """The room sensor saw the owner arrive: one short greeting, never over another reply."""
+
+        if self.foreground_active or self._touching or datetime.now(UTC) < self._speaking_until:
+            return
+        self._touching = True
+        try:
+            hour = datetime.now(UTC).astimezone(self._touch_zone).hour
+            line = "早安，今天也請多指教。" if 5 <= hour < 12 else "歡迎回來。"  # noqa: RUF001
+            await self._say_line(line, {"rate": 1.0, "pitch": 0.05, "energy": 0.55}, "sensor")
         finally:
             self._touching = False
 
