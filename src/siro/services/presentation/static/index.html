@@ -1604,7 +1604,9 @@
           const profile = await productRequest("/v1/profile");
           if (!Array.isArray(profile.items)) throw new Error("invalid profile");
           root.textContent = "";
-          status.textContent = profile.items.length ? `共 ${profile.items.length} 筆。` : "還沒有個人檔案，可以按「整理個人檔案」。";
+          const auto = profile.auto || {};
+          const autoText = auto.enabled ? `最近自動更新：${auto.last_run ? new Date(auto.last_run).toLocaleString() : "尚未執行"}` : "自動更新已關閉";
+          status.textContent = (profile.items.length ? `共 ${profile.items.length} 筆。` : "還沒有個人檔案，可以按「整理個人檔案」。") + " " + autoText;
           for (const entry of profile.items) {
             const card = document.createElement("div"); card.className = "message";
             const text = document.createElement("p"); text.textContent = `${entry.category === "habit" ? "習慣" : "偏好"}：${entry.text}`;

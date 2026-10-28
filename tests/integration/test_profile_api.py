@@ -38,7 +38,9 @@ def test_profile_routes_list_rebuild_and_delete(
         headers = auth(client)
         assert client.get("/v1/profile").status_code == 401
         assert client.post("/v1/profile/rebuild").status_code == 401
-        assert client.get("/v1/profile", headers=headers).json() == {"items": []}
+        empty = client.get("/v1/profile", headers=headers).json()
+        assert empty["items"] == []
+        assert empty["auto"] == {"enabled": True, "state": "waiting", "last_run": None}
         assert client.post(
             "/v1/conversations/search/turns", headers=headers, json={"text": "我平常喜歡喝無糖綠茶"}
         ).is_success
@@ -49,7 +51,7 @@ def test_profile_routes_list_rebuild_and_delete(
         assert item["quote"] == "喜歡喝無糖綠茶"
         assert item["message_text"] == "我平常喜歡喝無糖綠茶" and item["message_at"]
         assert client.delete(f"/v1/memories/{item['memory_id']}", headers=headers).is_success
-        assert client.get("/v1/profile", headers=headers).json() == {"items": []}
+        assert client.get("/v1/profile", headers=headers).json()["items"] == []
 
 
 def test_profile_routes_unavailable_without_service(

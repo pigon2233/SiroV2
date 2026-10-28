@@ -50,6 +50,7 @@ from siro.services.agent.planning_adapters import (
     OrchestratorToolPort,
     planner_enabled,
 )
+from siro.services.agent.profile_auto import ProfileAuto
 from siro.services.agent.reminders import ReminderService, reminders_enabled
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.self_activity import SelfActivityOwner
@@ -716,6 +717,7 @@ def create_app(
     esp32_relay_token: str | None = None,
     profile_service: ProfileService | None = None,
     profile_source: SQLiteProfileSource | None = None,
+    profile_auto: ProfileAuto | None = None,
 ) -> FastAPI:
     if (vrm_dist is None) != (vrm_model is None):
         raise ValueError("vrm_dist and vrm_model must be configured together")
@@ -1456,6 +1458,8 @@ def create_app(
         )
         if memory_organizer is not None:
             await memory_organizer.foreground()
+        if profile_auto is not None:
+            await profile_auto.foreground()
         browser_url = _browser_request(body.text) if legacy_shortcuts else None
         application = _application_request(body.text) if legacy_shortcuts else None
         if browser_url is not None or application is not None:
@@ -1845,7 +1849,10 @@ def create_app(
         return {
             "items": [
                 _profile_json(entry, messages.get(entry.source_event_id)) for entry in entries
-            ]
+            ],
+            "auto": profile_auto.snapshot()
+            if profile_auto is not None
+            else {"enabled": False, "state": "disabled", "last_run": None},
         }
 
     @app.post("/v1/profile/rebuild")
@@ -2961,6 +2968,19 @@ def _run_gateway(
         else None
     )
 
+    profile_auto = None
+    if profile_service is not None and profile_source is not None:
+        auto_setting = os.environ.get("SIRO_PROFILE_AUTO", "1")
+        if auto_setting not in {"0", "1"}:
+            raise ValueError("SIRO_PROFILE_AUTO must be 0 or 1")
+        if auto_setting == "1":
+            profile_auto = ProfileAuto(
+                profile_service,
+                profile_source,
+                lambda: controller.foreground_active
+                or (read_tasks is not None and read_tasks.busy),
+            )
+
     self_setting = os.environ.get("SIRO_SELF_ACTIVITY_ENABLED", "1")
     if self_setting not in {"0", "1"}:
         raise ValueError("SIRO_SELF_ACTIVITY_ENABLED must be 0 or 1")
@@ -3028,6 +3048,8 @@ def _run_gateway(
             reminder_service.start()
         if organizer is not None:
             await organizer.start()
+        if profile_auto is not None:
+            await profile_auto.start()
         if workspace is not None:
             await workspace.start()
         if browser_sessions is not None:
@@ -3049,6 +3071,8 @@ def _run_gateway(
         if self_owner is not None:
             await self_owner.close()
         try:
+            if profile_auto is not None:
+                await profile_auto.close()
             if organizer is not None:
                 await organizer.close()
         finally:
@@ -3135,6 +3159,7 @@ def _run_gateway(
             memory_service=memory_service,
             profile_service=profile_service,
             profile_source=profile_source,
+            profile_auto=profile_auto,
             speech_to_text=speech_to_text,
             fallback_speech_to_text=fallback_speech_to_text,
             text_to_speech=text_to_speech,
