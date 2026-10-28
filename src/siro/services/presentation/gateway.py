@@ -52,6 +52,7 @@ from siro.services.agent.auto_plan import luna_classifier
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.daily_recap import BedtimeTrigger
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
+from siro.services.agent.home import judge_home, last_chat_at
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
 from siro.services.agent.node_health import NodeHealthWatcher
 from siro.services.agent.organization import MemoryOrganizer
@@ -3202,6 +3203,8 @@ def _run_gateway(
                     view = await routine_watcher.view(now)
                     zone = ProactivitySettings().timezone
                     routine_facts["scene"] = detect_scene(view, now=now, zone=zone)
+                    chat = await last_chat_at(shared_store)
+                    routine_facts["home"] = judge_home(view, last_chat=chat, now=now)[0]
                     await controller.react_to_sensor(routine_facts)
 
     recap_time = os.environ.get("SIRO_DAILY_RECAP_TIME", "23:00")
