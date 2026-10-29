@@ -1,6 +1,6 @@
 # CONSOLE-REDESIGN-PLAN：控制台重造、記憶自我整理、主線／子線對話
 
-Owner：Claude（thread「siro 製作」）；2026-10-29；狀態：PLAN ONLY / LOCAL_ONLY / NOT PUSHED。
+Owner：Claude（thread「siro 製作」）；2026-10-29；狀態：PLAN COMPLETE, AWAITING OWNER REVIEW / LOCAL_ONLY / NOT PUSHED。
 Base：`8d60f833f8742eabc9f3782425b3331e28f3c8f1`（local main）。
 範圍認領：協調者已確認無其他任務持有記憶與對話多執行緒；TTS streaming（f52018d）、
 claude.ask 更名、ESP32 韌體屬其他範圍，不碰。本檔只是計畫，**尚未改任何產品程式**。
@@ -37,13 +37,25 @@ claude.ask 更名、ESP32 韌體屬其他範圍，不碰。本檔只是計畫，
 - Letta sleep-time compute：<https://www.letta.com/blog/sleep-time-compute>
   - 主代理負責即時對話，**不能**改核心記憶；另一個 sleep-time 代理在背景整理並改寫共享記憶區塊。
   - 觸發頻率可設定；頻率越高越耗 token。對應本需求「主線／子線」＋「記憶自己整理」。
-- Generative Agents（Park 等，2023）<https://arxiv.org/abs/2304.03442>：
-  摘要頁只確認有「觀察→檢索→反思→規劃」；**檢索公式與衰減係數我沒能取得全文確認**，
-  不引用具體數值。實作前須讀原文第 4.1 節再定，不憑記憶設定。
+- Hermes 官方文件 Delegation：<https://hermes-agent.nousresearch.com/docs/user-guide/features/delegation>
+  - 子代理「全新對話、獨立工作」，只拿父代理給的 goal／context；**只有最終摘要進入父代理 context**。
+  - 預設同時 10 個子代理、每個上限 250 個工具回合；預設不可再委派（`max_spawn_depth`=1）。
+  - 450 秒無進展（工具內 1200 秒）判定卡住並中斷；停止後回 `status="interrupted"` 含部分結果。
+  - 使用者看得到：CLI 樹狀即時進度、桌面版在輸入框上方預覽最多 3 個 worker。
+- Generative Agents（Park 等，2023）全文 <https://ar5iv.labs.arxiv.org/html/2304.03442> §4.1：
+  檢索分數＝recency＋importance＋relevance（各自 min-max 正規化到 [0,1]，權重皆 1）；
+  recency 以「距上次被檢索的遊戲小時」做指數衰減，係數 0.995；importance 由 LLM 在建立時
+  給 1–10 整數分；relevance 為 embedding 餘弦相似度；近期事件 importance 總和超過 150 觸發反思。
+  注意：這是**檢索排序**，論文本身不刪除記憶。
+- Mem0（Chhikara 等，2025）<https://arxiv.org/html/2504.19413>：每個候選事實先取向量最相近的
+  10 筆既有記憶，再由 LLM 以 tool call 選 ADD／UPDATE／DELETE／NOOP 四種操作。
 - SCM（睡眠整合＋刻意遺忘）arXiv 2604.20943 僅為近作旁證，未驗證，不作設計依據。
+- psutil 7.2.2：BSD-3-Clause，支援 Windows／Linux（<https://pypi.org/project/psutil/7.2.2/>）；
+  已透過 `amqtt` 鎖在 `uv.lock`，改為直接依賴不會新增套件。
 
-結論：沒有任何一個參考系統證明「某個固定半衰期最好」，所以衰減參數必須由 SIRO 自己的
-實測資料校準，不能先寫死數字（見 §5 驗收）。
+結論：參考系統都不在時間到期時硬刪除（Hermes 無衰減、Generative Agents 衰減只影響排序）；
+「自己整理」的共同做法是**寫入時比對相近記憶決定新增／合併／更新／不動**（Mem0），
+加上**背景代理整理**（Letta）。這兩點是本設計的主軸，衰減只用在排序與降級，不直接刪資料。
 
 ## 3. 目標設計
 
@@ -53,7 +65,7 @@ claude.ask 更名、ESP32 韌體屬其他範圍，不碰。本檔只是計畫，
 - **監控**（唯讀）：ESP32 即時值＋最後回報時間＋過期標示；電腦端＝`work-context`、模型／
   TTS／麥克風／雲端開關、活動（`/v1/activities`）。每 3 秒輪詢，資料過期轉灰。
 - 移除獨立的 任務／記憶／能力／設定／權限／系統／活動 入口。仍須保留者改成**對話內的卡片**
-  （例：工具授權、記憶「我記住了這個」可就地撤銷）。技能審查與診斷是否保留 → 見待決 Q3。
+  （例：工具授權、記憶「我記住了這個」可就地撤銷）。技能審查與診斷的處理見 §5 D3。
 - 這與 `docs/EXPERIENCE.md` 2026-10-15 的「對話、任務、記憶、能力、設定須有獨立可到達畫面」
   **衝突**，需先寫 `DECISIONS.md` 新條目取代，並更新依賴舊頁面 id 的證據腳本／測試。
 
@@ -62,16 +74,25 @@ claude.ask 更名、ESP32 韌體屬其他範圍，不碰。本檔只是計畫，
   需要使用者決定的事。子線自帶 working memory、取消 token、預算，彼此不共用 prompt。
 - 沿用現有 AgentRun／journal（RT-008）、取消傳遞（架構底線：取消須傳到 LLM／TTS／工具）。
 - 每條連線一個 writer、佇列有上限：子線事件走獨立通道，不與主線 assistant_delta 混流。
-- 先決條件：盤點哪些背景來源目前寫進主線（self_notes、goal-tasks、tool proposals、
-  sensor_reactions、proactivity），逐一決定歸屬哪條子線。**此盤點未做，故不估工時。**
+- 背景來源盤點（`services/presentation/integrated.py`，全部寫入 `self._last_session` 即主線）：
+
+  | 來源 | 進入點 | 歸屬 |
+  | --- | --- | --- |
+  | 自主研究筆記 | `share_self_note`（:375）← self_notes | 子線「研究」；主線只收一句摘要 |
+  | 自動記憶通知「我記下了／要記嗎」 | `_auto_memory` :475/:481 | 主線，改為可就地撤銷卡片（現文案指向將移除的記憶頁，必改） |
+  | 提醒到期／提醒意圖回覆 | `deliver_reminder` :492、:434 | 主線（使用者需要立即看到） |
+  | 睡前回顧 | `daily_recap` :506 | 主線 |
+  | 摸頭／戳／拎 | `_say_line(...,"touch")` :327 | 主線（是對使用者動作的即時回應） |
+  | 感測器反應 | `_say_line(...,"sensor")` :371 | 子線「環境」；值得說的才上主線（沿用現有 `foreground_active` 擋） |
+  | 規劃任務 `run_agent_plan` | :604，**在前景 turn 內同步執行** | 子線「任務」；主線立即回「開始做了」，完成回摘要 |
+
+  `run_agent_plan` 目前會讓主線卡到規劃結束，是最需要拆出的一項。
 
 ### 3.3 後端：記憶自我整理
-- Schema（需 migration）：新增 `tier`(short/long)、`importance`(0–1)、`last_used_at`、
-  `use_count`、`expires_at`。沿用 `valid_to` 與 revision，不破壞既有來源／撤銷契約。
-- 寫入閘門：寫入前以去重（正規化文字＋向量近似，沿用 MEM-04 向量索引）與價值判斷擋掉
-  例如重複的「我自己查過…」；`self_notes` 改為**合併進同主題一筆並累加次數**，不再每次新增。
-- 層級規則：新記憶預設 short（有 `expires_at`）；被反覆使用／反覆出現／使用者明確要求
-  才升 long；短期過期**軟刪除**（保留 revision 與來源，可由使用者復原）。
+- Schema（需 migration，欄位可為空值以便回退）：新增 `tier`(core/archive)、`importance`(1–10)、
+  `last_retrieved_at`、`retrieval_count`。沿用 `valid_to` 與 revision，不破壞既有來源／撤銷契約。
+- 寫入閘門與層級規則見 §5 D1；`self_notes.remember_note` 與 `AutonomousMemory` 都改走閘門，
+  不再直接 `remember`。
 - 背景「睡眠」整理（Letta 式，非前景）：沿用 `MemoryOrganizer` 閒置生命週期，由它執行
   去重合併、升降級、淡出；前景對話搶占即取消；每次動作寫 revision＋原因，可撤銷。
 - 使用者主權不變：仍可更正／刪除；更正後舊衍生結果失效（MEM-01 契約）。
@@ -82,27 +103,57 @@ claude.ask 更名、ESP32 韌體屬其他範圍，不碰。本檔只是計畫，
 | 階段 | 內容 | 風險 | 回退 |
 | --- | --- | --- | --- |
 | P0 | 本文審閱；寫 `DECISIONS.md`（取代 EXPERIENCE 舊決定）；列出舊頁面 id 被哪些測試／證據腳本引用 | 無 | 刪文件 |
-| P1 | 監控頁（唯讀）＋對話頁瘦身骨架；新舊並存，舊頁尚不移除 | 低（只讀既有端點；Q2 若要 CPU 則加唯讀端點） | 還原 index.html |
-| P2 | 記憶分層：migration、寫入閘門、self_notes 合併、背景整理器；先 **dry-run 只記錄「會怎麼處理」**，不真的刪，供使用者檢視 | 中（核心＋資料） | feature flag 關閉；migration 欄位可為空值 |
+| P1 | 監控頁＋唯讀系統端點（D2）＋對話頁瘦身骨架；新舊並存，舊頁尚不移除 | 低 | 還原 index.html／移除端點 |
+| P2 | 記憶分層：migration、寫入閘門、self_notes 合併、背景整理器；先 **dry-run 只記錄「會怎麼處理」**，不真的寫，用真實資料檢查排序與合併結果後才開 | 中（核心＋資料） | feature flag 關閉；migration 欄位可為空值 |
 | P3 | 主線／子線：thread_id、事件通道分流、背景來源歸屬 | 高 | flag 關閉回單線 |
 | P4 | 移除舊頁面與 index.html 對應程式、更新證據腳本、真人走查 | 中 | git revert |
 
 每階段驗收：先寫失敗測試再實作；WSL 以 `UV_PROJECT_ENVIRONMENT=~/.venvs/sirov2 UV_NO_SYNC=1`
 跑 pytest；UI 以瀏覽器實測並截圖；不把未跑的命令寫成通過；STATUS.md 交整合者更新。
 
-## 5. 待使用者決定（我不臆測）
+## 5. 已定案的設計決定（使用者授權「全部自己規劃」，2026-10-29；依據見 §1、§2）
 
-- **Q1 記憶保存期限**：短期預設保留多久？我不預設數值，建議 P2 先 dry-run 一週，用實際
-  使用資料再定；你若已有偏好請直說。
-- **Q2 電腦端數值**：只顯示 SIRO 實際取得的（work-context／模型／活動），還是要新增
-  CPU／記憶體／磁碟的唯讀端點（新功能，需新增 psutil 類依賴或自寫讀取，須先核實授權）？
-- **Q3 技能審查／診斷頁**：全部移除，還是保留在不顯示於導覽的 `/#/advanced`？你說藏起來
-  不算解決，所以我預設**移除產品入口**；診斷資料改為監控頁的一小區。
-- **Q4 子線可見性**：背景子線的過程要使用者看得到（監控頁列出），還是只在完成時回報主線？
-  預設：監控頁可看、主線只收結果。
-- **Q5 刪除的容忍度**：短期記憶過期後「軟刪除、可復原 N 天」可以嗎？
+- **D1 記憶不按時間刪除，改成兩層＋寫入閘門。**
+  - 依據：Hermes 無時間衰減、額滿由代理合併；Generative Agents 衰減只用於排序；Mem0 在寫入時決定。
+    沒有任何來源給出可直接套用的「短期保留 N 天」，所以不設 TTL，避免臆測數值。
+  - **核心層**（每輪注入 prompt）：預算沿用 Hermes 實際值，SIRO 自身筆記 2,200 字元、
+    主人資料 1,375 字元。超過 80% 時由背景整理器合併（Hermes 建議值）；額滿時不靜默丟棄。
+  - **檔案層**（不注入、按需檢索）：其餘記憶全部保留，可用 FTS5＋向量搜尋，等同 Hermes 的 session search。
+  - **寫入閘門**（Mem0 方式）：新候選先取最相近 10 筆，再由本機模型選 ADD／UPDATE／DELETE／NOOP。
+    重複的「我自己查過…」會變成 UPDATE（合併主題、累計次數）或 NOOP。DELETE 只作用在被新資訊推翻的記憶，
+    並保留 revision（沿用 MEM-01 契約），不做實體刪除。
+  - **升降級**：用 Generative Agents 的三項分數（recency 0.995／小時、importance 1–10、relevance 餘弦）。
+    整理器依分數決定哪些進核心層、哪些退檔案層。recency 單位從「遊戲小時」改成實際小時是移植，
+    須在 P2 dry-run 用真實資料驗證排序合理後才啟用。
+  - 向量：本機已有 `qwen3-embedding:0.6b`（Ollama 實測列出）與 `adapters/models/ollama_embeddings.py`；
+    無法取得時退回 FTS5 文字比對，閘門改為只做完全重複的 NOOP，不讓模型憑空判斷。
+- **D2 電腦端數值：新增唯讀系統端點，CPU／記憶體／磁碟用 psutil。**
+  - 依據：psutil 為 BSD-3、已在 lockfile（經 amqtt），不新增套件。文件沒說 `cpu_percent(interval=None)`
+    是否阻塞，所以一律包在 `asyncio.to_thread`，符合「blocking I/O 不得卡 Core event loop」。
+  - 這些數值只給監控頁看，**不送進模型 prompt**，避免未經同意擴大 SIRO 的觀察範圍。
+  - 監控頁分兩區：「SIRO 實際知道的」（work-context、ESP32）與「電腦狀態（僅顯示）」。
+- **D3 技能審查與診斷頁移除產品入口，不另設隱藏頁。**
+  - 依據：Hermes 沒有對應的管理頁；使用者明確表示藏起來不算解決。
+  - 技能安裝／啟用仍必須由人按一下，改成對話中的確認卡片，避免模型自行授權（架構底線）。
+  - 健康狀態、模型路由、開關狀態放到監控頁；原始事件紀錄只保留在 `/v1/snapshot` API。
+  - `/audio-field-test` 是獨立驗收工具，不在導覽中，維持原樣。
+- **D4 子線看得到，但主線只收結果。**
+  - 依據：Hermes 只把最終摘要放回父代理，桌面版在輸入框上方預覽最多 3 個 worker。
+  - 對話頁輸入框上方顯示最多 3 條執行中子線（名稱、狀態、停止鈕）；監控頁列出全部。
+  - 卡住判定沿用 Hermes 預設：450 秒無進展（工具內 1200 秒），之後中斷並回傳部分結果；數值做成可設定。
+  - 併發：本機只有一個推論模型，背景模型呼叫一次一個，前景搶占。這依據現有 `_auto_memory`
+    「不與回覆搶模型」的實作。Hermes 預設 10 個並行，不適用單 GPU 本機模型。
+- **D5 刪除與復原沿用既有契約。** D1 沒有時間到期刪除，所以不需要另設「軟刪除 N 天」。
+  使用者刪除與閘門 DELETE 都走現有 revision 機制，可在對話中說「把剛才那條記憶改回來」復原。
+- **D6 權限開關保留**，因為是安全機制：對話頁一顆緊急停止（全部 kill switch），監控頁顯示各開關並可切換。
 
 ## 6. 不做
 
-不 push、不開 PR、不部署；不動 ESP32 韌體與 TTS streaming；不新增依賴（除非 Q2 決定並核實）；
-不用固定半衰期等未經校準的數值；不把 P0 文件當作已完成實作。
+不 push、不開 PR、不部署；不動 ESP32 韌體與 TTS streaming；不新增套件（psutil 僅由間接改直接依賴）；
+不用沒有來源的數值；不把 P0 文件當作已完成實作。
+
+## 7. P0 需要更新的既有測試與證據腳本（舊頁面 id／路由）
+
+`tests/integration/test_frontend_{goal_tasks,improvement_proposal,keyboard_skip,navigation,reflow,
+skill_activation,skill_candidate,task_detail}.py`；`docs/evidence/` 下的歷史腳本屬已封存證據，不修改，
+只在 DECISIONS 註明它們對應舊介面。P4 移除頁面時，同步改寫或刪除上列測試，並說明每個測試的去向。
