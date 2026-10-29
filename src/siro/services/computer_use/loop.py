@@ -52,7 +52,7 @@ def _describe(action: InputAction) -> str:
     if action.kind in {"move", "click"}:
         return f"{action.kind}({action.x},{action.y},{action.button})"
     if action.kind == "key":
-        return f"key({action.key})"
+        return f"key({action.key},{action.hold_ms})" if action.hold_ms else f"key({action.key})"
     if action.kind == "scroll":
         return f"scroll({action.amount})"
     return f"type({len(action.text)} chars)"
@@ -197,5 +197,6 @@ class DecisionLoop:
             key=action.key,
             text=action.text,
             amount=action.amount,
+            hold_ms=action.hold_ms,
             focus_is_secret=observation.focus_is_secret,
         )

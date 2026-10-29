@@ -37,11 +37,12 @@ class ComputerBridge:
         self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=8)
         self._pending: dict[str, asyncio.Future[BridgeResult]] = {}
         self._last_poll = float("-inf")
+        self._waiting = 0  # shell polls currently parked on the queue
         self._seq = 0
 
     @property
     def executor_online(self) -> bool:
-        return self._clock() - self._last_poll <= EXECUTOR_ONLINE_WITHIN
+        return self._waiting > 0 or self._clock() - self._last_poll <= EXECUTOR_ONLINE_WITHIN
 
     def stop(self) -> None:
         """Emergency stop: latch the gate, drop queued commands, fail everything in flight."""
@@ -54,10 +55,14 @@ class ComputerBridge:
 
     async def next_command(self, wait: float = 20.0) -> dict[str, Any] | None:
         self._last_poll = self._clock()
+        self._waiting += 1
         try:
             command = await asyncio.wait_for(self._queue.get(), timeout=wait)
         except TimeoutError:
             return None
+        finally:
+            self._waiting -= 1
+            self._last_poll = self._clock()
         if self._clock() > command["expires_at"] or command["id"] not in self._pending:
             return None  # stale or already settled: never run late
         return command

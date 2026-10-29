@@ -88,3 +88,10 @@ def test_rate_limits() -> None:
         if gate.check(InputAction("move", x=1, y=1)).allowed:
             allowed += 1
     assert allowed < 200
+
+
+def test_key_hold_bounds() -> None:
+    gate = _gate()
+    assert gate.check(InputAction("key", key="left", hold_ms=500)).allowed
+    assert gate.check(InputAction("key", key="left", hold_ms=2001)).reason == "bad_hold"
+    assert gate.check(InputAction("key", key="left", hold_ms=-1)).reason == "bad_hold"

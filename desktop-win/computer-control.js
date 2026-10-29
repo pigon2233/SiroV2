@@ -47,7 +47,10 @@ class ComputerControl {
       if (a.x < b.x || a.y < b.y || a.x >= b.x + b.width || a.y >= b.y + b.height) return 'out_of_bounds';
     }
     if (a.kind === 'scroll' && !(Number.isInteger(a.amount) && Math.abs(a.amount) <= 20 && a.amount !== 0)) return 'bad_amount';
-    if (a.kind === 'key') { const c = normalize(a.key || ''); if (!c || BLOCKED.has(c)) return 'key_blocked'; }
+    if (a.kind === 'key') {
+      const c = normalize(a.key || ''); if (!c || BLOCKED.has(c)) return 'key_blocked';
+      if (a.hold_ms !== undefined && a.hold_ms !== null && !(Number.isInteger(a.hold_ms) && a.hold_ms >= 0 && a.hold_ms <= 2000)) return 'bad_hold';
+    }
     if (a.kind === 'type') {
       if (a.focus_is_secret) return 'secret_field';
       if (typeof a.text !== 'string' || !a.text || a.text.length > MAX_TYPE) return 'text_length';

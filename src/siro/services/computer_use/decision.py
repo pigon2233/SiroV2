@@ -80,9 +80,10 @@ def parse_decision(text: str) -> Decision:
             x=_int(spec.get("x")),
             y=_int(spec.get("y")),
             button=str(spec.get("button", "left")),
-            key=str(spec.get("key", "")),
+            key=str(spec.get("key") or spec.get("combo") or ""),
             text=str(spec.get("text", "")),
             amount=_int(spec.get("amount")) or 0,
+            hold_ms=_int(spec.get("hold_ms")) or 0,
         )
         incomplete = (
             (action.kind in {"move", "click"} and (action.x is None or action.y is None))
@@ -115,7 +116,9 @@ Rules:
 - Judge only from what the screenshot shows now. If the last step had no visible effect, do NOT repeat it unchanged: try something different, or answer "stuck".
 - Answer "done" only if the screenshot itself proves the goal is met; put that proof in "evidence".
 - Answer "ask" if you need the owner (ambiguous goal, risky/irreversible choice, login or payment).
-- Never type secrets. Allowed inputs: move, click(left|right), scroll(amount -20..20), key(combo like "space" or "ctrl+c"), type(text<=200).
+- Never type secrets. Allowed inputs, with exactly these field names:
+  {{"kind":"click","x":0,"y":0,"button":"left|right"}}, {{"kind":"move","x":0,"y":0}}, {{"kind":"scroll","amount":-3}} (-20..20),
+  {{"kind":"key","key":"ctrl+c","hold_ms":0}} (key name or combo such as "space", "z", "left"; hold_ms 0-2000 to hold it, 0 = quick tap), {{"kind":"type","text":"abc"}} (<=200 chars).
 - confidence is 0..1: how sure you are this step is correct.
 Reply with JSON only:
 {{"kind":"act|done|stuck|ask","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what should change","reason":"why","confidence":0.0,"evidence":""}}"""  # noqa: E501

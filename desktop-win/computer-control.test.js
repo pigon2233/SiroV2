@@ -93,3 +93,10 @@ test('window query only while active and bypasses input rate limit', async () =>
   cc.stop();
   assert.strictEqual((await cc.queryWindow()).error, 'emergency_stop');
 });
+
+test('key hold time is bounded', async () => {
+  const {cc} = make(); cc.enable();
+  assert.strictEqual((await cc.execute({kind: 'key', key: 'left', hold_ms: 500})).ok, true);
+  assert.strictEqual((await cc.execute({kind: 'key', key: 'left', hold_ms: 5000})).error, 'bad_hold');
+  assert.strictEqual((await cc.execute({kind: 'key', key: 'left', hold_ms: null})).ok, true);
+});

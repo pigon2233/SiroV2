@@ -17,6 +17,7 @@ from enum import StrEnum
 ENABLE_FLAG = "SIRO_COMPUTER_CONTROL_ENABLED"
 ALLOWED_KINDS = frozenset({"move", "click", "scroll", "key", "type"})
 MAX_TYPE_CHARS = 200
+MAX_HOLD_MS = 2000
 MAX_ACTIONS_PER_SECOND = 5
 MAX_ACTIONS_PER_MINUTE = 120
 # Combos that close, switch away from, or escape the owner's session.
@@ -44,6 +45,7 @@ class InputAction:
     key: str = ""
     text: str = ""
     amount: int = 0
+    hold_ms: int = 0  # key hold time; 0 = helper default (a quick tap)
     # Perception says the focused element is a password/secret field.
     focus_is_secret: bool = False
 
@@ -136,6 +138,8 @@ class ControlGate:
             combo = normalize_combo(action.key)
             if not combo or combo in BLOCKED_COMBOS:
                 return "key_blocked"
+            if not 0 <= action.hold_ms <= MAX_HOLD_MS:
+                return "bad_hold"
         if action.kind == "type":
             if action.focus_is_secret:
                 return "secret_field"

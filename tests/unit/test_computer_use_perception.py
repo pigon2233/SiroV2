@@ -213,3 +213,27 @@ async def test_vision_decider_retries_malformed_reply_once() -> None:
     replies[:] = ["bad", "still bad"]
     with pytest.raises(DecisionError):
         await decider.decide("g", [], _obs())
+
+
+@pytest.mark.asyncio
+async def test_shell_parked_in_a_long_poll_counts_as_online() -> None:
+    clock = {"t": 100.0}
+    bridge = ComputerBridge(ControlGate(enabled=True), clock=lambda: clock["t"])
+    assert not bridge.executor_online
+    poll = asyncio.create_task(bridge.next_command(wait=5.0))
+    await asyncio.sleep(0.01)
+    clock["t"] += 15  # a 20 s long poll is older than the 10 s window while still waiting
+    assert bridge.executor_online
+    bridge.stop()
+    poll.cancel()
+    await asyncio.gather(poll, return_exceptions=True)
+    assert bridge.executor_online  # last poll just ended
+    clock["t"] += 15
+    assert not bridge.executor_online
+
+
+def test_parse_decision_accepts_combo_alias_and_hold() -> None:
+    decision = parse_decision(
+        '{"kind":"act","action":{"kind":"key","combo":"ctrl+a","hold_ms":300},"confidence":0.7}'
+    )
+    assert decision.action == InputAction("key", key="ctrl+a", hold_ms=300)
