@@ -3364,9 +3364,11 @@ def _run_gateway(
 
     controller.recap_summarizer = recap_summary
 
-    async def ask_curation(prompt: str) -> str | None:
+    async def ask_curation(
+        prompt: str, *, max_tokens: int = 200, timeout: float = 30.0
+    ) -> str | None:
         # Default privacy is local-only: curation never goes to a cloud route.
-        request = ModelRequest(prompt, str(uuid4()), max_output_tokens=200)
+        request = ModelRequest(prompt, str(uuid4()), max_output_tokens=max_tokens)
         cancellation = CancellationToken()
         parts: list[str] = []
 
@@ -3376,11 +3378,16 @@ def _run_gateway(
                     parts.append(chunk.text)
 
         try:
-            await asyncio.wait_for(collect(), 30.0)
+            await asyncio.wait_for(collect(), timeout)
         except Exception:
             cancellation.cancel()
             return None
         return "".join(parts)
+
+    async def ask_reflection(prompt: str) -> str | None:
+        # A 60-message reflection lists every supporting index: 200 tokens truncated the reply
+        # (ProviderOutputTruncated) and the live run on 2026-10-29 recorded model_unavailable.
+        return await ask_curation(prompt, max_tokens=1000, timeout=120.0)
 
     curation = MemoryCurationDryRun(
         memory_service,
@@ -3401,7 +3408,7 @@ def _run_gateway(
         reflection = Reflection(
             shared_store,
             Consolidator(SQLiteConsolidationRepository(shared_store)),
-            ask_curation,
+            ask_reflection,
             data_dir / "memory-curation" / "reflection.jsonl",
             busy=lambda: controller.foreground_active or controller.planning,
         )

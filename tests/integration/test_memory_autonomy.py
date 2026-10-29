@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -153,6 +154,14 @@ def test_contextual_prompt_and_parser() -> None:
         "牠叫小黑", [("user", "我養了一隻貓"), ("assistant", "好可愛")] * 8
     )
     assert "主人這一句：牠叫小黑" in prompt and prompt.count("主人：我養了一隻貓") == 5  # noqa: RUF001
-    raw = 'x {"memories": [{"text": "主人的貓叫小黑", "quote": "牠叫小黑"}, "bad", {"text": 1}]}'
-    assert parse_contextual_nominations(raw) == [Nomination("主人的貓叫小黑", "牠叫小黑")]
+    items = [
+        {"text": "主人的貓叫小黑", "quote": "牠叫小黑", "importance": 6},
+        {"text": "主人提到沒有電", "quote": "沒有電", "importance": 1},  # trivial
+        {"text": "主人喜歡某個東西的貼紙", "quote": "貼紙", "importance": 4},  # unresolved
+        {"text": "主人愛喝茶", "quote": "愛喝茶"},  # no score: not judged
+        "bad",
+        {"text": 1},
+    ]
+    raw = "x " + json.dumps({"memories": items}, ensure_ascii=False)
+    assert parse_contextual_nominations(raw) == [Nomination("主人的貓叫小黑", "牠叫小黑", 6)]
     assert parse_contextual_nominations("nope") == []

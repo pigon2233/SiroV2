@@ -229,3 +229,6 @@ skill_activation,skill_candidate,task_detail}.py`；`docs/evidence/` 下的歷�
 - 2026-10-29 D7 反思完成：閒置且累積 20 則新訊息時歸納跨訊息的習慣，至少 2 則訊息支持、3 則以上才採用；沿用既有 Consolidator，
   標記為推測。合成訊息量測（gemma4:e4b × 5）：習慣 15/15、誘餌 0；第一版提示只列 2 個編號導致永遠不採用，已改。
   詳 [MEM-REFLECTION](../verification/MEM-REFLECTION/REPORT.md)。尚未做：D3 技能確認卡片。
+- 2026-10-30 正式服務驗收後修正：(1) 自動記憶在真實對話記了沒價值的閒聊 → 加 importance≥3 與未解開指涉檢查，
+  合成 26 題誤記 5→1、真實失敗原話 18 次 0 次被記（詳 MEM-AUTONOMY-D7b 追加段）；(2) 反思在正式服務回報 model_unavailable，
+  本機重現為 200 tokens 截斷（ProviderOutputTruncated）→ 反思改用 1000 tokens、120 秒。

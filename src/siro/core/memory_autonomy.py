@@ -22,6 +22,7 @@ class Nomination:
 
     text: str
     quote: str
+    importance: int | None = None
 
 
 # (user text) -> statements worth keeping: plain quotes (v1) or reworded with a quote (v2).
@@ -126,8 +127,22 @@ _RULES_V2 = (
     "不要從前後文另外產生記憶。可以改寫成清楚的一句話，以「主人」開頭，把「牠、他、那個」換成具體對象。"
     "每項都要附 quote：主人這一句裡逐字的連續片段，作為依據。"
     "不要選：閒聊、問句、假設（如果…）、玩笑、轉述別人的話或別人的事、一次性的瑣事、SIRO 說的話。"
-    '只輸出 JSON：{"memories": [{"text": "改寫後的事實", "quote": "原話片段"}]}，'
+    "只記一個月後仍然有用的事；今天吃了什麼、隨口的感想、看不懂或像是聽錯的句子都不要選。"
+    "若無法確定「那個、它」指什麼，就不要選，不要寫成「某個東西」。"
+    "importance：1 到 10 的整數，1 是完全瑣碎的日常（刷牙、鋪床），"
+    "10 是非常深刻的事（分手、考上大學）。"
+    '只輸出 JSON：{"memories": [{"text": "改寫後的事實", "quote": "原話片段", '
+    '"importance": 整數}]}，'
     '沒有就輸出 {"memories": []}。'
+)
+
+# Value gate (D80 D7b follow-up, from the owner's real 2026-10-29 memories): one-off chatter
+# such as "主人提到沒有電" and unresolved "某個東西" were being kept. Generative Agents scores
+# importance 1-10 with these anchors; 3 is a design threshold, measured in MEM-AUTONOMY-D7b.
+MIN_IMPORTANCE = 3
+# The rewrite must name the referent; a leftover pronoun means it could not be resolved.
+_VAGUE = re.compile(
+    r"某個|某些|某種|某樣|某件|某人|某處|某地|它|牠|祂|那個|這個|那些|這些|那件|這件"
 )
 
 
@@ -150,13 +165,19 @@ def parse_contextual_nominations(raw: str) -> list[Nomination]:
         return []
     if not isinstance(items, list):
         return []
-    return [
-        Nomination(item["text"], item["quote"])
-        for item in items
-        if isinstance(item, dict)
-        and isinstance(item.get("text"), str)
-        and isinstance(item.get("quote"), str)
-    ]
+    found: list[Nomination] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        text, quote, importance = item.get("text"), item.get("quote"), item.get("importance")
+        if not isinstance(text, str) or not isinstance(quote, str) or _VAGUE.search(text):
+            continue
+        if not (isinstance(importance, int) and not isinstance(importance, bool)):
+            continue  # no score: the model did not judge its value, so it is not kept
+        if importance < MIN_IMPORTANCE:
+            continue
+        found.append(Nomination(text, quote, min(importance, 10)))
+    return found
 
 
 def parse_nominations(raw: str) -> list[str]:
