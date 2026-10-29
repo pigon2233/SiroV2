@@ -37,7 +37,7 @@
 想逐次確認可把授權模式改成需審批（沿用 R02/R04 設定）。
 
 ## 實機驗證紀錄（2026-10-29，由 Claude 在 owner 授權下自行執行）
-環境：獨立後端（`scripts/computer_use_e2e_backend.py`，port 8765）＋獨立 Electron 測試殼（`desktop-win/computer-e2e.js`），不動正在跑的桌寵與主 gateway。
+環境：獨立後端（`scripts/computer_use_e2e_backend.py`，port 8777（先前用 8765，與 ESP32 接收器衝突風險，已改））＋獨立 Electron 測試殼（`desktop-win/computer-e2e.js`），不動正在跑的桌寵與主 gateway。
 - **Notepad（用我自己的測試檔）**：真實 SendInput 成功。SIRO 看畫面→點進文字區→輸入 `hello siro`→看到結果→連續兩次新觀察確認完成。
   過程抓到並修掉的真問題：
   1. 輸入法（日文 IME／注音）會把字母變成組字，文字被吃掉 → 輸入前切到 US 版面、輸入後還原。

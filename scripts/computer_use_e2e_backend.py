@@ -20,7 +20,7 @@ def main() -> None:
     app = FastAPI()
     app.include_router(router)
     uvicorn.run(
-        app, host="127.0.0.1", port=int(os.environ.get("PORT", "8765")), log_level="warning"
+        app, host="127.0.0.1", port=int(os.environ.get("PORT", "8777")), log_level="warning"
     )
 
 
