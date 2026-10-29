@@ -10,14 +10,14 @@ from __future__ import annotations
 import asyncio
 import os
 import secrets
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from siro.services.computer_use.bridge import ComputerBridge
-from siro.services.computer_use.decision import ClaudeVisionDecider, Decider
+from siro.services.computer_use.decision import ClaudeVisionDecider, Decider, StepRecord
 from siro.services.computer_use.loop import DecisionLoop, LoopReport
 from siro.services.computer_use.safety import ControlGate
 
@@ -47,6 +47,7 @@ class ComputerRuns:
         self.bridge = bridge
         self._decider = decider
         self._task: asyncio.Task[None] | None = None
+        self._loop: DecisionLoop | None = None
         self.goal = ""
         self.report: LoopReport | None = None
 
@@ -57,42 +58,45 @@ class ComputerRuns:
     def start(self, goal: str) -> bool:
         if self.running:
             return False
-        self.goal, self.report = goal, None
+        self.goal, self.report, self._loop = goal, None, None
         self._task = asyncio.create_task(self._run(goal))
         return True
 
     async def _run(self, goal: str) -> None:
         try:
-            self.report = await DecisionLoop(self.bridge, self._decider).run(goal)
+            self._loop = DecisionLoop(self.bridge, self._decider)
+            self.report = await self._loop.run(goal)
         except Exception as error:
             self.report = LoopReport("failed", f"crashed:{type(error).__name__}")
 
     def status(self) -> dict[str, Any]:
         gate = self.bridge.gate
         report = self.report
+        live = self._loop.live if self.running and self._loop is not None else []
         return {
             "enabled": gate.enabled,
             "tripped": gate.tripped,
             "executor_online": self.bridge.executor_online,
             "running": self.running,
             "goal": self.goal,
+            "live_steps": _steps(live),
             "report": None
             if report is None
-            else {
-                "state": report.state,
-                "reason": report.reason,
-                "steps": [
-                    {
-                        "step": s.step,
-                        "action": s.action,
-                        "expect": s.expect,
-                        "outcome": s.outcome,
-                        "screen_changed": s.screen_changed,
-                    }
-                    for s in report.steps
-                ],
-            },
+            else {"state": report.state, "reason": report.reason, "steps": _steps(report.steps)},
         }
+
+
+def _steps(records: Sequence[StepRecord]) -> list[dict[str, Any]]:
+    return [
+        {
+            "step": s.step,
+            "action": s.action,
+            "expect": s.expect,
+            "outcome": s.outcome,
+            "screen_changed": s.screen_changed,
+        }
+        for s in records
+    ]
 
 
 def build_router(token: str, runs: ComputerRuns) -> APIRouter:

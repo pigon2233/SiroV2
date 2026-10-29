@@ -34,6 +34,8 @@ MIN_CONFIDENCE = 0.6
 MAX_NO_CHANGE = 3  # consecutive actions that visibly changed nothing
 MAX_INVALID = 2  # consecutive decisions rejected before acting
 MAX_RATE_WAITS = 5
+MAX_WAITS = 6  # consecutive "wait" decisions (transitions) before giving up
+WAIT_SECONDS = 1.0
 SETTLE_SECONDS = 0.4
 
 
@@ -78,6 +80,7 @@ class DecisionLoop:
         max_seconds: float = MAX_SECONDS,
         min_confidence: float = MIN_CONFIDENCE,
         settle: float = SETTLE_SECONDS,
+        wait: float = WAIT_SECONDS,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._bridge = bridge
@@ -87,10 +90,12 @@ class DecisionLoop:
         self._max_seconds = max_seconds
         self._min_confidence = min_confidence
         self._settle = settle
+        self._wait = wait
+        self.live: list[StepRecord] = []
         self._clock = clock
 
     async def run(self, goal: str) -> LoopReport:
-        history: list[StepRecord] = []
+        history = self.live = []
 
         def end(state: str, reason: str) -> LoopReport:
             return LoopReport(state, reason, tuple(history))
@@ -98,7 +103,7 @@ class DecisionLoop:
         if not self._allowed:
             return end("stopped", "no_allowed_processes")
         started = self._clock()
-        no_change = invalid = rate_waits = 0
+        no_change = invalid = rate_waits = waits = 0
         done_seen = False
         before: Observation | None = None
         for step in range(1, self._max_steps + 1):
@@ -128,6 +133,15 @@ class DecisionLoop:
                 return end("stopped", "cloud_screen_not_allowed")
             except (DecisionError, OSError, TimeoutError) as error:
                 return end("failed", f"decider_error:{error}")
+            if decision.kind == "wait":
+                waits += 1
+                history.append(StepRecord(step, "(wait)", decision.expect, "ok", None))
+                if waits > MAX_WAITS:
+                    return end("stopped", "stuck_waiting")
+                before = None
+                await asyncio.sleep(self._wait)
+                continue
+            waits = 0
             if decision.kind == "ask":
                 return end("stopped", "needs_owner")
             if decision.kind == "stuck":

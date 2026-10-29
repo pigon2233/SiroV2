@@ -18,7 +18,7 @@ from siro.services.tools.claude import Runner, claude_binary, claude_model
 from siro.services.tools.execution import execute_bounded_argv, restricted_environment
 
 CLOUD_SCREEN_FLAG = "SIRO_COMPUTER_CLOUD_SCREEN"  # owner opt-in: screenshots may go to the cloud
-DECISION_KINDS = frozenset({"act", "done", "stuck", "ask"})
+DECISION_KINDS = frozenset({"act", "done", "stuck", "ask", "wait"})
 
 
 class DecisionError(ValueError):
@@ -27,7 +27,7 @@ class DecisionError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class Decision:
-    kind: str  # act | done | stuck | ask
+    kind: str  # act | done | stuck | ask | wait
     action: InputAction | None = None
     expect: str = ""  # what should visibly change if the action works
     reason: str = ""
@@ -115,13 +115,14 @@ Recent steps (oldest first):
 Rules:
 - Judge only from what the screenshot shows now. If the last step had no visible effect, do NOT repeat it unchanged: try something different, or answer "stuck".
 - Answer "done" only if the screenshot itself proves the goal is met; put that proof in "evidence".
+- Answer "wait" when the screen is mid-transition (black/fading/loading/animating) and pressing anything now would be a guess.
 - Answer "ask" if you need the owner (ambiguous goal, risky/irreversible choice, login or payment).
 - Never type secrets. Allowed inputs, with exactly these field names:
   {{"kind":"click","x":0,"y":0,"button":"left|right"}}, {{"kind":"move","x":0,"y":0}}, {{"kind":"scroll","amount":-3}} (-20..20),
   {{"kind":"key","key":"ctrl+c","hold_ms":0}} (key name or combo such as "space", "z", "left"; hold_ms 0-2000 to hold it, 0 = quick tap), {{"kind":"type","text":"abc"}} (<=200 chars).
 - confidence is 0..1: how sure you are this step is correct.
 Reply with JSON only:
-{{"kind":"act|done|stuck|ask","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what should change","reason":"why","confidence":0.0,"evidence":""}}"""  # noqa: E501
+{{"kind":"act|done|stuck|ask|wait","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what should change","reason":"why","confidence":0.0,"evidence":""}}"""  # noqa: E501
 
 
 class CloudScreenNotAllowed(RuntimeError):

@@ -9,6 +9,7 @@ import pytest
 from siro.services.computer_use import bridge as bridge_module
 from siro.services.computer_use.bridge import ComputerBridge
 from siro.services.computer_use.decision import Decision, StepRecord
+from siro.services.computer_use.http import ComputerRuns
 from siro.services.computer_use.loop import DecisionLoop
 from siro.services.computer_use.perception import Observation
 from siro.services.computer_use.safety import ControlGate, InputAction
@@ -292,3 +293,52 @@ async def test_decision_coordinates_are_mapped_from_screenshot_to_screen() -> No
     report, desktop, _, _ = await _run(policy, setup=setup)
     assert report.success
     assert [(a["x"], a["y"]) for a in desktop.inputs] == [(300, 300), (500, 400)]
+
+
+@pytest.mark.asyncio
+async def test_wait_decisions_pause_then_continue_but_not_forever() -> None:
+    calls = {"n": 0}
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            return Decision(
+                "wait", None, "fade ends", "black screen", 0.2
+            )  # low confidence is fine
+        return solver(obs, history)
+
+    report, desktop, _, _ = await _run(policy, wait=0)
+    assert report.success and len(desktop.inputs) == 2
+    assert [r.action for r in report.steps][:2] == ["(wait)", "(wait)"]
+
+    report, desktop, _, _ = await _run(
+        lambda o, h: Decision("wait", None, "", "still black", 0.9), wait=0
+    )
+    assert report.reason == "stuck_waiting" and desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_live_steps_visible_while_running() -> None:
+    bridge = ComputerBridge(ControlGate(enabled=True))
+    desktop = FakeDesktop(bridge)
+    desktop.start()
+    await asyncio.sleep(0.02)
+    gate_open = asyncio.Event()
+
+    class Slow:
+        async def decide(
+            self, goal: str, history: Sequence[StepRecord], obs: Observation
+        ) -> Decision:
+            if history:
+                await gate_open.wait()
+            return click(300, 300)
+
+    runs = ComputerRuns(bridge, Slow())
+    runs._loop = DecisionLoop(bridge, Slow(), allowed=frozenset({"game.exe"}), settle=0)
+    task = asyncio.create_task(runs._loop.run("g"))
+    await asyncio.sleep(0.3)
+    assert runs._loop.live and runs._loop.live[0].action.startswith("click")
+    gate_open.set()
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+    await desktop.close()
