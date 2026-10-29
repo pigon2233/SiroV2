@@ -203,3 +203,5 @@ skill_activation,skill_candidate,task_detail}.py`；`docs/evidence/` 下的歷�
   真實資料複本實測（gemma4:e4b，9 筆，皆為自主研究筆記）：ADD 7、UPDATE 2、NOOP 0、UNKNOWN 0；
   模型給研究筆記的 importance 為 7–9，**偏高且寬鬆**，同主題的「環境干擾」只合併 1 次。
   結論：P2b 真正啟用前須先調整判斷提示並以正反例集量測，不可直接開啟。
+- 2026-10-29 P2b 完成（仍為試跑）：判斷提示 v2 依 Mem0 更新規則＋Generative Agents 重要度錨點；30 題合成案例 × 3 次，
+  gemma4:e4b 正確率 v1 73/90 → v2 89/90，誤丟新記憶 0、誤刪 0。詳 [MEM-CURATION-P2b](../verification/MEM-CURATION-P2b/REPORT.md)。

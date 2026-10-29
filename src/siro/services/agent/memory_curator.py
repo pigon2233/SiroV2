@@ -13,6 +13,7 @@ from uuid import UUID
 
 from siro.core.memory import Memory, MemoryKind, MemoryService
 from siro.core.memory_curation import (
+    PROMPT_VERSION,
     CurationDecision,
     CurationOp,
     Tier,
@@ -125,6 +126,7 @@ class MemoryCurationDryRun:
             "importance": decision.importance,
             "tier": decision.tier.value,
             "method": decision.method,
+            "prompt": PROMPT_VERSION if decision.method == "model" else None,
         }
         self._path.parent.mkdir(parents=True, exist_ok=True)
         lines = self._path.read_text(encoding="utf-8").splitlines() if self._path.exists() else []

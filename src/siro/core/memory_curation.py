@@ -80,18 +80,37 @@ def exact_duplicate(candidate: Memory, neighbors: Sequence[Memory]) -> Memory | 
     return next((m for m in neighbors if normalize(m.text) == key), None)
 
 
+PROMPT_VERSION = "v2"
+
+# v2 follows Mem0's update rules (mem0/configs/prompts.py DEFAULT_UPDATE_MEMORY_PROMPT:
+# same meaning -> NONE, same subject with more or changed detail -> UPDATE, contradiction ->
+# DELETE) with its pizza examples, and the Generative Agents importance anchors (§4.1:
+# 1 = brushing teeth / making bed, 10 = a break up / college acceptance). The research-note
+# rule comes from the owner: repeated "I looked into X" notes are low-value duplicates.
+_DECISION_RULES = (
+    "你是 SIRO 的記憶整理。把「新記憶」和「既有記憶」逐筆比較，只選一種操作。\n"
+    "先判斷：新記憶和哪一筆既有記憶講的是同一個對象或主題？\n"
+    "- NOOP：某筆既有記憶已經表達同樣的意思（換句話說也算），或新記憶沒有保存價值。\n"
+    "- UPDATE：和某筆既有記憶是同一對象或主題，但新記憶多了細節或內容有變，應合併成一筆。\n"
+    "- DELETE：新記憶和某筆既有記憶互相矛盾，舊的不再成立。\n"
+    "- ADD：沒有任何既有記憶講同一對象或主題。只有確定是全新的事才選 ADD。\n"
+    "SIRO 自己的研究筆記（「我自己查過…」）只要主題相同或重疊，就選 UPDATE，不要 ADD。\n"
+    "例子：既有「喜歡起司披薩」，新「很愛起司披薩」→ NOOP；"
+    "既有「喜歡打板球」，新「喜歡和朋友打板球」→ UPDATE；"
+    "既有「喜歡起司披薩」，新「不喜歡起司披薩」→ DELETE；"
+    "既有「是軟體工程師」，新「名字是小明」→ ADD。\n"
+    "importance：1 到 10 的整數，1 是完全瑣碎的日常（刷牙、鋪床），"
+    "10 是非常深刻的事（分手、考上大學）。SIRO 自己的研究筆記通常是 1 到 3。\n"
+    "UPDATE、DELETE 必須填 target（既有記憶編號）；NOOP 若是因為已有相同記憶，也填 target。"
+    "只輸出 JSON："
+    '{"op": "ADD|UPDATE|DELETE|NOOP", "target": [編號], '
+    '"importance": 整數, "reason": "一句話"}\n'
+)
+
+
 def decision_prompt(candidate: Memory, neighbors: Sequence[Memory]) -> str:
     listed = "\n".join(f"[{index}] {m.text}" for index, m in enumerate(neighbors))
-    return (
-        "你是 SIRO 的記憶整理。比較「新記憶」和「既有記憶」，只選一種操作：\n"
-        "ADD＝沒有相同意思的既有記憶；UPDATE＝和某筆既有記憶講同一件事，應合併成一筆；"
-        "DELETE＝新記憶推翻了某筆既有記憶（舊的不再成立）；NOOP＝既有記憶已涵蓋，不需要存。\n"
-        "UPDATE 和 DELETE 必須填 target（既有記憶編號）。importance 是 1 到 10 的整數，"
-        "1 是瑣碎，10 是非常重要。只輸出 JSON："
-        '{"op": "ADD|UPDATE|DELETE|NOOP", "target": [編號], '
-        '"importance": 整數, "reason": "一句話"}\n'
-        f"既有記憶：\n{listed or '（沒有）'}\n新記憶：{candidate.text}"
-    )
+    return f"{_DECISION_RULES}既有記憶：\n{listed or '（沒有）'}\n新記憶：{candidate.text}"
 
 
 def parse_decision(raw: str | None, neighbors: Sequence[Memory], tier: Tier) -> CurationDecision:
