@@ -69,9 +69,7 @@ def test_typing_secrets_refused(monkeypatch: pytest.MonkeyPatch) -> None:
         "secret_field"
     )
     assert gate.check(InputAction("type", text="sk-" + "a" * 24)).reason == "secret_text"
-    assert gate.check(InputAction("type", text="x canary-value-123456")).reason == (
-        "secret_text"
-    )
+    assert gate.check(InputAction("type", text="x canary-value-123456")).reason == ("secret_text")
     assert gate.check(InputAction("type", text="a" * 201)).reason == "text_length"
     assert gate.check(InputAction("type", text="hello")).allowed
 

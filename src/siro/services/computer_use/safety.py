@@ -88,6 +88,10 @@ class ControlGate:
     def enabled(self) -> bool:
         return self._enabled and not self._tripped
 
+    @property
+    def tripped(self) -> bool:
+        return self._tripped
+
     def enable(self) -> None:
         self._tripped = False
         self._enabled = True
