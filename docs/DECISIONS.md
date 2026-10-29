@@ -668,3 +668,13 @@ source gate只授權讀，寫入另需既有Policy的序列化lease；取消等�
 原子source重驗＋revision CAS＋命令hash readback，未知不盲重送，編輯以新owner來源替換。
 詳[memory-evolution/MEM-03-C-CONTRACT.md](memory-evolution/MEM-03-C-CONTRACT.md)。
 正式Policy adapter／UI未接，MEM02與主MEM03 gate保留，release schema上限不放寬。
+
+## D80 — CONSOLE-REDESIGN / 控制台只留對話與監控、記憶自我整理、主線／子線（2026-10-29）
+
+使用者2026-10-29明確要求：任務／記憶／設定等獨立頁面「缺乏必要與實用性」，藏起來不算解決，
+以Hermes Agent為參照（無此類頁面）。本條**取代**`EXPERIENCE.md`2026-10-15「對話、任務、記憶、能力
+與設定須有獨立可到達畫面」及D69–D75中以獨立頁為前提的部分。新產品入口只有「對話」與唯讀「監控」；
+記憶、任務、技能批准改在對話中以卡片處理，kill switch保留（安全機制）。記憶改為核心／檔案兩層＋
+寫入閘門＋背景整理，不按時間硬刪；背景工作移出主線成子線，主線只收摘要。完整依據、來源與分階段：
+[collaboration/CONSOLE-REDESIGN-PLAN.md](collaboration/CONSOLE-REDESIGN-PLAN.md)。
+`docs/evidence/`下的歷史腳本對應舊介面，封存不改；`tests/integration/test_frontend_*`於P4移除頁面時同步處理。
