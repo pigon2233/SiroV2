@@ -2780,6 +2780,11 @@ def _run_gateway(
             device_id=mqtt_device_id,
             username=os.environ.get("SIRO_ESP32_MQTT_USERNAME") or None,
             password=os.environ.get("SIRO_ESP32_MQTT_PASSWORD") or None,
+            diag_log=(
+                data_dir / "esp32-diag.jsonl"
+                if os.environ.get("SIRO_ESP32_MQTT_DIAG_LOG") == "1"
+                else None
+            ),
         )
 
         async def read_esp32_mqtt_state() -> dict[str, Any]:

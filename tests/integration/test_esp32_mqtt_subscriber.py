@@ -168,3 +168,44 @@ async def test_esp32_state_endpoint_merges_mqtt_device_and_keeps_http_fields(
             headers={"Authorization": f"Bearer {session.json()['token']}"},
         )
     assert off.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_diag_topic_is_logged_to_capped_jsonl_when_enabled(tmp_path: Path) -> None:
+    port = free_port()
+    broker = Broker(
+        {
+            "listeners": {"default": {"type": "tcp", "bind": f"127.0.0.1:{port}"}},
+            "plugins": {
+                "amqtt.plugins.authentication.AnonymousAuthPlugin": {"allow_anonymous": True}
+            },
+        }
+    )
+    await broker.start()
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    registry = DeviceRegistry(
+        SQLiteDeviceRepository(store), WorldModel(SQLiteWorldRepository(store))
+    )
+    await registry.register(mqtt_sensor_descriptor("node-mqtt"))
+    log = tmp_path / "diag" / "esp32-diag.jsonl"
+    subscriber = Esp32MqttSubscriber(
+        registry, host="127.0.0.1", port=port, device_id="node-mqtt", diag_log=log
+    )
+    subscriber.start()
+    try:
+        await asyncio.wait_for(subscriber.connected.wait(), 5)
+        diag = {"rssi": -70, "pir_pulses_10s": 2, "fw": "1.0.3", "nested": {"x": 1}}
+        async with aiomqtt.Client("127.0.0.1", port) as publisher:
+            await publisher.publish("siro/devices/node-mqtt/diag", b"not json", qos=0)
+            await publisher.publish("siro/devices/node-mqtt/diag", json.dumps(diag), qos=0)
+        for _ in range(50):
+            if log.exists():
+                break
+            await asyncio.sleep(0.1)
+        line = json.loads(log.read_text(encoding="utf-8").splitlines()[0])
+        assert line["rssi"] == -70 and line["pir_pulses_10s"] == 2 and line["fw"] == "1.0.3"
+        assert "nested" not in line and "ts" in line
+    finally:
+        await subscriber.close()
+        await broker.shutdown()

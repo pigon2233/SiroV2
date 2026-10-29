@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import aiomqtt
@@ -22,6 +24,7 @@ from siro.services.devices.mqtt import MqttStateProjector
 
 _LOGGER = logging.getLogger(__name__)
 _TTL_MS = 20_000
+_DIAG_LOG_LIMIT = 4_000_000
 
 
 def mqtt_sensor_descriptor(device_id: str, *, location: str | None = None) -> DeviceDescriptor:
@@ -76,6 +79,7 @@ class Esp32MqttSubscriber:
         password: str | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         max_backoff: float = 30.0,
+        diag_log: Path | None = None,
     ) -> None:
         self._registry = registry
         self._projector = MqttStateProjector(registry)
@@ -86,6 +90,7 @@ class Esp32MqttSubscriber:
         self._password = password
         self._clock = clock
         self._max_backoff = max_backoff
+        self._diag_log = diag_log
         self._task: asyncio.Task[None] | None = None
         self.connected = asyncio.Event()
 
@@ -107,7 +112,10 @@ class Esp32MqttSubscriber:
                     self._host, self._port, username=self._username, password=self._password
                 ) as client:
                     prefix = f"siro/devices/{self._device_id}/"
-                    await client.subscribe([(prefix + "state", 1), (prefix + "availability", 1)])
+                    topics = [(prefix + "state", 1), (prefix + "availability", 1)]
+                    if self._diag_log is not None:
+                        topics.append((prefix + "diag", 0))
+                    await client.subscribe(topics)
                     self.connected.set()
                     delay = 1.0
                     async for message in client.messages:
@@ -132,6 +140,8 @@ class Esp32MqttSubscriber:
                 if retained:  # Replayed state may be stale; the node republishes every 10 s.
                     return
                 await self._projector.handle_state(self._device_id, payload)
+            elif kind == "diag":
+                self._record_diag(payload)
             elif kind == "availability":
                 text = payload.decode("utf-8", "replace")
                 if text == "online":
@@ -145,6 +155,29 @@ class Esp32MqttSubscriber:
                 )
         except (ValueError, KeyError) as error:
             _LOGGER.warning("ESP32 MQTT message rejected: %s", type(error).__name__)
+
+    def _record_diag(self, payload: bytes) -> None:
+        """Append one node diagnostics line (numbers/strings only) to a size-capped JSONL file."""
+
+        if self._diag_log is None or len(payload) > 2048:
+            return
+        parsed = json.loads(payload)
+        if not isinstance(parsed, dict):
+            raise ValueError("invalid diagnostics payload")
+        line: dict[str, object] = {"ts": self._clock().isoformat()}
+        line.update(
+            {
+                str(key): value
+                for key, value in parsed.items()
+                if isinstance(value, (int, float, str))
+            }
+        )
+        path = self._diag_log
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists() and path.stat().st_size > _DIAG_LOG_LIMIT:
+            path.replace(path.with_suffix(".jsonl.1"))  # Keep exactly one previous file.
+        with path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
 __all__ = ["Esp32MqttSubscriber", "mqtt_sensor_descriptor", "mqtt_sensor_state_snapshot"]
