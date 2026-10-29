@@ -12,8 +12,9 @@ import json
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from siro.core.memory import Memory
 
@@ -142,3 +143,42 @@ def parse_decision(raw: str | None, neighbors: Sequence[Memory], tier: Tier) -> 
         importance = None
     reason = str(body.get("reason", ""))[:200]
     return CurationDecision(op, tuple(dict.fromkeys(targets)), reason, importance, tier, "model")
+
+
+def is_explicit(memory: Memory) -> bool:
+    """Owner "記住…" memories have a deterministic id (MemoryService.ingest_owner_request)."""
+    return any(
+        memory.memory_id
+        == uuid5(NAMESPACE_URL, f"siro:owner-memory:{memory.identity_id}:{source_id}")
+        for source_id in memory.source_event_ids
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class Expiry:
+    memory_id: UUID
+    valid_to: datetime
+    reason: str
+
+
+def plan_apply(
+    decision: CurationDecision, candidate: Memory, targets: Sequence[Memory], *, now: datetime
+) -> list[Expiry]:
+    """What applying a decision changes. Explicit owner memories are never touched, and an
+    UNKNOWN or ADD decision changes nothing. Invalidation keeps text, sources and revisions."""
+    if decision.method not in {"exact", "model"}:
+        return []
+    if decision.op is CurationOp.NOOP:
+        if decision.target_ids and not is_explicit(candidate):
+            return [Expiry(candidate.memory_id, now, "duplicate of an existing memory")]
+        return []
+    if decision.op in {CurationOp.UPDATE, CurationOp.DELETE}:
+        reason = (
+            "merged into a newer memory" if decision.op is CurationOp.UPDATE else "contradicted"
+        )
+        return [
+            Expiry(target.memory_id, max(candidate.created_at, target.created_at), reason)
+            for target in targets
+            if target.memory_id in decision.target_ids and not is_explicit(target)
+        ]
+    return []

@@ -173,6 +173,10 @@ class MemoryRepository(Protocol):
 
     async def delete(self, memory_id: UUID, *, reason: str, deleted_at: datetime) -> bool: ...
 
+    async def set_valid_to(
+        self, memory_id: UUID, valid_to: datetime | None, *, reason: str, changed_at: datetime
+    ) -> Memory | None: ...
+
     async def revisions(self, memory_id: UUID) -> list[MemoryRevision]: ...
 
     async def list_active(
@@ -323,6 +327,14 @@ class MemoryService:
         if not text.strip():
             raise ValueError("corrected memory text cannot be empty")
         return await self._repository.correct(memory_id, text, source_event, reason=reason)
+
+    async def expire(
+        self, memory_id: UUID, valid_to: datetime | None, *, reason: str
+    ) -> Memory | None:
+        """Mark a memory as no longer valid from `valid_to` (None reopens it); never deletes."""
+        return await self._repository.set_valid_to(
+            memory_id, valid_to, reason=reason, changed_at=datetime.now(UTC)
+        )
 
     async def delete(self, memory_id: UUID, *, reason: str = "owner deletion") -> bool:
         return await self._repository.delete(memory_id, reason=reason, deleted_at=datetime.now(UTC))

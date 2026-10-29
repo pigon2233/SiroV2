@@ -363,7 +363,7 @@
             <section class="mon-group" aria-labelledby="mon-esp-heading"><h2 id="mon-esp-heading">ESP32 感測器</h2><p>節點約每 10 秒回報；超過 20 秒沒更新標示為過期。</p><div class="mon-grid" id="mon-esp"></div></section>
             <section class="mon-group" aria-labelledby="mon-pc-heading"><h2 id="mon-pc-heading">電腦狀態（僅顯示，不給 SIRO）</h2><p id="mon-pc-note"></p><div class="mon-grid" id="mon-pc"></div></section>
             <section class="mon-group" aria-labelledby="mon-siro-heading"><h2 id="mon-siro-heading">SIRO 知道的與正在用的</h2><p>工作情境是 SIRO 實際取得的電腦資訊；模型與開關是目前路由。</p><div class="mon-grid" id="mon-siro"></div></section>
-            <section class="mon-group" aria-labelledby="mon-mem-heading"><h2 id="mon-mem-heading">記憶整理（試跑）</h2><p>每筆新記憶寫入後，SIRO 判斷整理規則會怎麼處理；目前只記錄，不會改動或刪除任何記憶。<button id="mon-mem-backfill" type="button">用現有記憶試跑一次</button></p><div class="mon-grid" id="mon-mem-summary"></div><div class="mon-card"><ul class="mon-list" id="mon-mem"></ul></div></section>
+            <section class="mon-group" aria-labelledby="mon-mem-heading"><h2 id="mon-mem-heading">記憶整理（試跑）</h2><p><span id="mon-mem-note">每筆新記憶寫入後，SIRO 判斷會怎麼處理；目前只記錄，不會改動任何記憶。</span> <button id="mon-mem-backfill" type="button">用現有記憶試跑一次</button> <button id="mon-mem-mode" type="button" aria-pressed="false">開始真正整理</button></p><div class="mon-grid" id="mon-mem-summary"></div><div class="mon-card"><ul class="mon-list" id="mon-mem"></ul></div></section>
             <section class="mon-group" aria-labelledby="mon-act-heading"><h2 id="mon-act-heading">最近活動</h2><div class="mon-card"><ul class="mon-list" id="mon-activity"></ul></div></section>
           </section>
           <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
@@ -899,30 +899,59 @@
         monitorView.timer = setTimeout(() => pollMonitor(epoch), MONITOR_POLL_MS);
       }
       const CURATION_OPS = {ADD:"新增", UPDATE:"合併", DELETE:"標為失效", NOOP:"不存", UNKNOWN:"沒判斷"};
+      let curationMode = "dry-run";
       function renderCuration(data) {
-        const button = document.querySelector("#mon-mem-backfill");
+        const button = document.querySelector("#mon-mem-backfill"), toggle = document.querySelector("#mon-mem-mode");
+        curationMode = data?.mode || "dry-run";
+        const applying = curationMode === "apply";
         button.disabled = !data?.available || data.backfill === "running";
-        button.textContent = data?.backfill === "running" ? "試跑中…" : "用現有記憶試跑一次";
+        button.textContent = data?.backfill === "running" ? "整理中…" : applying ? "現在整理現有記憶" : "用現有記憶試跑一次";
+        toggle.disabled = !data?.available;
+        toggle.textContent = applying ? "改回只試跑" : "開始真正整理";
+        toggle.setAttribute("aria-pressed", String(applying));
+        document.querySelector("#mon-mem-heading").textContent = applying ? "記憶整理（套用中）" : "記憶整理（試跑）";
+        document.querySelector("#mon-mem-note").textContent = applying
+          ? "重複的會標為失效、被取代的會合併到較新的一筆；不會刪除，每筆都能按「還原」。你明確說「記住」的不會被自動動到。"
+          : "每筆新記憶寫入後，SIRO 判斷會怎麼處理；目前只記錄，不會改動任何記憶。";
         if (!data?.available) {
           document.querySelector("#mon-mem-summary").innerHTML = monCard("記憶整理", "讀不到", "服務需要重新啟動才會有這個入口", {stale: true});
           document.querySelector("#mon-mem").innerHTML = "";
           return;
         }
         const records = data.records || [], counts = {};
-        for (const r of records) counts[r.op] = (counts[r.op] || 0) + 1;
-        document.querySelector("#mon-mem-summary").innerHTML = Object.keys(CURATION_OPS).map(op => monCard(CURATION_OPS[op], `${counts[op] || 0}`, `最近 ${records.length} 筆判斷`)).join("");
-        document.querySelector("#mon-mem").innerHTML = records.slice(-15).reverse().map(r => {
+        let changed = 0;
+        for (const r of records) { counts[r.op] = (counts[r.op] || 0) + 1; if (r.applied?.length && !r.undone) changed += r.applied.length; }
+        document.querySelector("#mon-mem-summary").innerHTML = [...Object.keys(CURATION_OPS).map(op => monCard(CURATION_OPS[op], `${counts[op] || 0}`, `最近 ${records.length} 筆判斷`)), monCard("已標為失效", `${changed}`, "可逐筆還原")].join("");
+        const listHtml = records.slice(-15).reverse().map(r => {
           const target = r.targets?.length ? ` → ${r.targets.map(t => monEsc(t.text)).join("、")}` : "";
-          const why = [r.reason, r.tier === "core" ? "核心層" : "檔案層", r.mode === "backfill" ? "試跑" : "即時"].filter(Boolean).map(monEsc).join(" · ");
-          return `<li><span><strong>${CURATION_OPS[r.op] || monEsc(r.op)}</strong> ${monEsc(r.text)}${target}<small style="display:block;color:var(--muted)">${why}</small></span><time datetime="${monEsc(r.at)}">${monClock(r.at)}</time></li>`;
-        }).join("") || "<li>還沒有判斷紀錄；有新記憶或按上方按鈕試跑後會出現。</li>";
+          const why = [r.reason, r.tier === "core" ? "核心層" : "檔案層", r.mode === "backfill" ? "整理現有" : "即時"].filter(Boolean).map(monEsc).join(" · ");
+          const done = r.applied?.length ? (r.undone ? "<small style=\"display:block;color:var(--muted)\">已還原</small>" : `<small style="display:block;color:var(--warning)">已標為失效：${r.applied.map(a => monEsc(a.text)).join("、")}</small><button type="button" data-undo="${monEsc(r.record_id)}">還原</button>`) : "";
+          return `<li><span><strong>${CURATION_OPS[r.op] || monEsc(r.op)}</strong> ${monEsc(r.text)}${target}<small style="display:block;color:var(--muted)">${why}</small>${done}</span><time datetime="${monEsc(r.at)}">${monClock(r.at)}</time></li>`;
+        }).join("") || "<li>還沒有判斷紀錄；有新記憶或按上方按鈕後會出現。</li>";
+        // Re-render only on change so a 還原 button is not replaced under the pointer.
+        const list = document.querySelector("#mon-mem");
+        if (list.dataset.html !== listHtml) { list.innerHTML = listHtml; list.dataset.html = listHtml; }
       }
       function initializeCurationControls() {
         const button = document.querySelector("#mon-mem-backfill");
         button.onclick = async () => {
-          button.disabled = true; button.textContent = "試跑中…";
+          button.disabled = true; button.textContent = "整理中…";
           try { await authorizedFetch("/v1/memory-curation/backfill", {method: "POST"}); } catch {}
         };
+        const toggle = document.querySelector("#mon-mem-mode");
+        toggle.onclick = async () => {
+          toggle.disabled = true;
+          const mode = curationMode === "apply" ? "dry-run" : "apply";
+          try { await authorizedFetch("/v1/memory-curation/mode", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({mode})}); curationMode = mode; } catch {}
+          monitorPageChanged();
+        };
+        document.querySelector("#mon-mem").addEventListener("click", async event => {
+          const undo = event.target.closest?.("[data-undo]");
+          if (!undo) return;
+          undo.disabled = true;
+          try { await authorizedFetch(`/v1/memory-curation/${encodeURIComponent(undo.dataset.undo)}/undo`, {method: "POST"}); } catch {}
+          monitorPageChanged();
+        });
       }
       function monitorPageChanged() {
         const epoch = ++monitorView.epoch;

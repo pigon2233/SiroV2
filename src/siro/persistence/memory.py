@@ -594,6 +594,39 @@ class SQLiteMemoryRepository:
 
         return await self._store.run_transaction(write)
 
+    async def set_valid_to(
+        self, memory_id: UUID, valid_to: datetime | None, *, reason: str, changed_at: datetime
+    ) -> Memory | None:
+        """Close (or reopen) a memory's validity; text, sources and revisions stay."""
+
+        def write(connection: sqlite3.Connection) -> Memory | None:
+            row: sqlite3.Row | None = connection.execute(
+                "SELECT * FROM memories WHERE memory_id = ? AND deleted_at IS NULL "
+                "AND status = 'committed'",
+                (str(memory_id),),
+            ).fetchone()
+            if row is None:
+                return None
+            connection.execute(
+                "UPDATE memories SET valid_to = ?, revision = revision + 1 WHERE memory_id = ?",
+                (valid_to.isoformat() if valid_to else None, str(memory_id)),
+            )
+            updated = connection.execute(
+                "SELECT * FROM memories WHERE memory_id = ?", (str(memory_id),)
+            ).fetchone()
+            assert updated is not None
+            memory = self._to_memory(connection, updated)
+            self._insert_revision(connection, memory, reason=reason, changed_at=changed_at)
+            connection.execute("DELETE FROM memory_fts WHERE memory_id = ?", (str(memory_id),))
+            connection.execute("DELETE FROM memory_vectors WHERE memory_id = ?", (str(memory_id),))
+            if (valid_to is None or valid_to > changed_at) and self._visible(
+                connection, updated, changed_at
+            ):
+                self._index(connection, memory)
+            return memory
+
+        return await self._store.run_transaction(write)
+
     async def delete(self, memory_id: UUID, *, reason: str, deleted_at: datetime) -> bool:
         def write(connection: sqlite3.Connection) -> bool:
             descendants = connection.execute(

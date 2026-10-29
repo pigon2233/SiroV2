@@ -205,3 +205,8 @@ skill_activation,skill_candidate,task_detail}.py`；`docs/evidence/` 下的歷�
   結論：P2b 真正啟用前須先調整判斷提示並以正反例集量測，不可直接開啟。
 - 2026-10-29 P2b 完成（仍為試跑）：判斷提示 v2 依 Mem0 更新規則＋Generative Agents 重要度錨點；30 題合成案例 × 3 次，
   gemma4:e4b 正確率 v1 73/90 → v2 89/90，誤丟新記憶 0、誤刪 0。詳 [MEM-CURATION-P2b](../verification/MEM-CURATION-P2b/REPORT.md)。
+- 2026-10-29 P2c 完成：可切換「試跑／套用」（預設試跑，存在 `$SIRO_DATA_DIR/memory-curation/mode`）。套用時 NOOP 把新的重複筆標為失效、
+  UPDATE／DELETE 把被取代或被推翻的舊筆標為失效（`valid_to`，保留文字、來源與 revision）；明確「記住」的記憶依其決定性 id 辨識，永不自動處理；
+  UNKNOWN、ADD、前景忙碌時不動。每筆可從監控頁「還原」（重新開啟並記 revision）。新 repository 方法 `set_valid_to`，未改 schema。
+  已知限制：標為失效後只有帶 `as_of` 的檢索（對話 prompt 用的 `recall_context`）會排除；記憶頁搜尋與 browse 仍列出，P4 移除記憶頁時一併處理。
+  真實記憶複本以 v2 試跑：9 筆 → ADD 3、UPDATE 6；其中「環境干擾案例」併入「情境感知／環境適應」屬跨主題，可能誤併，可還原。

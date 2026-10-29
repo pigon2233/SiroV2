@@ -93,6 +93,16 @@ class FakeMemoryService:
     async def remember(self, *_args: object) -> None:  # pragma: no cover - must not be called
         self.writes += 1
 
+    async def expire(self, memory_id, valid_to, *, reason: str):  # type: ignore[no-untyped-def]
+        self.writes += 1
+        for index, item in enumerate(self.items):
+            if item.memory_id == memory_id:
+                from dataclasses import replace
+
+                self.items[index] = replace(item, valid_to=valid_to)
+                return self.items[index]
+        return None
+
 
 @pytest.mark.asyncio
 async def test_backfill_records_decisions_without_writing(tmp_path: Path) -> None:
@@ -166,3 +176,87 @@ async def test_log_is_bounded(tmp_path: Path, monkeypatch) -> None:
     for index in range(5):
         await curator.observe(memory(f"第{index}件事", index), "siro.presentation")
     assert len(await curator.records()) == 3
+
+
+def explicit(text: str, minutes: int = 0) -> Memory:
+    from uuid import NAMESPACE_URL, uuid5
+
+    event = uuid4()
+    return Memory(
+        uuid5(NAMESPACE_URL, f"siro:owner-memory:siro:{event}"),
+        "siro",
+        text,
+        (event,),
+        T0 + timedelta(minutes=minutes),
+    )
+
+
+def test_explicit_owner_memories_are_recognised_and_never_expired() -> None:
+    from siro.core.memory_curation import CurationDecision, is_explicit, plan_apply
+
+    owner, auto = explicit("主人喜歡綠茶"), memory("主人喜歡綠茶", 1)
+    assert is_explicit(owner) and not is_explicit(auto)
+    noop = CurationDecision(CurationOp.NOOP, (auto.memory_id,), "", None, Tier.CORE, "exact")
+    assert plan_apply(noop, owner, [auto], now=T0) == []  # the explicit candidate stays
+    delete = CurationDecision(
+        CurationOp.DELETE, (owner.memory_id,), "", None, Tier.ARCHIVE, "model"
+    )
+    assert plan_apply(delete, auto, [owner], now=T0) == []  # the explicit target stays
+
+
+def test_plan_apply_expires_only_cited_non_explicit_memories() -> None:
+    from siro.core.memory_curation import CurationDecision, plan_apply
+
+    old, other, new = memory("a", 0), memory("b", 1), memory("c", 5)
+    update = CurationDecision(CurationOp.UPDATE, (old.memory_id,), "", None, Tier.ARCHIVE, "model")
+    (expiry,) = plan_apply(update, new, [old, other], now=T0)
+    assert expiry.memory_id == old.memory_id and expiry.valid_to == new.created_at
+    noop = CurationDecision(CurationOp.NOOP, (old.memory_id,), "", None, Tier.ARCHIVE, "model")
+    assert [e.memory_id for e in plan_apply(noop, new, [old], now=T0)] == [new.memory_id]
+    for op in (CurationOp.ADD, CurationOp.UNKNOWN):
+        decision = CurationDecision(op, (old.memory_id,), "", None, Tier.ARCHIVE, "model")
+        assert plan_apply(decision, new, [old], now=T0) == []
+    unavailable = CurationDecision(
+        CurationOp.NOOP, (old.memory_id,), "", None, Tier.ARCHIVE, "unavailable"
+    )
+    assert plan_apply(unavailable, new, [old], now=T0) == []
+
+
+@pytest.mark.asyncio
+async def test_apply_mode_expires_and_undo_reopens(tmp_path: Path) -> None:
+    items = [
+        memory("我自己查過「環境干擾」，看過：論文A", 0, MemoryKind.SELF),
+        memory("我自己查過「環境干擾」，看過：論文A", 5, MemoryKind.SELF),
+    ]
+    service = FakeMemoryService(items)
+
+    async def ask(_prompt: str) -> str:  # pragma: no cover - exact duplicates skip the model
+        raise AssertionError
+
+    curator = MemoryCurationDryRun(service, ask, tmp_path / "log.jsonl")  # type: ignore[arg-type]
+    assert curator.mode == "dry-run"
+    await curator.set_mode("apply")
+    assert curator.mode == "apply"
+    await curator.backfill()
+    records = await curator.records()
+    assert records[1]["op"] == "NOOP" and records[1]["applied"][0]["id"] == str(items[1].memory_id)
+    assert service.items[1].valid_to is not None and service.items[0].valid_to is None
+    assert await curator.undo(str(records[1]["record_id"])) == 1
+    assert service.items[1].valid_to is None
+    assert (await curator.records())[1]["undone"] is True
+    assert await curator.undo(str(records[1]["record_id"])) == 0  # undo is not repeated
+
+
+@pytest.mark.asyncio
+async def test_dry_run_never_expires(tmp_path: Path) -> None:
+    items = [memory("主人喜歡綠茶", 0), memory("主人喜歡綠茶", 5)]
+    service = FakeMemoryService(items)
+
+    async def ask(_prompt: str) -> str:  # pragma: no cover
+        raise AssertionError
+
+    curator = MemoryCurationDryRun(service, ask, tmp_path / "log.jsonl")  # type: ignore[arg-type]
+    await curator.backfill()
+    assert service.writes == 0 and all(m.valid_to is None for m in service.items)
+    with pytest.raises(ValueError):
+        await curator.set_mode("delete-everything")

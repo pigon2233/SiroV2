@@ -429,6 +429,11 @@ class GatewayHub:
             await asyncio.gather(*self._closing_tasks, return_exceptions=True)
 
 
+class CurationModeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: Literal["dry-run", "apply"]
+
+
 class TurnInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=32_768)
@@ -1553,13 +1558,40 @@ def create_app(
         """D80 P2a: what the write gate would have done. Nothing here changes memories."""
         require_token(authorization)
         if memory_curation is None:
-            return {"available": False, "dry_run": True, "backfill": "unavailable", "records": []}
+            return {
+                "available": False,
+                "dry_run": True,
+                "mode": "dry-run",
+                "backfill": "unavailable",
+                "records": [],
+            }
         return {
             "available": True,
-            "dry_run": True,
+            "dry_run": memory_curation.mode != "apply",
+            "mode": memory_curation.mode,
             "backfill": memory_curation.backfill_state,
             "records": await memory_curation.records(limit),
         }
+
+    @app.put("/v1/memory-curation/mode")
+    async def memory_curation_mode(
+        body: CurationModeBody, authorization: str | None = Header(default=None)
+    ) -> dict[str, object]:
+        """Owner switch: apply invalidates duplicates and superseded memories (undoable)."""
+        require_token(authorization)
+        if memory_curation is None:
+            raise HTTPException(status_code=503, detail="memory curation is unavailable")
+        await memory_curation.set_mode(body.mode)
+        return {"mode": memory_curation.mode}
+
+    @app.post("/v1/memory-curation/{record_id}/undo")
+    async def memory_curation_undo(
+        record_id: str, authorization: str | None = Header(default=None)
+    ) -> dict[str, object]:
+        require_token(authorization)
+        if memory_curation is None:
+            raise HTTPException(status_code=503, detail="memory curation is unavailable")
+        return {"reopened": await memory_curation.undo(record_id)}
 
     @app.post("/v1/memory-curation/backfill")
     async def memory_curation_backfill(
