@@ -57,6 +57,17 @@ claude.ask 更名、ESP32 韌體屬其他範圍，不碰。本檔只是計畫，
 「自己整理」的共同做法是**寫入時比對相近記憶決定新增／合併／更新／不動**（Mem0），
 加上**背景代理整理**（Letta）。這兩點是本設計的主軸，衰減只用在排序與降級，不直接刪資料。
 
+### 2b. 其他長期使用型代理（2026-10-29 補查，使用者要求）
+
+| 系統 | 查到的做法（來源） | SIRO 採用 | 不採用 |
+| --- | --- | --- | --- |
+| OpenClaw | `MEMORY.md` 精選長期＋`memory/YYYY-MM-DD.md` 每日筆記（只索引、不每輪注入）；session 開始載今天與昨天筆記；壓縮前跑**靜默 memory flush** 先存重點；**dreaming** 評分短期候選，需過 score、recall 次數、query 多樣性三道門才升級；**不可信與系統衍生候選不升級**；混合檢索（向量＋關鍵字）（<https://docs.openclaw.ai/concepts/memory>） | 升級三道門（D1）；網頁研究等不可信來源**只進檔案層、永不升核心**；長對話摘要前先 flush（接 RT-011 `summary.py`）；整理紀錄給人看（對應 DREAMS.md，放監控頁） | 以 Markdown 檔當真實來源（SIRO 已有 SQLite＋來源契約）；官方頁未給數值門檻，不自訂 |
+| Zep／Graphiti | 雙時間軸：事實有效區間 `t_valid/t_invalid` 與系統建立／失效時間分開；新資訊矛盾時把舊事實的 `t_invalid` 設為新事實的 `t_valid`，**不刪除**；新資訊優先；去重用 embedding＋全文混合，再由 LLM 判定（<https://arxiv.org/html/2501.13956>） | 閘門的 DELETE 改為「設定舊記憶 `valid_to`＝新記憶 `valid_from`」並保留 revision；SIRO 已有 `valid_from/valid_to`，不需新表 | 知識圖譜與圖資料庫（新依賴、規模不需要） |
+| ChatGPT | 兩套：明確「已儲存記憶」與會變動、只保留部分細節的「參考聊天紀錄」；官方建議要它一定記得的放已儲存記憶；**暫時聊天不使用也不建立記憶**；關閉記憶不刪除既有資料（<https://help.openai.com/en/articles/8590148-memory-faq>） | 使用者說「記住…」直接進核心層、不參與自動降級；新增「這段不要記」暫時模式（P2 一併做） | 雲端摘要式 memory summary（違反 local-only 底線） |
+| Letta／Hermes | 見 §2 | 已採用 | — |
+
+二手文章提到 OpenClaw 2026 年有大量壓縮相關 bug（fast.io 指南），未核實，只作提醒：flush 須有測試。
+
 ## 3. 目標設計
 
 ### 3.1 前端：兩個畫面
@@ -120,11 +131,13 @@ claude.ask 更名、ESP32 韌體屬其他範圍，不碰。本檔只是計畫，
     主人資料 1,375 字元。超過 80% 時由背景整理器合併（Hermes 建議值）；額滿時不靜默丟棄。
   - **檔案層**（不注入、按需檢索）：其餘記憶全部保留，可用 FTS5＋向量搜尋，等同 Hermes 的 session search。
   - **寫入閘門**（Mem0 方式）：新候選先取最相近 10 筆，再由本機模型選 ADD／UPDATE／DELETE／NOOP。
-    重複的「我自己查過…」會變成 UPDATE（合併主題、累計次數）或 NOOP。DELETE 只作用在被新資訊推翻的記憶，
-    並保留 revision（沿用 MEM-01 契約），不做實體刪除。
-  - **升降級**：用 Generative Agents 的三項分數（recency 0.995／小時、importance 1–10、relevance 餘弦）。
-    整理器依分數決定哪些進核心層、哪些退檔案層。recency 單位從「遊戲小時」改成實際小時是移植，
-    須在 P2 dry-run 用真實資料驗證排序合理後才啟用。
+    重複的「我自己查過…」會變成 UPDATE（合併主題、累計次數）或 NOOP。DELETE 依 Zep 改為失效：
+    舊記憶 `valid_to` 設為新記憶 `valid_from`，保留 revision（沿用 MEM-01 契約），不做實體刪除。
+  - **升降級**：用 Generative Agents 的三項分數（recency 0.995／小時、importance 1–10、relevance 餘弦）排序；
+    升核心層另需過 OpenClaw 式三道門：分數、被檢索次數、被不同問題檢索到（多樣性）。門檻值官方未公開，
+    P2 dry-run 以真實資料取分布後定案並記錄於 DECISIONS。recency 從「遊戲小時」改實際小時亦在此驗證。
+  - **來源限制**：`siro.self-research` 等網頁衍生記憶只進檔案層，不升核心（OpenClaw 排除不可信候選）；
+    使用者明確「記住…」直接進核心層且不自動降級（ChatGPT 已儲存記憶）。
   - 向量：本機已有 `qwen3-embedding:0.6b`（Ollama 實測列出）與 `adapters/models/ollama_embeddings.py`；
     無法取得時退回 FTS5 文字比對，閘門改為只做完全重複的 NOOP，不讓模型憑空判斷。
 - **D2 電腦端數值：新增唯讀系統端點，CPU／記憶體／磁碟用 psutil。**
