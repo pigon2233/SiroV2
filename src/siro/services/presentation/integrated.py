@@ -6,10 +6,11 @@ import asyncio
 import json
 import logging
 import os
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -213,6 +214,10 @@ class IntegratedCompanion:
         self._background: set[asyncio.Task[None]] = set()
         # Set by the gateway when the cloud summarizer exists; None means a local summary.
         self.recap_summarizer: Callable[[str], Awaitable[str]] | None = None
+        # D80 P2a dry-run: told about each committed memory (memory, source, explicit).
+        self.memory_observer: Callable[[Memory, str, bool], Coroutine[Any, Any, None]] | None = (
+            None
+        )
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
         self._planning = False
         # Set by the gateway when the Claude planner is wired.
@@ -471,6 +476,8 @@ class IntegratedCompanion:
             saved, confirm = await AutonomousMemory(self._memory_service, nominate).consider(
                 "siro", source_event
             )
+            for memory in saved:
+                self._observe_memory(memory, source_event.source, explicit=False)
             if saved:
                 await self.share_self_note(
                     "我記下了：" + "；".join(m.text for m in saved) + "（不要的話可在記憶頁刪除）",
@@ -485,6 +492,13 @@ class IntegratedCompanion:
                 )
         except Exception:
             logging.getLogger(__name__).exception("autonomous memory failed")
+
+    def _observe_memory(self, memory: Memory, source: str, *, explicit: bool) -> None:
+        if self.memory_observer is None:
+            return
+        task = asyncio.create_task(self.memory_observer(memory, source, explicit))
+        self._background.add(task)
+        task.add_done_callback(self._background.discard)
 
     async def deliver_reminder(self, item: Reminder, late: bool) -> None:
         """A due reminder: the bubble/chat text, her voice, and one finished Activity entry."""
@@ -803,6 +817,8 @@ class IntegratedCompanion:
                     return
                 if agent_run.run_id in self._terminated:
                     return
+                if stored_memory is not None:
+                    self._observe_memory(stored_memory, source_event.source, explicit=True)
                 if stored_memory is None and os.environ.get("SIRO_AUTO_MEMORY", "1") != "0":
                     # She decides after the reply what is worth keeping; undo = delete.
                     auto = asyncio.create_task(self._auto_memory(session_id, source_event))

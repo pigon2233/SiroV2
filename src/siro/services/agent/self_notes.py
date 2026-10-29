@@ -211,12 +211,14 @@ def share_text(note: dict[str, object]) -> tuple[str, str]:
     return text, f"我剛剛查了{note['topic']}，整理在對話裡了。"  # noqa: RUF001
 
 
-async def remember_note(memory_service: MemoryService, note: dict[str, object]) -> bool:
+async def remember_note(
+    memory_service: MemoryService, note: dict[str, object]
+) -> Memory | None:
     """Keep a short, sourced line about her own research; never the page text (untrusted)."""
     sources = note["sources"]
     assert isinstance(sources, list)
     if not sources:
-        return False
+        return None
     topic = " ".join(str(note["topic"]).split())[:80]
     names = [
         " ".join(str(source["title"] or source["url"]["url"]).split())[:60]
@@ -251,4 +253,4 @@ async def remember_note(memory_service: MemoryService, note: dict[str, object]) 
         confidence=0.6,
     )
     await memory_service.remember(memory, event)
-    return True
+    return memory

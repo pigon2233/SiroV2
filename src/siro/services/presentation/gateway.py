@@ -54,6 +54,7 @@ from siro.services.agent.daily_recap import BedtimeTrigger
 from siro.services.agent.goal_tasks import GoalTaskError, ReadTaskOwner
 from siro.services.agent.home import judge_home, last_chat_at
 from siro.services.agent.interests import InterestPicker, SelfActivityScheduler
+from siro.services.agent.memory_curator import MemoryCurationDryRun
 from siro.services.agent.node_health import NodeHealthWatcher
 from siro.services.agent.organization import MemoryOrganizer
 from siro.services.agent.planning_adapters import (
@@ -93,8 +94,8 @@ from siro.services.context.work_context import (
     ScreenObserver,
     WorkContext,
 )
-from siro.services.presentation.desktop_settings import (
 from siro.services.devices.ota import OtaManifest, build_manifest
+from siro.services.presentation.desktop_settings import (
     load_desktop_settings,
     save_desktop_settings,
 )
@@ -719,6 +720,7 @@ def create_app(
     on_improvement_proposal: Callable[[str], Awaitable[dict[str, object]]] | None = None,
     feature_status: Callable[[], dict[str, object]] | None = None,
     memory_organizer: MemoryOrganizer | None = None,
+    memory_curation: MemoryCurationDryRun | None = None,
     workspace_service: WorkspaceRuntime | None = None,
     on_memory_invalidated: Callable[[], Awaitable[None]] | None = None,
     skill_candidates: SkillCandidatePreparer | None = None,
@@ -730,10 +732,10 @@ def create_app(
     on_esp32_http_state: Callable[[], Awaitable[dict[str, Any]]] | None = None,
     on_esp32_mqtt_state: Callable[[], Awaitable[dict[str, Any]]] | None = None,
     esp32_relay_token: str | None = None,
-    profile_service: ProfileService | None = None,
-    profile_source: SQLiteProfileSource | None = None,
     esp32_ota_image: Path | None = None,
     esp32_ota_version: str | None = None,
+    profile_service: ProfileService | None = None,
+    profile_source: SQLiteProfileSource | None = None,
     profile_auto: ProfileAuto | None = None,
     on_recap: Callable[[], Awaitable[str]] | None = None,
 ) -> FastAPI:
@@ -750,6 +752,7 @@ def create_app(
     candidate_owner = skill_candidates if runtime_profile == "candidate" else None
     activation_owner = skill_activation if runtime_profile == "candidate" else None
     release_started = False
+    background_curation: set[asyncio.Task[int]] = set()
     goal_owner = read_task_owner if runtime_profile == "candidate" else None
 
     def candidate_metadata() -> dict[str, object]:
@@ -987,9 +990,6 @@ def create_app(
             raise HTTPException(status_code=503, detail="daily recap is unavailable")
         return {"text": await on_recap()}
 
-    @app.get("/v1/devices/esp32/state")
-    async def esp32_http_state(
-        authorization: str | None = Header(default=None),
     def ota_manifest(request: Request) -> tuple[OtaManifest, Path]:
         """Loopback + relay token, like the event ingress; the relay forwards to the node."""
         if esp32_relay_token is None or esp32_ota_image is None or esp32_ota_version is None:
@@ -1017,6 +1017,9 @@ def create_app(
             headers={"X-SIRO-Firmware-SHA256": manifest.sha256},
         )
 
+    @app.get("/v1/devices/esp32/state")
+    async def esp32_http_state(
+        authorization: str | None = Header(default=None),
     ) -> dict[str, Any]:
         require_token(authorization)
         if on_esp32_http_state is None and on_esp32_mqtt_state is None:
@@ -1541,6 +1544,36 @@ def create_app(
         require_origin(request.headers.get("origin"))
         owner = task_access(session_id, authorization)
         return {"removed": await task_result(owner.remove(session_id, goal_id, body.revision))}
+
+    @app.get("/v1/memory-curation")
+    async def memory_curation_records(
+        limit: int = Query(default=100, ge=1, le=500),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, object]:
+        """D80 P2a: what the write gate would have done. Nothing here changes memories."""
+        require_token(authorization)
+        if memory_curation is None:
+            return {"available": False, "dry_run": True, "backfill": "unavailable", "records": []}
+        return {
+            "available": True,
+            "dry_run": True,
+            "backfill": memory_curation.backfill_state,
+            "records": await memory_curation.records(limit),
+        }
+
+    @app.post("/v1/memory-curation/backfill")
+    async def memory_curation_backfill(
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, object]:
+        require_token(authorization)
+        if memory_curation is None:
+            raise HTTPException(status_code=503, detail="memory curation is unavailable")
+        if memory_curation.backfill_state == "running":
+            return {"started": False, "backfill": "running"}
+        task = asyncio.create_task(memory_curation.backfill())
+        background_curation.add(task)
+        task.add_done_callback(background_curation.discard)
+        return {"started": True, "backfill": "running"}
 
     @app.get("/v1/memory-organization")
     async def organization_status(
@@ -2336,7 +2369,7 @@ def _run_gateway(
     from siro.persistence.skills import SQLiteSkillRegistry
     from siro.persistence.sqlite import SQLiteStore
     from siro.persistence.state import SQLiteWorldRepository
-    from siro.ports.models import LanguageModel, ModelRequest
+    from siro.ports.models import CancellationToken, LanguageModel, ModelRequest
     from siro.ports.models import Privacy as ModelPrivacy
     from siro.services.audio.stt import GroqWhisper
     from siro.services.devices.http_sensor import (
@@ -3218,6 +3251,39 @@ def _run_gateway(
 
     controller.recap_summarizer = recap_summary
 
+    async def ask_curation(prompt: str) -> str | None:
+        # Default privacy is local-only: curation never goes to a cloud route.
+        request = ModelRequest(prompt, str(uuid4()), max_output_tokens=200)
+        cancellation = CancellationToken()
+        parts: list[str] = []
+
+        async def collect() -> None:
+            async for chunk in model.stream(request, cancellation):
+                if chunk.kind == "text":
+                    parts.append(chunk.text)
+
+        try:
+            await asyncio.wait_for(collect(), 30.0)
+        except Exception:
+            cancellation.cancel()
+            return None
+        return "".join(parts)
+
+    curation = MemoryCurationDryRun(
+        memory_service,
+        ask_curation,
+        data_dir / "memory-curation" / "dry-run.jsonl",
+        busy=lambda: controller.foreground_active,
+    )
+
+    async def observe_memory(memory: Memory, source: str, explicit: bool) -> None:
+        try:
+            await curation.observe(memory, source, explicit=explicit)
+        except Exception:
+            logging.getLogger(__name__).exception("memory curation dry-run failed")
+
+    controller.memory_observer = observe_memory
+
     async def share_finished_note() -> None:
         assert self_notes_service is not None
         for run_id in (await self_notes_service.unshared())[:1]:
@@ -3226,8 +3292,11 @@ def _run_gateway(
                 await controller.share_self_note(*share_text(note), speak=False)
                 self_notes_service.mark_shared(run_id)
                 # Owner decision: sourced notes go into memory by themselves (short, deletable).
+                stored = None
                 with suppress(Exception):
-                    await remember_note(memory_service, note)
+                    stored = await remember_note(memory_service, note)
+                if stored is not None:
+                    await observe_memory(stored, "siro.self-research", False)
 
     self_scheduler = (
         SelfActivityScheduler(
@@ -3456,6 +3525,7 @@ def _run_gateway(
             on_improvement_proposal=controller.improvement_proposal,
             on_turn=controller.respond,
             memory_organizer=organizer,
+            memory_curation=curation,
             workspace_service=workspace,
             on_memory_invalidated=controller.invalidate_memory_context,
             on_cancel=cancel_controller,
@@ -3472,6 +3542,10 @@ def _run_gateway(
             on_esp32_http_state=on_esp32_http_state,
             on_esp32_mqtt_state=on_esp32_mqtt_state,
             esp32_relay_token=esp32_relay_token,
+            esp32_ota_image=Path(ota_image)
+            if (ota_image := os.environ.get("SIRO_ESP32_OTA_IMAGE"))
+            else None,
+            esp32_ota_version=os.environ.get("SIRO_ESP32_OTA_VERSION") or None,
         ),
         host="127.0.0.1",
         port=port,
@@ -3480,7 +3554,3 @@ def _run_gateway(
         # Uvicorn's importer accepts this callable; its published loop annotation is narrower.
         loop=loop_factory,  # type: ignore[arg-type]
     )
-            esp32_ota_image=Path(ota_image)
-            if (ota_image := os.environ.get("SIRO_ESP32_OTA_IMAGE"))
-            else None,
-            esp32_ota_version=os.environ.get("SIRO_ESP32_OTA_VERSION") or None,

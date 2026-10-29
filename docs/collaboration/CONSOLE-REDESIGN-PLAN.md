@@ -192,3 +192,14 @@ claude.ask 更名、ESP32 韌體屬其他範圍，不碰。本檔只是計畫，
 `tests/integration/test_frontend_{goal_tasks,improvement_proposal,keyboard_skip,navigation,reflow,
 skill_activation,skill_candidate,task_detail}.py`；`docs/evidence/` 下的歷史腳本屬已封存證據，不修改，
 只在 DECISIONS 註明它們對應舊介面。P4 移除頁面時，同步改寫或刪除上列測試，並說明每個測試的去向。
+
+## 8. 進度紀錄
+
+- 2026-10-29 P1 完成：監控頁＋`/v1/system/stats`（commit ec2136a、8a038c6）。
+- 2026-10-29 P2a 完成（試跑，不改記憶、不加 schema）：`core/memory_curation.py`（Mem0 四種操作＋分層規則）、
+  `services/agent/memory_curator.py`（寫入後觀察、紀錄到 `$SIRO_DATA_DIR/memory-curation/dry-run.jsonl`，
+  最多 500 筆）、`GET /v1/memory-curation`、`POST /v1/memory-curation/backfill`、監控頁「記憶整理（試跑）」。
+  相近記憶目前用字元雙字組相似度（正式服務沒接向量檢索），已在紀錄的 `method` 欄註明。
+  真實資料複本實測（gemma4:e4b，9 筆，皆為自主研究筆記）：ADD 7、UPDATE 2、NOOP 0、UNKNOWN 0；
+  模型給研究筆記的 importance 為 7–9，**偏高且寬鬆**，同主題的「環境干擾」只合併 1 次。
+  結論：P2b 真正啟用前須先調整判斷提示並以正反例集量測，不可直接開啟。

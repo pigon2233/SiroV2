@@ -37,3 +37,19 @@ async def test_endpoint_requires_session_token() -> None:
         )
     assert response.status_code == 200
     assert "memory" in response.json()
+
+
+@pytest.mark.asyncio
+async def test_memory_curation_endpoint_reports_unavailable_without_owner() -> None:
+    app = create_app()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, client=("127.0.0.1", 12345)),
+        base_url="http://127.0.0.1:8000",
+    ) as client:
+        assert (await client.get("/v1/memory-curation")).status_code == 401
+        session = await client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"})
+        auth = {"authorization": f"Bearer {session.json()['token']}"}
+        body = (await client.get("/v1/memory-curation", headers=auth)).json()
+        assert body["available"] is False and body["dry_run"] is True
+        assert body["records"] == []
+        assert (await client.post("/v1/memory-curation/backfill", headers=auth)).status_code == 503
