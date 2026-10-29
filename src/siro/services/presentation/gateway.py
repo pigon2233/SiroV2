@@ -94,6 +94,7 @@ from siro.services.context.work_context import (
     WorkContext,
 )
 from siro.services.presentation.desktop_settings import (
+from siro.services.devices.ota import OtaManifest, build_manifest
     load_desktop_settings,
     save_desktop_settings,
 )
@@ -731,6 +732,8 @@ def create_app(
     esp32_relay_token: str | None = None,
     profile_service: ProfileService | None = None,
     profile_source: SQLiteProfileSource | None = None,
+    esp32_ota_image: Path | None = None,
+    esp32_ota_version: str | None = None,
     profile_auto: ProfileAuto | None = None,
     on_recap: Callable[[], Awaitable[str]] | None = None,
 ) -> FastAPI:
@@ -987,6 +990,33 @@ def create_app(
     @app.get("/v1/devices/esp32/state")
     async def esp32_http_state(
         authorization: str | None = Header(default=None),
+    def ota_manifest(request: Request) -> tuple[OtaManifest, Path]:
+        """Loopback + relay token, like the event ingress; the relay forwards to the node."""
+        if esp32_relay_token is None or esp32_ota_image is None or esp32_ota_version is None:
+            raise HTTPException(status_code=503, detail="ESP32 OTA is disabled")
+        if request.client is None or request.client.host != "127.0.0.1":
+            raise HTTPException(status_code=403, detail="ESP32 relay must use loopback")
+        presented = request.headers.get("X-SIRO-ESP32-Relay-Token", "")
+        if not secrets.compare_digest(presented, esp32_relay_token):
+            raise HTTPException(status_code=401, detail="ESP32 relay token is invalid")
+        try:
+            return build_manifest(esp32_ota_image, esp32_ota_version), esp32_ota_image
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=503, detail="ESP32 OTA image is unavailable") from error
+
+    @app.get("/v1/devices/esp32/ota/manifest")
+    async def esp32_ota_manifest(request: Request) -> dict[str, object]:
+        return ota_manifest(request)[0].as_json()
+
+    @app.get("/v1/devices/esp32/ota/firmware")
+    async def esp32_ota_firmware(request: Request) -> Response:
+        manifest, image = ota_manifest(request)
+        return Response(
+            image.read_bytes(),
+            media_type="application/octet-stream",
+            headers={"X-SIRO-Firmware-SHA256": manifest.sha256},
+        )
+
     ) -> dict[str, Any]:
         require_token(authorization)
         if on_esp32_http_state is None and on_esp32_mqtt_state is None:
@@ -3450,3 +3480,7 @@ def _run_gateway(
         # Uvicorn's importer accepts this callable; its published loop annotation is narrower.
         loop=loop_factory,  # type: ignore[arg-type]
     )
+            esp32_ota_image=Path(ota_image)
+            if (ota_image := os.environ.get("SIRO_ESP32_OTA_IMAGE"))
+            else None,
+            esp32_ota_version=os.environ.get("SIRO_ESP32_OTA_VERSION") or None,
