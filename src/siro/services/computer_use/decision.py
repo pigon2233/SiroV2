@@ -143,7 +143,8 @@ def _history_text(history: Sequence[StepRecord]) -> str:
         return "(none yet)"
     return "\n".join(
         f"{r.step}. saw: {r.seen or '-'} | did: {r.action} | expected: {r.expect or '-'} | "
-        f"outcome: {r.outcome}; screen changed: {'?' if r.screen_changed is None else r.screen_changed}"
+        f"outcome: {r.outcome}; "
+        f"screen changed: {'?' if r.screen_changed is None else r.screen_changed}"
         for r in history[-8:]
     )
 
