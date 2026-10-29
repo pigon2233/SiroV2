@@ -293,6 +293,19 @@
         .companion-layout { grid-template-columns:minmax(240px,.8fr) minmax(0,1.35fr) 270px; }
         body.siro-control .companion-layout { grid-template-columns:minmax(0,1fr) 270px; }
       }
+      /* Monitor: read-only live values; stale cards fade. */
+      .mon-group { margin-bottom:24px; } .mon-group h2 { font-size:15px; margin:0 0 4px; } .mon-group > p { color:var(--muted); font-size:13px; margin:0 0 10px; }
+      .mon-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px; }
+      .mon-card { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 16px; min-width:0; }
+      .mon-card small { display:block; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+      .mon-value { display:block; font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; margin:2px 0; overflow-wrap:anywhere; }
+      .mon-card.text .mon-value { font-size:16px; line-height:1.4; } .mon-card.stale { opacity:.5; } .mon-card.stale .mon-value::after { content:" 過期"; font-size:12px; font-weight:400; color:var(--warning); }
+      .mon-bar { height:6px; border-radius:3px; background:var(--tint); overflow:hidden; margin-top:6px; } .mon-bar > span { display:block; height:100%; background:var(--action); }
+      .mon-bar.high > span { background:var(--warning); }
+      .mon-ok { color:var(--success); } .mon-off { color:var(--warning); }
+      .mon-list { list-style:none; margin:0; padding:0; } .mon-list li { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--line); overflow-wrap:anywhere; }
+      .mon-list li:first-child { border-top:0; } .mon-list time { color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
+      #monitor-updated { color:var(--muted); font-size:13px; }
     </style>
   </head>
   <body>
@@ -303,6 +316,7 @@
         <nav class="primary-nav" aria-label="工作畫面">
           <div class="nav-group" aria-hidden="true">工作</div>
           <a href="#/chat" data-nav="chat" aria-current="page"><span class="nav-mark" aria-hidden="true">◌</span>對話</a>
+          <a href="#/monitor" data-nav="monitor"><span class="nav-mark" aria-hidden="true">◉</span>監控</a>
           <a href="#/tasks" data-nav="tasks"><span class="nav-mark" aria-hidden="true">☑</span>任務</a>
           <a href="#/memory" data-nav="memory"><span class="nav-mark" aria-hidden="true">◇</span>記憶</a>
           <div class="nav-group" aria-hidden="true">管理</div>
@@ -343,6 +357,13 @@
               </section>
               <aside class="chat-activity" aria-label="SIRO 正在做什麼"><h2>正在做什麼</h2><div id="chat-activity-body"></div><p><a href="#/activity" data-nav="activity">完整活動紀錄</a></p></aside>
             </div>
+          </section>
+          <section class="page-view" data-page="monitor" hidden inert aria-labelledby="monitor-heading">
+            <div class="page-heading"><h1 id="monitor-heading" data-page-heading tabindex="-1">監控</h1><p>只讀數值，每 5 秒更新；打開這頁不會讓 SIRO 做任何事。<span id="monitor-updated"></span></p></div>
+            <section class="mon-group" aria-labelledby="mon-esp-heading"><h2 id="mon-esp-heading">ESP32 感測器</h2><p>節點約每 10 秒回報；超過 20 秒沒更新標示為過期。</p><div class="mon-grid" id="mon-esp"></div></section>
+            <section class="mon-group" aria-labelledby="mon-pc-heading"><h2 id="mon-pc-heading">電腦狀態（僅顯示，不給 SIRO）</h2><p id="mon-pc-note"></p><div class="mon-grid" id="mon-pc"></div></section>
+            <section class="mon-group" aria-labelledby="mon-siro-heading"><h2 id="mon-siro-heading">SIRO 知道的與正在用的</h2><p>工作情境是 SIRO 實際取得的電腦資訊；模型與開關是目前路由。</p><div class="mon-grid" id="mon-siro"></div></section>
+            <section class="mon-group" aria-labelledby="mon-act-heading"><h2 id="mon-act-heading">最近活動</h2><div class="mon-card"><ul class="mon-list" id="mon-activity"></ul></div></section>
           </section>
           <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
             <div class="page-heading"><h1 id="computer-heading" data-page-heading tabindex="-1">電腦協助</h1><p>查看檔案、開啟程式或瀏覽網頁。每個操作都保留授權與結果，範圍以實際能力為準。</p></div>
@@ -515,7 +536,7 @@
           ? "上次工作中斷，有些操作的結果未知。我沒有重新執行；請先確認實際結果。"
           : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
       }
-      const pageTitles = Object.freeze({chat:"對話", tasks:"任務", activity:"活動", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
+      const pageTitles = Object.freeze({chat:"對話", monitor:"監控", tasks:"任務", activity:"活動", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
       let activePage = "chat", navigationInitialized = false, selectedGoalTaskId = null;
       const desktopForm = {
         gpu: document.querySelector("#desktop-gpu"), on: document.querySelector("#desktop-position-on"),
@@ -561,6 +582,7 @@
         if (["settings", "permissions", "capabilities", "computer", "skills", "system"].includes(page)) document.querySelector('.primary-nav [data-nav="settings"]')?.setAttribute("aria-current", "page");
         activePage = page;
         activityPageChanged();
+        monitorPageChanged();
         const title = selectedGoalTaskId ? "任務詳情" : pageTitles[page];
         document.querySelector("#page-title").textContent = title;
         document.querySelector("#tasks-heading").textContent = selectedGoalTaskId ? "任務詳情" : "任務";
@@ -814,6 +836,70 @@
         if (epoch !== activityView.epoch || !activityWanted() || activityView.status !== "ok") return;
         activityView.timer = setTimeout(() => pollActivity(epoch), delay);
       }
+      // Monitor: polls only while its page is open. ESP32 nodes republish every 10 s and the
+      // gateway's availability TTL is 20 s, so older observations are marked stale.
+      const monitorView = {timer: undefined, epoch: 0};
+      const MONITOR_POLL_MS = 5000, MONITOR_STALE_MS = 20000;
+      const monEsc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[ch]);
+      const monAge = iso => iso ? Date.now() - Date.parse(iso) : Infinity;
+      const monClock = iso => iso ? new Date(iso).toLocaleTimeString("zh-TW", {hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false}) : "—";
+      const monBytes = n => n >= 1e12 ? `${(n / 1e12).toFixed(1)} TB` : `${(n / 1e9).toFixed(1)} GB`;
+      function monCard(label, value, note = "", {stale = false, percent, text = false} = {}) {
+        const bar = percent === undefined ? "" : `<div class="mon-bar${percent >= 90 ? " high" : ""}"><span style="width:${Math.min(100, Math.max(0, percent))}%"></span></div>`;
+        return `<div class="mon-card${stale ? " stale" : ""}${text ? " text" : ""}"><small>${monEsc(label)}</small><span class="mon-value">${value}</span>${bar}${note ? `<small>${monEsc(note)}</small>` : ""}</div>`;
+      }
+      const ESP_LABELS = {illuminance: ["亮度", v => `${v} lux`], motion: ["有人移動", v => v ? "有" : "沒有"], button_down: ["按鈕", v => v ? "按住中" : "放開"], button_press_count: ["按鈕次數", v => `${v} 次`], last_button_press_at: ["上次按按鈕", v => monClock(v)]};
+      function renderEspNode(node) {
+        const cards = [];
+        for (const [key, prop] of Object.entries(node?.properties || {})) {
+          if (prop.status !== "known") continue;
+          const [label, format] = ESP_LABELS[key] || [key, v => monEsc(v)];
+          cards.push(monCard(label, monEsc(format(prop.value)), `${node.device_id} · ${monClock(prop.observed_at)}`, {stale: monAge(prop.observed_at) > MONITOR_STALE_MS}));
+        }
+        return cards;
+      }
+      async function monitorJson(url) {
+        const response = await authorizedFetch(url, {headers: {Accept: "application/json"}});
+        if (!response.ok) throw new Error(String(response.status));
+        return response.json();
+      }
+      async function pollMonitor(epoch) {
+        const [esp, pc, snap, context, acts] = await Promise.allSettled(["/v1/devices/esp32/state", "/v1/system/stats", "/v1/snapshot", "/v1/work-context", "/v1/activities?limit=8"].map(monitorJson));
+        if (epoch !== monitorView.epoch) return;
+        const espCards = esp.status === "fulfilled" ? [...renderEspNode(esp.value.mqtt), ...renderEspNode(esp.value)] : [];
+        document.querySelector("#mon-esp").innerHTML = espCards.join("") || monCard("ESP32", esp.status === "fulfilled" ? "沒有資料" : "讀不到", esp.status === "fulfilled" ? "節點尚未回報任何數值" : "感測器入口未啟用或服務未回應", {stale: true});
+        if (pc.status === "fulfilled") {
+          const s = pc.value;
+          document.querySelector("#mon-pc-note").textContent = s.environment === "wsl" ? "SIRO 執行在 WSL：以下是 WSL 虛擬機的數值，不是整台 Windows。" : "";
+          document.querySelector("#mon-pc").innerHTML = [
+            monCard("CPU", `${Math.round(s.cpu_percent)}%`, `${s.cpu_count} 個邏輯核心`, {percent: s.cpu_percent}),
+            monCard("記憶體", `${Math.round(s.memory.percent)}%`, `${monBytes(s.memory.used)} / ${monBytes(s.memory.total)}`, {percent: s.memory.percent}),
+            ...s.disks.map(d => monCard(`磁碟 ${d.path}`, `${Math.round(d.percent)}%`, `${monBytes(d.used)} / ${monBytes(d.total)}`, {percent: d.percent})),
+          ].join("");
+        } else document.querySelector("#mon-pc").innerHTML = monCard("電腦狀態", "讀不到", "服務需要重新啟動才會有這個入口", {stale: true});
+        const siro = [];
+        if (snap.status === "fulfilled") {
+          const r = snap.value.routes || {}, k = snap.value.kill_switches || {};
+          siro.push(monCard("核心", snap.value.health?.core === "healthy" ? '<span class="mon-ok">正常</span>' : `<span class="mon-off">${monEsc(snap.value.health?.core || "未知")}</span>`));
+          siro.push(monCard("對話模型", monEsc(r.model || "—"), r.model_actual ? `實際：${r.model_actual}` : "", {text: true}));
+          siro.push(monCard("語音", monEsc(r.tts || "—"), `辨識：${r.audio || "—"}`, {text: true}));
+          siro.push(monCard("開關", ["cloud", "tools", "microphone"].map(n => `<span class="${k[n] ? "mon-ok" : "mon-off"}">${({cloud:"雲端", tools:"工具", microphone:"麥克風"})[n]}${k[n] ? "開" : "關"}</span>`).join(" "), "", {text: true}));
+        }
+        if (context.status === "fulfilled") {
+          const c = context.value, on = c.scope?.app_metadata || c.scope?.screen;
+          siro.push(monCard("工作情境", on ? monEsc(c.hint || c.status || "沒有觀察") : '<span class="mon-off">關閉</span>', on ? `${(c.observations || []).length} 筆觀察` : "預設全關，SIRO 沒有取得應用程式或螢幕資訊", {text: true}));
+        }
+        document.querySelector("#mon-siro").innerHTML = siro.join("") || monCard("SIRO", "讀不到", "", {stale: true});
+        const items = acts.status === "fulfilled" ? acts.value.activities || [] : [];
+        document.querySelector("#mon-activity").innerHTML = items.map(a => `<li><span>${monEsc(a.reason || a.kind)} · ${monEsc(({running:"進行中", completed:"完成", failed:"失敗", cancelled:"已停止"})[a.state] || a.state)}</span><time datetime="${monEsc(a.created_at)}">${monClock(a.created_at)}</time></li>`).join("") || "<li>還沒有活動</li>";
+        document.querySelector("#monitor-updated").textContent = ` 最後更新 ${monClock(new Date().toISOString())}`;
+        monitorView.timer = setTimeout(() => pollMonitor(epoch), MONITOR_POLL_MS);
+      }
+      function monitorPageChanged() {
+        const epoch = ++monitorView.epoch;
+        clearTimeout(monitorView.timer); monitorView.timer = undefined;
+        if (activePage === "monitor" && controlAuthenticated) pollMonitor(epoch).catch(() => {});
+      }
       // Called on page changes and control connection changes; a reconnect always re-reads the snapshot.
       function activityPageChanged() {
         const epoch = ++activityView.epoch;
@@ -907,11 +993,11 @@
           socket = owner; controlAuthenticated = false;
           let retired = false;
           const abandon = message => {
-            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); if (typeof clearMemorySearch === "function") clearMemorySearch(); if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); ready.reject(new Error(message));
+            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); if (typeof clearMemorySearch === "function") clearMemorySearch(); if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); if (typeof monitorPageChanged === "function") monitorPageChanged(); ready.reject(new Error(message));
           };
           controlDispose = abandon;
           const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
-          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); ready.resolve(); };
+          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); if (typeof monitorPageChanged === "function") monitorPageChanged(); ready.resolve(); };
           socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
         socket.onmessage = event => {
           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;

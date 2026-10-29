@@ -97,6 +97,7 @@ from siro.services.presentation.desktop_settings import (
     load_desktop_settings,
     save_desktop_settings,
 )
+from siro.services.presentation.system_stats import read_system_stats
 from siro.services.tools.claude import (
     CLAUDE_DEFINITION,
     CLAUDE_TOOL,
@@ -994,6 +995,12 @@ def create_app(
         if on_esp32_mqtt_state is not None:
             state["mqtt"] = await on_esp32_mqtt_state()
         return state
+
+    @app.get("/v1/system/stats")
+    async def system_stats(authorization: str | None = Header(default=None)) -> dict[str, object]:
+        require_token(authorization)
+        data_dir = os.environ.get("SIRO_DATA_DIR")
+        return await asyncio.to_thread(read_system_stats, Path(data_dir) if data_dir else None)
 
     @app.post("/v1/session")
     async def issue_session(request: Request) -> dict[str, object]:

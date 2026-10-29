@@ -75,6 +75,7 @@ class PageStructure(HTMLParser):
 
 PAGES = (
     "chat",
+    "monitor",
     "tasks",
     "activity",
     "memory",
