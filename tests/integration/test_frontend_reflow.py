@@ -10,9 +10,8 @@ from playwright.sync_api import Request, sync_playwright
 INDEX = Path(__file__).parents[2] / "src/siro/services/presentation/static/index.html"
 # 320/375/414/768 narrow widths plus 1280x800 and 1920x1080 at 200% page zoom.
 VIEWPORTS = [(320, 568), (375, 667), (414, 896), (768, 1024), (640, 400), (960, 540)]
-DETAIL = "tasks/0123abcd-0000-4000-8000-00000000abcd"
-PAGES = ["chat", "tasks", DETAIL, "activity", "memory", "capabilities", "computer", "skills"]
-PAGES += ["settings", "permissions", "system"]
+# D80: two work pages remain; the activity feed, memories and switches live on the monitor.
+PAGES = ["chat", "monitor"]
 LONG = "這是一段很長的繁體中文合成測試內容用來檢查窄窗換行" * 3
 LONG += " https://example.invalid/" + "a" * 120
 
@@ -20,18 +19,13 @@ LONG += " https://example.invalid/" + "a" * 120
 STRESS = r"""
 L => {
   const longPath = 'docs/' + '長路徑資料夾名稱'.repeat(10) + '/' + 'x'.repeat(120) + '.md';
-  goalTaskViews = [{goal_id: '0123abcd-0000-4000-8000-00000000abcd', state: 'proposed',
-    next_step: null, revision: 3, steps_used: 2, max_steps: 8,
-    deadline: '2026-10-18T23:59:59+08:00',
-    task: {profile: goalTaskProfile, paths: [longPath, 'notes.md'],
-      approved_at: '2026-10-18T10:00:00+08:00', pause_reason: 'interrupted_restart',
-      intent_path: null,
-      observations: [{path: longPath, status: 'completed', sha256: 'a'.repeat(64),
-        read_at: '2026-10-18T10:01:00+08:00', truncated: true,
-        matches: [{line: 12, text: L.slice(0, 250)}], error: null}]}}];
-  goalTaskHasSnapshot = true; renderGoalTasks();
-  renderCapabilities([{name: 'x', display_name: L, availability: 'unavailable',
-    reason_code: 'not_ready', risk_level: 'computer', model_visible: false}]);
+  renderNotes([{topic: L, text: L, truncated: true, created_at: '2026-10-18T10:00:00+08:00',
+    sources: [{title: L, url: {url: 'https://example.invalid/' + 'e'.repeat(200)}}]}]);
+  for (const details of document.querySelectorAll('#mon-notes details')) details.open = true;
+  renderCuration({available: true, mode: 'apply', backfill: 'idle', records: [{record_id: 'r1',
+    at: '2026-10-18T10:00:00+08:00', op: 'UPDATE', text: L, tier: 'archive', mode: 'backfill',
+    reason: L, targets: [{id: 't', text: L}], applied: [{id: 't', text: longPath}],
+    undone: false}]});
   renderSnapshot({authorization_mode: 'safe', identity: {name: L}, health: {}, routes: {},
     kill_switches: {cloud: true, tools: true, microphone: false,
       ['unknown_switch_' + 'y'.repeat(40)]: true}});
@@ -141,8 +135,6 @@ def assert_reflows(rows: list[dict[str, object]]) -> None:
     assert failures == [], json.dumps(failures, ensure_ascii=False, indent=1)
     for row in rows:
         assert row["page"] == str(row["requested"]).split("/")[0]
-        if row["requested"] == DETAIL:
-            assert row["heading"] == "任務詳情"
 
 
 def test_every_page_reflows_at_narrow_and_200_percent_widths() -> None:

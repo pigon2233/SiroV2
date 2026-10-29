@@ -22,9 +22,9 @@ def read_system_stats(data_dir: Path | None = None) -> dict[str, object]:
     memory = psutil.virtual_memory()
     disks = [_disk(Path(Path.cwd().anchor))]
     if data_dir is not None and data_dir.exists():
-        extra = _disk(data_dir)
-        if extra["total"] != disks[0]["total"] or extra["used"] != disks[0]["used"]:
-            disks.append(extra)
+        # Same filesystem as the root: one card is enough (used bytes drift between calls).
+        if data_dir.stat().st_dev != Path(Path.cwd().anchor).stat().st_dev:
+            disks.append(_disk(data_dir))
     release = platform.release()
     return {
         "observed_at": datetime.now(UTC).isoformat(),

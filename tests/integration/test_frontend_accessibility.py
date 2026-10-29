@@ -168,6 +168,6 @@ def test_idle_console_shows_only_the_essentials() -> None:
     html = INDEX.read_text(encoding="utf-8")
     assert '<button id="cancel" type="button" hidden>' in html
     nav = html.split('aria-label="工作畫面"', 1)[1].split("</nav>", 1)[0]
-    # D80: monitor added in P1; tasks/memory/settings leave the nav in P4.
-    assert nav.count("data-nav=") == 5
+    # D80: chat and monitor are the only work pages.
+    assert nav.count("data-nav=") == 2
     assert "context-panel" not in html

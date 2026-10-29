@@ -73,19 +73,8 @@ class PageStructure(HTMLParser):
                 break
 
 
-PAGES = (
-    "chat",
-    "monitor",
-    "tasks",
-    "activity",
-    "memory",
-    "capabilities",
-    "computer",
-    "skills",
-    "settings",
-    "permissions",
-    "system",
-)
+# D80: the console has two work pages; tasks/memory/settings pages were removed.
+PAGES = ("chat", "monitor")
 
 
 def page_structure() -> NodeSpec:
@@ -237,12 +226,10 @@ def test_work_pages_have_separate_dom_and_global_stop_is_outside_them() -> None:
     )
     assert set(panes) == set(PAGES)
     assert owners["messages"] == owners["chat"] == owners["companion"] == "chat"
-    assert owners["goal-task-panel"] == "tasks"
-    assert owners["memory-items"] == "memory"
     assert owners["tool-proposals"] == "chat"  # operation cards live in the conversation
-    assert owners["workspace-file"] == "computer"
-    assert owners["capability-items"] == "capabilities"
-    assert owners["skill-candidate-panel"] == owners["improvement-proposal-panel"] == "skills"
+    # What SIRO knows, its switches and her background work all live on the monitor.
+    for element in ("memory-items", "switches", "context-details", "activity-body", "mon-esp"):
+        assert owners[element] == "monitor"
     assert owners["cancel"] is None
     assert owners["activity-notice"] is None
 
@@ -287,13 +274,13 @@ const listenerCounts=[(listeners.get('hashchange') || []).length,
 initializePageNavigation();
 assert.deepEqual([(listeners.get('hashchange') || []).length,
  (listeners.get('popstate') || []).length],listenerCounts);
-await clickLink(routeLink('tasks'));assertPage('tasks');
+await clickLink(routeLink('monitor'));assertPage('monitor');
 assert(document.activeElement?.hasAttribute('data-page-heading'),
  'A deliberate navigation must move keyboard focus to the work heading');
-assert.equal(document.activeElement.closest('[data-page]').dataset.page,'tasks');
-await clickLink(routeLink('memory'));assertPage('memory');
-history.back();assertPage('tasks');history.back();assertPage('chat');
-history.forward();assertPage('tasks');
+assert.equal(document.activeElement.closest('[data-page]').dataset.page,'monitor');
+await clickLink(routeLink('chat'));assertPage('chat');
+history.back();assertPage('monitor');history.back();assertPage('chat');
+history.forward();assertPage('monitor');
 assert.equal(textarea.value,'尚未送出的繁體中文草稿');
 assert.strictEqual(document.querySelector('#text'),textarea);
 assert.strictEqual(document.querySelector('#companion'),renderer);
@@ -310,7 +297,7 @@ def test_browser_navigation_events_reconcile_without_writing_another_history_ent
     run_navigation(
         f"""
 initializePageNavigation();const before=historyWrites.length;
-location.hash='#/skills';dispatchWindow({json.dumps(event_name)});assertPage('skills');
+location.hash='#/monitor';dispatchWindow({json.dumps(event_name)});assertPage('monitor');
 assert.equal(historyWrites.length,before,'Reading browser history must not push another entry');
 location.hash='#/unknown';dispatchWindow({json.dumps(event_name)});assertPage('chat');
 assert.equal(historyWrites.filter(write=>write.method==='push').length,0);
@@ -344,7 +331,7 @@ await until(()=>targetCalls().length===1);
 const request=targetCalls()[0],pending=pendingSubmission,generation=submissionGeneration;
 const renderer=document.querySelector('#companion'),sessionOwner=sessionAccess;
 owner.message({type:'turn_started',turn_id:'synthetic-preserved-turn'});
-for(const page of ['tasks','memory','computer','system','chat']) navigateToPage(page);
+for(const page of ['monitor','chat','monitor','chat']) navigateToPage(page);
 history.back();history.forward();
 assert.equal(targetCalls().length,1);assert.equal(request.url,'/v1/conversations/browser/turns');
 assert.strictEqual(pendingSubmission,pending);assert(!pending.signal.aborted);
@@ -360,16 +347,16 @@ assert.equal(currentTurn,'synthetic-preserved-turn');assert.equal(targetCalls().
 def test_file_preview_explains_missing_service_and_never_bootstraps_actions() -> None:
     run_navigation(
         """
-location.protocol='file:';await boot();assertPage('permissions');
+location.protocol='file:';await boot();assertPage('monitor');
 assert.equal(calls.length,0);assert.equal(sockets.length,0);assert.equal(timers.size,0);
 assert.equal(document.querySelector('#connection').textContent,'介面預覽');
 assert.equal(document.querySelector('#service-notice').hidden,false);
 assert(document.querySelector('#service-notice').textContent.includes('尚未連接 SIRO'));
 assert(document.querySelectorAll('button, input, textarea').every(control=>control.disabled));
-navigateToPage('tasks');assertPage('tasks');
+navigateToPage('chat');assertPage('chat');
 assert.equal(calls.length,0);assert.equal(sockets.length,0);
 """,
-        initial_hash="#/permissions",
+        initial_hash="#/monitor",
     )
 
 
@@ -377,15 +364,15 @@ def test_incoming_proposals_and_pending_approval_keep_route_and_never_repeat_app
     run_navigation(
         """
 initializePageNavigation();await readyControl();authorizationMode='safe';
-navigateToPage('memory');
+navigateToPage('monitor');
 renderToolProposal({proposal_id:'synthetic-proposal',capability:'computer.execute',
  scope:'synthetic read',target:'synthetic target',risk:'read-only'});
-assertPage('memory');assert.equal(targetCalls().length,0);
+assertPage('monitor');assert.equal(targetCalls().length,0);
 const card=document.querySelector('#tool-synthetic-proposal');
 const approve=card.children.find(child=>child.tagName==='button');assert(approve);
 let resolveApproval;fetchPlan=()=>new Promise(resolve=>{resolveApproval=resolve;});
 const approval=approve.onclick();await until(()=>targetCalls().length===1);
-for(const page of ['computer','tasks','settings','chat','computer']) navigateToPage(page);
+for(const page of ['chat','monitor','chat','monitor']) navigateToPage(page);
 history.back();history.forward();assert(approve.disabled);
 assert.equal(targetCalls().length,1);
 assert.equal(targetCalls()[0].url,'/v1/tool-proposals/synthetic-proposal/approve');
@@ -399,15 +386,15 @@ assert.equal(targetCalls().length,1);assert.equal(sockets.length,1);
 def test_streaming_answer_updates_existing_chat_while_another_work_page_is_open() -> None:
     run_navigation(
         """
-initializePageNavigation();const owner=await readyControl();navigateToPage('tasks');
+initializePageNavigation();const owner=await readyControl();navigateToPage('monitor');
 const messages=document.querySelector('#messages');
 owner.message({type:'turn_started',turn_id:'synthetic-stream-turn'});
 owner.message({type:'assistant_started',stream_id:'synthetic-stream'});
 owner.message({type:'assistant_delta',stream_id:'synthetic-stream',text:'合成來源仍然連續'});
-assertPage('tasks');assert.equal(currentTurn,'synthetic-stream-turn');
+assertPage('monitor');assert.equal(currentTurn,'synthetic-stream-turn');
 assert(messages.textContent.includes('合成來源仍然連續'));
 owner.message({type:'assistant_terminal',stream_id:'synthetic-stream',state:'completed'});
-await flush();assertPage('tasks');assert.equal(currentTurn,undefined);
+await flush();assertPage('monitor');assert.equal(currentTurn,undefined);
 navigateToPage('chat');assert.strictEqual(document.querySelector('#messages'),messages);
 assert(messages.textContent.includes('合成來源仍然連續'));
 assert.equal(targetCalls().length,0,'Returning must not resubmit the turn or replay speech');

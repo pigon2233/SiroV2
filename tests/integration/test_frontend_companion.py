@@ -154,7 +154,6 @@ const first = {type: 'tool_proposal', proposal_id: 'first', capability: 'compute
                scope: 'read', target: 'synthetic first path', risk: 'low'};
 const second = {...first, proposal_id: 'second', target: 'synthetic second path'};
 emit(first); emit(second); emit(first);
-assert.equal(document.querySelector('#computer-panel').open, true);
 const cards = document.querySelector('#tool-proposals').children;
 assert.equal(cards.length, 2);
 assert.deepEqual(cards.map(card => card.id), ['tool-first', 'tool-second']);

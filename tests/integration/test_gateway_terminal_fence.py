@@ -99,7 +99,10 @@ assert(acceptRunEvent({type:'assistant_delta'}));
 """
     )
     subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
-    assert html.index("if (!acceptRunEvent(data)) return;") < html.index("log(data);")
+    # The fence runs before any handler sees the event (the debug log was removed in D80).
+    assert html.index("if (!acceptRunEvent(data)) return;") < html.index(
+        "if (data.type === \"snapshot\") { renderSnapshot(data);"
+    )
 
 
 @pytest.mark.asyncio

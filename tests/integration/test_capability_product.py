@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -181,53 +180,3 @@ async def test_model_round_inventory_is_current_and_preserves_native_pairs(
         assert all(marker not in request.prompt for request in requests)
         assert requests[1].tools == DEFAULT_MODEL_TOOLS
     await hub.shutdown()
-
-
-def test_frontend_inventory_is_read_only_refreshable_and_uses_text_content() -> None:
-    html = Path("src/siro/services/presentation/static/index.html").read_text()
-    script = html[
-        html.index("      function renderCapabilities(") : html.index("      async function refreshProduct(")
-    ]
-    assert "renderCapabilities(runtime.tools)" in html
-    code = r"""
-const assert = require('node:assert/strict');
-class Element {
-  constructor() { this.children = []; this._text = ''; }
-  set textContent(value) { this._text = String(value); this.children = []; }
-  get textContent() { return this._text + this.children.map(c=>c.textContent).join(''); }
-  set innerHTML(value) { throw new Error('metadata entered HTML'); }
-  append(...nodes) { this.children.push(...nodes); }
-  appendChild(node) { this.children.push(node); }
-}
-const root = new Element(), button = new Element();
-const document = {querySelector: s=>s==='#capability-items'?root:button,
-  createElement:()=>new Element()};
-let response = {tools:[]}, failure = false; const calls = [];
-const productRequest = async url=>{
-  calls.push(url); if(failure) throw Error('private-canary'); return response;
-};
-"""
-    checks = r"""
-(async()=>{
-  renderCapabilities([{name:'computer.execute',display_name:'<img src=x onerror=evil()>',
-    availability:'available',risk_level:'computer',model_visible:true}]);
-  assert(root.textContent.includes('<img src=x onerror=evil()>'));
-  assert(root.textContent.includes('仍需檢查授權'));
-  response = {tools:[{name:'browser.read',reason_code:'browser_executable_missing',
-    availability:'unavailable'}]};
-  await button.onclick(); assert(root.textContent.includes('尚未找到可用的瀏覽器'));
-  response = {tools:[{name:'computer.execute',reason_code:'tools_disabled',
-    availability:'unavailable'}]};
-  await button.onclick(); assert(root.textContent.includes('你已暫停電腦操作'));
-  assert(!root.textContent.includes('目前可用'));
-  renderCapabilities([{name:'legacy',available:true}]);
-  assert(root.textContent.includes('尚未提供即時狀態'));
-  failure=true; await button.onclick(); assert(root.textContent.includes('目前無法更新'));
-  assert(!root.textContent.includes('private-canary'));
-  assert(calls.every(url=>url==='/v1/runtime'));
-})().catch(error=>{console.error(error);process.exitCode=1;});
-"""
-    result = subprocess.run(
-        ["node", "-e", code + script + checks], capture_output=True, text=True, timeout=10
-    )
-    assert result.returncode == 0, result.stderr

@@ -53,7 +53,6 @@ assert([...buttons].every(button => !button.disabled));
 MEMORY = r"""
 await readyControl();
 const status = document.querySelector('#memory-search-status');
-const organization = document.querySelector('#organization-status');
 const item = {memory_id:'synthetic-memory', text:'synthetic tea', revision:1,
   source_event_ids:['synthetic-source']};
 fetchPlan = () => response(200, {items:[item]});
@@ -81,7 +80,6 @@ assert(status.textContent.includes(action === 'correct' ? '正在更正' : '正�
 rejectChange(new Error('synthetic failure')); await pending;
 assert(status.textContent.includes(action === 'correct' ? '更正未確認' : '刪除未確認'));
 assert(status.textContent.includes('沒有自動重送'));
-assert(!organization.textContent.includes('synthetic failure'));
 assert(!correct.disabled && !remove.disabled); assert.equal(mutations().length, 1);
 """
     )

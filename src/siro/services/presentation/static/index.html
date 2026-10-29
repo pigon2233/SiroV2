@@ -103,9 +103,7 @@
       summary { cursor:pointer; font-size:15px; font-weight:600; }
       details[open]>summary { margin-bottom:18px; }
       details .content-section { padding:0; border:0; }
-      #events, #snapshot, #workspace-result, #skill-candidate-review, #skill-candidate-files, #improvement-proposal-review { white-space:pre-wrap; overflow-wrap:anywhere; max-height:340px; overflow:auto; font-size:12px; color:var(--muted); }
-      #affect-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
-      .affect-card { font-size:12px; background:var(--soft); border-radius:8px; padding:12px; }
+      #memory-items pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:340px; overflow:auto; font-size:12px; color:var(--muted); }
       .meter { height:4px; background:var(--line); margin-top:6px; } .meter span { display:block; height:100%; background:var(--action); }
       .proposal { border:1px solid var(--line); border-radius:10px; padding:18px; margin:12px 0; font-size:14px; overflow-wrap:anywhere; }
       .proposal p { white-space:pre-wrap; }
@@ -317,10 +315,6 @@
           <div class="nav-group" aria-hidden="true">工作</div>
           <a href="#/chat" data-nav="chat" aria-current="page"><span class="nav-mark" aria-hidden="true">◌</span>對話</a>
           <a href="#/monitor" data-nav="monitor"><span class="nav-mark" aria-hidden="true">◉</span>監控</a>
-          <a href="#/tasks" data-nav="tasks"><span class="nav-mark" aria-hidden="true">☑</span>任務</a>
-          <a href="#/memory" data-nav="memory"><span class="nav-mark" aria-hidden="true">◇</span>記憶</a>
-          <div class="nav-group" aria-hidden="true">管理</div>
-          <a href="#/settings" data-nav="settings"><span class="nav-mark" aria-hidden="true">⚙</span>設定與能力</a>
         </nav>
       </aside>
       <div class="workspace">
@@ -332,7 +326,7 @@
           </div>
         </header>
         <div class="live-status" aria-live="polite"><span id="voice-status">麥克風待命</span><span id="tts-status">TTS 待命</span></div>
-        <div aria-live="polite"><a id="activity-notice" class="activity-notice" href="#/computer" data-nav="computer" hidden>電腦操作有更新，查看授權與結果</a></div>
+        <div aria-live="polite"><a id="activity-notice" class="activity-notice" href="#/monitor" data-nav="monitor" hidden>電腦操作有更新，查看授權與結果</a></div>
         <p id="service-notice" class="activity-notice" role="status" hidden></p>
         <p id="runtime-notice" class="activity-notice" role="status" __SIRO_SETUP_NOTICE_HIDDEN__>__SIRO_SETUP_NOTICE__</p>
         <main class="page-content" id="main-content" tabindex="-1">
@@ -355,70 +349,24 @@
                 
                 <button id="voice-auto" type="button" aria-pressed="false" title="偵測到說話自動錄音，停頓後自動送出；SIRO 說話時不收音">免手動：關</button><label><input id="voice-output" type="checkbox"> 播放語音</label><button id="replay-speech" type="button" disabled title="重新朗讀上一則完整回覆；程式碼內容先不念">重聽上一則全文</button></div></details></div>
               </section>
-              <aside class="chat-activity" aria-label="SIRO 正在做什麼"><h2>正在做什麼</h2><div id="chat-activity-body"></div><p><a href="#/activity" data-nav="activity">完整活動紀錄</a></p></aside>
+              <aside class="chat-activity" aria-label="SIRO 正在做什麼"><h2>正在做什麼</h2><div id="chat-activity-body"></div><p><a href="#/monitor" data-nav="monitor">完整活動紀錄</a></p></aside>
             </div>
           </section>
           <section class="page-view" data-page="monitor" hidden inert aria-labelledby="monitor-heading">
-            <div class="page-heading"><h1 id="monitor-heading" data-page-heading tabindex="-1">監控</h1><p>只讀數值，每 5 秒更新；打開這頁不會讓 SIRO 做任何事。<span id="monitor-updated"></span></p></div>
+            <div class="page-heading"><h1 id="monitor-heading" data-page-heading tabindex="-1">監控</h1><p>數值每 5 秒更新；打開這頁不會讓 SIRO 做任何事，只有按下按鈕才會。<span id="monitor-updated"></span></p></div>
             <section class="mon-group" aria-labelledby="mon-esp-heading"><h2 id="mon-esp-heading">ESP32 感測器</h2><p>節點約每 10 秒回報；超過 20 秒沒更新標示為過期。</p><div class="mon-grid" id="mon-esp"></div></section>
             <section class="mon-group" aria-labelledby="mon-pc-heading"><h2 id="mon-pc-heading">電腦狀態（僅顯示，不給 SIRO）</h2><p id="mon-pc-note"></p><div class="mon-grid" id="mon-pc"></div></section>
             <section class="mon-group" aria-labelledby="mon-siro-heading"><h2 id="mon-siro-heading">SIRO 知道的與正在用的</h2><p>工作情境是 SIRO 實際取得的電腦資訊；模型與開關是目前路由。</p><div class="mon-grid" id="mon-siro"></div></section>
+            <section class="mon-group" aria-labelledby="mon-switch-heading"><h2 id="mon-switch-heading">開關與權限</h2><h3>操作模式</h3><p id="permissions-authorization-status">正在確認目前模式…</p><h3>功能開關</h3><p>「已開啟」表示允許使用這項功能；按下開關可開啟或關閉。開啟功能不會取得額外的操作權限。</p><div id="switches"></div><p id="switch-status" role="status" aria-live="polite"></p></section>
+            <section class="mon-group"><details id="context-details"><summary>工作情境（預設全關）</summary><p>只在你打開的範圍內，讓 SIRO 知道你現在大概在做什麼：看到的、推測的、不知道的分開。關掉後立刻停止取得，也不再使用舊的內容；不開相機或麥克風，標題不保存，鎖屏與密碼／銀行視窗不記錄，也不會送到雲端模型。</p><p id="context-status" aria-live="polite">讀取狀態中…</p><div class="quick-actions"><label><input id="context-app" type="checkbox"> 讓她知道目前用哪類應用程式</label><label><input id="context-screen" type="checkbox"> 讓她偶爾看一眼主螢幕（只量亮度／顏色，不辨識內容）</label></div><form id="context-share" class="quick-actions"><input id="context-text" maxlength="200" aria-label="告訴她你現在在做什麼" placeholder="例如：正在整理報稅資料"><button type="submit">告訴她</button></form><div id="context-items"></div></details></section>
+            <section class="mon-group" aria-labelledby="mon-memory-heading"><h2 id="mon-memory-heading">SIRO 記得的事</h2><p class="section-note">更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p><form id="memory-search-form" role="search" aria-label="搜尋共同記憶"><label for="memory-query">搜尋記憶內容</label><input id="memory-query" type="search" maxlength="4096" placeholder="輸入想找的事情" autocomplete="off"><button type="submit">搜尋記憶</button><button id="memory-search-clear" type="button">清除搜尋</button></form><p id="memory-search-status" role="status" aria-live="polite">每次最多顯示 100 筆記憶。</p><button id="product-refresh" type="button">重新整理記憶</button><div id="memory-items"></div></section>
             <section class="mon-group" aria-labelledby="mon-mem-heading"><h2 id="mon-mem-heading">記憶整理（試跑）</h2><p><span id="mon-mem-note">每筆新記憶寫入後，SIRO 判斷會怎麼處理；目前只記錄，不會改動任何記憶。</span> <button id="mon-mem-backfill" type="button">用現有記憶試跑一次</button> <button id="mon-mem-mode" type="button" aria-pressed="false">開始真正整理</button></p><div class="mon-grid" id="mon-mem-summary"></div><div class="mon-card"><ul class="mon-list" id="mon-mem"></ul></div></section>
-            <section class="mon-group" aria-labelledby="mon-act-heading"><h2 id="mon-act-heading">背景工作</h2><p>SIRO 在對話之外做的事；對話裡只放一句結果，完整內容在這裡。</p><div class="mon-card"><ul class="mon-list" id="mon-activity"></ul></div><h2 style="margin-top:16px">研究筆記</h2><div class="mon-card"><ul class="mon-list" id="mon-notes"></ul></div></section>
-          </section>
-          <section class="page-view reading-width" data-page="computer" hidden inert aria-labelledby="computer-heading">
-            <div class="page-heading"><h1 id="computer-heading" data-page-heading tabindex="-1">電腦協助</h1><p>查看檔案、開啟程式或瀏覽網頁。每個操作都保留授權與結果，範圍以實際能力為準。</p></div>
-            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
-            <details id="computer-panel" open><summary>操作與授權</summary><p id="authorization-status"></p><div class="quick-actions"><button class="computer-prompt" data-prompt="請檢查這台電腦的系統與磁碟空間，只查看，不更動檔案。">查看電腦狀態</button><button class="computer-prompt" data-prompt="請列出我的下載資料夾內容，先不要移動或刪除。">看看下載資料夾</button></div></details>
-            <section class="content-section"><h2>指定工作目錄讀取</h2><p id="workspace-status">讀取狀態中…</p><p class="section-note">這個入口只允許讀取指定工作目錄內的文字檔，每份最多 8 KiB；一般電腦操作仍依操作授權。</p><label class="field-label" for="workspace-file">檔案相對路徑</label><input id="workspace-file" placeholder="例如 notes.txt"><div class="quick-actions"><button id="workspace-list" type="button">列出檔案</button><button id="workspace-read" type="button">讀取檔案</button></div><pre id="workspace-result" aria-live="polite"></pre></section>
-          </section>
-          <section class="page-view reading-width" data-page="tasks" hidden inert aria-labelledby="tasks-heading">
-            <div class="page-heading"><h1 id="tasks-heading" data-page-heading tabindex="-1">任務</h1><p>先確認要做的事，再看進度與來源。離開這個畫面，任務狀態仍會保存。</p></div>
-            <section class="content-section" id="goal-task-panel">
-              <button id="goal-task-back" type="button" hidden>返回任務清單</button>
-              <p id="goal-task-detail-status" role="status" hidden></p>
-              <div id="goal-task-compose">
-              <h2>交給 SIRO 的任務</h2>
-              <p>指定工作目錄內 1–5 份文字檔，每行一個相對路徑。我會唯讀整理尚未勾選的待辦與 TODO／FIXME，保留來源、行數與時間。先建立待審任務，再明確批准；讀取完成不表示待辦已執行。</p>
-              <label class="field-label" for="goal-task-paths">要讀取的檔案</label>
-              <textarea id="goal-task-paths" rows="3" maxlength="2560" placeholder="notes.md&#10;project/tasks.txt" aria-label="任務要讀取的工作目錄內相對路徑"></textarea>
-              <div class="quick-actions"><button id="goal-task-create" type="button" disabled>建立待審任務（不執行）</button></div>
-              </div>
-              <button id="goal-task-refresh" type="button" disabled>重新查詢保存狀態</button>
-              <p id="goal-task-status" aria-live="polite">連線完成後可建立任務；重新啟動後需查詢並明確繼續。</p>
-              <div id="goal-task-items" aria-live="polite"></div>
-            </section>
-          </section>
-          <section class="page-view reading-width" data-page="activity" hidden inert aria-labelledby="activity-heading">
-            <div class="page-heading"><h1 id="activity-heading" data-page-heading tabindex="-1">活動</h1><p>SIRO 正在做什麼、為什麼做、做完了沒有。這裡只讀紀錄，打開這頁不會讓她做任何事。</p></div>
+            <section class="mon-group" aria-labelledby="mon-act-heading"><h2 id="mon-act-heading">背景工作</h2><p>SIRO 在對話之外做的事；對話裡只放一句結果，完整內容在這裡。</p><div class="mon-card">
             <p id="activity-feed" class="act-feed" role="status" aria-live="polite">等待連線…</p>
             <div id="activity-banner"></div>
             <p id="activity-announce" class="sr-only" role="status" aria-live="polite"></p>
             <div id="activity-body"></div>
-            <section class="content-section" aria-labelledby="activity-coverage-heading"><h2 id="activity-coverage-heading">這裡看得到什麼</h2><table class="act-coverage"><tbody><tr><th scope="row">開網頁</th><td>看得到要開的網址、最後停在哪個網址、有沒有轉址。看不到狀態碼，也看不到頁面另外載入的圖片和腳本。</td></tr><tr><th scope="row">在電腦上執行程式</th><td>看得到程式名稱和參數個數（內容不保存）。程式自己連網的話，這裡看不到。</td></tr><tr><th scope="row">保存</th><td>變更紀錄保存 7 天或最近 10,000 筆，先到的先清；這頁最多列出最近 50 件事。網址的查詢參數、帳號密碼與輸入內容不保存。</td></tr></tbody></table></section>
-          </section>
-          <section class="page-view reading-width" data-page="skills" hidden inert aria-labelledby="skills-heading">
-            <div class="page-heading"><h1 id="skills-heading" data-page-heading tabindex="-1">技能與改善</h1><p>從可追溯的來源準備新能力。驗證、審查與啟用，各有清楚的界線。</p></div>
-            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
-            <section class="content-section" id="skill-candidate-panel"><h2>學習新能力</h2><p>解析貼上的 Markdown 待辦清單。先準備一份待審技能與隔離測試紀錄，再由你檢查；這一步不會安裝或啟用技能。</p><div class="quick-actions"><button id="skill-candidate-prepare" type="button" disabled>準備待審技能</button><button id="skill-candidate-cancel" type="button" disabled>取消準備</button><button id="skill-candidate-export" type="button" disabled>匯出審查資料 JSON</button></div><p id="skill-candidate-status" aria-live="polite">確認準備功能狀態中…</p><details><summary>來源與驗證紀錄</summary><pre id="skill-candidate-review"></pre></details><details><summary>待審技能內容</summary><pre id="skill-candidate-files"></pre></details></section>
-            <section class="content-section" id="skill-activation-panel"><h2>批准與使用待辦清單技能</h2><p>先閱讀上方來源、程式內容與驗證紀錄。確認後可安裝，初始保持停用；啟用需要你再按一次。技能只解析你貼上的文字，使用時仍沿用對話中的操作授權。</p><div class="quick-actions"><button id="skill-activation-install" type="button" disabled>安裝（保持停用）</button><button id="skill-activation-enable" type="button" disabled>啟用已批准技能</button><button id="skill-activation-revoke" type="button" disabled>撤銷啟用</button><button id="skill-activation-fill" type="button" disabled>將待辦範例填入對話</button><button id="skill-activation-refresh" type="button">確認技能狀態</button></div><p id="skill-activation-status" aria-live="polite">確認技能狀態中…</p></section>
-            <section class="content-section" id="improvement-proposal-panel"><h2>改善建議</h2><p>查看這段對話最近的可追溯失敗，先整理需要調查與驗證的地方。來源不足時會明說；確認原因後才討論修復。</p><button id="improvement-proposal-refresh" type="button" disabled>查看這段對話的改善建議</button><p id="improvement-proposal-status" aria-live="polite">連線完成後可手動查詢；建議只供審閱。</p><pre id="improvement-proposal-review" aria-live="polite"></pre></section>
-          </section>
-          <section class="page-view reading-width" id="memories-panel" data-page="memory" hidden inert aria-labelledby="memory-heading">
-            <div class="page-heading"><h1 id="memory-heading" data-page-heading tabindex="-1">共同記憶</h1><p>留下的事情可以查來源，也能更正與刪除。對我說「記住：…」即可新增。</p></div>
-            <section class="content-section"><h2>記住的事情</h2><p class="section-note">更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p><form id="memory-search-form" role="search" aria-label="搜尋共同記憶"><label for="memory-query">搜尋記憶內容</label><input id="memory-query" type="search" maxlength="4096" placeholder="輸入想找的事情" autocomplete="off"><button type="submit">搜尋記憶</button><button id="memory-search-clear" type="button">清除搜尋</button></form><p id="memory-search-status" role="status" aria-live="polite">每次最多顯示 100 筆記憶。</p><button id="product-refresh" type="button">重新整理記憶</button><div id="memory-items"></div></section>
-            <details class="content-section" id="profile-section"><summary><strong>個人檔案</strong></summary><p class="section-note">從你說過的話整理出的喜好與習慣；每筆都附原話和時間，可以刪除。</p><button id="profile-rebuild" type="button">整理個人檔案</button><p id="profile-status" role="status" aria-live="polite"></p><div id="profile-items"></div></details>
-            <details id="context-details"><summary>工作情境（預設全關）</summary><p>只在你打開的範圍內，讓 SIRO 知道你現在大概在做什麼：看到的、推測的、不知道的分開。關掉後立刻停止取得，也不再使用舊的內容；不開相機或麥克風，標題不保存，鎖屏與密碼／銀行視窗不記錄，也不會送到雲端模型。</p><p id="context-status" aria-live="polite">讀取狀態中…</p><div class="quick-actions"><label><input id="context-app" type="checkbox"> 讓她知道目前用哪類應用程式</label><label><input id="context-screen" type="checkbox"> 讓她偶爾看一眼主螢幕（只量亮度／顏色，不辨識內容）</label></div><form id="context-share" class="quick-actions"><input id="context-text" maxlength="200" aria-label="告訴她你現在在做什麼" placeholder="例如：正在整理報稅資料"><button type="submit">告訴她</button></form><div id="context-items"></div></details>
-            <details><summary>閒置記憶整理</summary><p>只在本機整理已記住的內容，將相同內容放在一起；保留原記憶，不推測新的事實，也不主動打擾。</p><p id="organization-status" aria-live="polite">讀取狀態中…</p><div class="quick-actions"><button id="organization-on" type="button">開啟閒置整理</button><button id="organization-off" type="button">暫停整理</button><button id="organization-refresh" type="button">現在整理</button></div><div id="organization-items"></div></details>
-          </section>
-          <section class="page-view reading-width" data-page="capabilities" hidden inert aria-labelledby="capabilities-heading">
-            <div class="page-heading"><h1 id="capabilities-heading" data-page-heading tabindex="-1">現在能做什麼</h1><p>以目前註冊與實際就緒狀態為準。查看能力不會執行操作，也不代表已授權。</p></div>
-            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
-            <div class="quick-actions"><a class="button-link" href="#/computer" data-nav="computer">開啟電腦協助</a><a class="button-link" href="#/skills" data-nav="skills">管理技能</a><button id="capabilities-refresh" type="button">更新能力狀態</button></div><div id="capability-items" aria-live="polite">讀取狀態中…</div>
-          </section>
-          <section class="page-view reading-width" data-page="settings" hidden inert aria-labelledby="settings-heading">
-            <div class="page-heading"><h1 id="settings-heading" data-page-heading tabindex="-1">設定</h1><p>平常只需要這裡。其他都收在「進階」。語音選項在對話畫面輸入框下方。</p></div>
-            <div class="destination-list"><a href="#/permissions" data-nav="permissions"><span><strong>權限與開關</strong><small>操作要不要先問你、雲端與麥克風開關</small></span><span aria-hidden="true">›</span></a></div>
+            </div><h2 style="margin-top:16px">研究筆記</h2><div class="mon-card"><ul class="mon-list" id="mon-notes"></ul></div></section>
             <details class="content-section" id="desktop-details"><summary>桌寵設定</summary>
               <form id="desktop-settings" autocomplete="off">
                 <p><label><input type="checkbox" id="desktop-gpu"> 使用 GPU 繪製（比較順，但要放寬桌寵視窗的一項安全限制；只載入本機頁面）</label></p>
@@ -427,19 +375,6 @@
                   <label>Y <input type="number" id="desktop-y" min="-20000" max="20000" step="1" value="0" style="width:6em"></label></p>
                 <p><button type="submit">儲存</button> <span id="desktop-settings-status" role="status" aria-live="polite">下次啟動桌寵時生效。</span></p>
               </form></details>
-            <details class="content-section advanced-links"><summary>進階</summary><div class="destination-list"><a href="#/capabilities" data-nav="capabilities"><span><strong>能力</strong><small>她現在能做什麼</small></span><span aria-hidden="true">›</span></a><a href="#/computer" data-nav="computer"><span><strong>電腦協助</strong><small>檔案、程式與網頁操作</small></span><span aria-hidden="true">›</span></a><a href="#/skills" data-nav="skills"><span><strong>技能</strong><small>新能力的審查與啟用</small></span><span aria-hidden="true">›</span></a><a href="#/activity" data-nav="activity"><span><strong>活動紀錄</strong><small>她做過什麼、為什麼</small></span><span aria-hidden="true">›</span></a><a href="#/system" data-nav="system"><span><strong>系統與診斷</strong><small>連線資訊與事件紀錄</small></span><span aria-hidden="true">›</span></a></div></details>
-            <p class="section-note" style="margin-top:22px">桌寵自己到處走動、更換角色和新動作都還沒完成；目前只能使用現在這個角色。</p>
-          </section>
-          <section class="page-view reading-width" data-page="permissions" hidden inert aria-labelledby="permissions-heading">
-            <div class="page-heading"><h1 id="permissions-heading" data-page-heading tabindex="-1">權限與停止開關</h1><p>按下開關立即生效，不需要再問 SIRO。即使功能開著，她能做的事仍受你電腦帳號的權限限制。</p></div>
-            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
-            <section class="content-section"><h2>操作模式</h2><p id="permissions-authorization-status">正在確認目前模式…</p><h2>功能開關</h2><p>「已開啟」表示允許使用這項功能；按下開關可開啟或關閉。開啟功能不會取得額外的操作權限。</p><div id="switches"></div><p id="switch-status" role="status" aria-live="polite"></p></section><a href="#/settings" data-nav="settings">返回設定</a>
-          </section>
-          <section class="page-view reading-width" data-page="system" hidden inert aria-labelledby="system-heading">
-            <div class="page-heading"><h1 id="system-heading" data-page-heading tabindex="-1">系統與診斷</h1><p>這是目前服務的實際狀態，排查問題時才需要看；這裡沒出現的功能不代表已經做好。</p></div>
-            <nav class="settings-tabs" aria-label="設定分頁"><a href="#/settings" data-nav="settings">一般</a><a href="#/permissions" data-nav="permissions">權限與開關</a><a href="#/capabilities" data-nav="capabilities">能力</a><a href="#/computer" data-nav="computer">電腦協助</a><a href="#/skills" data-nav="skills">技能</a><a href="#/system" data-nav="system">系統與診斷</a></nav>
-            <section class="content-section"><h2>長對話續作</h2><p id="summary-status">讀取狀態中…</p><p class="section-note">較舊的長回覆採摘錄摘要，省略處會標示；目標、授權與尚未完成的工具結果保留。摘要不是永久記憶。</p></section>
-            <details><summary>內在狀態</summary><p id="affect-summary">尚無事件評估</p><div id="affect-grid"></div></details><details><summary>連線資訊</summary><pre id="snapshot"></pre></details><details><summary>事件紀錄</summary><pre id="events"></pre></details><div class="quick-actions"><a class="button-link" href="/audio-field-test">音訊驗收工具</a><a class="button-link" href="#/settings" data-nav="settings">返回設定</a></div>
           </section>
         </main>
       </div>
@@ -449,15 +384,11 @@
       let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
       let submissionGeneration = 0, pendingSubmission;
       let improvementEpoch = 0, improvementController, improvementTimeout;
-      let goalTaskEpoch = 0, goalTaskController, goalTaskTimeout, goalTaskPollTimer, goalTaskPolls = 0;
-      let goalTaskViews = [], goalTaskBusy = false, goalTaskAvailable = true, goalTaskNeedsReadback = false;
-      const goalTaskSessionId = "browser", goalTaskProfile = "document-checklist-v1";
       let recorder, recordedChunks = [], ttsAudio;
       let ttsController, ttsGeneration = 0, speechCancelled = false, liveSpeech;
       let lastSpeech;
       const headers = () => ({"Content-Type": "application/json"});
-      const log = data => { document.querySelector("#events").textContent += JSON.stringify(data) + "\n"; };
-      function createSessionAccess({fetcher = fetch, now = () => performance.now(), origin = location.origin} = {}) {
+            function createSessionAccess({fetcher = fetch, now = () => performance.now(), origin = location.origin} = {}) {
         let session, pending, retryAfter = 0, closed = false, bootstrap;
         async function getToken() {
           if (closed) throw new Error("頁面已關閉");
@@ -537,8 +468,8 @@
           ? "上次工作中斷，有些操作的結果未知。我沒有重新執行；請先確認實際結果。"
           : "上次工作中斷。我保留了已完成的結果，沒有重新執行工具。";
       }
-      const pageTitles = Object.freeze({chat:"對話", monitor:"監控", tasks:"任務", activity:"活動", memory:"記憶", capabilities:"能力", computer:"電腦協助", skills:"技能與改善", settings:"設定", permissions:"權限與停止開關", system:"系統與診斷"});
-      let activePage = "chat", navigationInitialized = false, selectedGoalTaskId = null;
+      const pageTitles = Object.freeze({chat:"對話", monitor:"監控"});
+      let activePage = "chat", navigationInitialized = false;
       const desktopForm = {
         gpu: document.querySelector("#desktop-gpu"), on: document.querySelector("#desktop-position-on"),
         x: document.querySelector("#desktop-x"), y: document.querySelector("#desktop-y"),
@@ -566,9 +497,7 @@
         } catch { desktopForm.status.textContent = "沒有儲存成功，請再按一次。"; }
       });
       function showPage(hash = location.hash, moveFocus = false) {
-        const detail = typeof hash === "string" ? /^#\/tasks\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/.exec(hash) : null;
-        selectedGoalTaskId = detail ? detail[1] : null;
-        const requested = detail ? "tasks" : typeof hash === "string" && /^#\/[a-z]+$/.test(hash) ? hash.slice(2) : "chat";
+        const requested = typeof hash === "string" && /^#\/[a-z]+$/.test(hash) ? hash.slice(2) : "chat";
         const page = Object.hasOwn(pageTitles, requested) ? requested : "chat";
         let heading;
         for (const pane of document.querySelectorAll("[data-page]")) {
@@ -580,16 +509,13 @@
           if (link.dataset.nav === page) link.setAttribute("aria-current", "page");
           else link.removeAttribute("aria-current");
         }
-        if (["settings", "permissions", "capabilities", "computer", "skills", "system"].includes(page)) document.querySelector('.primary-nav [data-nav="settings"]')?.setAttribute("aria-current", "page");
         activePage = page;
         activityPageChanged();
         monitorPageChanged();
-        const title = selectedGoalTaskId ? "任務詳情" : pageTitles[page];
+        const title = pageTitles[page];
         document.querySelector("#page-title").textContent = title;
-        document.querySelector("#tasks-heading").textContent = selectedGoalTaskId ? "任務詳情" : "任務";
         document.title = `SIRO · ${title}`;
-        renderGoalTasks();
-        if (page === "computer") document.querySelector("#activity-notice").hidden = true;
+        if (page === "monitor") document.querySelector("#activity-notice").hidden = true;
         if (moveFocus) heading.focus();
         return page;
       }
@@ -654,7 +580,7 @@
       const activityView = {items: new Map(), cursor: null, fetchedAt: null, status: "idle", gap: false, truncated: false, stopping: new Set(), epoch: 0, timer: undefined, selfActivity: null, backgroundBusy: false};
       // Other views (the desktop bubble) watch the same reads; polling runs while anyone looks.
       const activityWatchers = new Set();
-      const activityWanted = () => activePage === "activity" || activityWatchers.size > 0;
+      const activityWanted = () => activePage === "monitor" || activityWatchers.size > 0;
       function watchActivity(listener) {
         activityWatchers.add(listener); activityPageChanged();
         return () => { activityWatchers.delete(listener); activityPageChanged(); };
@@ -866,7 +792,7 @@
         return response.json();
       }
       async function pollMonitor(epoch) {
-        const [esp, pc, snap, context, acts, curation, notes] = await Promise.allSettled(["/v1/devices/esp32/state", "/v1/system/stats", "/v1/snapshot", "/v1/work-context", "/v1/activities?limit=8", "/v1/memory-curation?limit=200", "/v1/self-notes"].map(monitorJson));
+        const [esp, pc, snap, context, curation, notes] = await Promise.allSettled(["/v1/devices/esp32/state", "/v1/system/stats", "/v1/snapshot", "/v1/work-context", "/v1/memory-curation?limit=200", "/v1/self-notes"].map(monitorJson));
         if (epoch !== monitorView.epoch) return;
         const espCards = esp.status === "fulfilled" ? [...renderEspNode(esp.value.mqtt), ...renderEspNode(esp.value)] : [];
         document.querySelector("#mon-esp").innerHTML = espCards.join("") || monCard("ESP32", esp.status === "fulfilled" ? "沒有資料" : "讀不到", esp.status === "fulfilled" ? "節點尚未回報任何數值" : "感測器入口未啟用或服務未回應", {stale: true});
@@ -892,11 +818,7 @@
           siro.push(monCard("工作情境", on ? monEsc(c.hint || c.status || "沒有觀察") : '<span class="mon-off">關閉</span>', on ? `${(c.observations || []).length} 筆觀察` : "預設全關，SIRO 沒有取得應用程式或螢幕資訊", {text: true}));
         }
         document.querySelector("#mon-siro").innerHTML = siro.join("") || monCard("SIRO", "讀不到", "", {stale: true});
-        const items = acts.status === "fulfilled" ? acts.value.activities || [] : [];
-        const running = a => ["running", "queued", "paused", "cancelling", "proposed"].includes(a.state) ? 0 : 1;
-        items.sort((x, y) => running(x) - running(y));
         renderNotes(notes.status === "fulfilled" ? notes.value.notes || [] : null);
-        document.querySelector("#mon-activity").innerHTML = items.map(a => `<li><span>${monEsc(a.reason || a.kind)} · ${monEsc((ACTIVITY_STATES[a.state] || ["狀態不明"])[0])} · ${monEsc(ACTIVITY_ORIGINS[a.origin] || "")}</span><time datetime="${monEsc(a.created_at)}">${monClock(a.created_at)}</time></li>`).join("") || "<li>還沒有活動</li>";
         renderCuration(curation.status === "fulfilled" ? curation.value : null);
         document.querySelector("#monitor-updated").textContent = ` 最後更新 ${monClock(new Date().toISOString())}`;
         monitorView.timer = setTimeout(() => pollMonitor(epoch), MONITOR_POLL_MS);
@@ -1022,7 +944,7 @@
         else if (event.target.closest?.("[data-activity-chat]")) navigateToPage("chat");
       });
       function notifyComputerActivity() {
-        document.querySelector("#activity-notice").hidden = activePage === "computer";
+        document.querySelector("#activity-notice").hidden = activePage === "monitor";
       }
       async function boot() {
         initializePageNavigation();
@@ -1048,8 +970,6 @@
         }
       }
       function connectControl() {
-        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
-        if (typeof clearGoalTasks === "function") clearGoalTasks();
         if (pageClosing) return Promise.reject(new Error("頁面已關閉"));
         if (controlAuthenticated && socket?.readyState === 1) return Promise.resolve();
         if (controlAttempt) return controlAttempt;
@@ -1063,11 +983,11 @@
           socket = owner; controlAuthenticated = false;
           let retired = false;
           const abandon = message => {
-            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearImprovementProposal === "function") clearImprovementProposal(); if (typeof clearGoalTasks === "function") clearGoalTasks("連線中斷；請重新查詢保存狀態。", true); if (typeof clearMemorySearch === "function") clearMemorySearch(); if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); if (typeof monitorPageChanged === "function") monitorPageChanged(); ready.reject(new Error(message));
+            retired = true; clearTimeout(timeout); controlAuthenticated = false; if (typeof clearMemorySearch === "function") clearMemorySearch(); if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); if (typeof monitorPageChanged === "function") monitorPageChanged(); ready.reject(new Error(message));
           };
           controlDispose = abandon;
           const timeout = setTimeout(() => { abandon("連線尚未完成，請按重新連線。"); owner.close(); }, 5000);
-          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; document.querySelector("#improvement-proposal-refresh").disabled = false; if (typeof updateGoalTaskControls === "function") updateGoalTaskControls(); if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); if (typeof monitorPageChanged === "function") monitorPageChanged(); ready.resolve(); };
+          const markAuthenticated = () => { clearTimeout(timeout); controlAuthenticated = true; document.querySelector("#service-notice").hidden = true; if (typeof activityWanted === "function" && activityWanted()) activityPageChanged(); if (typeof monitorPageChanged === "function") monitorPageChanged(); ready.resolve(); };
           socket.onopen = () => { if (!retired && socket === owner && epoch === controlEpoch) owner.send(JSON.stringify({type: "authenticate", token})); };
         socket.onmessage = event => {
           if (retired || owner.readyState !== 1 || socket !== owner || epoch !== controlEpoch) return;
@@ -1075,20 +995,14 @@
           if (!acceptRunEvent(data)) return;
           if (data.type === "assistant_terminal" && data.state !== "completed") settleRunningTools(data);
           if (!foregroundControl.event(data)) return;
-          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearImprovementProposal === "function") clearImprovementProposal();
-          if (["turn_started", "assistant_started"].includes(data.type) && typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
-          log(data);
           if (data.type === "snapshot") { renderSnapshot(data); markAuthenticated(); }
           if (data.type === "kill_switch" && data.name === "microphone" && typeof data.enabled === "boolean") {
             microphoneEnabled = data.enabled;
             if (!microphoneEnabled) document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop"));
             updateMicrophoneControls();
           }
-          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean") applySkillActivationTools(data.enabled);
-          if (data.type === "kill_switch" && data.name === "tools" && typeof data.enabled === "boolean" && typeof applyGoalTaskTools === "function") applyGoalTaskTools(data.enabled);
           if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
           if (data.type === "sensor_listen" && microphoneEnabled && recorder?.state !== "recording") document.querySelector("#voice")?.click();
-          if (data.type === "affect_state") { renderAffect(data); }
           if (data.type === "assistant_started") {
             assistantBubble = appendMessage("assistant", "");
             liveSpeech = typeof beginLiveSpeech === "function" ? beginLiveSpeech() : undefined;
@@ -1163,539 +1077,16 @@
       window.addEventListener("beforeunload", () => {
         clearMemorySearch("頁面已關閉。");
         pageClosing = true; controlDispose?.("頁面已關閉"); controlDispose = undefined; controlEpoch += 1;
-        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
-        if (typeof clearGoalTasks === "function") clearGoalTasks("頁面已關閉。", true);
         submissionGeneration += 1; pendingSubmission?.abort();
         clearTimeout(reconnectTimer); sessionAccess.dispose(); stopTts(); socket?.close();
         foregroundControl.dispose();
       });
-      function renderAffect(data) {
-        const emotions = data.mixed_emotions.map(item => `${item.name} ${item.intensity.toFixed(2)}`).join("、") || "neutral";
-        document.querySelector("#affect-summary").textContent =
-          `主要：${data.dominant}｜混合：${emotions}｜調節：${data.coping}｜原因：${data.reason}`;
-        const values = {...data.drives, "mood pleasure": (data.mood.pleasure + 1) / 2,
-          "mood arousal": data.mood.arousal, "mood dominance": (data.mood.dominance + 1) / 2,
-          "relationship trust": data.relationship.trust,
-          "relationship familiarity": data.relationship.familiarity,
-          "relationship attachment": data.relationship.attachment,
-          "relationship rupture": data.relationship.rupture};
-        const root = document.querySelector("#affect-grid"); root.textContent = "";
-        Object.entries(values).forEach(([name, value]) => {
-          const card = document.createElement("div"); card.className = "affect-card";
-          const label = document.createElement("div"); label.textContent = `${name}: ${value.toFixed(2)}`;
-          const meter = document.createElement("div"); meter.className = "meter";
-          const fill = document.createElement("span"); fill.style.width = `${Math.max(0, Math.min(1, value)) * 100}%`;
-          meter.appendChild(fill); card.append(label, meter); root.appendChild(card);
-        });
-      }
-      let skillCandidateAvailable = false, skillCandidateServiceBusy = false;
-      let skillCandidateBusy = false, skillCandidateUnknown = false, skillCandidateCancelling = false;
-      let skillCandidateEpoch = 0, skillCandidateReview;
-      function updateSkillCandidateControls() {
-        document.querySelector("#skill-candidate-prepare").disabled = !skillCandidateAvailable || skillCandidateServiceBusy || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling;
-        document.querySelector("#skill-candidate-cancel").disabled = skillCandidateCancelling || !(skillCandidateBusy || skillCandidateUnknown || skillCandidateServiceBusy);
-        document.querySelector("#skill-candidate-export").disabled = !skillCandidateReview || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling;
-      }
-      function renderSkillCandidateAvailability(runtime = {}) {
-        const state = runtime.skill_candidates;
-        skillCandidateAvailable = state?.available === true && state.authorizes_execution === false && runtime.runtime_profile !== "legacy" && runtime.kill_switches?.tools !== false;
-        skillCandidateServiceBusy = state?.busy === true;
-        if (!skillCandidateBusy && !skillCandidateUnknown && !skillCandidateCancelling && !skillCandidateReview) {
-          document.querySelector("#skill-candidate-status").textContent = skillCandidateServiceBusy
-            ? "已有技能正在準備，請等待或取消準備。"
-            : skillCandidateAvailable ? "可準備待審技能；尚未安裝或啟用。"
-            : "目前無法準備待審技能；請確認執行模式與電腦操作開關。";
-        }
-        updateSkillCandidateControls();
-      }
-      function acceptedSkillCandidateReview(data) {
-        if (!data || !["awaiting_review", "verification_failed"].includes(data.status) || data.enabled !== false || data.installed !== false || data.authorizes_execution !== false || data.approval_required !== true || data.trust_level !== "unreviewed" || data.source !== "siro_builtin_template:markdown-checklist-v1") return undefined;
-        if (!/^siro-skill-package-v1:[0-9a-f]{64}$/.test(data.package_hash || "") || !/^[0-9a-f]{64}$/.test(data.tests_sha256 || "")) return undefined;
-        const names = ["manifest.json", "input.json", "output.json", "plugin.py"];
-        if (!data.files || typeof data.files !== "object" || Object.keys(data.files).length !== names.length || names.some(name => typeof data.files[name] !== "string" || data.files[name].length > 65536)) return undefined;
-        const verification = data.verification;
-        if (!verification || typeof verification.status !== "string" || verification.workspace_removed !== true) return undefined;
-        const failures = ["failed_checks", "unsupported_sandbox", "unsupported_platform", "rejected_profile", "rejected_source", "rejected_policy_change", "rejected_invalid_diff", "rejected_unappliable", "binding_mismatch"];
-        if (data.status === "awaiting_review" ? verification.status !== "passed" : !failures.includes(verification.status)) return undefined;
-        const serialized = JSON.stringify(data);
-        if (serialized.length > 262144) return undefined;
-        return JSON.parse(serialized);
-      }
-      function renderSkillCandidateResult(data) {
-        const status = document.querySelector("#skill-candidate-status");
-        const details = document.querySelector("#skill-candidate-review"), files = document.querySelector("#skill-candidate-files");
-        skillCandidateReview = undefined; details.textContent = ""; files.textContent = "";
-        forgetSkillActivationReview();
-        const existing = {
-          existing_available: "已有相同能力，目前可用；沒有準備新技能。操作仍依原授權。",
-          existing_unavailable: "已有相同能力，目前尚未就緒；沒有另造技能繞過限制。",
-          existing_unknown: "已有相同能力，目前狀態未知；沒有準備新技能。",
-          unsupported_capability: "這個入口尚不支援所要求的能力；沒有準備新技能。"
-        };
-        if (existing[data?.status] && data.enabled === false && data.installed === false && data.authorizes_execution === false) {
-          status.textContent = existing[data.status]; return;
-        }
-        const review = acceptedSkillCandidateReview(data);
-        if (!review) { status.textContent = "無法確認審查資料或驗證狀態；尚未安裝或啟用。"; return; }
-        skillCandidateReview = review;
-        rememberSkillActivationReview(review);
-        status.textContent = review.status === "awaiting_review"
-          ? "待你審查；尚未安裝或啟用。"
-          : "驗證未通過；尚未安裝或啟用。可匯出紀錄供檢查。";
-        const record = {...review}; delete record.files;
-        details.textContent = "測試通過不等於人工審查或啟用批准；仍需獨立安全審查與明確批准。\n" + JSON.stringify(record, null, 2);
-        files.textContent = Object.entries(review.files).map(([name, text]) => `${name}\n${text}`).join("\n\n");
-      }
-      async function prepareSkillCandidate() {
-        if (!skillCandidateAvailable || skillCandidateServiceBusy || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling) return;
-        const epoch = ++skillCandidateEpoch;
-        skillCandidateBusy = true; skillCandidateReview = undefined;
-        forgetSkillActivationReview();
-        document.querySelector("#skill-candidate-review").textContent = "";
-        document.querySelector("#skill-candidate-files").textContent = "";
-        document.querySelector("#skill-candidate-status").textContent = "正在準備待審技能與隔離測試紀錄…";
-        updateSkillCandidateControls();
-        try {
-          const data = await productRequest("/v1/skills/candidates", {method: "POST", body: JSON.stringify({capability: "text.checklist.parse"})});
-          if (epoch !== skillCandidateEpoch) return;
-          renderSkillCandidateResult(data); skillCandidateBusy = false; skillCandidateServiceBusy = false;
-        } catch {
-          if (epoch !== skillCandidateEpoch) return;
-          skillCandidateUnknown = true;
-          document.querySelector("#skill-candidate-status").textContent = "準備結果未知；沒有自動重送。請按取消準備，確認停止後再試。";
-        } finally { updateSkillCandidateControls(); }
-      }
-      async function cancelSkillCandidate() {
-        if (skillCandidateCancelling || !(skillCandidateBusy || skillCandidateUnknown || skillCandidateServiceBusy)) return;
-        ++skillCandidateEpoch; skillCandidateCancelling = true; skillCandidateReview = undefined;
-        forgetSkillActivationReview();
-        document.querySelector("#skill-candidate-status").textContent = "正在取消準備，等待停止確認…";
-        updateSkillCandidateControls();
-        try {
-          const acknowledgement = await productRequest("/v1/skills/candidates/cancel", {method: "POST"});
-          if (typeof acknowledgement?.cancelled !== "boolean") throw new Error("取消回應無效");
-          skillCandidateBusy = false; skillCandidateUnknown = false; skillCandidateServiceBusy = false;
-          document.querySelector("#skill-candidate-review").textContent = "";
-          document.querySelector("#skill-candidate-files").textContent = "";
-          document.querySelector("#skill-candidate-status").textContent = "已取消準備；尚未安裝或啟用。";
-        } catch {
-          skillCandidateUnknown = true;
-          document.querySelector("#skill-candidate-status").textContent = "無法確認取消；準備可能仍在進行。沒有重送準備，可再次手動取消。";
-        } finally { skillCandidateCancelling = false; updateSkillCandidateControls(); }
-      }
-      document.querySelector("#skill-candidate-prepare").onclick = prepareSkillCandidate;
-      document.querySelector("#skill-candidate-cancel").onclick = cancelSkillCandidate;
-      document.querySelector("#skill-candidate-export").onclick = () => {
-        if (!skillCandidateReview || skillCandidateBusy || skillCandidateUnknown || skillCandidateCancelling) return;
-        const accepted = acceptedSkillCandidateReview(skillCandidateReview);
-        if (!accepted) return;
-        const url = URL.createObjectURL(new Blob([JSON.stringify(accepted, null, 2)], {type: "application/json"}));
-        const link = document.createElement("a"); link.href = url; link.download = "siro-markdown-checklist-review.json";
-        link.click(); URL.revokeObjectURL(url);
-      };
-      let skillActivationState, skillActivationReview;
-      let skillActivationTools = false, skillActivationBusy = false, skillActivationUnknown = false;
-      let skillActivationEpoch = 0;
-      function acceptedSkillActivation(data) {
-        if (!data || ["available", "installed", "enabled", "busy"].some(key => typeof data[key] !== "boolean") || data.authorizes_execution !== false || data.profile !== "markdown-checklist-v1" || data.capability !== "text.checklist.parse") return undefined;
-        if (data.installed ? typeof data.package_hash !== "string" || !/^siro-skill-package-v1:[0-9a-f]{64}$/.test(data.package_hash) : data.package_hash !== null || data.enabled) return undefined;
-        if (data.enabled && !data.available) return undefined;
-        return {available:data.available, installed:data.installed, enabled:data.enabled, busy:data.busy, package_hash:data.package_hash, authorizes_execution:false, profile:"markdown-checklist-v1", capability:"text.checklist.parse"};
-      }
-      function updateSkillActivationControls() {
-        const state = skillActivationState;
-        const idle = state?.available === true && !state.busy && !skillActivationBusy && !skillActivationUnknown;
-        document.querySelector("#skill-activation-install").disabled = !(idle && skillActivationTools && !state.installed && skillActivationReview);
-        document.querySelector("#skill-activation-enable").disabled = !(idle && skillActivationTools && state.installed && !state.enabled);
-        document.querySelector("#skill-activation-revoke").disabled = !(idle && state.installed);
-        document.querySelector("#skill-activation-fill").disabled = !(idle && skillActivationTools && state.enabled);
-        document.querySelector("#skill-activation-refresh").disabled = skillActivationBusy;
-      }
-      function skillActivationDescription() {
-        const state = skillActivationState;
-        if (!state?.available) return "目前無法安裝或啟用技能；請確認執行模式與連線。";
-        if (state.busy) return "技能狀態正在更新，請等待確認。";
-        if (!skillActivationTools) return "電腦操作已暫停；技能不可使用，你仍可撤銷已安裝技能的啟用。";
-        if (state.enabled) return "待辦清單技能已啟用。可將範例填入對話，再由你送出；每次操作仍依授權。";
-        if (state.installed) return "待辦清單技能已安裝，目前停用；啟用需要你明確批准。";
-        return skillActivationReview ? "待你確認上方審查資料；安裝後保持停用。" : "尚未安裝；先準備並檢查上方技能內容與驗證紀錄。";
-      }
-      function renderSkillActivation(runtime = {}, confirmed = false) {
-        const state = runtime.runtime_profile === "candidate" ? acceptedSkillActivation(runtime.skill_activation) : undefined;
-        skillActivationTools = runtime.kill_switches?.tools === true;
-        if (!state?.available || !skillActivationTools) {
-          ++skillActivationEpoch; skillActivationBusy = false; skillActivationReview = undefined;
-        }
-        skillActivationState = state;
-        labelSkillCandidateHistory(state);
-        if (confirmed && state && !state.busy) skillActivationUnknown = false;
-        if (!skillActivationBusy && !skillActivationUnknown) document.querySelector("#skill-activation-status").textContent = skillActivationDescription();
-        updateSkillActivationControls();
-      }
-      function forgetSkillActivationReview() {
-        skillActivationReview = undefined; updateSkillActivationControls();
-      }
-      function labelSkillCandidateHistory(state) {
-        if (state?.installed === true && skillCandidateReview?.package_hash === state.package_hash) {
-          document.querySelector("#skill-candidate-status").textContent = "這是準備時的審查紀錄；目前已安裝。使用狀態見下方。";
-        }
-      }
-      function applySkillActivationTools(enabled) {
-        if (skillActivationState) {
-          renderSkillActivation({runtime_profile:"candidate",kill_switches:{tools:enabled},skill_activation:{...skillActivationState,enabled:enabled && skillActivationState.enabled,busy:enabled && skillActivationState.busy}});
-        } else {
-          skillActivationTools = enabled; updateSkillActivationControls();
-        }
-      }
-      function rememberSkillActivationReview(review) {
-        if (review.status === "awaiting_review" && review.verification.status === "passed" && typeof review.review_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(review.review_id)) {
-          skillActivationReview = {review_id:review.review_id,package_hash:review.package_hash};
-        }
-        if (!skillActivationBusy && !skillActivationUnknown) document.querySelector("#skill-activation-status").textContent = skillActivationDescription();
-        updateSkillActivationControls();
-      }
-      async function changeSkillActivation(action) {
-        updateSkillActivationControls();
-        if (document.querySelector(`#skill-activation-${action}`).disabled) return;
-        const request = action === "install" ? {...skillActivationReview} : {package_hash:skillActivationState.package_hash};
-        const epoch = ++skillActivationEpoch;
-        skillActivationBusy = true; skillActivationReview = undefined;
-        document.querySelector("#skill-activation-status").textContent = "正在更新技能，等待結果確認…";
-        updateSkillActivationControls();
-        try {
-          const data = await productRequest(`/v1/skills/activation/${action}`, {method:"POST",body:JSON.stringify(request)});
-          if (epoch !== skillActivationEpoch) return;
-          const state = acceptedSkillActivation(data);
-          if (!state || !state.available || !state.installed || state.busy || state.package_hash !== request.package_hash || state.enabled !== (action === "enable")) throw new Error("unconfirmed skill state");
-          skillActivationState = state;
-          labelSkillCandidateHistory(state);
-          document.querySelector("#skill-activation-status").textContent = skillActivationDescription();
-        } catch {
-          if (epoch !== skillActivationEpoch) return;
-          skillActivationUnknown = true;
-          document.querySelector("#skill-activation-status").textContent = "技能操作結果未知；沒有自動重送。請按確認技能狀態，再決定下一步。";
-        } finally {
-          if (epoch === skillActivationEpoch) skillActivationBusy = false;
-          updateSkillActivationControls();
-        }
-      }
-      document.querySelector("#skill-activation-install").onclick = () => changeSkillActivation("install");
-      document.querySelector("#skill-activation-enable").onclick = () => changeSkillActivation("enable");
-      document.querySelector("#skill-activation-revoke").onclick = () => changeSkillActivation("revoke");
-      document.querySelector("#skill-activation-refresh").onclick = async () => {
-        if (skillActivationBusy) return;
-        try { renderSkillActivation(await productRequest("/v1/runtime"), true); }
-        catch { document.querySelector("#skill-activation-status").textContent = "目前無法確認技能狀態；沒有重新執行先前操作。"; }
-      };
-      document.querySelector("#skill-activation-fill").onclick = () => {
-        updateSkillActivationControls();
-        if (document.querySelector("#skill-activation-fill").disabled) return;
-        const field = document.querySelector("#text");
-        field.value = "請用待辦清單技能整理這段文字，列出待辦與已完成項目：\n- [ ] 整理今天的筆記\n- [x] 喝一杯水";
-        if (navigationInitialized) navigateToPage("chat", false);
-        field.focus?.();
-      };
       async function productRequest(url, options = {}) {
         const response = await authorizedFetch(url, {...options, headers: headers()});
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || "操作未完成");
         return data;
       }
-      function goalTaskExactKeys(value, keys) {
-        return value && !Array.isArray(value) && typeof value === "object"
-          && Object.keys(value).sort().join("|") === keys.slice().sort().join("|");
-      }
-      function validGoalTaskPath(value) {
-        return typeof value === "string" && value.length > 0 && new TextEncoder().encode(value).length <= 512
-          && !/[\\\u0000-\u001f\u007f-\u009f]/u.test(value) && !value.startsWith("/")
-          && value.split("/").every(part => part && part !== "." && part !== "..");
-      }
-      function acceptedGoalTask(goal) {
-        const keys = ["goal_id", "state", "next_step", "revision", "steps_used", "max_steps", "deadline", "task"];
-        const states = ["proposed", "ready", "running", "waiting_external", "completed", "failed", "cancelled"];
-        const timestamp = value => typeof value === "string" && value.length <= 64
-          && /^\d{4}-\d{2}-\d{2}T/.test(value) && /(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
-        if (!goalTaskExactKeys(goal, keys) || typeof goal.goal_id !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(goal.goal_id)
-          || !states.includes(goal.state) || !Number.isSafeInteger(goal.revision) || goal.revision < 1
-          || !Number.isSafeInteger(goal.steps_used) || goal.steps_used < 0 || goal.steps_used > 8
-          || goal.max_steps !== 8 || !timestamp(goal.deadline)
-          || !(goal.next_step === null || (typeof goal.next_step === "string" && goal.next_step.length <= 512))) return false;
-        const task = goal.task;
-        if (!goalTaskExactKeys(task, ["profile", "paths", "approved_at", "pause_reason", "intent_path", "observations"])
-          || task.profile !== goalTaskProfile || !Array.isArray(task.paths) || task.paths.length < 1 || task.paths.length > 5
-          || !task.paths.every(validGoalTaskPath) || new Set(task.paths).size !== task.paths.length
-          || !(goal.next_step === null || task.paths.includes(goal.next_step))
-          || !(task.approved_at === null || timestamp(task.approved_at))
-          || ![null, "foreground", "tools_disabled", "shutdown", "interrupted_restart", "paused"].includes(task.pause_reason)
-          || !(task.intent_path === null || task.paths.includes(task.intent_path))
-          || !Array.isArray(task.observations) || task.observations.length > task.paths.length) return false;
-        const observed = new Set();
-        for (const item of task.observations) {
-          if (!goalTaskExactKeys(item, ["path", "status", "sha256", "read_at", "matches", "truncated", "error"])
-            || !task.paths.includes(item.path) || observed.has(item.path) || !timestamp(item.read_at)
-            || !["completed", "failed"].includes(item.status) || typeof item.truncated !== "boolean"
-            || !Array.isArray(item.matches) || item.matches.length > 20
-            || !item.matches.every(match => goalTaskExactKeys(match, ["line", "text"])
-              && Number.isSafeInteger(match.line) && match.line > 0 && typeof match.text === "string"
-              && Array.from(match.text).length <= 256)) return false;
-          if (item.status === "completed" && (typeof item.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(item.sha256) || item.error !== null)) return false;
-          if (item.status === "failed" && (item.sha256 !== null || !["read_failed", "path_denied", "invalid_result", "timeout"].includes(item.error) || item.matches.length !== 0)) return false;
-          observed.add(item.path);
-        }
-        return true;
-      }
-      function acceptedGoalTaskList(data) {
-        if (!goalTaskExactKeys(data, ["available", "profile", "max_tasks", "active_goal_id", "goals"])
-          || typeof data.available !== "boolean" || data.profile !== goalTaskProfile || data.max_tasks !== 20
-          || !Array.isArray(data.goals) || data.goals.length > 20 || !data.goals.every(acceptedGoalTask)
-          || new Set(data.goals.map(goal => goal.goal_id)).size !== data.goals.length
-          || !(data.active_goal_id === null || data.goals.some(goal => goal.goal_id === data.active_goal_id))) return false;
-        return true;
-      }
-      function updateGoalTaskControls() {
-        const ready = !pageClosing && controlAuthenticated && !goalTaskBusy;
-        document.querySelector("#goal-task-refresh").disabled = !ready;
-        document.querySelector("#goal-task-create").disabled = !ready || !goalTaskAvailable || goalTaskNeedsReadback || goalTaskViews.length >= 20;
-        document.querySelector("#goal-task-paths").disabled = !ready;
-        for (const goal of goalTaskViews) {
-          for (const action of ["approve", "resume", "pause", "cancel", "remove"]) {
-            const button = document.getElementById(`goal-${goal.goal_id}-${action}`);
-            if (button) button.disabled = !ready || goalTaskNeedsReadback || (["approve", "resume"].includes(action) && !goalTaskAvailable);
-          }
-        }
-      }
-      let goalTaskHasSnapshot = false;
-      function clearGoalTasks(message = "狀態快照已清除；請重新查詢保存狀態。", requireReadback = goalTaskNeedsReadback) {
-        goalTaskEpoch += 1; goalTaskController?.abort(); goalTaskController = undefined;
-        clearTimeout(goalTaskTimeout); goalTaskTimeout = undefined;
-        clearTimeout(goalTaskPollTimer); goalTaskPollTimer = undefined;
-        goalTaskBusy = false; goalTaskViews = []; goalTaskNeedsReadback = requireReadback; goalTaskHasSnapshot = false;
-        document.querySelector("#goal-task-items").textContent = "";
-        document.querySelector("#goal-task-status").textContent = message;
-        renderGoalTasks();
-      }
-      function applyGoalTaskTools(enabled) {
-        goalTaskAvailable = enabled;
-        clearGoalTasks(enabled ? "電腦操作已開啟；請重新查詢任務，再明確繼續。" : "電腦操作已暫停；請重新查詢保存紀錄。", true);
-      }
-      function renderGoalTasks() {
-        const root = document.querySelector("#goal-task-items"); root.textContent = "";
-        const detail = selectedGoalTaskId !== null;
-        const compose = document.querySelector("#goal-task-compose"); compose.hidden = detail; compose.inert = detail;
-        document.querySelector("#goal-task-back").hidden = !detail;
-        const notice = document.querySelector("#goal-task-detail-status"); notice.hidden = !detail;
-        notice.textContent = !goalTaskHasSnapshot ? "請重新查詢保存狀態，再審查這項任務；沒有自動繼續或執行。"
-          : goalTaskViews.some(goal => goal.goal_id === selectedGoalTaskId) ? "此頁只顯示這項任務的保存快照；閱讀完成不表示待辦已執行。"
-          : "目前保存快照中沒有這項任務（每次最多 20 筆）。請重新查詢或返回清單；無法據此判斷是否已刪除。";
-        const labels = {proposed:"待批准（尚未執行）", ready:"已批准，等待讀取", running:"讀取中", waiting_external:"已暫停，等待你繼續", completed:"閱讀完成", failed:"任務未完成", cancelled:"已取消"};
-        const pauses = {foreground:"先回應你", tools_disabled:"電腦操作已暫停", shutdown:"服務停止", interrupted_restart:"重新啟動後沒有自動重讀", paused:"你已暫停"};
-        const errors = {read_failed:"讀取失敗", path_denied:"路徑不符合批准範圍", invalid_result:"無法確認讀取結果", timeout:"讀取逾時"};
-        for (const goal of goalTaskViews) {
-          if (detail && goal.goal_id !== selectedGoalTaskId) continue;
-          const card = document.createElement("div"); card.className = "proposal";
-          const title = document.createElement("strong"); title.textContent = `${labels[goal.state]} · 版本 ${goal.revision}`;
-          const scope = document.createElement("p"); scope.textContent = `唯讀範圍：${goal.task.paths.join("、")}。待辦尚未執行。`;
-          const budget = document.createElement("small"); budget.textContent = `保存任務 ${goal.goal_id} · 已使用 ${goal.steps_used}/${goal.max_steps} 次讀取 · 期限 ${goal.deadline}`;
-          card.append(title, scope, budget);
-          if (!detail) {
-            const link = document.createElement("a"); link.href = `#/tasks/${goal.goal_id}`;
-            link.textContent = "查看任務詳情"; card.appendChild(link);
-          }
-          const approval = document.createElement("p"); approval.textContent = goal.task.approved_at ? `批准時間：${goal.task.approved_at}` : "尚未批准；建立待審任務沒有開始讀取。"; card.appendChild(approval);
-          if (goal.task.pause_reason) { const reason = document.createElement("p"); reason.textContent = pauses[goal.task.pause_reason]; card.appendChild(reason); }
-          const details = document.createElement("pre"); details.style = "white-space:pre-wrap;overflow-wrap:anywhere";
-          const lines = [];
-          for (const path of goal.task.paths) {
-            const item = goal.task.observations.find(value => value.path === path);
-            if (!item) { lines.push(`${path}：${goal.task.intent_path === path ? "讀取結果未知（曾開始，尚無保存結果）" : "尚未讀取"}`); continue; }
-            if (item.status === "failed") { lines.push(`${path}：${errors[item.error]} · ${item.read_at}`); continue; }
-            lines.push(`${path}：已讀取 · ${item.read_at}`, `SHA256：${item.sha256}`);
-            for (const match of item.matches) lines.push(`第 ${match.line} 行：${match.text}`);
-            if (!item.matches.length) lines.push("這次讀取未找到未勾選待辦／TODO／FIXME。");
-            if (item.truncated) lines.push("清單有截短；不是完整待辦內容。");
-          }
-          details.textContent = lines.join("\n"); card.appendChild(details);
-          const actions = ["completed", "failed", "cancelled"].includes(goal.state) ? ["remove"]
-            : goal.state === "proposed" ? ["approve", "cancel"]
-            : goal.state === "waiting_external" ? ["resume", "cancel"] : ["pause", "cancel"];
-          const names = {approve:"批准這些檔案的唯讀任務", resume:"明確繼續保存任務", pause:"暫停任務", cancel:"取消任務", remove:"清除這項任務紀錄"};
-          const controls = document.createElement("div"); controls.className = "quick-actions";
-          for (const action of actions) {
-            const button = document.createElement("button"); button.type = "button";
-            button.id = `goal-${goal.goal_id}-${action}`; button.textContent = names[action];
-            button.onclick = () => changeGoalTask(action, goal.goal_id, goal.revision);
-            controls.appendChild(button);
-          }
-          card.appendChild(controls); root.appendChild(card);
-        }
-        updateGoalTaskControls();
-      }
-      document.querySelector("#goal-task-back").onclick = () => navigateToPage("tasks");
-      async function goalTaskRequest(url, options, epoch, connection, session) {
-        const current = () => !pageClosing && controlAuthenticated && epoch === goalTaskEpoch
-          && connection === controlEpoch && session === goalTaskSessionId && !options.signal.aborted;
-        let response;
-        if (options.method === "GET") response = await authorizedFetch(url, {...options, headers:headers()});
-        else {
-          const token = await sessionAccess.getToken();
-          if (!current()) throw new Error("retired task request");
-          const requestHeaders = new Headers(headers()); requestHeaders.set("Authorization", `Bearer ${token}`);
-          response = await fetch(url, {...options, headers:requestHeaders, redirect:"error"});
-        }
-        if (!current()) throw new Error("retired task request");
-        if (!response.ok || (response.url && new URL(response.url, location.origin).origin !== location.origin)) throw new Error("unconfirmed task request");
-        const data = await response.json();
-        if (!current() || new TextEncoder().encode(JSON.stringify(data)).length > 2 * 1024 * 1024) throw new Error("invalid task response");
-        return data;
-      }
-      function scheduleGoalTaskPoll() {
-        if (!goalTaskViews.some(goal => ["ready", "running"].includes(goal.state))) return;
-        if (goalTaskPolls >= 30) { document.querySelector("#goal-task-status").textContent = "自動查詢已達上限；請手動重新查詢保存狀態。沒有重送操作。"; return; }
-        const epoch = goalTaskEpoch, connection = controlEpoch, session = goalTaskSessionId;
-        goalTaskPollTimer = setTimeout(() => {
-          goalTaskPollTimer = undefined;
-          if (pageClosing || !controlAuthenticated || epoch !== goalTaskEpoch || connection !== controlEpoch || session !== goalTaskSessionId) return;
-          goalTaskPolls += 1; refreshGoalTasks(true);
-        }, 1000);
-      }
-      async function performGoalTaskRequest(method, suffix, body, accept) {
-        if (pageClosing || !controlAuthenticated || (method !== "GET" && (goalTaskBusy || goalTaskNeedsReadback))) return;
-        const previous = goalTaskViews.slice();
-        clearGoalTasks(method === "GET" ? "正在查詢保存狀態…" : "正在提交；連線中斷時請先重新查詢結果。", goalTaskNeedsReadback);
-        goalTaskBusy = true; updateGoalTaskControls();
-        const epoch = goalTaskEpoch, connection = controlEpoch, session = goalTaskSessionId, controller = new AbortController();
-        goalTaskController = controller;
-        const unknown = method === "GET" ? "目前無法確認任務，請手動重新查詢。" : "提交結果未確認；沒有自動重送。請先重新查詢保存狀態。";
-        const timeout = setTimeout(() => { if (epoch === goalTaskEpoch) clearGoalTasks(unknown, true); }, 5000);
-        goalTaskTimeout = timeout;
-        let valid = false;
-        try {
-          const data = await goalTaskRequest(`/v1/goal-tasks/${encodeURIComponent(session)}${suffix}`, {
-            method, cache:"no-store", signal:controller.signal, ...(body === undefined ? {} : {body:JSON.stringify(body)})
-          }, epoch, connection, session);
-          if (pageClosing || epoch !== goalTaskEpoch || connection !== controlEpoch || controller.signal.aborted) return;
-          if (!accept(data, previous)) throw new Error("invalid task view");
-          goalTaskNeedsReadback = false; goalTaskHasSnapshot = true; valid = true;
-          document.querySelector("#goal-task-status").textContent = goalTaskAvailable
-            ? `${new Date().toLocaleString()} 保存狀態快照；批准與繼續需要你明確按一次。`
-            : "已讀取保存紀錄；目前不能開工，可取消或清除已結束任務。";
-          renderGoalTasks();
-        } catch {
-          if (epoch === goalTaskEpoch && !pageClosing) clearGoalTasks(unknown, true);
-        } finally {
-          clearTimeout(timeout);
-          if (epoch === goalTaskEpoch) { goalTaskController = undefined; goalTaskTimeout = undefined; goalTaskBusy = false; updateGoalTaskControls(); }
-        }
-        if (valid && epoch === goalTaskEpoch) scheduleGoalTaskPoll();
-      }
-      async function refreshGoalTasks(poll = false) {
-        if (!poll) goalTaskPolls = 0;
-        await performGoalTaskRequest("GET", "", undefined, data => {
-          if (!acceptedGoalTaskList(data)) return false;
-          goalTaskViews = data.goals; goalTaskAvailable = data.available; return true;
-        });
-      }
-      async function changeGoalTask(action, goalId, revision) {
-        const old = goalTaskViews.find(goal => goal.goal_id === goalId && goal.revision === revision);
-        if (!old || goalTaskBusy || goalTaskNeedsReadback || !controlAuthenticated || pageClosing) return;
-        const allowed = ["completed", "failed", "cancelled"].includes(old.state) ? ["remove"]
-          : old.state === "proposed" ? ["approve", "cancel"]
-          : old.state === "waiting_external" ? ["resume", "cancel"] : ["pause", "cancel"];
-        if (!allowed.includes(action) || (["approve", "resume"].includes(action) && !goalTaskAvailable)) return;
-        goalTaskPolls = 0;
-        await performGoalTaskRequest(action === "remove" ? "DELETE" : "POST", `/${encodeURIComponent(goalId)}${action === "remove" ? "" : `/${action}`}`, {revision}, (data, previous) => {
-          if (action === "remove") {
-            if (!goalTaskExactKeys(data, ["removed"]) || data.removed !== true) return false;
-            goalTaskViews = previous.filter(goal => goal.goal_id !== goalId); return true;
-          }
-          if (!goalTaskExactKeys(data, ["goal"]) || !acceptedGoalTask(data.goal) || data.goal.goal_id !== goalId
-            || data.goal.revision < revision || (["approve", "resume"].includes(action) && data.goal.revision === revision)
-            || JSON.stringify(data.goal.task.paths) !== JSON.stringify(old.task.paths)
-            || (action !== "approve" && data.goal.task.approved_at !== old.task.approved_at)
-            || (action === "approve" && (data.goal.task.approved_at === null || data.goal.state === "proposed"))
-            || (action === "cancel" && !["completed", "failed", "cancelled"].includes(data.goal.state))
-            || (action === "pause" && !["waiting_external", "completed", "failed", "cancelled"].includes(data.goal.state))) return false;
-          goalTaskViews = previous.map(goal => goal.goal_id === goalId ? data.goal : goal); return true;
-        });
-      }
-      document.querySelector("#goal-task-refresh").onclick = () => refreshGoalTasks();
-      document.querySelector("#goal-task-create").onclick = async () => {
-        if (pageClosing || !controlAuthenticated || goalTaskBusy || goalTaskNeedsReadback || !goalTaskAvailable || goalTaskViews.length >= 20) return;
-        const paths = document.querySelector("#goal-task-paths").value.split(/\r?\n/);
-        if (paths.length < 1 || paths.length > 5 || !paths.every(path => validGoalTaskPath(path) && path === path.trim()) || new Set(paths).size !== paths.length) {
-          document.querySelector("#goal-task-status").textContent = "請填 1–5 個不同的工作目錄內相對路徑，每行一個；不要加入首尾空白、上層路徑或完整電腦路徑。"; return;
-        }
-        goalTaskPolls = 0;
-        await performGoalTaskRequest("POST", "", {paths}, (data, previous) => {
-          if (!goalTaskExactKeys(data, ["goal"]) || !acceptedGoalTask(data.goal) || data.goal.state !== "proposed"
-            || data.goal.task.approved_at !== null || data.goal.steps_used !== 0 || data.goal.task.intent_path !== null
-            || data.goal.task.observations.length !== 0 || JSON.stringify(data.goal.task.paths) !== JSON.stringify(paths)
-            || previous.some(goal => goal.goal_id === data.goal.goal_id) || previous.length >= 20) return false;
-          goalTaskViews = [data.goal, ...previous]; return true;
-        });
-      };
-      function clearImprovementProposal(message = "快照已清除；請重新查詢最新來源。") {
-        improvementEpoch += 1; improvementController?.abort(); improvementController = undefined;
-        clearTimeout(improvementTimeout); improvementTimeout = undefined;
-        document.querySelector("#improvement-proposal-review").textContent = "";
-        document.querySelector("#improvement-proposal-status").textContent = message;
-        document.querySelector("#improvement-proposal-refresh").disabled = pageClosing || !controlAuthenticated;
-      }
-      function acceptedImprovementProposal(data) {
-        const exactKeys = (value, keys) => value && !Array.isArray(value) && typeof value === "object"
-          && Object.keys(value).sort().join("|") === keys.slice().sort().join("|");
-        if (!exactKeys(data, ["status", "proposal"])) return undefined;
-        if (data.status === "no_supported_evidence" && data.proposal === null) return null;
-        if (data.status !== "awaiting_investigation") return undefined;
-        const p = data.proposal;
-        const texts = ["problem", "expected_behavior", "actual_behavior", "scope", "compatibility_requirements", "proposed_repair", "rollback_method", "risk"];
-        const lists = ["files_must_not_change", "tests_required", "regression_tests", "acceptance_criteria"];
-        if (!exactKeys(p, ["schema_version", "proposal_id", "source_task", "classification", "evidence", "root_cause", "files_expected_to_change", "patch", "approval_required", "authorizes_execution", ...texts, ...lists])) return undefined;
-        if (new TextEncoder().encode(JSON.stringify(data)).length > 8192) return undefined;
-        const e = p.evidence;
-        if (!exactKeys(e, ["source_run_id", "state", "error_class", "tool_dispatch_recorded", "root_cause"])) return undefined;
-        if (typeof e.source_run_id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(e.source_run_id)
-          || e.state !== "failed" || e.error_class !== "HTTPStatusError" || e.root_cause !== "UNKNOWN" || typeof e.tool_dispatch_recorded !== "boolean") return undefined;
-        if (p.schema_version !== 1 || p.source_task !== "RI-006" || p.classification !== "DEFER"
-          || p.proposal_id !== `RI-006:${e.source_run_id}:http-status-v1`
-          || p.root_cause !== "UNKNOWN — NEEDS INVESTIGATION" || p.patch !== null
-          || p.approval_required !== true || p.authorizes_execution !== false
-          || !Array.isArray(p.files_expected_to_change) || p.files_expected_to_change.length !== 0) return undefined;
-        const validText = value => typeof value === "string" && value.trim().length > 0 && value.length <= 4096;
-        if (!texts.every(key => validText(p[key])) || !lists.every(key => Array.isArray(p[key]) && p[key].length > 0 && p[key].length <= 8 && p[key].every(validText))) return undefined;
-        return p;
-      }
-      document.querySelector("#improvement-proposal-refresh").onclick = async () => {
-        if (pageClosing || !controlAuthenticated) return;
-        clearImprovementProposal("正在查詢最新來源…");
-        const epoch = improvementEpoch, controller = new AbortController();
-        improvementController = controller;
-        const timeout = setTimeout(() => {
-          if (epoch === improvementEpoch) clearImprovementProposal("查詢逾時，請稍後重新查詢。沒有執行修復。")
-        }, 5000);
-        improvementTimeout = timeout;
-        try {
-          const data = await productRequest("/v1/conversations/browser/improvement-proposal", {method:"GET", cache:"no-store", signal:controller.signal});
-          if (pageClosing || epoch !== improvementEpoch || controller.signal.aborted) return;
-          const p = acceptedImprovementProposal(data);
-          if (p === undefined) throw new Error("invalid investigation view");
-          const time = new Date().toLocaleString();
-          document.querySelector("#improvement-proposal-status").textContent = p === null
-            ? `${time} 查詢快照：目前沒有符合的近期來源；重新查詢可確認最新狀態。`
-            : `${time} 查詢快照：待調查，根因未知。來源可能變更，請重新查詢；這份建議沒有執行修復。`;
-          if (p) {
-            const labels = {problem:"問題", expected_behavior:"預期行為", actual_behavior:"已知狀態", scope:"最小調查範圍", proposed_repair:"下一步", compatibility_requirements:"相容要求", files_must_not_change:"保持原樣", tests_required:"需要驗證", regression_tests:"回歸驗證", acceptance_criteria:"驗收條件", rollback_method:"回退方式", risk:"風險與限制"};
-            const lines = [`來源：${p.evidence.source_run_id}`, "根因：未知，需調查。"];
-            for (const [key, label] of Object.entries(labels)) lines.push(`${label}：${Array.isArray(p[key]) ? p[key].join("\n") : p[key]}`);
-            document.querySelector("#improvement-proposal-review").textContent = lines.join("\n\n");
-          }
-        } catch {
-          if (epoch === improvementEpoch && !pageClosing) document.querySelector("#improvement-proposal-status").textContent = "目前無法確認改善建議，請稍後重新查詢。沒有執行修復。";
-        } finally {
-          clearTimeout(timeout);
-          if (epoch === improvementEpoch) { improvementController = undefined; improvementTimeout = undefined; }
-        }
-      };
       let memorySearchEpoch = 0, memorySearchController, memorySearchTimeout;
       function clearMemorySearch(message = "連線已改變；請重新搜尋記憶。") {
         memorySearchEpoch += 1; memorySearchController?.abort(); memorySearchController = undefined;
@@ -1756,99 +1147,19 @@
           if (epoch === memorySearchEpoch) { memorySearchController = undefined; memorySearchTimeout = undefined; }
         }
       }
-      async function refreshProfile() {
-        const status = document.querySelector("#profile-status"), root = document.querySelector("#profile-items");
-        try {
-          const profile = await productRequest("/v1/profile");
-          if (!Array.isArray(profile.items)) throw new Error("invalid profile");
-          root.textContent = "";
-          const auto = profile.auto || {};
-          const autoText = auto.enabled ? `最近自動更新：${auto.last_run ? new Date(auto.last_run).toLocaleString() : "尚未執行"}` : "自動更新已關閉";
-          status.textContent = (profile.items.length ? `共 ${profile.items.length} 筆。` : "還沒有個人檔案，可以按「整理個人檔案」。") + " " + autoText;
-          for (const entry of profile.items) {
-            const card = document.createElement("div"); card.className = "message";
-            const text = document.createElement("p"); text.textContent = `${entry.category === "habit" ? "習慣" : "偏好"}：${entry.text}`;
-            const quote = document.createElement("small"); quote.textContent = `原話「${entry.quote}」 · ${new Date(entry.message_at || entry.occurred_at).toLocaleString()}`;
-            const remove = document.createElement("button"); remove.textContent = "刪除";
-            remove.onclick = async () => {
-              if (!window.confirm("刪除這筆個人檔案？原始對話不會一併刪除。")) return;
-              remove.disabled = true;
-              try { await productRequest(`/v1/memories/${entry.memory_id}`, {method:"DELETE"}); await refreshProfile(); }
-              catch (error) { status.textContent = `刪除未確認：${error.message}`; remove.disabled = false; }
-            };
-            card.append(text, quote, remove); root.appendChild(card);
-          }
-        } catch { root.textContent = ""; status.textContent = "個人檔案目前無法使用（此執行模式未啟用）。"; }
-      }
-      document.querySelector("#profile-section").ontoggle = event => { if (event.target.open) refreshProfile(); };
-      document.querySelector("#profile-rebuild").onclick = async () => {
-        const status = document.querySelector("#profile-status"), button = document.querySelector("#profile-rebuild");
-        button.disabled = true; status.textContent = "正在整理…";
-        try { const result = await productRequest("/v1/profile/rebuild", {method:"POST"}); await refreshProfile(); status.textContent = `新增 ${result.created} 筆。` + " " + status.textContent; }
-        catch (error) { status.textContent = `整理未完成：${error.message}`; }
-        finally { button.disabled = false; }
-      };
       document.querySelector("#memory-search-form").onsubmit = event => { event.preventDefault(); return refreshMemories(); };
       document.querySelector("#memory-search-clear").onclick = () => { document.querySelector("#memory-query").value = ""; return refreshMemories(); };
-      function renderCapabilities(tools = []) {
-        const root = document.querySelector("#capability-items"); root.textContent = "";
-        const reasons = {tools_disabled:"你已暫停電腦操作", browser_executable_missing:"尚未找到可用的瀏覽器", workspace_unavailable:"工作目錄讀取服務尚未就緒", not_ready:"目前尚未就緒", availability_check_failed:"目前無法確認狀態"};
-        if (!tools.length) root.textContent = "目前沒有已註冊的電腦能力。";
-        for (const tool of tools) {
-          const card = document.createElement("div"); card.className = "proposal";
-          const title = document.createElement("strong"); title.textContent = tool.display_name || tool.name;
-          const status = document.createElement("p");
-          status.textContent = tool.availability === "available" ? "目前可用；操作時仍需檢查授權與目標。" : (reasons[tool.reason_code] || "此執行模式尚未提供即時狀態。");
-          const detail = document.createElement("small");
-          detail.textContent = (tool.risk_level === "observe/read-only" ? "讀取用途" : tool.risk_level === "computer" ? "可能改變電腦或網頁狀態" : "操作風險尚未宣告") + (tool.model_visible === false ? " · 相容入口，不會提供給模型選擇" : "");
-          card.append(title, status, detail); root.appendChild(card);
-        }
-      }
-      async function refreshCapabilities() {
-        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
-        try { renderCapabilities((await productRequest("/v1/runtime")).tools); }
-        catch { document.querySelector("#capability-items").textContent = "目前無法更新能力狀態，請稍後重試。"; }
-      }
-      document.querySelector("#capabilities-refresh").onclick = refreshCapabilities;
       async function refreshProduct() {
-        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
         try {
           const runtime = await productRequest("/v1/runtime");
-          renderCapabilities(runtime.tools);
           speechStream = runtime.speech_stream === true;
-          renderSkillCandidateAvailability(runtime);
-          renderSkillActivation(runtime);
-          const features = runtime.features || {}, workspace = features.workspace || {};
+          
           const backend = runtime.routes?.model || "offline";
           document.querySelector("#model-status").textContent = backend === "offline" ? "離線示範 · 固定規則回覆" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
-          document.querySelector("#workspace-status").textContent = workspace.available
-            ? `可讀取：${workspace.directory}` : `工作目錄尚未就緒${workspace.directory ? "：" + workspace.directory : "（此執行模式未啟用）"}`;
-          document.querySelector("#workspace-list").disabled = !workspace.available;
-          document.querySelector("#workspace-read").disabled = !workspace.available;
-          const summary = features.summary || {};
-          document.querySelector("#summary-status").textContent = summary.enabled
-            ? `已啟用摘錄摘要，可帶入最近 ${summary.history_pairs} 組對話；本次啟動已縮減 ${summary.budget_compactions} 次超限請求。`
-            : "目前使用原始近期對話，未啟用摘要。";
-          const report = await productRequest("/v1/memory-organization");
-          const labels = {ready:"已整理", waiting:"等待閒置", foreground:"先回應你", organizing:"整理中", disabled:"已暫停", unavailable:"此執行模式未啟用", error:"整理未完成，稍後重試", stopped:"已停止"};
-          document.querySelector("#organization-status").textContent = (labels[report.state] || report.state) + (report.updated_at ? ` · ${new Date(report.updated_at).toLocaleString()}` : "");
-          const groups = document.querySelector("#organization-items"); groups.textContent = "";
-          for (const group of report.groups || []) {
-            const item = document.createElement("p");
-            item.textContent = group.text + (group.truncated ? "…（摘錄）" : "") + (group.duplicates ? `（${group.duplicates + 1} 筆相同內容）` : "");
-            const source = document.createElement("small");
-            source.textContent = "來源：" + group.sources.map(s => `${s.memory_id} · 第 ${s.revision} 版`).join("；");
-            groups.append(item, source);
-          }
           await refreshMemories();
         } catch (error) {
-          document.querySelector("#organization-status").textContent = error.message;
           document.querySelector("#memory-search-status").textContent = "目前無法更新記憶，請稍後按「重新整理記憶」重試。";
         }
-      }
-      async function setOrganization(enabled, refresh = false) {
-        try { await productRequest(`/v1/memory-organization?enabled=${enabled}&refresh=${refresh}`, {method:"POST"}); await refreshProduct(); if (refresh) setTimeout(refreshProduct, 1000); }
-        catch (error) { document.querySelector("#organization-status").textContent = error.message; }
       }
       const contextEls = {app: document.querySelector("#context-app"), screen: document.querySelector("#context-screen"), status: document.querySelector("#context-status"), items: document.querySelector("#context-items")};
       const contextKinds = {stated: "你說的", seen: "看到的", inferred: "推測"};
@@ -1881,25 +1192,8 @@
         const text = document.querySelector("#context-text").value.trim();
         if (text) { contextAction("/v1/work-context/shared", {method: "POST", body: JSON.stringify({text})}); document.querySelector("#context-text").value = ""; }
       };
-      document.querySelector("#organization-on").onclick = () => setOrganization(true);
-      document.querySelector("#organization-off").onclick = () => setOrganization(false);
-      document.querySelector("#organization-refresh").onclick = () => setOrganization(true, true);
       document.querySelector("#product-refresh").onclick = refreshProduct;
-      async function readWorkspace(action, path) {
-        const output = document.querySelector("#workspace-result"); output.textContent = "讀取中…";
-        try {
-          const data = await productRequest(`/v1/workspace/${action}?path=${encodeURIComponent(path)}`, {method:"POST"});
-          output.textContent = typeof data.result?.text === "string" ? data.result.text : JSON.stringify(data.result, null, 2);
-        } catch (error) { output.textContent = error.message; }
-      }
-      document.querySelector("#workspace-list").onclick = () => readWorkspace("list", ".");
-      document.querySelector("#workspace-read").onclick = () => {
-        const path = document.querySelector("#workspace-file").value.trim();
-        if (path) readWorkspace("read", path);
-      };
       function renderSnapshot(data) {
-        renderSkillCandidateAvailability(data.runtime || data);
-        renderSkillActivation(data.runtime || data);
         if (data.active_turns) {
           const active = data.active_turns.browser;
           const nextTurn = active && ["responding", "awaiting_approval"].includes(active.state) ? active.turn_id : undefined;
@@ -1912,11 +1206,9 @@
         }
         authorizationMode = data.authorization_mode || "safe";
         const authorizationDescription = authorizationMode === "full"
-          ? "完整權限模式：目前支援的一般使用者操作會自動授權；可到「權限與停止開關」關閉電腦與工具操作。"
+          ? "完整權限模式：目前支援的一般使用者操作會自動授權；可在下方「功能開關」關閉電腦與工具操作。"
           : "安全模式：操作需要逐次授權。";
-        document.querySelector("#authorization-status").textContent = authorizationDescription;
         document.querySelector("#permissions-authorization-status").textContent = authorizationDescription;
-        document.querySelector("#snapshot").textContent = JSON.stringify({identity: data.identity, health: data.health, routes: data.routes, authorization_mode: authorizationMode}, null, 2);
         const root = document.querySelector("#switches"); root.textContent = "";
         microphoneEnabled = Boolean(data.kill_switches.microphone);
         if (!microphoneEnabled) document.querySelector("#voice")?.dispatchEvent?.(new Event("siro:microphone-stop"));
@@ -1955,7 +1247,6 @@
       }
       function renderToolProposal(data) {
         const root = document.querySelector("#tool-proposals");
-        document.querySelector("#computer-panel").open = true;
         if (typeof notifyComputerActivity === "function") notifyComputerActivity();
         if (document.getElementById(`tool-${data.proposal_id}`)) return;
         const card = document.createElement("div"); card.className = "proposal"; card.id = `tool-${data.proposal_id}`;
@@ -2028,8 +1319,6 @@
       }
       async function submitText(value, inputMode = "text") {
         if (foregroundControl.blocked()) return false;
-        if (typeof clearImprovementProposal === "function") clearImprovementProposal();
-        if (typeof clearGoalTasks === "function") clearGoalTasks("先回應你；任務保存狀態請重新查詢。", true);
         const submission = ++submissionGeneration;
         pendingSubmission?.abort(); pendingSubmission = undefined;
         stopTts(); speechCancelled = false;
@@ -2818,7 +2107,6 @@
         document.querySelector("#renderer-status").textContent = `${event.data.renderer === "VRM" ? "VRM" : "Live2D"} 已就緒 · 情緒與對話同步`;
       });
       document.querySelectorAll(".prompt-chips button").forEach(button => button.onclick = () => { const field = document.querySelector("#text"); field.value = button.dataset.prompt; field.focus(); });
-      document.querySelectorAll(".computer-prompt").forEach(button => button.onclick = () => { if (navigationInitialized) navigateToPage("chat", false); document.querySelector("#text").value = button.dataset.prompt; document.querySelector("#text").focus(); document.querySelector("#chat").scrollIntoView({behavior:"smooth",block:"center"}); });
       let chatInputComposing = false;
       const chatInput = document.querySelector("#text");
       chatInput.addEventListener("compositionstart", () => { chatInputComposing = true; });

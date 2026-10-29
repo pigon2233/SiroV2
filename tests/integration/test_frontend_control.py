@@ -99,8 +99,11 @@ const readyControl = async (state = {}) => {
   const owner = sockets.at(-1); owner.open(); owner.message(snapshot(state));
   await connecting; return owner;
 };
+// Read-only polls (activity feed, D80 monitor page) are not actions.
+const MONITOR_READS = ['/v1/activities', '/v1/devices/esp32/state', '/v1/system/stats',
+  '/v1/snapshot', '/v1/work-context', '/v1/memory-curation?', '/v1/self-notes'];
 const targetCalls = () => calls.filter(
-  call => call.url !== '/v1/session' && !call.url.startsWith('/v1/activities'));
+  call => call.url !== '/v1/session' && !MONITOR_READS.some(prefix => call.url.startsWith(prefix)));
 let finished = false;
 process.on('beforeExit', () => {
   if (!finished) {
