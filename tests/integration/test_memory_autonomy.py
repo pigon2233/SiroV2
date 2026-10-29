@@ -159,6 +159,7 @@ def test_contextual_prompt_and_parser() -> None:
         {"text": "主人提到沒有電", "quote": "沒有電", "importance": 1},  # trivial
         {"text": "主人喜歡某個東西的貼紙", "quote": "貼紙", "importance": 4},  # unresolved
         {"text": "主人愛喝茶", "quote": "愛喝茶"},  # no score: not judged
+        {"text": "主人想讓SIRO玩UNDERTALE", "quote": "開始遊玩", "importance": 5},  # a request
         "bad",
         {"text": 1},
     ]

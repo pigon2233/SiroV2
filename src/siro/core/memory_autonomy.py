@@ -129,6 +129,8 @@ _RULES_V2 = (
     "不要選：閒聊、問句、假設（如果…）、玩笑、轉述別人的話或別人的事、一次性的瑣事、SIRO 說的話。"
     "只記一個月後仍然有用的事；今天吃了什麼、隨口的感想、看不懂或像是聽錯的句子都不要選。"
     "若無法確定「那個、它」指什麼，就不要選，不要寫成「某個東西」。"
+    "主人要 SIRO 做的事（打開、播放、幫我查、玩遊戲等指令）是一次性的請求，"
+    "不是關於主人的事實，不要選。"
     "importance：1 到 10 的整數，1 是完全瑣碎的日常（刷牙、鋪床），"
     "10 是非常深刻的事（分手、考上大學）。"
     '只輸出 JSON：{"memories": [{"text": "改寫後的事實", "quote": "原話片段", '
@@ -140,6 +142,9 @@ _RULES_V2 = (
 # such as "主人提到沒有電" and unresolved "某個東西" were being kept. Generative Agents scores
 # importance 1-10 with these anchors; 3 is a design threshold, measured in MEM-AUTONOMY-D7b.
 MIN_IMPORTANCE = 3
+# Owner report 2026-10-30: "打開 undertale 開始遊玩" became "主人想讓SIRO玩UNDERTALE".
+# A request for SIRO to act is a one-off command, not a fact about the owner.
+_REQUEST_TO_SIRO = re.compile(r"(想|要|希望|請|叫|讓)\s*SIRO|SIRO\s*(幫|去|來)", re.I)
 # The rewrite must name the referent; a leftover pronoun means it could not be resolved.
 _VAGUE = re.compile(
     r"某個|某些|某種|某樣|某件|某人|某處|某地|它|牠|祂|那個|這個|那些|這些|那件|這件"
@@ -171,6 +176,8 @@ def parse_contextual_nominations(raw: str) -> list[Nomination]:
             continue
         text, quote, importance = item.get("text"), item.get("quote"), item.get("importance")
         if not isinstance(text, str) or not isinstance(quote, str) or _VAGUE.search(text):
+            continue
+        if _REQUEST_TO_SIRO.search(text):
             continue
         if not (isinstance(importance, int) and not isinstance(importance, bool)):
             continue  # no score: the model did not judge its value, so it is not kept

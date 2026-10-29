@@ -55,7 +55,7 @@ def event(text: str) -> UserTextEvent:
 
 async def main() -> None:
     model_name, runs, out = sys.argv[1], int(sys.argv[2]), Path(sys.argv[3])
-    model = OllamaAdapter(model=model_name, thinking=False)
+    model = OllamaAdapter(model=model_name, thinking=False, context_length=8192)  # same as the live service
     cases = json.loads((HERE / "cases.json").read_text(encoding="utf-8"))["cases"]
 
     async def ask(prompt: str) -> str:
