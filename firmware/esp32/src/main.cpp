@@ -132,6 +132,7 @@ void publishDiag(const Snapshot &snap) {
   diag["pir_pulses_10s"] = snap.pirPulses;
   diag["pir_max_sample_gap_ms"] = snap.maxSampleGapMs;
   diag["wifi"] = wifiUp ? 1 : 0;
+  diag["rssi"] = WiFi.RSSI();
   diag["mqtt"] = linkState == LinkMqtt ? 1 : 0;
   diag["uptime_s"] = millis() / 1000UL;
   diag["free_heap"] = ESP.getFreeHeap();
@@ -187,6 +188,7 @@ bool tryConnectMqtt() {
   mqtt.onMessage(onMessage);
 #endif
   if (!mqtt.connect(SIRO_MQTT_HOST, SIRO_MQTT_PORT)) return false;
+  network.setNoDelay(true);  // Send small MQTT packets immediately.
   mqtt.beginMessage(prefix + "availability", 6, true, 1, false);
   mqtt.print("online");
   mqtt.endMessage();
@@ -343,6 +345,7 @@ void setup() {
   lastLightRead = millis();
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
+  WiFi.setSleep(false);  // Modem sleep delayed/bunched uplink packets by several seconds.
   WiFi.begin(SIRO_WIFI_SSID, SIRO_WIFI_PASSWORD);
   network.setTimeout(2);  // Seconds: bounds the TCP connect of MQTT attempts.
   configTime(0, 0, "pool.ntp.org");
