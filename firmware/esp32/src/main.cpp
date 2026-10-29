@@ -7,8 +7,8 @@
 #include <time.h>
 
 #include "face.h"
-#include "ota.h"
 #include "secrets.h"
+#include "ota.h"  // After secrets.h: it reads SIRO_OTA_BASE_URL.
 #include "sensor_telemetry.h"
 
 #ifndef SIRO_HAS_OLED
