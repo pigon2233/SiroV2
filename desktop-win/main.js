@@ -6,6 +6,7 @@ const {pathToFileURL} = require('node:url');
 const {ComputerControl} = require('./computer-control.js');
 const {ComputerBridgeClient} = require('./computer-bridge.js');
 const {makeObserver} = require('./computer-perception.js');
+const {computerToken} = require('./computer-config.js');
 
 if (process.env.SIRO_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.SIRO_DEBUG_PORT);
 const origin = process.env.SIRO_DESKTOP_ORIGIN || 'http://127.0.0.1:8000';
@@ -239,7 +240,7 @@ app.whenReady().then(async () => {
   setupTray();
   // Backend link: only active with SIRO_COMPUTER_TOKEN; polls solely while control is enabled.
   new ComputerBridgeClient({
-    origin, token: process.env.SIRO_COMPUTER_TOKEN, control,
+    origin, token: computerToken(), control,
     observe: makeObserver({control, screen, desktopCapturer}),
   }).start();
   win.loadURL(`${origin}/desktop`);
