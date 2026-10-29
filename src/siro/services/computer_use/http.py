@@ -94,6 +94,7 @@ def _steps(records: Sequence[StepRecord]) -> list[dict[str, Any]]:
             "expect": s.expect,
             "outcome": s.outcome,
             "screen_changed": s.screen_changed,
+            "seen": s.seen,
         }
         for s in records
     ]

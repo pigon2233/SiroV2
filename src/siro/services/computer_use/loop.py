@@ -122,7 +122,7 @@ class DecisionLoop:
                 changed = observation.fingerprint != before.fingerprint
                 history[-1] = StepRecord(
                     history[-1].step, history[-1].action, history[-1].expect,
-                    history[-1].outcome, changed,
+                    history[-1].outcome, changed, history[-1].seen,
                 )  # fmt: skip
                 no_change = 0 if changed else no_change + 1
                 if no_change >= MAX_NO_CHANGE:
@@ -135,7 +135,9 @@ class DecisionLoop:
                 return end("failed", f"decider_error:{error}")
             if decision.kind == "wait":
                 waits += 1
-                history.append(StepRecord(step, "(wait)", decision.expect, "ok", None))
+                history.append(
+                    StepRecord(step, "(wait)", decision.expect, "ok", None, decision.seen)
+                )
                 if waits > MAX_WAITS:
                     return end("stopped", "stuck_waiting")
                 before = None
@@ -187,7 +189,9 @@ class DecisionLoop:
                     )
                 )
                 return end("stopped", f"denied:{result.error}")
-            history.append(StepRecord(step, _describe(action), decision.expect, "ok", None))
+            history.append(
+                StepRecord(step, _describe(action), decision.expect, "ok", None, decision.seen)
+            )
             before = observation
             await asyncio.sleep(self._settle)
         return end("stopped", "step_limit")

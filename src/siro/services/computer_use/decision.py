@@ -33,6 +33,7 @@ class Decision:
     reason: str = ""
     confidence: float = 0.0
     evidence: str = ""  # for done: what on screen proves the goal is met
+    seen: str = ""  # one short sentence: what the screenshot shows now (kept in the history)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +43,7 @@ class StepRecord:
     expect: str
     outcome: str  # ok | denied:<why> | unknown | invalid:<why>
     screen_changed: bool | None
+    seen: str = ""  # what the screen showed before this step
 
 
 class Decider(Protocol):
@@ -100,6 +102,7 @@ def parse_decision(text: str) -> Decision:
         reason=str(raw.get("reason", ""))[:300],
         confidence=float(confidence),
         evidence=str(raw.get("evidence", ""))[:300],
+        seen=str(raw.get("seen", ""))[:200],
     )
 
 
@@ -113,6 +116,8 @@ Recent steps (oldest first):
 {history}
 
 Rules:
+- "seen" is one short sentence on what the screenshot shows now; it is saved so later steps can tell which scene each action led to.
+- Compare the recent steps: if the same scenes keep repeating (a loop), what you pressed is NOT progressing; stop repeating it, try something else, wait, or answer "stuck".
 - Judge only from what the screenshot shows now. If the last step had no visible effect, do NOT repeat it unchanged: try something different, or answer "stuck".
 - Answer "done" only if the screenshot itself proves the goal is met; put that proof in "evidence".
 - Answer "wait" when the screen is mid-transition (black/fading/loading/animating) and pressing anything now would be a guess.
@@ -122,7 +127,7 @@ Rules:
   {{"kind":"key","key":"ctrl+c","hold_ms":0}} (key name or combo such as "space", "z", "left"; hold_ms 0-2000 to hold it, 0 = quick tap), {{"kind":"type","text":"abc"}} (<=200 chars).
 - confidence is 0..1: how sure you are this step is correct.
 Reply with JSON only:
-{{"kind":"act|done|stuck|ask|wait","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what should change","reason":"why","confidence":0.0,"evidence":""}}"""  # noqa: E501
+{{"kind":"act|done|stuck|ask|wait","seen":"what is on screen now","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what should change","reason":"why","confidence":0.0,"evidence":""}}"""  # noqa: E501
 
 
 class CloudScreenNotAllowed(RuntimeError):
@@ -137,8 +142,8 @@ def _history_text(history: Sequence[StepRecord]) -> str:
     if not history:
         return "(none yet)"
     return "\n".join(
-        f"{r.step}. {r.action} -> expected: {r.expect or '-'}; outcome: {r.outcome}; "
-        f"screen changed: {'?' if r.screen_changed is None else r.screen_changed}"
+        f"{r.step}. saw: {r.seen or '-'} | did: {r.action} | expected: {r.expect or '-'} | "
+        f"outcome: {r.outcome}; screen changed: {'?' if r.screen_changed is None else r.screen_changed}"
         for r in history[-8:]
     )
 

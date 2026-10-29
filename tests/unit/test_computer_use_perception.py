@@ -237,3 +237,14 @@ def test_parse_decision_accepts_combo_alias_and_hold() -> None:
         '{"kind":"act","action":{"kind":"key","combo":"ctrl+a","hold_ms":300},"confidence":0.7}'
     )
     assert decision.action == InputAction("key", key="ctrl+a", hold_ms=300)
+
+
+def test_seen_is_parsed_and_shown_in_history() -> None:
+    from siro.services.computer_use.decision import StepRecord, _history_text
+
+    decision = parse_decision(
+        '{"kind":"wait","seen":"intro panel with text","confidence":0.9,"expect":"x"}'
+    )
+    assert decision.kind == "wait" and decision.seen == "intro panel with text"
+    text = _history_text([StepRecord(1, "key(z)", "next line", "ok", True, "title screen")])
+    assert "saw: title screen" in text and "did: key(z)" in text
