@@ -328,6 +328,17 @@ class QwenReferenceTTS:
             self._idle.touch()
             return audio
 
+    async def warm(self) -> None:
+        """Load the model before the first request; a failure only costs the cold start."""
+        if not self._lifecycle:
+            return
+        try:
+            await self._render_owned(prepare_spoken_text("好"))
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            logging.getLogger(__name__).warning("qwen tts warmup failed: %s", type(error).__name__)
+
     def _log_queue_wait(self, queued: float, chars: int) -> None:
         # The gateway logs total time; this splits out time spent behind other renders.
         logging.getLogger(__name__).info(

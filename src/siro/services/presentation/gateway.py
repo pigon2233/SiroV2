@@ -807,6 +807,7 @@ def create_app(
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         nonlocal release_started
         speech_warmup: asyncio.Task[None] | None = None
+        tts_warmup: asyncio.Task[None] | None = None
         try:
             if on_startup is not None:
                 await on_startup()
@@ -819,6 +820,9 @@ def create_app(
             release_started = True
             warm = getattr(speech_to_text, "warm", None)
             speech_warmup = asyncio.create_task(warm()) if callable(warm) else None
+            tts_warm = getattr(text_to_speech, "warm", None)
+            if callable(tts_warm) and os.environ.get("SIRO_TTS_WARM", "1") != "0":
+                tts_warmup = asyncio.create_task(tts_warm())
             yield
         finally:
             release_started = False
@@ -848,9 +852,10 @@ def create_app(
                                 await text_to_speech.close()
                         finally:
                             try:
-                                if speech_warmup is not None:
-                                    speech_warmup.cancel()
-                                    await asyncio.gather(speech_warmup, return_exceptions=True)
+                                for warmup in (speech_warmup, tts_warmup):
+                                    if warmup is not None:
+                                        warmup.cancel()
+                                        await asyncio.gather(warmup, return_exceptions=True)
                                 for recognizer_owner in (speech_to_text, fallback_speech_to_text):
                                     close = getattr(recognizer_owner, "close", None)
                                     if callable(close):
