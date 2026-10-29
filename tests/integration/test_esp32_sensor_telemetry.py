@@ -46,10 +46,22 @@ int main() {
   assert(!pir.update(61010, true));
   assert(!pir.update(61200, false)); // short bounce is discarded
   assert(!pir.update(61500, true));
-  assert(!pir.update(61999, true));
-  assert(pir.update(62000, true));
+  assert(!pir.update(62999, true));
+  assert(pir.update(63000, true));   // 1.5 s of stable HIGH starts motion
   assert(pir.motion());
-  assert(!pir.update(63000, true)); // unchanged state is not an edge
+  assert(!pir.update(64000, true)); // unchanged state is not an edge
+  assert(!pir.update(64100, false));
+  assert(!pir.update(67099, false));
+  assert(pir.update(67100, false)); // 3 s of stable LOW releases it
+  assert(!pir.motion());
+  assert(!pir.update(67200, true));
+  assert(!pir.update(68000, false)); // a ~1 s pulse is ignored
+  assert(!pir.update(68100, false));
+  assert(!pir.update(71000, false));
+  assert(!pir.motion());
+  assert(!pir.update(71100, true));
+  assert(!pir.update(72599, true));
+  assert(pir.update(72600, true));
   pir.invalidate();
   assert(!pir.ready());
   assert(!pir.update(64000, true));

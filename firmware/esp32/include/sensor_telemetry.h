@@ -98,7 +98,8 @@ class PirMotionSampler {
       candidateSince_ = now;
       return false;
     }
-    if (!sensorIntervalElapsed(now, candidateSince_, 500UL)) return false;
+    // Rising needs a sustained HIGH (rejects ~1 s false pulses); release waits for a long LOW.
+    if (!sensorIntervalElapsed(now, candidateSince_, raw ? 1500UL : 3000UL)) return false;
     motion_ = raw;
     candidateActive_ = false;
     return true;

@@ -36,6 +36,11 @@ bool lightValid = false;
 bool connectedOnce = false;
 float lastLux = 0.0f;
 bool mqttUp = false;
+bool lastPirRaw = false;
+uint32_t pirRawEdges = 0;
+uint32_t pirHighSamples = 0;
+uint32_t pirSamples = 0;
+uint32_t lastDiag = 0;
 uint32_t mqttDownSince = 0;
 uint32_t lastMqttAttempt = 0;
 uint32_t lastHttpLight = 0;
@@ -218,7 +223,12 @@ void loop() {
     }
   }
   const bool httpFallback = !mqttUp && now - mqttDownSince >= SIRO_MQTT_FALLBACK_AFTER_MS;
-  const bool motionChanged = pir.update(now, digitalRead(SIRO_PIR_PIN) == HIGH);
+  const bool pirRaw = digitalRead(SIRO_PIR_PIN) == HIGH;
+  if (pirRaw != lastPirRaw) ++pirRawEdges;
+  lastPirRaw = pirRaw;
+  ++pirSamples;
+  if (pirRaw) ++pirHighSamples;
+  const bool motionChanged = pir.update(now, pirRaw);
   const bool buttonChanged = button.update(now, digitalRead(SIRO_BUTTON_PIN) == LOW);
   if (sensorIntervalElapsed(now, lastLightRead, sensorIntervalMs)) {
     lastLightRead = now;
@@ -243,6 +253,16 @@ void loop() {
   face.update(now, WiFi.status() == WL_CONNECTED,
               mqttUp ? FaceLink::Mqtt : (httpFallback ? FaceLink::Http : FaceLink::Down),
               lightValid, lastLux);
+  if (mqttUp && sensorIntervalElapsed(now, lastDiag, sensorIntervalMs)) {
+    // Raw PIR diagnostics on a separate topic: fast edges mean noise, long HIGH means retrigger.
+    lastDiag = now;
+    JsonDocument diag;
+    diag["pir_raw_edges"] = pirRawEdges;
+    diag["pir_high_pct"] = pirSamples ? (100UL * pirHighSamples / pirSamples) : 0;
+    diag["oled"] = SIRO_HAS_OLED;
+    publishJson(prefix + "diag", diag, false);
+    pirRawEdges = pirHighSamples = pirSamples = 0;
+  }
   if (mqttUp) {
     if (motionChanged || buttonChanged ||
         sensorIntervalElapsed(now, lastStatePublish, sensorIntervalMs)) {
