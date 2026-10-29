@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SIRO 2048 test</title>
+<style>
+  body { background:#1b1b22; color:#eee; font-family:sans-serif; margin:0; text-align:center; user-select:none }
+  h1 { font-size:20px; margin:10px 0 2px } #info { font-size:16px; margin-bottom:8px }
+  #board { display:grid; grid-template-columns:repeat(4,90px); gap:8px; justify-content:center; background:#333; padding:8px; width:408px; margin:0 auto; border-radius:8px }
+  .t { height:90px; line-height:90px; font-size:34px; font-weight:bold; border-radius:6px; background:#2a2a35; color:#fff }
+  .v2{background:#6b5b4a}.v4{background:#8a6f45}.v8{background:#c27c2c}.v16{background:#d9622b}.v32{background:#2f9e5b}.v64{background:#2a7fd4}
+  #goal { color:#ffd54a }
+  #win { display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); font-size:42px; padding-top:30vh }
+</style>
+<h1>2048 — reach tile <span id="goal">32</span></h1>
+<div id="info">Score <b id="score">0</b> · Moves <b id="moves">0</b> · Arrow keys move tiles</div>
+<div id="board"></div>
+<div id="win">YOU REACHED 32!<br><small>goal complete</small></div>
+<script>
+const GOAL = 32; let g, score = 0, moves = 0, won = false, over = false;
+function reset(){ g = Array.from({length:4},()=>Array(4).fill(0)); add(); add(); }
+function add(){ const e=[]; g.forEach((r,y)=>r.forEach((v,x)=>{ if(!v) e.push([y,x]); })); if(!e.length) return;
+  const [y,x]=e[Math.floor(Math.random()*e.length)]; g[y][x] = Math.random()<.9?2:4; }
+function slide(row){ const a=row.filter(v=>v); for(let i=0;i<a.length-1;i++) if(a[i]===a[i+1]){ a[i]*=2; score+=a[i]; a.splice(i+1,1); }
+  while(a.length<4) a.push(0); return a; }
+function move(dir){
+  const before = JSON.stringify(g);
+  const rot = (m)=>m[0].map((_,i)=>m.map(r=>r[i]).reverse());   // rotate clockwise
+  let n = {left:0, down:1, right:2, up:3}[dir], m = g;
+  for(let i=0;i<n;i++) m = rot(m);
+  m = m.map(slide);
+  for(let i=0;i<(4-n)%4;i++) m = rot(m);
+  g = m;
+  if (JSON.stringify(g)!==before){ moves++; add(); }
+  draw();
+}
+function draw(){
+  const b=document.getElementById('board'); b.innerHTML='';
+  g.flat().forEach(v=>{ const d=document.createElement('div'); d.className='t v'+v; d.textContent=v||''; b.appendChild(d); });
+  document.getElementById('score').textContent=score; document.getElementById('moves').textContent=moves;
+  if(g.flat().some(v=>v>=GOAL)) { won = true; document.getElementById('win').style.display='block'; }
+}
+addEventListener('keydown',e=>{ const k={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'}[e.key]; if(k && !won){ e.preventDefault(); move(k); } });
+reset(); draw();
+</script>
