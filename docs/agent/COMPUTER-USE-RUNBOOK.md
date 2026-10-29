@@ -2,7 +2,13 @@
 
 全部預設關閉。不設 token＝後端路由不掛載，桌寵也不連線。
 
-## 開啟步驟（每次都由 owner 手動）
+## 一次性設定（owner 在 WSL 執行，之後免設環境變數）
+`bash scripts/enable-computer-control.sh`：建立 `%USERPROFILE%\siro-computer\computer.env`（token、允許的程式、截圖同意）並讓後端啟動腳本讀它（備份為 `siro-companion-vrm.prev-computer`）；桌寵讀同一個檔。
+- 想關掉：`bash scripts/enable-computer-control.sh --disable`（刪掉設定檔，整個功能回到不存在）。
+- 改玩哪款遊戲：編輯該檔的 `SIRO_COMPUTER_ALLOWED_PROCESSES`（程序名小寫，逗號分隔），重啟 SIRO。
+- 設完後重啟 SIRO，再從托盤開啟「電腦操控」才會生效。
+
+## 開啟步驟（每次都由 owner 手動；以下環境變數也可直接設，會覆蓋設定檔）
 1. 後端環境（WSL 啟動 SIRO 前設定）：
    - `SIRO_COMPUTER_TOKEN`：≥32 字元隨機字串（桌寵與後端要同一個）。
    - `SIRO_COMPUTER_ALLOWED_PROCESSES=遊戲.exe`：只允許操控的前景程序（空＝一律拒絕）。
