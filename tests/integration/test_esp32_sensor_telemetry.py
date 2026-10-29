@@ -93,6 +93,43 @@ int main() {
   assert(std::fabs(luxFromBh1750Raw(120) - 100.0f) < 0.01f);
   assert(luxFromBh1750Raw(0) == 0.0f);
 
+  // Reconnect backoff doubles and stops at the cap.
+  assert(reconnectDelayMs(0, 5000, 60000) == 5000);
+  assert(reconnectDelayMs(1, 5000, 60000) == 10000);
+  assert(reconnectDelayMs(3, 5000, 60000) == 40000);
+  assert(reconnectDelayMs(4, 5000, 60000) == 60000);
+  assert(reconnectDelayMs(200, 5000, 30000) == 30000);
+
+  // HTTP fallback: entering pushes the snapshot, failures retry every 2 s, changes re-sync.
+  HttpFallbackSync sync;
+  sync.enter(3);
+  assert(!sync.motionDue(1000, false, false));       // PIR not ready: nothing to say
+  assert(sync.motionDue(1000, true, true));          // snapshot due at once
+  sync.motionResult(1000, true, false);               // receiver unreachable
+  assert(!sync.motionDue(2999, true, true));
+  assert(sync.motionDue(3000, true, true));           // retried after >= 2 s
+  sync.motionResult(3000, true, true);
+  assert(!sync.motionDue(9000, true, true));          // in sync: quiet
+  assert(sync.motionDue(9001, true, false));          // state changed since the last send
+  sync.motionResult(9001, false, true);
+  assert(!sync.motionDue(9100, true, false));
+  assert(!sync.buttonDue(1000, 3));                   // presses before fallback are not replayed
+  assert(sync.buttonDue(1000, 4));
+  sync.buttonResult(1000, false);
+  assert(!sync.buttonDue(2500, 4));
+  assert(sync.buttonDue(3000, 4));
+  sync.buttonResult(3000, true);
+  assert(!sync.buttonDue(9000, 4));
+  assert(sync.buttonDue(9000, 100));                  // backlog is bounded
+  assert(!sync.lightDue(0, false));
+  assert(sync.lightDue(0, true));
+  sync.lightResult(0, true);
+  assert(!sync.lightDue(9999, true) && sync.lightDue(10000, true));
+  sync.lightResult(10000, false);
+  assert(!sync.lightDue(11999, true) && sync.lightDue(12000, true));
+  sync.enter(4);                                       // re-entering fallback re-syncs motion
+  assert(sync.motionDue(20000, true, false));
+
   ButtonSampler button;
   button.reset(true); // held during boot is not counted as a new press
   assert(button.down() && button.pressCount() == 0);

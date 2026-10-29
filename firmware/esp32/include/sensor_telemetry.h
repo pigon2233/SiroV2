@@ -204,3 +204,73 @@ class PirMotionSampler {
     return count >= kPirMinPulses || highMs * 100UL >= kPirWindowMs * kPirDutyPercent;
   }
 };
+
+// Exponential reconnect delay: base, 2*base, 4*base ... capped at maxMs.
+inline uint32_t reconnectDelayMs(uint8_t failures, uint32_t baseMs, uint32_t maxMs) {
+  uint32_t delayMs = baseMs;
+  for (uint8_t i = 0; i < failures && delayMs < maxMs; ++i) delayMs *= 2;
+  return delayMs < maxMs ? delayMs : maxMs;
+}
+
+// Keeps the HTTP fallback receiver in step with the node: entering fallback pushes the current
+// motion snapshot, later changes (and any send that failed) are retried every kRetryMs.
+class HttpFallbackSync {
+ public:
+  static constexpr uint32_t kRetryMs = 2000UL;
+  static constexpr uint32_t kLightIntervalMs = 10000UL;
+
+  void enter(uint32_t pressCount) {
+    motionSynced_ = false;
+    haveMotionTry_ = false;
+    haveLightTry_ = false;
+    reportedPresses_ = pressCount;  // Earlier presses already travelled over MQTT.
+  }
+
+  bool motionDue(uint32_t now, bool ready, bool motion) const {
+    if (!ready) return false;
+    if (motionSynced_ && motion == syncedMotion_) return false;
+    return !haveMotionTry_ || sensorIntervalElapsed(now, lastMotionTry_, kRetryMs);
+  }
+  void motionResult(uint32_t now, bool motion, bool ok) {
+    lastMotionTry_ = now;
+    haveMotionTry_ = true;
+    if (ok) {
+      motionSynced_ = true;
+      syncedMotion_ = motion;
+    }
+  }
+
+  bool buttonDue(uint32_t now, uint32_t pressCount) {
+    if (pressCount - reportedPresses_ > 5u) reportedPresses_ = pressCount - 5u;  // Bounded backlog.
+    if (pressCount == reportedPresses_) return false;
+    return !haveButtonTry_ || sensorIntervalElapsed(now, lastButtonTry_, kRetryMs);
+  }
+  void buttonResult(uint32_t now, bool ok) {
+    lastButtonTry_ = now;
+    haveButtonTry_ = true;
+    if (ok) ++reportedPresses_;
+  }
+
+  bool lightDue(uint32_t now, bool valid) const {
+    if (!valid) return false;
+    if (!haveLightTry_) return true;
+    return sensorIntervalElapsed(now, lastLightTry_, lastLightOk_ ? kLightIntervalMs : kRetryMs);
+  }
+  void lightResult(uint32_t now, bool ok) {
+    lastLightTry_ = now;
+    haveLightTry_ = true;
+    lastLightOk_ = ok;
+  }
+
+ private:
+  uint32_t lastMotionTry_ = 0;
+  uint32_t lastButtonTry_ = 0;
+  uint32_t lastLightTry_ = 0;
+  uint32_t reportedPresses_ = 0;
+  bool motionSynced_ = false;
+  bool syncedMotion_ = false;
+  bool haveMotionTry_ = false;
+  bool haveButtonTry_ = false;
+  bool haveLightTry_ = false;
+  bool lastLightOk_ = false;
+};
