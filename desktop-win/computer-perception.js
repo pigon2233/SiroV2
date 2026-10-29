@@ -24,17 +24,24 @@ function makeObserver({control, screen, desktopCapturer}) {
     const pw = Math.round(display.bounds.width * f), ph = Math.round(display.bounds.height * f);
     const report = {
       title: win.data.title, process: win.data.process, rect: win.data.rect, screen: [pw, ph],
-      focus_is_secret: win.data.secret === true, fingerprint: '', image_png_b64: null, image_size: null,
+      focus_is_secret: win.data.secret === true, fingerprint: '', image_png_b64: null, image_size: null, image_rect: null,
     };
     if (report.focus_is_secret) return {ok: true, data: report}; // never capture while a password field has focus
-    const width = Math.min(MAX_WIDTH, pw), height = Math.round(width * ph / pw);
-    const sources = await desktopCapturer.getSources({types: ['screen'], thumbnailSize: {width, height}});
+    // Only the foreground window is captured and sent, never the rest of the desktop.
+    const [wl, wt, ww, wh] = win.data.rect;
+    const x = Math.max(0, wl), y = Math.max(0, wt);
+    const cw = Math.min(pw, wl + ww) - x, ch = Math.min(ph, wt + wh) - y;
+    if (cw < 32 || ch < 32) return {ok: false, error: 'window_not_visible'};
+    const sources = await desktopCapturer.getSources({types: ['screen'], thumbnailSize: {width: pw, height: ph}});
     const source = sources.find(s => String(s.display_id) === String(display.id)) || sources[0];
     if (!source || source.thumbnail.isEmpty()) return {ok: false, error: 'capture_failed'};
-    const size = source.thumbnail.getSize();
-    report.image_png_b64 = source.thumbnail.toPNG().toString('base64');
+    let image = source.thumbnail.crop({x, y, width: cw, height: ch});
+    if (cw > MAX_WIDTH) image = image.resize({width: MAX_WIDTH, height: Math.round(ch * MAX_WIDTH / cw), quality: 'good'});
+    const size = image.getSize();
+    report.image_png_b64 = image.toPNG().toString('base64');
     report.image_size = [size.width, size.height];
-    report.fingerprint = fingerprint(source.thumbnail);
+    report.image_rect = [x, y, cw, ch];
+    report.fingerprint = fingerprint(image);
     return {ok: true, data: report};
   };
 }

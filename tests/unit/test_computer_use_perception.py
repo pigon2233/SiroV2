@@ -66,6 +66,23 @@ def test_image_without_size_is_dropped_and_points_map_to_screen() -> None:
     assert rect_in_image(obs) == (0, 0, 400, 300)
 
 
+def test_cropped_window_screenshot_maps_back_to_screen() -> None:
+    # Only the window (screen 400,200 800x600) was captured, sent at half size (400x300).
+    raw = {
+        **RAW,
+        "rect": [400, 200, 800, 600],
+        "image_rect": [400, 200, 800, 600],
+        "image_size": [400, 300],
+    }
+    obs = sanitize(raw, seq=1, now=0.0)
+    assert obs.image_rect == (400, 200, 800, 600)
+    assert image_to_screen(obs, 0, 0) == (400, 200)
+    assert image_to_screen(obs, 200, 150) == (800, 500)
+    assert rect_in_image(obs) == (0, 0, 400, 300)
+    blocked = sanitize({**raw, "process": "keepass.exe"}, seq=1, now=0.0)
+    assert blocked.image_rect is None
+
+
 def test_title_secret_scrubbed_and_bad_rect_ignored() -> None:
     obs = sanitize({**RAW, "title": "key sk-" + "a" * 24, "rect": [0, 0, -1, 5]}, seq=1, now=0.0)
     assert "sk-" not in obs.window_title and obs.window_rect is None

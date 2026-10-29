@@ -77,7 +77,8 @@ function fakeImage(width, height, luma) {
   const bitmap = Buffer.alloc(32 * 18 * 4, luma);
   return {
     isEmpty: () => false, getSize: () => ({width, height}), toPNG: () => Buffer.from('png'),
-    resize: () => ({toBitmap: () => bitmap}),
+    resize: opts => (opts.width === 32 ? {toBitmap: () => bitmap} : fakeImage(opts.width, opts.height, luma)),
+    crop: r => fakeImage(r.width, r.height, luma),
   };
 }
 const display = {id: 7, scaleFactor: 1.5, bounds: {x: 0, y: 0, width: 1280, height: 720}};
@@ -87,13 +88,15 @@ test('observation reports physical screen, scaled image, fingerprint', async () 
   const control = makeControl(() => ({title: 'Game', process: 'game.exe', rect: [0, 0, 800, 600], secret: false}));
   control.enable();
   const capturer = {getSources: async opts => {
-    assert.deepStrictEqual(opts.thumbnailSize, {width: 1280, height: 720});
-    return [{display_id: '7', thumbnail: fakeImage(1280, 720, 40)}];
+    assert.deepStrictEqual(opts.thumbnailSize, {width: 1920, height: 1080});
+    return [{display_id: '7', thumbnail: fakeImage(1920, 1080, 40)}];
   }};
   const result = await makeObserver({control, screen, desktopCapturer: capturer})();
   assert.strictEqual(result.ok, true);
   assert.deepStrictEqual(result.data.screen, [1920, 1080]);
-  assert.deepStrictEqual(result.data.image_size, [1280, 720]);
+  // Window rect [0,0,800,600] is all that is captured: 800x600 fits under the width cap.
+  assert.deepStrictEqual(result.data.image_rect, [0, 0, 800, 600]);
+  assert.deepStrictEqual(result.data.image_size, [800, 600]);
   assert.strictEqual(result.data.image_png_b64, Buffer.from('png').toString('base64'));
   assert.notStrictEqual(fingerprint(fakeImage(1, 1, 40)), fingerprint(fakeImage(1, 1, 200)));
   assert.strictEqual(fingerprint(fakeImage(1, 1, 40)), fingerprint(fakeImage(9, 9, 40)));

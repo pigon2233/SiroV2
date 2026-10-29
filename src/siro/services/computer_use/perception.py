@@ -54,6 +54,8 @@ class Observation:
     fingerprint: str  # coarse screen hash from the shell; equal fingerprints = no visible change
     image_png_b64: str | None = None
     image_size: tuple[int, int] | None = None  # pixels of the screenshot as sent
+    # Screen area the screenshot covers: only the foreground window is ever sent, not the desktop.
+    image_rect: tuple[int, int, int, int] | None = None
     focus_is_secret: bool = False
     blocked_reason: str | None = None
 
@@ -103,6 +105,7 @@ def sanitize(raw: Mapping[str, object], *, seq: int, now: float) -> Observation:
     )
     if image is not None and image_size is None:
         image = None  # coordinates could not be mapped back to the screen
+    image_rect = _rect(raw.get("image_rect")) or (0, 0, screen[0], screen[1])
     reason: str | None = None
     if screen == (0, 0):
         reason = "bad_screen_report"
@@ -128,6 +131,7 @@ def sanitize(raw: Mapping[str, object], *, seq: int, now: float) -> Observation:
         fingerprint=str(raw.get("fingerprint", ""))[:64],
         image_png_b64=image,
         image_size=image_size,
+        image_rect=image_rect if image is not None else None,
         focus_is_secret=secret_focus,
         blocked_reason=reason,
     )
@@ -138,16 +142,21 @@ def image_to_screen(observation: Observation, x: int, y: int) -> tuple[int, int]
     size = observation.image_size
     if size is None:
         return x, y
-    return (
-        round(x * observation.screen[0] / size[0]),
-        round(y * observation.screen[1] / size[1]),
-    )
+    left, top, width, height = observation.image_rect or (0, 0, *observation.screen)
+    return left + round(x * width / size[0]), top + round(y * height / size[1])
 
 
 def rect_in_image(observation: Observation) -> tuple[int, int, int, int] | None:
     """The focused window rect expressed in screenshot pixels (what the model sees)."""
     rect, size = observation.window_rect, observation.image_size
-    if rect is None or size is None or observation.screen[0] <= 0:
+    if rect is None or size is None:
         return rect
-    fx, fy = size[0] / observation.screen[0], size[1] / observation.screen[1]
-    return (round(rect[0] * fx), round(rect[1] * fy), round(rect[2] * fx), round(rect[3] * fy))
+    left, top, width, height = observation.image_rect or (0, 0, *observation.screen)
+    if width <= 0 or height <= 0:
+        return rect
+    fx, fy = size[0] / width, size[1] / height
+    x0 = max(0, round((rect[0] - left) * fx))
+    y0 = max(0, round((rect[1] - top) * fy))
+    x1 = min(size[0], round((rect[0] + rect[2] - left) * fx))
+    y1 = min(size[1], round((rect[1] + rect[3] - top) * fy))
+    return (x0, y0, max(0, x1 - x0), max(0, y1 - y0))

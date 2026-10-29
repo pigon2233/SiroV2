@@ -107,7 +107,7 @@ DECISION_PROMPT = """You control a Windows PC for the owner, one input at a time
 
 Goal: {goal}
 Foreground window: "{title}" ({process}); window rect left,top,width,height = {rect}.
-The screenshot is {size} pixels. Coordinates are pixels of that screenshot and must fall inside the window rect.
+The screenshot shows only that window and is {size} pixels. Coordinates are pixels of that screenshot and must fall inside the window rect.
 Recent steps (oldest first):
 {history}
 
