@@ -223,3 +223,6 @@ skill_activation,skill_candidate,task_detail}.py`；`docs/evidence/` 下的歷�
 - 2026-10-29 D7a 完成：自動記憶不再發「可在記憶頁刪除」文字，改為對話卡片「我記下了：…［不要記］」（呼叫既有 DELETE /v1/memories）。
   敏感個資（地址、健康、收入等）改為「要記下嗎？［保留］［不要］」卡片（POST /v1/memory-confirmations/{id}，每張只能答一次、一天後過期、
   最多同時 20 張，只存在記憶體，重啟即失效）；密碼、驗證碼、金鑰等憑證一律不存，也不提供保留選項。D7b（看前後文抽取）尚未做。
+- 2026-10-29 D7b 完成：主動記憶抽取改看最近 10 則對話、可改寫並解開代名詞，但須附這一句的原話片段供核對；
+  20 題合成對話 × 3 次（gemma4:e4b）量測後預設開啟（`SIRO_MEMORY_CONTEXT=0` 退回）。詳 [MEM-AUTONOMY-D7b](../verification/MEM-AUTONOMY-D7b/REPORT.md)。
+  尚未做：D7 主動發現 B（跨多次對話的反思歸納）、D3 技能確認卡片。

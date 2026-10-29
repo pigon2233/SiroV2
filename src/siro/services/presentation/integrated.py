@@ -471,7 +471,7 @@ class IntegratedCompanion:
             assert self._memory_service is not None
 
             # D80 D7b: the nominator sees the recent dialogue so pronouns and follow-ups resolve.
-            contextual = os.environ.get("SIRO_MEMORY_CONTEXT", "0") == "1"  # on after measurement
+            contextual = os.environ.get("SIRO_MEMORY_CONTEXT", "1") != "0"  # measured: MEM-AUTONOMY-D7b
             recent: list[tuple[str, str]] = []
             if contextual and self._agent_runs is not None:
                 with contextlib.suppress(Exception):
