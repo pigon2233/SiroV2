@@ -24,6 +24,7 @@ class FakeDesktop:
     ) -> None:
         self.bridge, self.title, self.process = bridge, title, process
         self.scene = "menu"
+        self.image_size = [1920, 1080]
         self.inputs: list[dict[str, Any]] = []
         self.drop_input = False
         self.after_input: Callable[[], None] | None = None
@@ -45,6 +46,7 @@ class FakeDesktop:
             "screen": [1920, 1080],
             "fingerprint": self.scene,
             "image_png_b64": "AAAA",
+            "image_size": self.image_size,
         }
 
     async def _serve(self) -> None:
@@ -273,3 +275,20 @@ async def test_time_and_step_limits_stop() -> None:
     assert report.reason == "time_limit" and desktop.inputs == []
     report, _, _, _ = await _run(solver, max_steps=1)
     assert report.reason == "step_limit" and not report.success
+
+
+@pytest.mark.asyncio
+async def test_decision_coordinates_are_mapped_from_screenshot_to_screen() -> None:
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.image_size = [960, 540]  # model sees half-size pixels
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        if obs.fingerprint == "menu":
+            return click(150, 150)  # == (300, 300) on screen
+        if obs.fingerprint == "playing":
+            return click(250, 200)  # == (500, 400)
+        return Decision("done", None, "", "won", 0.95, "banner")
+
+    report, desktop, _, _ = await _run(policy, setup=setup)
+    assert report.success
+    assert [(a["x"], a["y"]) for a in desktop.inputs] == [(300, 300), (500, 400)]

@@ -1,9 +1,11 @@
 'use strict';
-const {app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, screen, session, Tray} = require('electron');
+const {app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage, screen, session, Tray} = require('electron');
 const {spawn} = require('node:child_process');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 const {ComputerControl} = require('./computer-control.js');
+const {ComputerBridgeClient} = require('./computer-bridge.js');
+const {makeObserver} = require('./computer-perception.js');
 
 if (process.env.SIRO_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.SIRO_DEBUG_PORT);
 const origin = process.env.SIRO_DESKTOP_ORIGIN || 'http://127.0.0.1:8000';
@@ -145,7 +147,7 @@ function setupTray() {
     }},
   ]);
   const refresh = () => { tray.setToolTip(control.active ? 'SIRO 桌寵 · 電腦操控開啟' : 'SIRO 桌寵'); tray.setContextMenu(menu()); };
-  control.onState = refresh; refresh();
+  control.listeners.push(refresh); refresh();
 }
 
 // Owner-only switch. Refuses to enable when the emergency-stop hotkey cannot be registered.
@@ -235,6 +237,11 @@ app.whenReady().then(async () => {
     return {x: Math.round(d.bounds.x * f), y: Math.round(d.bounds.y * f), width: Math.round(d.bounds.width * f), height: Math.round(d.bounds.height * f)};
   }});
   setupTray();
+  // Backend link: only active with SIRO_COMPUTER_TOKEN; polls solely while control is enabled.
+  new ComputerBridgeClient({
+    origin, token: process.env.SIRO_COMPUTER_TOKEN, control,
+    observe: makeObserver({control, screen, desktopCapturer}),
+  }).start();
   win.loadURL(`${origin}/desktop`);
   setInterval(pollCursor, 50);
   setInterval(refreshMask, 700);

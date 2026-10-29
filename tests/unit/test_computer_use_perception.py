@@ -19,7 +19,9 @@ from siro.services.computer_use.decision import (
 from siro.services.computer_use.perception import (
     Observation,
     allowed_processes,
+    image_to_screen,
     is_fresh,
+    rect_in_image,
     sanitize,
 )
 from siro.services.computer_use.safety import ControlGate, InputAction
@@ -31,6 +33,7 @@ RAW: dict[str, Any] = {
     "screen": [1920, 1080],
     "fingerprint": "abc",
     "image_png_b64": "AAAA",
+    "image_size": [960, 540],
 }
 
 
@@ -54,6 +57,13 @@ def test_sanitize_normalizes_and_keeps_pixels() -> None:
 def test_blocked_observation_drops_pixels(override: dict[str, Any], reason: str) -> None:
     obs = sanitize({**RAW, **override}, seq=1, now=0.0)
     assert obs.blocked_reason == reason and obs.image_png_b64 is None
+
+
+def test_image_without_size_is_dropped_and_points_map_to_screen() -> None:
+    assert sanitize({**RAW, "image_size": None}, seq=1, now=0.0).image_png_b64 is None
+    obs = sanitize(RAW, seq=1, now=0.0)
+    assert image_to_screen(obs, 100, 50) == (200, 100)
+    assert rect_in_image(obs) == (0, 0, 400, 300)
 
 
 def test_title_secret_scrubbed_and_bad_rect_ignored() -> None:

@@ -377,12 +377,16 @@ class IntegratedCompanion:
         finally:
             self._touching = False
 
-    async def share_self_note(self, text: str, spoken: str, *, speak: bool = True) -> None:
-        """Tell the owner about her own research; `speak=False` leaves it in the chat only."""
+    async def share_self_note(
+        self, text: str, spoken: str, *, speak: bool = True, remembered: str | None = None
+    ) -> None:
+        """Tell the owner about her own research; `speak=False` leaves it in the chat only.
+        `remembered` keeps the full note for her next replies when the chat shows a brief line."""
         session_id = self._last_session or "browser"
         stream_id = str(uuid4())
         # Remembered for her next replies only (not in the saved dialogue, and lost on restart).
-        self._recent_shares = [*self._recent_shares, (datetime.now(UTC), text[:300])][-3:]
+        kept = (remembered or text)[:300]
+        self._recent_shares = [*self._recent_shares, (datetime.now(UTC), kept)][-3:]
         await self._broadcast_stream(
             stream_id, {"type": "assistant_started", "session_id": session_id}
         )
@@ -613,15 +617,9 @@ class IntegratedCompanion:
         if direct_command is not None:
             emotion, reply = direct_command
             if plan_goal is not None:
-                try:
-                    self._planning = True
-                    report = await self.run_agent_plan(session_id, plan_goal)
-                    reply = (report.summary if report else "") or "這件事我沒能規劃出結果。"
-                except Exception:
-                    logging.getLogger(__name__).exception("agent plan failed")
-                    reply = "規劃時出了問題，這次沒有完成。"  # noqa: RUF001
-                finally:
-                    self._planning = False
+                # D80 P3a: the plan runs as a sub-thread; the main thread answers now and
+                # later receives only the summary (Hermes delegation: summary-only return).
+                reply = self._start_plan_subthread(session_id, plan_goal)
             generation_id = str(uuid4())
             await self._body.set_emotion(EmotionIntent(emotion, 0.85))
             await emit({"type": "assistant_delta", "session_id": session_id, "text": reply})
@@ -1599,6 +1597,33 @@ class IntegratedCompanion:
             await self._agent_runs.record_dispatch(run_id, call_id)
         else:
             await self._agent_runs.record_observation(run_id, call_id, value)
+
+    @property
+    def planning(self) -> bool:
+        return self._planning
+
+    def _start_plan_subthread(self, session_id: str, goal: str) -> str:
+        if self._planning:
+            # One local model: background work runs one at a time (CONSOLE-REDESIGN-PLAN D4).
+            return "我還在處理上一件事，做完再開始這件。"  # noqa: RUF001
+        self._planning = True
+        task = asyncio.create_task(self._plan_subthread(session_id, goal))
+        self._background.add(task)
+        task.add_done_callback(self._background.discard)
+        return "好，我在背景處理這件事，做完會在這裡告訴你。進度可以在監控頁的活動看到。"  # noqa: RUF001
+
+    async def _plan_subthread(self, session_id: str, goal: str) -> None:
+        try:
+            report = await self.run_agent_plan(session_id, goal)
+            summary = (report.summary if report else "") or "這件事我沒能規劃出結果。"
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.getLogger(__name__).exception("agent plan failed")
+            summary = "規劃時出了問題，這次沒有完成。"  # noqa: RUF001
+        finally:
+            self._planning = False
+        await self.share_self_note(summary, summary, speak=True)
 
     async def run_agent_plan(self, session_id: str, goal: str) -> PlanReport | None:
         """R05 planner entry; None unless SIRO_AGENT_PLANNER_ENABLED=1 and a factory is wired."""

@@ -31,7 +31,7 @@ test('default off sends nothing', async () => {
 
 test('enabled action reaches helper and resolves', async () => {
   const {cc, log} = make(); cc.enable();
-  assert.deepStrictEqual(await cc.execute({kind: 'click', x: 5, y: 6}), {ok: true, error: undefined});
+  assert.strictEqual((await cc.execute({kind: 'click', x: 5, y: 6})).ok, true);
   assert.strictEqual(log.length, 1);
 });
 
@@ -83,4 +83,13 @@ test('rate limit per second', async () => {
   const results = [];
   for (let i = 0; i < 6; i++) results.push((await cc.execute({kind: 'move', x: 1, y: 1})).ok);
   assert.deepStrictEqual(results, [true, true, true, true, true, false]);
+});
+
+test('window query only while active and bypasses input rate limit', async () => {
+  const {cc} = make();
+  assert.strictEqual((await cc.queryWindow()).error, 'control_disabled');
+  cc.enable();
+  for (let i = 0; i < 8; i++) assert.strictEqual((await cc.queryWindow()).ok, true);
+  cc.stop();
+  assert.strictEqual((await cc.queryWindow()).error, 'emergency_stop');
 });

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from siro.services.computer_use.perception import Observation
+from siro.services.computer_use.perception import Observation, rect_in_image
 from siro.services.computer_use.safety import ALLOWED_KINDS, InputAction
 from siro.services.tools.claude import Runner, claude_binary, claude_model
 from siro.services.tools.execution import execute_bounded_argv, restricted_environment
@@ -98,8 +98,8 @@ DECISION_PROMPT = """You control a Windows PC for the owner, one input at a time
 {image} (your only tool is Read). Decide the single best next step toward the goal, or stop.
 
 Goal: {goal}
-Foreground window: "{title}" ({process}); window rect left,top,width,height = {rect}; screen = {screen}.
-Coordinates are physical screen pixels and must fall inside the window rect.
+Foreground window: "{title}" ({process}); window rect left,top,width,height = {rect}.
+The screenshot is {size} pixels. Coordinates are pixels of that screenshot and must fall inside the window rect.
 Recent steps (oldest first):
 {history}
 
@@ -166,8 +166,8 @@ class ClaudeVisionDecider:
                 goal=goal,
                 title=observation.window_title,
                 process=observation.process,
-                rect=observation.window_rect,
-                screen=observation.screen,
+                rect=rect_in_image(observation),
+                size=observation.image_size,
                 history=_history_text(history),
             )
             argv = (

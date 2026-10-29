@@ -20,7 +20,12 @@ from siro.services.computer_use.decision import (
     DecisionError,
     StepRecord,
 )
-from siro.services.computer_use.perception import Observation, allowed_processes, is_fresh
+from siro.services.computer_use.perception import (
+    Observation,
+    allowed_processes,
+    image_to_screen,
+    is_fresh,
+)
 from siro.services.computer_use.safety import InputAction
 
 MAX_STEPS = 40
@@ -178,12 +183,16 @@ class DecisionLoop:
         action = decision.action
         if action is None:
             return "no_action"
-        if not _inside(action, observation.window_rect):
+        x, y = action.x, action.y
+        if x is not None and y is not None:
+            x, y = image_to_screen(observation, x, y)
+        scaled = InputAction(action.kind, x=x, y=y)
+        if not _inside(scaled, observation.window_rect):
             return "outside_window"
         return InputAction(
             kind=action.kind,
-            x=action.x,
-            y=action.y,
+            x=x,
+            y=y,
             button=action.button,
             key=action.key,
             text=action.text,

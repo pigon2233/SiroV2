@@ -77,7 +77,7 @@ from siro.services.agent.routine import RoutineWatcher
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.agent.scene import detect_scene
 from siro.services.agent.self_activity import SelfActivityOwner
-from siro.services.agent.self_notes import SelfNotes, remember_note, share_text
+from siro.services.agent.self_notes import SelfNotes, brief_text, remember_note, share_text
 from siro.services.audio.protocol import (
     AudioFrame,
     AudioMetadata,
@@ -3318,7 +3318,7 @@ def _run_gateway(
         memory_service,
         ask_curation,
         data_dir / "memory-curation" / "dry-run.jsonl",
-        busy=lambda: controller.foreground_active,
+        busy=lambda: controller.foreground_active or controller.planning,
     )
 
     async def observe_memory(memory: Memory, source: str, explicit: bool) -> None:
@@ -3334,7 +3334,9 @@ def _run_gateway(
         for run_id in (await self_notes_service.unshared())[:1]:
             note = await self_notes_service.note(run_id)
             if note is not None:
-                await controller.share_self_note(*share_text(note), speak=False)
+                await controller.share_self_note(
+                    brief_text(note), "", speak=False, remembered=share_text(note)[0]
+                )
                 self_notes_service.mark_shared(run_id)
                 # Owner decision: sourced notes go into memory by themselves (short, deletable).
                 stored = None

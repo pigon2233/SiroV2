@@ -53,6 +53,7 @@ class Observation:
     screen: tuple[int, int]
     fingerprint: str  # coarse screen hash from the shell; equal fingerprints = no visible change
     image_png_b64: str | None = None
+    image_size: tuple[int, int] | None = None  # pixels of the screenshot as sent
     focus_is_secret: bool = False
     blocked_reason: str | None = None
 
@@ -92,6 +93,16 @@ def sanitize(raw: Mapping[str, object], *, seq: int, now: float) -> Observation:
     )
     image = raw.get("image_png_b64")
     image = image if isinstance(image, str) and len(image) <= 8_000_000 else None
+    size_raw = raw.get("image_size")
+    image_size = (
+        (int(size_raw[0]), int(size_raw[1]))
+        if isinstance(size_raw, (list, tuple))
+        and len(size_raw) == 2
+        and all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in size_raw)
+        else None
+    )
+    if image is not None and image_size is None:
+        image = None  # coordinates could not be mapped back to the screen
     reason: str | None = None
     if screen == (0, 0):
         reason = "bad_screen_report"
@@ -105,7 +116,7 @@ def sanitize(raw: Mapping[str, object], *, seq: int, now: float) -> Observation:
     if secret_focus:
         reason = reason or "secret_field_focused"
     if reason:
-        image = None
+        image = image_size = None
         title = "" if reason in {"blocked_title", "blocked_process"} else title
     return Observation(
         seq=seq,
@@ -116,6 +127,27 @@ def sanitize(raw: Mapping[str, object], *, seq: int, now: float) -> Observation:
         screen=screen,
         fingerprint=str(raw.get("fingerprint", ""))[:64],
         image_png_b64=image,
+        image_size=image_size,
         focus_is_secret=secret_focus,
         blocked_reason=reason,
     )
+
+
+def image_to_screen(observation: Observation, x: int, y: int) -> tuple[int, int]:
+    """Map a point in the screenshot's pixels to physical screen pixels."""
+    size = observation.image_size
+    if size is None:
+        return x, y
+    return (
+        round(x * observation.screen[0] / size[0]),
+        round(y * observation.screen[1] / size[1]),
+    )
+
+
+def rect_in_image(observation: Observation) -> tuple[int, int, int, int] | None:
+    """The focused window rect expressed in screenshot pixels (what the model sees)."""
+    rect, size = observation.window_rect, observation.image_size
+    if rect is None or size is None or observation.screen[0] <= 0:
+        return rect
+    fx, fy = size[0] / observation.screen[0], size[1] / observation.screen[1]
+    return (round(rect[0] * fx), round(rect[1] * fy), round(rect[2] * fx), round(rect[3] * fy))

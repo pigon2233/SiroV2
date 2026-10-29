@@ -211,6 +211,11 @@ def share_text(note: dict[str, object]) -> tuple[str, str]:
     return text, f"我剛剛查了{note['topic']}，整理在對話裡了。"  # noqa: RUF001
 
 
+def brief_text(note: dict[str, object]) -> str:
+    """D80 P3b: the main chat gets one line; the full note stays in the monitor's sub-threads."""
+    return f"我剛剛自己查了「{note['topic']}」，完整筆記放在監控頁的「背景工作」。"  # noqa: RUF001
+
+
 async def remember_note(
     memory_service: MemoryService, note: dict[str, object]
 ) -> Memory | None:

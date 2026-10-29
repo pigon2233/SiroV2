@@ -21,13 +21,15 @@ function defaultSpawn() {
 class ComputerControl {
   // getBounds() -> {x, y, width, height} in physical pixels; env is read for secret values.
   constructor({getBounds, spawnHelper = defaultSpawn, now = Date.now, env = process.env, onState = () => {}}) {
-    Object.assign(this, {getBounds, spawnHelper, now, env, onState});
+    Object.assign(this, {getBounds, spawnHelper, now, env});
+    this.listeners = [onState];
     this.enabled = false; this.stopped = false; this.stamps = []; this.helper = null; this.pending = new Map(); this.seq = 0; this.buffer = '';
   }
+  emit(state) { for (const listener of this.listeners) { try { listener(state); } catch (_) { /* a listener must not block stop */ } } }
   get active() { return this.enabled && !this.stopped; }
-  enable() { this.stopped = false; this.enabled = true; this.stamps = []; this.onState('enabled'); }
-  disable() { this.enabled = false; this.kill('disabled'); this.onState('disabled'); }
-  stop() { this.stopped = true; this.kill('emergency_stop'); this.onState('stopped'); }
+  enable() { this.stopped = false; this.enabled = true; this.stamps = []; this.emit('enabled'); }
+  disable() { this.enabled = false; this.kill('disabled'); this.emit('disabled'); }
+  stop() { this.stopped = true; this.kill('emergency_stop'); this.emit('stopped'); }
   kill(reason) {
     const helper = this.helper; this.helper = null;
     if (helper) { try { helper.kill(); } catch (_) { /* already gone */ } }
@@ -67,7 +69,7 @@ class ComputerControl {
         const line = this.buffer.slice(0, i).trim(); this.buffer = this.buffer.slice(i + 1);
         let reply; try { reply = JSON.parse(line); } catch (_) { continue; }
         const entry = this.pending.get(reply.id);
-        if (entry) { clearTimeout(entry.timer); this.pending.delete(reply.id); entry.resolve({ok: !!reply.ok, error: reply.error}); }
+        if (entry) { clearTimeout(entry.timer); this.pending.delete(reply.id); entry.resolve({ok: !!reply.ok, error: reply.error, data: reply}); }
       }
     });
     helper.on('exit', () => { if (this.helper === helper) this.kill('helper_exited'); });
@@ -77,6 +79,14 @@ class ComputerControl {
   execute(action) {
     const reason = this.problem(action);
     if (reason) return Promise.resolve({ok: false, error: reason});
+    return this.send(action);
+  }
+  // Read-only foreground window query (title, process, rect, password-focus). Only while active.
+  queryWindow() {
+    if (!this.active) return Promise.resolve({ok: false, error: this.stopped ? 'emergency_stop' : 'control_disabled'});
+    return this.send({kind: 'window'});
+  }
+  send(action) {
     const id = ++this.seq;
     return new Promise(resolve => {
       const timer = setTimeout(() => { this.pending.delete(id); resolve({ok: false, error: 'outcome_unknown'}); }, TIMEOUT_MS);

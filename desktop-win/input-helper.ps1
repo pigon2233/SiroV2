@@ -11,7 +11,19 @@ public static class SiroInput {
   [DllImport("user32.dll", SetLastError=true)] static extern uint SendInput(uint n, INPUT[] i, int size);
   [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h, System.Text.StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int l, t, r, b; }
   public static void Init() { SetProcessDPIAware(); }
+  public static object[] Foreground() {
+    IntPtr h = GetForegroundWindow();
+    if (h == IntPtr.Zero) return null;
+    var sb = new System.Text.StringBuilder(256); GetWindowText(h, sb, 256);
+    RECT r; GetWindowRect(h, out r); uint pid; GetWindowThreadProcessId(h, out pid);
+    return new object[] { sb.ToString(), (int)pid, r.l, r.t, r.r - r.l, r.b - r.t };
+  }
   static void Send(INPUT i) {
     if (SendInput(1, new INPUT[] { i }, Marshal.SizeOf(typeof(INPUT))) != 1) throw new Exception("SendInput blocked (code " + Marshal.GetLastWin32Error() + ")");
   }
@@ -44,8 +56,12 @@ function KeyCode([string]$name) {
   if ($name -match '^[a-z0-9]$') { return [uint16][int][char]$name.ToUpper() }
   throw "unknown key '$name'"
 }
+Add-Type -AssemblyName UIAutomationClient
+function Test-SecretFocus {
+  try { return [bool][System.Windows.Automation.AutomationElement]::FocusedElement.Current.IsPassword } catch { return $false }
+}
 while (($line = [Console]::In.ReadLine()) -ne $null) {
-  $id = $null
+  $id = $null; $reply = $null
   try {
     $a = $line | ConvertFrom-Json
     $id = $a.id
@@ -55,9 +71,14 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
       'scroll' { [SiroInput]::Wheel([int]$a.amount) }
       'key'    { [SiroInput]::Combo([uint16[]]@(([string]$a.key).ToLower().Split('+') | ForEach-Object { KeyCode $_ })) }
       'type'   { [SiroInput]::Text([string]$a.text) }
+      'window' { $w = [SiroInput]::Foreground()
+                 if ($null -eq $w) { throw 'no foreground window' }
+                 $proc = (Get-Process -Id $w[1] -ErrorAction Stop).ProcessName + '.exe'
+                 $reply = @{ id = $id; ok = $true; title = $w[0]; process = $proc; rect = @($w[2], $w[3], $w[4], $w[5]); secret = (Test-SecretFocus) } }
       default  { throw "kind not allowed: $($a.kind)" }
     }
-    Write-Output (@{ id = $id; ok = $true } | ConvertTo-Json -Compress)
+    if ($null -eq $reply) { $reply = @{ id = $id; ok = $true } }
+    Write-Output ($reply | ConvertTo-Json -Compress)
   } catch {
     Write-Output (@{ id = $id; ok = $false; error = [string]$_.Exception.Message } | ConvertTo-Json -Compress)
   }
