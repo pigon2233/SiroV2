@@ -1,3 +1,4 @@
+# ruff: noqa: RUF001
 """Chat-tool surface for desktop control: SIRO's model may ask, the owner's switches decide.
 
 ``computer.play`` has effect "computer" (never auto-run by the read-only planner) and is only
@@ -17,16 +18,16 @@ COMPUTER_PLAY = "computer.play"
 COMPUTER_STATUS = "computer.status"
 COMPUTER_TOOL_NAMES = frozenset({COMPUTER_PLAY, COMPUTER_STATUS})
 READ_ONLY = frozenset({COMPUTER_STATUS})
-LABELS = {COMPUTER_PLAY: "操控電腦（看螢幕、鍵盤滑鼠）", COMPUTER_STATUS: "查看電腦操控進度"}  # noqa: RUF001
+LABELS = {COMPUTER_PLAY: "操控電腦（看螢幕、鍵盤滑鼠）", COMPUTER_STATUS: "查看電腦操控進度"}
 
+# Short, imperative Chinese on purpose: the local chat model (gemma4:e4b) made no call with a long
+# English description on "幫我玩UNDERTALE" (0/2) and called this one every time (2/2, direct probe).
 PLAY_DEFINITION = ToolDefinition(
     COMPUTER_PLAY,
-    "Start a bounded run that looks at the owner's foreground window and clicks/types to reach a "
-    "goal (for example playing a turn-based game). Only works while the owner has switched "
-    "computer control on and allowed that program; it never types passwords or secrets, stops "
-    "when stuck, unsure or asked, and the owner can stop it any time with the emergency hotkey. "
-    "It runs in the background at several seconds per step: call computer.status afterwards "
-    "instead of waiting. Describe the goal concretely in the owner's language.",
+    "玩遊戲或操作電腦：看目前前景視窗的畫面，用鍵盤滑鼠一步步完成目標（例如玩 Undertale）。"
+    "使用者要你玩遊戲、開始遊玩或操作電腦時，直接呼叫此工具，goal 用一句話寫要完成的事。"
+    "不要先詢問許可：電腦操控是否開啟、程式是否允許，系統會自己檢查；不會輸入密碼，"
+    "卡住或不確定就停下，主人可隨時急停。背景執行，之後可用 computer.status 查進度。",
     {
         "type": "object",
         "properties": {"goal": {"type": "string", "minLength": 2, "maxLength": 500}},
@@ -36,8 +37,8 @@ PLAY_DEFINITION = ToolDefinition(
 )
 STATUS_DEFINITION = ToolDefinition(
     COMPUTER_STATUS,
-    "Check the current or last computer-control run: whether control is on, whether it is "
-    "running, each step taken, and why it stopped. Read-only.",
+    "查看電腦操控目前或上一次任務的進度與結果（每步做了什麼、為什麼停下）。"
+    "使用者問玩得如何、成功了嗎、進度時，直接呼叫此工具。",
     {"type": "object", "properties": {}, "additionalProperties": False},
 )
 DEFINITIONS = {COMPUTER_PLAY: PLAY_DEFINITION, COMPUTER_STATUS: STATUS_DEFINITION}
