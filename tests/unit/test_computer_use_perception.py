@@ -95,6 +95,9 @@ def test_parse_decision_accepts_and_rejects() -> None:
         '{"kind":"act","confidence":1}',
         '{"kind":"act","action":{"kind":"shell"},"confidence":1}',
         '{"kind":"act","action":{"kind":"click","x":1,"y":1},"confidence":2}',
+        '{"kind":"act","action":{"kind":"key"},"confidence":0.9}',
+        '{"kind":"act","action":{"kind":"click","x":1},"confidence":0.9}',
+        '{"kind":"act","action":{"kind":"type","text":""},"confidence":0.9}',
         '{"kind":"act","action":{"kind":"click","x":1,"y":1}}',
     ]:
         with pytest.raises(DecisionError):
@@ -174,3 +177,22 @@ async def test_stale_command_is_never_delivered(monkeypatch: pytest.MonkeyPatch)
 async def test_result_for_unknown_or_settled_command_is_ignored() -> None:
     bridge = ComputerBridge(ControlGate(enabled=True))
     assert bridge.submit_result("nope", True) is False
+
+
+@pytest.mark.asyncio
+async def test_vision_decider_retries_malformed_reply_once() -> None:
+    replies = ["not a decision", GOOD]
+
+    async def run(*args: Any, **kwargs: Any) -> dict[str, object]:
+        return {
+            "returncode": 0,
+            "stdout": json.dumps({"result": replies.pop(0), "is_error": False}),
+        }
+
+    decider = ClaudeVisionDecider(
+        binary=Path("claude"), run=run, env={"SIRO_COMPUTER_CLOUD_SCREEN": "1"}
+    )
+    assert (await decider.decide("g", [], _obs())).kind == "act" and replies == []
+    replies[:] = ["bad", "still bad"]
+    with pytest.raises(DecisionError):
+        await decider.decide("g", [], _obs())

@@ -84,6 +84,14 @@ def parse_decision(text: str) -> Decision:
             text=str(spec.get("text", "")),
             amount=_int(spec.get("amount")) or 0,
         )
+        incomplete = (
+            (action.kind in {"move", "click"} and (action.x is None or action.y is None))
+            or (action.kind == "key" and not action.key.strip())
+            or (action.kind == "type" and not action.text)
+            or (action.kind == "scroll" and action.amount == 0)
+        )
+        if incomplete:
+            raise DecisionError("incomplete_action")
     return Decision(
         kind=str(kind),
         action=action,
@@ -149,7 +157,7 @@ class ClaudeVisionDecider:
         self._env = env
         self._timeout = timeout
 
-    async def decide(
+    async def _decide_once(
         self, goal: str, history: Sequence[StepRecord], observation: Observation
     ) -> Decision:
         if not cloud_screen_allowed(self._env):
@@ -189,3 +197,14 @@ class ClaudeVisionDecider:
         if not isinstance(parsed, dict) or parsed.get("is_error"):
             raise DecisionError("claude_error")
         return parse_decision(str(parsed.get("result") or ""))
+
+    async def decide(
+        self, goal: str, history: Sequence[StepRecord], observation: Observation
+    ) -> Decision:
+        """One retry when the model's reply is malformed; the screen is re-read, not re-acted."""
+        try:
+            return await self._decide_once(goal, history, observation)
+        except DecisionError as error:
+            if str(error) not in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
+                raise
+            return await self._decide_once(goal, history, observation)

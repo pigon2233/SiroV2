@@ -1,6 +1,6 @@
 # SIRO 電腦操控計畫（螢幕讀取＋鍵鼠控制＋感知→決策→行動）
 
-狀態：階段 1、2 已實作（LOCAL_ONLY / NOT PUSHED；階段 2 僅 mock＋helper 拒絕案例驗證，未實機輸入，也尚未接後端通道）。其餘階段未做，不宣稱已實現。
+狀態：階段 1–4 程式已完成並以假桌面／mock／合成畫面驗證（LOCAL_ONLY / NOT PUSHED）；階段 5 為 owner 實機驗證，未做。操作與限制見 COMPUTER-USE-RUNBOOK.md。
 目的：owner 之後讓 SIRO 玩遊戲來驗證。授權上限已在 R02/R04 存在；本計畫沿用，不另建一套。
 
 ## 研究結論（來自本倉庫現況）
