@@ -103,10 +103,56 @@ async def test_confirm_card_is_answered_once_and_discard_writes_nothing(tmp_path
     )
     await companion._ensure_core()
     src = event("我的薪資是五萬")
-    companion._pending_memories["a"] = (src, "我的薪資是五萬", datetime.now(UTC))
-    companion._pending_memories["b"] = (src, "我的薪資是五萬", datetime.now(UTC))
+    companion._pending_memories["a"] = (src, "我的薪資是五萬", "我的薪資是五萬", datetime.now(UTC))
+    companion._pending_memories["b"] = (src, "我的薪資是五萬", "我的薪資是五萬", datetime.now(UTC))
     assert await companion.confirm_memory("a", False) == {"status": "discarded"}
     assert await companion.confirm_memory("a", True) == {"status": "expired"}
     kept = await companion.confirm_memory("b", True)
     assert kept["status"] == "kept" and kept["text"] == "我的薪資是五萬"
     assert await companion.confirm_memory("unknown", True) == {"status": "expired"}
+
+
+@pytest.mark.asyncio
+async def test_contextual_nomination_may_reword_but_must_quote_this_turn(tmp_path: Path) -> None:
+    """D80 D7b: pronouns resolve from context; the quote keeps the memory grounded."""
+    from siro.core.memory_autonomy import Nomination
+
+    store = SQLiteStore(tmp_path / "s.db")
+    await store.initialize()
+    await IdentityService(SQLiteIdentityRepository(store)).create(
+        "siro",
+        ImmutableCore(
+            name="SIRO", baseline_identity="t", core_values=("h",), creator_relationship="owner"
+        ),
+        now=datetime.now(UTC),
+    )
+    service = MemoryService(SQLiteMemoryRepository(store))
+
+    async def nominate(_: str) -> list[Nomination]:
+        return [
+            Nomination("主人的貓叫小黑", "牠叫小黑"),
+            Nomination("主人住在台北", "我住台北"),  # quote not in this turn
+            Nomination("主人的密碼是 abc", "牠叫小黑"),  # credential in the reworded text
+        ]
+
+    auto = AutonomousMemory(service, nominate)
+    src = event("對啊牠叫小黑")
+    saved, confirm = await auto.consider("siro", src)
+    assert [m.text for m in saved] == ["主人的貓叫小黑"] and confirm == []
+    assert saved[0].source_event_ids == (src.event_id,)
+
+
+def test_contextual_prompt_and_parser() -> None:
+    from siro.core.memory_autonomy import (
+        Nomination,
+        contextual_nomination_prompt,
+        parse_contextual_nominations,
+    )
+
+    prompt = contextual_nomination_prompt(
+        "牠叫小黑", [("user", "我養了一隻貓"), ("assistant", "好可愛")] * 8
+    )
+    assert "主人這一句：牠叫小黑" in prompt and prompt.count("主人：我養了一隻貓") == 5  # noqa: RUF001
+    raw = 'x {"memories": [{"text": "主人的貓叫小黑", "quote": "牠叫小黑"}, "bad", {"text": 1}]}'
+    assert parse_contextual_nominations(raw) == [Nomination("主人的貓叫小黑", "牠叫小黑")]
+    assert parse_contextual_nominations("nope") == []

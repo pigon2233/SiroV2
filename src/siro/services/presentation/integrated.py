@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -30,7 +31,15 @@ from siro.core.conversation import ConversationEngine, TurnState
 from siro.core.expression import ExpressionPolicy, expression_context_from_text
 from siro.core.identity import IdentityService, ImmutableCore
 from siro.core.memory import Memory, MemoryService
-from siro.core.memory_autonomy import AutonomousMemory, memory_nomination_prompt, parse_nominations
+from siro.core.memory_autonomy import (
+    CONTEXT_MESSAGES,
+    AutonomousMemory,
+    Nomination,
+    contextual_nomination_prompt,
+    memory_nomination_prompt,
+    parse_contextual_nominations,
+    parse_nominations,
+)
 from siro.core.preferences import extract_explicit_preference
 from siro.core.relationships import (
     RelationshipEvent,
@@ -213,7 +222,7 @@ class IntegratedCompanion:
         self._touching = False
         self._last_session: str | None = None
         self._recent_shares: list[tuple[datetime, str]] = []
-        self._pending_memories: dict[str, tuple[UserTextEvent, str, datetime]] = {}
+        self._pending_memories: dict[str, tuple[UserTextEvent, str, str, datetime]] = {}
         self._situation_lines = situation_lines
         # Set by the gateway once her notes service exists; reads her own recent attempts.
         self.self_activity_lines: Callable[[], Awaitable[tuple[str, ...]]] | None = None
@@ -461,9 +470,29 @@ class IntegratedCompanion:
                 return
             assert self._memory_service is not None
 
-            async def nominate(text: str) -> list[str]:
+            # D80 D7b: the nominator sees the recent dialogue so pronouns and follow-ups resolve.
+            contextual = os.environ.get("SIRO_MEMORY_CONTEXT", "0") == "1"  # on after measurement
+            recent: list[tuple[str, str]] = []
+            if contextual and self._agent_runs is not None:
+                with contextlib.suppress(Exception):
+                    history = await self._agent_runs.recent_session_messages(
+                        session_id, privacy=self._privacy.value, max_messages=CONTEXT_MESSAGES + 2
+                    )
+                    recent = [
+                        (m.role, m.content)
+                        for m in history
+                        if m.role in {"user", "assistant"} and isinstance(m.content, str)
+                    ]
+                    if recent and recent[-1] == ("user", source_event.payload.text):
+                        recent.pop()
+                    elif len(recent) >= 2 and recent[-2] == ("user", source_event.payload.text):
+                        recent = recent[:-2]
+
+            async def nominate(text: str) -> list[str] | list[Nomination]:
                 request = ModelRequest(
-                    memory_nomination_prompt(text),
+                    contextual_nomination_prompt(text, recent)
+                    if contextual
+                    else memory_nomination_prompt(text),
                     str(uuid4()),
                     privacy=self._privacy,
                     max_output_tokens=200,
@@ -481,7 +510,8 @@ class IntegratedCompanion:
                 except Exception:
                     cancellation.cancel()
                     return []
-                return parse_nominations("".join(parts))
+                raw = "".join(parts)
+                return parse_contextual_nominations(raw) if contextual else parse_nominations(raw)
 
             saved, confirm = await AutonomousMemory(self._memory_service, nominate).consider(
                 "siro", source_event
@@ -497,9 +527,16 @@ class IntegratedCompanion:
                         "items": [{"memory_id": str(m.memory_id), "text": m.text} for m in saved],
                     }
                 )
-            for statement in confirm:
+            for item in confirm:
+                statement = item if isinstance(item, str) else item.text
+                quote = item if isinstance(item, str) else item.quote
                 confirm_id = str(uuid4())
-                self._pending_memories[confirm_id] = (source_event, statement, datetime.now(UTC))
+                self._pending_memories[confirm_id] = (
+                    source_event,
+                    statement,
+                    quote,
+                    datetime.now(UTC),
+                )
                 while len(self._pending_memories) > MAX_PENDING_MEMORIES:
                     self._pending_memories.pop(next(iter(self._pending_memories)))
                 await self._hub.broadcast(
@@ -516,14 +553,14 @@ class IntegratedCompanion:
     async def confirm_memory(self, confirm_id: str, keep: bool) -> dict[str, object]:
         """Answer a keep/discard card. Each card is answered once; it expires after a day."""
         pending = self._pending_memories.pop(confirm_id, None)
-        if pending is None or datetime.now(UTC) - pending[2] > timedelta(days=1):
+        if pending is None or datetime.now(UTC) - pending[3] > timedelta(days=1):
             return {"status": "expired"}
-        source_event, statement, _ = pending
+        source_event, statement, quote, _ = pending
         if not keep:
             return {"status": "discarded"}
         assert self._memory_service is not None
         memory = await AutonomousMemory(self._memory_service, _no_nominations).keep_confirmed(
-            "siro", source_event, statement
+            "siro", source_event, statement, quote
         )
         self._observe_memory(memory, source_event.source, explicit=False)
         return {"status": "kept", "memory_id": str(memory.memory_id), "text": memory.text}
