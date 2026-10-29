@@ -1,12 +1,15 @@
 'use strict';
-const {app, BrowserWindow, ipcMain, Menu, nativeImage, screen, session, Tray} = require('electron');
+const {app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, screen, session, Tray} = require('electron');
 const {spawn} = require('node:child_process');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
+const {ComputerControl} = require('./computer-control.js');
 
 if (process.env.SIRO_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.SIRO_DEBUG_PORT);
 const origin = process.env.SIRO_DESKTOP_ORIGIN || 'http://127.0.0.1:8000';
 const permitted = url => { try { return new URL(url).origin === origin; } catch (_) { return false; } };
+const STOP_KEY = 'Control+Alt+Shift+Escape';
+let control;
 let tray, win, center, desktopLayout, wander, mask, dragging = false, walk = null, lastCursor = null, scale = 1, chat = false, controlsHeight = 132, layout, dragTimer = 0;
 
 function applyLayout() {
@@ -126,19 +129,29 @@ function pollCursor() {
 function showPet() { if (win.isMinimized()) win.restore(); win.showInactive(); }
 function setupTray() {
   tray = new Tray(nativeImage.createFromPath(path.join(__dirname, 'tray.png')));
-  tray.setToolTip('SIRO 桌寵');
   const toggle = () => { if (win.isVisible() && !win.isMinimized()) { haltWalk('hidden'); win.hide(); } else showPet(); };
   tray.on('click', toggle);
-  tray.setContextMenu(Menu.buildFromTemplate([
+  const menu = () => Menu.buildFromTemplate([
     {label: '顯示／隱藏桌寵', click: toggle},
     {label: '開啟控制台', click: () => openCenter()},
+    {type: 'separator'},
+    {label: control.stopped ? `電腦操控：已緊急停止（點此重新啟用，${STOP_KEY} 停止）` : control.enabled ? `電腦操控：開啟中（${STOP_KEY} 緊急停止）` : '電腦操控：關閉（點此開啟）',
+      click: () => (control.active ? control.disable() : enableControl())},
     {type: 'separator'},
     {label: '結束桌寵（SIRO 服務繼續）', click: () => app.quit()},
     {label: '結束 SIRO（連同服務）', click: () => {
       spawn('wsl.exe', ['-d', 'Ubuntu', '--', 'bash', '-lc', '~/.local/bin/siro-stop'], {stdio: 'ignore', windowsHide: true, detached: true}).unref();
       app.quit();
     }},
-  ]));
+  ]);
+  const refresh = () => { tray.setToolTip(control.active ? 'SIRO 桌寵 · 電腦操控開啟' : 'SIRO 桌寵'); tray.setContextMenu(menu()); };
+  control.onState = refresh; refresh();
+}
+
+// Owner-only switch. Refuses to enable when the emergency-stop hotkey cannot be registered.
+function enableControl() {
+  if (!globalShortcut.isRegistered(STOP_KEY) && !globalShortcut.register(STOP_KEY, () => control.stop())) return;
+  control.enable();
 }
 
 function openCenter(page) {
@@ -217,9 +230,14 @@ app.whenReady().then(async () => {
     win.setPosition(area.x + area.width - 390, area.y + area.height - 670);
     win.showInactive();
   });
+  control = new ComputerControl({getBounds: () => {
+    const d = screen.getPrimaryDisplay(), f = d.scaleFactor;
+    return {x: Math.round(d.bounds.x * f), y: Math.round(d.bounds.y * f), width: Math.round(d.bounds.width * f), height: Math.round(d.bounds.height * f)};
+  }});
   setupTray();
   win.loadURL(`${origin}/desktop`);
   setInterval(pollCursor, 50);
   setInterval(refreshMask, 700);
 });
+app.on('will-quit', () => { if (control) control.disable(); globalShortcut.unregisterAll(); });
 app.on('window-all-closed', () => app.quit());
