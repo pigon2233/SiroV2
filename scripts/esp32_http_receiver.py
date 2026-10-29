@@ -80,6 +80,35 @@ class RelayHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"OK")
 
+    def do_GET(self) -> None:
+        routes = {"/ota/manifest": "manifest", "/ota/firmware": "firmware"}
+        route = routes.get(self.path)
+        if route is None:
+            self.send_error(404)
+            return
+        if self.client_address[0] != self.allowed_ip:
+            self.send_error(403)
+            return
+        request = Request(
+            f"http://127.0.0.1:{self.gateway_port}/v1/devices/esp32/ota/{route}",
+            headers={"X-SIRO-ESP32-Relay-Token": self.token},
+        )
+        try:
+            with _GATEWAY_OPENER.open(request, timeout=10) as response:
+                body = response.read()
+                content_type = response.headers.get("Content-Type", "application/octet-stream")
+        except HTTPError as error:
+            self.send_error(503 if error.code == 503 else 502)
+            return
+        except (OSError, URLError, TimeoutError):
+            self.send_error(502)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def log_message(self, format: str, *args: object) -> None:
         # Sensor JSON, tokens and peer addresses must not enter default logs.
         pass

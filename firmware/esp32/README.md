@@ -31,3 +31,7 @@ BH1750 命令與 lux 換算參考 [ROHM 技術資料](https://www.mouser.com/dat
 韌體每 5 秒嘗試一次 MQTT；連續 `SIRO_MQTT_FALLBACK_AFTER_MS`（預設 30 秒）連不上就改以舊接收器格式 POST 到 `SIRO_HTTP_FALLBACK_URL`（`light_update`／`motion_*`／`button_pressed`），MQTT 恢復後自動切回。MQTT 與 HTTP 使用**不同 device ID**（建議 MQTT `siro-node-mqtt-01`、HTTP `siro-node-01`），避免 registry 的 adapter 衝突。2026-10-28 以假 secrets 完成 `esp32s3_n16r8` 編譯（RAM 14.1%／Flash 13.7%）；**尚未上板驗證**。Windows 路徑過長會使編譯器無法啟動，請在短路徑（如 `C:\piow`）建置。
 
 SIRO gateway 預設不訂閱 MQTT。啟用：`SIRO_ESP32_MQTT_ENABLED=1`、`SIRO_ESP32_MQTT_HOST`，可選 `SIRO_ESP32_MQTT_PORT`（1883）、`SIRO_ESP32_MQTT_USERNAME`／`PASSWORD`、`SIRO_ESP32_MQTT_DEVICE_ID`（預設 `siro-node-mqtt-01`，不可與 HTTP ID 相同）、`SIRO_ESP32_MQTT_LOCATION`。只訂閱該設備的 `state`／`availability`，忽略 retained state；broker 不通時背景重連，不影響 gateway。
+
+## OTA 更新（節點端）
+
+`include/ota.h`：secrets.h 定義 `SIRO_OTA_BASE_URL`（如 `http://<PC>:8765/ota`）才啟用。MQTT 連上後與每 6 小時向 PC 中繼（`scripts/esp32_http_receiver.py` 的 `/ota/manifest`、`/ota/firmware`，轉發到 gateway，需 `SIRO_ESP32_OTA_IMAGE`／`SIRO_ESP32_OTA_VERSION`）取 manifest，只接受**嚴格較新**版本；串流寫入另一個 OTA 分區並累計 sha256，**驗證通過才** `Update.end()` 切換分區。新映像在 MQTT 連上前視為「待確認」：開機超過 3 次或 120 秒內未連上 MQTT，就切回舊分區。韌體版本以 `PLATFORMIO_BUILD_FLAGS='-DSIRO_FW_VERSION=\"1.0.1\"'` 指定（預設 1.0.0，並於 `diag.fw` 回報）。第一次必須 USB 燒入含 OTA 的版本。無簽章，只靠 LAN 中繼 IP 白名單＋sha256 防損壞；**尚未上板驗證**。

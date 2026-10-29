@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "face.h"
+#include "ota.h"
 #include "secrets.h"
 #include "sensor_telemetry.h"
 
@@ -44,6 +45,8 @@ uint32_t lastDiag = 0;
 uint32_t mqttDownSince = 0;
 uint32_t lastMqttAttempt = 0;
 uint32_t lastHttpLight = 0;
+uint32_t lastOtaCheck = 0;
+bool otaCheckedOnce = false;
 
 bool startLightSensor() {
   Wire.beginTransmission(SIRO_BH1750_ADDRESS);
@@ -65,6 +68,7 @@ bool waitForTimeSync() {
   const uint32_t started = millis();
   while (time(nullptr) <= minimumSyncedTime) {
     if (millis() - started >= 30000UL) return false;
+    otaWatchdog();
     face.update(millis(), true, FaceLink::Down, false, 0.0f);
     delay(50);
   }
@@ -173,6 +177,7 @@ void postHttpEvent(const char *event, bool withLux) {
 }
 
 void setup() {
+  otaBootCheck();
 #if SIRO_HAS_LED
   pinMode(SIRO_LED_PIN, OUTPUT);
 #endif
@@ -190,6 +195,7 @@ void setup() {
   lastLightRead = millis();
   WiFi.begin(SIRO_WIFI_SSID, SIRO_WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
+    otaWatchdog();
     face.update(millis(), false, FaceLink::Down, false, 0.0f);
     delay(50);
   }
@@ -204,6 +210,7 @@ void setup() {
 }
 
 void loop() {
+  otaWatchdog();
   if (time(nullptr) <= minimumSyncedTime) {
     face.update(millis(), true, FaceLink::Down, false, 0.0f);
     delay(50);
@@ -220,6 +227,14 @@ void loop() {
     if (now - lastMqttAttempt >= mqttRetryMs) {
       lastMqttAttempt = now;
       if (tryConnectMqtt()) mqttUp = true;
+    }
+  }
+  if (mqttUp) {
+    otaConfirm();
+    if (!otaCheckedOnce || now - lastOtaCheck >= SIRO_OTA_CHECK_INTERVAL_MS) {
+      otaCheckedOnce = true;
+      lastOtaCheck = now;
+      otaCheckAndUpdate();
     }
   }
   const bool httpFallback = !mqttUp && now - mqttDownSince >= SIRO_MQTT_FALLBACK_AFTER_MS;
@@ -260,6 +275,7 @@ void loop() {
     diag["pir_raw_edges"] = pirRawEdges;
     diag["pir_high_pct"] = pirSamples ? (100UL * pirHighSamples / pirSamples) : 0;
     diag["oled"] = SIRO_HAS_OLED;
+    diag["fw"] = SIRO_FW_VERSION;
     publishJson(prefix + "diag", diag, false);
     pirRawEdges = pirHighSamples = pirSamples = 0;
   }

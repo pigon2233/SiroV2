@@ -16,6 +16,9 @@
 #define SIRO_HTTP_DEVICE_ID "siro-node-01"
 #define SIRO_MQTT_FALLBACK_AFTER_MS 30000UL
 
+// Optional OTA: the PC relay (scripts/esp32_http_receiver.py) serves /ota/manifest and /ota/firmware.
+// #define SIRO_OTA_BASE_URL "http://192.0.2.10:8765/ota"
+
 // User's ESP32-S3 N16R8 sketch wiring; confirm physical board before flashing.
 #define SIRO_PIR_PIN 5
 #define SIRO_BUTTON_PIN 4
