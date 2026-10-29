@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {EventEmitter} = require('node:events');
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const {ComputerControl} = require('./computer-control.js');
 
 function fakeHelper(log, {silent = false} = {}) {
@@ -12,6 +13,7 @@ function fakeHelper(log, {silent = false} = {}) {
     if (!silent) setImmediate(() => helper.stdout.emit('data', JSON.stringify({id: JSON.parse(line).id, ok: true}) + '\n'));
   }};
   helper.kill = () => { helper.killed = true; };
+  setImmediate(() => helper.stdout.emit('data', JSON.stringify({id: 0, ok: true, ready: true}) + '\n'));
   return helper;
 }
 function make(opts = {}) {
@@ -99,4 +101,23 @@ test('key hold time is bounded', async () => {
   assert.strictEqual((await cc.execute({kind: 'key', key: 'left', hold_ms: 500})).ok, true);
   assert.strictEqual((await cc.execute({kind: 'key', key: 'left', hold_ms: 5000})).error, 'bad_hold');
   assert.strictEqual((await cc.execute({kind: 'key', key: 'left', hold_ms: null})).ok, true);
+});
+
+test('commands wait for a cold helper to announce ready; a helper that never does is unavailable', async () => {
+  const log = [];
+  const cc = new ComputerControl({getBounds: () => ({x: 0, y: 0, width: 1920, height: 1080}), env: {},
+    spawnHelper: () => {
+      const helper = new EventEmitter();
+      helper.stdout = new EventEmitter();
+      helper.stdin = {write: line => { log.push(JSON.parse(line)); setImmediate(() => helper.stdout.emit('data', JSON.stringify({id: JSON.parse(line).id, ok: true}) + '\n')); }};
+      helper.kill = () => {};
+      setTimeout(() => helper.stdout.emit('data', JSON.stringify({id: 0, ok: true, ready: true}) + '\n'), 60);
+      return helper;
+    }});
+  cc.enable();
+  const pending = cc.execute({kind: 'move', x: 1, y: 1});
+  await delay(20);
+  assert.strictEqual(log.length, 0); // nothing is written before the helper is ready
+  assert.strictEqual((await pending).ok, true);
+  assert.strictEqual(log.length, 1);
 });

@@ -17,7 +17,7 @@ from uuid import uuid4
 from siro.services.computer_use.perception import Observation, sanitize
 from siro.services.computer_use.safety import ControlGate, InputAction
 
-INPUT_TIMEOUT = 4.0
+INPUT_TIMEOUT = 12.0  # covers a cold helper start (C# compile) plus the 3 s input timeout
 OBSERVE_TIMEOUT = 6.0
 COMMAND_TTL = 5.0
 EXECUTOR_ONLINE_WITHIN = 10.0

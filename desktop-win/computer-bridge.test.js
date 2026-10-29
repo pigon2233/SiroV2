@@ -17,6 +17,7 @@ function fakeHelper(reply) {
     setImmediate(() => helper.stdout.emit('data', JSON.stringify({id: action.id, ok: true, ...reply(action)}) + '\n'));
   }};
   helper.kill = () => {};
+  setImmediate(() => helper.stdout.emit('data', JSON.stringify({id: 0, ok: true, ready: true}) + '\n'));
   return helper;
 }
 function makeControl(reply = () => ({})) {

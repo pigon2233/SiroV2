@@ -6,7 +6,7 @@ const {spawn} = require('node:child_process');
 const path = require('node:path');
 
 const KINDS = new Set(['move', 'click', 'scroll', 'key', 'type']);
-const MAX_TYPE = 200, PER_SECOND = 5, PER_MINUTE = 120, TIMEOUT_MS = 3000;
+const MAX_TYPE = 200, PER_SECOND = 5, PER_MINUTE = 120, TIMEOUT_MS = 3000, READY_TIMEOUT_MS = 15000;
 const BLOCKED = new Set(['alt+f4', 'ctrl+alt+delete', 'ctrl+shift+escape', 'win+l', 'win+r', 'win+x', 'ctrl+escape']);
 const ALIASES = {control: 'ctrl', del: 'delete', windows: 'win', esc: 'escape'};
 const SECRET = /sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./;
@@ -23,11 +23,11 @@ class ComputerControl {
   constructor({getBounds, spawnHelper = defaultSpawn, now = Date.now, env = process.env, onState = () => {}}) {
     Object.assign(this, {getBounds, spawnHelper, now, env});
     this.listeners = [onState];
-    this.enabled = false; this.stopped = false; this.stamps = []; this.helper = null; this.pending = new Map(); this.seq = 0; this.buffer = '';
+    this.ready = Promise.resolve(); this.enabled = false; this.stopped = false; this.stamps = []; this.helper = null; this.pending = new Map(); this.seq = 0; this.buffer = '';
   }
   emit(state) { for (const listener of this.listeners) { try { listener(state); } catch (_) { /* a listener must not block stop */ } } }
   get active() { return this.enabled && !this.stopped; }
-  enable() { this.stopped = false; this.enabled = true; this.stamps = []; this.emit('enabled'); }
+  enable() { this.stopped = false; this.enabled = true; this.stamps = []; try { this.ensureHelper(); } catch (_) { /* spawned on first use */ } this.emit('enabled'); }
   disable() { this.enabled = false; this.kill('disabled'); this.emit('disabled'); }
   stop() { this.stopped = true; this.kill('emergency_stop'); this.emit('stopped'); }
   kill(reason) {
@@ -65,17 +65,19 @@ class ComputerControl {
   ensureHelper() {
     if (this.helper) return this.helper;
     const helper = this.helper = this.spawnHelper();
+    this.ready = new Promise(resolve => { this.markReady = resolve; });
     helper.stdout.on('data', chunk => {
       this.buffer += chunk;
       let i;
       while ((i = this.buffer.indexOf('\n')) >= 0) {
         const line = this.buffer.slice(0, i).trim(); this.buffer = this.buffer.slice(i + 1);
         let reply; try { reply = JSON.parse(line); } catch (_) { continue; }
+        if (reply.ready) { this.markReady(); continue; }
         const entry = this.pending.get(reply.id);
         if (entry) { clearTimeout(entry.timer); this.pending.delete(reply.id); entry.resolve({ok: !!reply.ok, error: reply.error, data: reply}); }
       }
     });
-    helper.on('exit', () => { if (this.helper === helper) this.kill('helper_exited'); });
+    helper.on('exit', code => { if (this.helper === helper) { this.kill('helper_exited'); this.emit(`helper_exited:${code}`); } });
     return helper;
   }
   // Resolves {ok, error}; never throws. A timeout means the effect is unknown, not success.
@@ -89,12 +91,18 @@ class ComputerControl {
     if (!this.active) return Promise.resolve({ok: false, error: this.stopped ? 'emergency_stop' : 'control_disabled'});
     return this.send({kind: 'window'});
   }
-  send(action) {
+  async send(action) {
+    // A cold helper compiles its C# first; wait for its ready line (nothing was sent yet, so no side effect).
+    let helper;
+    try { helper = this.ensureHelper(); } catch (e) { return {ok: false, error: 'helper_unavailable'}; }
+    const ready = await Promise.race([this.ready.then(() => true), new Promise(r => setTimeout(() => r(false), READY_TIMEOUT_MS))]);
+    if (!ready || this.helper !== helper) return {ok: false, error: this.stopped ? 'emergency_stop' : 'helper_unavailable'};
+    if (this.stopped || !this.enabled) return {ok: false, error: this.stopped ? 'emergency_stop' : 'control_disabled'};
     const id = ++this.seq;
     return new Promise(resolve => {
       const timer = setTimeout(() => { this.pending.delete(id); resolve({ok: false, error: 'outcome_unknown'}); }, TIMEOUT_MS);
       this.pending.set(id, {resolve, timer});
-      try { this.ensureHelper().stdin.write(JSON.stringify({...action, id}) + '\n'); }
+      try { helper.stdin.write(JSON.stringify({...action, id}) + '\n'); }
       catch (e) { clearTimeout(timer); this.pending.delete(id); resolve({ok: false, error: 'helper_unavailable'}); }
     });
   }

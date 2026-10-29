@@ -88,6 +88,7 @@ Add-Type -AssemblyName UIAutomationClient
 function Test-SecretFocus {
   try { return [bool][System.Windows.Automation.AutomationElement]::FocusedElement.Current.IsPassword } catch { return $false }
 }
+Write-Output '{"id":0,"ok":true,"ready":true}'
 while (($line = [Console]::In.ReadLine()) -ne $null) {
   $id = $null; $reply = $null
   try {
