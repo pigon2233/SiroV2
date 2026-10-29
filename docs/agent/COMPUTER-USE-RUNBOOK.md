@@ -59,3 +59,11 @@
 - **2048（自製測試遊戲 `tests/fixtures/computer_use/game2048.html`，Edge app 視窗）**：通過。目標「湊出 32」，SIRO 用真實方向鍵 18 步完成，每步記下棋盤內容、合併後確認，最後兩次新觀察都看到 `YOU REACHED 32!`；我另用截圖獨立核對（棋盤左上 32、分數 124、步數 18）。這證明「看畫面→判斷下一步→鍵盤操作→驗證→完成」在真實遊戲型態下可行。
 - **Undertale 補充調查**：owner 的存檔存在（`%LOCALAPPDATA%\UNDERTALE\file0`，2024-07-17，未被我動過；**絕對不要讓 SIRO 選 Reset 或存檔**）。在 Logo 畫面分別用掃描碼與虛擬鍵兩種注入、Z／Enter、輕點與長按 600 ms，共 6 種變化，Logo 都不反應（畫面白色比例不變）；但同一種注入在開場劇情中有效。因此原因仍在 Logo 畫面對輸入的讀取方式或遊戲本身，待 owner 手動按一次 Z 對照。
 - 驗證後已清理：測試殼、後端、Undertale 都已關閉，截圖已刪。Notepad 內留有我的測試分頁 `siro-test.txt`（未儲存，內容 hello siro），可直接關掉不存檔。
+
+## 玩法筆記（學習）
+- 每次任務結束後，Claude 會看整段過程（只有文字：每步「看到什麼／做了什麼／結果」，沒有截圖），寫下最多 5 條可重複使用的短經驗；下次同一個程式在前景時，這些筆記會附在任務後面交給決策器當提示。
+- 存在 `SIRO_DATA_DIR/computer-playbooks/<程式名>.json`：每條有來源 run、時間；去重、遮罩疑似金鑰、每條 ≤200 字、每個遊戲最多 20 條（舊的自動掉）。
+- 只有 `SIRO_COMPUTER_CLOUD_SCREEN=1`（你同意畫面衍生資料送雲端）才會寫新筆記；`SIRO_COMPUTER_PLAYBOOK=0` 可整個關掉學習。
+- 查看：`GET /v1/computer/playbook/<程式名>`；刪一條：`DELETE /v1/computer/playbook/<程式名>?index=N`；全刪：不帶 index。`/v1/computer/status` 的 `learned_notes` 是上一次任務新增的條數。
+- 真模型實測（Undertale 卡 Logo 那次的紀錄）寫出 4 條合理筆記，例如「Logo 畫面 Enter 會讓畫面變、Z 長按沒有」。
+- 注意：筆記是提示不是事實；重啟 SIRO 後才會套用（目前跑的 gateway 還是舊版）。
