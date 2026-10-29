@@ -226,3 +226,6 @@ skill_activation,skill_candidate,task_detail}.py`；`docs/evidence/` 下的歷�
 - 2026-10-29 D7b 完成：主動記憶抽取改看最近 10 則對話、可改寫並解開代名詞，但須附這一句的原話片段供核對；
   20 題合成對話 × 3 次（gemma4:e4b）量測後預設開啟（`SIRO_MEMORY_CONTEXT=0` 退回）。詳 [MEM-AUTONOMY-D7b](../verification/MEM-AUTONOMY-D7b/REPORT.md)。
   尚未做：D7 主動發現 B（跨多次對話的反思歸納）、D3 技能確認卡片。
+- 2026-10-29 D7 反思完成：閒置且累積 20 則新訊息時歸納跨訊息的習慣，至少 2 則訊息支持、3 則以上才採用；沿用既有 Consolidator，
+  標記為推測。合成訊息量測（gemma4:e4b × 5）：習慣 15/15、誘餌 0；第一版提示只列 2 個編號導致永遠不採用，已改。
+  詳 [MEM-REFLECTION](../verification/MEM-REFLECTION/REPORT.md)。尚未做：D3 技能確認卡片。
