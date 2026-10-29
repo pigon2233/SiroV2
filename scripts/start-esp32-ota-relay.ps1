@@ -1,7 +1,7 @@
 # Start the ESP32 OTA/event relay hidden, but only when an OTA image is configured:
-#   %LOCALAPPDATA%\siro\ota\{firmware.bin, version.txt (x.y.z), node-ip.txt}
+#   %USERPROFILE%\siro-ota\{firmware.bin, version.txt (x.y.z), node-ip.txt}
 # Silent no-op otherwise (or when 8765 is taken), so SIRO startup is never affected.
-$dir = Join-Path $env:LOCALAPPDATA 'siro\ota'
+$dir = Join-Path $env:USERPROFILE 'siro-ota'
 foreach ($name in 'firmware.bin', 'version.txt', 'node-ip.txt') {
   if (-not (Test-Path (Join-Path $dir $name))) { exit 0 }
 }
