@@ -22,6 +22,9 @@ class SQLiteProfileSource:
                 "SELECT e.envelope_json FROM events e WHERE e.type = 'conversation.user_text.v1' "
                 "AND NOT EXISTS "
                 "(SELECT 1 FROM memory_sources s WHERE s.source_event_id = e.event_id) "
+                # Unverified microphone turns (trace "speech:") may not be the owner's own words;
+                # lines judged for SIRO and lasting overheard ones ("overheard:") stay.
+                "AND e.trace_id NOT LIKE 'speech:%' "
                 "ORDER BY e.received_at DESC LIMIT ?",
                 (limit,),
             ).fetchall()

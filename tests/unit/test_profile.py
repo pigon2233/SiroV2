@@ -93,3 +93,16 @@ async def test_profile_links_entries_to_original_text(tmp_path: Path) -> None:
     assert [(e.quote, e.source_event_id) for e in listed] == [("喜歡喝無糖綠茶", likes.event_id)]
     remaining = await SQLiteProfileSource(store).unseen_user_events()
     assert {e.event_id for e in remaining} == {secret.event_id, local.event_id}
+
+
+@pytest.mark.asyncio
+async def test_profile_source_skips_unverified_speech_but_keeps_overheard(tmp_path: Path) -> None:
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    typed, unverified, overheard = event("我習慣喝茶"), event("明天要開會"), event("我每天跑步")
+    unverified = unverified.model_copy(update={"trace_id": f"speech:{uuid4()}"})
+    overheard = overheard.model_copy(update={"trace_id": f"overheard:{uuid4()}"})
+    for item in (typed, unverified, overheard):
+        await store.record_event(item)
+    pending = await SQLiteProfileSource(store).unseen_user_events()
+    assert {e.event_id for e in pending} == {typed.event_id, overheard.event_id}
