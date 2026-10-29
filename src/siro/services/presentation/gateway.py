@@ -441,6 +441,11 @@ class GatewayHub:
             await asyncio.gather(*self._closing_tasks, return_exceptions=True)
 
 
+class MemoryConfirmBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    keep: bool
+
+
 class CurationModeBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     mode: Literal["dry-run", "apply"]
@@ -738,6 +743,7 @@ def create_app(
     feature_status: Callable[[], dict[str, object]] | None = None,
     memory_organizer: MemoryOrganizer | None = None,
     memory_curation: MemoryCurationDryRun | None = None,
+    on_memory_confirm: Callable[[str, bool], Awaitable[dict[str, object]]] | None = None,
     workspace_service: WorkspaceRuntime | None = None,
     on_memory_invalidated: Callable[[], Awaitable[None]] | None = None,
     skill_candidates: SkillCandidatePreparer | None = None,
@@ -2146,6 +2152,18 @@ def create_app(
             await on_memory_invalidated()
         await on_memory_correction(source, corrected)
         return _memory_json(corrected)
+
+    @app.post("/v1/memory-confirmations/{confirm_id}")
+    async def confirm_memory(
+        confirm_id: str, body: MemoryConfirmBody, authorization: str | None = Header(default=None)
+    ) -> dict[str, object]:
+        """D80 D7: the owner's answer to a keep/discard card for a sensitive nomination."""
+        require_token(authorization)
+        if on_memory_confirm is None:
+            raise HTTPException(status_code=503, detail="memory confirmation is unavailable")
+        if len(confirm_id) > 64:
+            raise HTTPException(status_code=404, detail="confirmation not found")
+        return await on_memory_confirm(confirm_id, body.keep)
 
     @app.delete("/v1/memories/{memory_id}")
     async def delete_memory(
@@ -3595,6 +3613,7 @@ def _run_gateway(
             on_turn=controller.respond,
             memory_organizer=organizer,
             memory_curation=curation,
+            on_memory_confirm=controller.confirm_memory,
             workspace_service=workspace,
             on_memory_invalidated=controller.invalidate_memory_context,
             on_cancel=cancel_controller,

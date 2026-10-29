@@ -105,6 +105,8 @@
       details .content-section { padding:0; border:0; }
       #memory-items pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:340px; overflow:auto; font-size:12px; color:var(--muted); }
       .meter { height:4px; background:var(--line); margin-top:6px; } .meter span { display:block; height:100%; background:var(--action); }
+      .memory-card p { margin:0 0 6px; } .memory-card-actions { display:flex; gap:8px; }
+      .memory-card small { display:block; color:var(--muted); margin-top:4px; }
       .proposal { border:1px solid var(--line); border-radius:10px; padding:18px; margin:12px 0; font-size:14px; overflow-wrap:anywhere; }
       .proposal p { white-space:pre-wrap; }
       .ok { color:var(--success); } .warn { color:var(--warning); }
@@ -1047,6 +1049,7 @@
             assistantBubble = undefined; currentTurn = undefined; liveSpeech = undefined;
           }
           if (data.type === "tool_proposal") renderToolProposal(data);
+          if (data.type === "memory_saved" || data.type === "memory_confirm") renderMemoryCard(data);
           if (data.type === "tool_started") { runningTools.set(data.proposal_id, data.stream_id); updateToolProposal(data.proposal_id, "執行中…"); }
           if (data.type === "tool_result") { runningTools.delete(data.proposal_id); renderToolResult(data); }
           document.querySelector("#connection").textContent = "已連線";
@@ -1244,6 +1247,43 @@
         document.querySelector(".empty-state")?.remove();
         const item = document.createElement("div"); item.className = `message ${role}`;
         item.textContent = text; document.querySelector("#messages").appendChild(item); return item;
+      }
+      // D80 D7: what SIRO decided to remember shows up in the chat, undoable in place.
+      function renderMemoryCard(data) {
+        document.querySelector(".empty-state")?.remove();
+        const card = document.createElement("div"); card.className = "message assistant memory-card";
+        const text = document.createElement("p"), status = document.createElement("small");
+        const actions = document.createElement("div"); actions.className = "memory-card-actions";
+        const button = (label, handler) => {
+          const item = document.createElement("button"); item.type = "button"; item.textContent = label;
+          item.onclick = async () => {
+            for (const other of actions.children) other.disabled = true;
+            try { status.textContent = await handler(); actions.remove(); }
+            catch { status.textContent = "沒有完成，沒有自動重送；請再按一次。"; for (const other of actions.children) other.disabled = false; }
+          };
+          actions.appendChild(item);
+        };
+        if (data.type === "memory_saved") {
+          text.textContent = "我記下了：" + data.items.map(item => item.text).join("；");
+          button("不要記", async () => {
+            for (const item of data.items) {
+              const response = await authorizedFetch(`/v1/memories/${encodeURIComponent(item.memory_id)}?reason=${encodeURIComponent("owner undid autonomous memory")}`, {method: "DELETE"});
+              if (!response.ok && response.status !== 404) throw new Error("not deleted");
+            }
+            return "好，已經忘掉了。";
+          });
+        } else {
+          text.textContent = "這件事要我記下來嗎？" + data.text;
+          const answer = keep => async () => {
+            const response = await authorizedFetch(`/v1/memory-confirmations/${encodeURIComponent(data.confirm_id)}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({keep})});
+            if (!response.ok) throw new Error("not answered");
+            const result = await response.json();
+            return result.status === "kept" ? "記下了。" : result.status === "discarded" ? "好，不記。" : "這個詢問已經過期，沒有記下。";
+          };
+          button("保留", answer(true)); button("不要", answer(false));
+        }
+        card.append(text, actions, status);
+        document.querySelector("#messages").appendChild(card);
       }
       function renderToolProposal(data) {
         const root = document.querySelector("#tool-proposals");

@@ -131,6 +131,13 @@ def _local_status_command(text: str) -> tuple[str, str] | None:
     return None
 
 
+MAX_PENDING_MEMORIES = 20
+
+
+async def _no_nominations(_text: str) -> list[str]:
+    return []
+
+
 def _plan_goal(text: str) -> str | None:
     stripped = text.strip()
     for prefix in ("/plan ", "規劃：", "規劃:"):  # noqa: RUF001
@@ -206,6 +213,7 @@ class IntegratedCompanion:
         self._touching = False
         self._last_session: str | None = None
         self._recent_shares: list[tuple[datetime, str]] = []
+        self._pending_memories: dict[str, tuple[UserTextEvent, str, datetime]] = {}
         self._situation_lines = situation_lines
         # Set by the gateway once her notes service exists; reads her own recent attempts.
         self.self_activity_lines: Callable[[], Awaitable[tuple[str, ...]]] | None = None
@@ -480,20 +488,45 @@ class IntegratedCompanion:
             )
             for memory in saved:
                 self._observe_memory(memory, source_event.source, explicit=False)
+            # D80 D7: chat cards instead of notes; the owner undoes or confirms in place.
             if saved:
-                await self.share_self_note(
-                    "我記下了：" + "；".join(m.text for m in saved) + "（不要的話可在記憶頁刪除）",
-                    "",
-                    speak=False,
+                await self._hub.broadcast(
+                    {
+                        "type": "memory_saved",
+                        "session_id": session_id,
+                        "items": [{"memory_id": str(m.memory_id), "text": m.text} for m in saved],
+                    }
                 )
-            if confirm:
-                await self.share_self_note(
-                    "這件事要我記下來嗎？" + "；".join(confirm) + "（說「請記住：…」我才會存）",
-                    "",
-                    speak=False,
+            for statement in confirm:
+                confirm_id = str(uuid4())
+                self._pending_memories[confirm_id] = (source_event, statement, datetime.now(UTC))
+                while len(self._pending_memories) > MAX_PENDING_MEMORIES:
+                    self._pending_memories.pop(next(iter(self._pending_memories)))
+                await self._hub.broadcast(
+                    {
+                        "type": "memory_confirm",
+                        "session_id": session_id,
+                        "confirm_id": confirm_id,
+                        "text": statement,
+                    }
                 )
         except Exception:
             logging.getLogger(__name__).exception("autonomous memory failed")
+
+    async def confirm_memory(self, confirm_id: str, keep: bool) -> dict[str, object]:
+        """Answer a keep/discard card. Each card is answered once; it expires after a day."""
+        pending = self._pending_memories.pop(confirm_id, None)
+        if pending is None or datetime.now(UTC) - pending[2] > timedelta(days=1):
+            return {"status": "expired"}
+        source_event, statement, _ = pending
+        if not keep:
+            return {"status": "discarded"}
+        assert self._memory_service is not None
+        memory = await AutonomousMemory(self._memory_service, _no_nominations).keep_confirmed(
+            "siro", source_event, statement
+        )
+        self._observe_memory(memory, source_event.source, explicit=False)
+        return {"status": "kept", "memory_id": str(memory.memory_id), "text": memory.text}
 
     def _observe_memory(self, memory: Memory, source: str, *, explicit: bool) -> None:
         if self.memory_observer is None:

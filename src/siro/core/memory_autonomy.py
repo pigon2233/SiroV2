@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -17,6 +18,16 @@ Nominator = Callable[[str], Awaitable[list[str]]]
 
 MAX_PER_TURN = 3
 MAX_CHARS = 200
+
+# D80 D7: credentials are never kept, not even after the owner confirms. Other sensitive
+# personal details (address, health, money...) are offered as a keep/discard card instead.
+_CREDENTIAL = re.compile(
+    r"密碼|口令|金鑰|密鑰|憑證|驗證碼|門禁|信用卡|帳號|賬號|"
+    r"(?<![A-Za-z0-9_])(?:password|passwd|secret|token|cookie|authorization|bearer|"
+    r"credential|private\s+key|api[ _-]?key)(?![A-Za-z0-9_])|"
+    r"\d{7,}|[A-Za-z0-9_+/=-]{32,}|-----BEGIN|(?<![A-Za-z0-9_])(?:sk-|gsk_)",
+    re.I,
+)
 
 
 class AutonomousMemory:
@@ -46,18 +57,31 @@ class AutonomousMemory:
                 continue
             if _CONTROL.search(statement) or _NONASSERTION.search(statement):
                 continue
+            if _CREDENTIAL.search(statement):
+                continue
             if _SENSITIVE.search(statement):
                 confirm.append(statement)
                 continue
-            memory_id = uuid5(
-                NAMESPACE_URL, f"siro:auto-memory:{identity_id}:{source.event_id}:{statement}"
-            )
-            memory = Memory(
-                memory_id, identity_id, statement, (source.event_id,), source.occurred_at
-            )
-            await self._service.remember(memory, source)
-            saved.append(memory)
+            saved.append(await self._write(identity_id, source, statement))
         return saved, confirm
+
+    async def keep_confirmed(
+        self, identity_id: str, source: UserTextEvent, statement: str
+    ) -> Memory:
+        """The owner pressed 保留 on a sensitive nomination from this same source turn."""
+        if source.source != "siro.presentation" or statement not in source.payload.text:
+            raise PermissionError("confirmed memory must quote the owner's own words")
+        if _CREDENTIAL.search(statement):
+            raise PermissionError("credentials are never kept")
+        return await self._write(identity_id, source, statement)
+
+    async def _write(self, identity_id: str, source: UserTextEvent, statement: str) -> Memory:
+        memory_id = uuid5(
+            NAMESPACE_URL, f"siro:auto-memory:{identity_id}:{source.event_id}:{statement}"
+        )
+        memory = Memory(memory_id, identity_id, statement, (source.event_id,), source.occurred_at)
+        await self._service.remember(memory, source)
+        return memory
 
     async def undo(self, memory_id: UUID) -> bool:
         return await self._service._repository.delete(
