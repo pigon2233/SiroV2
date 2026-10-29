@@ -76,6 +76,14 @@ from siro.ports.models import (
 )
 from siro.services.activity.monitor import ACTIVE_STATES, ActivityMonitor
 from siro.services.affect.coordinator import AffectCoordinator
+from siro.services.agent.addressee import (
+    OVERHEARD_TRACE_PREFIX,
+    Audience,
+    Context,
+    addressee_enabled,
+    judge,
+)
+from siro.services.agent.addressee import Classifier as AddresseeClassifier
 from siro.services.agent.auto_plan import Classifier, auto_plan_enabled, should_plan
 from siro.services.agent.checkpoints import SQLiteCheckpointRepository
 from siro.services.agent.coordinator import Coordinator
@@ -238,6 +246,7 @@ class IntegratedCompanion:
         self._planning = False
         # Set by the gateway when the Claude planner is wired.
         self.auto_plan_classifier: Classifier | None = None
+        self.addressee_classifier: AddresseeClassifier | None = None
 
     @property
     def foreground_active(self) -> bool:
@@ -620,10 +629,67 @@ class IntegratedCompanion:
             return None
         return "".join(parts)
 
+    async def _recent_dialogue(self, session_id: str) -> list[tuple[str, str]]:
+        if self._agent_runs is None:
+            return []
+        with contextlib.suppress(Exception):
+            history = await self._agent_runs.recent_session_messages(
+                session_id, privacy=self._privacy.value, max_messages=6
+            )
+            return [
+                (m.role, m.content)
+                for m in history
+                if m.role in {"user", "assistant"} and isinstance(m.content, str)
+            ]
+        return []
+
+    async def _hear_speech(self, session_id: str, text: str) -> tuple[bool, bool]:
+        """(reply, confident) for a microphone line; overheard lines are filed, never answered."""
+        now = datetime.now(UTC)
+        if self.foreground_active or now < self._speaking_until:
+            since: float | None = 0.0
+        elif self._speaking_until.year == 1:
+            since = None
+        else:
+            since = (now - self._speaking_until).total_seconds()
+        context = Context(since, await self._recent_dialogue(session_id))
+        verdict = await judge(text, context, self.addressee_classifier)
+        if verdict.addressed:
+            return True, verdict.confident
+        if verdict.audience is Audience.KEEP and self._store is not None:
+            # Overheard but lasting: only reflection learns from it (no reply, no auto-memory).
+            await self._store.record_event(
+                self._user_text_event(session_id, text, f"{OVERHEARD_TRACE_PREFIX}{uuid4()}")
+            )
+        return False, False
+
+    def _user_text_event(self, session_id: str, text: str, trace_id: str) -> UserTextEvent:
+        now = datetime.now(UTC)
+        return UserTextEvent(
+            event_id=uuid4(),
+            type="conversation.user_text.v1",
+            source="siro.presentation",
+            occurred_at=now,
+            received_at=now,
+            trace_id=trace_id,
+            session_id=session_id,
+            turn_id=str(uuid4()),
+            sequence=0,
+            priority=Priority.INTERACTIVE,
+            privacy=EventPrivacy.LOCAL_ONLY,
+            payload=UserTextPayload(text=text, language="zh-Hant"),
+        )
+
     async def respond(self, session_id: str, text: str, input_mode: str = "text") -> None:
         self._last_session = session_id
         await self._ensure_core()
         assert self._core is not None
+        # Hands-free: only lines meant for her are answered; "verified" lines may be learned from.
+        verified_speech = False
+        if input_mode == "speech" and addressee_enabled():
+            reply, verified_speech = await self._hear_speech(session_id, text)
+            if not reply:
+                return
         if self._runtime_profile == "candidate" and session_id in self._run_ids:
             await self._finish_candidate(
                 self._run_ids[session_id], session_id, TurnState.CANCELLED, "superseded"
@@ -727,23 +793,14 @@ class IntegratedCompanion:
             if self._tool_orchestrator is not None:
                 self._tool_orchestrator.start_run(agent_run.run_id, session_id)
         now = datetime.now(UTC)
-        source_event = UserTextEvent(
-            event_id=uuid4(),
-            type="conversation.user_text.v1",
-            source="siro.presentation",
-            occurred_at=now,
-            received_at=now,
-            # Marks microphone turns in the stored event: hands-free listening also hears the
-            # owner talking to other people, so reflection skips them (agent/reflection.py).
-            trace_id=(
-                f"{SPEECH_TRACE_PREFIX}{uuid4()}" if input_mode == "speech" else str(uuid4())
-            ),
-            session_id=session_id,
-            turn_id=str(uuid4()),
-            sequence=0,
-            priority=Priority.INTERACTIVE,
-            privacy=EventPrivacy.LOCAL_ONLY,
-            payload=UserTextPayload(text=text, language="zh-Hant"),
+        source_event = self._user_text_event(
+            session_id,
+            text,
+            # Unverified microphone turns may be the owner talking to someone else (trace
+            # "speech:"), which reflection skips; lines judged to be for her are normal turns.
+            f"{SPEECH_TRACE_PREFIX}{uuid4()}"
+            if input_mode == "speech" and not verified_speech
+            else str(uuid4()),
         )
         await self._store.record_event(source_event)
         statement = extract_explicit_preference(text)
@@ -895,7 +952,7 @@ class IntegratedCompanion:
                 # and SIRO memorised them. Only typed turns are auto-memorised; "記住" still works.
                 if (
                     stored_memory is None
-                    and input_mode != "speech"
+                    and (input_mode != "speech" or verified_speech)
                     and os.environ.get("SIRO_AUTO_MEMORY", "1") != "0"
                 ):
                     # She decides after the reply what is worth keeping; undo = delete.

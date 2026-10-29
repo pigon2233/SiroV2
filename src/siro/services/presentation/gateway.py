@@ -59,6 +59,7 @@ from siro.persistence.consolidation import SQLiteConsolidationRepository
 from siro.persistence.profile import SQLiteProfileSource
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
+from siro.services.agent.addressee import claude_classifier as addressee_classifier
 from siro.services.agent.auto_plan import claude_classifier
 from siro.services.agent.coordinator import Coordinator
 from siro.services.agent.daily_recap import BedtimeTrigger
@@ -3461,6 +3462,8 @@ def _run_gateway(
 
     if planner_factory is not None:
         controller.auto_plan_classifier = claude_classifier(planner_model)
+    if claude_ready():
+        controller.addressee_classifier = addressee_classifier(claude_model())
 
     async def recap_daily() -> None:
         # Opt-in only (SIRO_DAILY_RECAP_ENABLED=1); manual /v1/recap always works.
