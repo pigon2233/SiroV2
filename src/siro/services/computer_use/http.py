@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from siro.services.computer_use.bridge import ComputerBridge
 from siro.services.computer_use.decision import ClaudeVisionDecider, Decider, StepRecord
+from siro.services.computer_use.demos import DemoRecorder, demos_dir
 from siro.services.computer_use.loop import DecisionLoop, LoopReport
 from siro.services.computer_use.playbook import ClaudeReflector, PlaybookStore, playbook_dir
 from siro.services.computer_use.safety import ControlGate
@@ -64,8 +65,10 @@ class ComputerRuns:
         *,
         playbook: PlaybookStore | None = None,
         reflector: Reflector | None = None,
+        recorder: DemoRecorder | None = None,
     ) -> None:
         self.bridge = bridge
+        self.recorder = recorder
         self._decider = decider
         self.playbook = playbook
         self._reflector = reflector
@@ -88,7 +91,9 @@ class ComputerRuns:
 
     async def _run(self, goal: str) -> None:
         try:
-            self._loop = DecisionLoop(self.bridge, self._decider, playbook=self.playbook)
+            self._loop = DecisionLoop(
+                self.bridge, self._decider, playbook=self.playbook, recorder=self.recorder
+            )
             self.report = await self._loop.run(goal)
         except Exception as error:
             self.report = LoopReport("failed", f"crashed:{type(error).__name__}")
@@ -223,6 +228,20 @@ def build_router(token: str, runs: ComputerRuns) -> APIRouter:
             return {"deleted": True}
         return {"deleted": runs.playbook.remove(process, index)}
 
+    @router.get("/demos")
+    async def demo_list(request: Request) -> dict[str, Any]:
+        guard(request)
+        recorder = runs.recorder
+        return {
+            "recording": recorder is not None,
+            "runs": [] if recorder is None else recorder.summary(),
+        }
+
+    @router.delete("/demos")
+    async def demo_delete(request: Request, process: str | None = None) -> dict[str, int]:
+        guard(request)
+        return {"deleted_runs": 0 if runs.recorder is None else runs.recorder.clear(process)}
+
     @router.post("/run")
     async def run(request: Request, body: RunBody) -> dict[str, bool]:
         guard(request)
@@ -251,6 +270,9 @@ def shared_runs(env: Mapping[str, str] | None = None) -> ComputerRuns | None:
             ClaudeVisionDecider(),
             playbook=PlaybookStore(playbook_dir(dict(values))) if learning else None,
             reflector=ClaudeReflector(env=dict(values)) if learning else None,
+            recorder=DemoRecorder(demos_dir(dict(values)))
+            if values.get("SIRO_COMPUTER_RECORD", "0") == "1"
+            else None,
         )
     return _SHARED
 

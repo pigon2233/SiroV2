@@ -20,6 +20,7 @@ from siro.services.computer_use.decision import (
     DecisionError,
     StepRecord,
 )
+from siro.services.computer_use.demos import DemoRecorder, DemoRun
 from siro.services.computer_use.perception import (
     Observation,
     allowed_processes,
@@ -83,6 +84,7 @@ class DecisionLoop:
         settle: float = SETTLE_SECONDS,
         wait: float = WAIT_SECONDS,
         playbook: PlaybookStore | None = None,
+        recorder: DemoRecorder | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._bridge = bridge
@@ -94,6 +96,9 @@ class DecisionLoop:
         self._settle = settle
         self._wait = wait
         self._playbook = playbook
+        self._recorder = recorder
+        self._demo: DemoRun | None = None
+        self._demo_last: int | None = None
         self.process = ""  # program of the first allowed observation (key of its play notes)
         self.live: list[StepRecord] = []
         self._clock = clock
@@ -102,6 +107,8 @@ class DecisionLoop:
         history = self.live = []
 
         def end(state: str, reason: str) -> LoopReport:
+            if self._demo is not None:
+                self._demo.finish(state, reason)
             return LoopReport(state, reason, tuple(history))
 
         if not self._allowed:
@@ -127,12 +134,16 @@ class DecisionLoop:
                 self.process = observation.process
                 if self._playbook is not None:
                     task = goal + notes_block(self._playbook.texts(self.process))
+                if self._recorder is not None:
+                    self._demo = self._recorder.begin(self.process, goal)
             if before is not None and history and history[-1].screen_changed is None:
                 changed = observation.fingerprint != before.fingerprint
                 history[-1] = StepRecord(
                     history[-1].step, history[-1].action, history[-1].expect,
                     history[-1].outcome, changed, history[-1].seen,
                 )  # fmt: skip
+                if self._demo is not None and self._demo_last is not None:
+                    self._demo.set_changed(self._demo_last, changed)
                 no_change = 0 if changed else no_change + 1
                 if no_change >= MAX_NO_CHANGE:
                     return end("stopped", "stuck_no_visible_change")
@@ -147,6 +158,7 @@ class DecisionLoop:
                 history.append(
                     StepRecord(step, "(wait)", decision.expect, "ok", None, decision.seen)
                 )
+                self._record(observation, decision, None)
                 if waits > MAX_WAITS:
                     return end("stopped", "stuck_waiting")
                 before = None
@@ -201,9 +213,22 @@ class DecisionLoop:
             history.append(
                 StepRecord(step, _describe(action), decision.expect, "ok", None, decision.seen)
             )
+            self._record(observation, decision, action)
             before = observation
             await asyncio.sleep(self._settle)
         return end("stopped", "step_limit")
+
+    def _record(
+        self, observation: Observation, decision: Decision, action: InputAction | None
+    ) -> None:
+        if self._demo is None:
+            return
+        try:
+            index = self._demo.step(observation, decision, action)
+        except OSError:
+            self._demo = None  # a full disk must never stop the run
+            return
+        self._demo_last = index if action is not None else None
 
     @staticmethod
     def _checked_action(decision: Decision, observation: Observation) -> InputAction | str:

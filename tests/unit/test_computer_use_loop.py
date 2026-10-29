@@ -342,3 +342,22 @@ async def test_live_steps_visible_while_running() -> None:
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
     await desktop.close()
+
+
+@pytest.mark.asyncio
+async def test_run_is_recorded_as_local_training_data(tmp_path: Any) -> None:
+    import json
+
+    from siro.services.computer_use.demos import DemoRecorder
+
+    recorder = DemoRecorder(tmp_path)
+    report, _, _, _ = await _run(solver, recorder=recorder)
+    assert report.success
+    (run,) = recorder.runs()
+    steps = [json.loads(x) for x in (run / "steps.jsonl").read_text().splitlines()]
+    acted = [s for s in steps if s["action"]]
+    assert [s["action"]["kind"] for s in acted] == ["click", "click"]
+    assert all(s["changed"] is True for s in acted)  # the effect of each action was filled in
+    assert (run / "meta.json").exists() and json.loads((run / "meta.json").read_text())[
+        "state"
+    ] == "done"
