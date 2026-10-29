@@ -848,7 +848,7 @@
         const bar = percent === undefined ? "" : `<div class="mon-bar${percent >= 90 ? " high" : ""}"><span style="width:${Math.min(100, Math.max(0, percent))}%"></span></div>`;
         return `<div class="mon-card${stale ? " stale" : ""}${text ? " text" : ""}"><small>${monEsc(label)}</small><span class="mon-value">${value}</span>${bar}${note ? `<small>${monEsc(note)}</small>` : ""}</div>`;
       }
-      const ESP_LABELS = {illuminance: ["亮度", v => `${v} lux`], motion: ["有人移動", v => v ? "有" : "沒有"], button_down: ["按鈕", v => v ? "按住中" : "放開"], button_press_count: ["按鈕次數", v => `${v} 次`], last_button_press_at: ["上次按按鈕", v => monClock(v)]};
+      const ESP_LABELS = {illuminance: ["亮度", v => `${Math.round(Number(v) * 10) / 10} lux`], motion: ["有人移動", v => v ? "有" : "沒有"], button_down: ["按鈕", v => v ? "按住中" : "放開"], button_press_count: ["按鈕次數", v => `${v} 次`], last_button_press_at: ["上次按按鈕", v => monClock(v)]};
       function renderEspNode(node) {
         const cards = [];
         for (const [key, prop] of Object.entries(node?.properties || {})) {
