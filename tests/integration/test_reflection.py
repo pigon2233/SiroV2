@@ -21,7 +21,9 @@ from siro.persistence.state import SQLiteIdentityRepository
 from siro.services.agent.reflection import Reflection, parse_patterns, reflection_prompt
 
 
-def owner(text: str, minutes: int, source: str = "siro.presentation") -> UserTextEvent:
+def owner(
+    text: str, minutes: int, source: str = "siro.presentation", trace: str = "r"
+) -> UserTextEvent:
     when = datetime.now(UTC) - timedelta(hours=2) + timedelta(minutes=minutes)
     return UserTextEvent(
         event_id=uuid4(),
@@ -29,7 +31,7 @@ def owner(text: str, minutes: int, source: str = "siro.presentation") -> UserTex
         source=source,
         occurred_at=when,
         received_at=when,
-        trace_id="r",
+        trace_id=trace,
         session_id="browser",
         turn_id=f"t{minutes}",
         sequence=minutes,
@@ -76,6 +78,8 @@ async def test_reflection_keeps_two_source_patterns_as_unrecalled_candidates(
     for index, text in enumerate(texts):
         await store.record_event(owner(text, index))
     await store.record_event(owner("工具結果不是主人說的", 99, source="tool.result"))
+    # Hands-free microphone turns may be the owner talking to friends: never reflected on.
+    await store.record_event(owner("朋友說他每天都去健身房", 98, trace="speech:x"))
     prompts: list[str] = []
 
     async def ask(prompt: str) -> str:
@@ -99,7 +103,7 @@ async def test_reflection_keeps_two_source_patterns_as_unrecalled_candidates(
     assert await reflection.due()
     record = await reflection.run()
     assert record["state"] == "done" and record["messages"] == len(texts)
-    assert "工具結果" not in prompts[0]
+    assert "工具結果" not in prompts[0] and "健身房" not in prompts[0]
     statuses = {p["text"]: p["status"] for p in record["patterns"]}  # type: ignore[union-attr]
     assert statuses == {"主人早上有跑步的習慣": "candidate", "主人常在晚上看電影": "committed"}
     memory = MemoryService(SQLiteMemoryRepository(store))

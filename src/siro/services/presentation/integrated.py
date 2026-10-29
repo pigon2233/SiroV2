@@ -141,6 +141,7 @@ def _local_status_command(text: str) -> tuple[str, str] | None:
 
 
 MAX_PENDING_MEMORIES = 20
+SPEECH_TRACE_PREFIX = "speech:"
 
 
 async def _no_nominations(_text: str) -> list[str]:
@@ -471,7 +472,8 @@ class IntegratedCompanion:
             assert self._memory_service is not None
 
             # D80 D7b: the nominator sees the recent dialogue so pronouns and follow-ups resolve.
-            contextual = os.environ.get("SIRO_MEMORY_CONTEXT", "1") != "0"  # measured: MEM-AUTONOMY-D7b
+            # Measured in docs/verification/MEM-AUTONOMY-D7b.
+            contextual = os.environ.get("SIRO_MEMORY_CONTEXT", "1") != "0"
             recent: list[tuple[str, str]] = []
             if contextual and self._agent_runs is not None:
                 with contextlib.suppress(Exception):
@@ -731,7 +733,11 @@ class IntegratedCompanion:
             source="siro.presentation",
             occurred_at=now,
             received_at=now,
-            trace_id=str(uuid4()),
+            # Marks microphone turns in the stored event: hands-free listening also hears the
+            # owner talking to other people, so reflection skips them (agent/reflection.py).
+            trace_id=(
+                f"{SPEECH_TRACE_PREFIX}{uuid4()}" if input_mode == "speech" else str(uuid4())
+            ),
             session_id=session_id,
             turn_id=str(uuid4()),
             sequence=0,
@@ -885,7 +891,13 @@ class IntegratedCompanion:
                     return
                 if stored_memory is not None:
                     self._observe_memory(stored_memory, source_event.source, explicit=True)
-                if stored_memory is None and os.environ.get("SIRO_AUTO_MEMORY", "1") != "0":
+                # Owner report 2026-10-29: hands-free speech picked up conversations with friends
+                # and SIRO memorised them. Only typed turns are auto-memorised; "記住" still works.
+                if (
+                    stored_memory is None
+                    and input_mode != "speech"
+                    and os.environ.get("SIRO_AUTO_MEMORY", "1") != "0"
+                ):
                     # She decides after the reply what is worth keeping; undo = delete.
                     auto = asyncio.create_task(self._auto_memory(session_id, source_event))
                     self._background.add(auto)

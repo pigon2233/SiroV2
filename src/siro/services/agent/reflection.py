@@ -112,6 +112,8 @@ class Reflection:
             rows = connection.execute(
                 "SELECT envelope_json FROM events WHERE type = 'conversation.user_text.v1' "
                 "AND json_extract(envelope_json, '$.source') = 'siro.presentation' "
+                # Microphone turns may be the owner talking to someone else (trace "speech:").
+                "AND trace_id NOT LIKE 'speech:%' "
                 "ORDER BY received_at DESC LIMIT ?",
                 (WINDOW,),
             ).fetchall()
