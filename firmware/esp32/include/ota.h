@@ -16,7 +16,7 @@
 // Build the image to serve with PLATFORMIO_BUILD_FLAGS='-DSIRO_FW_VERSION=\"1.0.1\"'.
 
 #ifndef SIRO_FW_VERSION
-#define SIRO_FW_VERSION "1.0.0"
+#define SIRO_FW_VERSION "1.0.2"
 #endif
 #ifndef SIRO_OTA_CHECK_INTERVAL_MS
 #define SIRO_OTA_CHECK_INTERVAL_MS (6UL * 60UL * 60UL * 1000UL)

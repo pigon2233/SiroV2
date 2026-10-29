@@ -39,35 +39,52 @@ def test_pir_warmup_debounce_wraparound_and_bh1750_conversion(tmp_path: Path) ->
 #include "sensor_telemetry.h"
 int main() {
   PirMotionSampler pir(1000);
+  auto run = [](PirMotionSampler &p, uint32_t from, uint32_t to, bool level) {
+    bool changed = false;
+    for (uint32_t t = from; t < to; t += 20) changed |= p.update(t, level);
+    return changed;
+  };
   assert(!pir.update(60999, true));  // no motion during warm-up
   assert(!pir.ready());
   assert(pir.update(61000, false));  // first reliable absence is emitted
   assert(pir.ready() && !pir.motion());
-  assert(!pir.update(61010, true));
-  assert(!pir.update(61200, false)); // short bounce is discarded
-  assert(!pir.update(61500, true));
-  assert(!pir.update(62999, true));
-  assert(pir.update(63000, true));   // 1.5 s of stable HIGH starts motion
+
+  // One isolated 0.8 s pulse is not presence.
+  assert(!run(pir, 61020, 61820, true));
+  assert(!run(pir, 61820, 75000, false));
+  assert(!pir.motion());
+  // A bounce shorter than the debounce is not even a pulse.
+  assert(!run(pir, 75000, 75100, true));
+  assert(!run(pir, 75100, 76000, false));
+  assert(pir.pulsesInWindow(76000) == 0);
+
+  // This module's real pattern while someone moves: ~1 s HIGH, ~2.5 s LOW, repeating.
+  bool rose = false;
+  uint32_t t = 80000;
+  for (int cycle = 0; cycle < 4; ++cycle) {
+    rose |= run(pir, t, t + 1000, true);
+    rose |= run(pir, t + 1000, t + 3500, false);
+    t += 3500;
+  }
+  assert(rose && pir.motion());  // second pulse inside the window confirms presence
+  // After the last pulse, presence is held and then released.
+  assert(!run(pir, t, t + 20000, false));
   assert(pir.motion());
-  assert(!pir.update(64000, true)); // unchanged state is not an edge
-  assert(!pir.update(64100, false));
-  assert(!pir.update(67099, false));
-  assert(pir.update(67100, false)); // 3 s of stable LOW releases it
+  assert(run(pir, t + 20000, t + 45000, false));
   assert(!pir.motion());
-  assert(!pir.update(67200, true));
-  assert(!pir.update(68000, false)); // a ~1 s pulse is ignored
-  assert(!pir.update(68100, false));
-  assert(!pir.update(71000, false));
-  assert(!pir.motion());
-  assert(!pir.update(71100, true));
-  assert(!pir.update(72599, true));
-  assert(pir.update(72600, true));
+
+  // A single sustained HIGH is presence by itself.
+  const uint32_t s = t + 50000;
+  assert(!run(pir, s - 20, s, false));
+  assert(run(pir, s, s + 1700, true));
+  assert(pir.motion());
+
   pir.invalidate();
   assert(!pir.ready());
-  assert(!pir.update(64000, true));
-  assert(!pir.update(64499, true));
-  assert(pir.update(64500, true));
-  assert(pir.ready() && pir.motion());
+  assert(!pir.update(s + 5000, false));
+  assert(!pir.update(s + 5499, false));
+  assert(pir.update(s + 5500, false));  // a fresh stable reading is required after reconnect
+  assert(pir.ready());
 
   PirMotionSampler wrapped(UINT32_MAX - 1000u);
   assert(!wrapped.update(UINT32_MAX - 1u, true));

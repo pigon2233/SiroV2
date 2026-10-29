@@ -42,6 +42,8 @@ uint32_t pirRawEdges = 0;
 uint32_t pirHighSamples = 0;
 uint32_t pirSamples = 0;
 uint32_t lastDiag = 0;
+uint32_t lastLoopMs = 0;
+uint32_t maxLoopGapMs = 0;
 uint32_t mqttDownSince = 0;
 uint32_t lastMqttAttempt = 0;
 uint32_t lastHttpLight = 0;
@@ -218,6 +220,8 @@ void loop() {
   }
   if (WiFi.status() != WL_CONNECTED) ESP.restart();
   const uint32_t now = millis();
+  if (lastLoopMs != 0 && now - lastLoopMs > maxLoopGapMs) maxLoopGapMs = now - lastLoopMs;
+  lastLoopMs = now;
   if (mqtt.connected()) {
     mqttUp = true;
     mqtt.poll();
@@ -276,8 +280,16 @@ void loop() {
     diag["pir_high_pct"] = pirSamples ? (100UL * pirHighSamples / pirSamples) : 0;
     diag["oled"] = SIRO_HAS_OLED;
     diag["fw"] = SIRO_FW_VERSION;
+    diag["pir_raw"] = pirRaw ? 1 : 0;
+    diag["pir_filtered"] = pir.motion() ? 1 : 0;
+    diag["pir_ready"] = pir.ready() ? 1 : 0;
+    diag["pir_pulses_10s"] = pir.pulsesInWindow(now);
+    diag["pir_max_sample_gap_ms"] = maxLoopGapMs;
+    diag["uptime_s"] = now / 1000UL;
+    diag["free_heap"] = ESP.getFreeHeap();
     publishJson(prefix + "diag", diag, false);
     pirRawEdges = pirHighSamples = pirSamples = 0;
+    maxLoopGapMs = 0;
   }
   if (mqttUp) {
     if (motionChanged || buttonChanged ||
