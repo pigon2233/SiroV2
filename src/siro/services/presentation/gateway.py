@@ -44,6 +44,7 @@ from siro.adapters.body.web import WebSocketBodyTransport
 from siro.adapters.vision import PixelScreenAnalyzer
 from siro.config import ProactivitySettings
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
+from siro.core.consolidation import Consolidator
 from siro.core.memory import Memory, MemoryService
 from siro.core.profile import ProfileEntry, ProfileService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
@@ -54,6 +55,7 @@ from siro.core.sensor_reactions import (
     parse_quiet_hours,
 )
 from siro.persistence.affect import SQLiteAffectRepository
+from siro.persistence.consolidation import SQLiteConsolidationRepository
 from siro.persistence.profile import SQLiteProfileSource
 from siro.ports.models import ToolCall
 from siro.services.activity.monitor import ActivityMonitor
@@ -72,6 +74,7 @@ from siro.services.agent.planning_adapters import (
     planner_enabled,
 )
 from siro.services.agent.profile_auto import ProfileAuto
+from siro.services.agent.reflection import Reflection
 from siro.services.agent.reminders import ReminderService, reminders_enabled
 from siro.services.agent.routine import RoutineWatcher
 from siro.services.agent.runs import SQLiteAgentRunRepository
@@ -743,6 +746,7 @@ def create_app(
     feature_status: Callable[[], dict[str, object]] | None = None,
     memory_organizer: MemoryOrganizer | None = None,
     memory_curation: MemoryCurationDryRun | None = None,
+    reflection: Reflection | None = None,
     on_memory_confirm: Callable[[str, bool], Awaitable[dict[str, object]]] | None = None,
     workspace_service: WorkspaceRuntime | None = None,
     on_memory_invalidated: Callable[[], Awaitable[None]] | None = None,
@@ -777,6 +781,7 @@ def create_app(
     activation_owner = skill_activation if runtime_profile == "candidate" else None
     release_started = False
     background_curation: set[asyncio.Task[int]] = set()
+    background_reflection: set[asyncio.Task[dict[str, object]]] = set()
     goal_owner = read_task_owner if runtime_profile == "candidate" else None
 
     def candidate_metadata() -> dict[str, object]:
@@ -1598,6 +1603,29 @@ def create_app(
             "backfill": memory_curation.backfill_state,
             "records": await memory_curation.records(limit),
         }
+
+    @app.get("/v1/reflection")
+    async def reflection_records(
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, object]:
+        """D80 D7 B: habits SIRO inferred across several messages (inferred, not owner-stated)."""
+        require_token(authorization)
+        if reflection is None:
+            return {"available": False, "state": "unavailable", "records": []}
+        records = await asyncio.to_thread(reflection.records)
+        return {"available": True, "state": reflection.state, "records": records}
+
+    @app.post("/v1/reflection/run")
+    async def reflection_run(authorization: str | None = Header(default=None)) -> dict[str, object]:
+        require_token(authorization)
+        if reflection is None:
+            raise HTTPException(status_code=503, detail="reflection is unavailable")
+        if reflection.state == "running":
+            return {"started": False, "state": "running"}
+        task = asyncio.create_task(reflection.run(force=True))
+        background_reflection.add(task)
+        task.add_done_callback(background_reflection.discard)
+        return {"started": True, "state": "running"}
 
     @app.put("/v1/memory-curation/mode")
     async def memory_curation_mode(
@@ -3368,6 +3396,15 @@ def _run_gateway(
             logging.getLogger(__name__).exception("memory curation dry-run failed")
 
     controller.memory_observer = observe_memory
+    reflection = None
+    if os.environ.get("SIRO_REFLECTION", "1") != "0":
+        reflection = Reflection(
+            shared_store,
+            Consolidator(SQLiteConsolidationRepository(shared_store)),
+            ask_curation,
+            data_dir / "memory-curation" / "reflection.jsonl",
+            busy=lambda: controller.foreground_active or controller.planning,
+        )
 
     async def share_finished_note() -> None:
         assert self_notes_service is not None
@@ -3477,6 +3514,8 @@ def _run_gateway(
             recap_tasks.append(asyncio.create_task(watch_routine()))
         if organizer is not None:
             await organizer.start()
+        if reflection is not None:
+            await reflection.start()
         if profile_auto is not None:
             await profile_auto.start()
         if workspace is not None:
@@ -3506,6 +3545,8 @@ def _run_gateway(
                 await profile_auto.close()
             if organizer is not None:
                 await organizer.close()
+            if reflection is not None:
+                await reflection.close()
         finally:
             try:
                 if browser_sessions is not None:
@@ -3613,6 +3654,7 @@ def _run_gateway(
             on_turn=controller.respond,
             memory_organizer=organizer,
             memory_curation=curation,
+            reflection=reflection,
             on_memory_confirm=controller.confirm_memory,
             workspace_service=workspace,
             on_memory_invalidated=controller.invalidate_memory_context,

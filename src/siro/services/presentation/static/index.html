@@ -362,6 +362,7 @@
             <section class="mon-group" aria-labelledby="mon-switch-heading"><h2 id="mon-switch-heading">開關與權限</h2><h3>操作模式</h3><p id="permissions-authorization-status">正在確認目前模式…</p><h3>功能開關</h3><p>「已開啟」表示允許使用這項功能；按下開關可開啟或關閉。開啟功能不會取得額外的操作權限。</p><div id="switches"></div><p id="switch-status" role="status" aria-live="polite"></p></section>
             <section class="mon-group"><details id="context-details"><summary>工作情境（預設全關）</summary><p>只在你打開的範圍內，讓 SIRO 知道你現在大概在做什麼：看到的、推測的、不知道的分開。關掉後立刻停止取得，也不再使用舊的內容；不開相機或麥克風，標題不保存，鎖屏與密碼／銀行視窗不記錄，也不會送到雲端模型。</p><p id="context-status" aria-live="polite">讀取狀態中…</p><div class="quick-actions"><label><input id="context-app" type="checkbox"> 讓她知道目前用哪類應用程式</label><label><input id="context-screen" type="checkbox"> 讓她偶爾看一眼主螢幕（只量亮度／顏色，不辨識內容）</label></div><form id="context-share" class="quick-actions"><input id="context-text" maxlength="200" aria-label="告訴她你現在在做什麼" placeholder="例如：正在整理報稅資料"><button type="submit">告訴她</button></form><div id="context-items"></div></details></section>
             <section class="mon-group" aria-labelledby="mon-memory-heading"><h2 id="mon-memory-heading">SIRO 記得的事</h2><p class="section-note">更正或刪除後，舊整理結果會失效；原始對話與備份有各自的保存規則。</p><form id="memory-search-form" role="search" aria-label="搜尋共同記憶"><label for="memory-query">搜尋記憶內容</label><input id="memory-query" type="search" maxlength="4096" placeholder="輸入想找的事情" autocomplete="off"><button type="submit">搜尋記憶</button><button id="memory-search-clear" type="button">清除搜尋</button></form><p id="memory-search-status" role="status" aria-live="polite">每次最多顯示 100 筆記憶。</p><button id="product-refresh" type="button">重新整理記憶</button><div id="memory-items"></div></section>
+            <section class="mon-group" aria-labelledby="mon-refl-heading"><h2 id="mon-refl-heading">SIRO 的反思</h2><p>她閒置時會回頭看你最近說的話，找出反覆出現的習慣。這些是<strong>推測</strong>：至少要有兩則訊息支持；只有兩則時先放著不用，三則以上才會帶進對話。不對的可以在「SIRO 記得的事」刪除。 <button id="mon-refl-run" type="button">現在反思</button></p><div class="mon-card"><ul class="mon-list" id="mon-refl"></ul></div></section>
             <section class="mon-group" aria-labelledby="mon-mem-heading"><h2 id="mon-mem-heading">記憶整理（試跑）</h2><p><span id="mon-mem-note">每筆新記憶寫入後，SIRO 判斷會怎麼處理；目前只記錄，不會改動任何記憶。</span> <button id="mon-mem-backfill" type="button">用現有記憶試跑一次</button> <button id="mon-mem-mode" type="button" aria-pressed="false">開始真正整理</button></p><div class="mon-grid" id="mon-mem-summary"></div><div class="mon-card"><ul class="mon-list" id="mon-mem"></ul></div></section>
             <section class="mon-group" aria-labelledby="mon-act-heading"><h2 id="mon-act-heading">背景工作</h2><p>SIRO 在對話之外做的事；對話裡只放一句結果，完整內容在這裡。</p><div class="mon-card">
             <p id="activity-feed" class="act-feed" role="status" aria-live="polite">等待連線…</p>
@@ -794,7 +795,7 @@
         return response.json();
       }
       async function pollMonitor(epoch) {
-        const [esp, pc, snap, context, curation, notes] = await Promise.allSettled(["/v1/devices/esp32/state", "/v1/system/stats", "/v1/snapshot", "/v1/work-context", "/v1/memory-curation?limit=200", "/v1/self-notes"].map(monitorJson));
+        const [esp, pc, snap, context, curation, notes, reflection] = await Promise.allSettled(["/v1/devices/esp32/state", "/v1/system/stats", "/v1/snapshot", "/v1/work-context", "/v1/memory-curation?limit=200", "/v1/self-notes", "/v1/reflection"].map(monitorJson));
         if (epoch !== monitorView.epoch) return;
         const espCards = esp.status === "fulfilled" ? [...renderEspNode(esp.value.mqtt), ...renderEspNode(esp.value)] : [];
         document.querySelector("#mon-esp").innerHTML = espCards.join("") || monCard("ESP32", esp.status === "fulfilled" ? "沒有資料" : "讀不到", esp.status === "fulfilled" ? "節點尚未回報任何數值" : "感測器入口未啟用或服務未回應", {stale: true});
@@ -821,9 +822,23 @@
         }
         document.querySelector("#mon-siro").innerHTML = siro.join("") || monCard("SIRO", "讀不到", "", {stale: true});
         renderNotes(notes.status === "fulfilled" ? notes.value.notes || [] : null);
+        renderReflection(reflection.status === "fulfilled" ? reflection.value : null);
         renderCuration(curation.status === "fulfilled" ? curation.value : null);
         document.querySelector("#monitor-updated").textContent = ` 最後更新 ${monClock(new Date().toISOString())}`;
         monitorView.timer = setTimeout(() => pollMonitor(epoch), MONITOR_POLL_MS);
+      }
+      const REFLECTION_STATES = {done: "完成", skipped: "新訊息還不夠多", too_few: "訊息太少", model_unavailable: "模型沒有回應"};
+      function renderReflection(data) {
+        const button = document.querySelector("#mon-refl-run");
+        button.disabled = !data?.available || data.state === "running";
+        button.textContent = data?.state === "running" ? "反思中…" : "現在反思";
+        const runs = (data?.records || []).filter(r => r.state !== "skipped").slice(-5).reverse();
+        const html = !data?.available ? "<li>讀不到反思（服務需要重新啟動）</li>" : runs.map(r => {
+          const items = (r.patterns || []).map(p => `<li>${monEsc(p.text)} <small>（${p.status === "committed" ? "已採用" : "候選，先不用"}；依據：${p.evidence.map(monEsc).join("／")}）</small></li>`).join("");
+          return `<li><span>${monEsc(REFLECTION_STATES[r.state] || r.state)} · 看了 ${monEsc(r.messages ?? 0)} 則${items ? `<ul>${items}</ul>` : "，沒有找到反覆出現的習慣"}</span><time datetime="${monEsc(r.at)}">${monClock(r.at)}</time></li>`;
+        }).join("") || "<li>還沒有反思過；累積 20 則新訊息後，她會在閒置時自己做。</li>";
+        const list = document.querySelector("#mon-refl");
+        if (list.dataset.html !== html) { list.innerHTML = html; list.dataset.html = html; }
       }
       function renderNotes(notes) {
         const html = notes === null ? "<li>讀不到研究筆記</li>" : notes.slice(0, 8).map(n => {
@@ -869,6 +884,11 @@
         if (list.dataset.html !== listHtml) { list.innerHTML = listHtml; list.dataset.html = listHtml; }
       }
       function initializeCurationControls() {
+        const reflect = document.querySelector("#mon-refl-run");
+        reflect.onclick = async () => {
+          reflect.disabled = true; reflect.textContent = "反思中…";
+          try { await authorizedFetch("/v1/reflection/run", {method: "POST"}); } catch {}
+        };
         const button = document.querySelector("#mon-mem-backfill");
         button.onclick = async () => {
           button.disabled = true; button.textContent = "整理中…";
