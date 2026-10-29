@@ -67,3 +67,10 @@
 - 查看：`GET /v1/computer/playbook/<程式名>`；刪一條：`DELETE /v1/computer/playbook/<程式名>?index=N`；全刪：不帶 index。`/v1/computer/status` 的 `learned_notes` 是上一次任務新增的條數。
 - 真模型實測（Undertale 卡 Logo 那次的紀錄）寫出 4 條合理筆記，例如「Logo 畫面 Enter 會讓畫面變、Z 長按沒有」。
 - 注意：筆記是提示不是事實；重啟 SIRO 後才會套用（目前跑的 gateway 還是舊版）。
+
+## 怎麼叫她玩（owner 日常用）
+1. 托盤（隱藏圖示裡的「SIRO 桌寵」）→「電腦操控：關閉（點此開啟）」。
+2. 雙擊 `Play-SIRO.cmd`（或在終端機執行 `Play-SIRO.cmd "要她做的事" 20`）。第二個參數是開始前的等待秒數，這段時間把遊戲視窗點到最前面。
+   例：`Play-SIRO.cmd "選 Continue，在廢墟裡走十幾步，遇到戰鬥就停下問我" 20`
+3. 她只在前景是白名單程式（`computer.env` 的 `SIRO_COMPUTER_ALLOWED_PROCESSES`）時動手；前景不是就安全停下。急停 `Ctrl+Alt+Shift+Esc`。
+4. 也可以直接跟桌寵說話請她玩（工具 `computer.play`），但本地模型是否會正確呼叫尚未驗證；`Play-SIRO.cmd` 是目前確定可用的入口。
