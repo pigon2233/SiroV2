@@ -26,6 +26,7 @@ from siro.services.computer_use.perception import (
     image_to_screen,
     is_fresh,
 )
+from siro.services.computer_use.playbook import PlaybookStore, notes_block
 from siro.services.computer_use.safety import InputAction
 
 MAX_STEPS = 40
@@ -81,6 +82,7 @@ class DecisionLoop:
         min_confidence: float = MIN_CONFIDENCE,
         settle: float = SETTLE_SECONDS,
         wait: float = WAIT_SECONDS,
+        playbook: PlaybookStore | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._bridge = bridge
@@ -91,6 +93,8 @@ class DecisionLoop:
         self._min_confidence = min_confidence
         self._settle = settle
         self._wait = wait
+        self._playbook = playbook
+        self.process = ""  # program of the first allowed observation (key of its play notes)
         self.live: list[StepRecord] = []
         self._clock = clock
 
@@ -104,6 +108,7 @@ class DecisionLoop:
             return end("stopped", "no_allowed_processes")
         started = self._clock()
         no_change = invalid = rate_waits = waits = 0
+        task = goal
         done_seen = False
         before: Observation | None = None
         for step in range(1, self._max_steps + 1):
@@ -118,6 +123,10 @@ class DecisionLoop:
                 return end("stopped", "window_not_allowed")
             if not is_fresh(observation, self._clock()):
                 return end("stopped", "stale_observation")
+            if not self.process:
+                self.process = observation.process
+                if self._playbook is not None:
+                    task = goal + notes_block(self._playbook.texts(self.process))
             if before is not None and history and history[-1].screen_changed is None:
                 changed = observation.fingerprint != before.fingerprint
                 history[-1] = StepRecord(
@@ -128,7 +137,7 @@ class DecisionLoop:
                 if no_change >= MAX_NO_CHANGE:
                     return end("stopped", "stuck_no_visible_change")
             try:
-                decision = await self._decider.decide(goal, history, observation)
+                decision = await self._decider.decide(task, history, observation)
             except CloudScreenNotAllowed:
                 return end("stopped", "cloud_screen_not_allowed")
             except (DecisionError, OSError, TimeoutError) as error:

@@ -11,7 +11,8 @@ import asyncio
 import os
 import secrets
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Protocol
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
@@ -19,6 +20,7 @@ from pydantic import BaseModel, Field
 from siro.services.computer_use.bridge import ComputerBridge
 from siro.services.computer_use.decision import ClaudeVisionDecider, Decider, StepRecord
 from siro.services.computer_use.loop import DecisionLoop, LoopReport
+from siro.services.computer_use.playbook import ClaudeReflector, PlaybookStore, playbook_dir
 from siro.services.computer_use.safety import ControlGate
 
 TOKEN_ENV = "SIRO_COMPUTER_TOKEN"
@@ -40,12 +42,34 @@ class RunBody(BaseModel):
     goal: str = Field(min_length=2, max_length=500)
 
 
+class Reflector(Protocol):
+    async def reflect(
+        self,
+        game: str,
+        goal: str,
+        state: str,
+        reason: str,
+        existing: Sequence[str],
+        steps: Sequence[StepRecord],
+    ) -> list[str]: ...
+
+
 class ComputerRuns:
     """One run at a time; the report of the latest run stays readable."""
 
-    def __init__(self, bridge: ComputerBridge, decider: Decider) -> None:
+    def __init__(
+        self,
+        bridge: ComputerBridge,
+        decider: Decider,
+        *,
+        playbook: PlaybookStore | None = None,
+        reflector: Reflector | None = None,
+    ) -> None:
         self.bridge = bridge
         self._decider = decider
+        self.playbook = playbook
+        self._reflector = reflector
+        self.learned = 0  # lessons added by the last finished run
         self._task: asyncio.Task[None] | None = None
         self._loop: DecisionLoop | None = None
         self.goal = ""
@@ -64,10 +88,37 @@ class ComputerRuns:
 
     async def _run(self, goal: str) -> None:
         try:
-            self._loop = DecisionLoop(self.bridge, self._decider)
+            self._loop = DecisionLoop(self.bridge, self._decider, playbook=self.playbook)
             self.report = await self._loop.run(goal)
         except Exception as error:
             self.report = LoopReport("failed", f"crashed:{type(error).__name__}")
+            return
+        await self._learn(goal)
+
+    async def _learn(self, goal: str) -> None:
+        """After a run, turn what happened into a few reusable notes (best effort, never raises)."""
+        report, loop = self.report, self._loop
+        self.learned = 0
+        if self.playbook is None or self._reflector is None or report is None or loop is None:
+            return
+        if (
+            not loop.process
+            or not report.steps
+            or report.reason in {"emergency_stop", "window_not_allowed"}
+        ):
+            return
+        try:
+            lessons = await self._reflector.reflect(
+                loop.process,
+                goal,
+                report.state,
+                report.reason,
+                self.playbook.texts(loop.process),
+                report.steps,
+            )
+            self.learned = self.playbook.add(loop.process, lessons, uuid4().hex[:12])
+        except Exception:
+            self.learned = 0
 
     def status(self) -> dict[str, Any]:
         gate = self.bridge.gate
@@ -80,6 +131,7 @@ class ComputerRuns:
             "running": self.running,
             "goal": self.goal,
             "live_steps": _steps(live),
+            "learned_notes": self.learned,
             "report": None
             if report is None
             else {"state": report.state, "reason": report.reason, "steps": _steps(report.steps)},
@@ -146,6 +198,31 @@ def build_router(token: str, runs: ComputerRuns) -> APIRouter:
         guard(request)
         return runs.status()
 
+    @router.get("/playbook/{process}")
+    async def playbook_notes(request: Request, process: str) -> dict[str, Any]:
+        guard(request)
+        store = runs.playbook
+        notes = [] if store is None else store.notes(process)
+        return {
+            "process": process.lower(),
+            "notes": [
+                {"index": i, "text": n.text, "run_id": n.run_id, "at": n.at}
+                for i, n in enumerate(notes)
+            ],
+        }
+
+    @router.delete("/playbook/{process}")
+    async def playbook_delete(
+        request: Request, process: str, index: int | None = None
+    ) -> dict[str, bool]:
+        guard(request)
+        if runs.playbook is None:
+            raise HTTPException(status_code=404, detail="playbooks are off")
+        if index is None:
+            runs.playbook.clear(process)
+            return {"deleted": True}
+        return {"deleted": runs.playbook.remove(process, index)}
+
     @router.post("/run")
     async def run(request: Request, body: RunBody) -> dict[str, bool]:
         guard(request)
@@ -168,7 +245,13 @@ def shared_runs(env: Mapping[str, str] | None = None) -> ComputerRuns | None:
     if not values.get(TOKEN_ENV):
         return None
     if _SHARED is None:
-        _SHARED = ComputerRuns(ComputerBridge(ControlGate()), ClaudeVisionDecider())
+        learning = values.get("SIRO_COMPUTER_PLAYBOOK", "1") != "0"
+        _SHARED = ComputerRuns(
+            ComputerBridge(ControlGate()),
+            ClaudeVisionDecider(),
+            playbook=PlaybookStore(playbook_dir(dict(values))) if learning else None,
+            reflector=ClaudeReflector(env=dict(values)) if learning else None,
+        )
     return _SHARED
 
 
