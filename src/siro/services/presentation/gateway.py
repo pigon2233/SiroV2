@@ -24,7 +24,16 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
@@ -83,6 +92,7 @@ from siro.services.audio.tts import (
     QwenVoiceProfile,
     plan_speech,
 )
+from siro.services.computer_use.http import router_from_env as computer_router_from_env
 from siro.services.context.windows_providers import (
     AppObserver,
     powershell_runner,
@@ -743,6 +753,7 @@ def create_app(
     profile_source: SQLiteProfileSource | None = None,
     profile_auto: ProfileAuto | None = None,
     on_recap: Callable[[], Awaitable[str]] | None = None,
+    computer_router: APIRouter | None = None,
 ) -> FastAPI:
     if (vrm_dist is None) != (vrm_model is None):
         raise ValueError("vrm_dist and vrm_model must be configured together")
@@ -846,6 +857,8 @@ def create_app(
                                 await gateway_hub.shutdown()
 
     app = FastAPI(title="SIRO Presentation Gateway", lifespan=lifespan)
+    if computer_router is not None:
+        app.include_router(computer_router)
     app.state.gateway_hub = gateway_hub
     app.state.body_transport = renderer_transport
 
@@ -3578,6 +3591,7 @@ def _run_gateway(
             if (ota_image := os.environ.get("SIRO_ESP32_OTA_IMAGE"))
             else None,
             esp32_ota_version=os.environ.get("SIRO_ESP32_OTA_VERSION") or None,
+            computer_router=computer_router_from_env(),
         ),
         host="127.0.0.1",
         port=port,

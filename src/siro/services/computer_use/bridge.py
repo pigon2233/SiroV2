@@ -84,7 +84,9 @@ class ComputerBridge:
         if not result.ok or result.data is None:
             return None, result.error or "observe_failed"
         self._seq += 1
-        return sanitize(result.data, seq=self._seq, now=self._clock()), ""
+        observation = sanitize(result.data, seq=self._seq, now=self._clock())
+        self.gate.set_screen(*observation.screen)
+        return observation, ""
 
     async def _request(
         self, op: str, payload: dict[str, Any], timeout: float, timeout_error: str

@@ -92,6 +92,11 @@ class ControlGate:
     def tripped(self) -> bool:
         return self._tripped
 
+    def set_screen(self, width: int, height: int) -> None:
+        """Primary screen size reported by the shell (physical pixels, origin 0,0)."""
+        if width > 0 and height > 0:
+            self._screen = (0, 0, width, height)
+
     def enable(self) -> None:
         self._tripped = False
         self._enabled = True
