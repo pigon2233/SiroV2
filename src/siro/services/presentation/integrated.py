@@ -215,9 +215,7 @@ class IntegratedCompanion:
         # Set by the gateway when the cloud summarizer exists; None means a local summary.
         self.recap_summarizer: Callable[[str], Awaitable[str]] | None = None
         # D80 P2a dry-run: told about each committed memory (memory, source, explicit).
-        self.memory_observer: Callable[[Memory, str, bool], Coroutine[Any, Any, None]] | None = (
-            None
-        )
+        self.memory_observer: Callable[[Memory, str, bool], Coroutine[Any, Any, None]] | None = None
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
         self._planning = False
         # Set by the gateway when the Claude planner is wired.

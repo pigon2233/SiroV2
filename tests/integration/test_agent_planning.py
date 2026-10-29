@@ -257,3 +257,78 @@ async def test_integrated_entry_is_off_by_default(
     monkeypatch.setenv("SIRO_AGENT_PLANNER_ENABLED", "1")
     report = await companion.run_agent_plan("s", "g")
     assert report is not None and report.state is PlanState.COMPLETED and len(built) == 1
+
+
+@pytest.mark.asyncio
+async def test_plan_runs_as_sub_thread_and_returns_only_the_summary(tmp_path: Path) -> None:
+    """D80 P3a: the main turn answers at once; the plan's summary arrives later."""
+    from types import SimpleNamespace
+
+    from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+    from siro.adapters.models.mock import MockModel
+    from siro.ports.models import Privacy
+    from siro.services.presentation.gateway import GatewayHub
+    from siro.services.presentation.integrated import IntegratedCompanion
+
+    companion = IntegratedCompanion(
+        tmp_path,
+        MockModel(),
+        GatewayHub(),
+        MinimalWebBodyAdapter(WebSocketBodyTransport()),
+        privacy=Privacy.LOCAL_ONLY,
+    )
+    gate = asyncio.Event()
+    shared: list[tuple[str, bool]] = []
+
+    async def plan(session_id: str, goal: str) -> object:
+        await gate.wait()
+        return SimpleNamespace(summary=f"做完了：{goal}")  # noqa: RUF001
+
+    async def share(text: str, spoken: str, *, speak: bool = True, **_: object) -> None:
+        shared.append((text, speak))
+
+    companion.run_agent_plan = plan  # type: ignore[method-assign,assignment]
+    companion.share_self_note = share  # type: ignore[method-assign]
+    first = companion._start_plan_subthread("browser", "整理下載資料夾")
+    assert "背景" in first and companion.planning and shared == []
+    assert "上一件" in companion._start_plan_subthread("browser", "另一件事")
+    gate.set()
+    for _ in range(50):
+        if shared:
+            break
+        await asyncio.sleep(0.01)
+    assert shared == [("做完了：整理下載資料夾", True)]  # noqa: RUF001
+    assert not companion.planning
+
+
+@pytest.mark.asyncio
+async def test_failed_sub_thread_plan_still_reports_and_frees_the_slot(tmp_path: Path) -> None:
+    from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+    from siro.adapters.models.mock import MockModel
+    from siro.ports.models import Privacy
+    from siro.services.presentation.gateway import GatewayHub
+    from siro.services.presentation.integrated import IntegratedCompanion
+
+    companion = IntegratedCompanion(
+        tmp_path,
+        MockModel(),
+        GatewayHub(),
+        MinimalWebBodyAdapter(WebSocketBodyTransport()),
+        privacy=Privacy.LOCAL_ONLY,
+    )
+    shared: list[str] = []
+
+    async def plan(session_id: str, goal: str) -> object:
+        raise RuntimeError("planner down")
+
+    async def share(text: str, spoken: str, *, speak: bool = True, **_: object) -> None:
+        shared.append(text)
+
+    companion.run_agent_plan = plan  # type: ignore[method-assign,assignment]
+    companion.share_self_note = share  # type: ignore[method-assign]
+    companion._start_plan_subthread("browser", "x")
+    for _ in range(50):
+        if shared:
+            break
+        await asyncio.sleep(0.01)
+    assert shared and "沒有完成" in shared[0] and not companion.planning

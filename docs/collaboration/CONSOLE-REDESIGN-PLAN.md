@@ -210,3 +210,8 @@ skill_activation,skill_candidate,task_detail}.py`；`docs/evidence/` 下的歷�
   UNKNOWN、ADD、前景忙碌時不動。每筆可從監控頁「還原」（重新開啟並記 revision）。新 repository 方法 `set_valid_to`，未改 schema。
   已知限制：標為失效後只有帶 `as_of` 的檢索（對話 prompt 用的 `recall_context`）會排除；記憶頁搜尋與 browse 仍列出，P4 移除記憶頁時一併處理。
   真實記憶複本以 v2 試跑：9 筆 → ADD 3、UPDATE 6；其中「環境干擾案例」併入「情境感知／環境適應」屬跨主題，可能誤併，可還原。
+- 2026-10-29 P3（a+b）完成：「規劃任務」改成子線，主線立刻回覆、完成後只回摘要（`IntegratedCompanion._start_plan_subthread`），
+  一次只跑一件（單一本機模型）；背景整理器在規劃期間也讓路。自主研究筆記在主線只放一句，全文移到監控頁「背景工作／研究筆記」，
+  SIRO 自己仍記得完整內容（`share_self_note(remembered=...)`）。對話頁已有「正在做什麼」側欄顯示進行中工作，不另加輸入框上方列。
+  注意：P3 的 integrated.py／gateway.py／self_notes.py／index.html 修改有一部分被另一個執行緒的 commit f395045 一併提交（未經我測試）；
+  本次 commit 補上其餘部分與測試，未改寫他人 commit。尚未做：提醒、睡前回顧、觸摸、感測器回應仍直接進主線（依 §3.2 表格屬主線）。

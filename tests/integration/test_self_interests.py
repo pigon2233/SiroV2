@@ -183,3 +183,10 @@ async def test_each_tick_tells_the_owner_about_a_finished_note_unless_busy_or_fo
     foreground[0] = False
     await scheduler.tick()
     assert shared == [1]
+
+
+def test_main_chat_gets_one_line_and_the_note_stays_in_the_monitor() -> None:
+    from siro.services.agent.self_notes import brief_text
+
+    line = brief_text({"topic": "梅雨季成因", "text": "很長的筆記" * 50, "sources": []})
+    assert "梅雨季成因" in line and "很長的筆記" not in line and "\n" not in line

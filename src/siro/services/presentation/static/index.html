@@ -893,10 +893,10 @@
         }
         document.querySelector("#mon-siro").innerHTML = siro.join("") || monCard("SIRO", "讀不到", "", {stale: true});
         const items = acts.status === "fulfilled" ? acts.value.activities || [] : [];
-        const running = a => ["running", "queued", "waiting"].includes(a.state) ? 0 : 1;
+        const running = a => ["running", "queued", "paused", "cancelling", "proposed"].includes(a.state) ? 0 : 1;
         items.sort((x, y) => running(x) - running(y));
         renderNotes(notes.status === "fulfilled" ? notes.value.notes || [] : null);
-        document.querySelector("#mon-activity").innerHTML = items.map(a => `<li><span>${monEsc(a.reason || a.kind)} · ${monEsc(({running:"進行中", completed:"完成", failed:"失敗", cancelled:"已停止"})[a.state] || a.state)}</span><time datetime="${monEsc(a.created_at)}">${monClock(a.created_at)}</time></li>`).join("") || "<li>還沒有活動</li>";
+        document.querySelector("#mon-activity").innerHTML = items.map(a => `<li><span>${monEsc(a.reason || a.kind)} · ${monEsc((ACTIVITY_STATES[a.state] || ["狀態不明"])[0])} · ${monEsc(ACTIVITY_ORIGINS[a.origin] || "")}</span><time datetime="${monEsc(a.created_at)}">${monClock(a.created_at)}</time></li>`).join("") || "<li>還沒有活動</li>";
         renderCuration(curation.status === "fulfilled" ? curation.value : null);
         document.querySelector("#monitor-updated").textContent = ` 最後更新 ${monClock(new Date().toISOString())}`;
         monitorView.timer = setTimeout(() => pollMonitor(epoch), MONITOR_POLL_MS);
