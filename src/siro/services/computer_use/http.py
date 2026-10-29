@@ -153,10 +153,28 @@ def build_router(token: str, runs: ComputerRuns) -> APIRouter:
     return router
 
 
+_SHARED: ComputerRuns | None = None
+
+
+def shared_runs(env: Mapping[str, str] | None = None) -> ComputerRuns | None:
+    """The one process-wide ComputerRuns (router and chat tools must share it); None if unset."""
+    global _SHARED
+    values = os.environ if env is None else env
+    if not values.get(TOKEN_ENV):
+        return None
+    if _SHARED is None:
+        _SHARED = ComputerRuns(ComputerBridge(ControlGate()), ClaudeVisionDecider())
+    return _SHARED
+
+
+def reset_shared_runs() -> None:
+    global _SHARED
+    _SHARED = None
+
+
 def router_from_env(env: Mapping[str, str] | None = None) -> APIRouter | None:
     values = os.environ if env is None else env
-    token = values.get(TOKEN_ENV)
-    if not token:
+    runs = shared_runs(values)
+    if runs is None:
         return None
-    runs = ComputerRuns(ComputerBridge(ControlGate()), ClaudeVisionDecider())
-    return build_router(token, runs)
+    return build_router(values[TOKEN_ENV], runs)

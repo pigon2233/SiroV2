@@ -26,4 +26,13 @@
   「畫面沒反應時不盲目重複」一次過、一次失敗（改用 move 到同座標，信心 0.5，迴圈會因 <0.6 停下）。結果在 `docs/verification/COMPUTER-USE/vision-eval.json`。
 - 未驗證：任何真實鍵鼠注入、急停熱鍵實測延遲、真遊戲、反作弊相容、DPI 縮放多螢幕（目前只支援主螢幕）、整條 後端↔桌寵 HTTP 實機串接。
 - 已知限制：遊戲內若標題含 login／bank 等字會被擋；只支援主螢幕；每步約 7–10 秒（雲端視覺），不適合即時動作遊戲；
-  Gateway 與聊天工具目錄尚未接 `desktop.*`（`core/computer.py` 仍標不可用），現階段入口是上述 HTTP。
+  `core/computer.py` 的 `desktop.*` 能力仍標不可用（舊目錄，未使用）。
+
+## 聊天工具（SIRO 自己決定要不要用）
+設了 `SIRO_COMPUTER_TOKEN` 且 candidate profile 時，工具目錄多兩個工具：
+- `computer.play(goal)`：effect=computer（R05 唯讀規劃器不會用它）。只在「托盤已開啟」且「桌寵已連線」時才顯示為可用；
+  背景執行，立即回傳 started。同時只允許一個 run。
+- `computer.status()`：唯讀，回報是否開啟、是否執行中、每步與停止原因。
+注意：授權模式為 `full` 時，現有工具審批機制不會逐次詢問；實際把關是 token＋托盤開關＋程序白名單＋截圖同意旗標＋急停熱鍵。
+想逐次確認可把授權模式改成需審批（沿用 R02/R04 設定）。
+

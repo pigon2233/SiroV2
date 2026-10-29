@@ -92,7 +92,9 @@ from siro.services.audio.tts import (
     QwenVoiceProfile,
     plan_speech,
 )
+from siro.services.computer_use import tool as computer_tool
 from siro.services.computer_use.http import router_from_env as computer_router_from_env
+from siro.services.computer_use.http import shared_runs as computer_shared_runs
 from siro.services.context.windows_providers import (
     AppObserver,
     powershell_runner,
@@ -2998,6 +3000,11 @@ def _run_gateway(
         handlers[CLAUDE_TOOL] = browser_without_context
         claude_contextual[CLAUDE_TOOL] = partial(ask_claude, model=claude_tool_model)
 
+    # Desktop control exists only with SIRO_COMPUTER_TOKEN; the owner's tray switch still gates use.
+    computer_runs = computer_shared_runs() if runtime_profile == "candidate" else None
+    if computer_runs is not None:
+        handlers.update(computer_tool.computer_handlers(computer_runs))
+
     workspace_contextual = {}
     if workspace is not None:
         for definition in WORKSPACE_TOOLS:
@@ -3010,11 +3017,19 @@ def _run_gateway(
     if browser_sessions is not None:
         definitions.update({d.name: d for d in BROWSER_SESSION_TOOLS})
     definitions[CLAUDE_TOOL] = CLAUDE_DEFINITION
+    if computer_runs is not None:
+        definitions.update(computer_tool.DEFINITIONS)
 
     def readiness(name: str) -> ToolAvailability:
         if not state.kill_switches["tools"]:
             return ToolAvailability(
                 AvailabilityState.UNAVAILABLE, AvailabilityReason.TOOLS_DISABLED
+            )
+        if name in computer_tool.COMPUTER_TOOL_NAMES:
+            ready = computer_runs is not None and computer_tool.computer_ready(computer_runs, name)
+            return ToolAvailability(
+                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
+                AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,
             )
         if name == CLAUDE_TOOL:
             ready = state.kill_switches["cloud"] and claude_ready()
@@ -3051,8 +3066,9 @@ def _run_gateway(
             "filesystem.read": "讀取工作目錄文字檔",
             "filesystem.list": "查看工作目錄檔案",
             CLAUDE_TOOL: "請 Claude 幫忙查",
+            **computer_tool.LABELS,
         }
-        read_only = name in {
+        read_only = name in computer_tool.READ_ONLY or name in {
             CLAUDE_TOOL,
             "browser.navigate+read",
             "browser.read",
@@ -3092,7 +3108,8 @@ def _run_gateway(
                         else ("anthropic.api" if name == CLAUDE_TOOL else "python.argv")
                     ),
                     effect="read"
-                    if name
+                    if name in computer_tool.READ_ONLY
+                    or name
                     in {
                         CLAUDE_TOOL,
                         "browser.navigate+read",
