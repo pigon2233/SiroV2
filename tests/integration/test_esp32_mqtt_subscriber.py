@@ -209,3 +209,28 @@ async def test_diag_topic_is_logged_to_capped_jsonl_when_enabled(tmp_path: Path)
     finally:
         await subscriber.close()
         await broker.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_ensure_mqtt_sensor_upgrades_old_registration_and_keeps_availability(
+    tmp_path: Path,
+) -> None:
+    from siro.services.devices.mqtt_subscriber import ensure_mqtt_sensor
+
+    store = SQLiteStore(tmp_path / "siro.db")
+    await store.initialize()
+    repository = SQLiteDeviceRepository(store)
+    registry = DeviceRegistry(repository, WorldModel(SQLiteWorldRepository(store)))
+    old = mqtt_sensor_descriptor("node-mqtt").model_copy(update={"availability_ttl_ms": 20_000})
+    await registry.register(old)
+    seen = datetime.now(UTC)
+    await repository.set_availability("node-mqtt", DeviceAvailability.ONLINE, seen)
+    await ensure_mqtt_sensor(repository, registry, "node-mqtt", None)
+    record = await repository.get("node-mqtt")
+    assert record is not None
+    assert record.descriptor.availability_ttl_ms == 60_000
+    assert record.availability is DeviceAvailability.ONLINE and record.last_seen is not None
+    other = mqtt_sensor_descriptor("taken").model_copy(update={"adapter": "esp32_http"})
+    await registry.register(other)
+    with pytest.raises(ValueError):
+        await ensure_mqtt_sensor(repository, registry, "taken", None)

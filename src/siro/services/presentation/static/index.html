@@ -357,7 +357,7 @@
           </section>
           <section class="page-view" data-page="monitor" hidden inert aria-labelledby="monitor-heading">
             <div class="page-heading"><h1 id="monitor-heading" data-page-heading tabindex="-1">監控</h1><p>數值每 5 秒更新；打開這頁不會讓 SIRO 做任何事，只有按下按鈕才會。<span id="monitor-updated"></span></p></div>
-            <section class="mon-group" aria-labelledby="mon-esp-heading"><h2 id="mon-esp-heading">ESP32 感測器</h2><p>節點約每 10 秒回報；超過 20 秒沒更新標示為過期。</p><div class="mon-grid" id="mon-esp"></div></section>
+            <section class="mon-group" aria-labelledby="mon-esp-heading"><h2 id="mon-esp-heading">ESP32 感測器</h2><p>節點約每 10 秒回報（Wi-Fi 不穩時可能延遲）；超過 60 秒沒更新標示為過期。</p><div class="mon-grid" id="mon-esp"></div></section>
             <section class="mon-group" aria-labelledby="mon-pc-heading"><h2 id="mon-pc-heading">電腦狀態（僅顯示，不給 SIRO）</h2><p id="mon-pc-note"></p><div class="mon-grid" id="mon-pc"></div></section>
             <section class="mon-group" aria-labelledby="mon-siro-heading"><h2 id="mon-siro-heading">SIRO 知道的與正在用的</h2><p>工作情境是 SIRO 實際取得的電腦資訊；模型與開關是目前路由。</p><div class="mon-grid" id="mon-siro"></div></section>
             <section class="mon-group" aria-labelledby="mon-switch-heading"><h2 id="mon-switch-heading">開關與權限</h2><h3>操作模式</h3><p id="permissions-authorization-status">正在確認目前模式…</p><p class="section-note">想讓 SIRO 學新技能，在對話裡說「學習待辦清單技能」，每一步都會先問你。</p><h3>功能開關</h3><p>「已開啟」表示允許使用這項功能；按下開關可開啟或關閉。開啟功能不會取得額外的操作權限。</p><div id="switches"></div><p id="switch-status" role="status" aria-live="polite"></p></section>
@@ -771,7 +771,7 @@
       // Monitor: polls only while its page is open. ESP32 nodes republish every 10 s and the
       // gateway's availability TTL is 20 s, so older observations are marked stale.
       const monitorView = {timer: undefined, epoch: 0};
-      const MONITOR_POLL_MS = 5000, MONITOR_STALE_MS = 20000;
+      const MONITOR_POLL_MS = 5000, MONITOR_STALE_MS = 60000;
       const monEsc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[ch]);
       const monAge = iso => iso ? Date.now() - Date.parse(iso) : Infinity;
       const monClock = iso => iso ? new Date(iso).toLocaleTimeString("zh-TW", {hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false}) : "—";

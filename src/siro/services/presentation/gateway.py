@@ -2479,7 +2479,7 @@ def _run_gateway(
     )
     from siro.services.devices.mqtt_subscriber import (
         Esp32MqttSubscriber,
-        mqtt_sensor_descriptor,
+        ensure_mqtt_sensor,
         mqtt_sensor_state_snapshot,
     )
     from siro.services.presentation.integrated import IntegratedCompanion
@@ -2761,18 +2761,15 @@ def _run_gateway(
         mqtt_registry = DeviceRegistry(SQLiteDeviceRepository(shared_store), mqtt_world)
         mqtt_repository = SQLiteDeviceRepository(shared_store)
 
-        async def ensure_mqtt_sensor() -> None:
-            existing = await mqtt_repository.get(mqtt_device_id)
-            if existing is not None and existing.descriptor.adapter != "esp32_mqtt":
-                raise ValueError("ESP32 MQTT device ID belongs to another adapter")
-            if existing is None:
-                await mqtt_registry.register(
-                    mqtt_sensor_descriptor(
-                        mqtt_device_id, location=os.environ.get("SIRO_ESP32_MQTT_LOCATION") or None
-                    )
-                )
-
-        asyncio.run(ensure_mqtt_sensor(), loop_factory=loop_factory)
+        asyncio.run(
+            ensure_mqtt_sensor(
+                mqtt_repository,
+                mqtt_registry,
+                mqtt_device_id,
+                os.environ.get("SIRO_ESP32_MQTT_LOCATION") or None,
+            ),
+            loop_factory=loop_factory,
+        )
         esp32_mqtt = Esp32MqttSubscriber(
             mqtt_registry,
             host=mqtt_host,

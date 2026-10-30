@@ -20,10 +20,13 @@ from siro.core.devices import (
     DeviceRegistry,
 )
 from siro.core.world import WorldModel, WorldStatus
+from siro.persistence.devices import SQLiteDeviceRepository
 from siro.services.devices.mqtt import MqttStateProjector
 
 _LOGGER = logging.getLogger(__name__)
-_TTL_MS = 20_000
+# The node reports every ~10 s but its Wi-Fi link can stall for tens of seconds; a short TTL made
+# readings expire before they were delivered.
+_TTL_MS = 60_000
 _DIAG_LOG_LIMIT = 4_000_000
 
 
@@ -63,6 +66,22 @@ async def mqtt_sensor_state_snapshot(
         else:
             properties[name] = {"status": "unknown", "value": None}
     return {"device_id": device_id, "properties": properties}
+
+
+async def ensure_mqtt_sensor(
+    repository: SQLiteDeviceRepository,
+    registry: DeviceRegistry,
+    device_id: str,
+    location: str | None,
+) -> None:
+    """Register the node, or bring an older registration (e.g. a shorter TTL) up to date."""
+
+    desired = mqtt_sensor_descriptor(device_id, location=location)
+    existing = await repository.get(device_id)
+    if existing is not None and existing.descriptor.adapter != desired.adapter:
+        raise ValueError("ESP32 MQTT device ID belongs to another adapter")
+    if existing is None or existing.descriptor != desired:
+        await registry.register(desired)
 
 
 class Esp32MqttSubscriber:
@@ -180,4 +199,9 @@ class Esp32MqttSubscriber:
             stream.write(json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
-__all__ = ["Esp32MqttSubscriber", "mqtt_sensor_descriptor", "mqtt_sensor_state_snapshot"]
+__all__ = [
+    "Esp32MqttSubscriber",
+    "ensure_mqtt_sensor",
+    "mqtt_sensor_descriptor",
+    "mqtt_sensor_state_snapshot",
+]
