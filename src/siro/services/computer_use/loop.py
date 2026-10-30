@@ -202,6 +202,7 @@ class DecisionLoop:
         focus_tried = False
         done_seen = False
         before: Observation | None = None
+        wait_before: Observation | None = None
         for step in range(1, self._max_steps + 1):
             self.phase = "observing"
             if self._bridge.stop_generation != stop_generation:
@@ -230,6 +231,32 @@ class DecisionLoop:
                 return end("stopped", "window_not_allowed")
             if not is_fresh(observation, self._clock()):
                 return end("stopped", "stale_observation")
+            if wait_before is not None and history and history[-1].action == "(wait)":
+                same_window = (
+                    wait_before.window_id is not None
+                    and wait_before.pid is not None
+                    and wait_before.window_id == observation.window_id
+                    and wait_before.pid == observation.pid
+                    and wait_before.process == observation.process
+                    and wait_before.window_rect is not None
+                    and wait_before.image_rect is not None
+                    and wait_before.image_size is not None
+                    and wait_before.window_rect == observation.window_rect
+                    and wait_before.image_rect == observation.image_rect
+                    and wait_before.image_size == observation.image_size
+                    and wait_before.screen == observation.screen
+                )
+                changed = (
+                    observation.fingerprint != wait_before.fingerprint
+                    if same_window and observation.fingerprint and wait_before.fingerprint
+                    else None
+                )
+                previous_wait = history[-1]
+                history[-1] = StepRecord(
+                    previous_wait.step, previous_wait.action, previous_wait.expect,
+                    previous_wait.outcome, changed, previous_wait.seen,
+                )  # fmt: skip
+                wait_before = None
             if not self.process:
                 self.process = observation.process
                 if self._playbook is not None:
@@ -282,6 +309,7 @@ class DecisionLoop:
                 if waits > MAX_WAITS:
                     return end("stopped", "stuck_waiting")
                 before = None
+                wait_before = observation
                 await asyncio.sleep(self._wait)
                 continue
             waits = 0

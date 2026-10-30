@@ -806,6 +806,88 @@ async def test_wait_interrupts_completion_confirmation() -> None:
 
 
 @pytest.mark.asyncio
+async def test_wait_history_reports_unchanged_frame_to_model() -> None:
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        if history and history[-1].screen_changed is False:
+            return Decision("ask", reason="The scene did not change; need guidance", confidence=0.9)
+        return Decision("wait", confidence=0.9, seen="unchanged scene")
+
+    report, desktop, _, _ = await _run(policy, wait=0)
+    assert report.reason == "needs_owner"
+    assert report.steps[0].action == "(wait)"
+    assert report.steps[0].screen_changed is False
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_wait_history_reports_changed_frame_to_model() -> None:
+    count = [0]
+
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        def on_observe() -> None:
+            count[0] += 1
+            if count[0] == 2:
+                desktop.scene = "transition finished"
+
+        desktop.on_observe = on_observe
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        if history and history[-1].screen_changed is True:
+            return Decision("ask", reason="Transition changed", confidence=0.9)
+        return Decision("wait", confidence=0.9, seen="transition")
+
+    report, desktop, _, _ = await _run(policy, setup=setup, wait=0)
+    assert report.reason == "needs_owner"
+    assert report.steps[0].screen_changed is True
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_wait_history_with_no_fingerprint_remains_unknown() -> None:
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.scene = ""
+
+    report, desktop, _, _ = await _run(
+        lambda o, h: Decision("wait", confidence=0.9), setup=setup, wait=0
+    )
+    assert report.reason == "stuck_waiting"
+    assert all(step.screen_changed is None for step in report.steps)
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_repeated_unchanged_waits_do_not_count_as_failed_actions() -> None:
+    report, desktop, _, _ = await _run(lambda o, h: Decision("wait", confidence=0.9), wait=0)
+    assert report.reason == "stuck_waiting"
+    assert len(report.steps) == 7
+    assert [step.screen_changed for step in report.steps] == [False] * 6 + [None]
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_wait_history_window_switch_remains_unknown() -> None:
+    count = [0]
+
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        def on_observe() -> None:
+            count[0] += 1
+            if count[0] == 2:
+                desktop.window_id = "202"
+
+        desktop.on_observe = on_observe
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        if history:
+            return Decision("ask", reason="window changed", confidence=0.9)
+        return Decision("wait", confidence=0.9)
+
+    report, desktop, _, _ = await _run(policy, setup=setup, wait=0)
+    assert report.reason == "needs_owner"
+    assert report.steps[0].screen_changed is None
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
 async def test_completion_can_be_confirmed_after_wait() -> None:
     choices = iter(
         [
