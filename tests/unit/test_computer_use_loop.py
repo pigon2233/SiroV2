@@ -411,7 +411,7 @@ async def test_blocked_foreground_window_is_never_replaced() -> None:
 
 
 def test_goal_names_program_even_next_to_chinese_but_not_inside_words() -> None:
-    from siro.services.computer_use.loop import _names
+    from siro.services.computer_use.intent import names_program as _names
 
     assert _names("undertale", "幫我玩undertale")
     assert _names("undertale", "play undertale now")

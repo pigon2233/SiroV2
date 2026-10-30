@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -23,6 +22,7 @@ from siro.services.computer_use.decision import (
     StepRecord,
 )
 from siro.services.computer_use.demos import DemoRecorder, DemoRun
+from siro.services.computer_use.intent import names_program
 from siro.services.computer_use.perception import (
     Observation,
     allowed_processes,
@@ -52,14 +52,6 @@ class LoopReport:
     @property
     def success(self) -> bool:
         return self.state == "done"
-
-
-def _names(stem: str, text: str) -> bool:
-    """The goal mentions this program (3+ chars, not inside a longer ASCII word)."""
-    return (
-        len(stem) >= 3
-        and re.search(rf"(?<![a-z0-9]){re.escape(stem)}(?![a-z0-9])", text) is not None
-    )
 
 
 def _describe(action: InputAction) -> str:
@@ -246,7 +238,7 @@ class DecisionLoop:
     def _focus_target(self, goal: str) -> str | None:
         """The allowed program to bring forward: the one the goal names, else the only one."""
         lowered = goal.lower()
-        named = [p for p in sorted(self._allowed) if _names(p.removesuffix(".exe"), lowered)]
+        named = [p for p in sorted(self._allowed) if names_program(p.removesuffix(".exe"), lowered)]
         if len(named) == 1:
             return named[0]
         return next(iter(self._allowed)) if len(self._allowed) == 1 else None

@@ -58,3 +58,42 @@ def test_order_narrows_the_tool_list_only_when_play_is_offered() -> None:
     assert narrow_for_play_order("你玩過嗎？", tools) == tools
     without_play = tools[1:]
     assert narrow_for_play_order("幫我玩UNDERTALE", without_play) == without_play
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "操控UNDERTALE 並自己判斷該做甚麼",
+        "玩UNDERTALE 通關",
+        "幫我玩UNDERTALE 目標是過關",
+        "UNDERTALE 通關",
+    ],
+)
+def test_messages_naming_an_allowed_program_with_a_play_verb_match(text: str) -> None:
+    assert play_goal(text, programs=["undertale"]) == text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "通關",  # no program named: the model has to decide from context
+        "我想玩UNDERTALE",
+        "我昨天玩過UNDERTALE",
+        "UNDERTALE 好玩嗎",
+        "我剛剛打了UNDERTALE",
+        "不要玩UNDERTALE",
+        "別操控UNDERTALE",
+        "我在玩別的遊戲",
+    ],
+)
+def test_talk_about_the_program_or_other_games_does_not_match(text: str) -> None:
+    assert play_goal(text, programs=["undertale"]) is None
+
+
+def test_default_programs_come_from_the_environment_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_ALLOWED_PROCESSES", "undertale.exe")
+    assert play_goal("操控UNDERTALE") == "操控UNDERTALE"
+    monkeypatch.setenv("SIRO_COMPUTER_ALLOWED_PROCESSES", "")
+    assert play_goal("操控UNDERTALE") is None
