@@ -2,13 +2,15 @@
 // Long-polls the backend for commands, runs them through ComputerControl, posts the results.
 // Polls only while control is active, so the backend sees the executor offline when it is off.
 const HEADER = 'X-SIRO-Computer-Token';
+const {sameWindow} = require('./computer-perception.js');
+const BLOCKED_TITLE = /password|passcode|credential|one-time|2fa|otp|private key|wallet|seed phrase|密碼|驗證碼|銀行|網銀|錢包|私鑰|登入|sign in|log ?in|bank/i;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 class ComputerBridgeClient {
   constructor({origin, token, control, observe, fetchImpl = fetch, pollTimeoutMs = 30000}) {
     Object.assign(this, {origin, token, control, observe, fetchImpl, pollTimeoutMs});
-    this.running = false;
-    control.listeners.push(state => this.mirror(state));
+    this.running = false; this.observedWindow = null;
+    control.listeners.push(state => { this.observedWindow = null; this.mirror(state); });
   }
   get configured() { return typeof this.token === 'string' && this.token.length >= 32; }
   start() {
@@ -30,8 +32,24 @@ class ComputerBridgeClient {
     if (request) request.catch(() => {});
   }
   async handle(command) {
-    if (command.op === 'observe') return this.observe();
-    if (command.op === 'input') return this.control.execute(command.payload);
+    if (command.op === 'observe') {
+      this.observedWindow = null;
+      const result = await this.observe();
+      if (result.ok && result.data && !result.data.focus_is_secret && sameWindow(result.data, result.data))
+        this.observedWindow = {window_id: result.data.window_id, pid: result.data.pid, rect: result.data.rect.slice()};
+      return result;
+    }
+    if (command.op === 'input') {
+      const target = this.observedWindow;
+      this.observedWindow = null; // one observation authorizes at most one input
+      if (!target) return {ok: false, error: 'missing_window_identity'};
+      const now = await this.control.queryWindow();
+      if (!now.ok) return now;
+      if (!sameWindow(target, now.data)) return {ok: false, error: 'window_changed'};
+      if (now.data.secret) return {ok: false, error: 'secret_field_focused'};
+      if (BLOCKED_TITLE.test(now.data.title || '')) return {ok: false, error: 'blocked_title'};
+      return this.control.execute({...command.payload, expected_window: target});
+    }
     if (command.op === 'focus') return this.control.focus(command.payload && command.payload.process);
     return {ok: false, error: 'unknown_op'};
   }

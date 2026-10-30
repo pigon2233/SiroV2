@@ -42,7 +42,7 @@ public static class SiroInput {
     if (h == IntPtr.Zero) return null;
     var sb = new System.Text.StringBuilder(256); GetWindowText(h, sb, 256);
     RECT r; GetWindowRect(h, out r); uint pid; GetWindowThreadProcessId(h, out pid);
-    return new object[] { sb.ToString(), (int)pid, r.l, r.t, r.r - r.l, r.b - r.t };
+    return new object[] { sb.ToString(), (int)pid, r.l, r.t, r.r - r.l, r.b - r.t, h.ToInt64().ToString() };
   }
   static void Send(INPUT i) {
     if (SendInput(1, new INPUT[] { i }, Marshal.SizeOf(typeof(INPUT))) != 1) throw new Exception("SendInput blocked (code " + Marshal.GetLastWin32Error() + ")");
@@ -108,6 +108,15 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
   try {
     $a = $line | ConvertFrom-Json
     $id = $a.id
+    if ($a.kind -in @('move', 'click', 'scroll', 'key', 'type')) {
+      if ($null -eq $a.expected_window -or $null -eq $a.expected_window.window_id -or
+          $null -eq $a.expected_window.pid -or @($a.expected_window.rect).Count -ne 4) { throw 'missing_window_identity' }
+      $w = [SiroInput]::Foreground()
+      if ($null -eq $w -or [string]$w[6] -ne [string]$a.expected_window.window_id -or
+          [int]$w[1] -ne [int]$a.expected_window.pid -or
+          (($w[2..5] -join ',') -ne ($a.expected_window.rect -join ','))) { throw 'window_changed' }
+      if (Test-SecretFocus) { throw 'secret_field_focused' }
+    }
     switch ($a.kind) {
       'move'   { [SiroInput]::Move([int]$a.x, [int]$a.y) }
       'click'  { [SiroInput]::Move([int]$a.x, [int]$a.y); [SiroInput]::Click([string]$a.button) }
@@ -122,7 +131,7 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
       'window' { $w = [SiroInput]::Foreground()
                  if ($null -eq $w) { throw 'no foreground window' }
                  $proc = (Get-Process -Id $w[1] -ErrorAction Stop).ProcessName + '.exe'
-                 $reply = @{ id = $id; ok = $true; title = $w[0]; process = $proc; rect = @($w[2], $w[3], $w[4], $w[5]); secret = (Test-SecretFocus) } }
+                 $reply = @{ id = $id; ok = $true; title = $w[0]; process = $proc; rect = @($w[2], $w[3], $w[4], $w[5]); window_id = $w[6]; pid = $w[1]; secret = (Test-SecretFocus) } }
       default  { throw "kind not allowed: $($a.kind)" }
     }
     if ($null -eq $reply) { $reply = @{ id = $id; ok = $true } }
