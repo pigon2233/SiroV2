@@ -44,6 +44,25 @@ def test_sanitize_normalizes_and_keeps_pixels() -> None:
 
 
 @pytest.mark.parametrize(
+    ("window_id", "pid", "expected_id", "expected_pid"),
+    [
+        ("18156998", 1234, "18156998", 1234),
+        ("", 1234, None, 1234),
+        ("-1", 1234, None, 1234),
+        ("123", True, "123", None),
+        ("123", 0, "123", None),
+        ("123", 2**32, "123", None),
+    ],
+)
+def test_sanitize_validates_window_identity(
+    window_id: object, pid: object, expected_id: str | None, expected_pid: int | None
+) -> None:
+    obs = sanitize({**RAW, "window_id": window_id, "pid": pid}, seq=1, now=0)
+    assert obs.window_id == expected_id
+    assert obs.pid == expected_pid
+
+
+@pytest.mark.parametrize(
     ("override", "reason"),
     [
         ({"process": "KeePassXC.exe"}, "blocked_process"),

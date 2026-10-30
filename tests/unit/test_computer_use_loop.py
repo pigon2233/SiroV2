@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import io
 from collections.abc import Callable, Sequence
 from typing import Any
 
 import pytest
+from PIL import Image
 
 from siro.services.computer_use import bridge as bridge_module
 from siro.services.computer_use import loop as loop_module
@@ -32,6 +35,10 @@ class FakeDesktop:
         self.inputs: list[dict[str, Any]] = []
         self.drop_input = False
         self.after_input: Callable[[], None] | None = None
+        self.on_observe: Callable[[], None] | None = None
+        self.image_for_scene: Callable[[str], str] | None = None
+        self.window_id = "101"
+        self.pid = 1001
         self.task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
@@ -49,8 +56,10 @@ class FakeDesktop:
             "rect": RECT,
             "screen": [1920, 1080],
             "fingerprint": self.scene,
-            "image_png_b64": "AAAA",
+            "image_png_b64": self.image_for_scene(self.scene) if self.image_for_scene else "AAAA",
             "image_size": self.image_size,
+            "window_id": self.window_id,
+            "pid": self.pid,
         }
 
     async def _serve(self) -> None:
@@ -59,6 +68,8 @@ class FakeDesktop:
             if command is None:
                 continue
             if command["op"] == "observe":
+                if self.on_observe:
+                    self.on_observe()
                 self.bridge.submit_result(command["id"], True, data=self._scene_report())
                 continue
             if command["op"] == "focus":
@@ -155,6 +166,201 @@ async def test_solves_scene_chain_and_confirms_done_twice() -> None:
     assert script.calls == 4  # click, click, done, done-confirmed
     assert [r.outcome for r in report.steps if r.action != "(confirm done)"] == ["ok", "ok"]
     assert report.steps[0].screen_changed is True
+
+
+def _scene_png(scene: str) -> str:
+    image = Image.new("RGB", (2, 2), "white" if scene == "menu" else "black")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+@pytest.mark.asyncio
+async def test_screen_guard_waits_until_original_scene_returns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_SCREEN_GUARD", "1")
+    observations = [0]
+
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.image_size = [2, 2]
+        desktop.image_for_scene = _scene_png
+
+        def on_observe() -> None:
+            observations[0] += 1
+            if observations[0] == 3:
+                desktop.scene = "menu"
+
+        desktop.on_observe = on_observe
+
+    holder: list[FakeDesktop] = []
+
+    def setup_and_remember(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        setup(desktop, bridge)
+        holder.append(desktop)
+
+    def decide(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        holder[0].scene = "transition"  # the old screenshot is no longer displayed
+        return Decision("act", InputAction("key", key="z"), confidence=0.9)
+
+    report, desktop, _, _ = await _run(decide, setup=setup_and_remember, max_steps=1)
+    assert report.reason == "step_limit"
+    assert len(desktop.inputs) == 1
+    assert observations[0] == 3
+
+
+@pytest.mark.asyncio
+async def test_screen_guard_stops_without_action_if_scene_never_returns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_SCREEN_GUARD", "1")
+    monkeypatch.setattr(loop_module, "SCREEN_MATCH_WAIT_SECONDS", 0.05)
+    monkeypatch.setattr(loop_module, "SCREEN_MATCH_POLL_SECONDS", 0.005)
+    holder: list[FakeDesktop] = []
+
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.image_size = [2, 2]
+        desktop.image_for_scene = _scene_png
+        holder.append(desktop)
+
+    def decide(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        holder[0].scene = "transition"
+        return Decision("act", InputAction("key", key="z"), confidence=0.9)
+
+    report, desktop, _, _ = await _run(decide, setup=setup, max_steps=1)
+    assert report.reason == "screen_not_restored"
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_screen_guard_rejects_window_switch_with_same_pixels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_SCREEN_GUARD", "1")
+    holder: list[FakeDesktop] = []
+
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.image_size = [2, 2]
+        desktop.image_for_scene = _scene_png
+        holder.append(desktop)
+
+    def decide(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        holder[0].window_id = "202"
+        return Decision("act", InputAction("key", key="z"), confidence=0.9)
+
+    report, desktop, _, _ = await _run(decide, setup=setup, max_steps=1)
+    assert report.reason == "window_changed"
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_screen_guard_stop_and_reenable_does_not_revive_waiting_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_SCREEN_GUARD", "1")
+    count = [0]
+
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.image_size = [2, 2]
+        desktop.image_for_scene = _scene_png
+
+        def on_observe() -> None:
+            count[0] += 1
+            if count[0] == 2:
+                bridge.stop()
+                bridge.gate.enable()
+
+        desktop.on_observe = on_observe
+
+    report, desktop, _, _ = await _run(
+        lambda o, h: Decision("act", InputAction("key", key="z"), confidence=0.9),
+        setup=setup,
+        max_steps=1,
+    )
+    assert report.reason == "emergency_stop"
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_screen_guard_reports_wait_and_stops_on_disable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_SCREEN_GUARD", "1")
+    monkeypatch.setattr(loop_module, "SCREEN_MATCH_POLL_SECONDS", 0.01)
+    bridge = ComputerBridge(ControlGate(screen=(0, 0, 1920, 1080), enabled=True))
+    desktop = FakeDesktop(bridge)
+    desktop.image_size = [2, 2]
+    desktop.image_for_scene = _scene_png
+    observed = asyncio.Event()
+    count = [0]
+
+    def on_observe() -> None:
+        count[0] += 1
+        if count[0] == 2:
+            observed.set()
+
+    desktop.on_observe = on_observe
+
+    def decide(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        desktop.scene = "transition"
+        return Decision("act", InputAction("key", key="z"), confidence=0.9)
+
+    desktop.start()
+    await asyncio.sleep(0.02)
+    loop = DecisionLoop(
+        bridge, Script(decide), allowed=frozenset({"game.exe"}), settle=0, focus=False
+    )
+    task = asyncio.create_task(loop.run("play"))
+    try:
+        await asyncio.wait_for(observed.wait(), timeout=1)
+        assert loop.phase == "waiting_for_matching_screen"
+        runs = ComputerRuns(bridge, Script(solver))
+        runs._loop = loop
+        assert runs.status()["phase"] == "waiting_for_matching_screen"
+        bridge.gate.disable()
+        report = await asyncio.wait_for(task, timeout=1)
+    finally:
+        await desktop.close()
+    assert report.reason == "control_disabled"
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_screen_guard_unknown_input_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_SCREEN_GUARD", "1")
+
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.image_size = [2, 2]
+        desktop.image_for_scene = _scene_png
+        desktop.drop_input = True
+
+    report, desktop, _, _ = await _run(
+        lambda o, h: Decision("act", InputAction("key", key="z"), confidence=0.9),
+        setup=setup,
+    )
+    assert report.reason == "outcome_unknown"
+    assert len(desktop.inputs) == 1
+
+
+@pytest.mark.asyncio
+async def test_screen_guard_missing_or_invalid_pixels_or_identity_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_SCREEN_GUARD", "1")
+    report, desktop, _, _ = await _run(lambda o, h: click(300, 300), max_steps=1)
+    assert report.reason == "screen_guard_unavailable" and desktop.inputs == []
+
+    def missing_identity(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.image_size = [2, 2]
+        desktop.image_for_scene = _scene_png
+        desktop.window_id = ""
+
+    report, desktop, _, _ = await _run(
+        lambda o, h: Decision("act", InputAction("key", key="z"), confidence=0.9),
+        setup=missing_identity,
+        max_steps=1,
+    )
+    assert report.reason == "screen_guard_unavailable" and desktop.inputs == []
 
 
 @pytest.mark.asyncio

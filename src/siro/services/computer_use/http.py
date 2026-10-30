@@ -140,6 +140,7 @@ class ComputerRuns:
             "goal": self.goal,
             "live_steps": _steps(live),
             "limits": None if self._loop is None else self._loop.limits,
+            "phase": None if self._loop is None else self._loop.phase,
             "learned_notes": self.learned,
             "report": None
             if report is None

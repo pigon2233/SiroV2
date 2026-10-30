@@ -58,6 +58,8 @@ class Observation:
     image_rect: tuple[int, int, int, int] | None = None
     focus_is_secret: bool = False
     blocked_reason: str | None = None
+    window_id: str | None = None
+    pid: int | None = None
 
 
 def allowed_processes(env: Mapping[str, str] | None = None) -> frozenset[str]:
@@ -116,6 +118,12 @@ def sanitize(raw: Mapping[str, object], *, seq: int, now: float) -> Observation:
     elif BLOCKED_TITLE.search(title):
         reason = "blocked_title"
     secret_focus = raw.get("focus_is_secret") is True
+    window_id = raw.get("window_id")
+    if not isinstance(window_id, str) or not re.fullmatch(r"[1-9][0-9]{0,19}", window_id):
+        window_id = None
+    pid = raw.get("pid")
+    if not isinstance(pid, int) or isinstance(pid, bool) or not 0 < pid <= 0xFFFFFFFF:
+        pid = None
     if secret_focus:
         reason = reason or "secret_field_focused"
     if reason:
@@ -134,6 +142,8 @@ def sanitize(raw: Mapping[str, object], *, seq: int, now: float) -> Observation:
         image_rect=image_rect if image is not None else None,
         focus_is_secret=secret_focus,
         blocked_reason=reason,
+        window_id=window_id,
+        pid=pid,
     )
 
 

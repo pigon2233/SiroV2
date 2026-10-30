@@ -8,10 +8,16 @@ unchanged screen after an action counts toward "stuck", and an unknown outcome h
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
+import hashlib
+import io
 import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
+from PIL import Image
 
 from siro.services.computer_use.bridge import ComputerBridge
 from siro.services.computer_use.decision import (
@@ -44,6 +50,41 @@ RATE_WAIT_SECONDS = 1.0
 MAX_WAITS = 6  # consecutive "wait" decisions (transitions) before giving up
 WAIT_SECONDS = 1.0
 SETTLE_SECONDS = 0.4
+SCREEN_MATCH_WAIT_SECONDS = 30.0
+SCREEN_MATCH_POLL_SECONDS = 0.4
+
+
+def _pixel_digest(observation: Observation) -> bytes | None:
+    if not observation.image_png_b64 or not observation.image_size:
+        return None
+    try:
+        raw = base64.b64decode(observation.image_png_b64, validate=True)
+        with Image.open(io.BytesIO(raw)) as image:
+            if image.format != "PNG" or image.size != observation.image_size:
+                return None
+            if image.width * image.height > 16_000_000:
+                return None
+            image.load()
+            return hashlib.sha256(image.convert("RGBA").tobytes()).digest()
+    except (binascii.Error, OSError, ValueError, Image.DecompressionBombError):
+        return None
+
+
+def _same_target(a: Observation, b: Observation) -> bool:
+    return bool(
+        a.window_id
+        and a.pid
+        and a.window_rect
+        and a.image_rect
+        and a.window_id == b.window_id
+        and a.pid == b.pid
+        and a.process == b.process
+        and a.window_rect == b.window_rect
+        and a.screen == b.screen
+        and a.image_rect == b.image_rect
+        and a.image_size == b.image_size
+        and a.window_title == b.window_title
+    )
 
 
 class ComputerLimitError(ValueError):
@@ -135,6 +176,8 @@ class DecisionLoop:
         self.process = ""  # program of the first allowed observation (key of its play notes)
         self.live: list[StepRecord] = []
         self._clock = clock
+        self._screen_guard = os.environ.get("SIRO_COMPUTER_SCREEN_GUARD", "0") == "1"
+        self.phase = "idle"
 
     @property
     def limits(self) -> dict[str, int | float]:
@@ -142,8 +185,10 @@ class DecisionLoop:
 
     async def run(self, goal: str) -> LoopReport:
         history = self.live = []
+        self.phase = "observing"
 
         def end(state: str, reason: str, detail: str = "") -> LoopReport:
+            self.phase = state
             if self._demo is not None:
                 self._demo.finish(state, reason)
             return LoopReport(state, reason, tuple(history), detail)
@@ -158,6 +203,7 @@ class DecisionLoop:
         done_seen = False
         before: Observation | None = None
         for step in range(1, self._max_steps + 1):
+            self.phase = "observing"
             if self._bridge.stop_generation != stop_generation:
                 return end("stopped", "emergency_stop")
             if self._clock() - started > self._max_seconds:
@@ -201,6 +247,7 @@ class DecisionLoop:
                 no_change = 0 if changed else no_change + 1
                 if no_change >= MAX_NO_CHANGE:
                     return end("stopped", "stuck_no_visible_change")
+            self.phase = "deciding"
             deadline = None
             try:
                 remaining = self._max_seconds - (self._clock() - started)
@@ -225,6 +272,7 @@ class DecisionLoop:
             if self._clock() - started >= self._max_seconds:
                 return end("stopped", "time_limit")
             if decision.kind == "wait":
+                self.phase = "waiting"
                 done_seen = False
                 waits += 1
                 history.append(
@@ -265,6 +313,16 @@ class DecisionLoop:
                     return end("stopped", "too_many_invalid_decisions")
                 continue
             invalid = 0
+            if self._screen_guard:
+                fresh, guard_error = await self._wait_for_same_screen(
+                    observation, started, stop_generation
+                )
+                if fresh is None:
+                    return end("stopped", guard_error)
+                action = self._checked_action(decision, fresh)
+                if isinstance(action, str):
+                    return end("stopped", f"invalid:{action}")
+            self.phase = "acting"
             result = await self._bridge.act(action)
             if not result.ok:
                 if result.error == "rate_limited" and rate_waits < MAX_RATE_WAITS:
@@ -288,8 +346,67 @@ class DecisionLoop:
             )
             self._record(observation, decision, action)
             before = observation
+            self.phase = "observing"
             await asyncio.sleep(self._settle)
         return end("stopped", "step_limit")
+
+    async def _wait_for_same_screen(
+        self, original: Observation, started: float, stop_generation: int
+    ) -> tuple[Observation | None, str]:
+        """Reobserve before an unexecuted action; never resend an ambiguous action."""
+        digest = await asyncio.to_thread(_pixel_digest, original)
+        if digest is None or not _same_target(original, original):
+            return None, "screen_guard_unavailable"
+        self.phase = "waiting_for_matching_screen"
+        watch_start = self._clock()
+        while True:
+            if self._bridge.stop_generation != stop_generation or self._bridge.gate.tripped:
+                return None, "emergency_stop"
+            if not self._bridge.gate.enabled:
+                return None, "control_disabled"
+            elapsed = self._clock() - started
+            remaining = min(
+                self._max_seconds - elapsed,
+                SCREEN_MATCH_WAIT_SECONDS - (self._clock() - watch_start),
+            )
+            if remaining <= 0:
+                return None, "time_limit" if elapsed >= self._max_seconds else "screen_not_restored"
+            try:
+                async with asyncio.timeout(remaining):
+                    current, error = await self._bridge.observe()
+            except TimeoutError:
+                return (
+                    None,
+                    "time_limit"
+                    if self._clock() - started >= self._max_seconds
+                    else "screen_not_restored",
+                )
+            if self._bridge.stop_generation != stop_generation or self._bridge.gate.tripped:
+                return None, "emergency_stop"
+            if current is None:
+                return None, error
+            if current.blocked_reason:
+                return None, current.blocked_reason
+            if current.process not in self._allowed or not _same_target(original, current):
+                return None, "window_changed"
+            if not is_fresh(current, self._clock()):
+                return None, "stale_observation"
+            current_digest = await asyncio.to_thread(_pixel_digest, current)
+            if self._bridge.stop_generation != stop_generation or self._bridge.gate.tripped:
+                return None, "emergency_stop"
+            if not self._bridge.gate.enabled:
+                return None, "control_disabled"
+            if self._clock() - started >= self._max_seconds:
+                return None, "time_limit"
+            if self._clock() - watch_start >= SCREEN_MATCH_WAIT_SECONDS:
+                return None, "screen_not_restored"
+            if not is_fresh(current, self._clock()):
+                return None, "stale_observation"
+            if current_digest is None:
+                return None, "screen_guard_unavailable"
+            if current_digest == digest:
+                return current, ""
+            await asyncio.sleep(min(SCREEN_MATCH_POLL_SECONDS, remaining))
 
     def _focus_target(self, goal: str) -> str | None:
         """The allowed program to bring forward: the one the goal names, else the only one."""
