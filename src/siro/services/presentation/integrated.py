@@ -106,7 +106,7 @@ from siro.services.agent.resume import (
     resume_enabled,
 )
 from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
-from siro.services.computer_use.intent import narrow_for_play_order
+from siro.services.computer_use.router import recent_user_texts, route_tools
 from siro.services.presentation.gateway import GatewayHub
 from siro.services.tools.execution import ExecutionCleanupError
 from siro.services.tools.orchestrator import (
@@ -1083,7 +1083,7 @@ class IntegratedCompanion:
                 f"[source:{source_event.event_id}]",
             )
             tools, capability_context = self._model_capabilities()
-            tools = narrow_for_play_order(text, tools)
+            tools = await route_tools(text, tools, recent_user_texts(recent_messages))
             result = await self._core.respond(
                 session_id,
                 "siro",

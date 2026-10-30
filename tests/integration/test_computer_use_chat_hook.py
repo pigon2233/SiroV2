@@ -43,6 +43,7 @@ def test_play_order_offers_only_computer_play_while_chat_keeps_all_tools(
     monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
     monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic")
     monkeypatch.setenv("SIRO_COMPUTER_TOKEN", "t" * 40)
+    monkeypatch.setenv("SIRO_COMPUTER_ROUTER", "0")  # never call the real Haiku from a test
     monkeypatch.setattr("siro.adapters.models.ollama.OllamaAdapter", Model)
     monkeypatch.setattr("shutil.which", lambda name: None)
     computer_http.reset_shared_runs()
