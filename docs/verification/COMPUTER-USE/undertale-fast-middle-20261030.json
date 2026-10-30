@@ -1,0 +1,77 @@
+{
+  "model": "gemma4:e4b",
+  "method": "middle",
+  "dataset": "overlay",
+  "cases": [
+    {
+      "case": "plain_title",
+      "expected": "yes",
+      "raw": "{\"heading\": \"UNDERTALE\", \"middle\": \"\", \"instruction\": \"PRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "PRESS Z OR ENTER",
+      "middle": "",
+      "actual": "yes",
+      "passed": true,
+      "done_reason": "stop",
+      "prompt_tokens": 162,
+      "output_tokens": 22,
+      "seconds": 0.731
+    },
+    {
+      "case": "overlay_RESET",
+      "expected": "no",
+      "raw": "{\"heading\": \"UNDERTALE\", \"middle\": \"\", \"instruction\": \"PRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "PRESS Z OR ENTER",
+      "middle": "",
+      "actual": "yes",
+      "passed": false,
+      "done_reason": "stop",
+      "prompt_tokens": 162,
+      "output_tokens": 22,
+      "seconds": 0.461
+    },
+    {
+      "case": "overlay_SAVE",
+      "expected": "no",
+      "raw": "{\"heading\": \"UNDERTALE\", \"middle\": \"SAVE\", \"instruction\": \"PRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "PRESS Z OR ENTER",
+      "middle": "SAVE",
+      "actual": "no",
+      "passed": true,
+      "done_reason": "stop",
+      "prompt_tokens": 162,
+      "output_tokens": 24,
+      "seconds": 0.455
+    },
+    {
+      "case": "overlay_DIALOGUE",
+      "expected": "no",
+      "raw": "{\"heading\": \"UNDERTALE\", \"middle\": \"DIALOGUE\", \"instruction\": \"PRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "PRESS Z OR ENTER",
+      "middle": "DIALOGUE",
+      "actual": "no",
+      "passed": true,
+      "done_reason": "stop",
+      "prompt_tokens": 162,
+      "output_tokens": 25,
+      "seconds": 0.479
+    },
+    {
+      "case": "overlay_CONFIRM",
+      "expected": "no",
+      "raw": "{\"heading\": \"UNDERTALE\", \"middle\": \"CONFIRM\", \"instruction\": \"PRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "PRESS Z OR ENTER",
+      "middle": "CONFIRM",
+      "actual": "no",
+      "passed": true,
+      "done_reason": "stop",
+      "prompt_tokens": 162,
+      "output_tokens": 25,
+      "seconds": 0.48
+    }
+  ]
+}

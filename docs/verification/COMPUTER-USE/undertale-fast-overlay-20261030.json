@@ -1,0 +1,72 @@
+{
+  "model": "gemma4:e4b",
+  "method": "transcript",
+  "dataset": "overlay",
+  "cases": [
+    {
+      "case": "plain_title",
+      "expected": "yes",
+      "raw": "{\"heading\": \"UNDERTALE\", \"instruction\": \"PRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "PRESS Z OR ENTER",
+      "actual": "yes",
+      "passed": true,
+      "done_reason": "stop",
+      "prompt_tokens": 158,
+      "output_tokens": 18,
+      "seconds": 0.636
+    },
+    {
+      "case": "overlay_RESET",
+      "expected": "no",
+      "raw": "{\"heading\": \"UNDERTALE\", \"instruction\": \"RESET\\nPRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "RESET\nPRESS Z OR ENTER",
+      "actual": "no",
+      "passed": true,
+      "done_reason": "stop",
+      "prompt_tokens": 158,
+      "output_tokens": 21,
+      "seconds": 0.467
+    },
+    {
+      "case": "overlay_SAVE",
+      "expected": "no",
+      "raw": "{\"heading\": \"UNDERTALE\", \"instruction\": \"PRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "PRESS Z OR ENTER",
+      "actual": "yes",
+      "passed": false,
+      "done_reason": "stop",
+      "prompt_tokens": 158,
+      "output_tokens": 18,
+      "seconds": 0.416
+    },
+    {
+      "case": "overlay_DIALOGUE",
+      "expected": "no",
+      "raw": "{\"heading\": \"UNDERTALE\", \"instruction\": \"DIALOGUE\\nPRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "DIALOGUE\nPRESS Z OR ENTER",
+      "actual": "no",
+      "passed": true,
+      "done_reason": "stop",
+      "prompt_tokens": 158,
+      "output_tokens": 22,
+      "seconds": 0.447
+    },
+    {
+      "case": "overlay_CONFIRM",
+      "expected": "no",
+      "raw": "{\"heading\": \"UNDERTALE\", \"instruction\": \"CONFIRM\\nPRESS Z OR ENTER\"}",
+      "heading": "UNDERTALE",
+      "instruction": "CONFIRM\nPRESS Z OR ENTER",
+      "actual": "no",
+      "passed": true,
+      "done_reason": "stop",
+      "prompt_tokens": 158,
+      "output_tokens": 22,
+      "seconds": 0.445
+    }
+  ]
+}
