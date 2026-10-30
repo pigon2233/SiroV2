@@ -27,6 +27,7 @@ from siro.contracts.events import (
 from siro.contracts.events import Privacy as EventPrivacy
 from siro.core.affect import AffectSystem, SelfConcern, concern_outcome_from_text
 from siro.core.companion import CompanionCore
+from siro.core.context import asks_about_research
 from siro.core.conversation import ConversationEngine, TurnState
 from siro.core.expression import ExpressionPolicy, expression_context_from_text
 from siro.core.identity import IdentityService, ImmutableCore
@@ -231,7 +232,7 @@ class IntegratedCompanion:
         self._touch_lines = 0
         self._touching = False
         self._last_session: str | None = None
-        self._recent_shares: list[tuple[datetime, str]] = []
+        self._recent_shares: list[tuple[datetime, str, bool]] = []
         self._pending_memories: dict[str, tuple[UserTextEvent, str, str, datetime]] = {}
         self._situation_lines = situation_lines
         # Set by the gateway once her notes service exists; reads her own recent attempts.
@@ -412,7 +413,11 @@ class IntegratedCompanion:
         stream_id = str(uuid4())
         # Remembered for her next replies only (not in the saved dialogue, and lost on restart).
         kept = (remembered or text)[:300]
-        self._recent_shares = [*self._recent_shares, (datetime.now(UTC), kept)][-3:]
+        # A research note (`remembered` given) is only recalled when the owner asks about it.
+        self._recent_shares = [
+            *self._recent_shares,
+            (datetime.now(UTC), kept, remembered is not None),
+        ][-3:]
         await self._broadcast_stream(
             stream_id, {"type": "assistant_started", "session_id": session_id}
         )
@@ -1000,15 +1005,22 @@ class IntegratedCompanion:
                     "by the fact; SIRO records the source automatically. Never ask the owner to "
                     "provide sources for their own statements. [source:runtime-capabilities]",
                 )
+            research_asked = asks_about_research(text)
             shares = [
-                t for at, t in self._recent_shares if datetime.now(UTC) - at < timedelta(days=1)
+                t
+                for at, t, research in self._recent_shares
+                if datetime.now(UTC) - at < timedelta(days=1) and (research_asked or not research)
             ]
             if shares:
                 verified_preferences += (
                     "SIRO herself told the owner about her own research in this chat, so she "
                     "remembers saying it: " + " | ".join(shares) + " [source:self-note-share]",
                 )
-            attempts = await self.self_activity_lines() if self.self_activity_lines else ()
+            attempts = (
+                await self.self_activity_lines()
+                if self.self_activity_lines and research_asked
+                else ()
+            )
             if attempts:
                 verified_preferences += (
                     "What SIRO herself recently tried to look up on her own, newest first, "

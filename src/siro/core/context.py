@@ -92,6 +92,18 @@ class ContextSourceChanged(ValueError):
     """Selected context is no longer valid; do not dispatch or retry effects."""
 
 
+# Owner report 2026-10-30: with a short command ("操控UNDERTALE…") the local model answered one
+# of SIRO's own research questions instead, because her research topics, notes and research
+# memories were in every turn's context. They are only relevant when the owner asks about them.
+_ASKS_ABOUT_RESEARCH = re.compile(
+    r"查|研究|看過|讀過|找了|學到|筆記|資料|論文|\b(?:research|look(?:ed)? up|paper)\b", re.I
+)
+
+
+def asks_about_research(text: str) -> bool:
+    return bool(_ASKS_ABOUT_RESEARCH.search(text))
+
+
 def query_terms(text: str) -> tuple[str, ...]:
     terms: list[str] = []
     for word in re.findall(r"[\u3400-\u9fff]+|[a-zA-Z0-9_./-]{2,}", text[:2048]):

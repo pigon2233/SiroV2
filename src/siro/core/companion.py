@@ -5,10 +5,21 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Sequence
 
 from siro.contracts.events import Privacy as EventPrivacy
-from siro.core.context import ContextSourceChanged, read_context_snapshot, render_context
+from siro.core.context import (
+    ContextSourceChanged,
+    asks_about_research,
+    read_context_snapshot,
+    render_context,
+)
 from siro.core.conversation import ConversationEngine, DeltaHandler, TurnResult, TurnState
 from siro.core.identity import IdentityRepository
-from siro.core.memory import MemoryService, WorkingMemory, WorkingMessage, assemble_prompt
+from siro.core.memory import (
+    MemoryKind,
+    MemoryService,
+    WorkingMemory,
+    WorkingMessage,
+    assemble_prompt,
+)
 from siro.ports.models import ModelMessage, Privacy, ToolDefinition
 
 
@@ -74,6 +85,9 @@ class CompanionCore:
             memories = await self._memory.recall_context(
                 identity_id, user_text, recent_users=recent_users, route_privacy=route
             )
+            if not asks_about_research(user_text):
+                # SIRO's own research notes stay out of unrelated turns (D80 D1: archive tier).
+                memories = [m for m in memories if m.kind is not MemoryKind.SELF]
             snapshot = await self._memory.context_snapshot(
                 identity_id, memories, route_privacy=route
             )
