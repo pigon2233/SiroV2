@@ -86,3 +86,73 @@ def test_play_order_offers_only_computer_play_while_chat_keeps_all_tools(
     assert seen["order"] == {"computer.play"}
     assert {"computer.play", "computer.status", "claude.ask", "filesystem.read"} <= seen["chat"]
     assert seen["question"] == seen["chat"]
+
+
+def test_order_while_control_is_off_tells_the_model_to_say_how_to_switch_it_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import uvicorn
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from siro.ports.models import CancellationToken, ModelChunk, ModelRequest
+    from siro.services.computer_use import http as computer_http
+    from siro.services.presentation.gateway import main
+
+    requests: list[ModelRequest] = []
+
+    class Model:
+        name = "hint-fixture"
+
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        async def stream(
+            self, request: ModelRequest, cancellation: CancellationToken
+        ) -> AsyncIterator[ModelChunk]:
+            requests.append(request)
+            yield ModelChunk("text", "ok")
+            yield ModelChunk("finished")
+
+    for key in list(os.environ):
+        if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
+    monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+    monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic")
+    monkeypatch.setenv("SIRO_COMPUTER_TOKEN", "t" * 40)
+    monkeypatch.setenv("SIRO_COMPUTER_ROUTER", "0")
+    monkeypatch.setattr("siro.adapters.models.ollama.OllamaAdapter", Model)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    computer_http.reset_shared_runs()
+    texts: dict[str, str] = {}
+
+    def run(app: FastAPI, **kwargs: object) -> None:
+        with TestClient(app) as client:
+            token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                "token"
+            ]
+            headers = {"authorization": f"Bearer {token}"}
+            for name, session, text in (
+                ("order", "off-a", "幫我玩UNDERTALE"),
+                ("chat", "off-b", "你好"),
+            ):
+                before = len(requests)
+                client.post(
+                    f"/v1/conversations/{session}/turns", headers=headers, json={"text": text}
+                )
+                deadline = time.monotonic() + 10
+                while len(requests) <= before and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                assert len(requests) > before
+                texts[name] = "\n".join(str(m.content) for m in requests[before].messages)
+                time.sleep(0.3)
+
+    monkeypatch.setattr(uvicorn, "run", run)
+    try:
+        main()  # control stays OFF: nothing enables it
+    finally:
+        computer_http.reset_shared_runs()
+    assert "[source:computer-control]" in texts["order"] and "托盤" in texts["order"]
+    assert "[source:computer-control]" not in texts["chat"]

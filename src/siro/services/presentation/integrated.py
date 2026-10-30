@@ -106,6 +106,7 @@ from siro.services.agent.resume import (
     resume_enabled,
 )
 from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
+from siro.services.computer_use.intent import unavailable_hint
 from siro.services.computer_use.router import recent_user_texts, route_tools
 from siro.services.presentation.gateway import GatewayHub
 from siro.services.tools.execution import ExecutionCleanupError
@@ -1084,6 +1085,8 @@ class IntegratedCompanion:
             )
             tools, capability_context = self._model_capabilities()
             tools = await route_tools(text, tools, recent_user_texts(recent_messages))
+            if (hint := unavailable_hint(text, tools)) is not None:
+                verified_preferences += (hint,)
             result = await self._core.respond(
                 session_id,
                 "siro",

@@ -10,6 +10,7 @@ the owner's control allowlist together with a play verb (操控UNDERTALE、玩UN
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterable, Sequence
 
@@ -68,3 +69,21 @@ def narrow_for_play_order(text: str, tools: Sequence[ToolDefinition]) -> tuple[T
     if play and play_goal(text) is not None:
         return (play[0],)
     return tuple(tools)
+
+
+UNAVAILABLE_HINT = (
+    "主人剛才明確要你操作電腦或玩遊戲，但電腦操控目前是關閉或已緊急停止，所以你現在不能操作。"
+    "請簡短告訴主人：到托盤（隱藏圖示裡的「SIRO 桌寵」）點「電腦操控」開啟，之後再說一次；"
+    "不要假裝已經開始，也不要說你正在操作。 [source:computer-control]"
+)
+
+
+def unavailable_hint(text: str, tools: Sequence[ToolDefinition]) -> str | None:
+    """A context line for the model when the owner orders play but control is off/stopped.
+
+    Only when the feature is configured at all (a token exists) and ``computer.play`` is not
+    offered this turn; keyword orders only (the cloud judge is not asked for a "no").
+    """
+    if not os.environ.get("SIRO_COMPUTER_TOKEN") or any(t.name == "computer.play" for t in tools):
+        return None
+    return UNAVAILABLE_HINT if play_goal(text) is not None else None

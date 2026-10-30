@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from siro.ports.models import ToolDefinition
-from siro.services.computer_use.intent import narrow_for_play_order, play_goal
+from siro.services.computer_use.intent import narrow_for_play_order, play_goal, unavailable_hint
 
 
 @pytest.mark.parametrize(
@@ -97,3 +97,19 @@ def test_default_programs_come_from_the_environment_allowlist(
     assert play_goal("操控UNDERTALE") == "操控UNDERTALE"
     monkeypatch.setenv("SIRO_COMPUTER_ALLOWED_PROCESSES", "")
     assert play_goal("操控UNDERTALE") is None
+
+
+def test_unavailable_hint_only_for_orders_when_configured_and_play_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema: dict[str, object] = {"type": "object"}
+    others = (ToolDefinition("claude.ask", "d", schema),)
+    with_play = (*others, ToolDefinition("computer.play", "d", schema))
+    monkeypatch.setenv("SIRO_COMPUTER_TOKEN", "t" * 40)
+    hint = unavailable_hint("幫我玩UNDERTALE", others)
+    assert hint is not None and "托盤" in hint and "[source:computer-control]" in hint
+    assert unavailable_hint("幫我玩UNDERTALE", with_play) is None
+    assert unavailable_hint("今天天氣如何", others) is None
+    assert unavailable_hint("你會玩Undertale嗎？", others) is None
+    monkeypatch.delenv("SIRO_COMPUTER_TOKEN")
+    assert unavailable_hint("幫我玩UNDERTALE", others) is None
