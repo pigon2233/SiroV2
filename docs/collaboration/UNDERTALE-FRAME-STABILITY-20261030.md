@@ -1,0 +1,17 @@
+# UNDERTALE-FRAME-STABILITY-20261030
+
+- Owner: Codex, 2026-10-30 Asia/Taipei; PARTIAL; LOCAL_ONLY / NOT PUSHED.
+- Base `a45ab95819115bc740da119843be46f4d6506622`; branch `codex/undertale-frame-stability-20261030`; worktree `E:/coding/Worktrees/undertale-frame-stability-20261030`.
+- Scope: read-only, in-memory PrintWindow sampling of the explicitly authorized running Undertale to assess repeated exact pixels and capture latency. No screenshots, frame hashes, transcripts, inputs or user gameplay recording are saved. Reports contain aggregate metrics only. Owner said they are not playing and allowed use of current game.
+- Owned paths: `scripts/measure_undertale_frame_stability.ps1`, `docs/verification/COMPUTER-USE/undertale-frame-stability-20261030.json`, and this handoff. No running services/config, game saves, desktop host, shared docs or other worktrees.
+- Acceptance: verify exact intended foreground window and same identity/geometry for every sample, reject blank capture, report actual measurements and uncertainty without inferring game success. Compare with opt-in screen-match feasibility, not equal pixels as proof of unchanged game state.
+- GitHub open issues and PR 4 checked, no relevant overlapping scope. Local main f8004834c4308dcb3d48a4871f7f93d0d1adcf73 and unrelated dirty design files retained. Local record is not a lock.
+- Earlier isolated Electron test-shell launch was rejected by automatic review; this task performs a different read-only observation and does not launch or bypass it.
+
+## Result
+
+- One read-only run of `scripts/measure_undertale_frame_stability.ps1`: 20 samples, requested interval 500 ms, total 10.858 s; one unique scaled frame and 19/19 exactly identical adjacent pairs. Each frame had nonblack pixels. Windows PrintWindow call mean 35.682 ms, max 56.168 ms; these timings exclude resizing, digesting, Electron capture, bridge traffic, local/cloud inference, input and scheduling.
+- Pixels and frame digests existed only in process memory; the committed JSON contains aggregate counts and times, no frames, hashes, game text or names. No user input, screenshots on disk, save operations, game changes or service changes occurred.
+- These results apply only to the current idle screen and PrintWindow path. PrintWindow may return stale or incomplete content even when successful; identical captures do not independently establish live rendering or unchanged hidden game state. The real Electron `desktopCapturer` path, a moving/dynamic scene, the short-lived title screen and bit-identical recurrence after a loop were not measured. Thus this neither validates the product screen guard nor demonstrates real-time/long-term play.
+- First attempt failed before capture because the PowerShell C# compiler did not auto-reference System.Drawing. Adjusted the helper to receive the locked pixel pointer; the second attempt produced the above result. No game input occurred during the failed attempt. The pixel comparator's in-memory synthetic self-test passed, and PowerShell syntax validation passed.
+- Prior isolated E2E shell launch was rejected by automatic review, with no detailed reason. This read-only measurement was a distinct action and does not resolve that rejection or authorize a workaround. Next: independently validate changing frames, Electron/bridge integration, and timely input through the authorized test path before activating the experimental guard.
