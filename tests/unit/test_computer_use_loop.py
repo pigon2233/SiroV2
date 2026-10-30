@@ -26,6 +26,8 @@ class FakeDesktop:
         self.bridge, self.title, self.process = bridge, title, process
         self.scene = "menu"
         self.image_size = [1920, 1080]
+        self.focus_requests: list[str] = []
+        self.focus_brings = True
         self.inputs: list[dict[str, Any]] = []
         self.drop_input = False
         self.after_input: Callable[[], None] | None = None
@@ -57,6 +59,12 @@ class FakeDesktop:
                 continue
             if command["op"] == "observe":
                 self.bridge.submit_result(command["id"], True, data=self._scene_report())
+                continue
+            if command["op"] == "focus":
+                self.focus_requests.append(command["payload"]["process"])
+                if self.focus_brings:
+                    self.process = command["payload"]["process"]
+                self.bridge.submit_result(command["id"], True)
                 continue
             action = command["payload"]
             self.inputs.append(action)
@@ -128,6 +136,7 @@ async def _run(
         desktop.start()
         await asyncio.sleep(0.02)  # let the shell poll once, as the real one does continuously
     script = Script(policy)
+    loop_kwargs.setdefault("focus", False)  # focusing is opt-in per test
     loop = DecisionLoop(bridge, script, allowed=allowed, settle=0, **loop_kwargs)
     try:
         report = await loop.run("win the game")
@@ -361,3 +370,49 @@ async def test_run_is_recorded_as_local_training_data(tmp_path: Any) -> None:
     assert (run / "meta.json").exists() and json.loads((run / "meta.json").read_text())[
         "state"
     ] == "done"
+
+
+@pytest.mark.asyncio
+async def test_chat_started_run_brings_the_allowed_game_forward_once() -> None:
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.process = "chat.exe"  # the chat/monitor window is in front when the run starts
+
+    report, desktop, _, _ = await _run(solver, setup=setup, focus=True)
+    assert desktop.focus_requests == ["game.exe"] and report.success
+
+
+@pytest.mark.asyncio
+async def test_focus_is_off_unwanted_ambiguous_or_ineffective() -> None:
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.process = "chat.exe"
+
+    report, desktop, _, _ = await _run(solver, setup=setup, focus=False)
+    assert desktop.focus_requests == [] and report.reason == "window_not_allowed"
+
+    def stubborn(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.process = "chat.exe"
+        desktop.focus_brings = False
+
+    report, desktop, _, _ = await _run(solver, setup=stubborn, focus=True)
+    assert len(desktop.focus_requests) == 1 and report.reason == "window_not_allowed"
+
+    report, desktop, _, _ = await _run(
+        solver, setup=setup, focus=True, allowed=frozenset({"a.exe", "b.exe"})
+    )
+    assert desktop.focus_requests == [] and report.reason == "window_not_allowed"  # ambiguous
+
+
+@pytest.mark.asyncio
+async def test_blocked_foreground_window_is_never_replaced() -> None:
+    report, desktop, _, _ = await _run(
+        solver, desktop_kwargs={"title": "Bank login - Password"}, focus=True
+    )
+    assert report.reason == "blocked_title" and desktop.focus_requests == []
+
+
+def test_goal_names_program_even_next_to_chinese_but_not_inside_words() -> None:
+    from siro.services.computer_use.loop import _names
+
+    assert _names("undertale", "幫我玩undertale")
+    assert _names("undertale", "play undertale now")
+    assert not _names("a", "win the game") and not _names("game", "gamer lounge")

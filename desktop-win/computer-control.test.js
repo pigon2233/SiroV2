@@ -121,3 +121,14 @@ test('commands wait for a cold helper to announce ready; a helper that never doe
   assert.strictEqual((await pending).ok, true);
   assert.strictEqual(log.length, 1);
 });
+
+test('focus asks the helper only for plain program names and only while active', async () => {
+  const {cc, log} = make();
+  assert.strictEqual((await cc.focus('undertale.exe')).error, 'control_disabled');
+  cc.enable();
+  assert.strictEqual((await cc.focus('undertale.exe')).ok, true);
+  assert.deepStrictEqual({kind: log[0].kind, process: log[0].process}, {kind: 'focus', process: 'undertale.exe'});
+  for (const bad of ['', 'a b', '../x', 'x;rm', 5, null]) assert.strictEqual((await cc.focus(bad)).error, 'bad_process');
+  cc.stop();
+  assert.strictEqual((await cc.focus('undertale.exe')).error, 'emergency_stop');
+});

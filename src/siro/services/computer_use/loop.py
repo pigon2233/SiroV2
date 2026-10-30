@@ -8,6 +8,8 @@ unchanged screen after an action counts toward "stuck", and an unknown outcome h
 from __future__ import annotations
 
 import asyncio
+import os
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -52,6 +54,14 @@ class LoopReport:
         return self.state == "done"
 
 
+def _names(stem: str, text: str) -> bool:
+    """The goal mentions this program (3+ chars, not inside a longer ASCII word)."""
+    return (
+        len(stem) >= 3
+        and re.search(rf"(?<![a-z0-9]){re.escape(stem)}(?![a-z0-9])", text) is not None
+    )
+
+
 def _describe(action: InputAction) -> str:
     if action.kind in {"move", "click"}:
         return f"{action.kind}({action.x},{action.y},{action.button})"
@@ -85,6 +95,7 @@ class DecisionLoop:
         wait: float = WAIT_SECONDS,
         playbook: PlaybookStore | None = None,
         recorder: DemoRecorder | None = None,
+        focus: bool | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._bridge = bridge
@@ -97,6 +108,8 @@ class DecisionLoop:
         self._wait = wait
         self._playbook = playbook
         self._recorder = recorder
+        # Talking to SIRO puts the chat in front; bring the allowed game forward once per run.
+        self._focus = os.environ.get("SIRO_COMPUTER_FOCUS", "1") != "0" if focus is None else focus
         self._demo: DemoRun | None = None
         self._demo_last: int | None = None
         self.process = ""  # program of the first allowed observation (key of its play notes)
@@ -116,12 +129,24 @@ class DecisionLoop:
         started = self._clock()
         no_change = invalid = rate_waits = waits = 0
         task = goal
+        focus_tried = False
         done_seen = False
         before: Observation | None = None
         for step in range(1, self._max_steps + 1):
             if self._clock() - started > self._max_seconds:
                 return end("stopped", "time_limit")
             observation, error = await self._bridge.observe()
+            wrong_window = error == "window_not_visible" or (
+                observation is not None
+                and not observation.blocked_reason
+                and observation.process not in self._allowed
+            )
+            if wrong_window and self._focus and not focus_tried:
+                focus_tried = True
+                target = self._focus_target(goal)
+                if target and (await self._bridge.focus(target)).ok:
+                    await asyncio.sleep(0.8)
+                    continue
             if observation is None:
                 return end("stopped", error)
             if observation.blocked_reason:
@@ -217,6 +242,14 @@ class DecisionLoop:
             before = observation
             await asyncio.sleep(self._settle)
         return end("stopped", "step_limit")
+
+    def _focus_target(self, goal: str) -> str | None:
+        """The allowed program to bring forward: the one the goal names, else the only one."""
+        lowered = goal.lower()
+        named = [p for p in sorted(self._allowed) if _names(p.removesuffix(".exe"), lowered)]
+        if len(named) == 1:
+            return named[0]
+        return next(iter(self._allowed)) if len(self._allowed) == 1 else None
 
     def _record(
         self, observation: Observation, decision: Decision, action: InputAction | None

@@ -62,7 +62,11 @@ def computer_handlers(
             raise PermissionError("computer control is off; the owner switches it on from the tray")
         if not runs.start(goal.strip()):
             raise RuntimeError("a computer-control run is already in progress")
-        return {"started": True, "goal": goal.strip(), "next": "call computer.status to follow it"}
+        return {
+            "started": True,
+            "goal": goal.strip(),
+            "reply_with": "已經開始操作電腦了，每步大約 7 到 10 秒；要停就按 Ctrl+Alt+Shift+Esc。",
+        }
 
     async def status(arguments: dict[str, object]) -> object:
         return runs.status()

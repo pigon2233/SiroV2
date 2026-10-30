@@ -86,6 +86,12 @@ class ComputerControl {
     if (reason) return Promise.resolve({ok: false, error: reason});
     return this.send(action);
   }
+  // Bring a named program's window to the front (the backend only asks for allowlisted programs).
+  focus(process) {
+    if (!this.active) return Promise.resolve({ok: false, error: this.stopped ? 'emergency_stop' : 'control_disabled'});
+    if (typeof process !== 'string' || !/^[A-Za-z0-9._-]{1,60}$/.test(process)) return Promise.resolve({ok: false, error: 'bad_process'});
+    return this.send({kind: 'focus', process});
+  }
   // Read-only foreground window query (title, process, rect, password-focus). Only while active.
   queryWindow() {
     if (!this.active) return Promise.resolve({ok: false, error: this.stopped ? 'emergency_stop' : 'control_disabled'});

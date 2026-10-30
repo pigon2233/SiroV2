@@ -22,7 +22,21 @@ public static class SiroInput {
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int l, t, r, b; }
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
   public static void Init() { SetProcessDPIAware(); }
+  // Bring an (allowlisted, chosen by the caller) window to the front; true when it really is in front.
+  public static bool Focus(IntPtr h) {
+    if (IsIconic(h)) ShowWindow(h, 9);
+    uint pid; uint fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out pid); uint me = GetCurrentThreadId();
+    bool attached = fgThread != me && AttachThreadInput(me, fgThread, true);
+    try { SetForegroundWindow(h); } finally { if (attached) AttachThreadInput(me, fgThread, false); }
+    Thread.Sleep(150);
+    return GetForegroundWindow() == h;
+  }
   public static object[] Foreground() {
     IntPtr h = GetForegroundWindow();
     if (h == IntPtr.Zero) return null;
@@ -101,6 +115,10 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
       'key'    { $hold = 45; if ($a.hold_ms -gt 0) { $hold = [int]$a.hold_ms }
                  [SiroInput]::Combo([uint16[]]@(([string]$a.key).ToLower().Split('+') | ForEach-Object { KeyCode $_ }), $hold) }
       'type'   { [SiroInput]::Text([string]$a.text) }
+      'focus'  { $n = ([string]$a.process) -replace '\.exe$', ''
+                 $p = Get-Process -Name $n -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+                 if ($null -eq $p) { throw 'no_window' }
+                 if (-not [SiroInput]::Focus($p.MainWindowHandle)) { throw 'focus_denied' } }
       'window' { $w = [SiroInput]::Foreground()
                  if ($null -eq $w) { throw 'no foreground window' }
                  $proc = (Get-Process -Id $w[1] -ErrorAction Stop).ProcessName + '.exe'

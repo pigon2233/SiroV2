@@ -20,6 +20,7 @@ from siro.services.computer_use.safety import ControlGate, InputAction
 INPUT_TIMEOUT = 12.0  # covers a cold helper start (C# compile) plus the 3 s input timeout
 OBSERVE_TIMEOUT = 6.0
 COMMAND_TTL = 5.0
+FOCUS_TIMEOUT = 10.0
 EXECUTOR_ONLINE_WITHIN = 10.0
 
 
@@ -81,6 +82,14 @@ class ComputerBridge:
         if not decision.allowed:
             return BridgeResult(False, decision.reason)
         return await self._request("input", asdict(action), INPUT_TIMEOUT, "outcome_unknown")
+
+    async def focus(self, process: str) -> BridgeResult:
+        """Ask the shell to bring an (allowlisted) program's window to the front."""
+        if not self.gate.enabled:
+            return BridgeResult(
+                False, "emergency_stop" if self.gate.tripped else "control_disabled"
+            )
+        return await self._request("focus", {"process": process}, FOCUS_TIMEOUT, "focus_timeout")
 
     async def observe(self) -> tuple[Observation | None, str]:
         if self.gate.tripped:

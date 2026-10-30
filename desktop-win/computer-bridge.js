@@ -32,6 +32,7 @@ class ComputerBridgeClient {
   async handle(command) {
     if (command.op === 'observe') return this.observe();
     if (command.op === 'input') return this.control.execute(command.payload);
+    if (command.op === 'focus') return this.control.focus(command.payload && command.payload.process);
     return {ok: false, error: 'unknown_op'};
   }
   async loop() {

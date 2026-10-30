@@ -248,3 +248,14 @@ def test_seen_is_parsed_and_shown_in_history() -> None:
     assert decision.kind == "wait" and decision.seen == "intro panel with text"
     text = _history_text([StepRecord(1, "key(z)", "next line", "ok", True, "title screen")])
     assert "saw: title screen" in text and "did: key(z)" in text
+
+
+@pytest.mark.asyncio
+async def test_focus_needs_control_on_and_goes_through_the_shell() -> None:
+    bridge = ComputerBridge(ControlGate(enabled=False))
+    assert (await bridge.focus("game.exe")).error == "control_disabled"
+    bridge.gate.enable()
+    bridge.stop()
+    assert (await bridge.focus("game.exe")).error == "emergency_stop"
+    bridge.gate.enable()
+    assert (await bridge.focus("game.exe")).error == "executor_offline"

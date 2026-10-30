@@ -1,3 +1,4 @@
+# ruff: noqa: RUF001
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -69,7 +70,7 @@ async def test_play_refuses_when_off_bad_goal_or_busy() -> None:
     assert await play({"goal": "win the game"}) == {
         "started": True,
         "goal": "win the game",
-        "next": "call computer.status to follow it",
+        "reply_with": "已經開始操作電腦了，每步大約 7 到 10 秒；要停就按 Ctrl+Alt+Shift+Esc。",
     }
     with pytest.raises(RuntimeError, match="in progress"):
         await play({"goal": "again"})
