@@ -139,7 +139,12 @@ class ComputerRuns:
             "learned_notes": self.learned,
             "report": None
             if report is None
-            else {"state": report.state, "reason": report.reason, "steps": _steps(report.steps)},
+            else {
+                "state": report.state,
+                "reason": report.reason,
+                "detail": report.detail,
+                "steps": _steps(report.steps),
+            },
         }
 
 

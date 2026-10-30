@@ -266,6 +266,51 @@ async def test_done_flip_flop_does_not_finish() -> None:
 
 
 @pytest.mark.asyncio
+async def test_wait_interrupts_completion_confirmation() -> None:
+    choices = iter(
+        [
+            Decision("done", confidence=0.9, evidence="banner seen"),
+            Decision("wait", confidence=0.9),
+            Decision("done", confidence=0.9, evidence="banner seen again"),
+        ]
+    )
+    report, desktop, _, _ = await _run(lambda o, h: next(choices), max_steps=3, wait=0)
+    assert report.state == "stopped"
+    assert report.reason == "step_limit"
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_completion_can_be_confirmed_after_wait() -> None:
+    choices = iter(
+        [
+            Decision("done", confidence=0.9, evidence="banner seen"),
+            Decision("wait", confidence=0.9),
+            Decision("done", confidence=0.9, evidence="banner reappears"),
+            Decision("done", confidence=0.9, evidence="banner remains"),
+        ]
+    )
+    report, desktop, _, _ = await _run(lambda o, h: next(choices), max_steps=4, wait=0)
+    assert report.success
+    assert report.reason == "banner remains"
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_owner_question_is_available_in_status() -> None:
+    question = "Should I choose Continue or New Game?"
+    report, desktop, bridge, _ = await _run(
+        lambda o, h: Decision("ask", reason=question, confidence=0.9)
+    )
+    runs = ComputerRuns(bridge, Script(solver))
+    runs.report = report
+    status = runs.status()
+    assert status["report"]["reason"] == "needs_owner"
+    assert status["report"]["detail"] == question
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
 async def test_stuck_when_screen_never_changes() -> None:
     report, desktop, _, _ = await _run(lambda o, h: click(150, 150))
     assert report.reason == "stuck_no_visible_change"

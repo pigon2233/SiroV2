@@ -6,7 +6,7 @@
 - Branch: codex/computer-use-reliability-20261030
 - Worktree: E:/coding/Worktrees/computer-use-reliability-20261030
 - Scope: bounded improvements to computer-use decision loop and its focused tests, and this handoff.
-- Owned paths: src/siro/services/computer_use/loop.py, tests/unit/test_computer_use_loop.py, docs/collaboration/COMPUTER-RELIABILITY-20261030.md.
+- Owned paths: src/siro/services/computer_use/loop.py, src/siro/services/computer_use/http.py, tests/unit/test_computer_use_loop.py, docs/collaboration/COMPUTER-RELIABILITY-20261030.md.
 - Exclusions: shared STATUS, Gateway, desktop host, game save data, running services, recordings.
 - Acceptance: reproduce a concrete reliability failure, add focused regression and run adjacent tests. Distinguish simulated and real desktop results.
 - Coordination: GitHub public open issues and PR 4 checked; no computer-use scope found. The source has recent local commits by another contributor; this branch is isolated and requires integration review. This document is not a lock.
@@ -19,3 +19,12 @@
 - No real desktop, real model or game was operated in this task. Cancellation of a real model process was not tested here. Observe/input operations have their own timeouts; this does not establish a strict end-to-end wall clock deadline.
 - This is a reliability improvement only: the 7–10 seconds per model step and Undertale logo input issue remain unresolved. No claim of fast or reliable real-time gameplay.
 - Shared STATUS is deferred because its owner was not assigned. Integrator should review current main and other ongoing computer-use changes before applying this branch; no running service was restarted. Rollback: revert the resulting task commit.
+
+## Continuation scope
+
+Preserve the model's actionable question when it stops for owner input, and require consecutive completion observations across waiting. Validate with fake-desktop and status regression cases. Paths above are the complete expansion; Gateway, UI and shared documents remain excluded.
+
+- The existing model-provided `reason` is now preserved as `report.detail` when stopping with `needs_owner`; the stable reason code remains unchanged. A model may give an explanation instead of a question, or leave it empty. The authenticated status API and `computer.status` handler return the field; actual chat rendering is not verified.
+- A `wait` now interrupts the two-consecutive-observation completion check. An additional pair of `done` observations can still complete the task afterwards.
+- Prior to the change, both focused fake-desktop regressions failed: a done/wait/done sequence was incorrectly accepted and status discarded the owner's decision explanation. No real game or desktop was tested. These changes do not reduce model latency or resolve the Undertale input issue.
+- WSL Python 3.14: `PYTHONPATH=src ~/.venvs/sirov2/bin/python -m pytest -q tests/unit/test_computer_use*.py`: 136 passed, one Starlette deprecation warning. Scoped Ruff check and format passed; `git diff --check` passed.

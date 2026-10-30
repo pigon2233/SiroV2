@@ -48,6 +48,7 @@ class LoopReport:
     state: str  # done | stopped | failed
     reason: str
     steps: tuple[StepRecord, ...] = field(default_factory=tuple)
+    detail: str = ""  # model's explanation when the owner must decide
 
     @property
     def success(self) -> bool:
@@ -111,10 +112,10 @@ class DecisionLoop:
     async def run(self, goal: str) -> LoopReport:
         history = self.live = []
 
-        def end(state: str, reason: str) -> LoopReport:
+        def end(state: str, reason: str, detail: str = "") -> LoopReport:
             if self._demo is not None:
                 self._demo.finish(state, reason)
-            return LoopReport(state, reason, tuple(history))
+            return LoopReport(state, reason, tuple(history), detail)
 
         if not self._allowed:
             return end("stopped", "no_allowed_processes")
@@ -182,6 +183,7 @@ class DecisionLoop:
             if self._clock() - started >= self._max_seconds:
                 return end("stopped", "time_limit")
             if decision.kind == "wait":
+                done_seen = False
                 waits += 1
                 history.append(
                     StepRecord(step, "(wait)", decision.expect, "ok", None, decision.seen)
@@ -194,7 +196,7 @@ class DecisionLoop:
                 continue
             waits = 0
             if decision.kind == "ask":
-                return end("stopped", "needs_owner")
+                return end("stopped", "needs_owner", decision.reason.strip()[:300])
             if decision.kind == "stuck":
                 return end("stopped", "decider_stuck")
             if decision.confidence < self._min_confidence:
