@@ -87,6 +87,13 @@ def _same_target(a: Observation, b: Observation) -> bool:
     )
 
 
+def _screen_changed(a: Observation, b: Observation) -> bool | None:
+    """Compare only observations that identify the same target and have fingerprints."""
+    if not _same_target(a, b) or not a.image_size or not a.fingerprint or not b.fingerprint:
+        return None
+    return a.fingerprint != b.fingerprint
+
+
 class ComputerLimitError(ValueError):
     """The owner's run limit configuration is malformed or out of bounds."""
 
@@ -232,25 +239,7 @@ class DecisionLoop:
             if not is_fresh(observation, self._clock()):
                 return end("stopped", "stale_observation")
             if wait_before is not None and history and history[-1].action == "(wait)":
-                same_window = (
-                    wait_before.window_id is not None
-                    and wait_before.pid is not None
-                    and wait_before.window_id == observation.window_id
-                    and wait_before.pid == observation.pid
-                    and wait_before.process == observation.process
-                    and wait_before.window_rect is not None
-                    and wait_before.image_rect is not None
-                    and wait_before.image_size is not None
-                    and wait_before.window_rect == observation.window_rect
-                    and wait_before.image_rect == observation.image_rect
-                    and wait_before.image_size == observation.image_size
-                    and wait_before.screen == observation.screen
-                )
-                changed = (
-                    observation.fingerprint != wait_before.fingerprint
-                    if same_window and observation.fingerprint and wait_before.fingerprint
-                    else None
-                )
+                changed = _screen_changed(wait_before, observation)
                 previous_wait = history[-1]
                 history[-1] = StepRecord(
                     previous_wait.step, previous_wait.action, previous_wait.expect,
@@ -264,14 +253,15 @@ class DecisionLoop:
                 if self._recorder is not None:
                     self._demo = self._recorder.begin(self.process, goal)
             if before is not None and history and history[-1].screen_changed is None:
-                changed = observation.fingerprint != before.fingerprint
+                changed = _screen_changed(before, observation)
                 history[-1] = StepRecord(
                     history[-1].step, history[-1].action, history[-1].expect,
                     history[-1].outcome, changed, history[-1].seen,
                 )  # fmt: skip
-                if self._demo is not None and self._demo_last is not None:
+                if changed is not None and self._demo is not None and self._demo_last is not None:
                     self._demo.set_changed(self._demo_last, changed)
-                no_change = 0 if changed else no_change + 1
+                no_change = no_change + 1 if changed is False else 0
+                before = None
                 if no_change >= MAX_NO_CHANGE:
                     return end("stopped", "stuck_no_visible_change")
             self.phase = "deciding"

@@ -925,6 +925,34 @@ async def test_stuck_when_screen_never_changes() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["missing_before", "missing_after", "different_window"])
+async def test_post_action_comparison_is_unknown_when_unreliable(case: str) -> None:
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        if case == "missing_before":
+            desktop.scene = ""
+
+        def after_input() -> None:
+            if case == "missing_before":
+                desktop.scene = "new scene"
+            elif case == "missing_after":
+                desktop.scene = ""
+            else:
+                desktop.window_id = "202"
+
+        desktop.after_input = after_input
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        if history:
+            return Decision("ask", reason="check result", confidence=0.9)
+        return click(150, 150)
+
+    report, desktop, _, _ = await _run(policy, setup=setup)
+    assert report.reason == "needs_owner"
+    assert len(desktop.inputs) == 1
+    assert report.steps[0].screen_changed is None
+
+
+@pytest.mark.asyncio
 async def test_click_outside_window_rejected_without_input() -> None:
     report, desktop, _, _ = await _run(lambda o, h: click(1500, 900))
     assert report.reason == "too_many_invalid_decisions"
