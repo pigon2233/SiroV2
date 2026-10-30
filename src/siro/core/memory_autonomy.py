@@ -147,7 +147,7 @@ MIN_IMPORTANCE = 3
 _REQUEST_TO_SIRO = re.compile(r"(想|要|希望|請|叫|讓)\s*SIRO|SIRO\s*(幫|去|來)", re.I)
 # The rewrite must name the referent; a leftover pronoun means it could not be resolved.
 _VAGUE = re.compile(
-    r"某個|某些|某種|某樣|某件|某人|某處|某地|它|牠|祂|那個|這個|那些|這些|那件|這件"
+    r"某個|某些|某種|某樣|某件|某物|某人|某處|某地|它|牠|祂|那個|這個|那些|這些|那件|這件"
 )
 
 
