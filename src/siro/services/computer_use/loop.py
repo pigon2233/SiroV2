@@ -164,12 +164,23 @@ class DecisionLoop:
                 no_change = 0 if changed else no_change + 1
                 if no_change >= MAX_NO_CHANGE:
                     return end("stopped", "stuck_no_visible_change")
+            deadline = None
             try:
-                decision = await self._decider.decide(task, history, observation)
+                remaining = self._max_seconds - (self._clock() - started)
+                if remaining <= 0:
+                    return end("stopped", "time_limit")
+                async with asyncio.timeout(remaining) as deadline:
+                    decision = await self._decider.decide(task, history, observation)
+            except TimeoutError as error:
+                if deadline is not None and deadline.expired():
+                    return end("stopped", "time_limit")
+                return end("failed", f"decider_error:{error}")
             except CloudScreenNotAllowed:
                 return end("stopped", "cloud_screen_not_allowed")
-            except (DecisionError, OSError, TimeoutError) as error:
+            except (DecisionError, OSError) as error:
                 return end("failed", f"decider_error:{error}")
+            if self._clock() - started >= self._max_seconds:
+                return end("stopped", "time_limit")
             if decision.kind == "wait":
                 waits += 1
                 history.append(

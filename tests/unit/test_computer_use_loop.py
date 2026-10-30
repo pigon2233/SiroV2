@@ -157,6 +157,100 @@ async def test_solves_scene_chain_and_confirms_done_twice() -> None:
 
 
 @pytest.mark.asyncio
+async def test_decision_that_finishes_after_deadline_cannot_send_input() -> None:
+    now = [0.0]
+    bridge = ComputerBridge(
+        ControlGate(screen=(0, 0, 1920, 1080), enabled=True), clock=lambda: now[0]
+    )
+    desktop = FakeDesktop(bridge)
+    desktop.start()
+    await asyncio.sleep(0.02)
+
+    class SlowDecision:
+        async def decide(
+            self, goal: str, history: Sequence[StepRecord], obs: Observation
+        ) -> Decision:
+            now[0] = 2.0
+            return click(300, 300)
+
+    loop = DecisionLoop(
+        bridge,
+        SlowDecision(),
+        allowed=frozenset({"game.exe"}),
+        max_seconds=1,
+        clock=lambda: now[0],
+        settle=0,
+        focus=False,
+    )
+    try:
+        report = await loop.run("play")
+    finally:
+        await desktop.close()
+    assert report.reason == "time_limit"
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_deadline_cancels_hung_decision() -> None:
+    bridge = ComputerBridge(ControlGate(screen=(0, 0, 1920, 1080), enabled=True))
+    desktop = FakeDesktop(bridge)
+    desktop.start()
+    await asyncio.sleep(0.02)
+    cancelled = asyncio.Event()
+
+    class HungDecision:
+        async def decide(
+            self, goal: str, history: Sequence[StepRecord], obs: Observation
+        ) -> Decision:
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+            raise AssertionError("unreachable")
+
+    loop = DecisionLoop(
+        bridge,
+        HungDecision(),
+        allowed=frozenset({"game.exe"}),
+        max_seconds=0.05,
+        settle=0,
+        focus=False,
+    )
+    try:
+        report = await asyncio.wait_for(loop.run("play"), timeout=0.5)
+    finally:
+        await desktop.close()
+    assert report.reason == "time_limit"
+    assert cancelled.is_set()
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_decider_timeout_is_reported_as_failure_not_run_deadline() -> None:
+    bridge = ComputerBridge(ControlGate(screen=(0, 0, 1920, 1080), enabled=True))
+    desktop = FakeDesktop(bridge)
+    desktop.start()
+    await asyncio.sleep(0.02)
+
+    class TimedOutDecision:
+        async def decide(
+            self, goal: str, history: Sequence[StepRecord], obs: Observation
+        ) -> Decision:
+            raise TimeoutError("provider timeout")
+
+    loop = DecisionLoop(
+        bridge, TimedOutDecision(), allowed=frozenset({"game.exe"}), settle=0, focus=False
+    )
+    try:
+        report = await loop.run("play")
+    finally:
+        await desktop.close()
+    assert report.state == "failed"
+    assert report.reason == "decider_error:provider timeout"
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
 async def test_done_flip_flop_does_not_finish() -> None:
     calls = {"n": 0}
 
