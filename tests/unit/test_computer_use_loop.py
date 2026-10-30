@@ -7,7 +7,8 @@ from typing import Any
 import pytest
 
 from siro.services.computer_use import bridge as bridge_module
-from siro.services.computer_use.bridge import ComputerBridge
+from siro.services.computer_use import loop as loop_module
+from siro.services.computer_use.bridge import BridgeResult, ComputerBridge
 from siro.services.computer_use.decision import Decision, StepRecord
 from siro.services.computer_use.http import ComputerRuns
 from siro.services.computer_use.loop import DecisionLoop
@@ -154,6 +155,324 @@ async def test_solves_scene_chain_and_confirms_done_twice() -> None:
     assert script.calls == 4  # click, click, done, done-confirmed
     assert [r.outcome for r in report.steps if r.action != "(confirm done)"] == ["ok", "ok"]
     assert report.steps[0].screen_changed is True
+
+
+@pytest.mark.asyncio
+async def test_opt_in_long_run_continues_past_40_actions(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_STEPS", "55")
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_SECONDS", "900")
+    now = [0.0]
+
+    def clock() -> float:
+        return now[0]
+
+    gate = ControlGate(screen=(0, 0, 1920, 1080), enabled=True, clock=clock)
+    bridge = ComputerBridge(gate, clock=clock)
+    desktop = FakeDesktop(bridge)
+
+    def progress() -> None:
+        now[0] += 1.0
+        desktop.scene = f"scene-{len(desktop.inputs)}"
+
+    desktop.after_input = progress
+    desktop.start()
+    await asyncio.sleep(0.02)
+    loop = DecisionLoop(
+        bridge,
+        Script(lambda o, h: click(150, 150)),
+        allowed=frozenset({"game.exe"}),
+        clock=clock,
+        settle=0,
+        focus=False,
+    )
+    try:
+        report = await loop.run("play")
+    finally:
+        await desktop.close()
+    assert report.reason == "step_limit"
+    assert len(desktop.inputs) == 55
+    assert loop.limits == {"max_steps": 55, "max_seconds": 900}
+
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("SIRO_COMPUTER_MAX_STEPS", "0"),
+        ("SIRO_COMPUTER_MAX_STEPS", "1201"),
+        ("SIRO_COMPUTER_MAX_STEPS", "oops"),
+        ("SIRO_COMPUTER_MAX_SECONDS", "7201"),
+        ("SIRO_COMPUTER_MAX_SECONDS", "nan"),
+    ],
+)
+def test_invalid_long_run_configuration_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    from siro.services.computer_use.loop import ComputerLimitError
+
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ComputerLimitError):
+        DecisionLoop(ComputerBridge(ControlGate()), Script(solver))
+
+
+def test_unconfigured_limits_keep_existing_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SIRO_COMPUTER_MAX_STEPS", raising=False)
+    monkeypatch.delenv("SIRO_COMPUTER_MAX_SECONDS", raising=False)
+    loop = DecisionLoop(ComputerBridge(ControlGate()), Script(solver))
+    assert loop.limits == {"max_steps": 40, "max_seconds": 600}
+
+
+@pytest.mark.asyncio
+async def test_long_run_still_honours_emergency_stop_after_40_actions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_STEPS", "100")
+    now = [0.0]
+
+    def clock() -> float:
+        return now[0]
+
+    gate = ControlGate(screen=(0, 0, 1920, 1080), enabled=True, clock=clock)
+    bridge = ComputerBridge(gate, clock=clock)
+    desktop = FakeDesktop(bridge)
+
+    def progress() -> None:
+        now[0] += 1
+        desktop.scene = f"scene-{len(desktop.inputs)}"
+        if len(desktop.inputs) == 55:
+            bridge.stop()
+
+    desktop.after_input = progress
+    desktop.start()
+    await asyncio.sleep(0.02)
+    loop = DecisionLoop(
+        bridge,
+        Script(lambda o, h: click(150, 150)),
+        allowed=frozenset({"game.exe"}),
+        clock=clock,
+        settle=0,
+        focus=False,
+    )
+    try:
+        report = await loop.run("play")
+    finally:
+        await desktop.close()
+    assert report.reason == "emergency_stop"
+    assert len(desktop.inputs) == 55
+    assert gate.tripped
+
+
+@pytest.mark.asyncio
+async def test_long_run_stops_when_input_outcome_unknown_after_40_actions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_STEPS", "100")
+    now = [0.0]
+
+    def clock() -> float:
+        return now[0]
+
+    bridge = ComputerBridge(
+        ControlGate(screen=(0, 0, 1920, 1080), enabled=True, clock=clock), clock=clock
+    )
+    desktop = FakeDesktop(bridge)
+
+    def progress() -> None:
+        now[0] += 1
+        desktop.scene = f"scene-{len(desktop.inputs)}"
+        if len(desktop.inputs) == 44:
+            desktop.drop_input = True
+
+    desktop.after_input = progress
+    desktop.start()
+    await asyncio.sleep(0.02)
+    loop = DecisionLoop(
+        bridge,
+        Script(lambda o, h: click(150, 150)),
+        allowed=frozenset({"game.exe"}),
+        clock=clock,
+        settle=0,
+        focus=False,
+    )
+    try:
+        report = await loop.run("play")
+    finally:
+        await desktop.close()
+    assert report.reason == "outcome_unknown"
+    assert len(desktop.inputs) == 45
+    assert report.steps[-1].outcome == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_configured_30_minute_run_is_still_time_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_STEPS", "1000")
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_SECONDS", "1800")
+    now = [0.0]
+
+    def clock() -> float:
+        return now[0]
+
+    bridge = ComputerBridge(
+        ControlGate(screen=(0, 0, 1920, 1080), enabled=True, clock=clock), clock=clock
+    )
+    desktop = FakeDesktop(bridge)
+
+    def progress() -> None:
+        now[0] += 2
+        desktop.scene = f"scene-{len(desktop.inputs)}"
+
+    desktop.after_input = progress
+    desktop.start()
+    await asyncio.sleep(0.02)
+    loop = DecisionLoop(
+        bridge,
+        Script(lambda o, h: click(150, 150)),
+        allowed=frozenset({"game.exe"}),
+        clock=clock,
+        settle=0,
+        focus=False,
+    )
+    try:
+        report = await loop.run("play")
+    finally:
+        await desktop.close()
+    assert report.reason == "time_limit"
+    assert len(desktop.inputs) == 900
+    assert now[0] == 1800
+
+
+@pytest.mark.asyncio
+async def test_invalid_run_limits_are_visible_in_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_STEPS", "lots")
+    runs = ComputerRuns(ComputerBridge(ControlGate(enabled=True)), Script(solver))
+    assert runs.start("play")
+    assert runs._task is not None
+    await runs._task
+    report = runs.status()["report"]
+    assert report["state"] == "failed"
+    assert report["reason"] == "invalid_run_limits"
+    assert report["detail"] == "invalid SIRO_COMPUTER_MAX_STEPS"
+
+
+@pytest.mark.asyncio
+async def test_effective_run_limits_are_visible_in_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_STEPS", "1000")
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_SECONDS", "1800")
+    monkeypatch.delenv("SIRO_COMPUTER_ALLOWED_PROCESSES", raising=False)
+    runs = ComputerRuns(ComputerBridge(ControlGate(enabled=True)), Script(solver))
+    assert runs.start("play")
+    assert runs._task is not None
+    await runs._task
+    assert runs.status()["limits"] == {"max_steps": 1000, "max_seconds": 1800}
+
+
+@pytest.mark.asyncio
+async def test_separate_rate_limit_events_do_not_accumulate_forever(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(loop_module, "RATE_WAIT_SECONDS", 0)
+    now = [0.0]
+
+    def clock() -> float:
+        return now[0]
+
+    bridge = ComputerBridge(
+        ControlGate(screen=(0, 0, 1920, 1080), enabled=True, clock=clock), clock=clock
+    )
+    desktop = FakeDesktop(bridge)
+
+    def progress() -> None:
+        now[0] += 2
+        desktop.scene = f"scene-{len(desktop.inputs)}"
+
+    desktop.after_input = progress
+    original_act = bridge.act
+    attempts = [0]
+
+    async def intermittently_limited(action: InputAction) -> BridgeResult:
+        attempts[0] += 1
+        if attempts[0] <= 12 and attempts[0] % 2:
+            return BridgeResult(False, "rate_limited")
+        return await original_act(action)
+
+    bridge.act = intermittently_limited  # type: ignore[method-assign]
+    desktop.start()
+    await asyncio.sleep(0.02)
+    loop = DecisionLoop(
+        bridge,
+        Script(lambda o, h: click(150, 150)),
+        allowed=frozenset({"game.exe"}),
+        clock=clock,
+        max_steps=14,
+        settle=0,
+        focus=False,
+    )
+    try:
+        report = await loop.run("play")
+    finally:
+        await desktop.close()
+    assert report.reason == "step_limit"
+    assert len(desktop.inputs) == 8
+
+
+@pytest.mark.asyncio
+async def test_continuous_rate_limit_still_stops_without_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(loop_module, "RATE_WAIT_SECONDS", 0)
+    bridge = ComputerBridge(ControlGate(screen=(0, 0, 1920, 1080), enabled=True))
+    desktop = FakeDesktop(bridge)
+    attempts = [0]
+
+    async def limited(action: InputAction) -> BridgeResult:
+        attempts[0] += 1
+        return BridgeResult(False, "rate_limited")
+
+    bridge.act = limited  # type: ignore[method-assign]
+    desktop.start()
+    await asyncio.sleep(0.02)
+    loop = DecisionLoop(
+        bridge,
+        Script(lambda o, h: click(150, 150)),
+        allowed=frozenset({"game.exe"}),
+        settle=0,
+        focus=False,
+    )
+    try:
+        report = await loop.run("play")
+    finally:
+        await desktop.close()
+    assert report.reason == "denied:rate_limited"
+    assert attempts[0] == 6
+    assert desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_stop_then_reenable_cannot_revive_pending_model_action() -> None:
+    gate = ControlGate(screen=(0, 0, 1920, 1080), enabled=True)
+    bridge = ComputerBridge(gate)
+    desktop = FakeDesktop(bridge)
+    desktop.start()
+    await asyncio.sleep(0.02)
+
+    class LateDecision:
+        async def decide(
+            self, goal: str, history: Sequence[StepRecord], obs: Observation
+        ) -> Decision:
+            bridge.stop()
+            gate.enable()
+            return click(300, 300)
+
+    loop = DecisionLoop(
+        bridge, LateDecision(), allowed=frozenset({"game.exe"}), max_steps=1, settle=0, focus=False
+    )
+    try:
+        report = await loop.run("play")
+    finally:
+        await desktop.close()
+    assert report.reason == "emergency_stop"
+    assert desktop.inputs == []
 
 
 @pytest.mark.asyncio

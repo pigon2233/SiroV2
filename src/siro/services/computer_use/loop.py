@@ -34,13 +34,32 @@ from siro.services.computer_use.safety import InputAction
 
 MAX_STEPS = 40
 MAX_SECONDS = 600.0
+MAX_CONFIGURED_STEPS = 1200
+MAX_CONFIGURED_SECONDS = 7200
 MIN_CONFIDENCE = 0.6
 MAX_NO_CHANGE = 3  # consecutive actions that visibly changed nothing
 MAX_INVALID = 2  # consecutive decisions rejected before acting
 MAX_RATE_WAITS = 5
+RATE_WAIT_SECONDS = 1.0
 MAX_WAITS = 6  # consecutive "wait" decisions (transitions) before giving up
 WAIT_SECONDS = 1.0
 SETTLE_SECONDS = 0.4
+
+
+class ComputerLimitError(ValueError):
+    """The owner's run limit configuration is malformed or out of bounds."""
+
+
+def _configured_limit(name: str, default: int, maximum: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    if not raw.isascii() or not raw.isdigit() or len(raw) > 5:
+        raise ComputerLimitError(f"invalid {name}")
+    value = int(raw)
+    if not 1 <= value <= maximum:
+        raise ComputerLimitError(f"invalid {name}")
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,8 +100,8 @@ class DecisionLoop:
         decider: Decider,
         *,
         allowed: frozenset[str] | None = None,
-        max_steps: int = MAX_STEPS,
-        max_seconds: float = MAX_SECONDS,
+        max_steps: int | None = None,
+        max_seconds: float | None = None,
         min_confidence: float = MIN_CONFIDENCE,
         settle: float = SETTLE_SECONDS,
         wait: float = WAIT_SECONDS,
@@ -94,8 +113,16 @@ class DecisionLoop:
         self._bridge = bridge
         self._decider = decider
         self._allowed = allowed_processes() if allowed is None else allowed
-        self._max_steps = max_steps
-        self._max_seconds = max_seconds
+        self._max_steps = (
+            _configured_limit("SIRO_COMPUTER_MAX_STEPS", MAX_STEPS, MAX_CONFIGURED_STEPS)
+            if max_steps is None
+            else max_steps
+        )
+        self._max_seconds = (
+            _configured_limit("SIRO_COMPUTER_MAX_SECONDS", int(MAX_SECONDS), MAX_CONFIGURED_SECONDS)
+            if max_seconds is None
+            else max_seconds
+        )
         self._min_confidence = min_confidence
         self._settle = settle
         self._wait = wait
@@ -109,6 +136,10 @@ class DecisionLoop:
         self.live: list[StepRecord] = []
         self._clock = clock
 
+    @property
+    def limits(self) -> dict[str, int | float]:
+        return {"max_steps": self._max_steps, "max_seconds": self._max_seconds}
+
     async def run(self, goal: str) -> LoopReport:
         history = self.live = []
 
@@ -120,15 +151,20 @@ class DecisionLoop:
         if not self._allowed:
             return end("stopped", "no_allowed_processes")
         started = self._clock()
+        stop_generation = self._bridge.stop_generation
         no_change = invalid = rate_waits = waits = 0
         task = goal
         focus_tried = False
         done_seen = False
         before: Observation | None = None
         for step in range(1, self._max_steps + 1):
+            if self._bridge.stop_generation != stop_generation:
+                return end("stopped", "emergency_stop")
             if self._clock() - started > self._max_seconds:
                 return end("stopped", "time_limit")
             observation, error = await self._bridge.observe()
+            if self._bridge.stop_generation != stop_generation:
+                return end("stopped", "emergency_stop")
             wrong_window = error == "window_not_visible" or (
                 observation is not None
                 and not observation.blocked_reason
@@ -173,13 +209,19 @@ class DecisionLoop:
                 async with asyncio.timeout(remaining) as deadline:
                     decision = await self._decider.decide(task, history, observation)
             except TimeoutError as error:
+                if self._bridge.stop_generation != stop_generation:
+                    return end("stopped", "emergency_stop")
                 if deadline is not None and deadline.expired():
                     return end("stopped", "time_limit")
                 return end("failed", f"decider_error:{error}")
             except CloudScreenNotAllowed:
                 return end("stopped", "cloud_screen_not_allowed")
             except (DecisionError, OSError) as error:
+                if self._bridge.stop_generation != stop_generation:
+                    return end("stopped", "emergency_stop")
                 return end("failed", f"decider_error:{error}")
+            if self._bridge.stop_generation != stop_generation:
+                return end("stopped", "emergency_stop")
             if self._clock() - started >= self._max_seconds:
                 return end("stopped", "time_limit")
             if decision.kind == "wait":
@@ -227,7 +269,7 @@ class DecisionLoop:
             if not result.ok:
                 if result.error == "rate_limited" and rate_waits < MAX_RATE_WAITS:
                     rate_waits += 1
-                    await asyncio.sleep(1.0)
+                    await asyncio.sleep(RATE_WAIT_SECONDS)
                     continue
                 if result.error == "outcome_unknown":
                     history.append(
@@ -240,6 +282,7 @@ class DecisionLoop:
                     )
                 )
                 return end("stopped", f"denied:{result.error}")
+            rate_waits = 0
             history.append(
                 StepRecord(step, _describe(action), decision.expect, "ok", None, decision.seen)
             )

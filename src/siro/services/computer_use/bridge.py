@@ -40,6 +40,12 @@ class ComputerBridge:
         self._last_poll = float("-inf")
         self._waiting = 0  # shell polls currently parked on the queue
         self._seq = 0
+        self._stop_generation = 0
+
+    @property
+    def stop_generation(self) -> int:
+        """Monotonic fence: re-enabling the gate never revives an earlier run."""
+        return self._stop_generation
 
     @property
     def executor_online(self) -> bool:
@@ -47,6 +53,7 @@ class ComputerBridge:
 
     def stop(self) -> None:
         """Emergency stop: latch the gate, drop queued commands, fail everything in flight."""
+        self._stop_generation += 1
         self.gate.trip()
         while not self._queue.empty():
             self._queue.get_nowait()

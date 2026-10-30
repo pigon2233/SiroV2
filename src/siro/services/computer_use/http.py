@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from siro.services.computer_use.bridge import ComputerBridge
 from siro.services.computer_use.decision import ClaudeVisionDecider, Decider, StepRecord
 from siro.services.computer_use.demos import DemoRecorder, demos_dir
-from siro.services.computer_use.loop import DecisionLoop, LoopReport
+from siro.services.computer_use.loop import ComputerLimitError, DecisionLoop, LoopReport
 from siro.services.computer_use.playbook import ClaudeReflector, PlaybookStore, playbook_dir
 from siro.services.computer_use.safety import ControlGate
 
@@ -95,6 +95,9 @@ class ComputerRuns:
                 self.bridge, self._decider, playbook=self.playbook, recorder=self.recorder
             )
             self.report = await self._loop.run(goal)
+        except ComputerLimitError as error:
+            self.report = LoopReport("failed", "invalid_run_limits", detail=str(error))
+            return
         except Exception as error:
             self.report = LoopReport("failed", f"crashed:{type(error).__name__}")
             return
@@ -136,6 +139,7 @@ class ComputerRuns:
             "running": self.running,
             "goal": self.goal,
             "live_steps": _steps(live),
+            "limits": None if self._loop is None else self._loop.limits,
             "learned_notes": self.learned,
             "report": None
             if report is None

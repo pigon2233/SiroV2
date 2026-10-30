@@ -1,0 +1,23 @@
+# COMPUTER-LONGPLAY-20261030
+
+- Owner: Codex, local session; 2026-10-30 Asia/Taipei; PARTIAL, LOCAL_ONLY / NOT PUSHED.
+- Base: 096426ad649c068a294a0272c363126704985379; branch `codex/computer-longplay-20261030`; worktree `E:/coding/Worktrees/computer-longplay-20261030`.
+- Task: allow a deliberately configured longer bounded computer-use run; validate cancellation and limits without weakening existing gates.
+- Owned paths: `src/siro/services/computer_use/loop.py`, `src/siro/services/computer_use/bridge.py`, `src/siro/services/computer_use/http.py`, `tests/unit/test_computer_use_loop.py`, `tests/unit/test_computer_use_http.py`, this handoff.
+- Exclusions: shared STATUS and DECISIONS, desktop host, production environment/configuration, other worktrees, recording owner gameplay. Owner subsequently explicitly allowed Undertale save operations; Reset has not been authorized.
+- Acceptance: demonstrate >40 actions in a simulated changing scene, bounded configured limits, malformed config rejection, unchanged stop/allowlist/unknown-result handling; distinguish simulation from actual long-run gameplay.
+- Coordination: public GitHub open issues and PR inspected; they concern ESP32, not computer-use. Local main at f8004834c4308dcb3d48a4871f7f93d0d1adcf73; no current local collaboration claim overlaps these paths. This record is local only and is not a lock; recent computer-use changes by another contributor require integration review.
+- Default limits remain 40 steps and 600 s. A future opt-in maximum must be bounded; changing a limit increases exposure to erroneous actions and cloud cost. No bypass of gates or automatic retries.
+- Additional safety work: a stop must fence a current run even when the owner re-enables control while a model decision is still pending. Scope expanded to `bridge.py` for this stop generation; no desktop host or Gateway changes.
+
+## Results
+
+- `SIRO_COMPUTER_MAX_STEPS` and `SIRO_COMPUTER_MAX_SECONDS` are optional owner settings, each an ASCII integer. Defaults remain 40 and 600; accepted ranges are 1..1200 steps and 1..7200 seconds. Values outside the range fail the run with `invalid_run_limits`; configured effective limits are exposed by status. The two-hour ceiling is a bounded engineering limit, not a gameplay acceptance result. Limits are checked at decision boundaries; an in-flight bridge operation or cleanup may exceed the requested wall time.
+- The rate-limit wait counter now resets after a successful input. Six separate rate-limit events no longer prematurely abort a long run; six consecutive denials still stop. This does not resend an unknown input result.
+- Stop generation fences each current run. A stop followed by owner re-enable during model decision cannot cause the old decision to send an input. It does not claim instant cancellation of the model process or cover disabling/re-enabling without an emergency stop.
+- Before changes, fake-desktop tests reproduced a 40-input stop when configured to 55 and the stale decision after stop/re-enable. Six separate rate-limit events also ended with `denied:rate_limited` before the counter fix.
+- WSL Python 3.14 fake-desktop tests: 900 simulated inputs over 1800 seconds of injected clock terminate at `time_limit`; emergency stop and unknown result after action 40 stop without further inputs; invalid configuration and status readback verified. This test ran with simulated time and no actual game, model, desktop, real input, or actual 30-minute duration.
+- `PYTHONPATH=src ~/.venvs/sirov2/bin/python -m pytest -q tests/unit/test_computer_use*.py`: 151 passed, one Starlette deprecation warning. Scoped Ruff format and check passed.
+- Running Undertale was observed by process metadata only. Owner explicitly allowed use of the current game and allowed saves. During this work, no game input, restart or save was performed. No real game play, real emergency hotkey, sustained model interaction, save behaviour, or long-duration acceptance has been proven.
+- The current loop still acts on a screenshot taken before model inference and lacks a last-moment target-window identity fence. It can therefore act on a different foreground window if focus changes during inference. Do not run a long autonomous real-game test until this gap is addressed or its effect bounded and validated. This is not a completed long-play capability.
+- Next: implement and validate a target-window fence at the input executor, including focus changes during model delay and UIA password focus; then use the explicitly allowed Undertale process for staged real testing without choosing Reset. Shared STATUS remains deferred until ownership is available.
