@@ -113,6 +113,14 @@ OVERLAY = [
     ("overlay_CONFIRM", "UNDERTALE", "PRESS Z OR ENTER", 35, 20, False),
 ]
 
+OCR_HARD = [
+    ("overlay_RESET_tiny", "UNDERTALE", "PRESS Z OR ENTER", 35, 20, False),
+    ("overlay_RESET_dim", "UNDERTALE", "PRESS Z OR ENTER", 35, 20, False),
+    ("overlay_ICON", "UNDERTALE", "PRESS Z OR ENTER", 35, 20, False),
+    ("overlay_RESET_blur", "UNDERTALE", "PRESS Z OR ENTER", 35, 20, False),
+    ("overlay_RESET_small", "UNDERTALE", "PRESS Z OR ENTER", 35, 20, False),
+]
+
 
 def render(title: str, text: str, title_size: int, text_size: int, variant: str = "") -> str:
     image = Image.new("RGB", (640, 360), "black")
@@ -130,9 +138,21 @@ def render(title: str, text: str, title_size: int, text_size: int, variant: str 
     draw.text((x, 225), text, font=text_font, fill=color, anchor="mm")
     if variant.startswith("overlay_"):
         draw.rectangle((220, 145, 420, 195), fill=(120, 20, 20), outline="white", width=2)
-        draw.text(
-            (320, 170), variant.removeprefix("overlay_"), font=text_font, fill="white", anchor="mm"
+        overlay_text = variant.removeprefix("overlay_").split("_")[0]
+        overlay_size = (
+            7 if variant.endswith("tiny") else 12 if variant.endswith("small") else text_size
         )
+        overlay_font = ImageFont.truetype(FONT, overlay_size)
+        overlay_color = (145, 22, 22) if variant.endswith("dim") else "white"
+        draw.text(
+            (320, 170),
+            "" if overlay_text == "ICON" else overlay_text,
+            font=overlay_font,
+            fill=overlay_color,
+            anchor="mm",
+        )
+        if overlay_text == "ICON":
+            draw.ellipse((305, 155, 335, 185), fill="white")
     if "blur" in variant:
         image = image.filter(ImageFilter.GaussianBlur(1.2))
     buffer = io.BytesIO()
@@ -147,14 +167,33 @@ def main() -> None:
     parser.add_argument("--holdout", action="store_true")
     parser.add_argument("--stress", action="store_true")
     parser.add_argument("--overlay", action="store_true")
+    parser.add_argument("--ocr-hard", action="store_true")
+    parser.add_argument("--fixtures", action="store_true", help="Emit synthetic PNGs as JSON")
     parser.add_argument("--out", type=Path, default=OUTPUT)
     args = parser.parse_args()
     if args.middle and not args.transcript:
         parser.error("--middle requires --transcript")
+    if args.fixtures:
+        fixtures = []
+        for name, title, text, title_size, text_size, expected in (
+            HOLDOUT + STRESS + OVERLAY + OCR_HARD
+        ):
+            variant = name if name.startswith(("stress_", "overlay_")) else ""
+            fixtures.append(
+                {
+                    "case": name,
+                    "expected": expected,
+                    "image": render(title, text, title_size, text_size, variant),
+                }
+            )
+        print(json.dumps(fixtures))
+        return
     rows: list[dict[str, object]] = []
     with httpx.Client(timeout=120) as client:
         cases = (
-            OVERLAY
+            OCR_HARD
+            if args.ocr_hard
+            else OVERLAY
             if args.overlay
             else STRESS
             if args.stress
@@ -164,7 +203,11 @@ def main() -> None:
         )
         for name, title, text, title_size, text_size, expected in cases:
             image = render(
-                title, text, title_size, text_size, name if args.stress or args.overlay else ""
+                title,
+                text,
+                title_size,
+                text_size,
+                name if args.stress or args.overlay or args.ocr_hard else "",
             )
             row: dict[str, object] = {"case": name, "expected": "yes" if expected else "no"}
             start = time.monotonic()
@@ -229,7 +272,9 @@ def main() -> None:
             {
                 "model": MODEL,
                 "method": "middle" if args.middle else "transcript" if args.transcript else "cue",
-                "dataset": "overlay"
+                "dataset": "ocr-hard"
+                if args.ocr_hard
+                else "overlay"
                 if args.overlay
                 else "stress"
                 if args.stress
