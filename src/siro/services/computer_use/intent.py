@@ -9,6 +9,9 @@ negation, a past-tense remark or just talk about wanting to play is NOT matched.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
+
+from siro.ports.models import ToolDefinition
 
 MAX_LENGTH = 80
 _FILLER = r"(?:好[啊吧啦]?|那|就|現在|請|麻煩|你|可以|先|再|[，,、\s])*"
@@ -25,3 +28,15 @@ def play_goal(text: str) -> str | None:
     if not cleaned or len(cleaned) > MAX_LENGTH or _BLOCK.search(cleaned):
         return None
     return cleaned if _ORDER.match(cleaned) else None
+
+
+def narrow_for_play_order(text: str, tools: Sequence[ToolDefinition]) -> tuple[ToolDefinition, ...]:
+    """For a clear order to play, offer the model only ``computer.play``.
+
+    With a dozen tools the local model often answers in plain text instead of calling one; with a
+    single obvious tool it calls it (probe: 3/3 with real history). Everything else is unchanged.
+    """
+    play = [t for t in tools if t.name == "computer.play"]
+    if play and play_goal(text) is not None:
+        return (play[0],)
+    return tuple(tools)

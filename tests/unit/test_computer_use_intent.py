@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from siro.services.computer_use.intent import play_goal
+from siro.ports.models import ToolDefinition
+from siro.services.computer_use.intent import narrow_for_play_order, play_goal
 
 
 @pytest.mark.parametrize(
@@ -45,3 +46,15 @@ def test_clear_orders_match_and_keep_the_text_as_goal(text: str) -> None:
 )
 def test_talk_questions_negations_and_noise_do_not_match(text: str) -> None:
     assert play_goal(text) is None
+
+
+def test_order_narrows_the_tool_list_only_when_play_is_offered() -> None:
+    schema: dict[str, object] = {"type": "object"}
+    tools = tuple(
+        ToolDefinition(n, "d", schema) for n in ("computer.play", "claude.ask", "browser.read")
+    )
+    assert [t.name for t in narrow_for_play_order("幫我玩UNDERTALE", tools)] == ["computer.play"]
+    assert narrow_for_play_order("今天天氣如何", tools) == tools
+    assert narrow_for_play_order("你玩過嗎？", tools) == tools
+    without_play = tools[1:]
+    assert narrow_for_play_order("幫我玩UNDERTALE", without_play) == without_play
