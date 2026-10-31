@@ -56,7 +56,10 @@ class Gateway:
         self.log = (out / f"gw-{time.monotonic_ns()}.log").open("w")
         self.proc = subprocess.Popen(
             [sys.executable, "-c", "from siro.services.presentation.gateway import main; main()"],
-            env=env, stdout=self.log, stderr=self.log, cwd=ROOT,
+            env=env,
+            stdout=self.log,
+            stderr=self.log,
+            cwd=ROOT,
         )
 
     def ready(self, timeout: float = 30) -> bool:
@@ -97,10 +100,15 @@ def main() -> None:
     results["cold_cycles"] = cycles
     # 2. cloud unreachable (stands in for network loss; host network is not touched)
     gw = Gateway(
-        data, out,
-        {"SIRO_OPENAI_API_KEY": "synthetic", "SIRO_OPENAI_MODEL": "synthetic",
-         "SIRO_OPENAI_BASE_URL": "http://127.0.0.1:9", "SIRO_RUNTIME_PROFILE": "candidate",
-         "SIRO_LOCAL_FALLBACK_OLLAMA_MODEL": "synthetic-not-called"},
+        data,
+        out,
+        {
+            "SIRO_OPENAI_API_KEY": "synthetic",  # pragma: allowlist secret
+            "SIRO_OPENAI_MODEL": "synthetic",
+            "SIRO_OPENAI_BASE_URL": "http://127.0.0.1:9",
+            "SIRO_RUNTIME_PROFILE": "candidate",
+            "SIRO_LOCAL_FALLBACK_OLLAMA_MODEL": "synthetic-not-called",
+        },
     )
     results["cloud_unreachable"] = {"healthy": gw.ready(), "exit": gw.stop()}
     # 3. child process fault: kill children, gateway must stay healthy
@@ -110,7 +118,11 @@ def main() -> None:
     for k in kids:
         os.kill(k, signal.SIGKILL)
     time.sleep(1)
-    results["child_fault"] = {"children_killed": len(kids), "healthy_after": healthy and gw.ready(5), "exit": gw.stop()}
+    results["child_fault"] = {
+        "children_killed": len(kids),
+        "healthy_after": healthy and gw.ready(5),
+        "exit": gw.stop(),
+    }
     (out / "phase1.json").write_text(json.dumps(results, indent=2))
     # 4. soak
     if hours:

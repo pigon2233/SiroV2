@@ -36,7 +36,9 @@ from siro.persistence.state import SQLiteIdentityRepository
 from siro.ports.embeddings import EmbeddingProfile
 
 MODEL = "qwen3-embedding:0.6b"
-DIGEST = "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d"
+DIGEST = (
+    "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d"  # pragma: allowlist secret
+)
 TOKEN_CASE = 1  # Case 2: allergy; report a successful-source token sample explicitly.
 # Fixed before real inference. Independent topics and Chinese paraphrases plus paths.
 CASES = (

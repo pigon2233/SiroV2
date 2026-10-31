@@ -104,7 +104,9 @@ async def test_reflection_keeps_two_source_patterns_as_unrecalled_candidates(
     record = await reflection.run()
     assert record["state"] == "done" and record["messages"] == len(texts)
     assert "工具結果" not in prompts[0] and "健身房" not in prompts[0]
-    statuses = {p["text"]: p["status"] for p in record["patterns"]}  # type: ignore[union-attr]
+    patterns = record["patterns"]
+    assert isinstance(patterns, list)
+    statuses = {item["text"]: item["status"] for item in patterns}
     assert statuses == {"主人早上有跑步的習慣": "candidate", "主人常在晚上看電影": "committed"}
     memory = MemoryService(SQLiteMemoryRepository(store))
     recalled = [m.text for m in await memory.recall("siro", "主人", as_of=datetime.now(UTC))]

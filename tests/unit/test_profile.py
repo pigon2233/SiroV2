@@ -25,7 +25,8 @@ class Reply:
 
 class Completer:
     def __init__(self, text: str) -> None:
-        self.text, self.prompts = text, []
+        self.text = text
+        self.prompts: list[str] = []
 
     async def complete(self, role: str, prompt: str) -> Reply:
         self.prompts.append(prompt)

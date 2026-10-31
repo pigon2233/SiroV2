@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
+from test_ollama_reasoning_options import Transport
 
 from siro.adapters.models.ollama import OllamaAdapter
 from siro.ports.models import CancellationToken, ModelRequest
-from tests.contract.test_ollama_reasoning_options import Transport
 
 
 async def _payload(adapter: OllamaAdapter) -> dict[str, object]:

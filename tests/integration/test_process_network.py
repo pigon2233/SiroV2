@@ -6,6 +6,8 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
@@ -44,17 +46,18 @@ def _sample_until(pgid: int, want: bool, timeout: float = 5.0) -> list[Connectio
 
 
 @pytest.fixture
-def server():
+def server() -> Iterator[socket.socket]:
     with socket.socket() as srv:
         srv.bind(("127.0.0.1", 0))
         srv.listen(8)
         yield srv
 
 
-def test_held_connection_is_attributed_to_the_spawned_group(server):
+def test_held_connection_is_attributed_to_the_spawned_group(server: socket.socket) -> None:
     port = server.getsockname()[1]
     child = _spawn(_HOLD, port, 3)
     try:
+        assert child.stdout is not None
         assert child.stdout.readline().strip() == "up"
         got = _sample_until(child.pid, True)
         assert [(c.pid, c.remote, c.port, c.protocol) for c in got] == [
@@ -67,7 +70,7 @@ def test_held_connection_is_attributed_to_the_spawned_group(server):
         child.wait()
 
 
-def test_short_lived_connection_between_samples_is_not_seen(server):
+def test_short_lived_connection_between_samples_is_not_seen(server: socket.socket) -> None:
     # Documents the limit that keeps this "sampled", never a complete audit.
     child = _spawn(_BLINK, server.getsockname()[1])
     child.wait(timeout=5)
@@ -75,14 +78,18 @@ def test_short_lived_connection_between_samples_is_not_seen(server):
     assert server.accept()[0] is not None  # the connection really happened
 
 
-def test_capability_is_unsupported_without_proc(tmp_path, monkeypatch):
+def test_capability_is_unsupported_without_proc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     assert probe_capability(tmp_path).status == "unsupported"
     monkeypatch.setattr(sys, "platform", "win32")
     assert probe_capability().status == "unsupported"
 
 
 @pytest.mark.asyncio
-async def test_bounded_execution_reports_sampled_connection(server, tmp_path):
+async def test_bounded_execution_reports_sampled_connection(
+    server: socket.socket, tmp_path: Path
+) -> None:
     from siro.adapters.process_execution import execute_bounded_argv
     from siro.services.activity.monitor import describe_tool
 
@@ -96,12 +103,18 @@ async def test_bounded_execution_reports_sampled_connection(server, tmp_path):
         sample_network=True,
     )
     sample = result["network_sample"]
+    assert isinstance(sample, dict)
     assert sample["status"] == "sampled"
     assert {"protocol": "tcp", "remote": "127.0.0.1", "port": port} in sample["connections"]
     network = describe_tool("computer.execute", {"argv": ["x"]}, result)["network"]
+    assert isinstance(network, dict)
+    requests = network["requests"]
+    gaps = network["gaps"]
+    assert isinstance(requests, list)
     assert network["coverage"] == "process_sampled"
-    assert network["requests"][0]["kind"] == "connection"
-    assert "short_connections_may_be_missed" in network["gaps"]
+    assert requests[0]["kind"] == "connection"
+    assert isinstance(gaps, list)
+    assert "short_connections_may_be_missed" in gaps
     # Off by default: the model-facing result keeps its old shape.
     plain = await execute_bounded_argv(
         (sys.executable, "-c", "pass"), cwd=tmp_path, environment={}, timeout=10

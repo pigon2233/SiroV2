@@ -47,7 +47,9 @@ from siro.ports.embeddings import EmbeddingProfile, RetrievalUnavailable
 from siro.ports.memory_relevance import RelevanceCandidate
 
 CHAT_MODEL = "qwen3:4b-instruct"
-CHAT_DIGEST = "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0"
+CHAT_DIGEST = (
+    "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0"  # pragma: allowlist secret
+)
 ROOT = Path(__file__).resolve().parents[1]
 
 

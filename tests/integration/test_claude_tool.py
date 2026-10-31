@@ -142,7 +142,7 @@ class JudgingModel(ScriptedModel):
         self.verdict = verdict
         self.judged: list[str] = []
 
-    async def stream(self, request: Any, cancellation: Any) -> Any:  # type: ignore[override]
+    async def stream(self, request: Any, cancellation: Any) -> Any:
         if request.prompt.startswith("下面是一個說法"):
             self.judged.append(request.prompt)
             yield ModelChunk("text", self.verdict)
@@ -199,7 +199,9 @@ async def test_she_opens_claude_links_and_records_what_each_page_says(tmp_path: 
         },
     ]
     # The page she opened herself now counts as read; the unreachable one does not.
-    assert [source["url"] for source in note["sources"]] == [{"url": "https://example.test/m42"}]
+    sources = note["sources"]
+    assert isinstance(sources, list)
+    assert [source["url"] for source in sources] == [{"url": "https://example.test/m42"}]
     assert len(model.judged) == 1
     text, _ = share_text(note)
     assert "M42 是恆星形成區：頁面支持" in text and "距離 1344 光年：打不開" in text  # noqa: RUF001

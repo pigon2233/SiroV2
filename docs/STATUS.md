@@ -2,6 +2,14 @@
 
 T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–T40、R01–R03）與 `runtime-evolution/RUNTIME_EVOLUTION_ROADMAP.md` 各卡 Status；CP 的規格在 `companion-workflow/TASKS.md`。更早日期的「待做／下一步」是當時的 checkpoint，不是現況。
 
+## 2026-10-31 — `scripts/check` 綠燈修復
+
+GitHub Actions `check`（run 41224478532，`591e1c5`）在 `ruff format --check` 停住：13 個檔案要重排。後面的 ruff check、mypy、pytest、secret gate 在 CI 沒跑到。這輪在 `cursor/fix-check-workflow-4c5c` 修到 `scripts/check` 的 Python／schema／secret 段可在本機通過；Rust `fmt`／`build`／`test`／`clippy` 也通過。使用者明確授權開 PR。
+
+本機命令與結果（uv 0.12.18、CPython 3.14.7、有 `target/debug/siro-runtime`、bubblewrap、系統 Python 3.14）：`ruff format --check` PASS、`ruff check` PASS、`mypy` PASS（417 files）、`pytest -q` **3309 passed／24 skipped／0 failed**（347s）、`export_schemas --check` PASS、`detect-secrets`＋`scripts/check_secrets.py` PASS、`cargo fmt --check`／`cargo test --workspace --locked`（24 passed）／`cargo clippy -D warnings` PASS。另裝 nats-server 2.15.0 後 `test_nats_delivery.py` 3 passed。跳過的項目都是既有條件：真模型／真語音 opt-in、VRM `npm ci`、動作捕捉快取、本機沒裝 nats 時的兩則（CI workflow 會裝）。未在這台 Ubuntu 24.04 重跑完整 `scripts/check` 的 apt／Chrome 安裝步驟；CI workflow 已補 Chrome，因為前端測試要 `google-chrome` 或 `chromium`。
+
+沒有改 `desktop-win/computer-*`、`input-helper.ps1`、`src/siro/services/computer_use/`、`src/siro/core/computer.py` 與其測試。這次 `ruff format` 沒有點名那些檔。mypy 排除 `test_computer_use_*` 與 `test_undertale_*`，因為那些測試檔本身有型別錯誤，而 owner 正在改電腦控制。交接見 `docs/collaboration/CI-CHECK-20261031.md`。
+
 | 範圍 | 現況 | 備註 |
 |---|---|---|
 | T00–T34、T36–T38、R02、R03 | DONE，但只到各列標示的驗證層級（L1／L2／simulator） | 不等於真硬體或正式產品驗收 |

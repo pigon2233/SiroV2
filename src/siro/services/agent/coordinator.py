@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import replace
 from uuid import uuid4
 
@@ -83,7 +83,7 @@ class Coordinator:
         planner: PlannerModel,
         tools: SubtaskToolPort,
         *,
-        read_tools: dict[str, dict[str, object]],
+        read_tools: Mapping[str, Mapping[str, object]],
         expected_models: frozenset[str] = frozenset(),
         hook: CheckpointHook | None = None,
         max_subtasks: int = MAX_SUBTASKS,

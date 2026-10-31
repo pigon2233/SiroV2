@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from test_local_whisper import FakeWorker, wav
+from test_qwen_lifecycle import WORKER
 
 from siro.services.audio.idle import DEFAULT_IDLE_SECONDS, idle_seconds
 from siro.services.audio.local_stt import LocalWhisper
 from siro.services.audio.tts import QwenReferenceTTS
-from tests.integration.test_local_whisper import FakeWorker, wav
-from tests.integration.test_qwen_lifecycle import WORKER
 
 
 def test_idle_seconds_default_env_and_validation(monkeypatch: pytest.MonkeyPatch) -> None:

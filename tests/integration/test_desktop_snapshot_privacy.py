@@ -84,7 +84,9 @@ const saveState=()=>stateWrites++;
 let window={get_visible:()=>!hidden,get_window:()=>({
  input_shape_combine_region:region=>masks.push(region.rectangles)
 }),get_position:()=>[10,20]};
-const web={is_loading:false,get_mapped:()=>true,get_allocated_width:()=>7,get_allocated_height:()=>9,get_snapshot:(_r,_o,_c,callback)=>callbacks.push(()=>callback(web,{})),
+const web={is_loading:false,get_mapped:()=>true,get_allocated_width:()=>7,
+ get_allocated_height:()=>9,
+ get_snapshot:(_r,_o,_c,callback)=>callbacks.push(()=>callback(web,{})),
  get_snapshot_finish:()=>{if(broken)throw new Error('synthetic snapshot failure');return surface;}};
 const WebKit={SnapshotRegion:{VISIBLE:1},SnapshotOptions:{TRANSPARENT_BACKGROUND:1}};
 """

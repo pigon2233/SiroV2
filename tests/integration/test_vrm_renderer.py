@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -381,7 +382,9 @@ def open_renderer(
         executable_path=executable,
         headless=True,
         args=[
-            "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist",
+            "--use-angle=swiftshader",
+            "--enable-unsafe-swiftshader",
+            "--ignore-gpu-blocklist",
             "--autoplay-policy=no-user-gesture-required",
         ],
     )
@@ -649,11 +652,15 @@ def test_gestures_make_soft_sounds_never_over_her_voice_and_can_be_muted(tmp_pat
             played = "window.__siroVrm.sounds().played"
             # A clap sounds at its three beats.
             gateway.send({"v": 1, "type": "body.gesture", "name": "clap"})
-            page.wait_for_function(f"{played}.filter(n => n === 'clap').length === 3", timeout=10000)
+            page.wait_for_function(
+                f"{played}.filter(n => n === 'clap').length === 3", timeout=10000
+            )
             page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
 
             # While the page says her voice or the microphone is busy, nothing sounds.
-            page.evaluate("window.postMessage({type: 'siro.audio.busy', v: 1, busy: true}, location.origin)")
+            page.evaluate(
+                "window.postMessage({type: 'siro.audio.busy', v: 1, busy: true}, location.origin)"
+            )
             before = len(page.evaluate(played))
             gateway.send({"v": 1, "type": "body.gesture", "name": "clap"})
             page.wait_for_timeout(2500)
@@ -663,7 +670,7 @@ def test_gestures_make_soft_sounds_never_over_her_voice_and_can_be_muted(tmp_pat
             page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
             page.wait_for_timeout(2600)  # the busy claim goes stale
             page.mouse.click(180, 320, button="right")
-            page.get_by_text("音效：開").click()
+            page.get_by_text("音效：開").click()  # noqa: RUF001
             assert page.evaluate("window.__siroVrm.sounds().enabled") is False
             assert page.evaluate("localStorage.getItem('siro.sfx')") == "off"
             before = len(page.evaluate(played))
@@ -753,12 +760,13 @@ def test_desktop_stroll_turns_walks_with_the_window_and_stops_when_called(tmp_pa
             head = page.evaluate("window.__siroVrm.head()")
             x, y = head["x"], head["y"] + 3 * head["radius"]
 
-            def menu_stroll() -> dict[str, object]:
+            def menu_stroll() -> dict[str, Any]:
                 count = page.evaluate(f"{WALK_REQUESTS}.length")
                 page.mouse.click(x, y, button="right")
                 page.locator("#gesture-menu button", has_text="散步").click()
                 page.wait_for_function(f"{WALK_REQUESTS}.length > {count}")
-                return page.evaluate(f"{WALK_REQUESTS}.at(-1)")
+                walked: dict[str, Any] = page.evaluate(f"{WALK_REQUESTS}.at(-1)")
+                return walked
 
             def host(update: dict[str, object]) -> None:
                 message = {"type": "siro.desktop.walk.state", "v": 1, **update}

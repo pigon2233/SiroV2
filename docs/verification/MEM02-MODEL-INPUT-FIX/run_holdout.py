@@ -30,9 +30,9 @@ def load_evaluator() -> Any:
 def load_cases() -> list[dict[str, Any]]:
     canonical = hashlib.sha256(FIXTURE.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
     cases: list[dict[str, Any]] = json.loads(FIXTURE.read_text(encoding="utf-8-sig"))
-    if (
-        len(cases) != 12
-        or canonical != "11d0d021f92137919d08d3bdcc193fc35dc858667e79c47d874b5209e238abd9"
+    if len(cases) != 12 or canonical != (
+        "11d0d021f92137919d08d3bdcc193fc3"  # pragma: allowlist secret
+        "5dc858667e79c47d874b5209e238abd9"  # pragma: allowlist secret
     ):
         raise ValueError("frozen holdout changed")
     return cases
@@ -60,9 +60,9 @@ async def run(output: Path, git: str) -> int:
     evaluator = load_evaluator()
     cases = load_cases()
     canonical = hashlib.sha256(FIXTURE.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
-    if (
-        len(cases) != 12
-        or canonical != "11d0d021f92137919d08d3bdcc193fc35dc858667e79c47d874b5209e238abd9"
+    if len(cases) != 12 or canonical != (
+        "11d0d021f92137919d08d3bdcc193fc3"  # pragma: allowlist secret
+        "5dc858667e79c47d874b5209e238abd9"  # pragma: allowlist secret
     ):
         raise ValueError("frozen holdout changed")
     backend, profile = evaluator.configured_backend(None)

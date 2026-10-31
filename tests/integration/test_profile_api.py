@@ -10,6 +10,7 @@ from test_memory_ingress import auth, boot
 
 from siro.core.profile import ProfileService
 from siro.persistence.profile import SQLiteProfileSource
+from siro.services.agent.profile_auto import ProfileAuto
 from siro.services.presentation import gateway
 
 
@@ -35,6 +36,9 @@ def test_profile_routes_list_rebuild_and_delete(
     source = SQLiteProfileSource(memory._repository._store)
     captured["profile_service"] = ProfileService(memory, Completer(), cloud=False)
     captured["profile_source"] = source
+    # main() only builds the idle rebuilder when a Claude CLI is on PATH. CI has no
+    # such binary; the routes under test use this injected service, so wire auto here.
+    captured["profile_auto"] = ProfileAuto(captured["profile_service"], source, lambda: False)
     client = TestClient(gateway.create_app(**captured))
     with client:
         headers = auth(client)

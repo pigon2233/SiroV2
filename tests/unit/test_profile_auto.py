@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -48,7 +49,7 @@ class Service:
         self.calls: list[int] = []
         self.fail = False
 
-    async def build(self, events: list[UserTextEvent]) -> list[object]:
+    async def build(self, events: Sequence[UserTextEvent]) -> list[object]:
         self.calls.append(len(events))
         if self.fail:
             raise RuntimeError("claude down")

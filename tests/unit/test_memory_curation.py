@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -87,13 +87,17 @@ class FakeMemoryService:
         self.items = items
         self.writes = 0
 
-    async def browse(self, identity_id: str, *, person_id: str = "owner", limit: int = 100):
+    async def browse(
+        self, identity_id: str, *, person_id: str = "owner", limit: int = 100
+    ) -> list[Memory]:
         return sorted(self.items, key=lambda m: m.created_at, reverse=True)[:limit]
 
     async def remember(self, *_args: object) -> None:  # pragma: no cover - must not be called
         self.writes += 1
 
-    async def expire(self, memory_id, valid_to, *, reason: str):  # type: ignore[no-untyped-def]
+    async def expire(
+        self, memory_id: UUID, valid_to: datetime | None, *, reason: str
+    ) -> Memory | None:
         self.writes += 1
         for index, item in enumerate(self.items):
             if item.memory_id == memory_id:
@@ -141,7 +145,9 @@ async def test_model_failure_is_recorded_as_unknown(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_waits_for_foreground_then_gives_up(tmp_path: Path, monkeypatch) -> None:
+async def test_waits_for_foreground_then_gives_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import siro.services.agent.memory_curator as module
 
     monkeypatch.setattr(module, "BUSY_WAIT_SECONDS", 0.02)
@@ -163,7 +169,7 @@ async def test_waits_for_foreground_then_gives_up(tmp_path: Path, monkeypatch) -
 
 
 @pytest.mark.asyncio
-async def test_log_is_bounded(tmp_path: Path, monkeypatch) -> None:
+async def test_log_is_bounded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import siro.services.agent.memory_curator as module
 
     monkeypatch.setattr(module, "MAX_RECORDS", 3)
@@ -239,7 +245,9 @@ async def test_apply_mode_expires_and_undo_reopens(tmp_path: Path) -> None:
     assert curator.mode == "apply"
     await curator.backfill()
     records = await curator.records()
-    assert records[1]["op"] == "NOOP" and records[1]["applied"][0]["id"] == str(items[1].memory_id)
+    applied = records[1]["applied"]
+    assert isinstance(applied, list)
+    assert records[1]["op"] == "NOOP" and applied[0]["id"] == str(items[1].memory_id)
     assert service.items[1].valid_to is not None and service.items[0].valid_to is None
     assert await curator.undo(str(records[1]["record_id"])) == 1
     assert service.items[1].valid_to is None

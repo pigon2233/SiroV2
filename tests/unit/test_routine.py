@@ -47,13 +47,46 @@ def test_late_awake_fires_only_with_recent_motion_and_light() -> None:
     profile = build_profile(_history(), _at(12), ZONE)
     assert profile is not None
     now = _at(2)
-    kwargs = {"now": now, "zone": ZONE, "last_seen": now}
-    found = detect(profile, last_motion=now - timedelta(minutes=5), last_lux=80.0, **kwargs)
+    found = detect(
+        profile,
+        now=now,
+        zone=ZONE,
+        last_seen=now,
+        last_motion=now - timedelta(minutes=5),
+        last_lux=80.0,
+    )
     assert found is not None and found["trigger"] == "late_awake"
-    assert detect(profile, last_motion=now - timedelta(hours=2), last_lux=80.0, **kwargs) is None
-    assert detect(profile, last_motion=now - timedelta(minutes=5), last_lux=1.0, **kwargs) is None
     assert (
-        detect(profile, last_motion=_at(23, 30) - timedelta(days=1), last_lux=80.0, **kwargs)
+        detect(
+            profile,
+            now=now,
+            zone=ZONE,
+            last_seen=now,
+            last_motion=now - timedelta(hours=2),
+            last_lux=80.0,
+        )
+        is None
+    )
+    assert (
+        detect(
+            profile,
+            now=now,
+            zone=ZONE,
+            last_seen=now,
+            last_motion=now - timedelta(minutes=5),
+            last_lux=1.0,
+        )
+        is None
+    )
+    assert (
+        detect(
+            profile,
+            now=now,
+            zone=ZONE,
+            last_seen=now,
+            last_motion=_at(23, 30) - timedelta(days=1),
+            last_lux=80.0,
+        )
         is None
     )
 

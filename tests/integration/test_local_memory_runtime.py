@@ -22,7 +22,6 @@ from siro.persistence.conversation import SQLiteConversationRepository
 from siro.persistence.memory import SQLiteMemoryRepository
 from siro.persistence.sqlite import SQLiteStore, apply_migrations, load_migrations
 from siro.persistence.state import SQLiteIdentityRepository
-from siro.ports.embeddings import RetrievalUnavailable
 from siro.ports.models import CancellationToken, ModelChunk, ModelRequest
 from siro.services.agent.local_memory import LocalMemoryProfile, build_local_memory
 
@@ -222,7 +221,9 @@ async def test_existing_schema_upgrade_and_reopen_preserves_old_checksums(
     await SQLiteStore(path).initialize()
     await SQLiteStore(path).initialize()
     with sqlite3.connect(path) as c:
-        assert c.execute("SELECT max(version) FROM schema_migrations").fetchone()[0] == len(load_migrations())
+        assert c.execute("SELECT max(version) FROM schema_migrations").fetchone()[0] == len(
+            load_migrations()
+        )
         assert (
             c.execute(
                 "SELECT * FROM schema_migrations WHERE version<=? ORDER BY version", (version,)

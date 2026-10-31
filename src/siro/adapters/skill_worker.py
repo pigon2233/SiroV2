@@ -221,6 +221,39 @@ def _prepare_strict(workspace: Path, skill: InstalledSkill) -> InstalledSkill:
     return verified
 
 
+def _interpreter_mounts(project_root: Path, venv_prefix: Path) -> list[Path]:
+    """Directories the sandbox must see for a venv interpreter symlink to resolve.
+
+    uv and other relocatable installs point ``.venv/bin/python`` at a prefix
+    outside ``/usr``. bubblewrap does not follow that host symlink, so the
+    alias directory and the real prefix have to be mounted at the same paths.
+    """
+    mounts: list[Path] = []
+    candidates = [Path(sys.base_prefix)]
+    executable = Path(sys.executable)
+    if executable.is_symlink():
+        raw = Path(os.readlink(executable))
+        if not raw.is_absolute():
+            raw = executable.parent / raw
+        install = raw.parent.parent if raw.parent.name == "bin" else raw.parent
+        candidates.append(install)
+        if install.parent != Path("/"):
+            candidates.append(install.parent)
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        resolved = candidate.resolve()
+        if resolved.is_relative_to(Path("/usr")) or resolved.is_relative_to(project_root):
+            continue
+        if resolved == venv_prefix.resolve():
+            continue
+        if any(resolved == have or resolved.is_relative_to(have) for have in mounts):
+            continue
+        mounts = [have for have in mounts if not have.is_relative_to(resolved)]
+        mounts.append(resolved)
+    return mounts
+
+
 class WorkerSupervisor:
     def __init__(self, *, profile: str = "trusted-local") -> None:
         if profile not in {"trusted-local", _STRICT_PROFILE}:
@@ -267,6 +300,13 @@ class WorkerSupervisor:
             for part in python_prefix.parts[1:-1]:
                 current /= part
                 directories.extend(("--dir", str(current)))
+        interpreter_mounts = _interpreter_mounts(project_root, python_prefix)
+        for root in interpreter_mounts:
+            current = Path("/")
+            for part in root.parts[1:-1]:
+                current /= part
+                directories.extend(("--dir", str(current)))
+            directories.extend(("--ro-bind", str(root), str(root)))
         workspace = await _request(validated)
         try:
             command = (

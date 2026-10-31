@@ -12,7 +12,7 @@ CANARIES = {
     "SIRO_OPENAI_API_KEY": "canary-openai",  # pragma: allowlist secret
     "GROQ_API_KEY": "canary-groq",  # pragma: allowlist secret
     "SIRO_ESP32_RELAY_TOKEN": "canary-relay-" + "x" * 32,
-    "MY_SECRET_TOKEN": "canary-generic",
+    "MY_SECRET_TOKEN": "canary-generic",  # pragma: allowlist secret
 }
 
 

@@ -596,7 +596,11 @@ class IntegratedCompanion:
         await self.share_self_note(text, spoken, speak=True)
         await self._ensure_core()
         assert self._agent_runs is not None
-        run = await self._agent_runs.start("reminder", f"提醒：{item.text}", max_steps=2)
+        run = await self._agent_runs.start(
+            "reminder",
+            f"提醒：{item.text}",  # noqa: RUF001
+            max_steps=2,
+        )
         await self._agent_runs.append(
             run.run_id, "reminder", {"due": item.due.isoformat()}, state=AgentRunState.COMPLETED
         )
@@ -694,8 +698,8 @@ class IntegratedCompanion:
         # Hands-free: only lines meant for her are answered; "verified" lines may be learned from.
         verified_speech = False
         if input_mode == "speech" and addressee_enabled():
-            reply, verified_speech = await self._hear_speech(session_id, text)
-            if not reply:
+            addressed, verified_speech = await self._hear_speech(session_id, text)
+            if not addressed:
                 return
         if self._runtime_profile == "candidate" and session_id in self._run_ids:
             await self._finish_candidate(
@@ -940,7 +944,7 @@ class IntegratedCompanion:
                         "siro", source_event
                     )
                 except ValueError:
-                    hint = "你想讓我記住什麼呢？請在「請記住」後面告訴我內容。"
+                    hint = "你想讓我記住什麼呢？請在「請記住」後面告訴我內容。"  # noqa: RUF001
                     await emit({"type": "assistant_delta", "session_id": session_id, "text": hint})
                     await self._finish_candidate(
                         agent_run.run_id, session_id, TurnState.COMPLETED, None, hint
@@ -1085,8 +1089,8 @@ class IntegratedCompanion:
             )
             tools, capability_context = self._model_capabilities()
             tools = await route_tools(text, tools, recent_user_texts(recent_messages))
-            if (hint := unavailable_hint(text, tools)) is not None:
-                verified_preferences += (hint,)
+            if (capability_gap := unavailable_hint(text, tools)) is not None:
+                verified_preferences += (capability_gap,)
             result = await self._core.respond(
                 session_id,
                 "siro",

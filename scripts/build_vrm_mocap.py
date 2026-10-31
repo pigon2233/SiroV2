@@ -55,20 +55,32 @@ MIXAMO_CREDIT = "Mixamo (Adobe), via three.js examples/models/gltf/Xbot.glb r169
 SOURCES = {
     "Xbot.glb": (
         "https://raw.githubusercontent.com/mrdoob/three.js/r169/examples/models/gltf/Xbot.glb",
-        "002f8d269de68e5dce3d25195caf390d1aa359bbfaae3fcf4c8dc78ec36c3ba5",
+        (
+            "002f8d269de68e5dce3d25195caf390d"  # pragma: allowlist secret
+            "1aa359bbfaae3fcf4c8dc78ec36c3ba5"  # pragma: allowlist secret
+        ),
     ),
     "dataset-2_wave-right-hand_normal_001.bvh": (
         f"{BANDAI}/Bandai-Namco-Research-Motiondataset-2/data/"
         "dataset-2_wave-right-hand_normal_001.bvh",
-        "d0e1907bcaa25c6ee0596a9e652b226c532e9af4c01eb860a4bd7487ab2c7c15",
+        (
+            "d0e1907bcaa25c6ee0596a9e652b226c"  # pragma: allowlist secret
+            "532e9af4c01eb860a4bd7487ab2c7c15"  # pragma: allowlist secret
+        ),
     ),
     "dataset-1_bow_normal_001.bvh": (
         f"{BANDAI}/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_bow_normal_001.bvh",
-        "4e390b9c92caf7bb92b49bb0b5df72cf6e9f48900656b55a100a77b6bab0946b",
+        (
+            "4e390b9c92caf7bb92b49bb0b5df72cf"  # pragma: allowlist secret
+            "6e9f48900656b55a100a77b6bab0946b"  # pragma: allowlist secret
+        ),
     ),
     "dataset-1_bye_normal_001.bvh": (
         f"{BANDAI}/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_bye_normal_001.bvh",
-        "cf821ed70f42832e9b519103ffb5e0a0f458ab46582340071b8867a633e8ee4d",
+        (
+            "cf821ed70f42832e9b519103ffb5e0a0"  # pragma: allowlist secret
+            "f458ab46582340071b8867a633e8ee4d"  # pragma: allowlist secret
+        ),
     ),
 }
 

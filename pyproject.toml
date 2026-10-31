@@ -73,6 +73,13 @@ python_version = "3.12"
 strict = true
 files = ["src", "tests"]
 plugins = ["pydantic.mypy"]
+# The owner is editing computer-control and its tests in parallel. Those modules
+# stay in the pytest run; this pass does not retype them.
+exclude = [
+  "tests/unit/test_computer_use_",
+  "tests/integration/test_computer_use_",
+  "tests/unit/test_undertale_",
+]
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

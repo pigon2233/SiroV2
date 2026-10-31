@@ -22,6 +22,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends python3.14 bubblewrap libseccomp2 apparmor
           sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+      - name: Install Chrome for browser checks
+        run: |
+          if ! command -v google-chrome >/dev/null && ! command -v chromium >/dev/null; then
+            curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb
+            sudo apt-get install --yes --no-install-recommends /tmp/chrome.deb
+          fi
+          command -v google-chrome >/dev/null && google-chrome --version || chromium --version
           /usr/bin/python3.14 -I -S -c 'import ctypes,sys; assert sys.version_info[:2] == (3,14); ctypes.CDLL("/usr/lib/x86_64-linux-gnu/libseccomp.so.2")'
           bwrap --unshare-all --die-with-parent --ro-bind / / --proc /proc --dev /dev /bin/true
       - name: Install pinned NATS server

@@ -39,7 +39,7 @@ def test_choice_parsing_rejects_waiting_repeats_and_made_up_sources() -> None:
 
 async def setup(
     tmp_path: Path, picks: list[str], clock: list[datetime]
-) -> tuple[SelfActivityScheduler, SelfActivityOwner, ScriptedModel, object, object]:
+) -> tuple[SelfActivityScheduler, SelfActivityOwner, ScriptedModel, object, list[bool]]:
     async def read(arguments: dict[str, object], context: ExecutionContext) -> object:
         return {"url": arguments["url"], "title": "synthetic"}
 

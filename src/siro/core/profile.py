@@ -36,7 +36,9 @@ PROMPT = (
 
 
 class Reply(Protocol):
-    text: str
+    # Read-only so frozen replies (for example a planner ModelReply) satisfy it.
+    @property
+    def text(self) -> str: ...
 
 
 class Completer(Protocol):

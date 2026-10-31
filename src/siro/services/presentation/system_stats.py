@@ -21,10 +21,14 @@ def read_system_stats(data_dir: Path | None = None) -> dict[str, object]:
     """Blocking psutil calls: run through asyncio.to_thread."""
     memory = psutil.virtual_memory()
     disks = [_disk(Path(Path.cwd().anchor))]
-    if data_dir is not None and data_dir.exists():
-        # Same filesystem as the root: one card is enough (used bytes drift between calls).
-        if data_dir.stat().st_dev != Path(Path.cwd().anchor).stat().st_dev:
-            disks.append(_disk(data_dir))
+    # Same filesystem as the root: one card is enough (used bytes drift between calls).
+    # `and` keeps the original short-circuit: missing or absent dirs are not stat'ed.
+    if (
+        data_dir is not None
+        and data_dir.exists()
+        and data_dir.stat().st_dev != Path(Path.cwd().anchor).stat().st_dev
+    ):
+        disks.append(_disk(data_dir))
     release = platform.release()
     return {
         "observed_at": datetime.now(UTC).isoformat(),

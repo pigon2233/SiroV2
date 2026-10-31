@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
@@ -216,7 +217,7 @@ def brief_text(note: dict[str, object]) -> str:
     return f"我剛剛自己查了「{note['topic']}」，完整筆記放在監控頁的「背景工作」。"  # noqa: RUF001
 
 
-async def remember_note(memory_service: MemoryService, note: dict[str, object]) -> Memory | None:
+async def remember_note(memory_service: MemoryService, note: Mapping[str, object]) -> Memory | None:
     """Keep a short, sourced line about her own research; never the page text (untrusted)."""
     sources = note["sources"]
     assert isinstance(sources, list)

@@ -69,7 +69,10 @@ review三個合成輸入的精確bytes（無密鑰／私人資料）。用Python
 ```python
 import base64, json
 from pathlib import Path
-bundle = json.loads(Path("docs/verification/MEM02-BODY-REVIEW/historical-inputs.base64.json").read_text())
+
+bundle = json.loads(
+    Path("docs/verification/MEM02-BODY-REVIEW/historical-inputs.base64.json").read_text()
+)
 destination = Path("/tmp/siro-body-review-reproduce")
 destination.mkdir(exist_ok=False)
 for name, encoded in bundle.items():

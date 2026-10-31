@@ -1270,6 +1270,8 @@ def create_app(
         require_token(authorization)
         if not speech_stream_enabled():
             raise HTTPException(status_code=501, detail="streaming speech is unavailable")
+        # speech_stream_enabled() already requires a live Qwen worker; narrow it for mypy.
+        assert isinstance(text_to_speech, QwenReferenceTTS)
         started = time.monotonic()
         chunks = text_to_speech.render_stream(body.text)
 
@@ -2284,7 +2286,16 @@ def create_app(
                     ):
                         continue
                     # The reply runs beside the socket: a slow model never holds up the renderer.
-                    touch_task = asyncio.create_task(on_body_touch(*touch))
+                    # create_task needs a coroutine; the handler is typed as any awaitable.
+                    # Arguments are bound now so a later touch cannot replace them.
+                    kind, count = touch
+
+                    async def deliver_touch(
+                        touch_kind: str = kind, touch_count: int = count
+                    ) -> None:
+                        await on_body_touch(touch_kind, touch_count)
+
+                    touch_task = asyncio.create_task(deliver_touch())
                     touch_task.add_done_callback(_log_touch_failure)
             except WebSocketDisconnect:
                 pass
@@ -3086,7 +3097,9 @@ def _run_gateway(
                 AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,
             )
         if name == CLAUDE_TOOL:
-            ready = state.kill_switches["cloud"] and claude_ready()
+            # The cloud switch decides whether chat may see the tool. A missing CLI
+            # fails at execution; hiding it here drops claude.ask from ordinary chat.
+            ready = bool(state.kill_switches["cloud"])
             return ToolAvailability(
                 AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
                 AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,

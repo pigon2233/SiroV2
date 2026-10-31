@@ -9,7 +9,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from siro.persistence.sqlite import SQLiteStore
 from siro.services.audio.protocol import AudioFrame
-from siro.services.audio.stt import MockSpeechToText
+from siro.services.audio.stt import MockSpeechToText, Transcript
 from siro.services.presentation.gateway import (
     GatewayHub,
     GatewayState,
@@ -198,7 +198,7 @@ def test_cloud_speech_failure_falls_back_to_local_and_says_so() -> None:
     class BrokenCloud(MockSpeechToText):
         is_cloud = True
 
-        async def transcribe(self, wav: bytes, *, language: str | None = None):  # type: ignore[override]
+        async def transcribe(self, wav: bytes, *, language: str | None = None) -> Transcript:
             self.calls += 1
             raise RuntimeError("cloud down")
 
@@ -236,7 +236,7 @@ def test_cloud_speech_failure_without_fallback_is_502() -> None:
     class BrokenCloud(MockSpeechToText):
         is_cloud = True
 
-        async def transcribe(self, wav: bytes, *, language: str | None = None):  # type: ignore[override]
+        async def transcribe(self, wav: bytes, *, language: str | None = None) -> Transcript:
             raise RuntimeError("cloud down")
 
     state = GatewayState()
