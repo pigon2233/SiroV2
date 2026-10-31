@@ -678,3 +678,13 @@ source gate只授權讀，寫入另需既有Policy的序列化lease；取消等�
 寫入閘門＋背景整理，不按時間硬刪；背景工作移出主線成子線，主線只收摘要。完整依據、來源與分階段：
 [collaboration/CONSOLE-REDESIGN-PLAN.md](collaboration/CONSOLE-REDESIGN-PLAN.md)。
 `docs/evidence/`下的歷史腳本對應舊介面，封存不改；`tests/integration/test_frontend_*`於P4移除頁面時同步處理。
+
+## D81 / 2026-10-31 / 依任務選擇對話模型
+
+主人同時設定了本機 `qwen3:4b` 與 Groq，但 Gateway 在 `SIRO_OLLAMA_MODEL` 有值時把整個 companion 固定成那一個本機模型，`local_only`，Groq 與已登入的 `claude` CLI 都不會接到推理。FailoverModel 仍只做 0 或 1 次額外雲端嘗試，不是依任務換提供者。
+
+不改預設。`SIRO_MODEL_ROUTER=0` 維持 Ollama 優先、其次才是 OpenAI 相容雲端、否則離線示範，FailoverModel 的兩次上限也不動。`SIRO_MODEL_ROUTER=1` 且至少兩個提供者（或只有 Claude）才建立 ModelRouter。分類用規則而不是再叫一次本機模型：8GB 顯示卡已同時跑 4B 與語音，分類再佔一次 GPU 會拖慢閒聊，也難以為預算寫穩定測試。`local_only`、輸出上限 512 token 以內的內部短呼叫、像密碼的內容、以及短閒聊留在本機；寫程式、規劃、工具續答與長題目在 `cloud_allowed` 且雲端開關開著時走 Claude、Groq、本機。沒有本機模型時，像密碼的內容不改送雲端。
+
+Claude 次數以滾動 5 小時窗口計，預設 10 次，存在資料目錄 `claude-budget.json`，重開機不歸零。用完、紀錄讀不到或 CLI 限流就改走下一家，並在 `routes.model_actual`、`model_notice`、`claude_available_at` 與 `assistant_route_notice` 告訴主人何時可以再用。提示的隱私跟這一輪走：閒聊維持 `local_only`，推理才是 `cloud_allowed`，所以本機限定的記憶不會跟著推理送出；兩邊的近期對話也不會混在同一條隱私紀錄裡。這是既有分軌，不是新的外送許可。
+
+不改電腦控制路徑。`claude.ask` 仍是工具，不是這次的對話腦。回退是把 `SIRO_MODEL_ROUTER` 設回 0。

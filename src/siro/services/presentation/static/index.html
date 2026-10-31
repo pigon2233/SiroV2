@@ -454,7 +454,7 @@
       const authorizedFetch = (url, options) => sessionAccess.request(url, options);
       function createTerminalFence(limit = 1024) {
         const ended = new Set(), order = [];
-        const progress = new Set(["assistant_started", "assistant_delta", "assistant_retry_wait", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
+        const progress = new Set(["assistant_started", "assistant_delta", "assistant_retry_wait", "assistant_route_notice", "affect_state", "agent_step", "tool_proposal", "tool_started", "tool_result"]);
         return data => {
           if (typeof data.stream_id !== "string") return true;
           if (ended.has(data.stream_id) && (progress.has(data.type) || data.type === "assistant_terminal")) return false;
@@ -813,7 +813,7 @@
         if (snap.status === "fulfilled") {
           const r = snap.value.routes || {}, k = snap.value.kill_switches || {};
           siro.push(monCard("核心", snap.value.health?.core === "healthy" ? '<span class="mon-ok">正常</span>' : `<span class="mon-off">${monEsc(snap.value.health?.core || "未知")}</span>`));
-          siro.push(monCard("對話模型", monEsc(r.model || "—"), r.model_actual ? `實際：${r.model_actual}` : "", {text: true}));
+          siro.push(monCard("對話模型", monEsc(r.model || "—"), [r.model_actual ? `實際：${r.model_actual}` : "", r.model_notice || "", r.claude_available_at ? `Claude 可再用：${r.claude_available_at}` : ""].filter(Boolean).join(" "), {text: true}));
           siro.push(monCard("語音", monEsc(r.tts || "—"), `辨識：${r.audio || "—"}`, {text: true}));
           siro.push(monCard("開關", ["cloud", "tools", "microphone"].map(n => `<span class="${k[n] ? "mon-ok" : "mon-off"}">${({cloud:"雲端", tools:"工具", microphone:"麥克風"})[n]}${k[n] ? "開" : "關"}</span>`).join(" "), "", {text: true}));
         }
@@ -1027,6 +1027,10 @@
           if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
           if (data.type === "sensor_listen" && microphoneEnabled && recorder?.state !== "recording") document.querySelector("#voice")?.click();
           if (data.type === "assistant_started") {
+            const routeNotice = document.querySelector("#service-notice");
+            if (routeNotice?.dataset?.routeNotice) {
+              routeNotice.hidden = true; routeNotice.textContent = ""; delete routeNotice.dataset.routeNotice;
+            }
             assistantBubble = appendMessage("assistant", "");
             liveSpeech = typeof beginLiveSpeech === "function" ? beginLiveSpeech() : undefined;
           }
@@ -1035,6 +1039,11 @@
             const seconds = Math.max(0, Math.min(60, Number(data.retry_after_seconds) || 0));
             notice.hidden = false; notice.dataset.retryWait = "1";
             notice.textContent = `對話服務暫時限流，約 ${Math.ceil(seconds)} 秒後重試這段回覆。已完成的工具不會重做，可隨時停止。`;
+          }
+          if (data.type === "assistant_route_notice" && typeof data.text === "string" && data.text) {
+            const notice = document.querySelector("#service-notice");
+            notice.hidden = false; notice.dataset.routeNotice = "1";
+            notice.textContent = data.text;
           }
           if (data.type === "assistant_delta") {
             clearRetryNotice();
@@ -1179,7 +1188,7 @@
           speechStream = runtime.speech_stream === true;
           
           const backend = runtime.routes?.model || "offline";
-          document.querySelector("#model-status").textContent = backend === "offline" ? "離線示範 · 固定規則回覆" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : "本機對話";
+          document.querySelector("#model-status").textContent = backend === "offline" ? "離線示範 · 固定規則回覆" : backend.startsWith("cloud:") ? "雲端對話 · 本機記憶受保護" : backend.startsWith("router") ? "依任務選擇模型 · 閒聊在本機" : "本機對話";
           await refreshMemories();
         } catch (error) {
           document.querySelector("#memory-search-status").textContent = "目前無法更新記憶，請稍後按「重新整理記憶」重試。";
@@ -1566,7 +1575,7 @@
               observed = true; remember(retired, data.stream_id); currentTurn = undefined; assistantBubble = undefined; confirm(); return false;
             }
             if (typeof data.stream_id === "string" && retired.has(data.stream_id)) return false;
-            if (stopping && ["assistant_delta","assistant_retry_wait","affect_state"].includes(data.type)) return false;
+            if (stopping && ["assistant_delta","assistant_retry_wait","assistant_route_notice","affect_state"].includes(data.type)) return false;
             if (data.type === "assistant_terminal") {
               if (stream && data.stream_id && stream !== data.stream_id) return false;
               remember(retired, stream); turn = undefined; stream = undefined;
