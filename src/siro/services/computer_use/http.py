@@ -114,8 +114,12 @@ class ComputerRuns:
         env = os.environ
         return env.get(AUTONOMOUS_FLAG, "0") == "1" and env.get(ENDLESS_FLAG, "0") == "1"
 
-    def _max_segments(self) -> int:
+    def _max_segments(self) -> int | None:
+        """None means no segment cap (endless opt-in with 0/unlimited)."""
         raw = os.environ.get(MAX_SEGMENTS_ENV)
+        endless = self._endless()
+        if endless and (raw is None or raw in {"0", "unlimited", "none"}):
+            return None
         if raw is None:
             return DEFAULT_MAX_SEGMENTS
         if not raw.isascii() or not raw.isdigit() or len(raw) > 4:
@@ -172,12 +176,15 @@ class ComputerRuns:
             self.session_learned += self.learned
             report = self.report
             assert report is not None
+            hit_segment_cap = (
+                max_segments is not None and self.session_segments >= max_segments
+            )
             if (
                 not self._should_continue(report)
-                or self.session_segments >= max_segments
+                or hit_segment_cap
                 or not self.bridge.gate.enabled
             ):
-                if self._endless() and self.session_segments >= max_segments:
+                if self._endless() and hit_segment_cap:
                     self.report = LoopReport(
                         report.state,
                         report.reason,
@@ -186,7 +193,7 @@ class ComputerRuns:
                         + f"session_segment_limit:{max_segments}",
                     )
                 return
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(0.4 if self._endless() else 1.5)
             if not self.bridge.gate.enabled:
                 return
             segment_goal = (

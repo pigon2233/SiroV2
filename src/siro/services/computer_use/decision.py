@@ -124,6 +124,8 @@ Rules:
 - Answer "wait" when the screen is mid-transition (black/fading/loading/animating) and pressing anything now would be a guess.
 - A wait's "screen changed" is a coarse fingerprint comparison, not proof of the underlying state. If unchanged, reassess whether the screen is still loading; do not press merely because time passed.
 - Prefer act or wait over ask. Answer "ask" only for true login/payment or irreversible account loss; the owner may run autonomous mode that ignores ask.
+- Decide quickly from the current screenshot. One short reason. Do not narrate strategy.
+- If defeat/death/game over/retry/continue/play again is visible, click that control once; do not answer done.
 - Never type secrets. Allowed inputs, with exactly these field names:
   {{"kind":"click","x":0,"y":0,"button":"left|right"}}, {{"kind":"move","x":0,"y":0}}, {{"kind":"scroll","amount":-3}} (-20..20),
   {{"kind":"key","key":"ctrl+c","hold_ms":0}} (key name or combo such as "space", "z", "left"; hold_ms 0-2000 to hold it, 0 = quick tap), {{"kind":"type","text":"abc"}} (<=200 chars).
@@ -147,7 +149,7 @@ def _history_text(history: Sequence[StepRecord]) -> str:
         f"{r.step}. saw: {r.seen or '-'} | did: {r.action} | expected: {r.expect or '-'} | "
         f"outcome: {r.outcome}; "
         f"screen changed: {'?' if r.screen_changed is None else r.screen_changed}"
-        for r in history[-8:]
+        for r in history[-5:]
     )
 
 
@@ -161,7 +163,7 @@ class ClaudeVisionDecider:
         binary: Path | None = None,
         run: Runner = execute_bounded_argv,
         env: dict[str, str] | None = None,
-        timeout: int = 90,
+        timeout: int = 55,
     ) -> None:
         self._model = model or claude_model()
         self._binary = binary
@@ -226,6 +228,6 @@ class ClaudeVisionDecider:
                     return await self._decide_once(goal, history, observation)
                 if code not in transient or attempt >= 2:
                     raise
-                await asyncio.sleep(1.5 * (attempt + 1))
+                await asyncio.sleep(0.4 * (attempt + 1))
         assert last is not None
         raise last

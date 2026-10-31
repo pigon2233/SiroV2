@@ -29,12 +29,12 @@ SIRO_COMPUTER_ALLOWED_PROCESSES=undertale.exe
 SIRO_COMPUTER_CLOUD_SCREEN=1
 # 1 = keep playing without stopping to ask the owner (ask→wait; low-confidence act still runs).
 SIRO_COMPUTER_AUTONOMOUS=1
-# 1 = after a recoverable stop, start another segment with the same goal (until e-stop / segment cap).
+# 1 = after a recoverable stop, start another segment with the same goal (until e-stop).
 SIRO_COMPUTER_ENDLESS=1
-# Per-segment ceilings (and how many segments a session may chain).
-SIRO_COMPUTER_MAX_STEPS=1200
-SIRO_COMPUTER_MAX_SECONDS=7200
-SIRO_COMPUTER_MAX_SEGMENTS=48
+# 0 = no step/time/segment cap while endless+autonomous (owner e-stop still stops).
+SIRO_COMPUTER_MAX_STEPS=0
+SIRO_COMPUTER_MAX_SECONDS=0
+SIRO_COMPUTER_MAX_SEGMENTS=0
 EOF
   echo "Created $env_file (edit SIRO_COMPUTER_ALLOWED_PROCESSES to choose games)."
 fi

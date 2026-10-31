@@ -3,7 +3,7 @@
 // screenshot of the primary display + a coarse fingerprint. Nothing is written to disk.
 const crypto = require('node:crypto');
 
-const MAX_WIDTH = 1280;
+const MAX_WIDTH = 960;
 
 function sameWindow(a, b) {
   return !!a && !!b && typeof a.window_id === 'string' && /^\d+$/.test(a.window_id) &&

@@ -400,7 +400,12 @@ async def test_opt_in_long_run_continues_past_40_actions(monkeypatch: pytest.Mon
         await desktop.close()
     assert report.reason == "step_limit"
     assert len(desktop.inputs) == 55
-    assert loop.limits == {"max_steps": 55, "max_seconds": 900, "autonomous": False}
+    assert loop.limits == {
+        "max_steps": 55,
+        "max_seconds": 900,
+        "autonomous": False,
+        "endless": False,
+    }
 
 
 @pytest.mark.parametrize(
@@ -427,8 +432,28 @@ def test_unconfigured_limits_keep_existing_defaults(monkeypatch: pytest.MonkeyPa
     monkeypatch.delenv("SIRO_COMPUTER_MAX_STEPS", raising=False)
     monkeypatch.delenv("SIRO_COMPUTER_MAX_SECONDS", raising=False)
     monkeypatch.delenv("SIRO_COMPUTER_AUTONOMOUS", raising=False)
+    monkeypatch.delenv("SIRO_COMPUTER_ENDLESS", raising=False)
     loop = DecisionLoop(ComputerBridge(ControlGate()), Script(solver))
-    assert loop.limits == {"max_steps": 40, "max_seconds": 600, "autonomous": False}
+    assert loop.limits == {
+        "max_steps": 40,
+        "max_seconds": 600,
+        "autonomous": False,
+        "endless": False,
+    }
+
+
+def test_endless_autonomous_allows_unlimited_run_limits(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_AUTONOMOUS", "1")
+    monkeypatch.setenv("SIRO_COMPUTER_ENDLESS", "1")
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_STEPS", "0")
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_SECONDS", "0")
+    loop = DecisionLoop(ComputerBridge(ControlGate()), Script(solver))
+    assert loop.limits == {
+        "max_steps": None,
+        "max_seconds": None,
+        "autonomous": True,
+        "endless": True,
+    }
 
 
 @pytest.mark.asyncio
@@ -1074,6 +1099,21 @@ async def test_autonomous_low_confidence_act_is_still_executed() -> None:
     assert report.success
     assert len(desktop.inputs) == 2
     assert report.reason != "low_confidence"
+
+
+@pytest.mark.asyncio
+async def test_endless_autonomous_keeps_playing_after_done(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_ENDLESS", "1")
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        return Decision("done", None, "", "run ended", 0.95, "defeat / continue")
+
+    report, desktop, _, _ = await _run(policy, autonomous=True, max_steps=3)
+    assert report.reason == "step_limit"
+    assert any(s.action == "(keep playing)" for s in report.steps)
+    assert desktop.inputs == []
 
 
 @pytest.mark.asyncio

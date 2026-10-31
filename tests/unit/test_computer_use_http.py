@@ -132,3 +132,32 @@ async def test_endless_off_does_not_chain(monkeypatch: pytest.MonkeyPatch) -> No
     assert runs._task is not None
     await runs._task
     assert runs.session_segments == 1
+
+
+@pytest.mark.asyncio
+async def test_endless_zero_segments_means_unlimited(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_AUTONOMOUS", "1")
+    monkeypatch.setenv("SIRO_COMPUTER_ENDLESS", "1")
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_SEGMENTS", "0")
+
+    async def _no_sleep(*_a: Any, **_k: Any) -> None:
+        return None
+
+    monkeypatch.setattr(http_module.asyncio, "sleep", _no_sleep)
+    calls = {"n": 0}
+
+    async def fake_run(self: Any, goal: str) -> LoopReport:
+        calls["n"] += 1
+        if calls["n"] >= 5:
+            return LoopReport("stopped", "emergency_stop", ())
+        return LoopReport("stopped", "step_limit", ())
+
+    monkeypatch.setattr(http_module.DecisionLoop, "run", fake_run)
+    runs = ComputerRuns(ComputerBridge(ControlGate(enabled=True)), NeverDecider())
+    assert runs.start("play forever")
+    assert runs._task is not None
+    await runs._task
+    assert calls["n"] == 5
+    assert runs.session_segments == 5
+    assert runs.report is not None
+    assert runs.report.reason == "emergency_stop"

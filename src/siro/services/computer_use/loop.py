@@ -50,9 +50,13 @@ RATE_WAIT_SECONDS = 1.0
 MAX_WAITS = 6  # consecutive "wait" decisions (transitions) before giving up
 WAIT_SECONDS = 1.0
 SETTLE_SECONDS = 0.4
+AUTONOMOUS_WAIT_SECONDS = 0.35
+AUTONOMOUS_SETTLE_SECONDS = 0.15
+DECIDE_TIMEOUT_SECONDS = 45.0  # per decision when the run itself has no wall clock
 SCREEN_MATCH_WAIT_SECONDS = 30.0
 SCREEN_MATCH_POLL_SECONDS = 0.4
 AUTONOMOUS_FLAG = "SIRO_COMPUTER_AUTONOMOUS"  # 1 = never stop to ask the owner
+ENDLESS_FLAG = "SIRO_COMPUTER_ENDLESS"
 
 
 def _pixel_digest(observation: Observation) -> bytes | None:
@@ -111,6 +115,25 @@ def _configured_limit(name: str, default: int, maximum: int) -> int:
     return value
 
 
+def _optional_run_limit(name: str, default: int, maximum: int, *, unlimited_ok: bool) -> int | None:
+    """Return None for no limit when endless play allows 0/unlimited."""
+    raw = os.environ.get(name)
+    if unlimited_ok and (raw is None or raw in {"0", "unlimited", "none"}):
+        return None
+    if raw is None:
+        return default
+    return _configured_limit(name, default, maximum)
+
+
+def _autonomous_hint() -> str:
+    return (
+        "\n\nOwner autonomous mode is ON: never answer kind=ask. Prefer a quick act. "
+        "If you see defeat/death/game over/retry/continue/play again, click that button "
+        "once immediately and keep playing a new run. Do not stop after a loss. "
+        "Do not answer kind=done just because a run ended — click through and continue."
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class LoopReport:
     state: str  # done | stopped | failed
@@ -163,27 +186,43 @@ class DecisionLoop:
         self._bridge = bridge
         self._decider = decider
         self._allowed = allowed_processes() if allowed is None else allowed
-        self._max_steps = (
-            _configured_limit("SIRO_COMPUTER_MAX_STEPS", MAX_STEPS, MAX_CONFIGURED_STEPS)
-            if max_steps is None
-            else max_steps
-        )
-        self._max_seconds = (
-            _configured_limit("SIRO_COMPUTER_MAX_SECONDS", int(MAX_SECONDS), MAX_CONFIGURED_SECONDS)
-            if max_seconds is None
-            else max_seconds
-        )
-        self._min_confidence = min_confidence
-        self._settle = settle
-        self._wait = wait
-        self._playbook = playbook
-        self._recorder = recorder
-        # Talking to SIRO puts the chat in front; bring the allowed game forward once per run.
-        self._focus = os.environ.get("SIRO_COMPUTER_FOCUS", "1") != "0" if focus is None else focus
         # Owner opt-in: keep playing without needs_owner / low_confidence stops.
         self._autonomous = (
             os.environ.get(AUTONOMOUS_FLAG, "0") == "1" if autonomous is None else autonomous
         )
+        self._endless = self._autonomous and os.environ.get(ENDLESS_FLAG, "0") == "1"
+        if max_steps is not None:
+            self._max_steps: int | None = max_steps
+        else:
+            self._max_steps = _optional_run_limit(
+                "SIRO_COMPUTER_MAX_STEPS",
+                MAX_STEPS,
+                MAX_CONFIGURED_STEPS,
+                unlimited_ok=self._endless,
+            )
+        if max_seconds is not None:
+            self._max_seconds: float | None = float(max_seconds)
+        else:
+            seconds = _optional_run_limit(
+                "SIRO_COMPUTER_MAX_SECONDS",
+                int(MAX_SECONDS),
+                MAX_CONFIGURED_SECONDS,
+                unlimited_ok=self._endless,
+            )
+            self._max_seconds = None if seconds is None else float(seconds)
+        self._min_confidence = min_confidence
+        if settle != SETTLE_SECONDS:
+            self._settle = settle
+        else:
+            self._settle = AUTONOMOUS_SETTLE_SECONDS if self._autonomous else SETTLE_SECONDS
+        if wait != WAIT_SECONDS:
+            self._wait = wait
+        else:
+            self._wait = AUTONOMOUS_WAIT_SECONDS if self._autonomous else WAIT_SECONDS
+        self._playbook = playbook
+        self._recorder = recorder
+        # Talking to SIRO puts the chat in front; bring the allowed game forward once per run.
+        self._focus = os.environ.get("SIRO_COMPUTER_FOCUS", "1") != "0" if focus is None else focus
         self._demo: DemoRun | None = None
         self._demo_last: int | None = None
         self.process = ""  # program of the first allowed observation (key of its play notes)
@@ -193,11 +232,12 @@ class DecisionLoop:
         self.phase = "idle"
 
     @property
-    def limits(self) -> dict[str, int | float | bool]:
+    def limits(self) -> dict[str, int | float | bool | None]:
         return {
             "max_steps": self._max_steps,
             "max_seconds": self._max_seconds,
             "autonomous": self._autonomous,
+            "endless": self._endless,
         }
 
     async def run(self, goal: str) -> LoopReport:
@@ -217,20 +257,20 @@ class DecisionLoop:
         no_change = invalid = rate_waits = waits = 0
         task = goal
         if self._autonomous:
-            task += (
-                "\n\nOwner autonomous mode is ON: never answer kind=ask and never stop to "
-                "consult the owner. If unsure, choose the single best act toward the goal, "
-                "or wait if the screen is mid-transition. Prefer trying over asking."
-            )
+            task += _autonomous_hint()
         focus_tried = False
         done_seen = False
         before: Observation | None = None
         wait_before: Observation | None = None
-        for step in range(1, self._max_steps + 1):
+        step = 0
+        while True:
+            step += 1
             self.phase = "observing"
             if self._bridge.stop_generation != stop_generation:
                 return end("stopped", "emergency_stop")
-            if self._clock() - started > self._max_seconds:
+            if self._max_steps is not None and step > self._max_steps:
+                return end("stopped", "step_limit")
+            if self._max_seconds is not None and self._clock() - started > self._max_seconds:
                 return end("stopped", "time_limit")
             observation, error = await self._bridge.observe()
             if self._bridge.stop_generation != stop_generation:
@@ -244,7 +284,7 @@ class DecisionLoop:
                 focus_tried = True
                 target = self._focus_target(goal)
                 if target and (await self._bridge.focus(target)).ok:
-                    await asyncio.sleep(0.8)
+                    await asyncio.sleep(0.3 if self._autonomous else 0.8)
                     continue
             if observation is None:
                 return end("stopped", error)
@@ -266,6 +306,8 @@ class DecisionLoop:
                 self.process = observation.process
                 if self._playbook is not None:
                     task = goal + notes_block(self._playbook.texts(self.process))
+                    if self._autonomous:
+                        task += _autonomous_hint()
                 if self._recorder is not None:
                     self._demo = self._recorder.begin(self.process, goal)
             if before is not None and history and history[-1].screen_changed is None:
@@ -279,19 +321,37 @@ class DecisionLoop:
                 no_change = no_change + 1 if changed is False else 0
                 before = None
                 if no_change >= MAX_NO_CHANGE:
+                    if self._autonomous:
+                        no_change = 0
+                        history.append(
+                            StepRecord(
+                                step,
+                                "(unstick)",
+                                "",
+                                "ok",
+                                None,
+                                "no visible change; try another act",
+                            )
+                        )
+                        continue
                     return end("stopped", "stuck_no_visible_change")
             self.phase = "deciding"
             deadline = None
             try:
-                remaining = self._max_seconds - (self._clock() - started)
-                if remaining <= 0:
-                    return end("stopped", "time_limit")
-                async with asyncio.timeout(remaining) as deadline:
+                if self._max_seconds is None:
+                    budget = DECIDE_TIMEOUT_SECONDS
+                else:
+                    budget = self._max_seconds - (self._clock() - started)
+                    if budget <= 0:
+                        return end("stopped", "time_limit")
+                async with asyncio.timeout(budget) as deadline:
                     decision = await self._decider.decide(task, history, observation)
             except TimeoutError as error:
                 if self._bridge.stop_generation != stop_generation:
                     return end("stopped", "emergency_stop")
                 if deadline is not None and deadline.expired():
+                    if self._max_seconds is None:
+                        return end("failed", "decider_error:timeout")
                     return end("stopped", "time_limit")
                 return end("failed", f"decider_error:{error}")
             except CloudScreenNotAllowed:
@@ -302,7 +362,7 @@ class DecisionLoop:
                 return end("failed", f"decider_error:{error}")
             if self._bridge.stop_generation != stop_generation:
                 return end("stopped", "emergency_stop")
-            if self._clock() - started >= self._max_seconds:
+            if self._max_seconds is not None and self._clock() - started >= self._max_seconds:
                 return end("stopped", "time_limit")
             if decision.kind == "ask":
                 if not self._autonomous:
@@ -318,7 +378,17 @@ class DecisionLoop:
                     decision.seen,
                 )
             if decision.kind == "stuck":
-                return end("stopped", "decider_stuck")
+                if not self._autonomous:
+                    return end("stopped", "decider_stuck")
+                decision = Decision(
+                    "wait",
+                    None,
+                    "try a different act after a short wait",
+                    decision.reason,
+                    decision.confidence,
+                    decision.evidence,
+                    decision.seen,
+                )
             if (
                 decision.confidence < self._min_confidence
                 and decision.kind != "wait"
@@ -345,13 +415,31 @@ class DecisionLoop:
                 )
                 self._record(observation, decision, None)
                 if waits > MAX_WAITS:
-                    return end("stopped", "stuck_waiting")
+                    if self._autonomous:
+                        waits = 0
+                    else:
+                        return end("stopped", "stuck_waiting")
                 before = None
                 wait_before = observation
                 await asyncio.sleep(self._wait)
                 continue
             waits = 0
             if decision.kind == "done":
+                if self._autonomous and self._endless:
+                    # Open-ended play: treat "done" as a soft checkpoint and keep going.
+                    done_seen = False
+                    history.append(
+                        StepRecord(
+                            step,
+                            "(keep playing)",
+                            "",
+                            "ok",
+                            None,
+                            decision.evidence or decision.seen or "checkpoint",
+                        )
+                    )
+                    await asyncio.sleep(self._settle)
+                    continue
                 if not decision.evidence.strip():
                     return end("stopped", "done_without_evidence")
                 if done_seen:
@@ -370,6 +458,9 @@ class DecisionLoop:
                     StepRecord(step, "(rejected)", decision.expect, f"invalid:{action}", None)
                 )
                 if invalid > MAX_INVALID:
+                    if self._autonomous:
+                        invalid = 0
+                        continue
                     return end("stopped", "too_many_invalid_decisions")
                 continue
             invalid = 0
@@ -408,7 +499,6 @@ class DecisionLoop:
             before = observation
             self.phase = "observing"
             await asyncio.sleep(self._settle)
-        return end("stopped", "step_limit")
 
     async def _wait_for_same_screen(
         self, original: Observation, started: float, stop_generation: int
@@ -425,22 +515,24 @@ class DecisionLoop:
             if not self._bridge.gate.enabled:
                 return None, "control_disabled"
             elapsed = self._clock() - started
-            remaining = min(
-                self._max_seconds - elapsed,
-                SCREEN_MATCH_WAIT_SECONDS - (self._clock() - watch_start),
-            )
+            guard_left = SCREEN_MATCH_WAIT_SECONDS - (self._clock() - watch_start)
+            if self._max_seconds is None:
+                remaining = guard_left
+                hit_time_limit = False
+            else:
+                remaining = min(self._max_seconds - elapsed, guard_left)
+                hit_time_limit = elapsed >= self._max_seconds
             if remaining <= 0:
-                return None, "time_limit" if elapsed >= self._max_seconds else "screen_not_restored"
+                return None, "time_limit" if hit_time_limit else "screen_not_restored"
             try:
                 async with asyncio.timeout(remaining):
                     current, error = await self._bridge.observe()
             except TimeoutError:
-                return (
-                    None,
-                    "time_limit"
-                    if self._clock() - started >= self._max_seconds
-                    else "screen_not_restored",
+                timed_out = (
+                    self._max_seconds is not None
+                    and self._clock() - started >= self._max_seconds
                 )
+                return None, "time_limit" if timed_out else "screen_not_restored"
             if self._bridge.stop_generation != stop_generation or self._bridge.gate.tripped:
                 return None, "emergency_stop"
             if current is None:
@@ -456,7 +548,7 @@ class DecisionLoop:
                 return None, "emergency_stop"
             if not self._bridge.gate.enabled:
                 return None, "control_disabled"
-            if self._clock() - started >= self._max_seconds:
+            if self._max_seconds is not None and self._clock() - started >= self._max_seconds:
                 return None, "time_limit"
             if self._clock() - watch_start >= SCREEN_MATCH_WAIT_SECONDS:
                 return None, "screen_not_restored"
