@@ -26,6 +26,24 @@ from siro.services.computer_use.safety import ControlGate
 
 TOKEN_ENV = "SIRO_COMPUTER_TOKEN"
 TOKEN_HEADER = "X-SIRO-Computer-Token"
+AUTONOMOUS_FLAG = "SIRO_COMPUTER_AUTONOMOUS"
+ENDLESS_FLAG = "SIRO_COMPUTER_ENDLESS"  # with autonomous: start another segment after recoverable stops
+MAX_SEGMENTS_ENV = "SIRO_COMPUTER_MAX_SEGMENTS"
+DEFAULT_MAX_SEGMENTS = 48
+MAX_CONFIGURED_SEGMENTS = 500
+# Reasons that may continue a long autonomous session (never emergency / privacy / unknown).
+_CONTINUE_REASONS = frozenset(
+    {
+        "step_limit",
+        "time_limit",
+        "stuck_waiting",
+        "stuck_no_visible_change",
+        "too_many_invalid_decisions",
+        "decider_stuck",
+        "low_confidence",
+        "done_without_evidence",
+    }
+)
 
 
 class ResultBody(BaseModel):
@@ -56,7 +74,7 @@ class Reflector(Protocol):
 
 
 class ComputerRuns:
-    """One run at a time; the report of the latest run stays readable."""
+    """One owner session at a time; may chain segments when endless autonomous play is on."""
 
     def __init__(
         self,
@@ -72,7 +90,9 @@ class ComputerRuns:
         self._decider = decider
         self.playbook = playbook
         self._reflector = reflector
-        self.learned = 0  # lessons added by the last finished run
+        self.learned = 0  # lessons added by the last finished segment
+        self.session_segments = 0
+        self.session_learned = 0
         self._task: asyncio.Task[None] | None = None
         self._loop: DecisionLoop | None = None
         self.goal = ""
@@ -86,22 +106,93 @@ class ComputerRuns:
         if self.running:
             return False
         self.goal, self.report, self._loop = goal, None, None
+        self.learned = self.session_learned = self.session_segments = 0
         self._task = asyncio.create_task(self._run(goal))
         return True
 
+    def _endless(self) -> bool:
+        env = os.environ
+        return env.get(AUTONOMOUS_FLAG, "0") == "1" and env.get(ENDLESS_FLAG, "0") == "1"
+
+    def _max_segments(self) -> int:
+        raw = os.environ.get(MAX_SEGMENTS_ENV)
+        if raw is None:
+            return DEFAULT_MAX_SEGMENTS
+        if not raw.isascii() or not raw.isdigit() or len(raw) > 4:
+            raise ComputerLimitError(f"invalid {MAX_SEGMENTS_ENV}")
+        value = int(raw)
+        if not 1 <= value <= MAX_CONFIGURED_SEGMENTS:
+            raise ComputerLimitError(f"invalid {MAX_SEGMENTS_ENV}")
+        return value
+
+    def _should_continue(self, report: LoopReport) -> bool:
+        if not self._endless() or not self.bridge.gate.enabled:
+            return False
+        if report.reason in {"emergency_stop", "control_disabled", "executor_offline"}:
+            return False
+        if report.reason in {
+            "window_not_allowed",
+            "cloud_screen_not_allowed",
+            "no_allowed_processes",
+            "outcome_unknown",
+            "invalid_run_limits",
+        }:
+            return False
+        if report.reason.startswith("blocked_") or report.reason.startswith("crashed:"):
+            return False
+        if report.state == "done":
+            return True  # open-ended play: a "done" segment still continues until the owner stops
+        if report.reason in _CONTINUE_REASONS:
+            return True
+        if report.reason.startswith("decider_error:"):
+            return True
+        return False
+
     async def _run(self, goal: str) -> None:
         try:
-            self._loop = DecisionLoop(
-                self.bridge, self._decider, playbook=self.playbook, recorder=self.recorder
-            )
-            self.report = await self._loop.run(goal)
+            max_segments = self._max_segments()
         except ComputerLimitError as error:
             self.report = LoopReport("failed", "invalid_run_limits", detail=str(error))
             return
-        except Exception as error:
-            self.report = LoopReport("failed", f"crashed:{type(error).__name__}")
-            return
-        await self._learn(goal)
+        segment_goal = goal
+        while True:
+            self.session_segments += 1
+            try:
+                self._loop = DecisionLoop(
+                    self.bridge, self._decider, playbook=self.playbook, recorder=self.recorder
+                )
+                self.report = await self._loop.run(segment_goal)
+            except ComputerLimitError as error:
+                self.report = LoopReport("failed", "invalid_run_limits", detail=str(error))
+                return
+            except Exception as error:
+                self.report = LoopReport("failed", f"crashed:{type(error).__name__}")
+                return
+            await self._learn(segment_goal)
+            self.session_learned += self.learned
+            report = self.report
+            assert report is not None
+            if (
+                not self._should_continue(report)
+                or self.session_segments >= max_segments
+                or not self.bridge.gate.enabled
+            ):
+                if self._endless() and self.session_segments >= max_segments:
+                    self.report = LoopReport(
+                        report.state,
+                        report.reason,
+                        report.steps,
+                        detail=(report.detail + " | " if report.detail else "")
+                        + f"session_segment_limit:{max_segments}",
+                    )
+                return
+            await asyncio.sleep(1.5)
+            if not self.bridge.gate.enabled:
+                return
+            segment_goal = (
+                f"{goal}\n\nContinue from the current screen. Previous segment ended with "
+                f"{report.state}/{report.reason}. Keep playing; do not ask the owner."
+            )
 
     async def _learn(self, goal: str) -> None:
         """After a run, turn what happened into a few reusable notes (best effort, never raises)."""
@@ -132,6 +223,10 @@ class ComputerRuns:
         gate = self.bridge.gate
         report = self.report
         live = self._loop.live if self.running and self._loop is not None else []
+        limits = None if self._loop is None else dict(self._loop.limits)
+        if limits is not None:
+            limits["endless"] = self._endless()
+            limits["session_segments"] = self.session_segments
         return {
             "enabled": gate.enabled,
             "tripped": gate.tripped,
@@ -139,9 +234,10 @@ class ComputerRuns:
             "running": self.running,
             "goal": self.goal,
             "live_steps": _steps(live),
-            "limits": None if self._loop is None else self._loop.limits,
+            "limits": limits,
             "phase": None if self._loop is None else self._loop.phase,
-            "learned_notes": self.learned,
+            "learned_notes": self.session_learned if self.session_learned else self.learned,
+            "session_segments": self.session_segments,
             "report": None
             if report is None
             else {

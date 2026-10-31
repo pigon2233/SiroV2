@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import os
@@ -212,10 +213,19 @@ class ClaudeVisionDecider:
     async def decide(
         self, goal: str, history: Sequence[StepRecord], observation: Observation
     ) -> Decision:
-        """One retry when the model's reply is malformed; the screen is re-read, not re-acted."""
-        try:
-            return await self._decide_once(goal, history, observation)
-        except DecisionError as error:
-            if str(error) not in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
-                raise
-            return await self._decide_once(goal, history, observation)
+        """Retry malformed replies once; retry transient Claude CLI failures a few times."""
+        transient = {"claude_failed", "claude_error", "claude_bad_output"}
+        last: DecisionError | None = None
+        for attempt in range(3):
+            try:
+                return await self._decide_once(goal, history, observation)
+            except DecisionError as error:
+                last = error
+                code = str(error)
+                if code in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
+                    return await self._decide_once(goal, history, observation)
+                if code not in transient or attempt >= 2:
+                    raise
+                await asyncio.sleep(1.5 * (attempt + 1))
+        assert last is not None
+        raise last

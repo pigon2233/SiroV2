@@ -181,7 +181,12 @@ async def test_vision_decider_runs_claude_with_read_only_screenshot() -> None:
 
 
 @pytest.mark.asyncio
-async def test_vision_decider_failure_modes() -> None:
+async def test_vision_decider_failure_modes(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _no_sleep(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+
     async def failing(*args: Any, **kwargs: Any) -> dict[str, object]:
         return {"returncode": 1, "stdout": ""}
 
@@ -194,6 +199,29 @@ async def test_vision_decider_failure_modes() -> None:
         )
         with pytest.raises(DecisionError):
             await decider.decide("g", [], _obs())
+
+
+@pytest.mark.asyncio
+async def test_vision_decider_retries_transient_claude_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _no_sleep(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+    calls = {"n": 0}
+
+    async def flaky(*args: Any, **kwargs: Any) -> dict[str, object]:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return {"returncode": 1, "stdout": ""}
+        return {"returncode": 0, "stdout": json.dumps({"result": GOOD, "is_error": False})}
+
+    decider = ClaudeVisionDecider(
+        binary=Path("claude"), run=flaky, env={"SIRO_COMPUTER_CLOUD_SCREEN": "1"}
+    )
+    assert (await decider.decide("g", [], _obs())).kind == "act"
+    assert calls["n"] == 3
 
 
 @pytest.mark.asyncio

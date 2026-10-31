@@ -578,6 +578,8 @@ async def test_effective_run_limits_are_visible_in_status(monkeypatch: pytest.Mo
         "max_steps": 1000,
         "max_seconds": 1800,
         "autonomous": False,
+        "endless": False,
+        "session_segments": 1,
     }
 
 
