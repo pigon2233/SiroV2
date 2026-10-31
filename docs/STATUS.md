@@ -1,5 +1,15 @@
 # 狀態總覽（2026-10-24 整理；先看這裡，下面是由新到舊的時間序列紀錄）
 
+## 2026-10-31 — 依任務選擇對話模型（D81）
+
+`SIRO_MODEL_ROUTER` 預設 0，原本「有 Ollama 就永遠只用 Ollama」不變。設為 1 且至少兩個提供者時，閒聊與 `local_only` 留在本機，寫程式、規劃、工具續答與長題目才走 Claude（已登入的 `claude` CLI）、然後 Groq、然後本機。Claude 以滾動 5 小時、預設 10 次計，寫在資料目錄，用完或 CLI 限流會改走下一家，並在 `routes.model_actual` 與畫面上說明何時可以再用。說明見 `docs/MODEL_ROUTING.md`。
+
+電腦控制路徑沒有改。分類是規則，沒有再呼叫本機模型。未做真 Groq／真 Claude CLI 的實機對話；自動測試只打到假的 provider。
+
+命令（本輪）：`ruff check` 變更的 Python 檔通過；`mypy` 對 `router.py`、`claude_cli.py`、`test_model_router.py`、`launch_companion.py` 通過。`gateway.py`／`integrated.py` 仍有原先就在的 mypy 錯誤（`create_task`、`render_stream`、`ProfileService`、`reply` 先是 bool 再當文字）。`pytest` `test_model_router.py`、`test_frontend_route_notice.py`、`test_companion_launcher.py`、`test_provider_retry.py` 共 24 passed。前端通知是用現有的頁面腳本測試，不是開著服務的瀏覽器。
+
+
+
 T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–T40、R01–R03）與 `runtime-evolution/RUNTIME_EVOLUTION_ROADMAP.md` 各卡 Status；CP 的規格在 `companion-workflow/TASKS.md`。更早日期的「待做／下一步」是當時的 checkpoint，不是現況。
 
 | 範圍 | 現況 | 備註 |

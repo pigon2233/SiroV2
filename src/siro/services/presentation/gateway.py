@@ -265,6 +265,7 @@ class GatewayState:
 _RUN_PROGRESS_EVENTS = frozenset(
     {
         "assistant_retry_wait",
+        "assistant_route_notice",
         "assistant_started",
         "assistant_delta",
         "affect_state",
@@ -1332,7 +1333,15 @@ def create_app(
             },
             "routes": {
                 k: gateway_state.routes[k]
-                for k in ("model", "model_actual", "audio", "body", "tts")
+                for k in (
+                    "model",
+                    "model_actual",
+                    "model_notice",
+                    "claude_available_at",
+                    "audio",
+                    "body",
+                    "tts",
+                )
                 if k in gateway_state.routes
             },
             "tools": tool_orchestrator.tool_status() if tool_orchestrator is not None else [],
@@ -2455,9 +2464,14 @@ def _run_gateway(
 
     from siro.adapters.body.web import MinimalWebBodyAdapter
     from siro.adapters.browser import ScopedBrowserDriver
-    from siro.adapters.models.mock import OfflineDemoModel
     from siro.adapters.models.ollama import OllamaAdapter
     from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
+    from siro.adapters.models.router import (
+        ModelRouter,
+        RouteStatus,
+        choose_conversation_model,
+        router_enabled,
+    )
     from siro.adapters.skill_worker import SkillDispatcher, WorkerSupervisor
     from siro.core.devices import DeviceRegistry
     from siro.core.memory import MemoryService
@@ -2491,38 +2505,53 @@ def _run_gateway(
     vrm_dist, vrm_model = vrm_renderer_from_env(os.environ)
     hub = GatewayHub()
     body_transport = WebSocketBodyTransport()
-    backend = "offline"
-    privacy = ModelPrivacy.LOCAL_ONLY
-    ollama_model = os.environ.get("SIRO_OLLAMA_MODEL")
     cloud_key = os.environ.get("SIRO_OPENAI_API_KEY")
-    cloud_model = os.environ.get("SIRO_OPENAI_MODEL")
-    model: LanguageModel
-    if ollama_model:
-        context_length = os.environ.get("SIRO_OLLAMA_CONTEXT_LENGTH")
-        model = OllamaAdapter(
-            model=ollama_model,
-            thinking=False,
-            context_length=int(context_length) if context_length else None,
-        )
-        backend = f"ollama:{ollama_model}"
-    elif cloud_key and cloud_model:
-        model = OpenAICompatibleAdapter(
-            base_url=os.environ.get("SIRO_OPENAI_BASE_URL", "https://api.groq.com/openai"),
-            api_key=cloud_key,
-            model=cloud_model,
-        )
-        backend = f"cloud:{cloud_model}"
-        privacy = ModelPrivacy.CLOUD_ALLOWED
-    else:
-        model = OfflineDemoModel()
+    routing = router_enabled(os.environ)
+    claude_binary_path = None
+    claude_child_env = None
+    if routing:
+        from siro.services.tools.claude import claude_binary
+        from siro.services.tools.execution import restricted_environment
+
+        claude_binary_path = claude_binary()
+        claude_child_env = restricted_environment(("SIRO_CLAUDE_BIN", "CLAUDE_CONFIG_DIR"))
+
+    def publish_route(status: RouteStatus) -> None:
+        state.routes["model_actual"] = status.label
+        if status.notice:
+            state.routes["model_notice"] = status.notice
+        else:
+            state.routes.pop("model_notice", None)
+        if status.available_at:
+            state.routes["claude_available_at"] = status.available_at
+        else:
+            state.routes.pop("claude_available_at", None)
+
+    async def notify_route(request: ModelRequest, text: str) -> None:
+        await controller.model_route_notice(request.generation_id, text)
+
+    choice = choose_conversation_model(
+        os.environ,
+        data_dir=data_dir,
+        on_status=publish_route,
+        on_notice=notify_route,
+        cloud_enabled=lambda: bool(state.kill_switches.get("cloud", False)),
+        claude_binary=claude_binary_path,
+        claude_model_name=claude_model(),
+        claude_environment=claude_child_env,
+    )
+    model: LanguageModel = choice.model
+    backend = choice.backend
+    privacy = choice.privacy
+    selected_provider = choice.measurement if choice.measurement is not None else model
+    route_model = model if isinstance(model, ModelRouter) else None
     summary_enabled = (
         runtime_profile == "candidate"
         and os.environ.get("SIRO_CONTEXT_SUMMARY_ENABLED", "1") == "1"
     )
-    selected_provider = model
     local_fallback: LanguageModel | None = None
     fallback_model = os.environ.get("SIRO_LOCAL_FALLBACK_OLLAMA_MODEL")
-    if fallback_model and privacy is ModelPrivacy.CLOUD_ALLOWED:
+    if route_model is None and fallback_model and privacy is ModelPrivacy.CLOUD_ALLOWED:
         local_fallback = OllamaAdapter(model=fallback_model, thinking=False)
     if runtime_profile == "candidate":
         from siro.adapters.models.failover import FailoverModel
@@ -2541,7 +2570,7 @@ def _run_gateway(
         async def notify_model_retry(request: ModelRequest, seconds: float) -> None:
             await controller.model_retry_wait(request.generation_id, seconds)
 
-        if retry_enabled == "1":
+        if retry_enabled == "1" and route_model is None:
             model = FailoverModel(
                 (model,) if local_fallback is None else (model, local_fallback),
                 cloud_indices=frozenset({0})
@@ -2569,7 +2598,7 @@ def _run_gateway(
         if native_enabled == "1" and backend != "offline":
             token_budget = UnavailableTokenBudget()
             if (
-                backend == "cloud:openai/gpt-oss-20b"
+                choice.cloud_model == "openai/gpt-oss-20b"
                 and urlsplit(
                     os.environ.get("SIRO_OPENAI_BASE_URL", "https://api.groq.com/openai")
                 ).hostname
@@ -2602,6 +2631,10 @@ def _run_gateway(
             )
     state = GatewayState()
     state.routes["model"] = backend
+    if route_model is not None:
+        available_at = route_model.claude_available_at()
+        if available_at:
+            state.routes["claude_available_at"] = available_at
     state.routes["body"] = "websocket"
     local_whisper = os.environ.get("SIRO_WHISPER_MODEL_DIR")
     speech_to_text: SpeechToText | None
@@ -3281,6 +3314,8 @@ def _run_gateway(
         situation_lines=work_context.prompt_lines,
         auto_authorize=lambda: state.authorization_mode == "full" and state.kill_switches["tools"],
     )
+    if route_model is not None:
+        controller.turn_privacy_for = route_model.turn_privacy
 
     self_owner = (
         SelfActivityOwner(
