@@ -1,5 +1,9 @@
-import bpy, json,struct
+import json
+import struct
 from pathlib import Path
+
+import bpy
+
 p=Path(__import__('sys').argv[__import__('sys').argv.index('--')+1])
 b=p.read_bytes();magic,ver,total=struct.unpack_from('<4sII',b);n,kind=struct.unpack_from('<II',b,12);d=json.loads(b[20:20+n])
 assert magic==b'glTF' and ver==2 and total==len(b)

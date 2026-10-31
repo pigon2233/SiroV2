@@ -1,6 +1,11 @@
 """Asset-only inspection and preview rendering; does not save scene changes."""
-import bpy, json, os, math
+import json
+import math
+import os
 from pathlib import Path
+
+import bpy
+
 out=Path(__import__('sys').argv[__import__('sys').argv.index('--')+1]); out.mkdir(parents=True,exist_ok=True); s=bpy.context.scene
 p=bpy.data.objects['HeadPivot']; frames=[]
 for f in [1,18,36,54,72]:

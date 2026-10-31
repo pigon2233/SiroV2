@@ -27,6 +27,8 @@ SIRO_COMPUTER_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
 SIRO_COMPUTER_ALLOWED_PROCESSES=undertale.exe
 # 1 = the foreground window's screenshot may be sent to the cloud model (Claude CLI). 0 = refuse to send.
 SIRO_COMPUTER_CLOUD_SCREEN=1
+# 1 = keep playing without stopping to ask the owner (ask→wait; low-confidence act still runs).
+SIRO_COMPUTER_AUTONOMOUS=1
 EOF
   echo "Created $env_file (edit SIRO_COMPUTER_ALLOWED_PROCESSES to choose games)."
 fi

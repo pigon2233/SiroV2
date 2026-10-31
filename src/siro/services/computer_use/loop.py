@@ -52,6 +52,7 @@ WAIT_SECONDS = 1.0
 SETTLE_SECONDS = 0.4
 SCREEN_MATCH_WAIT_SECONDS = 30.0
 SCREEN_MATCH_POLL_SECONDS = 0.4
+AUTONOMOUS_FLAG = "SIRO_COMPUTER_AUTONOMOUS"  # 1 = never stop to ask the owner
 
 
 def _pixel_digest(observation: Observation) -> bytes | None:
@@ -156,6 +157,7 @@ class DecisionLoop:
         playbook: PlaybookStore | None = None,
         recorder: DemoRecorder | None = None,
         focus: bool | None = None,
+        autonomous: bool | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._bridge = bridge
@@ -178,6 +180,10 @@ class DecisionLoop:
         self._recorder = recorder
         # Talking to SIRO puts the chat in front; bring the allowed game forward once per run.
         self._focus = os.environ.get("SIRO_COMPUTER_FOCUS", "1") != "0" if focus is None else focus
+        # Owner opt-in: keep playing without needs_owner / low_confidence stops.
+        self._autonomous = (
+            os.environ.get(AUTONOMOUS_FLAG, "0") == "1" if autonomous is None else autonomous
+        )
         self._demo: DemoRun | None = None
         self._demo_last: int | None = None
         self.process = ""  # program of the first allowed observation (key of its play notes)
@@ -187,8 +193,12 @@ class DecisionLoop:
         self.phase = "idle"
 
     @property
-    def limits(self) -> dict[str, int | float]:
-        return {"max_steps": self._max_steps, "max_seconds": self._max_seconds}
+    def limits(self) -> dict[str, int | float | bool]:
+        return {
+            "max_steps": self._max_steps,
+            "max_seconds": self._max_seconds,
+            "autonomous": self._autonomous,
+        }
 
     async def run(self, goal: str) -> LoopReport:
         history = self.live = []
@@ -206,6 +216,12 @@ class DecisionLoop:
         stop_generation = self._bridge.stop_generation
         no_change = invalid = rate_waits = waits = 0
         task = goal
+        if self._autonomous:
+            task += (
+                "\n\nOwner autonomous mode is ON: never answer kind=ask and never stop to "
+                "consult the owner. If unsure, choose the single best act toward the goal, "
+                "or wait if the screen is mid-transition. Prefer trying over asking."
+            )
         focus_tried = False
         done_seen = False
         before: Observation | None = None
@@ -288,6 +304,38 @@ class DecisionLoop:
                 return end("stopped", "emergency_stop")
             if self._clock() - started >= self._max_seconds:
                 return end("stopped", "time_limit")
+            if decision.kind == "ask":
+                if not self._autonomous:
+                    return end("stopped", "needs_owner", decision.reason.strip()[:300])
+                # Autonomous: never interrupt the owner — wait and look again.
+                decision = Decision(
+                    "wait",
+                    None,
+                    decision.expect or "reassess without asking",
+                    decision.reason,
+                    decision.confidence,
+                    decision.evidence,
+                    decision.seen,
+                )
+            if decision.kind == "stuck":
+                return end("stopped", "decider_stuck")
+            if (
+                decision.confidence < self._min_confidence
+                and decision.kind != "wait"
+            ):
+                if not self._autonomous:
+                    return end("stopped", "low_confidence")
+                if decision.kind != "act" or decision.action is None:
+                    decision = Decision(
+                        "wait",
+                        None,
+                        decision.expect or "uncertain; wait then retry",
+                        decision.reason,
+                        decision.confidence,
+                        decision.evidence,
+                        decision.seen,
+                    )
+                # else: keep the low-confidence act and execute it below
             if decision.kind == "wait":
                 self.phase = "waiting"
                 done_seen = False
@@ -303,12 +351,6 @@ class DecisionLoop:
                 await asyncio.sleep(self._wait)
                 continue
             waits = 0
-            if decision.kind == "ask":
-                return end("stopped", "needs_owner", decision.reason.strip()[:300])
-            if decision.kind == "stuck":
-                return end("stopped", "decider_stuck")
-            if decision.confidence < self._min_confidence:
-                return end("stopped", "low_confidence")
             if decision.kind == "done":
                 if not decision.evidence.strip():
                     return end("stopped", "done_without_evidence")

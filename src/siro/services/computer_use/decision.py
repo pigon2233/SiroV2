@@ -121,8 +121,8 @@ Rules:
 - Judge only from what the screenshot shows now. If the last step had no visible effect, do NOT repeat it unchanged: try something different, or answer "stuck".
 - Answer "done" only if the screenshot itself proves the goal is met; put that proof in "evidence".
 - Answer "wait" when the screen is mid-transition (black/fading/loading/animating) and pressing anything now would be a guess.
-- A wait's "screen changed" is a coarse fingerprint comparison, not proof of the underlying state. If unchanged, reassess whether the screen is still loading; do not press merely because time passed. Ask or stop when uncertain.
-- Answer "ask" if you need the owner (ambiguous goal, risky/irreversible choice, login or payment).
+- A wait's "screen changed" is a coarse fingerprint comparison, not proof of the underlying state. If unchanged, reassess whether the screen is still loading; do not press merely because time passed.
+- Prefer act or wait over ask. Answer "ask" only for true login/payment or irreversible account loss; the owner may run autonomous mode that ignores ask.
 - Never type secrets. Allowed inputs, with exactly these field names:
   {{"kind":"click","x":0,"y":0,"button":"left|right"}}, {{"kind":"move","x":0,"y":0}}, {{"kind":"scroll","amount":-3}} (-20..20),
   {{"kind":"key","key":"ctrl+c","hold_ms":0}} (key name or combo such as "space", "z", "left"; hold_ms 0-2000 to hold it, 0 = quick tap), {{"kind":"type","text":"abc"}} (<=200 chars).

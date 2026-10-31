@@ -1,7 +1,13 @@
 # SIRO anime bust style study. Blender 4.5 LTS, headless:
 #   blender -b -P build_siro.py -- --output /path/to/out
 # Z up, face toward -Y. Preview only: not a VRM, no MToon, no physics.
-import bpy, bmesh, sys, os, math, argparse
+import argparse
+import math
+import os
+import sys
+
+import bmesh
+import bpy
 from mathutils import Vector
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
