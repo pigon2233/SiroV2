@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import os
@@ -121,8 +122,8 @@ Rules:
 - Judge only from what the screenshot shows now. If the last step had no visible effect, do NOT repeat it unchanged: try something different, or answer "stuck".
 - Answer "done" only if the screenshot itself proves the goal is met; put that proof in "evidence".
 - Answer "wait" when the screen is mid-transition (black/fading/loading/animating) and pressing anything now would be a guess.
-- A wait's "screen changed" is a coarse fingerprint comparison, not proof of the underlying state. If unchanged, reassess whether the screen is still loading; do not press merely because time passed. Ask or stop when uncertain.
-- Answer "ask" if you need the owner (ambiguous goal, risky/irreversible choice, login or payment).
+- A wait's "screen changed" is a coarse fingerprint comparison, not proof of the underlying state. If unchanged, reassess whether the screen is still loading; do not press merely because time passed.
+- Prefer act or wait over ask. Answer "ask" only for true login/payment or irreversible account loss; the owner may run autonomous mode that ignores ask.
 - Never type secrets. Allowed inputs, with exactly these field names:
   {{"kind":"click","x":0,"y":0,"button":"left|right"}}, {{"kind":"move","x":0,"y":0}}, {{"kind":"scroll","amount":-3}} (-20..20),
   {{"kind":"key","key":"ctrl+c","hold_ms":0}} (key name or combo such as "space", "z", "left"; hold_ms 0-2000 to hold it, 0 = quick tap), {{"kind":"type","text":"abc"}} (<=200 chars).
@@ -212,10 +213,19 @@ class ClaudeVisionDecider:
     async def decide(
         self, goal: str, history: Sequence[StepRecord], observation: Observation
     ) -> Decision:
-        """One retry when the model's reply is malformed; the screen is re-read, not re-acted."""
-        try:
-            return await self._decide_once(goal, history, observation)
-        except DecisionError as error:
-            if str(error) not in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
-                raise
-            return await self._decide_once(goal, history, observation)
+        """Retry malformed replies once; retry transient Claude CLI failures a few times."""
+        transient = {"claude_failed", "claude_error", "claude_bad_output"}
+        last: DecisionError | None = None
+        for attempt in range(3):
+            try:
+                return await self._decide_once(goal, history, observation)
+            except DecisionError as error:
+                last = error
+                code = str(error)
+                if code in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
+                    return await self._decide_once(goal, history, observation)
+                if code not in transient or attempt >= 2:
+                    raise
+                await asyncio.sleep(1.5 * (attempt + 1))
+        assert last is not None
+        raise last

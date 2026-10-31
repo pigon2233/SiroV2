@@ -1,5 +1,15 @@
 # 狀態總覽（2026-10-24 整理；先看這裡，下面是由新到舊的時間序列紀錄）
 
+## 2026-10-31 — 依任務選擇對話模型（D81）
+
+`SIRO_MODEL_ROUTER` 預設 0，原本「有 Ollama 就永遠只用 Ollama」不變。設為 1 且至少兩個提供者時，閒聊與 `local_only` 留在本機，寫程式、規劃、工具續答與長題目才走 Claude（已登入的 `claude` CLI）、然後 Groq、然後本機。Claude 以滾動 5 小時、預設 10 次計，寫在資料目錄，用完或 CLI 限流會改走下一家，並在 `routes.model_actual` 與畫面上說明何時可以再用。說明見 `docs/MODEL_ROUTING.md`。
+
+電腦控制路徑沒有改。分類是規則，沒有再呼叫本機模型。未做真 Groq／真 Claude CLI 的實機對話；自動測試只打到假的 provider。
+
+命令（本輪）：`ruff check` 變更的 Python 檔通過；`mypy` 對 `router.py`、`claude_cli.py`、`test_model_router.py`、`launch_companion.py` 通過。`gateway.py`／`integrated.py` 仍有原先就在的 mypy 錯誤（`create_task`、`render_stream`、`ProfileService`、`reply` 先是 bool 再當文字）。`pytest` `test_model_router.py`、`test_frontend_route_notice.py`、`test_companion_launcher.py`、`test_provider_retry.py` 共 24 passed。前端通知是用現有的頁面腳本測試，不是開著服務的瀏覽器。
+
+
+
 T／RT 的逐項狀態在下方「2026-09-27／產品整合狀態」表（T00–T40、R01–R03）與 `runtime-evolution/RUNTIME_EVOLUTION_ROADMAP.md` 各卡 Status；CP 的規格在 `companion-workflow/TASKS.md`。更早日期的「待做／下一步」是當時的 checkpoint，不是現況。
 
 ## 2026-10-31 — `scripts/check` 綠燈修復
@@ -9,6 +19,8 @@ GitHub Actions `check`（run 41224478532，`591e1c5`）在 `ruff format --check`
 本機命令與結果（uv 0.12.18、CPython 3.14.7、有 `target/debug/siro-runtime`、bubblewrap、系統 Python 3.14）：`ruff format --check` PASS、`ruff check` PASS、`mypy` PASS（417 files）、`pytest -q` **3309 passed／24 skipped／0 failed**（347s）、`export_schemas --check` PASS、`detect-secrets`＋`scripts/check_secrets.py` PASS、`cargo fmt --check`／`cargo test --workspace --locked`（24 passed）／`cargo clippy -D warnings` PASS。另裝 nats-server 2.15.0 後 `test_nats_delivery.py` 3 passed。跳過的項目都是既有條件：真模型／真語音 opt-in、VRM `npm ci`、動作捕捉快取、本機沒裝 nats 時的兩則（CI workflow 會裝）。未在這台 Ubuntu 24.04 重跑完整 `scripts/check` 的 apt／Chrome 安裝步驟；CI workflow 已補 Chrome，因為前端測試要 `google-chrome` 或 `chromium`。
 
 沒有改 `desktop-win/computer-*`、`input-helper.ps1`、`src/siro/services/computer_use/`、`src/siro/core/computer.py` 與其測試。這次 `ruff format` 沒有點名那些檔。mypy 排除 `test_computer_use_*` 與 `test_undertale_*`，因為那些測試檔本身有型別錯誤，而 owner 正在改電腦控制。交接見 `docs/collaboration/CI-CHECK-20261031.md`。
+
+併入 `origin/main` `824cc5a`（電腦控制＋模型路由 squash）後重跑：`pytest -q` **3328 passed／22 skipped／0 failed**。衝突只在三份 blender 稿（保留本分支已過 ruff 的版本；main 只拆了 import）與 `integrated.py` 提醒那一行的換行。`computer_use/http.py`、`loop.py` 只做 ruff 要求的等價改寫。等待反事實腳本的 `NEW_RULE` 對齊 owner 新提示詞。
 
 | 範圍 | 現況 | 備註 |
 |---|---|---|

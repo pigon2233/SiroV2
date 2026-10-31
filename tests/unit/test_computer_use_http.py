@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from siro.services.computer_use import http as http_module
 from siro.services.computer_use.bridge import ComputerBridge
 from siro.services.computer_use.decision import Decision, StepRecord
 from siro.services.computer_use.http import (
@@ -14,6 +16,7 @@ from siro.services.computer_use.http import (
     build_router,
     router_from_env,
 )
+from siro.services.computer_use.loop import LoopReport
 from siro.services.computer_use.perception import Observation
 from siro.services.computer_use.safety import ControlGate
 
@@ -79,3 +82,53 @@ def test_run_reports_owner_needed_and_executor_missing() -> None:
     assert started.json() == {"started": True}
     status = client.get("/v1/computer/status", headers=HEAD).json()
     assert status["executor_online"] is False
+
+
+@pytest.mark.asyncio
+async def test_endless_session_chains_recoverable_segments(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_AUTONOMOUS", "1")
+    monkeypatch.setenv("SIRO_COMPUTER_ENDLESS", "1")
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_SEGMENTS", "3")
+    monkeypatch.setenv("SIRO_COMPUTER_ALLOWED_PROCESSES", "game.exe")
+
+    async def _no_sleep(*_a: Any, **_k: Any) -> None:
+        return None
+
+    monkeypatch.setattr(http_module.asyncio, "sleep", _no_sleep)
+    calls = {"n": 0}
+
+    async def fake_run(self: Any, goal: str) -> LoopReport:
+        calls["n"] += 1
+        return LoopReport(
+            "stopped",
+            "step_limit",
+            (StepRecord(1, "click", "x", "ok", True, "menu"),),
+        )
+
+    monkeypatch.setattr(http_module.DecisionLoop, "run", fake_run)
+    bridge = ComputerBridge(ControlGate(enabled=True))
+    runs = ComputerRuns(bridge, NeverDecider())
+    assert runs.start("play forever")
+    assert runs._task is not None
+    await runs._task
+    assert calls["n"] == 3
+    assert runs.session_segments == 3
+    assert runs.report is not None
+    assert "session_segment_limit:3" in (runs.report.detail or "")
+
+
+@pytest.mark.asyncio
+async def test_endless_off_does_not_chain(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_AUTONOMOUS", "1")
+    monkeypatch.setenv("SIRO_COMPUTER_ENDLESS", "0")
+    monkeypatch.delenv("SIRO_COMPUTER_MAX_SEGMENTS", raising=False)
+
+    async def fake_run(self: Any, goal: str) -> LoopReport:
+        return LoopReport("stopped", "step_limit", ())
+
+    monkeypatch.setattr(http_module.DecisionLoop, "run", fake_run)
+    runs = ComputerRuns(ComputerBridge(ControlGate(enabled=True)), NeverDecider())
+    assert runs.start("play")
+    assert runs._task is not None
+    await runs._task
+    assert runs.session_segments == 1

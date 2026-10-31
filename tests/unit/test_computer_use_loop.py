@@ -149,7 +149,10 @@ async def _run(
         await asyncio.sleep(0.02)  # let the shell poll once, as the real one does continuously
     script = Script(policy)
     loop_kwargs.setdefault("focus", False)  # focusing is opt-in per test
-    loop = DecisionLoop(bridge, script, allowed=allowed, settle=0, **loop_kwargs)
+    loop_kwargs.setdefault("autonomous", False)  # keep default stop-to-ask unless a test opts in
+    loop_kwargs.setdefault("settle", 0)
+    loop_kwargs.setdefault("wait", 0)
+    loop = DecisionLoop(bridge, script, allowed=allowed, **loop_kwargs)
     try:
         report = await loop.run("win the game")
     finally:
@@ -397,7 +400,7 @@ async def test_opt_in_long_run_continues_past_40_actions(monkeypatch: pytest.Mon
         await desktop.close()
     assert report.reason == "step_limit"
     assert len(desktop.inputs) == 55
-    assert loop.limits == {"max_steps": 55, "max_seconds": 900}
+    assert loop.limits == {"max_steps": 55, "max_seconds": 900, "autonomous": False}
 
 
 @pytest.mark.parametrize(
@@ -423,8 +426,9 @@ def test_invalid_long_run_configuration_is_rejected(
 def test_unconfigured_limits_keep_existing_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SIRO_COMPUTER_MAX_STEPS", raising=False)
     monkeypatch.delenv("SIRO_COMPUTER_MAX_SECONDS", raising=False)
+    monkeypatch.delenv("SIRO_COMPUTER_AUTONOMOUS", raising=False)
     loop = DecisionLoop(ComputerBridge(ControlGate()), Script(solver))
-    assert loop.limits == {"max_steps": 40, "max_seconds": 600}
+    assert loop.limits == {"max_steps": 40, "max_seconds": 600, "autonomous": False}
 
 
 @pytest.mark.asyncio
@@ -570,7 +574,13 @@ async def test_effective_run_limits_are_visible_in_status(monkeypatch: pytest.Mo
     assert runs.start("play")
     assert runs._task is not None
     await runs._task
-    assert runs.status()["limits"] == {"max_steps": 1000, "max_seconds": 1800}
+    assert runs.status()["limits"] == {
+        "max_steps": 1000,
+        "max_seconds": 1800,
+        "autonomous": False,
+        "endless": False,
+        "session_segments": 1,
+    }
 
 
 @pytest.mark.asyncio
@@ -1032,6 +1042,38 @@ async def test_lost_input_is_unknown_and_never_resent() -> None:
 async def test_decider_stop_conditions(decision: Decision, reason: str) -> None:
     report, desktop, _, _ = await _run(lambda o, h: decision)
     assert report.reason == reason and desktop.inputs == []
+
+
+@pytest.mark.asyncio
+async def test_autonomous_ask_waits_then_keeps_playing() -> None:
+    calls = {"n": 0}
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return Decision("ask", None, "", "unsure which button", 0.9)
+        return solver(obs, history)
+
+    report, desktop, _, script = await _run(policy, autonomous=True)
+    assert report.state == "done" and report.success
+    assert any(s.action == "(wait)" for s in report.steps)
+    assert len(desktop.inputs) >= 2
+    assert script.calls >= 3
+
+
+@pytest.mark.asyncio
+async def test_autonomous_low_confidence_act_is_still_executed() -> None:
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        if obs.fingerprint == "menu":
+            return click(300, 300, confidence=0.2)
+        if obs.fingerprint == "playing":
+            return click(500, 400, confidence=0.2)
+        return Decision("done", None, "", "won", 0.95, "banner says YOU WIN")
+
+    report, desktop, _, _ = await _run(policy, autonomous=True)
+    assert report.success
+    assert len(desktop.inputs) == 2
+    assert report.reason != "low_confidence"
 
 
 @pytest.mark.asyncio

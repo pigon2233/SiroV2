@@ -208,6 +208,8 @@ class IntegratedCompanion:
             self._hub.enable_terminal_fencing()
         self._body = body
         self._privacy = privacy
+        self.turn_privacy_for: Callable[[str], Privacy] | None = None
+        self._run_privacy: dict[str, Privacy] = {}
         self._tool_orchestrator = tool_orchestrator
         self._agent_planner_factory = agent_planner_factory
         self._agent_planner: Coordinator | None = None
@@ -306,6 +308,42 @@ class IntegratedCompanion:
         if self._runtime_profile == "candidate":
             message = {**message, "stream_id": stream_id}
         await self._hub.broadcast(message, urgent=urgent)
+
+    def _privacy_for_turn(self, text: str) -> Privacy:
+        """Per-turn privacy. Small talk can stay local while the session still allows cloud."""
+        decider = self.turn_privacy_for
+        if decider is None or self._privacy is not Privacy.CLOUD_ALLOWED:
+            return self._privacy
+        decided = decider(text)
+        if decided is Privacy.LOCAL_ONLY:
+            return Privacy.LOCAL_ONLY
+        return Privacy.CLOUD_ALLOWED
+
+    async def model_route_notice(self, generation_id: str, text: str) -> None:
+        """Tell the active run that this reply moved off the preferred model."""
+        if not text or self._store is None:
+            return
+        row = await self._store.run_transaction(
+            lambda connection: connection.execute(
+                "SELECT session_id FROM turns WHERE generation_id=? AND state='responding'",
+                (generation_id,),
+            ).fetchone()
+        )
+        if row is None:
+            return
+        session_id = str(row[0])
+        message: dict[str, object] = {
+            "type": "assistant_route_notice",
+            "session_id": session_id,
+            "text": text,
+        }
+        if self._runtime_profile != "candidate":
+            await self._hub.broadcast(message, urgent=True)
+            return
+        run_id = self._run_ids.get(session_id)
+        if run_id is None or run_id in self._terminated:
+            return
+        await self._broadcast_stream(self._event_streams.get(run_id, run_id), message, urgent=True)
 
     async def model_retry_wait(self, generation_id: str, seconds: float) -> None:
         """Notify only the active run that owns this already-started model generation."""
@@ -737,6 +775,7 @@ class IntegratedCompanion:
             plan_goal = None
         if plan_goal is not None:
             direct_command = ("neutral", "")
+        privacy = self._privacy_for_turn(text)
         recent_messages = None
         runtime_status = None
         if (
@@ -747,12 +786,12 @@ class IntegratedCompanion:
             assert self._agent_runs is not None
             recent_messages = await self._agent_runs.recent_session_messages(
                 session_id,
-                privacy=self._privacy.value,
+                privacy=privacy.value,
                 max_messages=48 if self._summary_enabled else 12,
                 summary_enabled=self._summary_enabled,
             )
             runtime_status = await self._agent_runs.recent_runtime_status(
-                session_id, privacy=self._privacy.value
+                session_id, privacy=privacy.value
             )
         stream_id = str(uuid4())
 
@@ -793,10 +832,11 @@ class IntegratedCompanion:
             max_steps=self._max_agent_steps * (128 if self._runtime_profile == "candidate" else 2)
             + 1,
             runtime_backend=self._model.name if self._runtime_profile == "candidate" else None,
-            privacy=self._privacy.value,
+            privacy=privacy.value,
             max_model_rounds=self._max_agent_steps,
         )
         self._run_ids[session_id] = agent_run.run_id
+        self._run_privacy[agent_run.run_id] = privacy
         if self._runtime_profile == "candidate":
             await self._agent_runs.reserve_round(agent_run.run_id)
             self._message_histories[agent_run.run_id] = []
@@ -971,7 +1011,7 @@ class IntegratedCompanion:
                     self._background.add(auto)
                     auto.add_done_callback(self._background.discard)
             prompt_owner_preferences, prompt_self_preferences = owner_preferences, self_preferences
-            if self._privacy is Privacy.CLOUD_ALLOWED:
+            if privacy is Privacy.CLOUD_ALLOWED:
                 prompt_owner_preferences = await self._affect_repository.preferences(
                     "siro", "owner", route_privacy=EventPrivacy.CLOUD_ALLOWED
                 )
@@ -996,7 +1036,7 @@ class IntegratedCompanion:
                     "do not claim cloud access to local-only stored contents. "
                     f"[source:{source_event.event_id}]",
                 )
-            if self._privacy is Privacy.CLOUD_ALLOWED:
+            if privacy is Privacy.CLOUD_ALLOWED:
                 verified_preferences += (
                     "Runtime memory capability: SIRO HAS persistent local memory. Start capability "
                     "answers affirmatively, not with a generic model disclaimer. "
@@ -1035,7 +1075,7 @@ class IntegratedCompanion:
                     + " | ".join(attempts)
                     + " [source:self-activity]",
                 )
-            situation = self._situation_lines(self._privacy) if self._situation_lines else ()
+            situation = self._situation_lines(privacy) if self._situation_lines else ()
             if situation:
                 verified_preferences += (
                     "Owner's present situation, within the scope the owner switched on. Items "
@@ -1070,7 +1110,7 @@ class IntegratedCompanion:
                 f"SIRO internal affect: {affect.emotion} intensity={affect.intensity:.2f}; "
                 f"coping={affect_result.coping.strategy.value}; "
             )
-            if self._privacy is not Privacy.CLOUD_ALLOWED:
+            if privacy is not Privacy.CLOUD_ALLOWED:
                 affect_context += f"reason={affect.reason} "
             affect_context += f"[source:{source_event.event_id}]"
             verified_preferences += (
@@ -1095,14 +1135,14 @@ class IntegratedCompanion:
                 session_id,
                 "siro",
                 text,
-                privacy=self._privacy,
+                privacy=privacy,
                 on_delta=delta,
                 verified_context=verified_preferences,
                 tools=tools,
                 message_history=self._message_histories.get(agent_run.run_id),
                 on_messages_ready=self._checkpoint_callback(agent_run.run_id, capability_context),
                 recent_messages=recent_messages,
-                memory_route_privacy=EventPrivacy(self._privacy.value)
+                memory_route_privacy=EventPrivacy(privacy.value)
                 if self._runtime_profile == "candidate"
                 else None,
             )
@@ -1159,6 +1199,7 @@ class IntegratedCompanion:
                 error=result.error,
             )
             self._message_histories.pop(agent_run.run_id, None)
+            self._run_privacy.pop(agent_run.run_id, None)
             self._event_streams.pop(agent_run.run_id, None)
             self._run_ids.pop(session_id, None)
             await emit(
@@ -1281,6 +1322,7 @@ class IntegratedCompanion:
                 return
             self._agent_steps.pop(session_id, None)
             self._message_histories.pop(run_id, None)
+            self._run_privacy.pop(run_id, None)
             await self._agent_runs.append(
                 run_id,
                 "limit",
@@ -1316,11 +1358,12 @@ class IntegratedCompanion:
                 await emit({"type": "assistant_delta", "session_id": session_id, "text": value})
 
         tools, capability_context = self._model_capabilities()
+        privacy = self._run_privacy.get(run_id, self._privacy)
         result = await self._core.respond(
             session_id,
             "siro",
             prompt,
-            privacy=self._privacy,
+            privacy=privacy,
             on_delta=continuation_delta,
             tools=tools,
             message_history=history,
@@ -1345,6 +1388,7 @@ class IntegratedCompanion:
             return
         self._agent_steps.pop(session_id, None)
         self._message_histories.pop(run_id, None)
+        self._run_privacy.pop(run_id, None)
         await self._agent_runs.append(
             run_id,
             "final",
@@ -1551,6 +1595,7 @@ class IntegratedCompanion:
         self._batches.pop(run_id, None)
         self._batch_results.pop(run_id, None)
         self._seen_calls.pop(run_id, None)
+        self._run_privacy.pop(run_id, None)
         history = self._message_histories.pop(run_id, None)
         assert self._agent_runs is not None
         if history is not None:

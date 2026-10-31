@@ -53,6 +53,7 @@ def test_launcher_loads_only_model_settings_without_overriding_shell(
         'SIRO_OPENAI_BASE_URL="https://api.groq.com/openai"\n'
         'SIRO_DATA_DIR="should-not-load"\n'
         "SIRO_CONTEXT_TOKEN_BUDGET_ENABLED=0\n"
+        "SIRO_MODEL_ROUTER=1\n"
     )
     monkeypatch.setenv("SIRO_OPENAI_API_KEY", "synthetic-shell-setting")  # pragma: allowlist secret
     binary = tmp_path / "target/debug/siro-runtime"
@@ -72,6 +73,7 @@ def test_launcher_loads_only_model_settings_without_overriding_shell(
     assert os.environ["SIRO_OPENAI_MODEL"] == "openai/gpt-oss-20b"
     assert "SIRO_DATA_DIR" not in os.environ
     assert "SIRO_CONTEXT_TOKEN_BUDGET_ENABLED" not in os.environ
+    assert os.environ["SIRO_MODEL_ROUTER"] == "1"
     assert os.environ["SIRO_RUNTIME_PROFILE"] == "candidate"
     assert len(calls) == 2  # pinned tokenizer provisioning then the actual gateway process
     assert "synthetic-shell-setting" not in capsys.readouterr().out

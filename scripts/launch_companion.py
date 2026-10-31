@@ -52,6 +52,13 @@ def main() -> None:
         "SIRO_OPENAI_MODEL",
         "SIRO_OPENAI_API_KEY",
         "SIRO_OLLAMA_MODEL",
+        "SIRO_MODEL_ROUTER",
+        "SIRO_CLAUDE_BUDGET_CALLS",
+        "SIRO_CLAUDE_RATE_LIMIT_COOLDOWN_SECONDS",
+        "SIRO_CLAUDE_TIMEOUT_SECONDS",
+        "SIRO_CLAUDE_MODEL",
+        "SIRO_CLAUDE_BIN",
+        "SIRO_CLAUDE_ENABLED",
     }
     if settings.is_file():
         for line in settings.read_text().splitlines():

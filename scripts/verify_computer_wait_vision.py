@@ -21,7 +21,7 @@ FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
 NEW_RULE = (
     '- A wait\'s "screen changed" is a coarse fingerprint comparison, not proof of the underlying '
     "state. If unchanged, reassess whether the screen is still loading; do not press merely "
-    "because time passed. Ask or stop when uncertain.\n"
+    "because time passed.\n"
 )
 
 
