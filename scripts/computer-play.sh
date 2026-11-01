@@ -4,6 +4,7 @@
 # You get the delay to click the game window to the front (talking to SIRO takes the focus away).
 # She only acts while the foreground program is on the allowed list in siro-computer/computer.env,
 # and control must be switched on from the tray. Emergency stop: Ctrl+Alt+Shift+Esc.
+# Ctrl+C also POSTs /v1/computer/stop so the backend run ends with the console.
 set -euo pipefail
 goal="${1:-}"
 delay="${2:-20}"
@@ -18,20 +19,49 @@ token="$(tr -d '\r' < "$env_file" | sed -n 's/^SIRO_COMPUTER_TOKEN=//p')"
 base="http://127.0.0.1:${SIRO_GATEWAY_PORT:-8000}/v1/computer"
 api() { curl -s -m15 -H "X-SIRO-Computer-Token: $token" -H 'content-type: application/json' "$@"; }
 
+stop_run() {
+  api -X POST "$base/stop" >/dev/null 2>&1 || true
+  echo "已送出停止（/v1/computer/stop）。" >&2
+}
+trap 'stop_run; exit 130' INT TERM
+
 status="$(api "$base/status" || true)"
 case "$status" in *'"enabled":true'*) ;; *) echo "電腦操控沒有開啟：請先在托盤選單開啟「電腦操控」。" >&2; exit 1;; esac
-echo "請把遊戲視窗點到最前面；$delay 秒後開始（Ctrl+Alt+Shift+Esc 急停）。"
+echo "請把遊戲視窗點到最前面；$delay 秒後開始（Ctrl+C 停止；Ctrl+Alt+Shift+Esc 急停）。"
 sleep "$delay"
 body="$(python3 -c 'import json,sys; print(json.dumps({"goal": sys.argv[1][:500]}))' "$goal")"
 api -X POST -d "$body" "$base/run"; echo
 echo "開始。下面會即時印出每一步（長跑也不會等到結束才顯示）。"
 python3 - "$base" "$token" <<'PY'
-import json, sys, time, urllib.request
+import json, signal, sys, time, urllib.request
 
 base, token = sys.argv[1], sys.argv[2]
 printed = 0
 last_phase = ""
 segments_seen = 0
+ends_seen = 0
+stopping = False
+
+def post_stop(*_args):
+    global stopping
+    if stopping:
+        return
+    stopping = True
+    req = urllib.request.Request(
+        base + "/stop",
+        data=b"{}",
+        method="POST",
+        headers={"X-SIRO-Computer-Token": token, "content-type": "application/json"},
+    )
+    try:
+        urllib.request.urlopen(req, timeout=5).read()
+    except Exception:
+        pass
+    print("已送出停止（/v1/computer/stop）。", flush=True)
+    raise SystemExit(130)
+
+signal.signal(signal.SIGINT, post_stop)
+signal.signal(signal.SIGTERM, post_stop)
 
 def get_status():
     req = urllib.request.Request(
@@ -51,14 +81,25 @@ for _ in range(30):
 while True:
     d = get_status()
     phase = d.get("phase") or ""
+    ends = d.get("segment_ends") or []
+    while ends_seen < len(ends):
+        e = ends[ends_seen]
+        ends_seen += 1
+        detail = str(e.get("detail") or "").strip()
+        extra = f" | {detail[:160]}" if detail else ""
+        print(
+            f"— 第 {e.get('segment')} 段結束: {e.get('state')}/{e.get('reason')}{extra} —",
+            flush=True,
+        )
     segs = int(d.get("session_segments") or 0)
     if segs > segments_seen:
         if segments_seen:
-            print(f"— 第 {segs} 段 —", flush=True)
+            print(f"— 第 {segs} 段開始 —", flush=True)
             printed = 0  # each segment starts a fresh live step list
+        else:
+            print(f"— 第 {segs} 段開始 —", flush=True)
         segments_seen = segs
     if phase and phase != last_phase and phase not in {"observing", "acting", "done", "stopped", "failed"}:
-        # Show deciding/waiting so long model calls are visible.
         if phase in {"deciding", "waiting", "waiting_for_matching_screen"}:
             print(f"… {phase}", flush=True)
         last_phase = phase
@@ -69,8 +110,15 @@ while True:
         s = steps[printed]
         printed += 1
         seen = (s.get("seen") or "").strip() or "-"
+        scene = (s.get("scene") or "").strip()
+        detail = (s.get("detail") or "").strip()
+        extra = ""
+        if scene:
+            extra += f" | 場景:{scene}"
+        if detail:
+            extra += f" | {detail[:80]}"
         print(
-            f'{s.get("step")} {s.get("action")} {s.get("outcome")} | 看到: {seen[:100]}',
+            f'{s.get("step")} {s.get("action")} {s.get("outcome")} | 看到: {seen[:100]}{extra}',
             flush=True,
         )
     if not d.get("running"):
@@ -80,6 +128,8 @@ while True:
             r.get("state"),
             "|",
             str(r.get("reason") or "")[:200],
+            "|",
+            str(r.get("detail") or "")[:200],
             "| 新增筆記:",
             d.get("learned_notes", "-"),
             flush=True,

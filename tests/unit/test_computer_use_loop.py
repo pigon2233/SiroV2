@@ -12,7 +12,7 @@ from PIL import Image
 from siro.services.computer_use import bridge as bridge_module
 from siro.services.computer_use import loop as loop_module
 from siro.services.computer_use.bridge import BridgeResult, ComputerBridge
-from siro.services.computer_use.decision import Decision, StepRecord
+from siro.services.computer_use.decision import Decision, StepRecord, VerifyResult
 from siro.services.computer_use.http import ComputerRuns
 from siro.services.computer_use.loop import DecisionLoop
 from siro.services.computer_use.perception import Observation
@@ -104,8 +104,14 @@ class FakeDesktop:
 class Script:
     """Decider driven by a function of the observation, like a model reading the screen."""
 
-    def __init__(self, policy: Callable[[Observation, Sequence[StepRecord]], Decision]) -> None:
+    def __init__(
+        self,
+        policy: Callable[[Observation, Sequence[StepRecord]], Decision],
+        *,
+        verify: Callable[[str, str, Observation], VerifyResult] | None = None,
+    ) -> None:
         self.policy, self.calls = policy, 0
+        self._verify = verify
 
     async def decide(
         self,
@@ -116,6 +122,19 @@ class Script:
     ) -> Decision:
         self.calls += 1
         return self.policy(observation, history)
+
+    async def verify(
+        self, expect: str, before_seen: str, observation: Observation
+    ) -> VerifyResult:
+        if self._verify is not None:
+            return self._verify(expect, before_seen, observation)
+        # Unit games change FakeDesktop.scene on successful clicks — treat as confirmed.
+        return VerifyResult(
+            "confirmed",
+            f"script confirmed: {expect}",
+            seen=observation.fingerprint,
+            scene="menu" if observation.fingerprint == "menu" else "unknown",
+        )
 
 
 def click(x: int, y: int, expect: str = "scene changes", confidence: float = 0.9) -> Decision:
@@ -173,7 +192,10 @@ async def test_solves_scene_chain_and_confirms_done_twice() -> None:
     assert report.success and report.reason == "banner says YOU WIN"
     assert [(a["x"], a["y"]) for a in desktop.inputs] == [(300, 300), (500, 400)]
     assert script.calls == 4  # click, click, done, done-confirmed
-    assert [r.outcome for r in report.steps if r.action != "(confirm done)"] == ["ok", "ok"]
+    assert [r.outcome for r in report.steps if r.action != "(confirm done)"] == [
+        "effective",
+        "effective",
+    ]
     assert report.steps[0].screen_changed is True
 
 
@@ -611,6 +633,7 @@ async def test_effective_run_limits_are_visible_in_status(monkeypatch: pytest.Mo
         "autonomous": False,
         "endless": False,
         "session_segments": 1,
+        "same_segment_reason_limit": 2,
     }
 
 
@@ -827,7 +850,11 @@ async def test_done_flip_flop_does_not_finish() -> None:
         return click(300, 300)
 
     report, desktop, _, _ = await _run(policy, max_steps=3)
-    assert not report.success and report.reason in {"step_limit", "stuck_no_visible_change"}
+    assert not report.success and report.reason in {
+        "step_limit",
+        "stuck_no_visible_change",
+        "stuck_no_progress",
+    }
     assert desktop.inputs  # kept working instead of declaring victory
 
 
@@ -960,9 +987,17 @@ async def test_owner_question_is_available_in_status() -> None:
 
 @pytest.mark.asyncio
 async def test_stuck_when_screen_never_changes() -> None:
-    report, desktop, _, _ = await _run(lambda o, h: click(150, 150))
-    assert report.reason == "stuck_no_visible_change"
-    assert len(desktop.inputs) == 3
+    n = {"i": 0}
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        n["i"] += 1
+        # Different spots so the ineffective-same-spot ban does not hide no-progress.
+        return click(150 + n["i"] * 35, 160)
+
+    report, desktop, _, _ = await _run(policy, max_steps=20)
+    assert report.reason == "stuck_no_progress"
+    assert any(s.action == "(replan)" for s in report.steps)
+    assert len(desktop.inputs) >= 3
 
 
 @pytest.mark.asyncio
@@ -998,7 +1033,8 @@ async def test_click_outside_window_rejected_without_input() -> None:
     report, desktop, _, _ = await _run(lambda o, h: click(1500, 900))
     assert report.reason == "too_many_invalid_decisions"
     assert desktop.inputs == []
-    assert all(r.outcome == "invalid:outside_window" for r in report.steps)
+    assert any(r.outcome == "invalid:outside_window" for r in report.steps)
+    assert any(s.action == "(replan)" for s in report.steps)
 
 
 @pytest.mark.asyncio
@@ -1243,60 +1279,103 @@ async def test_chat_started_run_brings_the_allowed_game_forward_once() -> None:
     assert desktop.focus_requests == ["game.exe"] and report.success
 
 
-def test_seen_stuck_detects_repeated_vague_descriptions() -> None:
-    from siro.services.computer_use.loop import _click_too_close, _seen_stuck
+def test_ineffective_same_spot_ban_clears_after_screen_change() -> None:
+    from siro.services.computer_use.loop import _click_ineffective_same_spot
 
-    same = "The game screen shows a map with several nodes"
-    history = [
-        StepRecord(1, "click(1,1,left)", "", "ok", True, same),
-        StepRecord(2, "click(2,2,left)", "", "ok", True, same),
-        StepRecord(3, "click(3,3,left)", "", "ok", True, same),
+    ineffective = [
+        StepRecord(1, "click(350,400,left)", "open", "ineffective", False, "shop"),
     ]
-    assert _seen_stuck(history) is True
-    history[-1] = StepRecord(3, "click(3,3,left)", "", "ok", True, "combat energy 0")
-    assert _seen_stuck(history) is False
-    near = [
-        StepRecord(1, "click(350,400,left)", "", "ok", True, same),
-        StepRecord(2, "click(340,390,left)", "", "ok", True, same),
+    assert _click_ineffective_same_spot(ineffective, 355, 405) is True
+    assert _click_ineffective_same_spot(ineffective, 100, 100) is False
+    visual_only = [
+        StepRecord(1, "click(350,400,left)", "open", "visual_change", True, "shop"),
     ]
-    assert _click_too_close(near, 330, 410) is True
-    assert _click_too_close(near, 100, 100) is False
+    assert _click_ineffective_same_spot(visual_only, 350, 400) is True
+    after_change = [
+        StepRecord(1, "click(350,400,left)", "open", "effective", True, "shop"),
+    ]
+    # Same coords are allowed again only after expect is confirmed effective.
+    assert _click_ineffective_same_spot(after_change, 350, 400) is False
 
 
 @pytest.mark.asyncio
-async def test_repeat_click_is_rejected_and_autonomous_escapes() -> None:
-    same = "dark cavern with a shop interface visible"
+async def test_visual_change_needs_verify_before_effective() -> None:
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        def after_input() -> None:
+            desktop.scene = f"anim-{len(desktop.inputs)}"
+
+        desktop.after_input = after_input
 
     def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
-        if any(s.action.startswith("key(Escape)") for s in history):
-            return click(500, 400)
         return Decision(
             "act",
-            InputAction("click", x=300, y=300, button="left"),
-            "buy",
-            "shop",
+            InputAction("click", x=150, y=150, button="left"),
+            "character select appears",
+            "start",
             0.9,
             "",
-            same,
+            "main menu",
+            "",
+            "menu",
         )
 
-    report, desktop, _, _ = await _run(policy, autonomous=True, max_steps=5)
-    kinds = [a.get("kind") for a in desktop.inputs]
-    assert "key" in kinds
-    assert any(a.get("key") == "Escape" for a in desktop.inputs)
-    assert any(s.outcome == "invalid:repeat_click" for s in report.steps)
-    # History must keep screenshot coords for the model, not mapped desktop pixels.
-    assert any(s.action == "click(300,300,left)" for s in report.steps)
+    # Pixels move but verifier refuses to confirm the expect.
+    script_verify = lambda expect, before, obs: VerifyResult(
+        "denied", "still main menu", seen="main menu", scene="menu"
+    )
+    bridge = ComputerBridge(ControlGate(screen=(0, 0, 1920, 1080), enabled=True))
+    desktop = FakeDesktop(bridge)
+    setup(desktop, bridge)
+    desktop.start()
+    await asyncio.sleep(0.02)
+    loop = DecisionLoop(
+        bridge,
+        Script(policy, verify=script_verify),
+        allowed=frozenset({"game.exe"}),
+        settle=0,
+        wait=0,
+        focus=False,
+        autonomous=True,
+        max_steps=6,
+    )
+    try:
+        report = await loop.run("start run")
+    finally:
+        await desktop.close()
+    assert any(s.outcome == "ineffective" for s in report.steps)
+    assert not any(s.outcome == "effective" for s in report.steps)
+    assert any("expect not met" in (s.detail or "") or s.outcome == "ineffective" for s in report.steps)
 
 
 @pytest.mark.asyncio
-async def test_unstick_does_not_spam_escape() -> None:
-    same = "dark cavern with several paths leading away"
-    clicks = [(150, 150), (500, 400), (200, 500), (250, 200)]
+async def test_repeat_click_only_after_ineffective_same_spot() -> None:
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        return Decision(
+            "act",
+            InputAction("click", x=120, y=120, button="left"),
+            "shop closes",
+            "leave",
+            0.9,
+            "",
+            "shop panel open",
+            "",
+            "shop",
+        )
+
+    report, desktop, _, _ = await _run(policy, autonomous=True, max_steps=6)
+    assert any(s.outcome == "ineffective" for s in report.steps)
+    assert any(s.outcome == "invalid:repeat_click" for s in report.steps)
+    assert not any(a.get("key") == "Escape" for a in desktop.inputs)
+    assert any(s.action == "click(120,120,left)" for s in report.steps)
+
+
+@pytest.mark.asyncio
+async def test_no_progress_replans_once_then_stops() -> None:
+    n = {"i": 0}
 
     def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
-        idx = min(len([s for s in history if s.action.startswith("click")]), len(clicks) - 1)
-        x, y = clicks[idx]
+        n["i"] += 1
+        x, y = 120 + n["i"] * 40, 140 + (n["i"] % 3) * 30
         return Decision(
             "act",
             InputAction("click", x=x, y=y, button="left"),
@@ -1304,11 +1383,14 @@ async def test_unstick_does_not_spam_escape() -> None:
             "try",
             0.9,
             "",
-            same,
+            "dark cavern paths",
+            "",
+            "map",
         )
 
-    report, desktop, _, _ = await _run(policy, autonomous=True, max_steps=8)
-    assert any(s.action == "(unstick)" for s in report.steps)
+    report, desktop, _, _ = await _run(policy, autonomous=True, max_steps=20)
+    assert any(s.action == "(replan)" for s in report.steps)
+    assert report.reason == "stuck_no_progress"
     assert not any(a.get("key") == "Escape" for a in desktop.inputs)
 
 

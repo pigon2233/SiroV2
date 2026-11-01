@@ -3,7 +3,8 @@
 // screenshot of the display that contains that window + a coarse fingerprint. Nothing is written to disk.
 const crypto = require('node:crypto');
 
-const MAX_WIDTH = 512;
+// Trial starting point for readable UI text; still downscales huge windows for vision latency.
+const MAX_WIDTH = 1280;
 
 function sameWindow(a, b) {
   return !!a && !!b && typeof a.window_id === 'string' && /^\d+$/.test(a.window_id) &&

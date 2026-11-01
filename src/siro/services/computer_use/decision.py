@@ -26,6 +26,9 @@ OLLAMA_HOST_ENV = "OLLAMA_HOST"
 OLLAMA_MODEL_ENV = "SIRO_COMPUTER_OLLAMA_MODEL"
 DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
 DECISION_KINDS = frozenset({"act", "done", "stuck", "ask", "wait"})
+SCENES = frozenset(
+    {"map", "combat", "shop", "event", "reward", "pause", "defeat", "menu", "unknown"}
+)
 
 
 class DecisionError(ValueError):
@@ -42,6 +45,10 @@ class Decision:
     evidence: str = ""  # for done: what on screen proves the goal is met
     seen: str = ""  # one short sentence: what the screenshot shows now (kept in the history)
     strategy: str = ""  # optional short plan update; empty keeps the previous plan
+    scene: str = ""  # map|combat|shop|event|reward|pause|defeat|menu|unknown
+    energy: str = ""  # e.g. "3/3", "0", "n/a"
+    targets: str = ""  # actionable controls visible now
+    uncertainty: str = ""  # unreadable bits; empty if clear
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,9 +56,19 @@ class StepRecord:
     step: int
     action: str
     expect: str
-    outcome: str  # ok | denied:<why> | unknown | invalid:<why>
+    outcome: str  # sent | visual_change | effective | unconfirmed | ineffective | ...
     screen_changed: bool | None
     seen: str = ""  # what the screen showed before this step
+    scene: str = ""
+    detail: str = ""  # verification note or failure reason
+
+
+@dataclass(frozen=True, slots=True)
+class VerifyResult:
+    status: str  # confirmed | denied | unknown
+    detail: str = ""
+    seen: str = ""
+    scene: str = ""
 
 
 class Decider(Protocol):
@@ -64,9 +81,40 @@ class Decider(Protocol):
         strategy: str = "",
     ) -> Decision: ...
 
+    async def verify(
+        self,
+        expect: str,
+        before_seen: str,
+        observation: Observation,
+    ) -> VerifyResult: ...
+
 
 def _int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _scene_of(raw: Mapping[str, object]) -> str:
+    scene = str(raw.get("scene", "")).strip().lower()
+    return scene if scene in SCENES else "unknown"
+
+
+def parse_verify(text: str) -> VerifyResult:
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    try:
+        raw = json.loads(match.group(0)) if match else None
+    except json.JSONDecodeError:
+        raw = None
+    if not isinstance(raw, dict):
+        return VerifyResult("unknown", "verify_not_json")
+    status = str(raw.get("status", "")).strip().lower()
+    if status not in {"confirmed", "denied", "unknown"}:
+        status = "unknown"
+    return VerifyResult(
+        status=status,
+        detail=str(raw.get("detail", "")).strip()[:200],
+        seen=str(raw.get("seen", "")).strip()[:200],
+        scene=_scene_of(raw),
+    )
 
 
 def parse_decision(text: str) -> Decision:
@@ -110,59 +158,72 @@ def parse_decision(text: str) -> Decision:
             raise DecisionError("incomplete_action")
     reason = str(raw.get("reason", ""))[:300]
     seen = str(raw.get("seen", "")).strip()[:200] or reason[:200]
+    expect = str(raw.get("expect", "")).strip()[:300]
+    if kind == "act" and not expect:
+        raise DecisionError("missing_expect")
     return Decision(
         kind=str(kind),
         action=action,
-        expect=str(raw.get("expect", ""))[:300],
+        expect=expect,
         reason=reason,
         confidence=float(confidence),
         evidence=str(raw.get("evidence", ""))[:300],
         seen=seen,
         strategy=str(raw.get("strategy", "")).strip()[:200],
+        scene=_scene_of(raw),
+        energy=str(raw.get("energy", "")).strip()[:40],
+        targets=str(raw.get("targets", "")).strip()[:200],
+        uncertainty=str(raw.get("uncertainty", "")).strip()[:200],
     )
 
 
-DECISION_PROMPT = """Screenshot is attached ({w}x{h} px). One next input. Be fast.
+_JSON_SHAPE = (
+    '{{"kind":"act|done|stuck|ask|wait","scene":"map|combat|shop|event|reward|pause|defeat|menu|unknown",'
+    '"seen":"one short sentence","energy":"e.g. 2/3 or n/a","targets":"clickable controls",'
+    '"uncertainty":"what is unreadable or empty","strategy":"",'
+    '"action":{{"kind":"click","x":0,"y":0,"button":"left"}},'
+    '"expect":"visible change to verify","reason":"why","confidence":0.8,"evidence":""}}'
+)
+
+DECISION_PROMPT = """Screenshot is attached ({w}x{h} px). It covers desktop rect {image_rect} (left,top,width,height).
+Click/move x,y are SCREENSHOT pixels only: 0 <= x < {w}, 0 <= y < {h}. Never desktop coords.
 
 Goal: {goal}
 Current strategy: {strategy}
 Window "{title}" ({process}).
-Recent:
+Recent (sent=delivered, visual_change=pixels moved, effective=expect confirmed, unconfirmed=尚未確認, ineffective=no progress):
 {history}
 
 Hard rules:
-- Follow Current strategy with an immediate reaction to THIS screen.
-- If strategy is "(none)" or the scene clearly changed (map/combat/shop/event/reward/death), set "strategy" to a short plan (≤20 words). Otherwise leave "strategy":"".
-- "seen" MUST describe the screen in one short sentence (never empty).
-- click/move x,y are SCREENSHOT pixels only: 0 <= x < {w}, 0 <= y < {h}. Never desktop/screen coords.
-- No repeats if last act did nothing. Wait if loading. Never ask. Never type secrets.
-- Defeat/death/game over/retry/continue → click once (not done).
-- Combat with 0 energy / no affordable cards → click End Turn / 结束回合 (bottom-right), not cards.
-- Shop open and not buying → click Leave/Proceed once (Escape only if no Leave control is visible). Never spam Escape.
-- Never invent coordinates outside 0..{w}-1, 0..{h}-1. Prefer the obvious highlighted button.
-JSON only:
-{{"kind":"act|done|stuck|ask|wait","seen":"what is on screen","strategy":"","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what changes","reason":"why","confidence":0.8,"evidence":""}}"""  # noqa: E501
-
-CLAUDE_DECISION_PROMPT = """Read {image} (only tool: Read). Screenshot is {w}x{h} px. One next input. Be fast.
-
-Goal: {goal}
-Current strategy: {strategy}
-Window "{title}" ({process}).
-Recent:
-{history}
-
-Hard rules:
+- Fill scene, energy, targets, uncertainty every turn. If UI text is unreadable, set uncertainty and prefer kind=wait (do not invent coords).
 - Follow Current strategy with an immediate reaction to THIS screen.
 - If strategy is "(none)" or the scene clearly changed, set "strategy" to a short plan (≤20 words). Otherwise "".
 - "seen" MUST describe the screen in one short sentence (never empty).
-- click/move x,y are SCREENSHOT pixels only: 0 <= x < {w}, 0 <= y < {h}. Never desktop coords.
-- No repeats if last act did nothing. Wait if loading. Never ask. Never type secrets.
+- Every act MUST set "expect" to the visible change used to verify success.
+- No repeats if last act was ineffective. Wait if loading. Never ask. Never type secrets. Never spam Escape.
 - Defeat/death/game over/retry/continue → click once (not done).
-- Combat with 0 energy / no affordable cards → click End Turn / 结束回合 (bottom-right), not cards.
-- Shop open and not buying → click Leave/Proceed once (Escape only if no Leave control is visible). Never spam Escape.
-- Never invent coordinates outside 0..{w}-1, 0..{h}-1. Prefer the obvious highlighted button.
+- Combat with 0 energy / no affordable cards → click End Turn / 结束回合 (bottom-right).
+- Pause menu → click Resume/继续. Shop and not buying → click Leave/Proceed.
 JSON only:
-{{"kind":"act|done|stuck|ask|wait","seen":"what is on screen","strategy":"","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what changes","reason":"why","confidence":0.8,"evidence":""}}"""  # noqa: E501
+""" + _JSON_SHAPE  # noqa: E501
+
+CLAUDE_DECISION_PROMPT = """Read {image} (only tool: Read). Screenshot is {w}x{h} px covering desktop rect {image_rect}.
+Click/move x,y are SCREENSHOT pixels only: 0 <= x < {w}, 0 <= y < {h}.
+
+Goal: {goal}
+Current strategy: {strategy}
+Window "{title}" ({process}).
+Recent:
+{history}
+
+Hard rules:
+- Fill scene, energy, targets, uncertainty. If unreadable, kind=wait — do not invent coords.
+- Follow Current strategy. Refresh strategy on scene change; else "".
+- "seen" required. Every act needs "expect" for verification.
+- No repeats after ineffective. Never ask. Never spam Escape.
+- 0 energy → End Turn. Pause → Resume. Shop leave → Leave/Proceed. Defeat → click continue once.
+JSON only:
+""" + _JSON_SHAPE  # noqa: E501
 
 
 class CloudScreenNotAllowed(RuntimeError):
@@ -173,15 +234,49 @@ def cloud_screen_allowed(env: dict[str, str] | None = None) -> bool:
     return (os.environ if env is None else env).get(CLOUD_SCREEN_FLAG, "0") == "1"
 
 
+VERIFY_PROMPT = """Screenshot is attached ({w}x{h} px), desktop rect {image_rect}.
+Previous action expected: {expect}
+Previous description: {before_seen}
+
+Judge ONLY whether that expectation is visibly true now (e.g. main menu gone, character select shown, combat started, shop closed).
+Pixel motion alone is not enough.
+JSON only:
+{{"status":"confirmed|denied|unknown","seen":"what is on screen now","scene":"map|combat|shop|event|reward|pause|defeat|menu|unknown","detail":"short why"}}"""
+
+
 def _history_text(history: Sequence[StepRecord]) -> str:
     if not history:
         return "(none yet)"
-    return "\n".join(
-        f"{r.step}. saw: {r.seen or '-'} | did: {r.action} | expected: {r.expect or '-'} | "
-        f"outcome: {r.outcome}; "
-        f"screen changed: {'?' if r.screen_changed is None else r.screen_changed}"
-        for r in history[-3:]
-    )
+    lines: list[str] = []
+    effective = [r for r in history if r.outcome == "effective"]
+    if effective:
+        last = effective[-1]
+        lines.append(
+            f"Last effective: step {last.step} {last.action} expect={last.expect or '-'} "
+            f"scene={last.scene or '-'}"
+        )
+    fails = [
+        r
+        for r in history
+        if r.outcome
+        in {"ineffective", "unconfirmed", "visual_change"}
+        or r.outcome.startswith(("invalid", "denied"))
+        or (r.outcome in {"sent", "ok"} and r.screen_changed is False)
+    ]
+    if fails:
+        last = fails[-1]
+        lines.append(
+            f"Last failure: step {last.step} {last.action} outcome={last.outcome} "
+            f"detail={last.detail or last.expect or '-'}"
+        )
+    for r in history[-4:]:
+        changed = "?" if r.screen_changed is None else r.screen_changed
+        lines.append(
+            f"{r.step}. scene={r.scene or '-'} saw={r.seen or '-'} | did={r.action} | "
+            f"expect={r.expect or '-'} | outcome={r.outcome} | changed={changed}"
+            + (f" | detail={r.detail}" if r.detail else "")
+        )
+    return "\n".join(lines)
 
 
 def _ollama_base_url(env: Mapping[str, str] | None = None) -> str:
@@ -200,6 +295,7 @@ def _prompt_fields(
     strategy: str = "",
 ) -> dict[str, object]:
     width, height = observation.image_size or (0, 0)
+    image_rect = observation.image_rect or (0, 0, *observation.screen)
     return {
         "goal": goal,
         "strategy": strategy.strip() or "(none)",
@@ -207,6 +303,7 @@ def _prompt_fields(
         "process": observation.process,
         "w": width,
         "h": height,
+        "image_rect": list(image_rect),
         "history": _history_text(history),
     }
 
@@ -230,26 +327,15 @@ class OllamaVisionDecider:
         self._timeout = timeout
         self._client = client
 
-    async def _decide_once(
-        self,
-        goal: str,
-        history: Sequence[StepRecord],
-        observation: Observation,
-        *,
-        strategy: str = "",
-    ) -> Decision:
+    async def _chat(self, prompt: str, observation: Observation, *, num_predict: int = 260) -> str:
         if not observation.image_png_b64:
             raise DecisionError("no_image")
-        fields = _prompt_fields(goal, history, observation, strategy=strategy)
-        prompt = DECISION_PROMPT.format(**fields)
-        if fields["strategy"] == "(none)" or "MUST set a non-empty \"strategy\"" in goal:
-            prompt += '\nThis turn: you MUST set a non-empty "strategy" short plan.'
         payload = {
             "model": self._model,
             "stream": False,
             "think": False,
             "keep_alive": values_keep_alive(self._env),
-            "options": {"temperature": 0.1, "num_predict": 260, "num_ctx": 4096},
+            "options": {"temperature": 0.1, "num_predict": num_predict, "num_ctx": 4096},
             "messages": [
                 {
                     "role": "user",
@@ -281,7 +367,41 @@ class OllamaVisionDecider:
         content = message.get("content") if isinstance(message, dict) else None
         if not isinstance(content, str) or not content.strip():
             raise DecisionError("ollama_empty")
-        return parse_decision(content)
+        return content
+
+    async def _decide_once(
+        self,
+        goal: str,
+        history: Sequence[StepRecord],
+        observation: Observation,
+        *,
+        strategy: str = "",
+    ) -> Decision:
+        fields = _prompt_fields(goal, history, observation, strategy=strategy)
+        prompt = DECISION_PROMPT.format(**fields)
+        if fields["strategy"] == "(none)" or "MUST set a non-empty \"strategy\"" in goal:
+            prompt += '\nThis turn: you MUST set a non-empty "strategy" short plan.'
+        return parse_decision(await self._chat(prompt, observation))
+
+    async def verify(
+        self,
+        expect: str,
+        before_seen: str,
+        observation: Observation,
+    ) -> VerifyResult:
+        width, height = observation.image_size or (0, 0)
+        image_rect = observation.image_rect or (0, 0, *observation.screen)
+        prompt = VERIFY_PROMPT.format(
+            w=width,
+            h=height,
+            image_rect=list(image_rect),
+            expect=expect.strip()[:300] or "(none)",
+            before_seen=before_seen.strip()[:200] or "-",
+        )
+        try:
+            return parse_verify(await self._chat(prompt, observation, num_predict=120))
+        except DecisionError as error:
+            return VerifyResult("unknown", f"verify_failed:{error}")
 
     async def decide(
         self,
@@ -300,7 +420,13 @@ class OllamaVisionDecider:
             except DecisionError as error:
                 last = error
                 code = str(error)
-                if code in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
+                if code in {
+                    "not_json",
+                    "bad_action",
+                    "incomplete_action",
+                    "bad_kind",
+                    "missing_expect",
+                }:
                     return await self._decide_once(
                         goal, history, observation, strategy=strategy
                     )
@@ -401,6 +527,15 @@ class ClaudeVisionDecider:
             raise DecisionError("claude_error")
         return parse_decision(str(parsed.get("result") or ""))
 
+    async def verify(
+        self,
+        expect: str,
+        before_seen: str,
+        observation: Observation,
+    ) -> VerifyResult:
+        # Avoid a second cloud round-trip by default; local Ollama owns verify.
+        return VerifyResult("unknown", "claude_verify_not_used", before_seen, "unknown")
+
     async def decide(
         self,
         goal: str,
@@ -420,7 +555,13 @@ class ClaudeVisionDecider:
                 code = str(error)
                 if code == "claude_auth":
                     raise
-                if code in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
+                if code in {
+                    "not_json",
+                    "bad_action",
+                    "incomplete_action",
+                    "bad_kind",
+                    "missing_expect",
+                }:
                     return await self._decide_once(
                         goal, history, observation, strategy=strategy
                     )

@@ -88,7 +88,8 @@ def test_run_reports_owner_needed_and_executor_missing() -> None:
 async def test_endless_session_chains_recoverable_segments(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SIRO_COMPUTER_AUTONOMOUS", "1")
     monkeypatch.setenv("SIRO_COMPUTER_ENDLESS", "1")
-    monkeypatch.setenv("SIRO_COMPUTER_MAX_SEGMENTS", "3")
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_SEGMENTS", "5")
+    monkeypatch.setenv("SIRO_COMPUTER_SAME_SEGMENT_REASON_LIMIT", "3")
     monkeypatch.setenv("SIRO_COMPUTER_ALLOWED_PROCESSES", "game.exe")
 
     async def _no_sleep(*_a: Any, **_k: Any) -> None:
@@ -99,10 +100,13 @@ async def test_endless_session_chains_recoverable_segments(monkeypatch: pytest.M
 
     async def fake_run(self: Any, goal: str) -> LoopReport:
         calls["n"] += 1
+        # Alternate continue reasons so the same-reason limit does not fire first.
+        reason = "step_limit" if calls["n"] % 2 else "time_limit"
         return LoopReport(
             "stopped",
-            "step_limit",
+            reason,
             (StepRecord(1, "click", "x", "ok", True, "menu"),),
+            detail=f"seg{calls['n']}",
         )
 
     monkeypatch.setattr(http_module.DecisionLoop, "run", fake_run)
@@ -111,10 +115,40 @@ async def test_endless_session_chains_recoverable_segments(monkeypatch: pytest.M
     assert runs.start("play forever")
     assert runs._task is not None
     await runs._task
-    assert calls["n"] == 3
-    assert runs.session_segments == 3
+    assert calls["n"] == 5
+    assert runs.session_segments == 5
     assert runs.report is not None
-    assert "session_segment_limit:3" in (runs.report.detail or "")
+    assert "session_segment_limit:5" in (runs.report.detail or "")
+    assert len(runs.segment_ends) == 5
+    assert runs.segment_ends[0]["reason"] in {"step_limit", "time_limit"}
+
+
+@pytest.mark.asyncio
+async def test_endless_stops_after_same_continue_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SIRO_COMPUTER_AUTONOMOUS", "1")
+    monkeypatch.setenv("SIRO_COMPUTER_ENDLESS", "1")
+    monkeypatch.setenv("SIRO_COMPUTER_MAX_SEGMENTS", "0")
+    monkeypatch.setenv("SIRO_COMPUTER_SAME_SEGMENT_REASON_LIMIT", "2")
+
+    async def _no_sleep(*_a: Any, **_k: Any) -> None:
+        return None
+
+    monkeypatch.setattr(http_module.asyncio, "sleep", _no_sleep)
+    calls = {"n": 0}
+
+    async def fake_run(self: Any, goal: str) -> LoopReport:
+        calls["n"] += 1
+        return LoopReport("stopped", "step_limit", (), detail="hit steps")
+
+    monkeypatch.setattr(http_module.DecisionLoop, "run", fake_run)
+    runs = ComputerRuns(ComputerBridge(ControlGate(enabled=True)), NeverDecider())
+    assert runs.start("play forever")
+    assert runs._task is not None
+    await runs._task
+    assert calls["n"] == 2
+    assert runs.report is not None
+    assert "same_segment_reason_limit:step_limitx2" in (runs.report.detail or "")
+    assert [e["reason"] for e in runs.segment_ends] == ["step_limit", "step_limit"]
 
 
 @pytest.mark.asyncio
@@ -139,6 +173,7 @@ async def test_endless_zero_segments_means_unlimited(monkeypatch: pytest.MonkeyP
     monkeypatch.setenv("SIRO_COMPUTER_AUTONOMOUS", "1")
     monkeypatch.setenv("SIRO_COMPUTER_ENDLESS", "1")
     monkeypatch.setenv("SIRO_COMPUTER_MAX_SEGMENTS", "0")
+    monkeypatch.setenv("SIRO_COMPUTER_SAME_SEGMENT_REASON_LIMIT", "20")
 
     async def _no_sleep(*_a: Any, **_k: Any) -> None:
         return None
@@ -150,7 +185,8 @@ async def test_endless_zero_segments_means_unlimited(monkeypatch: pytest.MonkeyP
         calls["n"] += 1
         if calls["n"] >= 5:
             return LoopReport("stopped", "emergency_stop", ())
-        return LoopReport("stopped", "step_limit", ())
+        # Alternate reasons so the same-reason cap does not stop the unlimited run.
+        return LoopReport("stopped", "step_limit" if calls["n"] % 2 else "time_limit", ())
 
     monkeypatch.setattr(http_module.DecisionLoop, "run", fake_run)
     runs = ComputerRuns(ComputerBridge(ControlGate(enabled=True)), NeverDecider())

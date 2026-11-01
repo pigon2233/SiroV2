@@ -10,6 +10,7 @@ from siro.services.computer_use.decision import (
     OllamaVisionDecider,
     make_decider,
     parse_decision,
+    parse_verify,
 )
 from siro.services.computer_use.perception import Observation
 
@@ -84,8 +85,26 @@ def test_parse_decision_still_accepts_wait() -> None:
 
 def test_parse_decision_keeps_strategy_update() -> None:
     d = parse_decision(
-        '{"kind":"act","seen":"map","strategy":"take the elite path","action":'
-        '{"kind":"click","x":1,"y":2,"button":"left"},"expect":"node","reason":"r",'
+        '{"kind":"act","seen":"map","scene":"map","energy":"n/a","targets":"elite node",'
+        '"uncertainty":"","strategy":"take the elite path","action":'
+        '{"kind":"click","x":1,"y":2,"button":"left"},"expect":"enter combat","reason":"r",'
         '"confidence":0.9,"evidence":""}'
     )
     assert d.strategy == "take the elite path"
+    assert d.scene == "map"
+    assert d.targets == "elite node"
+
+
+def test_parse_decision_requires_expect_for_act() -> None:
+    with pytest.raises(DecisionError, match="missing_expect"):
+        parse_decision(
+            '{"kind":"act","seen":"map","action":{"kind":"click","x":1,"y":2,"button":"left"},'
+            '"confidence":0.9}'
+        )
+
+
+def test_parse_verify_statuses() -> None:
+    assert parse_verify(
+        '{"status":"confirmed","seen":"character select","scene":"menu","detail":"menu gone"}'
+    ).status == "confirmed"
+    assert parse_verify('{"status":"nope"}').status == "unknown"

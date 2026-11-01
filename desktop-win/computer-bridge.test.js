@@ -182,9 +182,9 @@ test('observation reports physical screen, scaled image, fingerprint', async () 
   const result = await makeObserver({control, screen, desktopCapturer: capturer})();
   assert.strictEqual(result.ok, true);
   assert.deepStrictEqual(result.data.screen, [1920, 1080]);
-  // Window rect [0,0,800,600] is cropped then capped to MAX_WIDTH=512.
+  // Window rect [0,0,800,600] fits under MAX_WIDTH=1280 — no downscale.
   assert.deepStrictEqual(result.data.image_rect, [0, 0, 800, 600]);
-  assert.deepStrictEqual(result.data.image_size, [512, 384]);
+  assert.deepStrictEqual(result.data.image_size, [800, 600]);
   assert.strictEqual(result.data.image_png_b64, Buffer.from('png').toString('base64'));
   assert.notStrictEqual(fingerprint(fakeImage(1, 1, 40)), fingerprint(fakeImage(1, 1, 200)));
   assert.strictEqual(fingerprint(fakeImage(1, 1, 40)), fingerprint(fakeImage(9, 9, 40)));

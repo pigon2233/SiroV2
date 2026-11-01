@@ -29,19 +29,16 @@ TOKEN_HEADER = "X-SIRO-Computer-Token"
 AUTONOMOUS_FLAG = "SIRO_COMPUTER_AUTONOMOUS"
 ENDLESS_FLAG = "SIRO_COMPUTER_ENDLESS"  # with autonomous: start another segment after recoverable stops
 MAX_SEGMENTS_ENV = "SIRO_COMPUTER_MAX_SEGMENTS"
+SAME_REASON_LIMIT_ENV = "SIRO_COMPUTER_SAME_SEGMENT_REASON_LIMIT"
 DEFAULT_MAX_SEGMENTS = 48
 MAX_CONFIGURED_SEGMENTS = 500
+DEFAULT_SAME_REASON_LIMIT = 2  # stop auto-restart after N consecutive identical continue reasons
 # Reasons that may continue a long autonomous session (never emergency / privacy / unknown).
+# Only wall-clock / step caps may start another segment. Scene stuck must surface to the owner.
 _CONTINUE_REASONS = frozenset(
     {
         "step_limit",
         "time_limit",
-        "stuck_waiting",
-        "stuck_no_visible_change",
-        "too_many_invalid_decisions",
-        "decider_stuck",
-        "low_confidence",
-        "done_without_evidence",
     }
 )
 
@@ -93,6 +90,9 @@ class ComputerRuns:
         self.learned = 0  # lessons added by the last finished segment
         self.session_segments = 0
         self.session_learned = 0
+        self.segment_ends: list[dict[str, Any]] = []
+        self._same_reason_streak = 0
+        self._last_continue_reason = ""
         self._task: asyncio.Task[None] | None = None
         self._loop: DecisionLoop | None = None
         self.goal = ""
@@ -107,8 +107,32 @@ class ComputerRuns:
             return False
         self.goal, self.report, self._loop = goal, None, None
         self.learned = self.session_learned = self.session_segments = 0
+        self.segment_ends = []
+        self._same_reason_streak = 0
+        self._last_continue_reason = ""
         self._task = asyncio.create_task(self._run(goal))
         return True
+
+    def _same_reason_limit(self) -> int:
+        raw = os.environ.get(SAME_REASON_LIMIT_ENV)
+        if raw is None or raw == "":
+            return DEFAULT_SAME_REASON_LIMIT
+        if not raw.isascii() or not raw.isdigit() or len(raw) > 3:
+            return DEFAULT_SAME_REASON_LIMIT
+        value = int(raw)
+        return value if 1 <= value <= 20 else DEFAULT_SAME_REASON_LIMIT
+
+    def _reason_key(self, report: LoopReport) -> str:
+        """Normalize continue keys so timeout variants share one streak."""
+        reason = report.reason
+        if reason.startswith("decider_error:"):
+            detail = reason.removeprefix("decider_error:")
+            if "timeout" in detail:
+                return "decider_error:timeout"
+            if detail in {"not_json", "bad_action", "incomplete_action", "missing_expect", "bad_kind"}:
+                return "decider_error:bad_format"
+            return f"decider_error:{detail}"
+        return reason
 
     def _endless(self) -> bool:
         env = os.environ
@@ -182,12 +206,35 @@ class ComputerRuns:
             self.session_learned += self.learned
             report = self.report
             assert report is not None
+            end_info = {
+                "segment": self.session_segments,
+                "state": report.state,
+                "reason": report.reason,
+                "detail": report.detail,
+            }
+            self.segment_ends.append(end_info)
             hit_segment_cap = (
                 max_segments is not None and self.session_segments >= max_segments
             )
+            will_continue = self._should_continue(report) and not hit_segment_cap
+            if will_continue:
+                key = self._reason_key(report)
+                if key == self._last_continue_reason:
+                    self._same_reason_streak += 1
+                else:
+                    self._last_continue_reason = key
+                    self._same_reason_streak = 1
+                if self._same_reason_streak >= self._same_reason_limit():
+                    self.report = LoopReport(
+                        report.state,
+                        report.reason,
+                        report.steps,
+                        detail=(report.detail + " | " if report.detail else "")
+                        + f"same_segment_reason_limit:{key}x{self._same_reason_streak}",
+                    )
+                    return
             if (
-                not self._should_continue(report)
-                or hit_segment_cap
+                not will_continue
                 or not self.bridge.gate.enabled
             ):
                 if self._endless() and hit_segment_cap:
@@ -204,7 +251,9 @@ class ComputerRuns:
                 return
             segment_goal = (
                 f"{goal}\n\nContinue from the current screen. Previous segment ended with "
-                f"{report.state}/{report.reason}. Keep playing; do not ask the owner."
+                f"{report.state}/{report.reason}"
+                + (f" ({report.detail})" if report.detail else "")
+                + ". Keep playing; do not ask the owner."
             )
 
     async def _learn(self, goal: str) -> None:
@@ -243,6 +292,8 @@ class ComputerRuns:
         if limits is not None:
             limits["endless"] = self._endless()
             limits["session_segments"] = self.session_segments
+            limits["same_segment_reason_limit"] = self._same_reason_limit()
+        last_end = self.segment_ends[-1] if self.segment_ends else None
         return {
             "enabled": gate.enabled,
             "tripped": gate.tripped,
@@ -255,6 +306,8 @@ class ComputerRuns:
             "strategy": None if self._loop is None else self._loop.strategy,
             "learned_notes": self.session_learned if self.session_learned else self.learned,
             "session_segments": self.session_segments,
+            "segment_ends": list(self.segment_ends),
+            "last_segment_end": last_end,
             "report": None
             if report is None
             else {
@@ -275,6 +328,8 @@ def _steps(records: Sequence[StepRecord]) -> list[dict[str, Any]]:
             "outcome": s.outcome,
             "screen_changed": s.screen_changed,
             "seen": s.seen,
+            "scene": s.scene,
+            "detail": s.detail,
         }
         for s in records
     ]
