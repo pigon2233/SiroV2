@@ -24,12 +24,66 @@ echo "請把遊戲視窗點到最前面；$delay 秒後開始（Ctrl+Alt+Shift+E
 sleep "$delay"
 body="$(python3 -c 'import json,sys; print(json.dumps({"goal": sys.argv[1][:500]}))' "$goal")"
 api -X POST -d "$body" "$base/run"; echo
-sleep 3
-until api "$base/status" | grep -q '"running":false'; do sleep 4; done
-api "$base/status" | python3 -c '
-import sys, json
-d = json.load(sys.stdin); r = d["report"]
-print("結果:", r["state"], "|", r["reason"][:200], "| 新增筆記:", d.get("learned_notes", "-"))
-for s in r["steps"]:
-    print(s["step"], s["action"], s["outcome"], "| 看到:", s.get("seen", "")[:80])
-'
+echo "開始。下面會即時印出每一步（長跑也不會等到結束才顯示）。"
+python3 - "$base" "$token" <<'PY'
+import json, sys, time, urllib.request
+
+base, token = sys.argv[1], sys.argv[2]
+printed = 0
+last_phase = ""
+segments_seen = 0
+
+def get_status():
+    req = urllib.request.Request(
+        base + "/status",
+        headers={"X-SIRO-Computer-Token": token},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.load(resp)
+
+# Wait until the run is actually marked running (or already finished).
+for _ in range(30):
+    d = get_status()
+    if d.get("running") or d.get("report"):
+        break
+    time.sleep(0.5)
+
+while True:
+    d = get_status()
+    phase = d.get("phase") or ""
+    segs = int(d.get("session_segments") or 0)
+    if segs > segments_seen:
+        if segments_seen:
+            print(f"— 第 {segs} 段 —", flush=True)
+            printed = 0  # each segment starts a fresh live step list
+        segments_seen = segs
+    if phase and phase != last_phase and phase not in {"observing", "acting", "done", "stopped", "failed"}:
+        # Show deciding/waiting so long model calls are visible.
+        if phase in {"deciding", "waiting", "waiting_for_matching_screen"}:
+            print(f"… {phase}", flush=True)
+        last_phase = phase
+    steps = d.get("live_steps") or []
+    if not d.get("running"):
+        steps = (d.get("report") or {}).get("steps") or steps
+    while printed < len(steps):
+        s = steps[printed]
+        printed += 1
+        seen = (s.get("seen") or "").strip() or "-"
+        print(
+            f'{s.get("step")} {s.get("action")} {s.get("outcome")} | 看到: {seen[:100]}',
+            flush=True,
+        )
+    if not d.get("running"):
+        r = d.get("report") or {}
+        print(
+            "結果:",
+            r.get("state"),
+            "|",
+            str(r.get("reason") or "")[:200],
+            "| 新增筆記:",
+            d.get("learned_notes", "-"),
+            flush=True,
+        )
+        break
+    time.sleep(1.5)
+PY

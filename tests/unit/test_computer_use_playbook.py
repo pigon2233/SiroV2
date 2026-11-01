@@ -146,7 +146,7 @@ class Recorder:
         self.goals: list[str] = []
 
     async def decide(
-        self, goal: str, history: Sequence[StepRecord], observation: Observation
+        self, goal: str, history: Sequence[StepRecord], observation: Observation, **_kwargs
     ) -> Decision:
         self.goals.append(goal)
         return solver(observation, history)

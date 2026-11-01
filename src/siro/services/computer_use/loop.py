@@ -13,8 +13,9 @@ import binascii
 import hashlib
 import io
 import os
+import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from PIL import Image
@@ -52,7 +53,8 @@ WAIT_SECONDS = 1.0
 SETTLE_SECONDS = 0.4
 AUTONOMOUS_WAIT_SECONDS = 0.35
 AUTONOMOUS_SETTLE_SECONDS = 0.15
-DECIDE_TIMEOUT_SECONDS = 45.0  # per decision when the run itself has no wall clock
+DECIDE_TIMEOUT_SECONDS = 35.0  # per decision when the run itself has no wall clock
+STRATEGY_REFRESH_EVERY = 8  # ask the model to refresh the short plan this often
 SCREEN_MATCH_WAIT_SECONDS = 30.0
 SCREEN_MATCH_POLL_SECONDS = 0.4
 AUTONOMOUS_FLAG = "SIRO_COMPUTER_AUTONOMOUS"  # 1 = never stop to ask the owner
@@ -65,7 +67,7 @@ def _pixel_digest(observation: Observation) -> bytes | None:
     try:
         raw = base64.b64decode(observation.image_png_b64, validate=True)
         with Image.open(io.BytesIO(raw)) as image:
-            if image.format != "PNG" or image.size != observation.image_size:
+            if image.format not in {"PNG", "JPEG"} or image.size != observation.image_size:
                 return None
             if image.width * image.height > 16_000_000:
                 return None
@@ -130,7 +132,131 @@ def _autonomous_hint() -> str:
         "\n\nOwner autonomous mode is ON: never answer kind=ask. Prefer a quick act. "
         "If you see defeat/death/game over/retry/continue/play again, click that button "
         "once immediately and keep playing a new run. Do not stop after a loss. "
-        "Do not answer kind=done just because a run ended — click through and continue."
+        "Do not answer kind=done just because a run ended — click through and continue. "
+        "Combat: if energy is 0 or no playable cards, click End Turn / 结束回合 immediately. "
+        "Map: click only a reachable next node once; if the map description repeats, try another node. "
+        "Do not reuse the same vague 'seen' sentence — describe what is new (combat/map/event/reward)."
+    )
+
+
+def _norm_seen(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip().lower())[:70]
+
+
+def _seen_stuck(history: list[StepRecord], *, lookback: int = 3) -> bool:
+    """True when recent acts keep repeating the same vague screen description."""
+    acts = [s for s in history if not s.action.startswith("(")]
+    if len(acts) < lookback:
+        return False
+    recent = acts[-lookback:]
+    texts = [_norm_seen(s.seen) for s in recent if s.seen.strip()]
+    if len(texts) < lookback:
+        return False
+    return len(set(texts)) == 1 and all(s.outcome == "ok" for s in recent)
+
+
+_CLICK_RE = re.compile(r"^click\((-?\d+),(-?\d+)")
+REPEAT_CLICK_RADIUS = 36  # always reject near-identical hammering
+STUCK_CLICK_RADIUS = 140  # when seen-text is stuck, ban the whole local region
+
+
+def _parse_click_xy(action: str) -> tuple[int, int] | None:
+    match = _CLICK_RE.match(action)
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def _normalize_image_xy(
+    observation: Observation, x: int, y: int
+) -> tuple[int, int] | None:
+    """Map model x/y into the downscaled screenshot, or None if unusable."""
+    size = observation.image_size
+    if size is None:
+        return None
+    if 0 <= x < size[0] and 0 <= y < size[1]:
+        return x, y
+    full = observation.image_rect
+    if (
+        full is not None
+        and full[2] > 0
+        and full[3] > 0
+        and 0 <= x < full[2]
+        and 0 <= y < full[3]
+    ):
+        nx = round(x * size[0] / full[2])
+        ny = round(y * size[1] / full[3])
+        if 0 <= nx < size[0] and 0 <= ny < size[1]:
+            return nx, ny
+    return None
+
+
+def _history_action(decision: Decision, observation: Observation, fallback: InputAction) -> str:
+    """Prefer screenshot-pixel click coords (after normalization) for the model history."""
+    action = decision.action
+    if action is not None and action.kind in {"move", "click"} and action.x is not None and action.y is not None:
+        xy = _normalize_image_xy(observation, action.x, action.y)
+        if xy is not None:
+            return f"{action.kind}({xy[0]},{xy[1]},{action.button})"
+        return _describe(action)
+    if action is not None:
+        return _describe(action)
+    return _describe(fallback)
+
+
+def _recent_ok_clicks(history: Sequence[StepRecord], *, limit: int = 5) -> list[tuple[int, int]]:
+    points: list[tuple[int, int]] = []
+    for step in reversed(history):
+        if step.outcome != "ok":
+            continue
+        point = _parse_click_xy(step.action)
+        if point is None:
+            continue
+        points.append(point)
+        if len(points) >= limit:
+            break
+    return points
+
+
+def _click_too_close(
+    history: Sequence[StepRecord], x: int, y: int, *, radius: int = REPEAT_CLICK_RADIUS
+) -> bool:
+    """Reject hammering the same spot when the model is stuck."""
+    for px, py in _recent_ok_clicks(history):
+        if (x - px) * (x - px) + (y - py) * (y - py) <= radius * radius:
+            return True
+    return False
+
+
+def _overlay_seen(seen: str) -> bool:
+    text = seen.lower()
+    return any(
+        token in text
+        for token in (
+            "shop",
+            "overlay",
+            "panel",
+            "modal",
+            "dialog",
+            "popup",
+            "商店",
+            "面板",
+            "弹窗",
+            "彈窗",
+        )
+    )
+
+
+def _banned_clicks_text(history: Sequence[StepRecord]) -> str:
+    points = _recent_ok_clicks(history, limit=4)
+    if not points:
+        return ""
+    joined = ", ".join(f"({x},{y})" for x, y in points)
+    return (
+        f"\n\nDo NOT click near these recent screenshot spots "
+        f"(stay >{STUCK_CLICK_RADIUS}px away): {joined}. "
+        "Click a clearly different control (door/node/End Turn/Leave). "
+        "If combat with 0 energy, click End Turn / 结束回合."
     )
 
 
@@ -230,6 +356,7 @@ class DecisionLoop:
         self._clock = clock
         self._screen_guard = os.environ.get("SIRO_COMPUTER_SCREEN_GUARD", "0") == "1"
         self.phase = "idle"
+        self.strategy = ""  # short plan the model maintains across reactive steps
 
     @property
     def limits(self) -> dict[str, int | float | bool | None]:
@@ -243,6 +370,7 @@ class DecisionLoop:
     async def run(self, goal: str) -> LoopReport:
         history = self.live = []
         self.phase = "observing"
+        stuck_escape_used = False  # at most one forced Escape per run — never spam Esc
 
         def end(state: str, reason: str, detail: str = "") -> LoopReport:
             self.phase = state
@@ -262,6 +390,7 @@ class DecisionLoop:
         done_seen = False
         before: Observation | None = None
         wait_before: Observation | None = None
+        strategy = self.strategy
         step = 0
         while True:
             step += 1
@@ -280,12 +409,30 @@ class DecisionLoop:
                 and not observation.blocked_reason
                 and observation.process not in self._allowed
             )
-            if wrong_window and self._focus and not focus_tried:
-                focus_tried = True
-                target = self._focus_target(goal)
-                if target and (await self._bridge.focus(target)).ok:
-                    await asyncio.sleep(0.3 if self._autonomous else 0.8)
+            if wrong_window:
+                # Autonomous: keep bringing the game forward; never act on a non-allowed window.
+                if self._autonomous and self._focus:
+                    target = self._focus_target(goal)
+                    if target:
+                        await self._bridge.focus(target)
+                    history.append(
+                        StepRecord(
+                            step,
+                            "(refocus)",
+                            "",
+                            "ok",
+                            None,
+                            "allowed game not focused; bring it forward",
+                        )
+                    )
+                    await asyncio.sleep(0.6)
                     continue
+                if self._focus and not focus_tried:
+                    focus_tried = True
+                    target = self._focus_target(goal)
+                    if target and (await self._bridge.focus(target)).ok:
+                        await asyncio.sleep(0.8)
+                        continue
             if observation is None:
                 return end("stopped", error)
             if observation.blocked_reason:
@@ -335,6 +482,17 @@ class DecisionLoop:
                         )
                         continue
                     return end("stopped", "stuck_no_visible_change")
+            if _seen_stuck(history) and (not history or history[-1].action != "(unstick)"):
+                history.append(
+                    StepRecord(
+                        step,
+                        "(unstick)",
+                        "",
+                        "ok",
+                        None,
+                        "same seen text repeated; re-describe this frame and act differently",
+                    )
+                )
             self.phase = "deciding"
             deadline = None
             try:
@@ -344,8 +502,23 @@ class DecisionLoop:
                     budget = self._max_seconds - (self._clock() - started)
                     if budget <= 0:
                         return end("stopped", "time_limit")
+                decide_goal = task
+                if not strategy or step == 1 or step % STRATEGY_REFRESH_EVERY == 0:
+                    decide_goal += (
+                        '\n\nThis turn: set JSON "strategy" to a short plan for this scene.'
+                    )
+                if history and history[-1].action == "(unstick)":
+                    decide_goal += (
+                        "\n\nIMPORTANT: previous clicks did nothing useful. "
+                        "Update seen to match THIS frame. Pick a clearly different control."
+                    )
+                    decide_goal += _banned_clicks_text(history)
+                elif _seen_stuck(history, lookback=2):
+                    decide_goal += _banned_clicks_text(history)
                 async with asyncio.timeout(budget) as deadline:
-                    decision = await self._decider.decide(task, history, observation)
+                    decision = await self._decider.decide(
+                        decide_goal, history, observation, strategy=strategy
+                    )
             except TimeoutError as error:
                 if self._bridge.stop_generation != stop_generation:
                     return end("stopped", "emergency_stop")
@@ -364,6 +537,13 @@ class DecisionLoop:
                 return end("stopped", "emergency_stop")
             if self._max_seconds is not None and self._clock() - started >= self._max_seconds:
                 return end("stopped", "time_limit")
+            new_strategy = decision.strategy.strip()
+            if new_strategy and new_strategy != strategy:
+                strategy = new_strategy
+                self.strategy = strategy
+                history.append(
+                    StepRecord(step, "(strategy)", "", "ok", None, strategy)
+                )
             if decision.kind == "ask":
                 if not self._autonomous:
                     return end("stopped", "needs_owner", decision.reason.strip()[:300])
@@ -376,6 +556,7 @@ class DecisionLoop:
                     decision.confidence,
                     decision.evidence,
                     decision.seen,
+                    decision.strategy,
                 )
             if decision.kind == "stuck":
                 if not self._autonomous:
@@ -388,6 +569,7 @@ class DecisionLoop:
                     decision.confidence,
                     decision.evidence,
                     decision.seen,
+                    decision.strategy,
                 )
             if (
                 decision.confidence < self._min_confidence
@@ -404,6 +586,7 @@ class DecisionLoop:
                         decision.confidence,
                         decision.evidence,
                         decision.seen,
+                        decision.strategy,
                     )
                 # else: keep the low-confidence act and execute it below
             if decision.kind == "wait":
@@ -450,13 +633,53 @@ class DecisionLoop:
                 await asyncio.sleep(self._settle)
                 continue
             done_seen = False
-            action = self._checked_action(decision, observation)
+            action = self._checked_action(decision, observation, history=history)
             if isinstance(action, str):
                 invalid += 1
                 before = None
                 history.append(
-                    StepRecord(step, "(rejected)", decision.expect, f"invalid:{action}", None)
+                    StepRecord(
+                        step,
+                        "(rejected)",
+                        decision.expect,
+                        f"invalid:{action}",
+                        None,
+                        decision.seen,
+                    )
                 )
+                if (
+                    action == "repeat_click"
+                    and self._autonomous
+                    and not stuck_escape_used
+                    and _overlay_seen(decision.seen)
+                ):
+                    # One Escape per run only, and only when the model itself reports a shop/panel.
+                    stuck_escape_used = True
+                    escape = InputAction(
+                        kind="key",
+                        key="Escape",
+                        focus_is_secret=observation.focus_is_secret,
+                    )
+                    self.phase = "acting"
+                    result = await self._bridge.act(escape)
+                    outcome = "ok" if result.ok else f"denied:{result.error}"
+                    history.append(
+                        StepRecord(
+                            step,
+                            _describe(escape),
+                            "dismiss stuck shop/overlay once",
+                            outcome,
+                            None,
+                            decision.seen,
+                        )
+                    )
+                    if result.ok:
+                        invalid = 0
+                        before = observation
+                        await asyncio.sleep(self._settle)
+                        continue
+                    if result.error == "outcome_unknown":
+                        return end("stopped", "outcome_unknown")
                 if invalid > MAX_INVALID:
                     if self._autonomous:
                         invalid = 0
@@ -470,11 +693,13 @@ class DecisionLoop:
                 )
                 if fresh is None:
                     return end("stopped", guard_error)
-                action = self._checked_action(decision, fresh)
+                action = self._checked_action(decision, fresh, history=history)
                 if isinstance(action, str):
                     return end("stopped", f"invalid:{action}")
             self.phase = "acting"
             result = await self._bridge.act(action)
+            # History keeps screenshot-pixel coords so the model is not trained on desktop coords.
+            logged = _history_action(decision, observation, action)
             if not result.ok:
                 if result.error == "rate_limited" and rate_waits < MAX_RATE_WAITS:
                     rate_waits += 1
@@ -482,18 +707,18 @@ class DecisionLoop:
                     continue
                 if result.error == "outcome_unknown":
                     history.append(
-                        StepRecord(step, _describe(action), decision.expect, "unknown", None)
+                        StepRecord(step, logged, decision.expect, "unknown", None)
                     )
                     return end("stopped", "outcome_unknown")
                 history.append(
                     StepRecord(
-                        step, _describe(action), decision.expect, f"denied:{result.error}", None
+                        step, logged, decision.expect, f"denied:{result.error}", None
                     )
                 )
                 return end("stopped", f"denied:{result.error}")
             rate_waits = 0
             history.append(
-                StepRecord(step, _describe(action), decision.expect, "ok", None, decision.seen)
+                StepRecord(step, logged, decision.expect, "ok", None, decision.seen)
             )
             self._record(observation, decision, action)
             before = observation
@@ -580,13 +805,33 @@ class DecisionLoop:
             return
         self._demo_last = index if action is not None else None
 
-    @staticmethod
-    def _checked_action(decision: Decision, observation: Observation) -> InputAction | str:
+    def _checked_action(
+        self,
+        decision: Decision,
+        observation: Observation,
+        *,
+        history: Sequence[StepRecord] | None = None,
+    ) -> InputAction | str:
         action = decision.action
         if action is None:
             return "no_action"
         x, y = action.x, action.y
         if x is not None and y is not None:
+            if observation.image_size is None:
+                return "no_image_size"
+            normalized = _normalize_image_xy(observation, x, y)
+            if normalized is None:
+                return "outside_image"
+            x, y = normalized
+            # Ban near-duplicates in screenshot space (same space the model / history use).
+            if history is not None:
+                radius = (
+                    STUCK_CLICK_RADIUS
+                    if _seen_stuck(list(history), lookback=2)
+                    else REPEAT_CLICK_RADIUS
+                )
+                if _click_too_close(history, x, y, radius=radius):
+                    return "repeat_click"
             x, y = image_to_screen(observation, x, y)
         scaled = InputAction(action.kind, x=x, y=y)
         if not _inside(scaled, observation.window_rect):

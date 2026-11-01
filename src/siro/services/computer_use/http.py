@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from siro.services.computer_use.bridge import ComputerBridge
-from siro.services.computer_use.decision import ClaudeVisionDecider, Decider, StepRecord
+from siro.services.computer_use.decision import Decider, StepRecord, make_decider
 from siro.services.computer_use.demos import DemoRecorder, demos_dir
 from siro.services.computer_use.loop import ComputerLimitError, DecisionLoop, LoopReport
 from siro.services.computer_use.playbook import ClaudeReflector, PlaybookStore, playbook_dir
@@ -135,7 +135,6 @@ class ComputerRuns:
         if report.reason in {"emergency_stop", "control_disabled", "executor_offline"}:
             return False
         if report.reason in {
-            "window_not_allowed",
             "cloud_screen_not_allowed",
             "no_allowed_processes",
             "outcome_unknown",
@@ -148,7 +147,14 @@ class ComputerRuns:
             return True  # open-ended play: a "done" segment still continues until the owner stops
         if report.reason in _CONTINUE_REASONS:
             return True
+        # Focus briefly stolen by chat/tray: start another segment and refocus.
+        if report.reason in {"window_not_allowed", "window_not_visible"}:
+            return True
+        # Keep going after transient model glitches, but never spin on auth/login failure.
         if report.reason.startswith("decider_error:"):
+            detail = report.reason.removeprefix("decider_error:")
+            if detail in {"claude_auth", "claude_cli_missing"} or "auth" in detail:
+                return False
             return True
         return False
 
@@ -205,6 +211,9 @@ class ComputerRuns:
         """After a run, turn what happened into a few reusable notes (best effort, never raises)."""
         report, loop = self.report, self._loop
         self.learned = 0
+        # Endless play: skip post-segment Claude reflection — it can stall for minutes.
+        if self._endless():
+            return
         if self.playbook is None or self._reflector is None or report is None or loop is None:
             return
         if (
@@ -243,6 +252,7 @@ class ComputerRuns:
             "live_steps": _steps(live),
             "limits": limits,
             "phase": None if self._loop is None else self._loop.phase,
+            "strategy": None if self._loop is None else self._loop.strategy,
             "learned_notes": self.session_learned if self.session_learned else self.learned,
             "session_segments": self.session_segments,
             "report": None
@@ -378,12 +388,13 @@ def shared_runs(env: Mapping[str, str] | None = None) -> ComputerRuns | None:
         return None
     if _SHARED is None:
         learning = values.get("SIRO_COMPUTER_PLAYBOOK", "1") != "0"
+        env_map = dict(values)
         _SHARED = ComputerRuns(
             ComputerBridge(ControlGate()),
-            ClaudeVisionDecider(),
-            playbook=PlaybookStore(playbook_dir(dict(values))) if learning else None,
-            reflector=ClaudeReflector(env=dict(values)) if learning else None,
-            recorder=DemoRecorder(demos_dir(dict(values)))
+            make_decider(env_map),
+            playbook=PlaybookStore(playbook_dir(env_map)) if learning else None,
+            reflector=ClaudeReflector(env=env_map) if learning else None,
+            recorder=DemoRecorder(demos_dir(env_map))
             if values.get("SIRO_COMPUTER_RECORD", "0") == "1"
             else None,
         )

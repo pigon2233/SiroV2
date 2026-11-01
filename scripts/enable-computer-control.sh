@@ -35,6 +35,11 @@ SIRO_COMPUTER_ENDLESS=1
 SIRO_COMPUTER_MAX_STEPS=0
 SIRO_COMPUTER_MAX_SECONDS=0
 SIRO_COMPUTER_MAX_SEGMENTS=0
+# Decision brain: ollama (local vision, default) or claude (cloud CLI).
+SIRO_COMPUTER_DECIDER=ollama
+SIRO_COMPUTER_OLLAMA_MODEL=gemma4:e4b
+# Skip post-run Claude reflection while iterating on play speed.
+SIRO_COMPUTER_PLAYBOOK=0
 EOF
   echo "Created $env_file (edit SIRO_COMPUTER_ALLOWED_PROCESSES to choose games)."
 fi

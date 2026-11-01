@@ -152,8 +152,10 @@ function setupTray() {
 }
 
 // Owner-only switch. Refuses to enable when the emergency-stop hotkey cannot be registered.
+// Hide the pet while controlling so she is not captured over the game and confuse vision.
 function enableControl() {
   if (!globalShortcut.isRegistered(STOP_KEY) && !globalShortcut.register(STOP_KEY, () => control.stop())) return;
+  if (win && !win.isDestroyed()) { haltWalk('hidden'); win.hide(); }
   control.enable();
 }
 

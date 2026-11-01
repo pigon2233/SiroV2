@@ -159,13 +159,18 @@ test('observation drops pixels if the foreground changes during capture', async 
 function fakeImage(width, height, luma) {
   const bitmap = Buffer.alloc(32 * 18 * 4, luma);
   return {
-    isEmpty: () => false, getSize: () => ({width, height}), toPNG: () => Buffer.from('png'),
+    isEmpty: () => false, getSize: () => ({width, height}),
+    toPNG: () => Buffer.from('png'), toJPEG: () => Buffer.from('png'),
     resize: opts => (opts.width === 32 ? {toBitmap: () => bitmap} : fakeImage(opts.width, opts.height, luma)),
     crop: r => fakeImage(r.width, r.height, luma),
   };
 }
 const display = {id: 7, scaleFactor: 1.5, bounds: {x: 0, y: 0, width: 1280, height: 720}};
-const screen = {getPrimaryDisplay: () => display};
+const secondary = {id: 9, scaleFactor: 1, bounds: {x: 1920, y: 0, width: 1920, height: 1080}};
+const screen = {
+  getPrimaryDisplay: () => display,
+  getAllDisplays: () => [display, secondary],
+};
 
 test('observation reports physical screen, scaled image, fingerprint', async () => {
   const control = makeControl(() => ({title: 'Game', process: 'game.exe', rect: [0, 0, 800, 600], window_id: '101', pid: 1001, secret: false}));
@@ -177,12 +182,40 @@ test('observation reports physical screen, scaled image, fingerprint', async () 
   const result = await makeObserver({control, screen, desktopCapturer: capturer})();
   assert.strictEqual(result.ok, true);
   assert.deepStrictEqual(result.data.screen, [1920, 1080]);
-  // Window rect [0,0,800,600] is all that is captured: 800x600 fits under the width cap.
+  // Window rect [0,0,800,600] is cropped then capped to MAX_WIDTH=512.
   assert.deepStrictEqual(result.data.image_rect, [0, 0, 800, 600]);
-  assert.deepStrictEqual(result.data.image_size, [800, 600]);
+  assert.deepStrictEqual(result.data.image_size, [512, 384]);
   assert.strictEqual(result.data.image_png_b64, Buffer.from('png').toString('base64'));
   assert.notStrictEqual(fingerprint(fakeImage(1, 1, 40)), fingerprint(fakeImage(1, 1, 200)));
   assert.strictEqual(fingerprint(fakeImage(1, 1, 40)), fingerprint(fakeImage(9, 9, 40)));
+});
+
+test('secondary-monitor window captures that display, not primary', async () => {
+  const control = makeControl(() => ({
+    title: 'Game', process: 'game.exe', rect: [2100, 100, 800, 600], window_id: '101', pid: 1001, secret: false,
+  }));
+  control.enable();
+  const capturer = {getSources: async opts => {
+    assert.deepStrictEqual(opts.thumbnailSize, {width: 1920, height: 1080});
+    return [
+      {display_id: '7', thumbnail: fakeImage(1920, 1080, 10)},
+      {display_id: '9', thumbnail: fakeImage(1920, 1080, 200)},
+    ];
+  }};
+  const result = await makeObserver({control, screen, desktopCapturer: capturer})();
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.data.screen, [1920, 1080]);
+  assert.deepStrictEqual(result.data.image_rect, [2100, 100, 800, 600]);
+});
+
+test('refuses to crop primary when the game is on a missing secondary source', async () => {
+  const control = makeControl(() => ({
+    title: 'Game', process: 'game.exe', rect: [2100, 100, 800, 600], window_id: '101', pid: 1001, secret: false,
+  }));
+  control.enable();
+  const capturer = {getSources: async () => [{display_id: '7', thumbnail: fakeImage(1920, 1080, 10)}]};
+  const result = await makeObserver({control, screen, desktopCapturer: capturer})();
+  assert.deepStrictEqual(result, {ok: false, error: 'capture_wrong_display'});
 });
 
 test('no screenshot is taken while a password field has focus; off means no observation', async () => {

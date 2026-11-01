@@ -26,7 +26,7 @@ HEAD = {TOKEN_HEADER: TOKEN}
 
 class NeverDecider:
     async def decide(
-        self, goal: str, history: Sequence[StepRecord], observation: Observation
+        self, goal: str, history: Sequence[StepRecord], observation: Observation, **_kwargs
     ) -> Decision:
         return Decision("ask", None, "", "n/a", 1.0)
 

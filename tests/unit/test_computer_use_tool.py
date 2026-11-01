@@ -16,7 +16,7 @@ from siro.services.computer_use.safety import ControlGate
 
 class AskDecider:
     async def decide(
-        self, goal: str, history: Sequence[StepRecord], observation: Observation
+        self, goal: str, history: Sequence[StepRecord], observation: Observation, **_kwargs
     ) -> Decision:
         return Decision("ask", None, "", "n/a", 1.0)
 

@@ -1,4 +1,4 @@
-"""Next-step decision: structured output, strict parsing, and the vision-capable cloud decider."""
+"""Next-step decision: structured output, strict parsing, local Ollama vision, optional Claude."""
 
 from __future__ import annotations
 
@@ -8,17 +8,23 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from siro.services.computer_use.perception import Observation, rect_in_image
+import httpx
+
+from siro.services.computer_use.perception import Observation
 from siro.services.computer_use.safety import ALLOWED_KINDS, InputAction
 from siro.services.tools.claude import Runner, claude_binary, claude_model
 from siro.services.tools.execution import execute_bounded_argv, restricted_environment
 
 CLOUD_SCREEN_FLAG = "SIRO_COMPUTER_CLOUD_SCREEN"  # owner opt-in: screenshots may go to the cloud
+DECIDER_ENV = "SIRO_COMPUTER_DECIDER"  # ollama (default) | claude
+OLLAMA_HOST_ENV = "OLLAMA_HOST"
+OLLAMA_MODEL_ENV = "SIRO_COMPUTER_OLLAMA_MODEL"
+DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
 DECISION_KINDS = frozenset({"act", "done", "stuck", "ask", "wait"})
 
 
@@ -35,6 +41,7 @@ class Decision:
     confidence: float = 0.0
     evidence: str = ""  # for done: what on screen proves the goal is met
     seen: str = ""  # one short sentence: what the screenshot shows now (kept in the history)
+    strategy: str = ""  # optional short plan update; empty keeps the previous plan
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +56,12 @@ class StepRecord:
 
 class Decider(Protocol):
     async def decide(
-        self, goal: str, history: Sequence[StepRecord], observation: Observation
+        self,
+        goal: str,
+        history: Sequence[StepRecord],
+        observation: Observation,
+        *,
+        strategy: str = "",
     ) -> Decision: ...
 
 
@@ -96,42 +108,61 @@ def parse_decision(text: str) -> Decision:
         )
         if incomplete:
             raise DecisionError("incomplete_action")
+    reason = str(raw.get("reason", ""))[:300]
+    seen = str(raw.get("seen", "")).strip()[:200] or reason[:200]
     return Decision(
         kind=str(kind),
         action=action,
         expect=str(raw.get("expect", ""))[:300],
-        reason=str(raw.get("reason", ""))[:300],
+        reason=reason,
         confidence=float(confidence),
         evidence=str(raw.get("evidence", ""))[:300],
-        seen=str(raw.get("seen", ""))[:200],
+        seen=seen,
+        strategy=str(raw.get("strategy", "")).strip()[:200],
     )
 
 
-DECISION_PROMPT = """You control a Windows PC for the owner, one input at a time. Read the screenshot file \
-{image} (your only tool is Read). Decide the single best next step toward the goal, or stop.
+DECISION_PROMPT = """Screenshot is attached ({w}x{h} px). One next input. Be fast.
 
 Goal: {goal}
-Foreground window: "{title}" ({process}); window rect left,top,width,height = {rect}.
-The screenshot shows only that window and is {size} pixels. Coordinates are pixels of that screenshot and must fall inside the window rect.
-Recent steps (oldest first):
+Current strategy: {strategy}
+Window "{title}" ({process}).
+Recent:
 {history}
 
-Rules:
-- "seen" is one short sentence on what the screenshot shows now; it is saved so later steps can tell which scene each action led to.
-- Compare the recent steps: if the same scenes keep repeating (a loop), what you pressed is NOT progressing; stop repeating it, try something else, wait, or answer "stuck".
-- Judge only from what the screenshot shows now. If the last step had no visible effect, do NOT repeat it unchanged: try something different, or answer "stuck".
-- Answer "done" only if the screenshot itself proves the goal is met; put that proof in "evidence".
-- Answer "wait" when the screen is mid-transition (black/fading/loading/animating) and pressing anything now would be a guess.
-- A wait's "screen changed" is a coarse fingerprint comparison, not proof of the underlying state. If unchanged, reassess whether the screen is still loading; do not press merely because time passed.
-- Prefer act or wait over ask. Answer "ask" only for true login/payment or irreversible account loss; the owner may run autonomous mode that ignores ask.
-- Decide quickly from the current screenshot. One short reason. Do not narrate strategy.
-- If defeat/death/game over/retry/continue/play again is visible, click that control once; do not answer done.
-- Never type secrets. Allowed inputs, with exactly these field names:
-  {{"kind":"click","x":0,"y":0,"button":"left|right"}}, {{"kind":"move","x":0,"y":0}}, {{"kind":"scroll","amount":-3}} (-20..20),
-  {{"kind":"key","key":"ctrl+c","hold_ms":0}} (key name or combo such as "space", "z", "left"; hold_ms 0-2000 to hold it, 0 = quick tap), {{"kind":"type","text":"abc"}} (<=200 chars).
-- confidence is 0..1: how sure you are this step is correct.
-Reply with JSON only:
-{{"kind":"act|done|stuck|ask|wait","seen":"what is on screen now","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what should change","reason":"why","confidence":0.0,"evidence":""}}"""  # noqa: E501
+Hard rules:
+- Follow Current strategy with an immediate reaction to THIS screen.
+- If strategy is "(none)" or the scene clearly changed (map/combat/shop/event/reward/death), set "strategy" to a short plan (≤20 words). Otherwise leave "strategy":"".
+- "seen" MUST describe the screen in one short sentence (never empty).
+- click/move x,y are SCREENSHOT pixels only: 0 <= x < {w}, 0 <= y < {h}. Never desktop/screen coords.
+- No repeats if last act did nothing. Wait if loading. Never ask. Never type secrets.
+- Defeat/death/game over/retry/continue → click once (not done).
+- Combat with 0 energy / no affordable cards → click End Turn / 结束回合 (bottom-right), not cards.
+- Shop open and not buying → click Leave/Proceed once (Escape only if no Leave control is visible). Never spam Escape.
+- Never invent coordinates outside 0..{w}-1, 0..{h}-1. Prefer the obvious highlighted button.
+JSON only:
+{{"kind":"act|done|stuck|ask|wait","seen":"what is on screen","strategy":"","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what changes","reason":"why","confidence":0.8,"evidence":""}}"""  # noqa: E501
+
+CLAUDE_DECISION_PROMPT = """Read {image} (only tool: Read). Screenshot is {w}x{h} px. One next input. Be fast.
+
+Goal: {goal}
+Current strategy: {strategy}
+Window "{title}" ({process}).
+Recent:
+{history}
+
+Hard rules:
+- Follow Current strategy with an immediate reaction to THIS screen.
+- If strategy is "(none)" or the scene clearly changed, set "strategy" to a short plan (≤20 words). Otherwise "".
+- "seen" MUST describe the screen in one short sentence (never empty).
+- click/move x,y are SCREENSHOT pixels only: 0 <= x < {w}, 0 <= y < {h}. Never desktop coords.
+- No repeats if last act did nothing. Wait if loading. Never ask. Never type secrets.
+- Defeat/death/game over/retry/continue → click once (not done).
+- Combat with 0 energy / no affordable cards → click End Turn / 结束回合 (bottom-right), not cards.
+- Shop open and not buying → click Leave/Proceed once (Escape only if no Leave control is visible). Never spam Escape.
+- Never invent coordinates outside 0..{w}-1, 0..{h}-1. Prefer the obvious highlighted button.
+JSON only:
+{{"kind":"act|done|stuck|ask|wait","seen":"what is on screen","strategy":"","action":{{"kind":"click","x":0,"y":0,"button":"left"}},"expect":"what changes","reason":"why","confidence":0.8,"evidence":""}}"""  # noqa: E501
 
 
 class CloudScreenNotAllowed(RuntimeError):
@@ -149,8 +180,140 @@ def _history_text(history: Sequence[StepRecord]) -> str:
         f"{r.step}. saw: {r.seen or '-'} | did: {r.action} | expected: {r.expect or '-'} | "
         f"outcome: {r.outcome}; "
         f"screen changed: {'?' if r.screen_changed is None else r.screen_changed}"
-        for r in history[-5:]
+        for r in history[-3:]
     )
+
+
+def _ollama_base_url(env: Mapping[str, str] | None = None) -> str:
+    values = os.environ if env is None else env
+    host = (values.get(OLLAMA_HOST_ENV) or "127.0.0.1:11434").strip()
+    if host.startswith("http://") or host.startswith("https://"):
+        return host.rstrip("/")
+    return f"http://{host}"
+
+
+def _prompt_fields(
+    goal: str,
+    history: Sequence[StepRecord],
+    observation: Observation,
+    *,
+    strategy: str = "",
+) -> dict[str, object]:
+    width, height = observation.image_size or (0, 0)
+    return {
+        "goal": goal,
+        "strategy": strategy.strip() or "(none)",
+        "title": observation.window_title,
+        "process": observation.process,
+        "w": width,
+        "h": height,
+        "history": _history_text(history),
+    }
+
+
+class OllamaVisionDecider:
+    """Local vision decider via Ollama /api/chat (screenshots stay on this machine)."""
+
+    def __init__(
+        self,
+        *,
+        model: str | None = None,
+        base_url: str | None = None,
+        env: dict[str, str] | None = None,
+        timeout: float = 90.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        values = os.environ if env is None else env
+        self._env = env
+        self._model = model or values.get(OLLAMA_MODEL_ENV) or values.get("SIRO_OLLAMA_MODEL") or DEFAULT_OLLAMA_MODEL
+        self._base_url = (base_url or _ollama_base_url(values)).rstrip("/")
+        self._timeout = timeout
+        self._client = client
+
+    async def _decide_once(
+        self,
+        goal: str,
+        history: Sequence[StepRecord],
+        observation: Observation,
+        *,
+        strategy: str = "",
+    ) -> Decision:
+        if not observation.image_png_b64:
+            raise DecisionError("no_image")
+        fields = _prompt_fields(goal, history, observation, strategy=strategy)
+        prompt = DECISION_PROMPT.format(**fields)
+        if fields["strategy"] == "(none)" or "MUST set a non-empty \"strategy\"" in goal:
+            prompt += '\nThis turn: you MUST set a non-empty "strategy" short plan.'
+        payload = {
+            "model": self._model,
+            "stream": False,
+            "think": False,
+            "keep_alive": values_keep_alive(self._env),
+            "options": {"temperature": 0.1, "num_predict": 260, "num_ctx": 4096},
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                    "images": [observation.image_png_b64],
+                }
+            ],
+        }
+        url = f"{self._base_url}/api/chat"
+        try:
+            if self._client is not None:
+                response = await self._client.post(url, json=payload)
+            else:
+                async with httpx.AsyncClient(timeout=self._timeout) as client:
+                    response = await client.post(url, json=payload)
+        except httpx.TimeoutException as error:
+            raise DecisionError("ollama_timeout") from error
+        except httpx.HTTPError as error:
+            raise DecisionError("ollama_failed") from error
+        if response.status_code >= 400:
+            raise DecisionError("ollama_failed")
+        try:
+            body = response.json()
+        except ValueError as error:
+            raise DecisionError("ollama_bad_output") from error
+        if not isinstance(body, dict):
+            raise DecisionError("ollama_bad_output")
+        message = body.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, str) or not content.strip():
+            raise DecisionError("ollama_empty")
+        return parse_decision(content)
+
+    async def decide(
+        self,
+        goal: str,
+        history: Sequence[StepRecord],
+        observation: Observation,
+        *,
+        strategy: str = "",
+    ) -> Decision:
+        """Retry malformed JSON/action once; one transient Ollama retry."""
+        transient = {"ollama_failed", "ollama_timeout", "ollama_bad_output", "ollama_empty"}
+        last: DecisionError | None = None
+        for attempt in range(2):
+            try:
+                return await self._decide_once(goal, history, observation, strategy=strategy)
+            except DecisionError as error:
+                last = error
+                code = str(error)
+                if code in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
+                    return await self._decide_once(
+                        goal, history, observation, strategy=strategy
+                    )
+                if code not in transient or attempt >= 1:
+                    raise
+                await asyncio.sleep(0.2)
+        assert last is not None
+        raise last
+
+
+def values_keep_alive(env: Mapping[str, str] | None) -> str:
+    values = os.environ if env is None else env
+    return values.get("SIRO_OLLAMA_KEEP_ALIVE") or "30m"
 
 
 class ClaudeVisionDecider:
@@ -163,7 +326,7 @@ class ClaudeVisionDecider:
         binary: Path | None = None,
         run: Runner = execute_bounded_argv,
         env: dict[str, str] | None = None,
-        timeout: int = 55,
+        timeout: int = 35,
     ) -> None:
         self._model = model or claude_model()
         self._binary = binary
@@ -172,7 +335,12 @@ class ClaudeVisionDecider:
         self._timeout = timeout
 
     async def _decide_once(
-        self, goal: str, history: Sequence[StepRecord], observation: Observation
+        self,
+        goal: str,
+        history: Sequence[StepRecord],
+        observation: Observation,
+        *,
+        strategy: str = "",
     ) -> Decision:
         if not cloud_screen_allowed(self._env):
             raise CloudScreenNotAllowed(CLOUD_SCREEN_FLAG)
@@ -182,20 +350,30 @@ class ClaudeVisionDecider:
         if binary is None:
             raise DecisionError("claude_cli_missing")
         with tempfile.TemporaryDirectory(prefix="siro-screen-") as scratch:
-            (Path(scratch) / "screen.png").write_bytes(base64.b64decode(observation.image_png_b64))
-            prompt = DECISION_PROMPT.format(
-                image="screen.png",
-                goal=goal,
-                title=observation.window_title,
-                process=observation.process,
-                rect=rect_in_image(observation),
-                size=observation.image_size,
-                history=_history_text(history),
+            # Local captures may be JPEG now; Claude still Reads the bytes via this path name.
+            screen_name = "screen.jpg"
+            (Path(scratch) / screen_name).write_bytes(base64.b64decode(observation.image_png_b64))
+            prompt = CLAUDE_DECISION_PROMPT.format(
+                image=screen_name,
+                **_prompt_fields(goal, history, observation, strategy=strategy),
             )
+            # --effort low cuts thinking time; do not use --bare (it disables OAuth login).
             argv = (
-                str(binary), "-p", "--model", self._model, "--output-format", "json",
-                "--tools", "Read", "--allowedTools", "Read", "--no-session-persistence", prompt,
-            )  # fmt: skip
+                str(binary),
+                "-p",
+                "--effort",
+                "low",
+                "--model",
+                self._model,
+                "--output-format",
+                "json",
+                "--tools",
+                "Read",
+                "--allowedTools",
+                "Read",
+                "--no-session-persistence",
+                prompt,
+            )
             result = await self._run(
                 argv,
                 cwd=Path(scratch),
@@ -208,26 +386,55 @@ class ClaudeVisionDecider:
             parsed = json.loads(str(result.get("stdout", "")))
         except ValueError as error:
             raise DecisionError("claude_bad_output") from error
-        if not isinstance(parsed, dict) or parsed.get("is_error"):
+        if not isinstance(parsed, dict):
+            raise DecisionError("claude_error")
+        if parsed.get("is_error"):
+            blob = json.dumps(parsed, ensure_ascii=False).lower()
+            result_text = str(parsed.get("result") or "").lower()
+            if (
+                parsed.get("api_error_status") in {401, 403}
+                or "401" in blob
+                or "authenticat" in result_text
+                or "unauthorized" in result_text
+            ):
+                raise DecisionError("claude_auth")
             raise DecisionError("claude_error")
         return parse_decision(str(parsed.get("result") or ""))
 
     async def decide(
-        self, goal: str, history: Sequence[StepRecord], observation: Observation
+        self,
+        goal: str,
+        history: Sequence[StepRecord],
+        observation: Observation,
+        *,
+        strategy: str = "",
     ) -> Decision:
-        """Retry malformed replies once; retry transient Claude CLI failures a few times."""
+        """Retry malformed replies once; one transient Claude CLI retry (never retry auth)."""
         transient = {"claude_failed", "claude_error", "claude_bad_output"}
         last: DecisionError | None = None
-        for attempt in range(3):
+        for attempt in range(2):
             try:
-                return await self._decide_once(goal, history, observation)
+                return await self._decide_once(goal, history, observation, strategy=strategy)
             except DecisionError as error:
                 last = error
                 code = str(error)
-                if code in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
-                    return await self._decide_once(goal, history, observation)
-                if code not in transient or attempt >= 2:
+                if code == "claude_auth":
                     raise
-                await asyncio.sleep(0.4 * (attempt + 1))
+                if code in {"not_json", "bad_action", "incomplete_action", "bad_kind"}:
+                    return await self._decide_once(
+                        goal, history, observation, strategy=strategy
+                    )
+                if code not in transient or attempt >= 1:
+                    raise
+                await asyncio.sleep(0.25)
         assert last is not None
         raise last
+
+
+def make_decider(env: Mapping[str, str] | None = None) -> Decider:
+    """Owner chooses the computer-use brain; default is local Ollama vision (no Claude)."""
+    values = dict(os.environ if env is None else env)
+    kind = values.get(DECIDER_ENV, "ollama").strip().lower() or "ollama"
+    if kind in {"claude", "claude_cli", "cloud"}:
+        return ClaudeVisionDecider(env=values)
+    return OllamaVisionDecider(env=values)

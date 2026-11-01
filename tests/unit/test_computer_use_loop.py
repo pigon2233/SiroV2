@@ -30,6 +30,7 @@ class FakeDesktop:
         self.bridge, self.title, self.process = bridge, title, process
         self.scene = "menu"
         self.image_size = [1920, 1080]
+        self.image_rect: list[int] | None = None
         self.focus_requests: list[str] = []
         self.focus_brings = True
         self.inputs: list[dict[str, Any]] = []
@@ -60,6 +61,7 @@ class FakeDesktop:
             "image_size": self.image_size,
             "window_id": self.window_id,
             "pid": self.pid,
+            **({"image_rect": self.image_rect} if self.image_rect is not None else {}),
         }
 
     async def _serve(self) -> None:
@@ -106,7 +108,11 @@ class Script:
         self.policy, self.calls = policy, 0
 
     async def decide(
-        self, goal: str, history: Sequence[StepRecord], observation: Observation
+        self,
+        goal: str,
+        history: Sequence[StepRecord],
+        observation: Observation,
+        **_kwargs: Any,
     ) -> Decision:
         self.calls += 1
         return self.policy(observation, history)
@@ -699,7 +705,7 @@ async def test_stop_then_reenable_cannot_revive_pending_model_action() -> None:
 
     class LateDecision:
         async def decide(
-            self, goal: str, history: Sequence[StepRecord], obs: Observation
+            self, goal: str, history: Sequence[StepRecord], obs: Observation, **_kwargs
         ) -> Decision:
             bridge.stop()
             gate.enable()
@@ -728,7 +734,7 @@ async def test_decision_that_finishes_after_deadline_cannot_send_input() -> None
 
     class SlowDecision:
         async def decide(
-            self, goal: str, history: Sequence[StepRecord], obs: Observation
+            self, goal: str, history: Sequence[StepRecord], obs: Observation, **_kwargs
         ) -> Decision:
             now[0] = 2.0
             return click(300, 300)
@@ -760,7 +766,7 @@ async def test_deadline_cancels_hung_decision() -> None:
 
     class HungDecision:
         async def decide(
-            self, goal: str, history: Sequence[StepRecord], obs: Observation
+            self, goal: str, history: Sequence[StepRecord], obs: Observation, **_kwargs
         ) -> Decision:
             try:
                 await asyncio.Event().wait()
@@ -794,7 +800,7 @@ async def test_decider_timeout_is_reported_as_failure_not_run_deadline() -> None
 
     class TimedOutDecision:
         async def decide(
-            self, goal: str, history: Sequence[StepRecord], obs: Observation
+            self, goal: str, history: Sequence[StepRecord], obs: Observation, **_kwargs
         ) -> Decision:
             raise TimeoutError("provider timeout")
 
@@ -1121,7 +1127,7 @@ async def test_decider_failure_is_failed_not_success() -> None:
     from siro.services.computer_use.decision import DecisionError
 
     class Broken:
-        async def decide(self, *args: Any) -> Decision:
+        async def decide(self, *args: Any, **_kwargs: Any) -> Decision:
             raise DecisionError("not_json")
 
     bridge = ComputerBridge(ControlGate(enabled=True))
@@ -1192,7 +1198,7 @@ async def test_live_steps_visible_while_running() -> None:
 
     class Slow:
         async def decide(
-            self, goal: str, history: Sequence[StepRecord], obs: Observation
+            self, goal: str, history: Sequence[StepRecord], obs: Observation, **_kwargs
         ) -> Decision:
             if history:
                 await gate_open.wait()
@@ -1235,6 +1241,118 @@ async def test_chat_started_run_brings_the_allowed_game_forward_once() -> None:
 
     report, desktop, _, _ = await _run(solver, setup=setup, focus=True)
     assert desktop.focus_requests == ["game.exe"] and report.success
+
+
+def test_seen_stuck_detects_repeated_vague_descriptions() -> None:
+    from siro.services.computer_use.loop import _click_too_close, _seen_stuck
+
+    same = "The game screen shows a map with several nodes"
+    history = [
+        StepRecord(1, "click(1,1,left)", "", "ok", True, same),
+        StepRecord(2, "click(2,2,left)", "", "ok", True, same),
+        StepRecord(3, "click(3,3,left)", "", "ok", True, same),
+    ]
+    assert _seen_stuck(history) is True
+    history[-1] = StepRecord(3, "click(3,3,left)", "", "ok", True, "combat energy 0")
+    assert _seen_stuck(history) is False
+    near = [
+        StepRecord(1, "click(350,400,left)", "", "ok", True, same),
+        StepRecord(2, "click(340,390,left)", "", "ok", True, same),
+    ]
+    assert _click_too_close(near, 330, 410) is True
+    assert _click_too_close(near, 100, 100) is False
+
+
+@pytest.mark.asyncio
+async def test_repeat_click_is_rejected_and_autonomous_escapes() -> None:
+    same = "dark cavern with a shop interface visible"
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        if any(s.action.startswith("key(Escape)") for s in history):
+            return click(500, 400)
+        return Decision(
+            "act",
+            InputAction("click", x=300, y=300, button="left"),
+            "buy",
+            "shop",
+            0.9,
+            "",
+            same,
+        )
+
+    report, desktop, _, _ = await _run(policy, autonomous=True, max_steps=5)
+    kinds = [a.get("kind") for a in desktop.inputs]
+    assert "key" in kinds
+    assert any(a.get("key") == "Escape" for a in desktop.inputs)
+    assert any(s.outcome == "invalid:repeat_click" for s in report.steps)
+    # History must keep screenshot coords for the model, not mapped desktop pixels.
+    assert any(s.action == "click(300,300,left)" for s in report.steps)
+
+
+@pytest.mark.asyncio
+async def test_unstick_does_not_spam_escape() -> None:
+    same = "dark cavern with several paths leading away"
+    clicks = [(150, 150), (500, 400), (200, 500), (250, 200)]
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        idx = min(len([s for s in history if s.action.startswith("click")]), len(clicks) - 1)
+        x, y = clicks[idx]
+        return Decision(
+            "act",
+            InputAction("click", x=x, y=y, button="left"),
+            "progress",
+            "try",
+            0.9,
+            "",
+            same,
+        )
+
+    report, desktop, _, _ = await _run(policy, autonomous=True, max_steps=8)
+    assert any(s.action == "(unstick)" for s in report.steps)
+    assert not any(a.get("key") == "Escape" for a in desktop.inputs)
+
+
+@pytest.mark.asyncio
+async def test_oversized_click_is_scaled_from_image_rect() -> None:
+    def setup(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        # Downscaled screenshot of the focused window (RECT 800x600 at 100,100).
+        desktop.image_size = [512, 384]
+        desktop.image_rect = [100, 100, 800, 600]
+
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        # Outside 512x384 but inside the 800x600 window crop → scale down once.
+        return click(700, 500)
+
+    report, desktop, _, _ = await _run(policy, setup=setup, max_steps=2, autonomous=True)
+    assert desktop.inputs, report.steps
+    assert (desktop.inputs[0]["x"], desktop.inputs[0]["y"]) == (800, 600)
+    assert any(s.action == "click(448,320,left)" for s in report.steps)
+
+
+@pytest.mark.asyncio
+async def test_click_outside_screenshot_is_rejected() -> None:
+    def policy(obs: Observation, history: Sequence[StepRecord]) -> Decision:
+        # Deliberately outside a normal downscaled screenshot.
+        return click(9000, 9000)
+
+    report, desktop, _, _ = await _run(policy, max_steps=2)
+    assert desktop.inputs == []
+    assert any(s.outcome == "invalid:outside_image" for s in report.steps)
+
+
+@pytest.mark.asyncio
+async def test_autonomous_keeps_refocusing_wrong_window() -> None:
+    def stubborn(desktop: FakeDesktop, bridge: ComputerBridge) -> None:
+        desktop.process = "chat.exe"
+        desktop.focus_brings = False
+
+    report, desktop, _, _ = await _run(
+        solver, setup=stubborn, focus=True, autonomous=True, max_steps=3
+    )
+    assert report.reason == "step_limit"
+    assert len(desktop.focus_requests) >= 2
+    assert any(s.action == "(refocus)" for s in report.steps)
+    assert desktop.inputs == []
 
 
 @pytest.mark.asyncio
