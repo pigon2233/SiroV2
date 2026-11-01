@@ -54,7 +54,8 @@ WAIT_SECONDS = 1.0
 SETTLE_SECONDS = 0.4
 AUTONOMOUS_WAIT_SECONDS = 0.35
 AUTONOMOUS_SETTLE_SECONDS = 0.15
-DECIDE_TIMEOUT_SECONDS = 35.0  # per decision when the run itself has no wall clock
+DECIDE_TIMEOUT_SECONDS = 90.0  # match the Ollama client; 55s was aborting slow-but-alive replies
+MAX_DECIDE_SOFT_FAILS = 3  # bounded runs only; endless autonomous keeps re-observing
 STRATEGY_REFRESH_EVERY = 8  # ask the model to refresh the short plan this often
 SCREEN_MATCH_WAIT_SECONDS = 30.0
 SCREEN_MATCH_POLL_SECONDS = 0.4
@@ -141,7 +142,8 @@ def _autonomous_hint() -> str:
 
 
 _CLICK_RE = re.compile(r"^click\((-?\d+),(-?\d+)")
-SAME_CLICK_RADIUS = 28  # only blocks re-clicking the same ineffective spot
+SAME_CLICK_RADIUS = 80  # ban near-miss repeats (model often drifts ~50px on same wrong guess)
+SAME_CLICK_LOOKBACK = 3  # any recent unresolved click near this spot counts
 SCENE_STALL_LOOKBACK = 4  # same scene without an effective act ⇒ no progress
 
 
@@ -205,30 +207,45 @@ def _last_real_click(history: Sequence[StepRecord]) -> StepRecord | None:
 
 
 def _click_ineffective_same_spot(
-    history: Sequence[StepRecord], x: int, y: int, *, radius: int = SAME_CLICK_RADIUS
+    history: Sequence[StepRecord],
+    x: int,
+    y: int,
+    *,
+    radius: int = SAME_CLICK_RADIUS,
+    lookback: int = SAME_CLICK_LOOKBACK,
 ) -> bool:
-    """Ban only when the previous click did not confirm expect and this click is the same spot.
+    """Ban re-clicking near a recent unresolved click (ineffective / unconfirmed / etc.).
 
-    Only a confirmed effective act clears the ban (visual_change alone is not enough).
+    Only a confirmed effective act after that miss clears the neighborhood ban.
     """
-    last = _last_real_click(history)
-    if last is None:
-        return False
-    if last.outcome == "effective":
-        return False
-    unresolved = last.outcome in {
-        "ineffective",
-        "unconfirmed",
-        "visual_change",
-        "sent",
-    } or (last.outcome == "ok" and last.screen_changed is False)
-    if not unresolved:
-        return False
-    point = _parse_click_xy(last.action)
-    if point is None:
-        return False
-    px, py = point
-    return (x - px) * (x - px) + (y - py) * (y - py) <= radius * radius
+    checked = 0
+    for step in reversed(history):
+        if step.action.startswith("("):
+            continue
+        point = _parse_click_xy(step.action)
+        if point is None:
+            continue
+        if step.outcome == "effective":
+            return False
+        unresolved = step.outcome in {
+            "ineffective",
+            "unconfirmed",
+            "visual_change",
+            "sent",
+            "invalid:repeat_click",
+        } or (step.outcome == "ok" and step.screen_changed is False)
+        if not unresolved:
+            checked += 1
+            if checked >= lookback:
+                return False
+            continue
+        px, py = point
+        if (x - px) * (x - px) + (y - py) * (y - py) <= radius * radius:
+            return True
+        checked += 1
+        if checked >= lookback:
+            break
+    return False
 
 
 def _norm_label(text: str) -> str:
@@ -400,6 +417,7 @@ class DecisionLoop:
         stop_generation = self._bridge.stop_generation
         no_change = invalid = rate_waits = waits = 0
         replan_used = False  # one replan after no-progress; second failure stops
+        decide_soft_fails = 0
         task = goal
         if self._autonomous:
             task += _autonomous_hint()
@@ -602,20 +620,59 @@ class DecisionLoop:
                 if self._bridge.stop_generation != stop_generation:
                     return end("stopped", "emergency_stop")
                 if deadline is not None and deadline.expired():
-                    if self._max_seconds is None:
-                        return end("failed", "decider_error:timeout")
-                    return end("stopped", "time_limit")
+                    if self._max_seconds is not None:
+                        return end("stopped", "time_limit")
+                    keep_trying = self._autonomous and (
+                        self._endless or decide_soft_fails < MAX_DECIDE_SOFT_FAILS
+                    )
+                    if keep_trying:
+                        decide_soft_fails += 1
+                        cap = "∞" if self._endless else str(MAX_DECIDE_SOFT_FAILS)
+                        history.append(
+                            StepRecord(
+                                step,
+                                "(recover)",
+                                "",
+                                "ok",
+                                None,
+                                "decider timeout; re-observe",
+                                detail=f"soft {decide_soft_fails}/{cap}",
+                            )
+                        )
+                        await asyncio.sleep(self._settle)
+                        continue
+                    return end("failed", "decider_error:timeout")
                 return end("failed", f"decider_error:{error}")
             except CloudScreenNotAllowed:
                 return end("stopped", "cloud_screen_not_allowed")
             except (DecisionError, OSError) as error:
                 if self._bridge.stop_generation != stop_generation:
                     return end("stopped", "emergency_stop")
+                keep_trying = self._autonomous and (
+                    self._endless or decide_soft_fails < MAX_DECIDE_SOFT_FAILS
+                )
+                if keep_trying:
+                    decide_soft_fails += 1
+                    cap = "∞" if self._endless else str(MAX_DECIDE_SOFT_FAILS)
+                    history.append(
+                        StepRecord(
+                            step,
+                            "(recover)",
+                            "",
+                            "ok",
+                            None,
+                            f"decider error; re-observe ({error})",
+                            detail=f"soft {decide_soft_fails}/{cap}",
+                        )
+                    )
+                    await asyncio.sleep(self._settle)
+                    continue
                 return end("failed", f"decider_error:{error}")
             if self._bridge.stop_generation != stop_generation:
                 return end("stopped", "emergency_stop")
             if self._max_seconds is not None and self._clock() - started >= self._max_seconds:
                 return end("stopped", "time_limit")
+            decide_soft_fails = 0
             new_strategy = decision.strategy.strip()
             if new_strategy and new_strategy != strategy:
                 strategy = new_strategy
@@ -829,6 +886,19 @@ class DecisionLoop:
                 return end("stopped", f"denied:{result.error}")
             rate_waits = 0
             # Delivered only — effectiveness is decided on the next observation.
+            # Detail separates model image xy (in action string) from physical screen xy.
+            map_detail = ""
+            if (
+                action.x is not None
+                and action.y is not None
+                and observation.image_size is not None
+            ):
+                w, h = observation.image_size
+                rect = observation.image_rect
+                map_detail = (
+                    f"img {w}x{h} rect={list(rect) if rect else None} "
+                    f"→ screen({action.x},{action.y})"
+                )
             history.append(
                 StepRecord(
                     step,
@@ -838,6 +908,7 @@ class DecisionLoop:
                     None,
                     decision.seen,
                     decision.scene,
+                    map_detail,
                 )
             )
             self._record(observation, decision, action)

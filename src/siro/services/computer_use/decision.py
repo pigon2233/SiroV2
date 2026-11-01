@@ -15,7 +15,7 @@ from typing import Protocol
 
 import httpx
 
-from siro.services.computer_use.perception import Observation
+from siro.services.computer_use.perception import Observation, annotate_coord_grid
 from siro.services.computer_use.safety import ALLOWED_KINDS, InputAction
 from siro.services.tools.claude import Runner, claude_binary, claude_model
 from siro.services.tools.execution import execute_bounded_argv, restricted_environment
@@ -117,6 +117,45 @@ def parse_verify(text: str) -> VerifyResult:
     )
 
 
+_KIND_ALIASES = {
+    "action": "act",
+    "click": "act",
+    "tap": "act",
+    "press": "act",
+    "play": "act",
+    "select": "act",
+    "choose": "act",
+    "move": "act",
+    "pause": "wait",
+    "sleep": "wait",
+    "observe": "wait",
+    "look": "wait",
+    "inspect": "wait",
+    "reobserve": "wait",
+    "thinking": "wait",
+    "think": "wait",
+    "stop": "stuck",
+    "fail": "stuck",
+    "help": "ask",
+    "question": "ask",
+    "finish": "done",
+    "complete": "done",
+    "success": "done",
+}
+
+
+def _coerce_kind(value: object, *, has_action: bool) -> str | None:
+    if isinstance(value, str):
+        key = value.strip().lower()
+        if key in DECISION_KINDS:
+            return key
+        if key in _KIND_ALIASES:
+            return _KIND_ALIASES[key]
+    if has_action:
+        return "act"
+    return None
+
+
 def parse_decision(text: str) -> Decision:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     try:
@@ -125,12 +164,15 @@ def parse_decision(text: str) -> Decision:
         raw = None
     if not isinstance(raw, dict):
         raise DecisionError("not_json")
-    kind = raw.get("kind")
-    if kind not in DECISION_KINDS:
+    has_action = isinstance(raw.get("action"), dict)
+    kind = _coerce_kind(raw.get("kind"), has_action=has_action)
+    if kind is None:
         raise DecisionError("bad_kind")
+    raw = {**raw, "kind": kind}
     confidence = raw.get("confidence")
     if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
-        raise DecisionError("bad_confidence")
+        confidence = 0.55  # small local models often omit confidence
+    confidence = float(confidence)
     if not 0 <= confidence <= 1:
         raise DecisionError("bad_confidence")
     action = None
@@ -187,6 +229,8 @@ _JSON_SHAPE = (
 
 DECISION_PROMPT = """Screenshot is attached ({w}x{h} px). It covers desktop rect {image_rect} (left,top,width,height).
 Click/move x,y are SCREENSHOT pixels only: 0 <= x < {w}, 0 <= y < {h}. Never desktop coords.
+Yellow/cyan grid labels on the image are screenshot pixel coords — read them when aiming.
+Main-menu / centered lists (单人模式, Resume, etc.): click near horizontal center x≈{cx} unless the label is clearly elsewhere. Do not guess far-left x.
 
 Goal: {goal}
 Current strategy: {strategy}
@@ -200,7 +244,8 @@ Hard rules:
 - If strategy is "(none)" or the scene clearly changed, set "strategy" to a short plan (≤20 words). Otherwise "".
 - "seen" MUST describe the screen in one short sentence (never empty).
 - Every act MUST set "expect" to the visible change used to verify success.
-- No repeats if last act was ineffective. Wait if loading. Never ask. Never type secrets. Never spam Escape.
+- No repeats if last act was ineffective — pick a clearly different x,y (Δ≥80px) or wait.
+- Wait if loading. Never ask. Never type secrets. Never spam Escape.
 - Defeat/death/game over/retry/continue → click once (not done).
 - Combat with 0 energy / no affordable cards → click End Turn / 结束回合 (bottom-right).
 - Pause menu → click Resume/继续. Shop and not buying → click Leave/Proceed.
@@ -208,7 +253,8 @@ JSON only:
 """ + _JSON_SHAPE  # noqa: E501
 
 CLAUDE_DECISION_PROMPT = """Read {image} (only tool: Read). Screenshot is {w}x{h} px covering desktop rect {image_rect}.
-Click/move x,y are SCREENSHOT pixels only: 0 <= x < {w}, 0 <= y < {h}.
+Click/move x,y are SCREENSHOT pixels only: 0 <= x < {w}, 0 <= y < {h}. Grid labels are screenshot coords.
+Centered menus: prefer x≈{cx}. After an ineffective click, change x,y by ≥80px.
 
 Goal: {goal}
 Current strategy: {strategy}
@@ -303,6 +349,7 @@ def _prompt_fields(
         "process": observation.process,
         "w": width,
         "h": height,
+        "cx": width // 2,
         "image_rect": list(image_rect),
         "history": _history_text(history),
     }
@@ -330,6 +377,7 @@ class OllamaVisionDecider:
     async def _chat(self, prompt: str, observation: Observation, *, num_predict: int = 260) -> str:
         if not observation.image_png_b64:
             raise DecisionError("no_image")
+        vision = annotate_coord_grid(observation.image_png_b64, env=self._env)
         payload = {
             "model": self._model,
             "stream": False,
@@ -340,7 +388,7 @@ class OllamaVisionDecider:
                 {
                     "role": "user",
                     "content": prompt,
-                    "images": [observation.image_png_b64],
+                    "images": [vision],
                 }
             ],
         }
@@ -411,8 +459,16 @@ class OllamaVisionDecider:
         *,
         strategy: str = "",
     ) -> Decision:
-        """Retry malformed JSON/action once; one transient Ollama retry."""
+        """Retry malformed JSON/action once; soft-recover to wait instead of killing the segment."""
         transient = {"ollama_failed", "ollama_timeout", "ollama_bad_output", "ollama_empty"}
+        format_errors = {
+            "not_json",
+            "bad_action",
+            "incomplete_action",
+            "bad_kind",
+            "missing_expect",
+            "bad_confidence",
+        }
         last: DecisionError | None = None
         for attempt in range(2):
             try:
@@ -420,20 +476,30 @@ class OllamaVisionDecider:
             except DecisionError as error:
                 last = error
                 code = str(error)
-                if code in {
-                    "not_json",
-                    "bad_action",
-                    "incomplete_action",
-                    "bad_kind",
-                    "missing_expect",
-                }:
-                    return await self._decide_once(
-                        goal, history, observation, strategy=strategy
-                    )
+                if code in format_errors and attempt == 0:
+                    try:
+                        return await self._decide_once(
+                            goal, history, observation, strategy=strategy
+                        )
+                    except DecisionError as retry_error:
+                        last = retry_error
+                        break
                 if code not in transient or attempt >= 1:
-                    raise
+                    break
                 await asyncio.sleep(0.2)
         assert last is not None
+        # Weak local models often emit odd kinds/JSON; wait and re-observe rather than fail the run.
+        if str(last) in format_errors or str(last) in transient:
+            return Decision(
+                "wait",
+                None,
+                "recover from bad model output",
+                f"decider_soft:{last}",
+                0.2,
+                "",
+                "model output invalid; re-observe",
+                uncertainty="bad_model_output",
+            )
         raise last
 
 
@@ -478,7 +544,8 @@ class ClaudeVisionDecider:
         with tempfile.TemporaryDirectory(prefix="siro-screen-") as scratch:
             # Local captures may be JPEG now; Claude still Reads the bytes via this path name.
             screen_name = "screen.jpg"
-            (Path(scratch) / screen_name).write_bytes(base64.b64decode(observation.image_png_b64))
+            vision = annotate_coord_grid(observation.image_png_b64, env=self._env)
+            (Path(scratch) / screen_name).write_bytes(base64.b64decode(vision))
             prompt = CLAUDE_DECISION_PROMPT.format(
                 image=screen_name,
                 **_prompt_fields(goal, history, observation, strategy=strategy),

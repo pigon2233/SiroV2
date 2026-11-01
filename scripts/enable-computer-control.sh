@@ -40,6 +40,8 @@ SIRO_COMPUTER_DECIDER=ollama
 SIRO_COMPUTER_OLLAMA_MODEL=gemma4:e4b
 # Skip post-run Claude reflection while iterating on play speed.
 SIRO_COMPUTER_PLAYBOOK=0
+# Optional residual click fix after DPI/multi-monitor map: ox,oy,sx,sy (default identity).
+# SIRO_COMPUTER_COORD_CALIB=0,0,1,1
 EOF
   echo "Created $env_file (edit SIRO_COMPUTER_ALLOWED_PROCESSES to choose games)."
 fi

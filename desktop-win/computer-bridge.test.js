@@ -165,11 +165,58 @@ function fakeImage(width, height, luma) {
     crop: r => fakeImage(r.width, r.height, luma),
   };
 }
-const display = {id: 7, scaleFactor: 1.5, bounds: {x: 0, y: 0, width: 1280, height: 720}};
-const secondary = {id: 9, scaleFactor: 1, bounds: {x: 1920, y: 0, width: 1920, height: 1080}};
+const display = {
+  id: 7, scaleFactor: 1.5,
+  bounds: {x: 0, y: 0, width: 1280, height: 720},
+  workArea: {x: 0, y: 0, width: 1280, height: 700},
+};
+const secondary = {
+  id: 9, scaleFactor: 1,
+  bounds: {x: 1920, y: 0, width: 1920, height: 1080},
+  workArea: {x: 1920, y: 0, width: 1920, height: 1040},
+};
+// Realistic mixed-DPI: secondary DIP origin = end of primary DIP (1280), physical origin = 1920.
+const mixedPrimary = {
+  id: 1, scaleFactor: 1.5,
+  bounds: {x: 0, y: 0, width: 1280, height: 720},
+  workArea: {x: 0, y: 0, width: 1280, height: 700},
+};
+const mixedSecondary = {
+  id: 2, scaleFactor: 1,
+  bounds: {x: 1280, y: 0, width: 1920, height: 1080},
+  workArea: {x: 1280, y: 0, width: 1920, height: 1040},
+};
+function dipToScreenPoint({x, y}, displays = [display, secondary]) {
+  // Approximate Electron: each display maps its DIP rect by its own scaleFactor,
+  // with physical X origin = sum of prior display physical widths (left→right).
+  const ordered = [...displays].sort((a, b) => a.bounds.x - b.bounds.x);
+  let physX0 = 0;
+  for (let i = 0; i < ordered.length; i++) {
+    const d = ordered[i];
+    const b = d.bounds;
+    const f = d.scaleFactor || 1;
+    const atEnd = i === ordered.length - 1 && x === b.x + b.width;
+    if ((x >= b.x && x < b.x + b.width) || atEnd || (i === 0 && x <= b.x)) {
+      return {
+        x: Math.round(physX0 + (x - b.x) * f),
+        y: Math.round(b.y * f + (y - b.y) * f),
+      };
+    }
+    physX0 += b.width * f;
+  }
+  const last = ordered[ordered.length - 1];
+  const f = last.scaleFactor || 1;
+  return {x: Math.round(physX0 + (x - last.bounds.x - last.bounds.width) * f), y: Math.round(y * f)};
+}
 const screen = {
   getPrimaryDisplay: () => display,
   getAllDisplays: () => [display, secondary],
+  dipToScreenPoint: p => dipToScreenPoint(p, [display, secondary]),
+};
+const mixedScreen = {
+  getPrimaryDisplay: () => mixedPrimary,
+  getAllDisplays: () => [mixedPrimary, mixedSecondary],
+  dipToScreenPoint: p => dipToScreenPoint(p, [mixedPrimary, mixedSecondary]),
 };
 
 test('observation reports physical screen, scaled image, fingerprint', async () => {
@@ -208,6 +255,57 @@ test('secondary-monitor window captures that display, not primary', async () => 
   assert.deepStrictEqual(result.data.image_rect, [2100, 100, 800, 600]);
 });
 
+test('mixed-DPI secondary: dipToScreenPoint origin, not bounds*scaleFactor', async () => {
+  const {physicalBounds} = require('./computer-perception.js');
+  // Old bug: secondary.bounds.x(1280)*scale(1)=1280. Correct physical origin is 1920.
+  const wrong = Math.round(mixedSecondary.bounds.x * mixedSecondary.scaleFactor);
+  const right = physicalBounds(mixedScreen, mixedSecondary);
+  assert.strictEqual(wrong, 1280);
+  assert.strictEqual(right.x, 1920);
+  assert.strictEqual(right.width, 1920);
+  const control = makeControl(() => ({
+    title: 'Game', process: 'game.exe', rect: [2100, 100, 800, 600], window_id: '101', pid: 1001, secret: false,
+  }));
+  control.enable();
+  let crop = null;
+  const capturer = {getSources: async opts => {
+    assert.deepStrictEqual(opts.thumbnailSize, {width: 1920, height: 1080});
+    const thumb = fakeImage(1920, 1080, 200);
+    const orig = thumb.crop;
+    thumb.crop = r => { crop = r; return orig.call(thumb, r); };
+    return [
+      {display_id: '1', thumbnail: fakeImage(1920, 1080, 10)},
+      {display_id: '2', thumbnail: thumb},
+    ];
+  }};
+  const result = await makeObserver({control, screen: mixedScreen, desktopCapturer: capturer})();
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.data.image_rect, [2100, 100, 800, 600]);
+  // Crop offset = window.x - physicalOrigin = 2100-1920 = 180 (not 2100-1280=820).
+  assert.deepStrictEqual(crop, {x: 180, y: 100, width: 800, height: 600});
+});
+
+test('thumbnail smaller than physical still crops with scale', async () => {
+  const control = makeControl(() => ({
+    title: 'Game', process: 'game.exe', rect: [0, 0, 800, 600], window_id: '101', pid: 1001, secret: false,
+  }));
+  control.enable();
+  let crop = null;
+  const capturer = {getSources: async () => {
+    // Electron sometimes returns a thumbnail half the requested physical size.
+    const thumb = fakeImage(960, 540, 40);
+    const orig = thumb.crop;
+    thumb.crop = r => { crop = r; return orig.call(thumb, r); };
+    return [{display_id: '7', thumbnail: thumb}];
+  }};
+  const result = await makeObserver({control, screen, desktopCapturer: capturer})();
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(crop, {x: 0, y: 0, width: 400, height: 300});
+  assert.deepStrictEqual(result.data.image_rect, [0, 0, 800, 600]);
+  assert.deepStrictEqual(result.data.image_size, [400, 300]);
+  assert.deepStrictEqual(result.data.capture_size, [960, 540]);
+});
+
 test('refuses to crop primary when the game is on a missing secondary source', async () => {
   const control = makeControl(() => ({
     title: 'Game', process: 'game.exe', rect: [2100, 100, 800, 600], window_id: '101', pid: 1001, secret: false,
@@ -216,6 +314,39 @@ test('refuses to crop primary when the game is on a missing secondary source', a
   const capturer = {getSources: async () => [{display_id: '7', thumbnail: fakeImage(1920, 1080, 10)}]};
   const result = await makeObserver({control, screen, desktopCapturer: capturer})();
   assert.deepStrictEqual(result, {ok: false, error: 'capture_wrong_display'});
+});
+
+test('parks hidden helper on game display, not a visible pet window', async () => {
+  const {parkHostOnDisplay} = require('./computer-perception.js');
+  const moves = [];
+  const helper = {
+    isDestroyed: () => false,
+    isVisible: () => false,
+    hide: () => moves.push('hide'),
+    setPosition: (x, y) => moves.push(['pos', x, y]),
+  };
+  parkHostOnDisplay(helper, secondary);
+  assert.deepStrictEqual(moves, ['hide', ['pos', 1928, 8]]);
+});
+
+test('clearPetFromGame slides visible pet off overlapping game, stays shown', async () => {
+  const {clearPetFromGame} = require('./computer-perception.js');
+  const moves = [];
+  const pet = {
+    isDestroyed: () => false,
+    isVisible: () => true,
+    getBounds: () => ({x: 2200, y: 200, width: 360, height: 640}),
+    setPosition: (x, y) => moves.push(['pos', x, y]),
+    showInactive: () => moves.push('show'),
+  };
+  // Game on secondary physical [2100,100,800,600]; pet overlaps it.
+  const home = clearPetFromGame(pet, screen, [2100, 100, 800, 600]);
+  assert.ok(home);
+  assert.strictEqual(home.x, 2200);
+  assert.ok(moves.some(m => m === 'show' || (Array.isArray(m) && m[0] === 'pos')));
+  // After move, position must not still be inside the game DIP approx on secondary.
+  const pos = moves.find(m => Array.isArray(m) && m[0] === 'pos');
+  assert.ok(pos[1] + 360 <= 2100 || pos[1] >= 2100 + 800 || pos[2] + 640 <= 100 || pos[2] >= 100 + 600);
 });
 
 test('no screenshot is taken while a password field has focus; off means no observation', async () => {

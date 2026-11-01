@@ -62,14 +62,15 @@ async def test_ollama_vision_decider_parses_chat_content() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ollama_timeout_becomes_decision_error() -> None:
+async def test_ollama_timeout_soft_recovers_to_wait() -> None:
     class Client:
         async def post(self, url: str, json: dict[str, Any]) -> httpx.Response:
             raise httpx.ReadTimeout("slow")
 
     decider = OllamaVisionDecider(client=Client(), timeout=0.1)
-    with pytest.raises(DecisionError, match="ollama_timeout"):
-        await decider.decide("win", [], _obs())
+    decision = await decider.decide("win", [], _obs())
+    assert decision.kind == "wait"
+    assert "decider_soft:ollama_timeout" in decision.reason
 
 
 def test_make_decider_defaults_to_ollama(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -108,3 +109,26 @@ def test_parse_verify_statuses() -> None:
         '{"status":"confirmed","seen":"character select","scene":"menu","detail":"menu gone"}'
     ).status == "confirmed"
     assert parse_verify('{"status":"nope"}').status == "unknown"
+
+
+def test_parse_decision_coerces_common_bad_kinds() -> None:
+    d = parse_decision(
+        '{"kind":"select","seen":"menu","action":{"kind":"click","x":1,"y":2,"button":"left"},'
+        '"expect":"open single player","confidence":0.8}'
+    )
+    assert d.kind == "act"
+    d2 = parse_decision('{"kind":"observe","seen":"loading","confidence":0.7}')
+    assert d2.kind == "wait"
+
+
+@pytest.mark.asyncio
+async def test_ollama_soft_recovers_persistent_bad_kind() -> None:
+    class Client:
+        async def post(self, url: str, json: dict[str, Any]) -> httpx.Response:
+            body = {"message": {"role": "assistant", "content": '{"kind":"nope","confidence":0.5}'}}
+            return httpx.Response(200, json=body)
+
+    decider = OllamaVisionDecider(client=Client(), model="gemma4:e4b", base_url="http://ollama.test")
+    decision = await decider.decide("win", [], _obs())
+    assert decision.kind == "wait"
+    assert "decider_soft" in decision.reason

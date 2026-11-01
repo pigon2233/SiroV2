@@ -13,7 +13,22 @@ const origin = process.env.SIRO_DESKTOP_ORIGIN || 'http://127.0.0.1:8000';
 const permitted = url => { try { return new URL(url).origin === origin; } catch (_) { return false; } };
 const STOP_KEY = 'Control+Alt+Shift+Escape';
 let control;
-let tray, win, center, desktopLayout, wander, mask, dragging = false, walk = null, lastCursor = null, scale = 1, chat = false, controlsHeight = 132, layout, dragTimer = 0;
+let tray, win, center, captureHost, desktopLayout, wander, mask, dragging = false, walk = null, lastCursor = null, scale = 1, chat = false, controlsHeight = 132, layout, dragTimer = 0;
+/** DIP bounds to restore after computer-control moves SIRO off the game window (still visible). */
+let petHome = null;
+
+/** Tiny always-hidden window parked on the game's display so Electron can capture that monitor. */
+function ensureCaptureHost() {
+  if (captureHost && !captureHost.isDestroyed()) return captureHost;
+  captureHost = new BrowserWindow({
+    width: 1, height: 1, x: -10000, y: -10000, show: false, frame: false, transparent: true,
+    skipTaskbar: true, focusable: false, resizable: false, movable: false,
+    webPreferences: {contextIsolation: true, sandbox: true, nodeIntegration: false},
+  });
+  captureHost.setMenuBarVisibility(false);
+  captureHost.hide();
+  return captureHost;
+}
 
 function applyLayout() {
   if (!win || !desktopLayout) return;
@@ -151,11 +166,23 @@ function setupTray() {
   control.listeners.push(refresh); refresh();
 }
 
+function rememberPetHome(bounds) {
+  if (!petHome && bounds && Number.isFinite(bounds.x) && Number.isFinite(bounds.y)) petHome = {...bounds};
+}
+
+function restorePetHome() {
+  if (!petHome || !win || win.isDestroyed()) { petHome = null; return; }
+  try { win.setBounds(petHome); } catch (_) { /* keep her wherever she is */ }
+  petHome = null;
+}
+
 // Owner-only switch. Refuses to enable when the emergency-stop hotkey cannot be registered.
-// Hide the pet while controlling so she is not captured over the game and confuse vision.
+// Keep the pet visible; capture uses a separate hidden helper window on the game's display.
+// Observe may slide her off the game HWND (still on-screen) so she is not in the screenshot.
 function enableControl() {
   if (!globalShortcut.isRegistered(STOP_KEY) && !globalShortcut.register(STOP_KEY, () => control.stop())) return;
-  if (win && !win.isDestroyed()) { haltWalk('hidden'); win.hide(); }
+  haltWalk('control');
+  ensureCaptureHost();
   control.enable();
 }
 
@@ -239,15 +266,30 @@ app.whenReady().then(async () => {
     const d = screen.getPrimaryDisplay(), f = d.scaleFactor;
     return {x: Math.round(d.bounds.x * f), y: Math.round(d.bounds.y * f), width: Math.round(d.bounds.width * f), height: Math.round(d.bounds.height * f)};
   }});
+  control.listeners.push(state => {
+    if (state === 'disabled' || state === 'stopped') restorePetHome();
+  });
   setupTray();
+  ensureCaptureHost();
   // Backend link: only active with SIRO_COMPUTER_TOKEN; polls solely while control is enabled.
   new ComputerBridgeClient({
     origin, token: computerToken(), control,
-    observe: makeObserver({control, screen, desktopCapturer}),
+    // Helper parked on the game's display for Electron capture. Visible pet is slid off the
+    // game HWND during observe (still shown) so she is not painted over menu buttons.
+    observe: makeObserver({
+      control, screen, desktopCapturer,
+      hostWindow: () => ensureCaptureHost(),
+      petWindow: () => win,
+      onPetCleared: rememberPetHome,
+    }),
   }).start();
   win.loadURL(`${origin}/desktop`);
   setInterval(pollCursor, 50);
   setInterval(refreshMask, 700);
 });
-app.on('will-quit', () => { if (control) control.disable(); globalShortcut.unregisterAll(); });
+app.on('will-quit', () => {
+  if (control) control.disable();
+  globalShortcut.unregisterAll();
+  if (captureHost && !captureHost.isDestroyed()) captureHost.destroy();
+});
 app.on('window-all-closed', () => app.quit());

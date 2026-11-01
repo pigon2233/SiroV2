@@ -6,12 +6,19 @@ a blocked window never leaves with its pixels, and titles are scrubbed of secret
 
 from __future__ import annotations
 
+import base64
+import io
+import math
 import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
 ALLOW_ENV = "SIRO_COMPUTER_ALLOWED_PROCESSES"  # comma list, e.g. "game.exe,notepad.exe"
+# Optional affine fix for residual multi-monitor / DPI miss: ox,oy,sx,sy → (ox+sx*x, oy+sy*y)
+COORD_CALIB_ENV = "SIRO_COMPUTER_COORD_CALIB"
+# Draw pixel grid labels onto the vision copy (fingerprint/raw stay clean). "0" disables.
+COORD_GRID_ENV = "SIRO_COMPUTER_COORD_GRID"
 MAX_AGE_SECONDS = 3.0
 _SECRET = re.compile(
     r"sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\."
@@ -147,13 +154,77 @@ def sanitize(raw: Mapping[str, object], *, seq: int, now: float) -> Observation:
     )
 
 
-def image_to_screen(observation: Observation, x: int, y: int) -> tuple[int, int]:
+def coord_calib(env: Mapping[str, str] | None = None) -> tuple[float, float, float, float]:
+    """Parse SIRO_COMPUTER_COORD_CALIB as ox,oy,sx,sy. Invalid/missing → identity."""
+    raw = (os.environ if env is None else env).get(COORD_CALIB_ENV, "").strip()
+    if not raw:
+        return (0.0, 0.0, 1.0, 1.0)
+    parts = [p.strip() for p in raw.split(",")]
+    if len(parts) != 4:
+        return (0.0, 0.0, 1.0, 1.0)
+    try:
+        ox, oy, sx, sy = (float(p) for p in parts)
+    except ValueError:
+        return (0.0, 0.0, 1.0, 1.0)
+    if not all(math.isfinite(v) for v in (ox, oy, sx, sy)) or sx == 0.0 or sy == 0.0:
+        return (0.0, 0.0, 1.0, 1.0)
+    return (ox, oy, sx, sy)
+
+
+def image_to_screen(
+    observation: Observation,
+    x: int,
+    y: int,
+    *,
+    env: Mapping[str, str] | None = None,
+) -> tuple[int, int]:
     """Map a point in the screenshot's pixels to physical screen pixels."""
     size = observation.image_size
     if size is None:
         return x, y
     left, top, width, height = observation.image_rect or (0, 0, *observation.screen)
-    return left + round(x * width / size[0]), top + round(y * height / size[1])
+    sx = left + round(x * width / size[0])
+    sy = top + round(y * height / size[1])
+    ox, oy, mx, my = coord_calib(env)
+    return int(round(ox + sx * mx)), int(round(oy + sy * my))
+
+
+def annotate_coord_grid(
+    image_b64: str,
+    *,
+    env: Mapping[str, str] | None = None,
+) -> str:
+    """Overlay a light x/y grid so local vision can read screenshot-pixel coords.
+
+    Returns the original payload unchanged when disabled or on any decode/draw failure.
+    """
+    values = os.environ if env is None else env
+    if values.get(COORD_GRID_ENV, "1") == "0":
+        return image_b64
+    try:
+        from PIL import Image, ImageDraw
+
+        raw = base64.b64decode(image_b64, validate=True)
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+        draw = ImageDraw.Draw(image)
+        width, height = image.size
+        step = 100 if width >= 500 else 50
+        for x in range(0, width, step):
+            draw.line([(x, 0), (x, height - 1)], fill=(0, 180, 220), width=1)
+            draw.text((min(width - 36, x + 2), 2), str(x), fill=(255, 230, 40))
+        for y in range(0, height, step):
+            draw.line([(0, y), (width - 1, y)], fill=(0, 180, 220), width=1)
+            if y > 0:
+                draw.text((2, min(height - 14, y + 2)), str(y), fill=(255, 230, 40))
+        cx, cy = width // 2, height // 2
+        draw.line([(cx - 14, cy), (cx + 14, cy)], fill=(255, 70, 70), width=2)
+        draw.line([(cx, cy - 14), (cx, cy + 14)], fill=(255, 70, 70), width=2)
+        draw.text((min(width - 90, cx + 6), min(height - 14, cy + 6)), f"{cx},{cy}", fill=(255, 70, 70))
+        out = io.BytesIO()
+        image.save(out, format="JPEG", quality=72)
+        return base64.b64encode(out.getvalue()).decode("ascii")
+    except Exception:  # noqa: BLE001 — vision must still run without labels
+        return image_b64
 
 
 def rect_in_image(observation: Observation) -> tuple[int, int, int, int] | None:

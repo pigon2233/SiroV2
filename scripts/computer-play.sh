@@ -111,12 +111,15 @@ while True:
         printed += 1
         seen = (s.get("seen") or "").strip() or "-"
         scene = (s.get("scene") or "").strip()
-        detail = (s.get("detail") or "").strip()
+        detail = s.get("detail")
+        detail = "" if detail is None else str(detail).strip()
+        if detail in {"None", "null"}:
+            detail = ""
         extra = ""
         if scene:
             extra += f" | 場景:{scene}"
         if detail:
-            extra += f" | {detail[:80]}"
+            extra += f" | {detail[:160]}"
         print(
             f'{s.get("step")} {s.get("action")} {s.get("outcome")} | 看到: {seen[:100]}{extra}',
             flush=True,

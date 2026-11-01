@@ -19,6 +19,8 @@ from siro.services.computer_use.decision import (
 from siro.services.computer_use.perception import (
     Observation,
     allowed_processes,
+    annotate_coord_grid,
+    coord_calib,
     image_to_screen,
     is_fresh,
     rect_in_image,
@@ -100,6 +102,46 @@ def test_cropped_window_screenshot_maps_back_to_screen() -> None:
     assert rect_in_image(obs) == (0, 0, 400, 300)
     blocked = sanitize({**raw, "process": "keepass.exe"}, seq=1, now=0.0)
     assert blocked.image_rect is None
+
+
+def test_annotate_coord_grid_changes_bytes_unless_disabled() -> None:
+    from io import BytesIO
+
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (200, 120), (10, 20, 30)).save(buf, format="JPEG", quality=80)
+    raw = base64.b64encode(buf.getvalue()).decode()
+    labeled = annotate_coord_grid(raw, env={})
+    assert labeled != raw and len(labeled) > 100
+    assert annotate_coord_grid(raw, env={"SIRO_COMPUTER_COORD_GRID": "0"}) == raw
+
+
+def test_coord_calib_affine_and_rejects_bad_env() -> None:
+    assert coord_calib({}) == (0.0, 0.0, 1.0, 1.0)
+    assert coord_calib({"SIRO_COMPUTER_COORD_CALIB": "10,-5,1,1"}) == (10.0, -5.0, 1.0, 1.0)
+    assert coord_calib({"SIRO_COMPUTER_COORD_CALIB": "0,0,1.25,1"}) == (0.0, 0.0, 1.25, 1.0)
+    assert coord_calib({"SIRO_COMPUTER_COORD_CALIB": "bad"}) == (0.0, 0.0, 1.0, 1.0)
+    assert coord_calib({"SIRO_COMPUTER_COORD_CALIB": "0,0,0,1"}) == (0.0, 0.0, 1.0, 1.0)
+    obs = sanitize(
+        {
+            **RAW,
+            "rect": [400, 200, 800, 600],
+            "image_rect": [400, 200, 800, 600],
+            "image_size": [400, 300],
+        },
+        seq=1,
+        now=0.0,
+    )
+    # Identity mapping then +10x / -5y residual offset (common after DPI drift).
+    assert image_to_screen(obs, 0, 0, env={"SIRO_COMPUTER_COORD_CALIB": "10,-5,1,1"}) == (
+        410,
+        195,
+    )
+    assert image_to_screen(obs, 200, 150, env={"SIRO_COMPUTER_COORD_CALIB": "0,0,1.25,1"}) == (
+        1000,
+        500,
+    )
 
 
 def test_title_secret_scrubbed_and_bad_rect_ignored() -> None:
