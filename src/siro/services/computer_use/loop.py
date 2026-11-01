@@ -12,6 +12,7 @@ import base64
 import binascii
 import hashlib
 import io
+import math
 import os
 import re
 import time
@@ -52,9 +53,11 @@ RATE_WAIT_SECONDS = 1.0
 MAX_WAITS = 6  # consecutive "wait" decisions (transitions) before giving up
 WAIT_SECONDS = 1.0
 SETTLE_SECONDS = 0.4
-AUTONOMOUS_WAIT_SECONDS = 0.35
+AUTONOMOUS_WAIT_SECONDS = 0.2
 AUTONOMOUS_SETTLE_SECONDS = 0.15
-DECIDE_TIMEOUT_SECONDS = 90.0  # match the Ollama client; 55s was aborting slow-but-alive replies
+SETTLE_ENV = "SIRO_COMPUTER_SETTLE"
+WAIT_ENV = "SIRO_COMPUTER_WAIT"
+DECIDE_TIMEOUT_SECONDS = 120.0  # local VLM on a busy 8GB GPU often needs >90s; soft-retry still applies
 MAX_DECIDE_SOFT_FAILS = 3  # bounded runs only; endless autonomous keeps re-observing
 STRATEGY_REFRESH_EVERY = 8  # ask the model to refresh the short plan this often
 SCREEN_MATCH_WAIT_SECONDS = 30.0
@@ -127,6 +130,20 @@ def _optional_run_limit(name: str, default: int, maximum: int, *, unlimited_ok: 
     if raw is None:
         return default
     return _configured_limit(name, default, maximum)
+
+
+def _timing_env(name: str, default: float) -> float:
+    """Owner override for settle/wait seconds; invalid values keep the default."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = float(raw.strip())
+    except ValueError:
+        return default
+    if not math.isfinite(value) or value < 0 or value > 10:
+        return default
+    return value
 
 
 def _autonomous_hint() -> str:
@@ -374,11 +391,17 @@ class DecisionLoop:
         if settle != SETTLE_SECONDS:
             self._settle = settle
         else:
-            self._settle = AUTONOMOUS_SETTLE_SECONDS if self._autonomous else SETTLE_SECONDS
+            self._settle = _timing_env(
+                SETTLE_ENV,
+                AUTONOMOUS_SETTLE_SECONDS if self._autonomous else SETTLE_SECONDS,
+            )
         if wait != WAIT_SECONDS:
             self._wait = wait
         else:
-            self._wait = AUTONOMOUS_WAIT_SECONDS if self._autonomous else WAIT_SECONDS
+            self._wait = _timing_env(
+                WAIT_ENV,
+                AUTONOMOUS_WAIT_SECONDS if self._autonomous else WAIT_SECONDS,
+            )
         self._playbook = playbook
         self._recorder = recorder
         # Talking to SIRO puts the chat in front; bring the allowed game forward once per run.
@@ -622,12 +645,11 @@ class DecisionLoop:
                 if deadline is not None and deadline.expired():
                     if self._max_seconds is not None:
                         return end("stopped", "time_limit")
-                    keep_trying = self._autonomous and (
-                        self._endless or decide_soft_fails < MAX_DECIDE_SOFT_FAILS
-                    )
+                    # Autonomous play: slow local VLMs must not kill the segment after 3 soft tries.
+                    keep_trying = self._autonomous or decide_soft_fails < MAX_DECIDE_SOFT_FAILS
                     if keep_trying:
                         decide_soft_fails += 1
-                        cap = "∞" if self._endless else str(MAX_DECIDE_SOFT_FAILS)
+                        cap = "∞" if self._autonomous else str(MAX_DECIDE_SOFT_FAILS)
                         history.append(
                             StepRecord(
                                 step,
@@ -648,12 +670,10 @@ class DecisionLoop:
             except (DecisionError, OSError) as error:
                 if self._bridge.stop_generation != stop_generation:
                     return end("stopped", "emergency_stop")
-                keep_trying = self._autonomous and (
-                    self._endless or decide_soft_fails < MAX_DECIDE_SOFT_FAILS
-                )
+                keep_trying = self._autonomous or decide_soft_fails < MAX_DECIDE_SOFT_FAILS
                 if keep_trying:
                     decide_soft_fails += 1
-                    cap = "∞" if self._endless else str(MAX_DECIDE_SOFT_FAILS)
+                    cap = "∞" if self._autonomous else str(MAX_DECIDE_SOFT_FAILS)
                     history.append(
                         StepRecord(
                             step,

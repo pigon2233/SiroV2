@@ -4,7 +4,8 @@
 const crypto = require('node:crypto');
 
 // Trial starting point for readable UI text; still downscales huge windows for vision latency.
-const MAX_WIDTH = 1280;
+// 960 keeps UI readable for local VLM while cutting image tokens vs 1280 (fewer decide timeouts).
+const MAX_WIDTH = 960;
 
 function sameWindow(a, b) {
   return !!a && !!b && typeof a.window_id === 'string' && /^\d+$/.test(a.window_id) &&

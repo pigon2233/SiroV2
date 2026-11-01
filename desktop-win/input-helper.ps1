@@ -10,6 +10,10 @@ public static class SiroInput {
   [StructLayout(LayoutKind.Sequential)] struct INPUT { public uint type; public U u; }
   [DllImport("user32.dll", SetLastError=true)] static extern uint SendInput(uint n, INPUT[] i, int size);
   [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+  // Prefer Per-Monitor V2 so GetWindowRect/SetCursorPos stay in physical pixels on mixed-DPI setups.
+  // Legacy SetProcessDPIAware is system-DPI only and drifts toward the bottom-right under 125%/150%.
+  [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+  [DllImport("shcore.dll")] static extern int SetProcessDpiAwareness(int value);
   [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
   [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint type);
   [DllImport("user32.dll")] static extern short VkKeyScanEx(char c, IntPtr hkl);
@@ -27,7 +31,12 @@ public static class SiroInput {
   [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
   [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
   [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
-  public static void Init() { SetProcessDPIAware(); }
+  public static void Init() {
+    // -4 = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (Win10 1703+)
+    try { if (SetProcessDpiAwarenessContext((IntPtr)(-4))) return; } catch { }
+    try { if (SetProcessDpiAwareness(2) == 0) return; } catch { } // PROCESS_PER_MONITOR_DPI_AWARE
+    try { SetProcessDPIAware(); } catch { }
+  }
   // Bring an (allowlisted, chosen by the caller) window to the front; true when it really is in front.
   public static bool Focus(IntPtr h) {
     if (IsIconic(h)) ShowWindow(h, 9);

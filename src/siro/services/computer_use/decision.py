@@ -24,7 +24,9 @@ CLOUD_SCREEN_FLAG = "SIRO_COMPUTER_CLOUD_SCREEN"  # owner opt-in: screenshots ma
 DECIDER_ENV = "SIRO_COMPUTER_DECIDER"  # ollama (default) | claude
 OLLAMA_HOST_ENV = "OLLAMA_HOST"
 OLLAMA_MODEL_ENV = "SIRO_COMPUTER_OLLAMA_MODEL"
+OLLAMA_NUM_PREDICT_ENV = "SIRO_COMPUTER_OLLAMA_NUM_PREDICT"
 DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
+DEFAULT_OLLAMA_NUM_PREDICT = 150  # short JSON decisions; was 260 and slowed local VLM turns
 DECISION_KINDS = frozenset({"act", "done", "stuck", "ask", "wait"})
 SCENES = frozenset(
     {"map", "combat", "shop", "event", "reward", "pause", "defeat", "menu", "unknown"}
@@ -373,17 +375,21 @@ class OllamaVisionDecider:
         self._base_url = (base_url or _ollama_base_url(values)).rstrip("/")
         self._timeout = timeout
         self._client = client
+        self._num_predict = _ollama_num_predict(values)
 
-    async def _chat(self, prompt: str, observation: Observation, *, num_predict: int = 260) -> str:
+    async def _chat(
+        self, prompt: str, observation: Observation, *, num_predict: int | None = None
+    ) -> str:
         if not observation.image_png_b64:
             raise DecisionError("no_image")
         vision = annotate_coord_grid(observation.image_png_b64, env=self._env)
+        predict = self._num_predict if num_predict is None else num_predict
         payload = {
             "model": self._model,
             "stream": False,
             "think": False,
             "keep_alive": values_keep_alive(self._env),
-            "options": {"temperature": 0.1, "num_predict": num_predict, "num_ctx": 4096},
+            "options": {"temperature": 0.1, "num_predict": predict, "num_ctx": 2048},
             "messages": [
                 {
                     "role": "user",
@@ -447,7 +453,7 @@ class OllamaVisionDecider:
             before_seen=before_seen.strip()[:200] or "-",
         )
         try:
-            return parse_verify(await self._chat(prompt, observation, num_predict=120))
+            return parse_verify(await self._chat(prompt, observation, num_predict=min(80, self._num_predict)))
         except DecisionError as error:
             return VerifyResult("unknown", f"verify_failed:{error}")
 
@@ -506,6 +512,20 @@ class OllamaVisionDecider:
 def values_keep_alive(env: Mapping[str, str] | None) -> str:
     values = os.environ if env is None else env
     return values.get("SIRO_OLLAMA_KEEP_ALIVE") or "30m"
+
+
+def _ollama_num_predict(env: Mapping[str, str] | None) -> int:
+    values = os.environ if env is None else env
+    raw = (values.get(OLLAMA_NUM_PREDICT_ENV) or "").strip()
+    if not raw:
+        return DEFAULT_OLLAMA_NUM_PREDICT
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_OLLAMA_NUM_PREDICT
+    if not 32 <= value <= 512:
+        return DEFAULT_OLLAMA_NUM_PREDICT
+    return value
 
 
 class ClaudeVisionDecider:

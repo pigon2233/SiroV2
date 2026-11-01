@@ -52,3 +52,4 @@
 - Rejected approach: forcing left-side menu clicks to image center — scene-specific hacks hide bad grounding and break combat.
 - Ineffective same-spot ban radius 80px / last 3 unresolved clicks.
 - Decide budget 90s; endless autonomous keeps re-observing on timeout instead of failing the segment.
+- Grounding/latency pass: input-helper `Init` → Per-Monitor DPI Aware V2 (fallback per-monitor / system); Electron `high-dpi-support`; Ollama `num_predict` default 150 (`SIRO_COMPUTER_OLLAMA_NUM_PREDICT`); autonomous wait 0.2s; env `SIRO_COMPUTER_SETTLE` / `SIRO_COMPUTER_WAIT`; `SIRO_COMPUTER_COORD_GRID=1` documented in enable script.

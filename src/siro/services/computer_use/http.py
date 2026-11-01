@@ -219,20 +219,26 @@ class ComputerRuns:
             will_continue = self._should_continue(report) and not hit_segment_cap
             if will_continue:
                 key = self._reason_key(report)
-                if key == self._last_continue_reason:
-                    self._same_reason_streak += 1
+                # Timeouts mean the VLM was slow, not that the scene is stuck — do not
+                # burn the same-reason budget or endless play dies after two slow segments.
+                if key != "decider_error:timeout":
+                    if key == self._last_continue_reason:
+                        self._same_reason_streak += 1
+                    else:
+                        self._last_continue_reason = key
+                        self._same_reason_streak = 1
+                    if self._same_reason_streak >= self._same_reason_limit():
+                        self.report = LoopReport(
+                            report.state,
+                            report.reason,
+                            report.steps,
+                            detail=(report.detail + " | " if report.detail else "")
+                            + f"same_segment_reason_limit:{key}x{self._same_reason_streak}",
+                        )
+                        return
                 else:
                     self._last_continue_reason = key
-                    self._same_reason_streak = 1
-                if self._same_reason_streak >= self._same_reason_limit():
-                    self.report = LoopReport(
-                        report.state,
-                        report.reason,
-                        report.steps,
-                        detail=(report.detail + " | " if report.detail else "")
-                        + f"same_segment_reason_limit:{key}x{self._same_reason_streak}",
-                    )
-                    return
+                    self._same_reason_streak = 0
             if (
                 not will_continue
                 or not self.bridge.gate.enabled

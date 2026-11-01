@@ -9,6 +9,9 @@ const {makeObserver} = require('./computer-perception.js');
 const {computerToken} = require('./computer-config.js');
 
 if (process.env.SIRO_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.SIRO_DEBUG_PORT);
+// Keep Chromium/Electron per-monitor DPI aware so display.bounds + dipToScreenPoint match Win32 physical pixels.
+app.commandLine.appendSwitch('high-dpi-support', '1');
+
 const origin = process.env.SIRO_DESKTOP_ORIGIN || 'http://127.0.0.1:8000';
 const permitted = url => { try { return new URL(url).origin === origin; } catch (_) { return false; } };
 const STOP_KEY = 'Control+Alt+Shift+Escape';
@@ -263,8 +266,9 @@ app.whenReady().then(async () => {
     win.showInactive();
   });
   control = new ComputerControl({getBounds: () => {
-    const d = screen.getPrimaryDisplay(), f = d.scaleFactor;
-    return {x: Math.round(d.bounds.x * f), y: Math.round(d.bounds.y * f), width: Math.round(d.bounds.width * f), height: Math.round(d.bounds.height * f)};
+    const {physicalBounds} = require('./computer-perception.js');
+    const b = physicalBounds(screen, screen.getPrimaryDisplay());
+    return {x: b.x, y: b.y, width: b.width, height: b.height};
   }});
   control.listeners.push(state => {
     if (state === 'disabled' || state === 'stopped') restorePetHome();

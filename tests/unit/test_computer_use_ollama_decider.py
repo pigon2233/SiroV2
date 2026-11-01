@@ -58,6 +58,7 @@ async def test_ollama_vision_decider_parses_chat_content() -> None:
     assert (decision.action.x, decision.action.y) == (10, 20)
     assert calls[0]["url"].endswith("/api/chat")
     assert calls[0]["json"]["think"] is False
+    assert calls[0]["json"]["options"]["num_predict"] == 150
     assert calls[0]["json"]["messages"][0]["images"] == ["AAAA"]
 
 

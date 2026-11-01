@@ -37,11 +37,20 @@ SIRO_COMPUTER_MAX_SECONDS=0
 SIRO_COMPUTER_MAX_SEGMENTS=0
 # Decision brain: ollama (local vision, default) or claude (cloud CLI).
 SIRO_COMPUTER_DECIDER=ollama
+# Prefer a small GUI-capable VLM; oversized chat models make every turn timeout-prone.
 SIRO_COMPUTER_OLLAMA_MODEL=gemma4:e4b
+# Cap decision tokens (default 150). Verify uses min(80, this).
+# SIRO_COMPUTER_OLLAMA_NUM_PREDICT=150
 # Skip post-run Claude reflection while iterating on play speed.
 SIRO_COMPUTER_PLAYBOOK=0
+# Keep vision coordinate grid ON so the model reads labeled pixels instead of guessing.
+SIRO_COMPUTER_COORD_GRID=1
 # Optional residual click fix after DPI/multi-monitor map: ox,oy,sx,sy (default identity).
+# Example: always 12px right and 1.0 scale → SIRO_COMPUTER_COORD_CALIB=-12,0,1,1
 # SIRO_COMPUTER_COORD_CALIB=0,0,1,1
+# Optional loop timing overrides (seconds; autonomous defaults settle=0.15 wait=0.2).
+# SIRO_COMPUTER_SETTLE=0.15
+# SIRO_COMPUTER_WAIT=0.2
 EOF
   echo "Created $env_file (edit SIRO_COMPUTER_ALLOWED_PROCESSES to choose games)."
 fi
