@@ -35,10 +35,14 @@ SIRO_COMPUTER_ENDLESS=1
 SIRO_COMPUTER_MAX_STEPS=0
 SIRO_COMPUTER_MAX_SECONDS=0
 SIRO_COMPUTER_MAX_SEGMENTS=0
-# Decision brain: ollama (local vision, default) or claude (cloud CLI).
-SIRO_COMPUTER_DECIDER=ollama
-# Prefer a small GUI-capable VLM; oversized chat models make every turn timeout-prone.
-SIRO_COMPUTER_OLLAMA_MODEL=gemma4:e4b
+# Decision brain: ollama (local) | groq (cloud vision) | claude (CLI).
+# groq needs SIRO_OPENAI_API_KEY (Groq key) already in the launcher env.
+SIRO_COMPUTER_DECIDER=groq
+SIRO_COMPUTER_GROQ_MODEL=qwen/qwen3.8-27b
+# reasoning_effort: none | low | … ; leave empty if Groq returns 400 on the field.
+SIRO_COMPUTER_GROQ_REASONING=none
+# Local fallback model when DECIDER=ollama.
+SIRO_COMPUTER_OLLAMA_MODEL=gemma4:e2b
 # Cap decision tokens (default 150). Verify uses min(80, this).
 # SIRO_COMPUTER_OLLAMA_NUM_PREDICT=150
 # Skip post-run Claude reflection while iterating on play speed.

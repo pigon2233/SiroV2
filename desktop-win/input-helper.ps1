@@ -27,10 +27,13 @@ public static class SiroInput {
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int l, t, r, b; }
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
   [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
   [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("user32.dll")] static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
   [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  const byte VK_MENU = 0x12; const uint KEYEVENTF_KEYUP = 0x0002;
   public static void Init() {
     // -4 = DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (Win10 1703+)
     try { if (SetProcessDpiAwarenessContext((IntPtr)(-4))) return; } catch { }
@@ -39,11 +42,24 @@ public static class SiroInput {
   }
   // Bring an (allowlisted, chosen by the caller) window to the front; true when it really is in front.
   public static bool Focus(IntPtr h) {
-    if (IsIconic(h)) ShowWindow(h, 9);
+    if (h == IntPtr.Zero) return false;
+    if (IsIconic(h)) ShowWindow(h, 9); // SW_RESTORE
+    else ShowWindow(h, 5); // SW_SHOW
+    // Alt tap unlocks SetForegroundWindow under Windows foreground lock.
+    keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
     uint pid; uint fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out pid); uint me = GetCurrentThreadId();
     bool attached = fgThread != me && AttachThreadInput(me, fgThread, true);
-    try { SetForegroundWindow(h); } finally { if (attached) AttachThreadInput(me, fgThread, false); }
+    try {
+      BringWindowToTop(h);
+      SetForegroundWindow(h);
+    } finally { if (attached) AttachThreadInput(me, fgThread, false); }
     Thread.Sleep(150);
+    if (GetForegroundWindow() == h) return true;
+    // Second attempt after a short settle (fullscreen games often ignore the first call).
+    Thread.Sleep(200);
+    SetForegroundWindow(h);
+    Thread.Sleep(100);
     return GetForegroundWindow() == h;
   }
   public static object[] Foreground() {

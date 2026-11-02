@@ -469,18 +469,25 @@ class DecisionLoop:
             )
             if wrong_window:
                 # Autonomous: keep bringing the game forward; never act on a non-allowed window.
+                # focus_denied must not kill the segment — Windows often blocks SetForegroundWindow.
                 if self._autonomous and self._focus:
                     target = self._focus_target(goal)
-                    if target:
-                        await self._bridge.focus(target)
+                    focus_result = await self._bridge.focus(target) if target else None
+                    outcome = "ok"
+                    seen = "allowed game not focused; bring it forward"
+                    if target is None:
+                        outcome = "denied:no_focus_target"
+                    elif focus_result is not None and not focus_result.ok:
+                        outcome = f"denied:{focus_result.error or 'focus_failed'}"
+                        seen = f"restore selected target {target}"
                     history.append(
                         StepRecord(
                             step,
                             "(refocus)",
                             "",
-                            "ok",
+                            outcome,
                             None,
-                            "allowed game not focused; bring it forward",
+                            seen,
                         )
                     )
                     await asyncio.sleep(0.6)
@@ -488,8 +495,23 @@ class DecisionLoop:
                 if self._focus and not focus_tried:
                     focus_tried = True
                     target = self._focus_target(goal)
-                    if target and (await self._bridge.focus(target)).ok:
-                        await asyncio.sleep(0.8)
+                    if target:
+                        focus_result = await self._bridge.focus(target)
+                        if focus_result.ok:
+                            await asyncio.sleep(0.8)
+                            continue
+                        history.append(
+                            StepRecord(
+                                step,
+                                "(refocus)",
+                                "",
+                                f"denied:{focus_result.error or 'focus_failed'}",
+                                None,
+                                f"restore selected target {target}",
+                            )
+                        )
+                        # One soft retry path: keep observing; do not end(target_focus_failed).
+                        await asyncio.sleep(0.6)
                         continue
             if observation is None:
                 return end("stopped", error)

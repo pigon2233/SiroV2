@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
 import json
 import os
 import re
@@ -21,12 +22,17 @@ from siro.services.tools.claude import Runner, claude_binary, claude_model
 from siro.services.tools.execution import execute_bounded_argv, restricted_environment
 
 CLOUD_SCREEN_FLAG = "SIRO_COMPUTER_CLOUD_SCREEN"  # owner opt-in: screenshots may go to the cloud
-DECIDER_ENV = "SIRO_COMPUTER_DECIDER"  # ollama (default) | claude
+DECIDER_ENV = "SIRO_COMPUTER_DECIDER"  # ollama (default) | claude | groq
 OLLAMA_HOST_ENV = "OLLAMA_HOST"
 OLLAMA_MODEL_ENV = "SIRO_COMPUTER_OLLAMA_MODEL"
 OLLAMA_NUM_PREDICT_ENV = "SIRO_COMPUTER_OLLAMA_NUM_PREDICT"
-DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
+DEFAULT_OLLAMA_MODEL = "gemma4:e2b"
 DEFAULT_OLLAMA_NUM_PREDICT = 150  # short JSON decisions; was 260 and slowed local VLM turns
+GROQ_MODEL_ENV = "SIRO_COMPUTER_GROQ_MODEL"
+GROQ_REASONING_ENV = "SIRO_COMPUTER_GROQ_REASONING"  # reasoning_effort; "" omits the field
+# Llama 4 Scout was shut down on Groq free/dev tiers; Qwen3.8 27B is the current vision pick.
+DEFAULT_GROQ_MODEL = "qwen/qwen3.8-27b"
+GROQ_MAX_IMAGE_B64 = 3_500_000  # Groq caps base64 image payloads near ~4MB
 DECISION_KINDS = frozenset({"act", "done", "stuck", "ask", "wait"})
 SCENES = frozenset(
     {"map", "combat", "shop", "event", "reward", "pause", "defeat", "menu", "unknown"}
@@ -360,6 +366,8 @@ def _prompt_fields(
 class OllamaVisionDecider:
     """Local vision decider via Ollama /api/chat (screenshots stay on this machine)."""
 
+    _transient = frozenset({"ollama_failed", "ollama_timeout", "ollama_bad_output", "ollama_empty"})
+
     def __init__(
         self,
         *,
@@ -466,7 +474,7 @@ class OllamaVisionDecider:
         strategy: str = "",
     ) -> Decision:
         """Retry malformed JSON/action once; soft-recover to wait instead of killing the segment."""
-        transient = {"ollama_failed", "ollama_timeout", "ollama_bad_output", "ollama_empty"}
+        transient = self._transient
         format_errors = {
             "not_json",
             "bad_action",
@@ -659,10 +667,124 @@ class ClaudeVisionDecider:
         raise last
 
 
+def _shrink_for_groq(image_b64: str) -> str:
+    """Re-encode smaller JPEG when the payload is near Groq's base64 limit (best effort)."""
+    if len(image_b64) <= GROQ_MAX_IMAGE_B64:
+        return image_b64
+    try:
+        from PIL import Image
+
+        image = Image.open(io.BytesIO(base64.b64decode(image_b64))).convert("RGB")
+        quality = 70
+        while True:
+            out = io.BytesIO()
+            image.save(out, format="JPEG", quality=quality)
+            encoded = base64.b64encode(out.getvalue()).decode("ascii")
+            if len(encoded) <= GROQ_MAX_IMAGE_B64 or quality <= 30:
+                return encoded
+            quality -= 15
+    except Exception:  # noqa: BLE001 — let Groq reject rather than crash the loop
+        return image_b64
+
+
+def _image_mime(image_b64: str) -> str:
+    return "image/png" if image_b64.startswith("iVBOR") else "image/jpeg"
+
+
+class GroqVisionDecider(OllamaVisionDecider):
+    """Cloud vision via Groq OpenAI-compatible chat completions (screenshot leaves this machine)."""
+
+    _transient = frozenset({"groq_failed", "groq_timeout", "groq_bad_output", "groq_empty"})
+
+    def __init__(
+        self,
+        *,
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        env: dict[str, str] | None = None,
+        timeout: float = 30.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        values = os.environ if env is None else env
+        self._env = env
+        self._model = model or values.get(GROQ_MODEL_ENV) or DEFAULT_GROQ_MODEL
+        self._base_url = (
+            base_url or values.get("SIRO_OPENAI_BASE_URL") or "https://api.groq.com/openai"
+        ).rstrip("/")
+        self._api_key = api_key if api_key is not None else values.get("SIRO_OPENAI_API_KEY", "")
+        self._reasoning = values.get(GROQ_REASONING_ENV, "none").strip()
+        self._timeout = timeout
+        self._client = client
+        self._num_predict = _ollama_num_predict(values)
+
+    async def _chat(
+        self, prompt: str, observation: Observation, *, num_predict: int | None = None
+    ) -> str:
+        if not cloud_screen_allowed(self._env):
+            raise CloudScreenNotAllowed(CLOUD_SCREEN_FLAG)
+        if not observation.image_png_b64:
+            raise DecisionError("no_image")
+        if not self._api_key:
+            raise DecisionError("groq_no_key")
+        predict = self._num_predict if num_predict is None else num_predict
+        vision = _shrink_for_groq(annotate_coord_grid(observation.image_png_b64, env=self._env))
+        payload: dict[str, object] = {
+            "model": self._model,
+            "stream": False,
+            "temperature": 0.1,
+            "max_completion_tokens": max(predict, 400),
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{_image_mime(vision)};base64,{vision}"},
+                        },
+                    ],
+                }
+            ],
+        }
+        if self._reasoning:
+            payload["reasoning_effort"] = self._reasoning
+        url = f"{self._base_url}/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self._api_key}"}
+        try:
+            if self._client is not None:
+                response = await self._client.post(url, json=payload, headers=headers)
+            else:
+                async with httpx.AsyncClient(timeout=self._timeout) as client:
+                    response = await client.post(url, json=payload, headers=headers)
+        except httpx.TimeoutException as error:
+            raise DecisionError("groq_timeout") from error
+        except httpx.HTTPError as error:
+            raise DecisionError("groq_failed") from error
+        if response.status_code in {401, 403}:
+            raise DecisionError("groq_auth")
+        if response.status_code == 429:
+            # Free-tier RPM; soft-recover path will re-observe after a short wait.
+            raise DecisionError("groq_timeout")
+        if response.status_code >= 400:
+            raise DecisionError("groq_failed")
+        try:
+            body = response.json()
+            content = body["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError) as error:
+            raise DecisionError("groq_bad_output") from error
+        if not isinstance(content, str) or not content.strip():
+            raise DecisionError("groq_empty")
+        return content
+
+
 def make_decider(env: Mapping[str, str] | None = None) -> Decider:
     """Owner chooses the computer-use brain; default is local Ollama vision (no Claude)."""
     values = dict(os.environ if env is None else env)
     kind = values.get(DECIDER_ENV, "ollama").strip().lower() or "ollama"
     if kind in {"claude", "claude_cli", "cloud"}:
         return ClaudeVisionDecider(env=values)
+    if kind == "groq":
+        return GroqVisionDecider(env=values)
     return OllamaVisionDecider(env=values)
