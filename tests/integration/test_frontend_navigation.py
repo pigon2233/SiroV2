@@ -263,6 +263,19 @@ assert.equal(calls.length,0);assert.equal(sockets.length,0);
     )
 
 
+def test_activity_hash_opens_the_monitor_page_that_holds_the_feed() -> None:
+    run_navigation(
+        """
+initializePageNavigation();assertPage('monitor');
+assert.equal(location.hash,'#/activity');
+assert.equal(document.title,'SIRO · 監控');
+assert.equal(document.querySelector('[data-nav="monitor"]').getAttribute('aria-current'),'page');
+assert.equal(calls.length,0);assert.equal(sockets.length,0);assert.equal(timers.size,0);
+""",
+        initial_hash="#/activity",
+    )
+
+
 def test_navigation_click_back_forward_and_reinitialization_keep_draft_and_dom_owners() -> None:
     run_navigation(
         """

@@ -4,6 +4,7 @@ const {contextBridge, ipcRenderer} = require('electron');
 contextBridge.exposeInMainWorld('webkit', {
   messageHandlers: {siroDesktop: {postMessage: text => ipcRenderer.send('siro.desktop', String(text))}},
 });
+contextBridge.exposeInMainWorld('siroDesktopHost', 'electron');
 // Transparent in every frame, like the GTK host's injected user stylesheet.
 document.addEventListener('DOMContentLoaded', () => {
   const style = document.createElement('style');

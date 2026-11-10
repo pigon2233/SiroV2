@@ -1,9 +1,136 @@
 #!/usr/bin/env bash
-# Start the backend detached (the Windows pet needs only it), then wait until it answers.
+# Start the backend for the Windows Electron pet, then wait until it answers.
+# The in-repo launcher is preferred. The machine-local wrapper is only a fallback
+# when that attempt has exited and nothing is listening yet.
 set -u
-COMPANION_BACKEND_ONLY=1 setsid -f "$HOME/.local/bin/siro-companion-vrm" >/tmp/siro-vrm.log 2>&1 </dev/null
-for _ in $(seq 120); do
-  curl -fs -m1 http://127.0.0.1:8000/health/ready >/dev/null && exit 0
-  sleep .5
-done
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$root"
+
+variant="${1:-}"
+case "$variant" in
+  ""|candidate) ;;
+  *)
+    echo "start-win-backend: 只接受 candidate 或不帶參數" >&2
+    exit 2
+    ;;
+esac
+
+port="${SIRO_GATEWAY_PORT:-8000}"
+if [[ ! "$port" =~ ^[0-9]+$ ]] || ((port < 1024 || port > 65535)); then
+  echo "SIRO_GATEWAY_PORT 必須是 1024..65535" >&2
+  exit 2
+fi
+log="${SIRO_WIN_BACKEND_LOG:-/tmp/siro-vrm.log}"
+companion="${SIRO_START_COMPANION:-$root/scripts/start-companion}"
+if [[ "$variant" == "candidate" ]]; then
+  wrapper="${SIRO_CANDIDATE_WRAPPER:-$HOME/.local/bin/siro-companion-vrm-candidate}"
+else
+  wrapper="${SIRO_COMPANION_WRAPPER:-$HOME/.local/bin/siro-companion-vrm}"
+fi
+launcher_pidfile="${SIRO_WIN_LAUNCHER_PID:-/tmp/siro-win-launcher.pid}"
+ready_attempts="${SIRO_READY_ATTEMPTS:-120}"
+ready_pause="${SIRO_READY_PAUSE:-0.5}"
+
+ready() {
+  curl -fs -m1 "http://127.0.0.1:${port}/health/ready" >/dev/null 2>&1
+}
+
+# Same file the out-of-repo wrapper was taught to read. Only SIRO_COMPUTER_* keys
+# are exported, and values are not evaluated as shell.
+load_computer_env() {
+  local file="${SIRO_COMPUTER_ENV_FILE:-}"
+  if [[ -z "$file" ]]; then
+    local win_home="" raw
+    if command -v cmd.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+      raw="$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r' || true)"
+      if [[ -n "$raw" && "$raw" != *"%USERPROFILE%"* ]]; then
+        win_home="$(wslpath -- "$raw" 2>/dev/null || true)"
+      fi
+    fi
+    if [[ -n "$win_home" ]]; then
+      file="$win_home/siro-computer/computer.env"
+    fi
+  fi
+  [[ -n "$file" && -f "$file" && ! -L "$file" ]] || return 0
+  local line key value
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?(SIRO_COMPUTER_[A-Z0-9_]+)=(.*)$ ]] || continue
+    key="${BASH_REMATCH[2]}"
+    value="${BASH_REMATCH[3]}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    if [[ ${#value} -ge 2 && ( "$value" == \"*\" || "$value" == \'*\' ) ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+    export "${key}=${value}"
+  done < "$file"
+}
+
+listening() {
+  # Any HTTP response means a server is already bound. Do not start a second one.
+  curl -s -m1 -o /dev/null "http://127.0.0.1:${port}/health/ready"
+}
+
+launcher_alive() {
+  local pid
+  [[ -f "$launcher_pidfile" ]] || return 1
+  pid="$(tr -d '[:space:]' < "$launcher_pidfile" 2>/dev/null || true)"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
+launch_detached() {
+  local target="$1"
+  [[ -f "$target" ]] || return 1
+  rm -f "$launcher_pidfile"
+  # setsid -f leaves the gateway outside the wsl.exe process group.
+  setsid -f env COMPANION_BACKEND_ONLY=1 \
+    SIRO_WIN_LAUNCH_TARGET="$target" \
+    SIRO_WIN_LAUNCH_PIDFILE="$launcher_pidfile" \
+    bash -c 'echo $$ > "$SIRO_WIN_LAUNCH_PIDFILE"; exec bash "$SIRO_WIN_LAUNCH_TARGET"' \
+    >>"$log" 2>&1 </dev/null
+}
+
+wait_ready() {
+  local _attempt
+  for _attempt in $(seq "$ready_attempts"); do
+    ready && return 0
+    sleep "$ready_pause"
+  done
+  return 1
+}
+
+if ready; then
+  if [[ "$variant" == "candidate" ]]; then
+    echo "後端仍在執行。請先完全退出，再預覽候選模型。" >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+if [[ "$variant" == "candidate" ]]; then
+  export SIRO_VRM_VARIANT=candidate
+fi
+load_computer_env
+
+repo_started=0
+if launch_detached "$companion"; then
+  repo_started=1
+  if wait_ready; then
+    exit 0
+  fi
+fi
+if ready; then
+  exit 0
+fi
+# A checkout build can outlive the health wait. Do not add the wrapper beside it.
+if [[ "$repo_started" == "1" ]] && { launcher_alive || listening; }; then
+  echo "SIRO 後端尚未就緒。請查看 ${log}。" >&2
+  exit 1
+fi
+if launch_detached "$wrapper" && wait_ready; then
+  exit 0
+fi
+echo "SIRO 後端無法啟動。請查看 ${log}。" >&2
 exit 1

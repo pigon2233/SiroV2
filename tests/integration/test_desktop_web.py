@@ -376,6 +376,26 @@ assert(observers.every(item=>item.disconnected));
     )
 
 
+def test_desktop_startup_does_not_open_a_browser_tab() -> None:
+    run_desktop(
+        """
+assert.equal(opened.length,0);
+assert.equal(nativeMessages.length,0);
+assert.equal(document.querySelector('#desktop-hide').title,'最小化；可從工作列恢復');
+"""  # noqa: RUF001
+    )
+
+
+def test_electron_hide_hint_points_at_the_tray() -> None:
+    run_desktop(
+        """
+assert.equal(document.querySelector('#desktop-hide').title,'先藏起來；可從系統匣恢復');
+assert.equal(opened.length,0);
+""",  # noqa: RUF001
+        before="window.siroDesktopHost='electron';\n",
+    )
+
+
 def test_browser_preview_does_not_gain_native_commands() -> None:
     run_desktop(
         """
@@ -531,6 +551,21 @@ const act=(id,state,tools,reason='查今晚的星雲')=>({activity_id:id,state,r
   updated_at:'2026-10-21T00:00:0'+id.length+'Z'});
 const view=(items,status='ok')=>({status,items:new Map(items.map(item=>[item.activity_id,item])),stopping:new Set()});
 """  # noqa: E501
+
+
+def test_activity_bubble_without_native_bridge_opens_one_control_tab_on_click() -> None:
+    run_desktop(
+        """
+feed(view([act('a','running',[tool('browser.navigate+read','running')])]));
+feed(view([act('a','completed',[tool('browser.navigate+read','completed')])]));
+assert.equal(opened.length,0);
+delete window.webkit;
+document.querySelector('#desktop-bubble').children[2].click();
+assert.deepEqual(opened,[{url:'/?view=control#/activity',name:'siro-control'}]);
+assert.equal(nativeMessages.length,0);
+""",
+        before=BUBBLE_FEED,
+    )
 
 
 def test_bubble_only_says_working_when_the_journal_has_a_running_tool() -> None:
