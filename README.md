@@ -48,24 +48,21 @@ systemctl --user status ollama
 SIRO_OLLAMA_MODEL=qwen3:4b uv run pytest -m real_provider tests/real/test_model_providers.py -vv
 ```
 
-日常使用請啟動獨立 SIRO 桌寵（必要時啟動正式後端，讀取本機 `.env.local` 模型設定）：
+日常使用請在 Windows 雙擊根目錄的 `Start-SIRO-VRM-Win.cmd`。後端在 WSL 啟動並讀取本機 `.env.local`；桌寵是 Windows 上的 Electron 視窗。成功時不會留下命令列，也不會另外開啟瀏覽器。細節見 [WSL 操作說明](docs/WSL_SETUP.md) 與 [產品操作說明](docs/runtime-evolution/PRODUCT_QUICKSTART.md)。
 
-```bash
-scripts/start-companion
-```
-
-桌面角色提供「聊聊／移動／控制台／暫藏／退出」，控制台也可從 [SIRO](http://127.0.0.1:8000/?view=control) 開啟。若只需要後端，執行 `scripts/start-runtime-product`。頁面應顯示「雲端對話」或「本機對話」，以及「Live2D 已就緒」；缺少模型或角色時入口會明確停止。詳細設定與功能限制見 [產品操作說明](docs/runtime-evolution/PRODUCT_QUICKSTART.md)。
-
-### Windows 桌面開啟與退出（VRM 角色）
+### Windows 桌面開啟與退出
 
 | 動作 | 做法 |
 |---|---|
-| 開啟 | 雙擊桌面 `SIRO-VRM-Start`（即根目錄 `Start-SIRO-VRM.cmd`），載入已登記的 `config/body-assets/siro-vrm/model.vrm` |
-| 只關視窗 | 關閉桌寵視窗；後端與資料保留，下次開啟會接回同一服務 |
-| 完全退出 | 雙擊桌面 `SIRO-Stop`（`Stop-SIRO.cmd`），停止後端與桌寵並確認 port 8000 已無回應 |
-| 預覽候選模型 | 先完全退出，再執行 `Start-SIRO-VRM-Candidate.cmd`；後端仍在執行時會拒絕，避免誤載正式模型。候選 manifest 在 Git 忽略的 `.siro-data/vroid/candidate-registered/` |
+| 開啟 | 雙擊 `Start-SIRO-VRM-Win.cmd`。載入已登記的 `config/body-assets/siro-vrm/model.vrm`，並開啟桌寵 |
+| 只開後端 | `Start-SIRO-VRM-Win.cmd /backend` |
+| 只關視窗 | 關閉桌寵或按「退出」；後端與資料保留。按「暫藏」後從系統匣恢復 |
+| 完全退出 | `Start-SIRO-VRM-Win.cmd /stop`，或雙擊 `Stop-SIRO-Win.cmd`（它只轉呼叫 `/stop`） |
+| 預覽候選模型 | 先完全退出，再執行 `Start-SIRO-VRM-Win.cmd /candidate`。後端仍在執行時會拒絕，避免誤載正式模型。候選 manifest 在 Git 忽略的 `.siro-data/vroid/candidate-registered/` |
 
-桌面捷徑與 WSL 啟動腳本（`~/.local/bin/siro-companion-vrm`、`siro-companion-vrm-candidate`、`siro-stop`）在 Git 外，細節見 [WSL 操作說明](docs/WSL_SETUP.md)。
+ESP32 的 MQTT broker 與 OTA 轉送只在這台電腦已經放好設定時才會安靜啟動。舊的 Live2D／GTK 入口留在 `scripts/legacy/`，不是日常用法。`Play-SIRO.cmd` 屬於電腦操控，不在這個啟動流程裡。
+
+桌面角色提供「聊聊／移動／控制台／暫藏／退出」。控制台也可從 [SIRO](http://127.0.0.1:8000/?view=control) 開啟。頁面應顯示「雲端對話」或「本機對話」，以及角色已就緒；缺少模型或角色時入口會明確停止。
 
 需要 PID 管理可用 `scripts/start .siro-data/companion-service.pid`，停止用 `scripts/stop .siro-data/companion-service.pid`。這兩種正式入口使用同一個 launcher。
 

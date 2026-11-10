@@ -75,10 +75,16 @@
       event.preventDefault();
       nativeCommand({type: "desktop.move", button: 1, screenX: event.screenX, screenY: event.screenY});
     });
-    const consoleButton = button("desktop-console", "控制台", "開啟任務、記憶與設定", () => {
-      if (!nativeCommand({type: "desktop.console"})) window.open("/?view=control#/chat", "siro-control");
-    });
-    button("desktop-hide", "暫藏", "最小化；可從工作列恢復", () => nativeCommand({type: "desktop.hide"}));
+    const openControl = page => {
+      const message = page ? {type: "desktop.console", page} : {type: "desktop.console"};
+      if (nativeCommand(message)) return;
+      // A click in a plain browser preview only. Startup never calls this.
+      const hash = page === "activity" ? "#/activity" : "#/chat";
+      window.open(`/?view=control${hash}`, "siro-control");
+    };
+    const consoleButton = button("desktop-console", "控制台", "開啟任務、記憶與設定", () => openControl());
+    const hideHint = window.siroDesktopHost === "electron" ? "先藏起來；可從系統匣恢復" : "最小化；可從工作列恢復";
+    button("desktop-hide", "暫藏", hideHint, () => nativeCommand({type: "desktop.hide"}));
     button("desktop-quit", "退出", "關閉桌寵視窗，SIRO 服務繼續執行", () => nativeCommand({type: "desktop.quit"}));
     const status = document.createElement("p");
     status.id = "desktop-status";
@@ -219,9 +225,7 @@
     document.body.appendChild(bubble);
     const LIVE = new Set(["proposed", "queued", "running", "paused", "cancelling"]);
     const TOOL_NAMES = {"browser.navigate+read": "開網頁", "computer.execute": "執行程式"};
-    const openActivity = () => {
-      if (!nativeCommand({type: "desktop.console", page: "activity"})) window.open("/?view=control#/activity", "siro-control");
-    };
+    const openActivity = () => openControl("activity");
     const seenStates = new Map();
     let lastView, flash, hadLive = false, dismissed = "", bubbleRun, bubbleNote;
     const subject = item => item.reason || TOOL_NAMES[item.tools?.[0]?.capability] || "工具操作";

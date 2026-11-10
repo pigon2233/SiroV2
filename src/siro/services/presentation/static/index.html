@@ -502,7 +502,8 @@
       });
       function showPage(hash = location.hash, moveFocus = false) {
         const requested = typeof hash === "string" && /^#\/[a-z]+$/.test(hash) ? hash.slice(2) : "chat";
-        const page = Object.hasOwn(pageTitles, requested) ? requested : "chat";
+        // Activity records live on the monitor page. #/activity is that section, not a third page.
+        const page = requested === "activity" ? "monitor" : (Object.hasOwn(pageTitles, requested) ? requested : "chat");
         let heading;
         for (const pane of document.querySelectorAll("[data-page]")) {
           pane.hidden = pane.dataset.page !== page;
@@ -520,6 +521,10 @@
         document.querySelector("#page-title").textContent = title;
         document.title = `SIRO · ${title}`;
         if (page === "monitor") document.querySelector("#activity-notice").hidden = true;
+        if (requested === "activity") {
+          const activityHeading = document.querySelector("#mon-act-heading");
+          if (typeof activityHeading?.scrollIntoView === "function") activityHeading.scrollIntoView({block: "start"});
+        }
         if (moveFocus) heading.focus();
         return page;
       }

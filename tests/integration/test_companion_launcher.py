@@ -77,3 +77,54 @@ def test_launcher_loads_only_model_settings_without_overriding_shell(
     assert os.environ["SIRO_RUNTIME_PROFILE"] == "candidate"
     assert len(calls) == 2  # pinned tokenizer provisioning then the actual gateway process
     assert "synthetic-shell-setting" not in capsys.readouterr().out
+
+
+def _ready_launcher(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    module = launcher(tmp_path, monkeypatch)
+    monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic-local")
+    monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
+    binary = tmp_path / "target/debug/siro-runtime"
+    binary.parent.mkdir(parents=True)
+    binary.touch()
+    return module
+
+
+def test_candidate_variant_selects_the_preview_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _ready_launcher(tmp_path, monkeypatch)
+    monkeypatch.setenv("SIRO_VRM_VARIANT", "candidate")
+    renderer = tmp_path / "models/vrm-renderer"
+    renderer.mkdir(parents=True)
+    (renderer / "index.html").write_text("synthetic renderer", encoding="utf-8")
+    manifest = tmp_path / ".siro-data/vroid/candidate-registered/asset-manifest.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("{}", encoding="utf-8")
+    daily = tmp_path / "config/body-assets/siro-vrm/asset-manifest.json"
+    daily.parent.mkdir(parents=True)
+    daily.write_text("{}", encoding="utf-8")
+    calls: list[object] = []
+    monkeypatch.setattr(module.os, "execv", lambda *args: calls.append(args))
+    module.main()
+    assert os.environ["SIRO_VRM_MODEL_MANIFEST"] == str(manifest)
+    assert os.environ["SIRO_VRM_DIST"] == str(renderer)
+    assert calls
+
+
+def test_candidate_variant_does_not_fall_through_to_the_daily_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _ready_launcher(tmp_path, monkeypatch)
+    monkeypatch.setenv("SIRO_VRM_VARIANT", "candidate")
+    calls: list[object] = []
+    monkeypatch.setattr(module.os, "execv", lambda *args: calls.append(args))
+    with pytest.raises(SystemExit, match="找不到候選 VRM"):
+        module.main()
+    assert calls == []
+
+
+def test_unknown_vrm_variant_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _ready_launcher(tmp_path, monkeypatch)
+    monkeypatch.setenv("SIRO_VRM_VARIANT", "other")
+    with pytest.raises(SystemExit, match="只接受 candidate"):
+        module.main()

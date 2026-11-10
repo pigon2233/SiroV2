@@ -1,5 +1,13 @@
 # 狀態總覽（2026-10-24 整理；先看這裡，下面是由新到舊的時間序列紀錄）
 
+## 2026-11-10 — Windows 桌寵單一入口（UI-LAUNCH-01）
+
+日常啟動改為根目錄 `Start-SIRO-VRM-Win.cmd`：預設開後端與 Electron 桌寵，`/backend` 只開後端，`/candidate` 預覽候選 VRM，`/stop` 關掉桌寵、ESP32 broker 與 WSL 服務。`Stop-SIRO-Win.cmd` 只轉呼叫 `/stop`。舊的 `Start-SIRO.cmd`、`Start-SIRO-VRM.cmd`、`Start-SIRO-VRM-Candidate.cmd`、`Stop-SIRO.cmd`、`Start-ESP32-Broker.cmd` 移到 `scripts/legacy/`，沒有刪除。`Play-SIRO.cmd` 與電腦操控程式沒有改。
+
+`scripts/start-win-backend` 優先用專案裡的 `scripts/start-companion`（`COMPANION_BACKEND_ONLY=1`），並自己讀取 `computer.env` 的 `SIRO_COMPUTER_*`。本機 wrapper 只在專案這份已經結束、而且連接埠還沒被佔用時才啟動。`#/activity` 會打開監控頁的活動紀錄，不再掉回對話。Windows 桌寵 `skipTaskbar: true`，暫藏提示改為從系統匣恢復。
+
+驗證（Linux，2026-11-10）：`scripts/check` 裡的 cargo fmt／build／test／clippy 通過（runtime 24 passed）。接著 `ruff format --check` 在 19 個既有檔失敗，其中包含電腦操控檔，這次沒有改它們。`ruff check .` 另有 173 個既有錯誤，不在這次改的檔。完整 mypy 被既有的 `tests.contract.test_ollama_reasoning_options` 重複模組名擋住；這次改的四個測試檔 mypy 通過。pytest 預設收集會在兩個既有 import（`No module named tests`）停下；設 `PYTHONPATH` 後全套 **3362 passed／59 failed／126 skipped**。失敗在 skill、profile、computer-use，不是這次的啟動器或桌寵測試。這次相關測試 65 passed。沒有 Windows 機器，所以 `.cmd` 的隱藏主控台、Electron 視窗與 MessageBox 沒有實機點過。電腦操控路徑未改。
+
 ## 2026-10-31 — 依任務選擇對話模型（D81）
 
 `SIRO_MODEL_ROUTER` 預設 0，原本「有 Ollama 就永遠只用 Ollama」不變。設為 1 且至少兩個提供者時，閒聊與 `local_only` 留在本機，寫程式、規劃、工具續答與長題目才走 Claude（已登入的 `claude` CLI）、然後 Groq、然後本機。Claude 以滾動 5 小時、預設 10 次計，寫在資料目錄，用完或 CLI 限流會改走下一家，並在 `routes.model_actual` 與畫面上說明何時可以再用。說明見 `docs/MODEL_ROUTING.md`。
