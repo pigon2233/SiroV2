@@ -17,10 +17,11 @@ import os
 import re
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from PIL import Image
 
+from siro.services.computer_use.batch import BatchPlan, execute_batch
 from siro.services.computer_use.bridge import ComputerBridge
 from siro.services.computer_use.decision import (
     CloudScreenNotAllowed,
@@ -883,6 +884,70 @@ class DecisionLoop:
                     )
                 continue
             invalid = 0
+            take_batch = getattr(self._decider, "take_batch", None)
+            plan = take_batch(decision) if take_batch is not None else None
+            if isinstance(plan, BatchPlan):
+
+                async def batch_guard(original: Observation) -> tuple[Observation | None, str]:
+                    return await self._wait_for_same_screen(original, started, stop_generation)
+
+                def translate_batch(
+                    item: InputAction, current: Observation, choice: Decision = decision
+                ) -> InputAction | str:
+                    return self._checked_action(
+                        replace(choice, action=item), current, history=history
+                    )
+
+                self.phase = "acting_batch"
+                batch = await execute_batch(
+                    self._bridge,
+                    plan,
+                    observation,
+                    allowed=self._allowed,
+                    clock=self._clock,
+                    deadline=None if self._max_seconds is None else started + self._max_seconds,
+                    translate=translate_batch,
+                    # A batch always uses the existing pixel/identity guard before each input.
+                    guard=batch_guard,
+                )
+                before = None
+                if batch.error or batch.final is None:
+                    history.append(
+                        StepRecord(
+                            step,
+                            "batch",
+                            plan.expect,
+                            "unknown" if batch.error == "outcome_unknown" else "denied",
+                            None,
+                            plan.seen,
+                            plan.scene,
+                            f"sent={len(batch.sent)}; {batch.error}",
+                        )
+                    )
+                    return end("stopped", batch.error or "batch_unconfirmed")
+                self.phase = "verifying"
+                verify = await self._verify_expect(plan.expect, plan.seen, batch.final)
+                if self._bridge.stop_generation != stop_generation or self._bridge.gate.tripped:
+                    return end("stopped", "emergency_stop")
+                changed = _screen_changed(observation, batch.final)
+                confirmed = verify.status == "confirmed" and changed is True
+                history.append(
+                    StepRecord(
+                        step,
+                        "batch",
+                        plan.expect,
+                        "effective" if confirmed else "unconfirmed",
+                        changed,
+                        verify.seen or plan.seen,
+                        verify.scene or plan.scene,
+                        f"sent={len(batch.sent)}; " + verify.detail,
+                    )
+                )
+                if not confirmed:
+                    return end("stopped", "batch_unconfirmed", verify.detail)
+                no_change = rate_waits = 0
+                await asyncio.sleep(self._settle)
+                continue
             if self._screen_guard:
                 fresh, guard_error = await self._wait_for_same_screen(
                     observation, started, stop_generation
