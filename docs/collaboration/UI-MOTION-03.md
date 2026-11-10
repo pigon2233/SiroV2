@@ -2,7 +2,7 @@
 
 - Task：Phase 3。回覆驅動的動作／表情 cue，以及可和片段疊加的程序化動作。疊在未合併的 UI-PET-02（`cursor/desktop-pet-page-24cc`，PR #8；其下是 PR #7）。
 - Owner／session：Cursor cloud agent，2026-11-10 UTC。
-- 狀態：實作完成，待 PR。開始時該分支工作區乾淨，HEAD `b3605c3c47c90d741b34559071645dda8195db5f`。開放 PR 只有 #7 與 #8，沒有另一張卡認領 renderer 動作或 body cue。本檔是交接，不是鎖。
+- 狀態：實作完成。PR https://github.com/pigon2233/SiroV2/pull/10 ，base 是 `cursor/desktop-pet-page-24cc`，疊在 PR #8 上。開始時該分支工作區乾淨，HEAD `b3605c3c47c90d741b34559071645dda8195db5f`。當時開放 PR 只有 #7 與 #8。本檔是交接，不是鎖。
 - Base SHA：`b3605c3c47c90d741b34559071645dda8195db5f`（`cursor/desktop-pet-page-24cc`）。
 - Branch：`cursor/motion-cues-1cc5`。實作 commit：`6832269f50deadf9ecf4928d23747eca1cf90f54`。Worktree：這個 cloud agent checkout。
 - 推送：使用者這次明確要求開一個 PR，目標分支 `cursor/desktop-pet-page-24cc`，並寫明疊在 PR #8。這是對 `docs/AI_COLLABORATION.md`「不得 push」的偏離，只針對這個分支與這一個 PR。不合併、不部署。
