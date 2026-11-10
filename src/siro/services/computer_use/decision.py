@@ -783,8 +783,9 @@ def make_decider(env: Mapping[str, str] | None = None) -> Decider:
     """Owner chooses the computer-use brain; default is local Ollama vision (no Claude)."""
     values = dict(os.environ if env is None else env)
     from siro.services.computer_use.framedump import maybe_dump
+    from siro.services.computer_use.numbered import maybe_numbered
 
-    return maybe_dump(_build_decider(values), values)
+    return maybe_dump(maybe_numbered(_build_decider(values), values), values)
 
 
 def _build_decider(values: Mapping[str, str]) -> Decider:

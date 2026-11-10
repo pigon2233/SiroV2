@@ -1,0 +1,125 @@
+{
+  "recorded_at": "2026-11-10T21:59:10.750125+08:00",
+  "environment": "WSL; UV_PROJECT_ENVIRONMENT=$HOME/.venvs/sirov2; uv run --no-sync",
+  "checks": [
+    {
+      "name": "new_contracts",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "pytest",
+        "tests/unit/test_computer_click_eval.py",
+        "tests/unit/test_computer_use_numbered.py",
+        "-q"
+      ],
+      "exit_code": 0,
+      "seconds": 1.530581028026063,
+      "stdout": "........................................................................ [ 90%]\n........                                                                 [100%]\n80 passed in 1.24s\n",
+      "stderr": ""
+    },
+    {
+      "name": "ruff",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "ruff",
+        "check",
+        "scripts/computer_click_eval.py",
+        "src/siro/services/computer_use/ocr.py",
+        "src/siro/services/computer_use/numbered.py",
+        "tests/unit/test_computer_use_numbered.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.09895208099624142,
+      "stdout": "All checks passed!\n",
+      "stderr": ""
+    },
+    {
+      "name": "format",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "ruff",
+        "format",
+        "--check",
+        "scripts/computer_click_eval.py",
+        "src/siro/services/computer_use/ocr.py",
+        "src/siro/services/computer_use/numbered.py",
+        "tests/unit/test_computer_use_numbered.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.1032123530167155,
+      "stdout": "4 files already formatted\n",
+      "stderr": ""
+    },
+    {
+      "name": "mypy",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "mypy",
+        "--follow-imports=silent",
+        "scripts/computer_click_eval.py",
+        "src/siro/services/computer_use/ocr.py",
+        "src/siro/services/computer_use/numbered.py",
+        "tests/unit/test_computer_use_numbered.py"
+      ],
+      "exit_code": 0,
+      "seconds": 2.879197154950816,
+      "stdout": "Success: no issues found in 4 source files\n",
+      "stderr": ""
+    },
+    {
+      "name": "computer_regression",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "pytest",
+        "tests/unit/test_computer_click_eval.py",
+        "tests/unit/test_computer_use_bench.py",
+        "tests/unit/test_computer_use_dataset.py",
+        "tests/unit/test_computer_use_demos.py",
+        "tests/unit/test_computer_use_groq_decider.py",
+        "tests/unit/test_computer_use_http.py",
+        "tests/unit/test_computer_use_intent.py",
+        "tests/unit/test_computer_use_loop.py",
+        "tests/unit/test_computer_use_numbered.py",
+        "tests/unit/test_computer_use_ollama_decider.py",
+        "tests/unit/test_computer_use_perception.py",
+        "tests/unit/test_computer_use_playbook.py",
+        "tests/unit/test_computer_use_router.py",
+        "tests/unit/test_computer_use_safety.py",
+        "tests/unit/test_computer_use_tool.py",
+        "tests/integration/test_computer_driver.py",
+        "tests/integration/test_computer_use_catalog.py",
+        "tests/integration/test_computer_use_chat_hook.py",
+        "-q"
+      ],
+      "exit_code": 1,
+      "seconds": 25.206988314981572,
+      "stdout": "........................................................................ [ 24%]\n........................................................................ [ 48%]\n........................................................................ [ 73%]\n............................F.F....FF................................... [ 97%]\n......                                                                   [100%]\n=================================== FAILURES ===================================\n__________ test_vision_decider_runs_claude_with_read_only_screenshot ___________\n\n>   ???\n\nE:\\coding\\股票策略機器學習\\SiroV2\\tests\\unit\\test_computer_use_perception.py:216: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \nsrc/siro/services/computer_use/decision.py:647: in decide\n    return await self._decide_once(goal, history, observation, strategy=strategy)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nsrc/siro/services/computer_use/decision.py:598: in _decide_once\n    result = await self._run(\nE:\\coding\\股票策略機器學習\\SiroV2\\tests\\unit\\test_computer_use_perception.py:209: in run\n    ???\n/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes\n    with self.open(mode='rb', buffering=0) as f:\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = PosixPath('/tmp/siro-screen-jafoqgqo/screen.png'), mode = 'rb'\nbuffering = 0, encoding = None, errors = None, newline = None\n\n    def open(self, mode='r', buffering=-1, encoding=None,\n             errors=None, newline=None):\n        \"\"\"\n        Open the file pointed to by this path and return a file object, as\n        the built-in open() function does.\n        \"\"\"\n        if \"b\" not in mode:\n            encoding = io.text_encoding(encoding)\n>       return io.open(self, mode, buffering, encoding, errors, newline)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-screen-jafoqgqo/screen.png'\n\n/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError\n_____________ test_vision_decider_retries_transient_claude_failure _____________\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x70e91a63fb60>\n\n>   ???\n\nE:\\coding\\股票策略機器學習\\SiroV2\\tests\\unit\\test_computer_use_perception.py:265: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \nsrc/siro/services/computer_use/decision.py:647: in decide\n    return await self._decide_once(goal, history, observation, strategy=strategy)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <siro.services.computer_use.decision.ClaudeVisionDecider object at 0x70e91a79f2f0>\ngoal = 'g', history = []\nobservation = Observation(seq=1, taken_at=0.0, window_title='Cool Game', process='game.exe', window_rect=(0, 0, 800, 600), screen=(1...e_size=(960, 540), image_rect=(0, 0, 1920, 1080), focus_is_secret=False, blocked_reason=None, window_id=None, pid=None)\nstrategy = ''\n\n    async def _decide_once(\n        self,\n        goal: str,\n        history: Sequence[StepRecord],\n        observation: Observation,\n        *,\n        strategy: str = \"\",\n    ) -> Decision:\n        if not cloud_screen_allowed(self._env):\n            raise CloudScreenNotAllowed(CLOUD_SCREEN_FLAG)\n        if not observation.image_png_b64:\n            raise DecisionError(\"no_image\")\n        binary = self._binary or claude_binary()\n        if binary is None:\n            raise DecisionError(\"claude_cli_missing\")\n        with tempfile.TemporaryDirectory(prefix=\"siro-screen-\") as scratch:\n            # Local captures may be JPEG now; Claude still Reads the bytes via this path name.\n            screen_name = \"screen.jpg\"\n            vision = annotate_coord_grid(observation.image_png_b64, env=self._env)\n            (Path(scratch) / screen_name).write_bytes(base64.b64decode(vision))\n            prompt = CLAUDE_DECISION_PROMPT.format(\n                image=screen_name,\n                **_prompt_fields(goal, history, observation, strategy=strategy),\n            )\n            # --effort low cuts thinking time; do not use --bare (it disables OAuth login).\n            argv = (\n                str(binary),\n                \"-p\",\n                \"--effort\",\n                \"low\",\n                \"--model\",\n                self._model,\n                \"--output-format\",\n                \"json\",\n                \"--tools\",\n                \"Read\",\n                \"--allowedTools\",\n                \"Read\",\n                \"--no-session-persistence\",\n                prompt,\n            )\n            result = await self._run(\n                argv,\n                cwd=Path(scratch),\n                environment=restricted_environment((\"SIRO_CLAUDE_BIN\", \"CLAUDE_CONFIG_DIR\")),\n                timeout=self._timeout,\n            )\n        if result.get(\"returncode\") != 0:\n>           raise DecisionError(\"claude_failed\")\nE           siro.services.computer_use.decision.DecisionError: claude_failed\n\nsrc/siro/services/computer_use/decision.py:605: DecisionError\n_______________ test_parse_decision_accepts_combo_alias_and_hold _______________\n\n>   ???\n\nE:\\coding\\股票策略機器學習\\SiroV2\\tests\\unit\\test_computer_use_perception.py:325: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ntext = '{\"kind\":\"act\",\"action\":{\"kind\":\"key\",\"combo\":\"ctrl+a\",\"hold_ms\":300},\"confidence\":0.7}'\n\n    def parse_decision(text: str) -> Decision:\n        match = re.search(r\"\\{.*\\}\", text, re.DOTALL)\n        try:\n            raw = json.loads(match.group(0)) if match else None\n        except json.JSONDecodeError:\n            raw = None\n        if not isinstance(raw, dict):\n            raise DecisionError(\"not_json\")\n        has_action = isinstance(raw.get(\"action\"), dict)\n        kind = _coerce_kind(raw.get(\"kind\"), has_action=has_action)\n        if kind is None:\n            raise DecisionError(\"bad_kind\")\n        raw = {**raw, \"kind\": kind}\n        confidence = raw.get(\"confidence\")\n        if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):\n            confidence = 0.55  # small local models often omit confidence\n        confidence = float(confidence)\n        if not 0 <= confidence <= 1:\n            raise DecisionError(\"bad_confidence\")\n        action = None\n        if kind == \"act\":\n            spec = raw.get(\"action\")\n            if not isinstance(spec, dict) or spec.get(\"kind\") not in ALLOWED_KINDS:\n                raise DecisionError(\"bad_action\")\n            action = InputAction(\n                kind=str(spec[\"kind\"]),\n                x=_int(spec.get(\"x\")),\n                y=_int(spec.get(\"y\")),\n                button=str(spec.get(\"button\", \"left\")),\n                key=str(spec.get(\"key\") or spec.get(\"combo\") or \"\"),\n                text=str(spec.get(\"text\", \"\")),\n                amount=_int(spec.get(\"amount\")) or 0,\n                hold_ms=_int(spec.get(\"hold_ms\")) or 0,\n            )\n            incomplete = (\n                (action.kind in {\"move\", \"click\"} and (action.x is None or action.y is None))\n                or (action.kind == \"key\" and not action.key.strip())\n                or (action.kind == \"type\" and not action.text)\n                or (action.kind == \"scroll\" and action.amount == 0)\n            )\n            if incomplete:\n                raise DecisionError(\"incomplete_action\")\n        reason = str(raw.get(\"reason\", \"\"))[:300]\n        seen = str(raw.get(\"seen\", \"\")).strip()[:200] or reason[:200]\n        expect = str(raw.get(\"expect\", \"\")).strip()[:300]\n        if kind == \"act\" and not expect:\n>           raise DecisionError(\"missing_expect\")\nE           siro.services.computer_use.decision.DecisionError: missing_expect\n\nsrc/siro/services/computer_use/decision.py:213: DecisionError\n___________________ test_seen_is_parsed_and_shown_in_history ___________________\n\n>   ???\nE   AssertionError: assert ('saw: title screen' in '1. scene=- saw=title screen | did=key(z) | expect=next line | outcome=ok | changed=True')\n\nE:\\coding\\股票策略機器學習\\SiroV2\\tests\\unit\\test_computer_use_perception.py:339: AssertionError\n=============================== warnings summary ===============================\n../../../../../home/pepepig/.venvs/sirov2/lib/python3.14/site-packages/fastapi/testclient.py:1\n  /home/pepepig/.venvs/sirov2/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED tests/unit/test_computer_use_perception.py::test_vision_decider_runs_claude_with_read_only_screenshot\nFAILED tests/unit/test_computer_use_perception.py::test_vision_decider_retries_transient_claude_failure\nFAILED tests/unit/test_computer_use_perception.py::test_parse_decision_accepts_combo_alias_and_hold\nFAILED tests/unit/test_computer_use_perception.py::test_seen_is_parsed_and_shown_in_history\n4 failed, 290 passed, 1 warning in 24.51s\n",
+      "stderr": ""
+    },
+    {
+      "name": "frozen_manifest",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "python",
+        "scripts/computer_click_eval.py",
+        "docs/verification/COMPUTER-USE/stage2/cases.json",
+        "--validate-only"
+      ],
+      "exit_code": 0,
+      "seconds": 0.8822958630044013,
+      "stdout": "siro-computer-click-stage2-v1: 20 frozen screenshots validated; no model called\n",
+      "stderr": ""
+    }
+  ]
+}

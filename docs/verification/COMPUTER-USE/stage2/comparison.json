@@ -1,0 +1,152 @@
+{
+  "recorded_at": "2026-11-10T22:01:59.823839+08:00",
+  "manifest_sha256": "914077f0196b22cb93dc08413668656f478e7066c097a683c740ec46c350a00a",
+  "total_cases": 20,
+  "unique_frames": 5,
+  "no_text_target_count": 5,
+  "ocr": {
+    "cache_miss_unique_frames": 5,
+    "mean_seconds": 0.896241708600428,
+    "median_seconds": 0.5894255469902419,
+    "target_center_coverage": 13,
+    "text_targets_without_center": [
+      "combat-right-defend",
+      "event-continue"
+    ]
+  },
+  "results": [
+    {
+      "source_report": "claude-pixel.json",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "status": "measured",
+      "eligible_cases": 20,
+      "attempted": 20,
+      "returned": 20,
+      "errors": 0,
+      "hits": 20,
+      "hit_rate": 1.0,
+      "mean_seconds": 6.000788372458191,
+      "median_seconds": 5.5119760434899945,
+      "mode": "pixel",
+      "strata": {
+        "text_target": {
+          "total": 15,
+          "hits": 15
+        },
+        "no_text_target": {
+          "total": 5,
+          "hits": 5
+        }
+      }
+    },
+    {
+      "source_report": "claude-numbered.json",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "status": "measured",
+      "eligible_cases": 20,
+      "attempted": 20,
+      "returned": 20,
+      "errors": 0,
+      "hits": 11,
+      "hit_rate": 0.55,
+      "mean_seconds": 4.212180980798439,
+      "median_seconds": 4.143233518989291,
+      "mode": "numbered",
+      "strata": {
+        "text_target": {
+          "total": 15,
+          "hits": 11
+        },
+        "no_text_target": {
+          "total": 5,
+          "hits": 0
+        }
+      }
+    },
+    {
+      "source_report": "gemma-pixel-gpu24.json",
+      "backend": "ollama",
+      "model": "gemma4:e4b",
+      "status": "measured",
+      "eligible_cases": 20,
+      "attempted": 20,
+      "returned": 12,
+      "errors": 8,
+      "hits": 0,
+      "hit_rate": 0.0,
+      "mean_seconds": 15.876620014451328,
+      "median_seconds": 15.191521400032798,
+      "mode": "pixel",
+      "strata": {
+        "text_target": {
+          "total": 15,
+          "hits": 0
+        },
+        "no_text_target": {
+          "total": 5,
+          "hits": 0
+        }
+      }
+    },
+    {
+      "source_report": "gemma-numbered-gpu24.json",
+      "backend": "ollama",
+      "model": "gemma4:e4b",
+      "status": "measured",
+      "eligible_cases": 20,
+      "attempted": 20,
+      "returned": 20,
+      "errors": 0,
+      "hits": 12,
+      "hit_rate": 0.6,
+      "mean_seconds": 1.2908892502076923,
+      "median_seconds": 1.3707630500139203,
+      "mode": "numbered",
+      "strata": {
+        "text_target": {
+          "total": 15,
+          "hits": 12
+        },
+        "no_text_target": {
+          "total": 5,
+          "hits": 0
+        }
+      }
+    },
+    {
+      "source_report": "groq-pixel.json",
+      "backend": "groq",
+      "model": "qwen/qwen3.8-27b",
+      "status": "not_measured",
+      "eligible_cases": 20,
+      "attempted": 0,
+      "returned": 0,
+      "errors": 0,
+      "hits": null,
+      "hit_rate": null,
+      "mean_seconds": null,
+      "median_seconds": null,
+      "mode": "pixel",
+      "reason": "groq_no_key"
+    },
+    {
+      "source_report": "groq-numbered.json",
+      "backend": "groq",
+      "model": "qwen/qwen3.8-27b",
+      "status": "not_measured",
+      "eligible_cases": 20,
+      "attempted": 0,
+      "returned": 0,
+      "errors": 0,
+      "hits": null,
+      "hit_rate": null,
+      "mean_seconds": null,
+      "median_seconds": null,
+      "mode": "numbered",
+      "reason": "groq_no_key"
+    }
+  ],
+  "latency_note": "Numbered uses frozen OCR cache; uncached OCR measured separately, no capture/verify/input. Gemma both modes GPU24 after one warm-up probe; not end-to-end loop latency."
+}
