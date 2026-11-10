@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-Hant" class="siro-desktop-root">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIRO</title>
+    <link rel="stylesheet" href="/static/pet.css">
+  </head>
+  <body class="siro-desktop">
+    <main id="pet-stage">
+      <div id="pet-placeholder" aria-hidden="true">
+        <span class="pet-halo"></span>
+        <span class="pet-head"></span>
+        <span class="pet-body"></span>
+      </div>
+      <iframe id="companion" title="SIRO" src="__SIRO_RENDERER_PATH__"></iframe>
+      <div id="desktop-bubble" role="status" hidden>
+        <span class="desktop-bubble-icon" aria-hidden="true"></span>
+        <span class="desktop-bubble-label"></span>
+        <button type="button" id="desktop-bubble-action" hidden></button>
+      </div>
+      <p id="pet-error" role="alert" hidden></p>
+      <p id="pet-state" data-state="connecting" role="status"><span id="pet-state-dot" aria-hidden="true"></span><span id="pet-state-label">連線中</span></p>
+      <nav id="pet-controls" aria-label="桌寵控制">
+        <button type="button" id="desktop-voice" title="按一下開始說話，再按一下送出">說話</button>
+        <button type="button" id="desktop-stop" title="停止回覆、工具與語音" hidden>停止</button>
+        <button type="button" id="desktop-more" title="其他選項" aria-expanded="false" aria-controls="pet-more">更多</button>
+        <div id="pet-more" hidden>
+          <button type="button" id="desktop-chat" aria-expanded="false" title="雙擊角色或按 F2">聊聊</button>
+          <button type="button" id="desktop-microphone" aria-pressed="false">麥克風：關</button>
+          <button type="button" id="desktop-voice-auto" aria-pressed="false" title="偵測到說話就錄音，停一下自動送出；SIRO 說話時不收音">免手動：關</button>
+          <button type="button" id="desktop-speech" aria-pressed="true">朗讀：開</button>
+          <button type="button" id="desktop-replay" disabled>再聽一次</button>
+          <button type="button" id="desktop-smaller" aria-label="縮小角色">－</button>
+          <button type="button" id="desktop-scale">100%</button>
+          <button type="button" id="desktop-larger" aria-label="放大角色">＋</button>
+          <button type="button" id="desktop-move" title="按住拖曳視窗">移動</button>
+          <button type="button" id="desktop-console">控制台</button>
+          <button type="button" id="desktop-hide">暫藏</button>
+          <button type="button" id="desktop-quit" title="關閉桌寵視窗，SIRO 服務繼續執行">退出</button>
+        </div>
+      </nav>
+    </main>
+    <section id="pet-chat" aria-label="對話" hidden>
+      <div id="messages"></div>
+      <form id="chat">
+        <textarea id="text" rows="2" placeholder="說點什麼，或雙擊角色收起" aria-label="訊息"></textarea>
+        <button type="submit">送出</button>
+      </form>
+    </section>
+    <script src="/static/pet.js"></script>
+  </body>
+</html>

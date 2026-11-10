@@ -1,5 +1,13 @@
 # 狀態總覽（2026-10-24 整理；先看這裡，下面是由新到舊的時間序列紀錄）
 
+## 2026-11-10 — 桌寵獨立頁（UI-PET-02）
+
+`/desktop` 不再把整份控制台包一層 CSS。桌寵改載自己的 `pet.html`／`pet.js`／`pet.css`，直接走既有的 `/v1/session`、`/v1/conversations/browser/turns`、取消、`/v1/audio/*` 與 `/ws/control`。`/ws/body` 仍由角色 iframe 連，桌寵頁不搶這條連線。預設只看得到角色與一個小狀態點；說話、停止、更多要滑過或按右鍵才出現。雙擊或 F2 打開半透明對話，再收起。控制台仍是 `/?view=control`，只從系統匣或桌寵選單開。
+
+舊的 `desktop.css`／`desktop.js`（藏控制台、用 MutationObserver 刮 `#connection` 等隱藏節點）已刪。`index.html` 裡沒有桌寵專用樣式，控制台沒改。Electron 與 GTK 仍載入 `/desktop`。電腦操控與 VRM 動作沒改。
+
+驗證（Linux，2026-11-10）：`test_desktop_web.py`、`test_desktop_host.py` 34 passed；啟動腳本、桌寵設定、導覽 63 passed；控制台語音／麥克風／嘴型相關 75 passed。`ruff check` 這次改的 Python 檔通過。`mypy` 對 `gateway.py` 仍是原先的 `render_stream`、`create_task`、`ProfileService` 三處，沒有新增。沒有改 Rust，沒有跑 cargo。沒有在 Linux 上打開 Electron、GTK／WebKit、真的麥克風或真的 TTS 喇叭；截圖是無頭 Chrome，角色是佔位，背後的漸層只為了讓透明頁看得到。
+
 ## 2026-11-10 — Windows 桌寵單一入口（UI-LAUNCH-01）
 
 日常啟動改為根目錄 `Start-SIRO-VRM-Win.cmd`：預設開後端與 Electron 桌寵，`/backend` 只開後端，`/candidate` 預覽候選 VRM，`/stop` 關掉桌寵、ESP32 broker 與 WSL 服務。`Stop-SIRO-Win.cmd` 只轉呼叫 `/stop`。舊的 `Start-SIRO.cmd`、`Start-SIRO-VRM.cmd`、`Start-SIRO-VRM-Candidate.cmd`、`Stop-SIRO.cmd`、`Start-ESP32-Broker.cmd` 移到 `scripts/legacy/`，沒有刪除。`Play-SIRO.cmd` 與電腦操控程式沒有改。

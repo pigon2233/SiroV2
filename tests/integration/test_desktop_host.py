@@ -153,8 +153,20 @@ def test_desktop_priority_then_explicit_web_handoff(tmp_path: Path) -> None:
         desktop = client.get("/desktop")
         assert 'class="siro-desktop"' in desktop.text
         assert "/live2d/?presentation=desktop" in desktop.text
-        assert client.get("/static/desktop.js").status_code == 200
-        assert client.get("/static/desktop.css").headers["content-type"].startswith("text/css")
+        assert 'id="pet-state"' in desktop.text
+        assert 'src="/static/pet.js"' in desktop.text
+        assert "app-shell" not in desktop.text
+        assert "primary-nav" not in desktop.text
+        assert "desktop.css" not in desktop.text
+        assert "desktop.js" not in desktop.text
+        assert client.get("/static/pet.js").status_code == 200
+        assert client.get("/static/pet.css").headers["content-type"].startswith("text/css")
+        assert client.get("/static/desktop.js").status_code == 404
+        console = client.get("/?view=control")
+        assert console.status_code == 200
+        assert "app-shell" in console.text
+        assert "/static/pet.js" not in console.text
+        assert "desktop.css" not in console.text
         with client.websocket_connect("/ws/body", headers={"origin": ORIGIN}) as pet:
             pet.send_json({"type": "authenticate", "token": token, "presentation": "desktop"})
             assert pet.receive_json() == emotion
