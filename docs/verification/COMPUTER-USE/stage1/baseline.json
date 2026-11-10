@@ -1,0 +1,116 @@
+{
+  "dataset_id": "siro-computer-click-stage1-v1",
+  "manifest_sha256": "a38f59ecff9be4e13727748fdd179c5a4615a151db7348c2ca66775b4666df9e",
+  "recorded_at": "2026-11-10T20:16:20.522621+08:00",
+  "timing": "single production _decide_once including prompt/grid/request/parsing; no retry, capture, verify, settle or input; error attempts included when measured",
+  "ollama_num_ctx": 8192,
+  "coord_grid": "1",
+  "total_cases": 3,
+  "excluded_uncertain": [],
+  "results": [
+    {
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "status": "measured",
+      "reason": "",
+      "eligible_cases": 3,
+      "attempted": 3,
+      "returned": 3,
+      "errors": 0,
+      "hits": 3,
+      "hit_rate": 1.0,
+      "mean_seconds": 6.026232849340886,
+      "median_seconds": 5.8725112520041876,
+      "rows": [
+        {
+          "id": "sts2-main-continue",
+          "hit": true,
+          "why": "hit",
+          "decision": "act",
+          "action": {
+            "kind": "click",
+            "button": "left",
+            "x": 394,
+            "y": 330
+          },
+          "seconds": 7.215377514017746
+        },
+        {
+          "id": "sts2-event-continue",
+          "hit": true,
+          "why": "hit",
+          "decision": "act",
+          "action": {
+            "kind": "click",
+            "button": "left",
+            "x": 272,
+            "y": 474
+          },
+          "seconds": 4.990809782000724
+        },
+        {
+          "id": "sts2-combat-end-turn",
+          "hit": true,
+          "why": "hit",
+          "decision": "act",
+          "action": {
+            "kind": "click",
+            "button": "left",
+            "x": 852,
+            "y": 428
+          },
+          "seconds": 5.8725112520041876
+        }
+      ]
+    },
+    {
+      "backend": "ollama",
+      "model": "gemma4:e4b",
+      "status": "not_measured",
+      "reason": "",
+      "eligible_cases": 3,
+      "attempted": 3,
+      "returned": 0,
+      "errors": 3,
+      "hits": null,
+      "hit_rate": null,
+      "mean_seconds": null,
+      "median_seconds": null,
+      "rows": [
+        {
+          "id": "sts2-main-continue",
+          "hit": false,
+          "why": "TimeoutError",
+          "seconds": 90.09440679399995
+        },
+        {
+          "id": "sts2-event-continue",
+          "hit": false,
+          "why": "TimeoutError",
+          "seconds": 90.09313683601795
+        },
+        {
+          "id": "sts2-combat-end-turn",
+          "hit": false,
+          "why": "TimeoutError",
+          "seconds": 90.09401071397588
+        }
+      ]
+    },
+    {
+      "backend": "groq",
+      "model": "qwen/qwen3.8-27b",
+      "status": "not_measured",
+      "reason": "groq_no_key",
+      "eligible_cases": 3,
+      "attempted": 0,
+      "returned": 0,
+      "errors": 0,
+      "hits": null,
+      "hit_rate": null,
+      "mean_seconds": null,
+      "median_seconds": null,
+      "rows": []
+    }
+  ]
+}

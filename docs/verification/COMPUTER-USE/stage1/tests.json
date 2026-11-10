@@ -1,0 +1,71 @@
+{
+  "environment": "WSL Ubuntu; UV_PROJECT_ENVIRONMENT=$HOME/.venvs/sirov2; uv run --no-sync; Asia/Taipei",
+  "new_tests": {
+    "command": "uv run --no-sync pytest tests/unit/test_computer_click_eval.py -q",
+    "passed": 28,
+    "failed": 0,
+    "seconds": 0.7
+  },
+  "computer_regression": {
+    "command": "uv run --no-sync pytest tests/unit/test_computer*.py tests/integration/test_computer*.py -q",
+    "passed": 238,
+    "failed": 4,
+    "warnings": 1,
+    "seconds": 33.39
+  },
+  "independent_existing_file": {
+    "command": "uv run --no-sync pytest tests/unit/test_computer_use_perception.py -q",
+    "passed": 27,
+    "failed": 4,
+    "seconds": 3.13,
+    "note": "Existing tests alone, without importing the new evaluator test; same four failures. Existing runtime/test files match HEAD and were not modified."
+  },
+  "existing_failures": [
+    {
+      "name": "test_vision_decider_runs_claude_with_read_only_screenshot",
+      "error": "FileNotFoundError: fixture reads screen.png; current decider writes screen.jpg"
+    },
+    {
+      "name": "test_vision_decider_retries_transient_claude_failure",
+      "error": "DecisionError: claude_failed"
+    },
+    {
+      "name": "test_parse_decision_accepts_combo_alias_and_hold",
+      "error": "DecisionError: missing_expect in old fixture reply"
+    },
+    {
+      "name": "test_seen_is_parsed_and_shown_in_history",
+      "error": "expected saw: title screen; current text is saw=title screen"
+    }
+  ],
+  "lint": {
+    "command": "uv run --no-sync ruff check scripts/computer_click_eval.py tests/unit/test_computer_click_eval.py",
+    "result": "PASS"
+  },
+  "format": {
+    "command": "uv run --no-sync ruff format --check scripts/computer_click_eval.py tests/unit/test_computer_click_eval.py",
+    "result": "PASS"
+  },
+  "types": {
+    "command": "uv run --no-sync mypy --follow-imports=silent scripts/computer_click_eval.py tests/unit/test_computer_click_eval.py",
+    "result": "PASS: 2 source files"
+  },
+  "frozen_dataset_validation": {
+    "cases": 3,
+    "result": "PASS: all image SHA256, sizes and target boxes validated"
+  },
+  "benchmark_exit_code": 2,
+  "benchmark_blockers": [
+    "Ollama gemma4:e4b installed and /api/tags available, but all three single-request attempts timed out at 90 seconds with num_ctx=8192. No valid output; no fabricated accuracy or completed-step latency.",
+    "Groq SIRO_OPENAI_API_KEY absent in evaluator invocation environment; no key/token files were read to acquire one."
+  ],
+  "diagnostic_during_ollama_timeouts": {
+    "model_context_length": 8192,
+    "gpu": "NVIDIA GeForce RTX 3050",
+    "gpu_memory_used_mib": 7744,
+    "gpu_memory_total_mib": 8192,
+    "gpu_utilization_percent": 100,
+    "note": "Read-only snapshot, not a causal diagnosis or latency optimization. No workload stopped, service restarted or config changed."
+  },
+  "safety": "No capture, actual mouse/keyboard input, settings changes, safety weakening, or Stage 2 implementation."
+}

@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "dataset_id": "siro-computer-click-stage1-v1",
+  "image_root": "../../../../.siro-data/computer-bench-stage1/frames",
+  "coordinate_system": "original_screenshot_pixels_inclusive_xyxy",
+  "cases": [
+    {
+      "id": "sts2-main-continue",
+      "image": "native-current.jpg",
+      "sha256": "a75517c3f7bc88a37b5d4fc6ee9bc5dace5c86d1a063bc99d4ee9e6710687f1c",
+      "image_size": [
+        960,
+        520
+      ],
+      "process": "slaythespire2.exe",
+      "scenario": "menu",
+      "goal": "Click Continue Game (继续游戏) to resume the saved run. Do not abandon the run or open settings.",
+      "expect": {
+        "click_boxes": [
+          [
+            351,
+            319,
+            437,
+            341
+          ]
+        ]
+      },
+      "label_source": {
+        "method": "manual_visual_review",
+        "reviewer": "Grok Bot",
+        "source": "siro-computer/native-current.jpg",
+        "note": "Visible 继续游戏 menu label; rectangle tightly encloses that row."
+      },
+      "uncertain": false
+    },
+    {
+      "id": "sts2-event-continue",
+      "image": "live-observation.jpg",
+      "sha256": "8505d717c378dc70238c465c8fb2ce2decb70bfcbfae2860dbfc67afeb5bd26a",
+      "image_size": [
+        960,
+        520
+      ],
+      "process": "slaythespire2.exe",
+      "scenario": "event",
+      "goal": "Click Continue (继续) in the dialogue bar at the bottom of this screen.",
+      "expect": {
+        "click_boxes": [
+          [
+            255,
+            456,
+            709,
+            493
+          ]
+        ]
+      },
+      "label_source": {
+        "method": "manual_visual_review",
+        "reviewer": "Grok Bot",
+        "source": "siro-computer/live-observation.jpg",
+        "note": "Visible bottom dialogue bar with 继续 label. Interior of the bar is the target."
+      },
+      "uncertain": false
+    },
+    {
+      "id": "sts2-combat-end-turn",
+      "image": "learning-frame.png",
+      "sha256": "fdf190a200162acf35bcb2e52f9e20a562c817e96392ad217575c4fb3713c519",
+      "image_size": [
+        960,
+        520
+      ],
+      "process": "slaythespire2.exe",
+      "scenario": "combat",
+      "goal": "End the current turn by clicking End Turn (结束第1回合). Do not play another card.",
+      "expect": {
+        "click_boxes": [
+          [
+            808,
+            410,
+            900,
+            444
+          ]
+        ]
+      },
+      "label_source": {
+        "method": "manual_visual_review",
+        "reviewer": "Grok Bot",
+        "source": "siro-computer/learning-frame.png",
+        "note": "Visible bottom-right 结束第1回合 button. Explicit task asks to end turn even with 3 energy."
+      },
+      "uncertain": false
+    }
+  ],
+  "limitations": [
+    "Only 3 unique raw STS2 frames found in the examined capture locations; no saved 2048 or Notepad frame found.",
+    "Grounding/map/atlas overlays and desktop-only screenshots excluded; duplicate learning-frame copies excluded.",
+    "Labels identify controls for explicit instructions, not optimal game strategy or verified successful historical actions.",
+    "Private game screenshots remain local and gitignored; no new screen capture or owner-play recording."
+  ]
+}
