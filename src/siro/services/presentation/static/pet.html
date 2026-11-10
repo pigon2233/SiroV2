@@ -22,22 +22,70 @@
       <p id="pet-error" role="alert" hidden></p>
       <p id="pet-state" data-state="connecting" role="status"><span id="pet-state-dot" aria-hidden="true"></span><span id="pet-state-label">連線中</span></p>
       <nav id="pet-controls" aria-label="桌寵控制">
-        <button type="button" id="desktop-voice" title="按一下開始說話，再按一下送出">說話</button>
-        <button type="button" id="desktop-stop" title="停止回覆、工具與語音" hidden>停止</button>
-        <button type="button" id="desktop-more" title="其他選項" aria-expanded="false" aria-controls="pet-more">更多</button>
         <div id="pet-more" hidden>
-          <button type="button" id="desktop-chat" aria-expanded="false" title="雙擊角色或按 F2">聊聊</button>
-          <button type="button" id="desktop-microphone" aria-pressed="false">麥克風：關</button>
-          <button type="button" id="desktop-voice-auto" aria-pressed="false" title="偵測到說話就錄音，停一下自動送出；SIRO 說話時不收音">免手動：關</button>
-          <button type="button" id="desktop-speech" aria-pressed="true">朗讀：開</button>
-          <button type="button" id="desktop-replay" disabled>再聽一次</button>
-          <button type="button" id="desktop-smaller" aria-label="縮小角色">－</button>
-          <button type="button" id="desktop-scale">100%</button>
-          <button type="button" id="desktop-larger" aria-label="放大角色">＋</button>
-          <button type="button" id="desktop-move" title="按住拖曳視窗">移動</button>
-          <button type="button" id="desktop-console">控制台</button>
-          <button type="button" id="desktop-hide">暫藏</button>
-          <button type="button" id="desktop-quit" title="關閉桌寵視窗，SIRO 服務繼續執行">退出</button>
+          <section class="pet-section" aria-labelledby="pet-voice-label">
+            <h2 id="pet-voice-label">語音</h2>
+            <div class="pet-icon-row">
+              <button type="button" id="desktop-microphone" aria-pressed="false" aria-label="麥克風" title="麥克風">
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a2.5 2.5 0 0 0-2.5 2.5v5a2.5 2.5 0 0 0 5 0v-5A2.5 2.5 0 0 0 12 4z"/><path d="M6.5 11a5.5 5.5 0 0 0 11 0"/><path d="M12 16.5V20"/></svg>
+              </button>
+              <button type="button" id="desktop-voice-auto" aria-pressed="false" aria-label="免手動" title="偵測到說話就錄音，停一下自動送出；SIRO 說話時不收音">
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5a2 2 0 0 0-2 2v4a2 2 0 0 0 4 0v-4a2 2 0 0 0-2-2z"/><path d="M5 10.5a4 4 0 0 0 8 0"/><path d="M9 14.5V17"/><path d="M15.5 7.2a5.5 5.5 0 0 1 0 7.6"/><path d="M18 5.2a8.2 8.2 0 0 1 0 11.6"/></svg>
+              </button>
+              <button type="button" id="desktop-speech" aria-pressed="true" aria-label="朗讀" title="朗讀">
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h3.2L12 6.2v11.6L7.2 14H4z"/><path d="M16 9.2a4 4 0 0 1 0 5.6"/><path d="M18.4 7a7 7 0 0 1 0 10"/></svg>
+              </button>
+              <button type="button" id="desktop-replay" aria-label="再聽一次" title="再聽一次" disabled>
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 1 0 2-4.9"/><path d="M5 4.5V9h4.5"/></svg>
+              </button>
+            </div>
+          </section>
+          <section class="pet-section" aria-labelledby="pet-size-label">
+            <h2 id="pet-size-label">大小</h2>
+            <div class="pet-scale">
+              <button type="button" id="desktop-smaller" aria-label="縮小角色" title="縮小角色">
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>
+              </button>
+              <button type="button" id="desktop-scale" aria-label="回復原本大小" title="回復原本大小">100%</button>
+              <button type="button" id="desktop-larger" aria-label="放大角色" title="放大角色">
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>
+              </button>
+            </div>
+          </section>
+          <details id="pet-actions" class="pet-section">
+            <summary>動作</summary>
+          </details>
+          <section class="pet-section" aria-labelledby="pet-window-label">
+            <h2 id="pet-window-label">視窗</h2>
+            <div class="pet-icon-row pet-window-row">
+              <button type="button" id="desktop-move" aria-label="移動" title="按住拖曳視窗">
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18"/><path d="M12 3l-2.2 2.4M12 3l2.2 2.4M12 21l-2.2-2.4M12 21l2.2-2.4M3 12l2.4-2.2M3 12l2.4 2.2M21 12l-2.4-2.2M21 12l-2.4 2.2"/></svg>
+              </button>
+              <button type="button" id="desktop-console" aria-label="控制台" title="控制台">
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h3M8 12h8M8 15h5"/></svg>
+              </button>
+              <button type="button" id="desktop-hide" aria-label="暫藏" title="暫藏">
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h16v5H4z"/><path d="M8 14V9h8v5"/><path d="M12 6v4M10.2 8.2 12 6l1.8 2.2"/></svg>
+              </button>
+              <button type="button" id="desktop-quit" class="pet-quiet" aria-label="退出" title="關閉桌寵視窗，SIRO 服務繼續執行">
+                <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5V11"/><path d="M7.6 6.4a7 7 0 1 0 8.8 0"/></svg>
+              </button>
+            </div>
+          </section>
+        </div>
+        <div class="pet-dock">
+          <button type="button" id="desktop-stop" title="停止回覆、工具與語音" aria-label="停止" hidden>
+            <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.6"/></svg>
+          </button>
+          <button type="button" id="desktop-voice" aria-pressed="false" aria-label="說話" title="按一下開始說話，再按一下送出">
+            <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a2.5 2.5 0 0 0-2.5 2.5v5a2.5 2.5 0 0 0 5 0v-5A2.5 2.5 0 0 0 12 4z"/><path d="M6.5 11a5.5 5.5 0 0 0 11 0"/><path d="M12 16.5V20"/></svg>
+          </button>
+          <button type="button" id="desktop-chat" aria-expanded="false" aria-label="聊聊" title="雙擊角色或按 F2">
+            <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.2 16.2 4.2 19.6l3.8-1.2A7.6 7.6 0 1 0 6.2 16.2z"/></svg>
+          </button>
+          <button type="button" id="desktop-more" aria-expanded="false" aria-controls="pet-more" aria-label="更多" title="其他選項">
+            <svg class="pet-icon" viewBox="0 0 24 24" aria-hidden="true"><circle class="pet-dot" cx="6" cy="12" r="1.35"/><circle class="pet-dot" cx="12" cy="12" r="1.35"/><circle class="pet-dot" cx="18" cy="12" r="1.35"/></svg>
+          </button>
         </div>
       </nav>
     </main>
