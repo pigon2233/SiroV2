@@ -642,7 +642,7 @@ class ClaudeVisionDecider:
                     prompt,
                 ),
                 cwd=Path(scratch),
-                environment=restricted_environment(),
+                environment=restricted_environment(("SIRO_CLAUDE_BIN", "CLAUDE_CONFIG_DIR")),
                 timeout=self._timeout,
             )
         if result.get("returncode") != 0:

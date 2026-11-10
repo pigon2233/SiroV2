@@ -68,3 +68,37 @@ def test_bounded_read_only_cli_and_strict_proof(reply: str, status: str) -> None
     )
     assert asyncio.run(brain.verify("character select visible", "menu", OBS)).status == status
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "envelope",
+    [
+        {"returncode": 1},
+        {"returncode": 0, "stdout": "invalid"},
+        {"returncode": 0, "stdout": "[]"},
+        {"returncode": 0, "stdout": '{"is_error":true}'},
+    ],
+)
+def test_provider_failure_never_confirms(envelope: dict[str, Any]) -> None:
+    async def fake(*args: Any, **kw: Any) -> dict[str, Any]:
+        return envelope
+
+    brain = ClaudeVisionDecider(
+        env={"SIRO_COMPUTER_CLAUDE_VERIFY": "1", "SIRO_COMPUTER_CLOUD_SCREEN": "1"},
+        run=fake,
+        binary=Path("/unit/claude"),
+    )
+    assert asyncio.run(brain.verify("menu closed", "menu", OBS)).status == "unknown"
+
+
+def test_cancellation_propagates() -> None:
+    async def fake(*args: Any, **kw: Any) -> dict[str, Any]:
+        raise asyncio.CancelledError
+
+    brain = ClaudeVisionDecider(
+        env={"SIRO_COMPUTER_CLAUDE_VERIFY": "1", "SIRO_COMPUTER_CLOUD_SCREEN": "1"},
+        run=fake,
+        binary=Path("/unit/claude"),
+    )
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(brain.verify("menu closed", "menu", OBS))

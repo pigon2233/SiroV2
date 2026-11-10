@@ -1,0 +1,115 @@
+{
+  "recorded_at": "2026-11-11T01:16:11.283347+08:00",
+  "UV_PROJECT_ENVIRONMENT": "/home/pepepig/.venvs/sirov2",
+  "results": [
+    {
+      "check": "unit",
+      "command": [
+        "/home/pepepig/.local/bin/uv",
+        "run",
+        "--no-sync",
+        "pytest",
+        "tests/unit/test_computer_runtime_diagnostics.py",
+        "tests/unit/test_computer_reply_trace.py",
+        "tests/unit/test_computer_claude_verify.py",
+        "tests/unit/test_computer_use_http.py",
+        "-q"
+      ],
+      "exit_code": 0,
+      "seconds": 2.8947796400170773,
+      "evidence": "unit.txt"
+    },
+    {
+      "check": "regression",
+      "command": [
+        "/home/pepepig/.local/bin/uv",
+        "run",
+        "--no-sync",
+        "pytest",
+        "tests/unit/test_computer_claude_verify.py",
+        "tests/unit/test_computer_click_eval.py",
+        "tests/unit/test_computer_process_names.py",
+        "tests/unit/test_computer_reply_trace.py",
+        "tests/unit/test_computer_runtime_diagnostics.py",
+        "tests/unit/test_computer_use_batch.py",
+        "tests/unit/test_computer_use_bench.py",
+        "tests/unit/test_computer_use_dataset.py",
+        "tests/unit/test_computer_use_demos.py",
+        "tests/unit/test_computer_use_groq_decider.py",
+        "tests/unit/test_computer_use_http.py",
+        "tests/unit/test_computer_use_hybrid.py",
+        "tests/unit/test_computer_use_intent.py",
+        "tests/unit/test_computer_use_loop.py",
+        "tests/unit/test_computer_use_modules.py",
+        "tests/unit/test_computer_use_numbered.py",
+        "tests/unit/test_computer_use_ollama_decider.py",
+        "tests/unit/test_computer_use_perception.py",
+        "tests/unit/test_computer_use_playbook.py",
+        "tests/unit/test_computer_use_router.py",
+        "tests/unit/test_computer_use_safety.py",
+        "tests/unit/test_computer_use_tool.py",
+        "tests/integration/test_computer_driver.py",
+        "tests/integration/test_computer_use_catalog.py",
+        "tests/integration/test_computer_use_chat_hook.py",
+        "-q"
+      ],
+      "exit_code": 1,
+      "seconds": 32.48192316299537,
+      "evidence": "regression.txt"
+    },
+    {
+      "check": "ruff",
+      "command": [
+        "/home/pepepig/.local/bin/uv",
+        "run",
+        "--no-sync",
+        "ruff",
+        "check",
+        "src/siro/services/computer_use/decision.py",
+        "src/siro/services/computer_use/http.py",
+        "src/siro/services/computer_use/runtime_info.py",
+        "src/siro/services/computer_use/reply_trace.py",
+        "scripts/computer_runtime_check.py",
+        "scripts/computer_verify_eval.py",
+        "tests/unit/test_computer_runtime_diagnostics.py",
+        "tests/unit/test_computer_reply_trace.py",
+        "tests/unit/test_computer_claude_verify.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.2456940789707005,
+      "evidence": "ruff.txt"
+    },
+    {
+      "check": "mypy",
+      "command": [
+        "/home/pepepig/.local/bin/uv",
+        "run",
+        "--no-sync",
+        "mypy",
+        "src/siro/services/computer_use/decision.py",
+        "src/siro/services/computer_use/http.py",
+        "src/siro/services/computer_use/runtime_info.py",
+        "src/siro/services/computer_use/reply_trace.py",
+        "scripts/computer_runtime_check.py",
+        "scripts/computer_verify_eval.py",
+        "tests/unit/test_computer_runtime_diagnostics.py",
+        "tests/unit/test_computer_reply_trace.py",
+        "tests/unit/test_computer_claude_verify.py"
+      ],
+      "exit_code": 0,
+      "seconds": 4.664436879043933,
+      "evidence": "mypy.txt"
+    },
+    {
+      "check": "bash-syntax",
+      "command": [
+        "bash",
+        "-n",
+        "scripts/computer-play.sh"
+      ],
+      "exit_code": 0,
+      "seconds": 0.010598959983326495,
+      "evidence": "bash-syntax.txt"
+    }
+  ]
+}

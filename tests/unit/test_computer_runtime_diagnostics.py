@@ -124,3 +124,44 @@ def test_play_client_old_server_is_rejected_before_run(tmp_path: Path) -> None:
     calls = call_log.read_text().splitlines()
     assert len(calls) == 1 and "/status" in calls[0]
     assert "/run" not in calls[0] and "/stop" not in calls[0]
+
+
+@pytest.mark.parametrize(
+    "point,expected",
+    [
+        ((731, 209), (1462, 418)),
+        ((739, 220), (1478, 440)),
+        ((256, 152), (512, 304)),
+        ((255, 427), (510, 854)),
+    ],
+)
+def test_reported_run_coordinate_math_not_input(
+    point: tuple[int, int], expected: tuple[int, int]
+) -> None:
+    from siro.services.computer_use.perception import Observation, image_to_screen
+
+    observation = Observation(
+        1,
+        0,
+        "Game",
+        "game.exe",
+        (0, 0, 1920, 1040),
+        (1920, 1080),
+        "hash",
+        image_size=(960, 520),
+        image_rect=(0, 0, 1920, 1040),
+    )
+    assert image_to_screen(observation, *point) == expected
+
+
+def test_offline_verifier_probe_is_default_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    from computer_verify_eval import probe
+
+    monkeypatch.delenv("SIRO_COMPUTER_VERIFY_BENCH_ENABLED", raising=False)
+    with pytest.raises(ValueError, match="offline verify probe off"):
+        asyncio.run(probe(tmp_path / "missing.json", tmp_path / "output.json", 1))
+    assert not (tmp_path / "output.json").exists()
