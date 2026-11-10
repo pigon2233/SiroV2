@@ -26,12 +26,16 @@ class Element {
   constructor(tag) {
     this.tagName=tag; this.children=[]; this.textContent=''; this.className='';
     this.attrs={}; this.events=new Map();
+    const data={};
     this.classList={
       contains: name => this.className.split(/\s+/).includes(name),
       add: name => {if(!this.classList.contains(name)) this.className+=' '+name;},
       remove: name => {this.className=this.className.split(/\s+/).filter(x=>x!==name).join(' ');},
       toggle: (name,on) => {if(on) this.classList.add(name);else this.classList.remove(name);}
     };
+    this.style={setProperty(){}};
+    // HTMLElement.dataset is getter-only. Replacing it must throw, as it does in the browser.
+    Object.defineProperty(this,'dataset',{get(){return data;},enumerable:true});
   }
   setAttribute(key,value) {this.attrs[key]=value;}
   getAttribute(key) {return this.attrs[key]??null;}
@@ -688,6 +692,10 @@ assert.equal(document.querySelector('#messages').children[1].textContent,'嘿嘿
 def test_pet_menu_owns_gestures_and_iframe_keys_still_open_chat() -> None:
     run_desktop(
         """
+const probe=document.createElement('button');
+assert.throws(()=>{ "use strict"; probe.dataset={gesture:'no'}; }, TypeError);
+probe.dataset.gesture='wave';
+assert.equal(probe.dataset.gesture,'wave');
 const frame=existing.get('#companion');
 const sent=[];
 frame.contentWindow.postMessage=(message)=>sent.push(message);

@@ -1370,7 +1370,6 @@
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = text;
-      button.dataset = button.dataset || {};
       button.dataset.gesture = name;
       button.addEventListener("click", () => {
         postToRenderer({type: "siro.gesture", v: 1, name});
