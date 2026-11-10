@@ -10,12 +10,17 @@ import os
 import re
 import tempfile
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
 
 import httpx
 
+from siro.services.computer_use.interface import CloudScreenNotAllowed as CloudScreenNotAllowed
+from siro.services.computer_use.interface import Decider as Decider
+from siro.services.computer_use.interface import Decision as Decision
+from siro.services.computer_use.interface import DecisionError as DecisionError
+from siro.services.computer_use.interface import StepRecord as StepRecord
+from siro.services.computer_use.interface import VerifyResult as VerifyResult
+from siro.services.computer_use.interface import cloud_screen_allowed as cloud_screen_allowed
 from siro.services.computer_use.perception import Observation, annotate_coord_grid
 from siro.services.computer_use.safety import ALLOWED_KINDS, InputAction
 from siro.services.tools.claude import Runner, claude_binary, claude_model
@@ -39,62 +44,14 @@ SCENES = frozenset(
 )
 
 
-class DecisionError(ValueError):
-    """The model reply is not an acceptable decision."""
 
 
-@dataclass(frozen=True, slots=True)
-class Decision:
-    kind: str  # act | done | stuck | ask | wait
-    action: InputAction | None = None
-    expect: str = ""  # what should visibly change if the action works
-    reason: str = ""
-    confidence: float = 0.0
-    evidence: str = ""  # for done: what on screen proves the goal is met
-    seen: str = ""  # one short sentence: what the screenshot shows now (kept in the history)
-    strategy: str = ""  # optional short plan update; empty keeps the previous plan
-    scene: str = ""  # map|combat|shop|event|reward|pause|defeat|menu|unknown
-    energy: str = ""  # e.g. "3/3", "0", "n/a"
-    targets: str = ""  # actionable controls visible now
-    uncertainty: str = ""  # unreadable bits; empty if clear
 
 
-@dataclass(frozen=True, slots=True)
-class StepRecord:
-    step: int
-    action: str
-    expect: str
-    outcome: str  # sent | visual_change | effective | unconfirmed | ineffective | ...
-    screen_changed: bool | None
-    seen: str = ""  # what the screen showed before this step
-    scene: str = ""
-    detail: str = ""  # verification note or failure reason
 
 
-@dataclass(frozen=True, slots=True)
-class VerifyResult:
-    status: str  # confirmed | denied | unknown
-    detail: str = ""
-    seen: str = ""
-    scene: str = ""
 
 
-class Decider(Protocol):
-    async def decide(
-        self,
-        goal: str,
-        history: Sequence[StepRecord],
-        observation: Observation,
-        *,
-        strategy: str = "",
-    ) -> Decision: ...
-
-    async def verify(
-        self,
-        expect: str,
-        before_seen: str,
-        observation: Observation,
-    ) -> VerifyResult: ...
 
 
 def _int(value: object) -> int | None:
@@ -280,22 +237,19 @@ JSON only:
 """ + _JSON_SHAPE  # noqa: E501
 
 
-class CloudScreenNotAllowed(RuntimeError):
-    """The owner has not allowed screenshots to leave the machine."""
 
 
-def cloud_screen_allowed(env: dict[str, str] | None = None) -> bool:
-    return (os.environ if env is None else env).get(CLOUD_SCREEN_FLAG, "0") == "1"
 
 
-VERIFY_PROMPT = """Screenshot is attached ({w}x{h} px), desktop rect {image_rect}.
-Previous action expected: {expect}
-Previous description: {before_seen}
-
-Judge ONLY whether that expectation is visibly true now (e.g. main menu gone, character select shown, combat started, shop closed).
-Pixel motion alone is not enough.
-JSON only:
-{{"status":"confirmed|denied|unknown","seen":"what is on screen now","scene":"map|combat|shop|event|reward|pause|defeat|menu|unknown","detail":"short why"}}"""
+VERIFY_PROMPT = (
+    'Screenshot is attached ({w}x{h} px), desktop rect {image_rect}.\nPrevio'
+    'us action expected: {expect}\nPrevious description: {before_seen}\n\nJudg'
+    'e ONLY whether that expectation is visibly true now (e.g. main menu go'
+    'ne, character select shown, combat started, shop closed).\nPixel motion'
+    ' alone is not enough.\nJSON only:\n{{"status":"confirmed|denied|unknown"'
+    ',"seen":"what is on screen now","scene":"map|combat|shop|event|reward|'
+    'pause|defeat|menu|unknown","detail":"short why"}}'
+)
 
 
 def _history_text(history: Sequence[StepRecord]) -> str:
@@ -379,7 +333,10 @@ class OllamaVisionDecider:
     ) -> None:
         values = os.environ if env is None else env
         self._env = env
-        self._model = model or values.get(OLLAMA_MODEL_ENV) or values.get("SIRO_OLLAMA_MODEL") or DEFAULT_OLLAMA_MODEL
+        self._model = (
+            model or values.get(OLLAMA_MODEL_ENV)
+            or values.get("SIRO_OLLAMA_MODEL") or DEFAULT_OLLAMA_MODEL
+        )
         self._base_url = (base_url or _ollama_base_url(values)).rstrip("/")
         self._timeout = timeout
         self._client = client
@@ -461,7 +418,9 @@ class OllamaVisionDecider:
             before_seen=before_seen.strip()[:200] or "-",
         )
         try:
-            return parse_verify(await self._chat(prompt, observation, num_predict=min(80, self._num_predict)))
+            return parse_verify(
+                await self._chat(prompt, observation, num_predict=min(80, self._num_predict))
+            )
         except DecisionError as error:
             return VerifyResult("unknown", f"verify_failed:{error}")
 
@@ -683,7 +642,7 @@ def _shrink_for_groq(image_b64: str) -> str:
             if len(encoded) <= GROQ_MAX_IMAGE_B64 or quality <= 30:
                 return encoded
             quality -= 15
-    except Exception:  # noqa: BLE001 — let Groq reject rather than crash the loop
+    except Exception:  # Let Groq reject rather than crash the loop.
         return image_b64
 
 
