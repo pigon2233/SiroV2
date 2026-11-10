@@ -9,7 +9,15 @@
   let ttsGeneration = 0, speechCancelled = false, liveSpeech, lastSpeech, speechStream = false;
   let speechEnabled = true, listening = false, recognizing = false, speaking = false, lastError = "";
   let replyGlanced = false;
+  let openStream = null;
+  const parkedAside = [];
   const researchTools = new Set();
+  const GESTURES = [
+    ["wave", "揮手"], ["bow", "鞠躬"], ["bye", "掰掰"], ["nod", "點頭"],
+    ["shake", "搖頭"], ["think", "思考"], ["attention", "注意"], ["sit", "坐下"],
+    ["clap", "拍手"], ["stretch", "伸懶腰"], ["hum", "哼歌"], ["notebook", "看筆記"],
+    ["stroll", "散步"],
+  ];
   let phase = "connecting", stops = 0, chatOpen = false, roleDragged = false, hotTimer, reply, replyTimer;
   const runningTools = new Map();
   const startedAt = Date.now();
@@ -380,8 +388,14 @@
       speechStream = Boolean((await response.json()).speech_stream);
     } catch { /* snapshot already describes the switches */ }
   }
+  const ASIDE = new Set(["assistant_started", "assistant_delta", "assistant_terminal", "assistant_retry_wait", "assistant_route_notice"]);
   function handleControlMessage(data) {
     if (!data || typeof data.type !== "string") return;
+    // A pat line (or any other aside) that arrives mid-reply must not steal the open bubble.
+    if (openStream && typeof data.stream_id === "string" && data.stream_id !== openStream && ASIDE.has(data.type)) {
+      parkedAside.push(data);
+      return;
+    }
     if (!acceptRunEvent(data)) return;
     if (data.type === "assistant_terminal" && data.state !== "completed") settleRunningTools(data);
     if (!foregroundControl.event(data)) return;
@@ -413,6 +427,7 @@
     }
     if (data.type === "assistant_route_notice" && typeof data.text === "string" && data.text) setNotice(data.text);
     if (data.type === "assistant_started") {
+      openStream = typeof data.stream_id === "string" ? data.stream_id : (openStream || "reply");
       assistantBubble = appendMessage("assistant", "");
       liveSpeech = beginLiveSpeech();
       replyGlanced = false;
@@ -448,7 +463,12 @@
         else if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);
         rememberReply(canonicalText);
       }
-      assistantBubble = undefined; currentTurn = undefined; liveSpeech = undefined; publishState();
+      assistantBubble = undefined; currentTurn = undefined; liveSpeech = undefined; openStream = null;
+      publishState();
+      if (parkedAside.length) {
+        const waiting = parkedAside.splice(0);
+        for (const item of waiting) handleControlMessage(item);
+      }
     }
     if (data.type === "tool_proposal") renderToolProposal(data);
     if (data.type === "tool_started") {
@@ -1341,6 +1361,32 @@
     bind("#desktop-console", () => openControl());
     bind("#desktop-hide", () => nativeCommand({type: "desktop.hide"}));
     bind("#desktop-quit", () => nativeCommand({type: "desktop.quit"}));
+    const gestures = document.createElement("div");
+    gestures.id = "pet-gestures";
+    const gestureLabel = document.createElement("span");
+    gestureLabel.textContent = "動作";
+    gestures.appendChild(gestureLabel);
+    for (const [name, text] of GESTURES) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = text;
+      button.dataset = button.dataset || {};
+      button.dataset.gesture = name;
+      button.addEventListener("click", () => {
+        postToRenderer({type: "siro.gesture", v: 1, name});
+        setMenu(false);
+      });
+      gestures.appendChild(button);
+    }
+    const sound = document.createElement("button");
+    sound.type = "button";
+    sound.textContent = "音效";
+    sound.addEventListener("click", () => {
+      postToRenderer({type: "siro.sfx", v: 1});
+      setMenu(false);
+    });
+    gestures.appendChild(sound);
+    $("#pet-more")?.appendChild(gestures);
     $("#desktop-move")?.addEventListener("pointerdown", event => {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -1443,15 +1489,22 @@
       }
       if (data?.type === "siro.renderer.ready") nativeCommand({type: "desktop.ready"});
       if (data?.type === "siro.desktop.walk" && data.v === 1) walkRequest(data);
+      if (data?.type === "siro.contextmenu" && data.v === 1) setMenu(true);
+      if (data?.type === "siro.key" && data.v === 1) onHostKey(data.key, null);
     });
-    window.addEventListener("keydown", event => {
-      if (event.key === "F2") { event.preventDefault?.(); setChat(!chatOpen); return; }
-      if (event.key !== "Escape") return;
+    function onHostKey(key, target) {
+      if (key === "F2") { setChat(!chatOpen); return; }
+      if (key !== "Escape") return;
       const bubbleNode = $("#desktop-bubble");
-      if (event.target === bubbleNode || bubbleNode?.contains?.(event.target)) return;
+      if (target === bubbleNode || bubbleNode?.contains?.(target)) return;
       setMenu(false);
       stopAll();
       setChat(false);
+    }
+    window.addEventListener("keydown", event => {
+      if (event.key !== "F2" && event.key !== "Escape") return;
+      if (event.key === "F2") event.preventDefault?.();
+      onHostKey(event.key, event.target);
     });
     window.addEventListener("pagehide", () => {
       observerStop?.(); unreadObserver.disconnect(); detachRole(); clearInterval(audioBusy); clearInterval(attentionPulse); clearTimeout(hotTimer); clearTimeout(replyTimer);

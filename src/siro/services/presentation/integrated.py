@@ -249,6 +249,9 @@ class IntegratedCompanion:
         # D80 P2a dry-run: told about each committed memory (memory, source, explicit).
         self.memory_observer: Callable[[Memory, str, bool], Coroutine[Any, Any, None]] | None = None
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
+        # One presenter at a time: a touch line must not emit assistant_started in the middle
+        # of a reply that is already on screen.
+        self._presentation_lock = asyncio.Lock()
         self._planning = False
         # Set by the gateway when the Claude planner is wired.
         self.auto_plan_classifier: Classifier | None = None
@@ -306,8 +309,8 @@ class IntegratedCompanion:
     async def _broadcast_stream(
         self, stream_id: str, message: dict[str, object], *, urgent: bool = False
     ) -> None:
-        if self._runtime_profile == "candidate":
-            message = {**message, "stream_id": stream_id}
+        # Every aside and reply carries a stream id so the page can keep them in separate bubbles.
+        message = {**message, "stream_id": stream_id}
         await self._hub.broadcast(message, urgent=urgent)
 
     def _privacy_for_turn(self, text: str) -> Privacy:
@@ -417,33 +420,41 @@ class IntegratedCompanion:
             self._touching = False
 
     async def _say_line(self, line: str, prosody: dict[str, float], fallback_session: str) -> None:
+        """Say one short aside. If a reply is already streaming, wait until that reply ends
+        so its bubble is not split by a second assistant_started."""
+
         session_id = self._last_session or fallback_session
         stream_id = str(uuid4())
 
         async def emit(message: dict[str, object]) -> None:
             await self._broadcast_stream(stream_id, message)
 
-        await emit({"type": "assistant_started", "session_id": session_id})
-        await emit({"type": "assistant_delta", "session_id": session_id, "text": line})
-        await emit(
-            {
-                "type": "assistant_terminal",
-                "session_id": session_id,
-                "state": TurnState.COMPLETED,
-                "error": None,
-                "prosody": prosody,
-            }
-        )
-        await self._speak(
-            SpeechIntent(
-                str(uuid4()),
-                line,
-                str(uuid4()),
-                prosody["rate"],
-                prosody["pitch"],
-                prosody["energy"],
-            )
-        )
+        while True:
+            async with self._presentation_lock:
+                if not self.foreground_active:
+                    await emit({"type": "assistant_started", "session_id": session_id})
+                    await emit({"type": "assistant_delta", "session_id": session_id, "text": line})
+                    await emit(
+                        {
+                            "type": "assistant_terminal",
+                            "session_id": session_id,
+                            "state": TurnState.COMPLETED,
+                            "error": None,
+                            "prosody": prosody,
+                        }
+                    )
+                    await self._speak(
+                        SpeechIntent(
+                            str(uuid4()),
+                            line,
+                            str(uuid4()),
+                            prosody["rate"],
+                            prosody["pitch"],
+                            prosody["energy"],
+                        )
+                    )
+                    return
+            await asyncio.sleep(0.05)
 
     async def react_to_sensor(self, facts: dict[str, object]) -> None:
         """A change in the room: she decides whether to say one short line, or nothing."""
@@ -811,8 +822,9 @@ class IntegratedCompanion:
         async def emit(message: dict[str, object], *, urgent: bool = False) -> None:
             await self._broadcast_stream(stream_id, message, urgent=urgent)
 
-        self._active_sessions.add(session_id)
-        await emit({"type": "assistant_started", "session_id": session_id})
+        async with self._presentation_lock:
+            self._active_sessions.add(session_id)
+            await emit({"type": "assistant_started", "session_id": session_id})
         if direct_command is not None:
             emotion, reply = direct_command
             if plan_goal is not None:

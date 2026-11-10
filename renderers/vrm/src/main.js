@@ -239,6 +239,11 @@ window.addEventListener('message', event => {
     }
   } else if (data.type === 'siro.audio.busy') {
     audioBusyUntil = data.busy ? elapsed + 2.5 : -Infinity;
+  } else if (data.type === 'siro.gesture' && data.v === 1) {
+    const name = String(data.name || '');
+    if (MENU_GESTURES.some(([gesture]) => gesture === name)) perform(name);
+  } else if (data.type === 'siro.sfx' && data.v === 1) {
+    sfx.setEnabled(!sfx.enabled);
   } else if (data.type === 'siro.attention') {
     const mode = String(data.mode || 'idle');
     attention.mode = mode;
@@ -1473,8 +1478,17 @@ soundTest.addEventListener('click', () => {
 soundTest.textContent = '試聽音效';
 gestureMenu.append(soundTest);
 document.body.append(gestureMenu);
+const embedded = window.parent !== window;
 window.addEventListener('contextmenu', event => {
   event.preventDefault();
+  // Inside the pet page the parent already has a menu. Don't open a second one.
+  if (embedded) {
+    window.parent.postMessage(
+      { type: 'siro.contextmenu', v: 1, x: event.clientX, y: event.clientY },
+      location.origin,
+    );
+    return;
+  }
   if (!mixer) return;
   for (const item of gestureMenu.children) {
     const name = item.dataset.gesture;
@@ -1493,6 +1507,9 @@ window.addEventListener('pointerdown', event => {
   if (!gestureMenu.hidden && !gestureMenu.contains(event.target)) gestureMenu.hidden = true;
 }, true);
 window.addEventListener('keydown', event => {
+  if (embedded && (event.key === 'F2' || event.key === 'Escape')) {
+    window.parent.postMessage({ type: 'siro.key', v: 1, key: event.key }, location.origin);
+  }
   if (event.key === 'Escape') gestureMenu.hidden = true;
 });
 

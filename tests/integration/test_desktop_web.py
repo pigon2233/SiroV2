@@ -672,7 +672,51 @@ window.siroPet.applyControl({type:'assistant_delta',stream_id:'s1',text:'你好'
 assert.equal(document.querySelector('#messages').children.at(-1).textContent,'你好');
 assert.equal(window.siroPet.speakablePrefix('你好。下一句'),'你好。');
 assert.equal(window.siroPet.speakablePrefix('還沒說完'),'');
+window.siroPet.applyControl({type:'assistant_started',stream_id:'touch'});
+window.siroPet.applyControl({type:'assistant_delta',stream_id:'touch',text:'嘿嘿好舒服'});
+window.siroPet.applyControl({type:'assistant_terminal',stream_id:'touch',state:'completed'});
+window.siroPet.applyControl({type:'assistant_delta',stream_id:'s1',text:'今天也好'});
+assert.equal(document.querySelector('#messages').children.length,1);
+assert.equal(document.querySelector('#messages').children[0].textContent,'你好今天也好');
+window.siroPet.applyControl({type:'assistant_terminal',stream_id:'s1',state:'completed'});
+assert.equal(document.querySelector('#messages').children.length,2);
+assert.equal(document.querySelector('#messages').children[1].textContent,'嘿嘿好舒服');
 """
+    )
+
+
+def test_pet_menu_owns_gestures_and_iframe_keys_still_open_chat() -> None:
+    run_desktop(
+        """
+const frame=existing.get('#companion');
+const sent=[];
+frame.contentWindow.postMessage=(message)=>sent.push(message);
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.contextmenu',v:1,x:10,y:20}});
+assert.equal(document.body.classList.contains('pet-menu'),true);
+const wave=[...document.querySelector('#pet-gestures').children]
+  .find(node=>node.dataset?.gesture==='wave');
+assert.equal(wave.textContent,'揮手');
+wave.click();
+assert.deepEqual(sent.at(-1),{type:'siro.gesture',v:1,name:'wave'});
+assert.equal(document.body.classList.contains('pet-menu'),false);
+const input=document.querySelector('#text');
+input.focus();
+assert.equal(document.activeElement,input);
+input.events.get('keydown')({key:'a',preventDefault(){},isComposing:false,keyCode:65,which:65});
+assert.equal(document.querySelector('#pet-chat').hidden,true);
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.key',v:1,key:'F2'}});
+assert.equal(document.querySelector('#pet-chat').hidden,false);
+input.focus();
+assert.equal(document.activeElement,input);
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.key',v:1,key:'Enter'}});
+assert.equal(document.querySelector('#pet-chat').hidden,false);
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.key',v:1,key:'Escape'}});
+assert.equal(document.querySelector('#pet-chat').hidden,true);
+""",
     )
 
 
@@ -693,6 +737,9 @@ def test_pet_page_keeps_the_audio_and_renderer_contract() -> None:
         "siro.view.focus",
         "siro.audio.busy",
         "siro.renderer.ready",
+        "siro.contextmenu",
+        "siro.key",
+        "siro.gesture",
         "desktop.scale",
     ):
         assert needle in source

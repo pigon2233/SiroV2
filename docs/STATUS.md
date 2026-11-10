@@ -6,6 +6,8 @@
 
 電腦操控路徑沒有改。
 
+嵌在桌寵頁裡時，renderer 不再另外開手勢選單，右鍵與 F2／Esc 交給頁面；動作收在桌寵選單裡。單獨打開 renderer 時選單仍在。摸頭的短句若碰上正在流出的回覆，會等那則回覆結束再出現，不會把氣泡切成兩半。
+
 驗證（Linux，2026-11-10）：`uv run pytest tests/test_motion_cues.py tests/contract/test_body_adapter.py tests/integration/test_desktop_web.py tests/integration/test_persistent_companion.py::test_runtime_offline_does_not_disable_core_conversation` 通過（cue／body／桌寵頁／一則 companion）。`uv run ruff check` 這次改的 Python 檔通過。`uv run mypy` 對 `motion_cues.py`、`companion.py`、`conversation.py`、`ports/body.py`、`adapters/body/web.py` 通過。`integrated.py` 仍是原先的 `reply` 先是 bool 再當文字，以及 `unavailable_hint`，沒有落在這次新增的函式上。`node --test renderers/vrm/test/procedural.test.js` 4 passed。`prepare_vrm_renderer.build_renderer` 成功，輸出含 `src/procedural.js`。沒有在 Linux 上載入真的 VRM 角色、麥克風、TTS 或 Electron；無頭 Chrome 只畫了 IK 手臂的示意。`wave`／`bow`／`bye` 仍是 CC BY-NC。
 
 ## 2026-11-10 — 桌寵獨立頁（UI-PET-02）
