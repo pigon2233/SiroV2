@@ -160,10 +160,10 @@ def test_desktop_speech_switch_toggles_without_scraping_the_console() -> None:
         """
 const speech=document.querySelector('#desktop-speech');
 assert.equal(speech.attrs['aria-pressed'],'true');
-assert(speech.textContent.includes('開'));
+assert(!speech.textContent.includes('\uff1a開'));
 speech.click();
 assert.equal(speech.attrs['aria-pressed'],'false');
-assert(speech.textContent.includes('關'));
+assert(!speech.textContent.includes('\uff1a關'));
 speech.click();
 assert.equal(speech.attrs['aria-pressed'],'true');
 assert.equal(document.querySelector('#connection'),null);
@@ -242,7 +242,8 @@ def test_desktop_microphone_switch_forwards_without_starting_recording() -> None
     run_desktop(
         """
 const button=document.querySelector('#desktop-microphone');
-assert.equal(button.textContent,'麥克風\uff1a關');
+assert.equal(button.getAttribute('aria-pressed'),'false');
+assert(!button.textContent.includes('\uff1a關'));
 let calls=0;
 globalThis.navigator={mediaDevices:{getUserMedia(){calls++;
   return Promise.resolve({getTracks(){return [];}});}}};
@@ -669,8 +670,10 @@ assert.equal(window.siroPet.state,'ready');
 window.siroPet.applyControl({type:'turn_started',turn_id:'t1',session_id:'browser'});
 assert.equal(window.siroPet.state,'thinking');
 assert.equal(document.querySelector('#desktop-stop').hidden,false);
+assert.equal(document.body.classList.contains('pet-busy'),true);
 window.siroPet.applyControl({type:'turn_cancelled',turn_id:'t1'});
 assert.equal(window.siroPet.state,'ready');
+assert.equal(document.body.classList.contains('pet-busy'),false);
 window.siroPet.applyControl({type:'assistant_started',stream_id:'s1'});
 window.siroPet.applyControl({type:'assistant_delta',stream_id:'s1',text:'你好'});
 assert.equal(document.querySelector('#messages').children.at(-1).textContent,'你好');
@@ -728,6 +731,30 @@ assert.equal(document.querySelector('#pet-chat').hidden,true);
     )
 
 
+def test_left_click_on_the_character_closes_the_one_menu() -> None:
+    run_desktop(
+        """
+const frame=existing.get('#companion');
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.contextmenu',v:1,x:4,y:8}});
+assert.equal(document.body.classList.contains('pet-menu'),true);
+assert.equal(document.querySelector('#pet-more').hidden,false);
+assert.equal(document.querySelector('#desktop-more').attrs['aria-expanded'],'true');
+frame.contentDocument.events.get('pointerdown')({button:2,screenX:1,screenY:1,pointerId:1,preventDefault(){}});
+assert.equal(document.body.classList.contains('pet-menu'),true);
+frame.contentDocument.events.get('pointerdown')({button:0,screenX:2,screenY:2,pointerId:1,preventDefault(){}});
+assert.equal(document.body.classList.contains('pet-menu'),false);
+assert.equal(document.querySelector('#pet-more').hidden,true);
+assert.equal(document.querySelector('#pet-stage').getAttribute('data-dock'),'right');
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.contextmenu',v:1}});
+dispatch('keydown',{key:'Escape'});
+assert.equal(document.querySelector('#pet-more').hidden,true);
+""",
+        "existing.get('#companion').contentDocument=new Element('document');\n",
+    )
+
+
 def test_pet_page_keeps_the_audio_and_renderer_contract() -> None:
     source = (STATIC / "pet.js").read_text(encoding="utf-8")
     page = (STATIC / "pet.html").read_text(encoding="utf-8")
@@ -748,6 +775,7 @@ def test_pet_page_keeps_the_audio_and_renderer_contract() -> None:
         "siro.contextmenu",
         "siro.key",
         "siro.gesture",
+        "siro.sfx",
         "desktop.scale",
     ):
         assert needle in source
@@ -756,8 +784,25 @@ def test_pet_page_keeps_the_audio_and_renderer_contract() -> None:
     assert "app-shell" not in page
     assert 'id="companion"' in page
     assert 'id="pet-state"' in page
+    for needle in (
+        'aria-label="說話"',
+        'aria-label="聊聊"',
+        'aria-label="停止"',
+        'aria-label="更多"',
+        'id="pet-actions"',
+        'id="desktop-quit"',
+    ):
+        assert needle in page
+    assert "麥克風：關" not in page  # noqa: RUF001
+    assert "朗讀：開" not in page  # noqa: RUF001
+    assert "免手動：關" not in page  # noqa: RUF001
     css = (STATIC / "pet.css").read_text(encoding="utf-8")
+    assert "background: transparent" in css
     assert "pet-hot" in css
+    assert "pet-busy" in css
+    assert "data-dock" in css
+    assert "backdrop-filter" in css
+    assert "prefers-reduced-motion" in css
     assert "#pet-controls" in css
     assert "pointer-events: none" in css
 

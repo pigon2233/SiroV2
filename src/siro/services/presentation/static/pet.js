@@ -66,8 +66,10 @@
     if (name) name.textContent = label;
     const err = $("#pet-error");
     if (err) { err.hidden = !lastError; err.textContent = lastError || ""; }
+    const busy = Boolean(listening || speaking || recognizing || currentTurn || pendingSubmission || runningTools.size || openStream);
     const stop = $("#desktop-stop");
-    if (stop) stop.hidden = !(listening || speaking || recognizing || currentTurn || pendingSubmission || runningTools.size);
+    if (stop) stop.hidden = !busy;
+    document.body.classList.toggle("pet-busy", busy);
     postAttention(attentionMode());
   }
   function attentionMode() {
@@ -81,6 +83,14 @@
     if (!width) return 0;
     const mid = (window.screenX || 0) + (window.outerWidth || window.innerWidth || 0) / 2;
     return Math.max(-1, Math.min(1, (mid / width) * 2 - 1));
+  }
+  function placeDock() {
+    // Same open-side signal as her gaze: a window on the right looks left, so the
+    // dock sits on that open side, beside her, instead of on top of her body.
+    const stage = $("#pet-stage");
+    if (!stage) return;
+    const side = screenSide() > 0.08 ? "left" : "right";
+    if (stage.getAttribute("data-dock") !== side) stage.setAttribute("data-dock", side);
   }
   function postToRenderer(message) {
     const frame = $("#companion");
@@ -901,7 +911,6 @@
       function updateMicrophoneControls() {
         const toggle = document.querySelector("#desktop-microphone");
         if (!toggle) return;
-        toggle.textContent = microphoneEnabled ? "麥克風：開" : "麥克風：關";
         toggle.setAttribute?.("aria-pressed", String(microphoneEnabled));
         voiceStatus.textContent = microphoneEnabled ? "麥克風待命，按「說話」錄音" : "麥克風已關閉";
       }
@@ -917,7 +926,8 @@
         }
         recorder = undefined;
         const button = document.querySelector("#desktop-voice");
-        button.disabled = false; button.textContent = "說話";
+        if (button) button.disabled = false;
+        setVoiceRecording(false);
         voiceStatus.textContent = "錄音與辨識已停止";
       }
       async function transcribeRecording(chunks, epoch) {
@@ -999,14 +1009,14 @@
         handsFree.stream?.getTracks().forEach(track => track.stop()); handsFree.stream = undefined;
         handsFree.context?.close().catch(() => {}); handsFree.context = undefined;
         const button = document.querySelector("#desktop-voice-auto");
-        if (button) { button.textContent = "免手動：關"; button.setAttribute?.("aria-pressed", "false"); }
+        button?.setAttribute?.("aria-pressed", "false");
         if (message) voiceStatus.textContent = message;
       }
       async function startHandsFree() {
         const status = voiceStatus, button = document.querySelector("#desktop-voice-auto");
-        if (!microphoneEnabled) { status.textContent = "請先按「麥克風：關」開啟，再使用免手動"; return; }
+        if (!microphoneEnabled) { status.textContent = "請先開啟麥克風，再使用免手動"; return; }
         cancelRecording();
-        handsFree.on = true; button.textContent = "免手動：開"; button.setAttribute?.("aria-pressed", "true");
+        handsFree.on = true; button?.setAttribute?.("aria-pressed", "true");
         status.textContent = "正在請求麥克風權限…";
         try {
           const stream = await openMicrophone({echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1});
@@ -1103,7 +1113,7 @@
   }
   function disarmHot() {
     clearTimeout(hotTimer);
-    hotTimer = setTimeout(() => { if (!document.body.classList.contains("pet-menu")) document.body.classList.remove("pet-hot"); }, 500);
+    hotTimer = setTimeout(() => { if (!document.body.classList.contains("pet-menu")) document.body.classList.remove("pet-hot"); }, 2000);
   }
   function stopAll() {
     stops += 1;
@@ -1124,6 +1134,7 @@
     for (const [key, name] of Object.entries(geometry)) document.documentElement.style?.setProperty(`--desktop-${name}`, `${layout[key]}px`);
     const label = scaleButton();
     if (label) label.textContent = `${Math.round(layout.scale * 100)}%`;
+    placeDock();
   }
   const LIVE = new Set(["proposed", "queued", "running", "paused", "cancelling"]);
   const TOOL_NAMES = {"browser.navigate+read": "開網頁", "computer.execute": "執行程式"};
@@ -1275,10 +1286,17 @@
     if (Number.isFinite(data.cycle)) message.cycle = data.cycle;
     if (chatOpen || !nativeCommand(message)) toRole({id: data.id, state: "refused", reason: chatOpen ? "chat" : "native"});
   }
+  function setVoiceRecording(on) {
+    const button = $("#desktop-voice");
+    if (!button) return;
+    button.classList.toggle("is-recording", Boolean(on));
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+    button.title = on ? "再按一下送出" : "按一下開始說話，再按一下送出";
+  }
   async function onVoice() {
     const button = $("#desktop-voice");
     if (!microphoneEnabled) { voiceStatus.textContent = "請先開啟麥克風，再開始說話"; voiceStatus.className = "warn"; return; }
-    if (recorder?.state === "recording") { recorder.stop(); if (button) button.textContent = "說話"; return; }
+    if (recorder?.state === "recording") { recorder.stop(); setVoiceRecording(false); return; }
     if (permissionPending) return;
     cancelRecording();
     const epoch = microphoneEpoch;
@@ -1300,14 +1318,14 @@
       recorder.onstop = async () => {
         clearTimeout(capture.timer); stream.getTracks().forEach(track => track.stop());
         if (microphoneCapture === capture) microphoneCapture = undefined;
-        if (button) button.textContent = "說話";
+        setVoiceRecording(false);
         listening = false; publishState();
         try { await transcribeRecording(chunks, epoch); }
         catch (error) { if (epoch === microphoneEpoch && !pageClosing) { voiceStatus.textContent = `語音失敗：${error.message}`; voiceStatus.className = "warn"; } }
       };
       recorder.start();
       capture.timer = setTimeout(() => { if (capture.recorder.state === "recording") capture.recorder.stop(); }, 30000);
-      if (button) button.textContent = "停止並送出";
+      setVoiceRecording(true);
       voiceStatus.textContent = "正在聆聽（最長30秒）…"; voiceStatus.className = "ok";
     } catch (error) {
       if (epoch === microphoneEpoch) { cancelRecording(); voiceStatus.textContent = `無法使用麥克風：${error.message}`; voiceStatus.className = "warn"; }
@@ -1342,16 +1360,12 @@
     bind("#desktop-speech", () => {
       speechEnabled = !speechEnabled;
       $("#desktop-speech")?.setAttribute("aria-pressed", String(speechEnabled));
-      const node = $("#desktop-speech");
-      if (node) node.textContent = speechEnabled ? "朗讀：開" : "朗讀：關";
       if (!speechEnabled) stopTts();
     });
     bind("#desktop-replay", async () => {
       if (!lastSpeech || pageClosing) return;
       speechEnabled = true;
       $("#desktop-speech")?.setAttribute("aria-pressed", "true");
-      const node = $("#desktop-speech");
-      if (node) node.textContent = "朗讀：開";
       speechCancelled = false;
       await playTts(lastSpeech.text, lastSpeech.prosody);
     });
@@ -1363,13 +1377,44 @@
     bind("#desktop-quit", () => nativeCommand({type: "desktop.quit"}));
     const gestures = document.createElement("div");
     gestures.id = "pet-gestures";
-    const gestureLabel = document.createElement("span");
-    gestureLabel.textContent = "動作";
-    gestures.appendChild(gestureLabel);
-    for (const [name, text] of GESTURES) {
+    gestures.setAttribute("role", "group");
+    gestures.setAttribute("aria-label", "動作");
+    const gestureIcons = {
+      wave: '<path d="M8 15V8M12 15V5M16 15V8"/><path d="M7 15c.5 4 2.4 6 5 6s4.5-2 5-6"/>',
+      bow: '<circle cx="12" cy="6" r="2"/><path d="M7 20c1.2-5 3-7 5-7s3.8 2 5 7"/><path d="M8 14c2-2 6-2 8 0"/>',
+      bye: '<path d="M9 14V8M12 14V6M15 14V8"/><path d="M8 14c.6 4 2.2 6 4 6s3.4-2 4-6"/><path d="M17 7c1.4 1 1.4 3 0 4"/>',
+      nod: '<circle cx="12" cy="7" r="2.2"/><path d="M12 11v6M9.2 14.2 12 17l2.8-2.8"/>',
+      shake: '<circle cx="12" cy="8" r="2.2"/><path d="M5 16h14M8 13l-3 3 3 3M16 13l3 3-3 3"/>',
+      think: '<circle cx="12" cy="11" r="4"/><path d="M9 18h.01M12 19.5h.01M15 18h.01"/>',
+      attention: '<circle cx="12" cy="12" r="7"/><path d="M12 8.5v4.5"/><circle cx="12" cy="15.6" r="0.7"/>',
+      sit: '<path d="M5 11h10v3H5z"/><path d="M7 14v5M13 14v5M15 11V7h3"/>',
+      clap: '<path d="M8 16c-2-2-2-6 0-8l2 3 2-6 2 6 2-3c2 2 2 6 0 8"/><path d="M10 16c.6 2 3.4 2 4 0"/>',
+      stretch: '<circle cx="12" cy="5" r="1.7"/><path d="M12 8v6M8 10l4-2 4 2M9 20l3-6 3 6"/>',
+      hum: '<path d="M10 17V8l8-2v9"/><circle cx="7.5" cy="17" r="2.2"/><circle cx="15.5" cy="15" r="2.2"/>',
+      notebook: '<path d="M6 5h9.5A2.5 2.5 0 0 1 18 7.5V19H8.5A2.5 2.5 0 0 1 6 16.5z"/><path d="M6 16.5A2.5 2.5 0 0 1 8.5 14H18"/><path d="M9 8h6M9 11h6"/>',
+      stroll: '<circle cx="12" cy="5" r="1.7"/><path d="M10 20l2-7 2 7M12 13V9M9 11h5M8 16l2-2M16 16l-2-2"/>',
+      sfx: '<path d="M4 10h3.2L12 6.2v11.6L7.2 14H4z"/><path d="M16 9v6M18.5 7.5v9"/>',
+    };
+    function gestureButton(text, icon) {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = text;
+      if (typeof document.createElementNS !== "function") {
+        button.textContent = text;
+        return button;
+      }
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("class", "pet-icon");
+      svg.setAttribute("aria-hidden", "true");
+      svg.innerHTML = icon;
+      const label = document.createElement("span");
+      label.textContent = text;
+      button.appendChild(svg);
+      button.appendChild(label);
+      return button;
+    }
+    for (const [name, text] of GESTURES) {
+      const button = gestureButton(text, gestureIcons[name]);
       button.dataset.gesture = name;
       button.addEventListener("click", () => {
         postToRenderer({type: "siro.gesture", v: 1, name});
@@ -1377,15 +1422,13 @@
       });
       gestures.appendChild(button);
     }
-    const sound = document.createElement("button");
-    sound.type = "button";
-    sound.textContent = "音效";
+    const sound = gestureButton("音效", gestureIcons.sfx);
     sound.addEventListener("click", () => {
       postToRenderer({type: "siro.sfx", v: 1});
       setMenu(false);
     });
     gestures.appendChild(sound);
-    $("#pet-more")?.appendChild(gestures);
+    ($("#pet-actions") || $("#pet-more"))?.appendChild(gestures);
     $("#desktop-move")?.addEventListener("pointerdown", event => {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -1433,7 +1476,12 @@
     });
     let pressed;
     const roleEvents = {
-      pointerdown: event => { roleDragged = false; pressed = event.button === 0 ? {x: event.screenX, y: event.screenY, id: event.pointerId} : null; armHot(); },
+      pointerdown: event => {
+        roleDragged = false;
+        pressed = event.button === 0 ? {x: event.screenX, y: event.screenY, id: event.pointerId} : null;
+        if (event.button === 0) setMenu(false);
+        armHot();
+      },
       pointermove: event => {
         armHot();
         if (typeof event.buttons === "number" && !(event.buttons & 1)) { pressed = null; return; }
@@ -1465,6 +1513,13 @@
     $("#pet-controls")?.addEventListener("pointerenter", armHot);
     $("#pet-controls")?.addEventListener("pointerleave", disarmHot);
     $("#pet-stage")?.addEventListener("contextmenu", event => { event.preventDefault?.(); setMenu(true); });
+    window.addEventListener("pointerdown", event => {
+      if (!document.body.classList.contains("pet-menu")) return;
+      const controls = $("#pet-controls");
+      if (typeof controls?.contains !== "function") return;
+      if (event.target && controls.contains(event.target)) return;
+      setMenu(false);
+    });
     const unreadObserver = new MutationObserver(() => {
       if (!chatOpen) $("#desktop-chat")?.classList.add("desktop-unread");
     });
@@ -1474,7 +1529,7 @@
       if (!frame.contentWindow || !(ttsAudio || ttsController || microphoneCapture || transcriptionController || handsFree.on)) return;
       try { frame.contentWindow.postMessage({type: "siro.audio.busy", v: 1, busy: true}, location.origin); } catch { /* renderer gone */ }
     }, 1000);
-    const attentionPulse = setInterval(() => postAttention(attentionMode()), 2000);
+    const attentionPulse = setInterval(() => { placeDock(); postAttention(attentionMode()); }, 2000);
     audioBusy?.unref?.();
     attentionPulse?.unref?.();
     window.addEventListener("message", event => {
@@ -1505,8 +1560,10 @@
       if (event.key === "F2") event.preventDefault?.();
       onHostKey(event.key, event.target);
     });
+    window.addEventListener("resize", placeDock);
     window.addEventListener("pagehide", () => {
       observerStop?.(); unreadObserver.disconnect(); detachRole(); clearInterval(audioBusy); clearInterval(attentionPulse); clearTimeout(hotTimer); clearTimeout(replyTimer);
+      window.removeEventListener?.("resize", placeDock);
     }, {once: true});
     window.addEventListener("beforeunload", () => {
       pageClosing = true; controlDispose?.("頁面已關閉"); controlEpoch += 1;
@@ -1524,9 +1581,9 @@
       speakablePrefix, validSpeechPlan,
     });
     updateMicrophoneControls();
+    placeDock();
     const speechButton = $("#desktop-speech");
     speechButton?.setAttribute("aria-pressed", "true");
-    if (speechButton) speechButton.textContent = "朗讀：開";
     if (preview()) {
       lastError = "這是介面預覽，尚未連接 SIRO。請從桌寵啟動，才能對話。";
       publishState();

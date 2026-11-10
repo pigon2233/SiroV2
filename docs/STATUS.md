@@ -1,5 +1,13 @@
 # 狀態總覽（2026-10-24 整理；先看這裡，下面是由新到舊的時間序列紀錄）
 
+## 2026-11-10 — 桌寵快捷列改成側邊圓鈕與一塊面板（UI-PET-03）
+
+桌寵快捷不再是鋪在角色身上的文字膠囊。滑過或聚焦時，角色旁邊（視窗靠螢幕哪一側，就放在另一側，沿用 `screenSide()`）出現一條直的圓鈕：說話、聊聊、更多；回覆、工具或朗讀進行時，停止鈕出現在說話上面，整條留在畫面上。更多是同一塊磨砂卡片：語音用按下／沒按下表示開關，大小是 －／百分比／＋，動作預設收合，視窗四個小鈕裡退出比較淡。右鍵仍只開這一個選單，Esc 或點角色外面會收起。頁面背景維持透明。
+
+電腦操控路徑沒有改。
+
+驗證（Linux，2026-11-10）：`PYTHONPATH=src python3 -m pytest tests/integration/test_desktop_web.py` 29 passed。`ruff check`／`ruff format --check` 這次改的測試檔通過。`node --check` 過 `pet.js`。`tests/integration/test_desktop_entry_scripts.py` 42 passed，1 failed：`test_installer_runs_actual_selected_uv_environment_without_repo_venv` 因為這個環境沒有 `uv`，與這次介面無關。`test_desktop_host.py` 沒跑，這個環境沒有專案 venv，gateway 匯入鏈不完整。無頭 Chrome 420×640、深色底：閒置圓鈕、更多面板（動作收合）、動作展開。角色是頁面上的佔位，不是主人的 VRM。沒有真的麥克風、TTS 或 Electron。
+
 ## 2026-11-10 — 回覆動作 cue 與程序化動作（UI-MOTION-03）
 
 回覆可以帶 `[[g:…]]`、`[[e:…]]`、`[[l:…]]`、`[[p:…]]`。這些標記在聊天、TTS、工作記憶和 turn 紀錄之前被拿掉，改走既有的 `/ws/body`（`body.gesture`／`body.emotion`／`body.look`）。沒有標記時用詞彙後備，不呼叫分類模型。`SIRO_MOTION_CUES=0` 關掉。VRM 在片段之上加了可混合的姿勢：平面雙骨 IK 的點與伸手、歪頭、前傾、聳肩、輕點頭／搖頭、依情緒改變的呼吸。聽的時候歪頭、回覆出現時看聊天框、查資料時拿筆記、視窗靠螢幕一側時頭轉向另一側。`wave`／`bow`／`bye` 仍是 CC BY-NC，沒有新增片段。SpringBone 仍是 `vrm.update`。細節在 `renderers/vrm/BEHAVIOUR.md`。
