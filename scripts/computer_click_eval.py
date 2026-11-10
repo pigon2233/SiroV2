@@ -33,6 +33,7 @@ from siro.services.computer_use.decision import (
     OllamaVisionDecider,
     cloud_screen_allowed,
 )
+from siro.services.computer_use.hybrid import HybridNumberedDecider, VisualSelector
 from siro.services.computer_use.numbered import NUMBERED_ENV, NumberedTextDecider, NumberSelector
 from siro.services.computer_use.ocr import WindowsTextReader
 from siro.services.computer_use.perception import Observation
@@ -203,7 +204,9 @@ async def measure(
     async with httpx.AsyncClient(
         transport=Context8192Transport(env=env), timeout=timeout
     ) as client:
-        decider: OllamaVisionDecider | ClaudeVisionDecider | NumberedTextDecider
+        decider: (
+            OllamaVisionDecider | ClaudeVisionDecider | NumberedTextDecider | HybridNumberedDecider
+        )
         if backend == "ollama":
             host = (env.get("OLLAMA_HOST") or "http://127.0.0.1:11434").rstrip("/")
             if "://" not in host:
@@ -226,6 +229,13 @@ async def measure(
                 decider,
                 WindowsTextReader(ocr_cache, cache_only=True),
                 NumberSelector(backend, env, timeout=timeout, client=client),
+            )
+        if mode == "hybrid":
+            decider = HybridNumberedDecider(
+                decider,
+                WindowsTextReader(ocr_cache, cache_only=True),
+                VisualSelector(backend, env, timeout=timeout, client=client),
+                pixel_fallback=env.get("SIRO_COMPUTER_REGION_PIXEL_FALLBACK", "0") == "1",
             )
         rows: list[Result] = []
         for case, obs in eligible:
@@ -258,7 +268,10 @@ async def measure(
                 if type(error).__name__ in {"DecisionError", "CloudScreenNotAllowed"}:
                     row["why"] += ":" + str(error)[:100]
             row["seconds"] = time.perf_counter() - started
-            if isinstance(decider, NumberedTextDecider) and decider.last_frame is not None:
+            if (
+                isinstance(decider, (NumberedTextDecider, HybridNumberedDecider))
+                and decider.last_frame is not None
+            ):
                 frame = decider.last_frame
                 row["ocr"] = {
                     "sha256": frame.sha256,
@@ -271,6 +284,8 @@ async def measure(
                         for x0, y0, x1, y1 in case["expect"]["click_boxes"]
                     ),
                 }
+            if isinstance(decider, HybridNumberedDecider):
+                row["route"] = decider.last_route
             rows.append(row)
             print(f"{backend} {case['id']}: {row['why']} {row['seconds']:.3f}s", flush=True)
             if env.get("SIRO_COMPUTER_BENCH_FAIL_FAST", "0") == "1" and (
@@ -296,7 +311,7 @@ async def measure(
                     "median_seconds",
                 )
             }
-        if mode == "numbered":
+        if mode in {"numbered", "hybrid"}:
             result["ocr_covered_cases"] = sum(
                 row.get("ocr", {}).get("target_available", False) for row in rows
             )
@@ -315,10 +330,14 @@ async def evaluate(
 ) -> Result:
     if env.get(ENABLED, "0") != "1":
         raise ValueError(f"offline model evaluation is off; set {ENABLED}=1")
-    if mode not in {"pixel", "numbered"}:
+    if mode not in {"pixel", "numbered", "hybrid"}:
         raise ValueError("unknown evaluation mode")
     if mode == "numbered" and (env.get(NUMBERED_ENV, "0") != "1" or ocr_cache is None):
         raise ValueError(f"numbered mode requires {NUMBERED_ENV}=1 and --ocr-cache")
+    if mode == "hybrid" and (
+        env.get("SIRO_COMPUTER_REGION_NUMBERED", "0") != "1" or ocr_cache is None
+    ):
+        raise ValueError("hybrid requires SIRO_COMPUTER_REGION_NUMBERED=1 and --ocr-cache")
     spec, cases = load_cases(path, image_root)
     results = [
         await measure(name, cases, env, timeout, mode=mode, ocr_cache=ocr_cache)
@@ -367,7 +386,7 @@ def main() -> int:
     parser.add_argument("cases", type=Path)
     parser.add_argument("--backend", choices=[*BACKENDS, "all"], default="ollama")
     parser.add_argument("--image-root", type=Path)
-    parser.add_argument("--mode", choices=["pixel", "numbered"], default="pixel")
+    parser.add_argument("--mode", choices=["pixel", "numbered", "hybrid"], default="pixel")
     parser.add_argument("--ocr-cache", type=Path)
     parser.add_argument(
         "--prepare-ocr", action="store_true", help="only freeze Windows OCR per SHA256"

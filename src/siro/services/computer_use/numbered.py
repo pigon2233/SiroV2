@@ -140,8 +140,19 @@ class NumberSelector:
             if "://" not in base:
                 base = "http://" + base
             options = {"num_ctx": 8192, "num_predict": 16, "temperature": 0}
-            if self.env.get("SIRO_COMPUTER_BENCH_NO_DRAFT", "0") == "1":
+            if (
+                self.env.get(
+                    "SIRO_COMPUTER_OLLAMA_NO_DRAFT",
+                    self.env.get("SIRO_COMPUTER_BENCH_NO_DRAFT", "0"),
+                )
+                == "1"
+            ):
                 options["draft_num_predict"] = 0
+            layers = self.env.get("SIRO_COMPUTER_OLLAMA_GPU_LAYERS")
+            if layers is not None:
+                if not layers.isdigit() or not 0 <= int(layers) <= 256:
+                    raise DecisionError("ollama_gpu_layers_invalid")
+                options["num_gpu"] = int(layers)
             payload: dict[str, Any] = {
                 "model": self.env.get("SIRO_COMPUTER_OLLAMA_MODEL")
                 or self.env.get("SIRO_OLLAMA_MODEL")
@@ -231,6 +242,10 @@ class NumberedTextDecider:
 
 
 def maybe_numbered(inner: Decider, env: dict[str, str]) -> Decider:
+    if env.get("SIRO_COMPUTER_REGION_NUMBERED", "0") == "1":
+        from siro.services.computer_use.hybrid import make_hybrid
+
+        return make_hybrid(inner, env)
     if env.get(NUMBERED_ENV, "0") != "1":
         return inner
     backend = env.get("SIRO_COMPUTER_DECIDER", "ollama").strip().lower() or "ollama"
