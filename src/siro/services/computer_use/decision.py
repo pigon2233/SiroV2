@@ -782,9 +782,15 @@ class GroqVisionDecider(OllamaVisionDecider):
 def make_decider(env: Mapping[str, str] | None = None) -> Decider:
     """Owner chooses the computer-use brain; default is local Ollama vision (no Claude)."""
     values = dict(os.environ if env is None else env)
+    from siro.services.computer_use.framedump import maybe_dump
+
+    return maybe_dump(_build_decider(values), values)
+
+
+def _build_decider(values: Mapping[str, str]) -> Decider:
     kind = values.get(DECIDER_ENV, "ollama").strip().lower() or "ollama"
     if kind in {"claude", "claude_cli", "cloud"}:
-        return ClaudeVisionDecider(env=values)
+        return ClaudeVisionDecider(env=dict(values))
     if kind == "groq":
-        return GroqVisionDecider(env=values)
-    return OllamaVisionDecider(env=values)
+        return GroqVisionDecider(env=dict(values))
+    return OllamaVisionDecider(env=dict(values))
