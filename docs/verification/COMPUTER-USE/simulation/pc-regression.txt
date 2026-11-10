@@ -1,0 +1,189 @@
+........................................................................ [ 16%]
+........................................................................ [ 33%]
+........................................................................ [ 49%]
+........................................................................ [ 66%]
+........................................................................ [ 83%]
+.......................F.F....FF........................................ [ 99%]
+.                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_vision_decider_runs_claude_with_read_only_screenshot ___________
+
+>   ???
+
+E:\coding\股票策略機器學習\SiroV2\tests\unit\test_computer_use_perception.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/computer_use/decision.py:684: in decide
+    return await self._decide_once(goal, history, observation, strategy=strategy)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/computer_use/decision.py:567: in _decide_once
+    result = await self._run(
+E:\coding\股票策略機器學習\SiroV2\tests\unit\test_computer_use_perception.py:209: in run
+    ???
+/usr/lib/python3.14/pathlib/__init__.py:778: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-screen-_a4givg1/screen.png'), mode = 'rb'
+buffering = 0, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-screen-_a4givg1/screen.png'
+
+/usr/lib/python3.14/pathlib/__init__.py:772: FileNotFoundError
+_____________ test_vision_decider_retries_transient_claude_failure _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fdb5c17c0c0>
+
+>   ???
+
+E:\coding\股票策略機器學習\SiroV2\tests\unit\test_computer_use_perception.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/computer_use/decision.py:684: in decide
+    return await self._decide_once(goal, history, observation, strategy=strategy)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.services.computer_use.decision.ClaudeVisionDecider object at 0x7fdb5ae9c710>
+goal = 'g', history = []
+observation = Observation(seq=1, taken_at=0.0, window_title='Cool Game', process='game.exe', window_rect=(0, 0, 800, 600), screen=(1...e_size=(960, 540), image_rect=(0, 0, 1920, 1080), focus_is_secret=False, blocked_reason=None, window_id=None, pid=None)
+strategy = ''
+
+    async def _decide_once(
+        self,
+        goal: str,
+        history: Sequence[StepRecord],
+        observation: Observation,
+        *,
+        strategy: str = "",
+    ) -> Decision:
+        if not cloud_screen_allowed(self._env):
+            raise CloudScreenNotAllowed(CLOUD_SCREEN_FLAG)
+        if not observation.image_png_b64:
+            raise DecisionError("no_image")
+        binary = self._binary or claude_binary()
+        if binary is None:
+            raise DecisionError("claude_cli_missing")
+        with tempfile.TemporaryDirectory(prefix="siro-screen-") as scratch:
+            # Local captures may be JPEG now; Claude still Reads the bytes via this path name.
+            screen_name = "screen.jpg"
+            vision = annotate_coord_grid(observation.image_png_b64, env=self._env)
+            (Path(scratch) / screen_name).write_bytes(base64.b64decode(vision))
+            prompt = CLAUDE_DECISION_PROMPT.format(
+                image=screen_name,
+                **_prompt_fields(goal, history, observation, strategy=strategy),
+            )
+            # --effort low cuts thinking time; do not use --bare (it disables OAuth login).
+            argv = (
+                str(binary),
+                "-p",
+                "--effort",
+                "low",
+                "--model",
+                self._model,
+                "--output-format",
+                "json",
+                "--tools",
+                "Read",
+                "--allowedTools",
+                "Read",
+                "--no-session-persistence",
+                prompt,
+            )
+            result = await self._run(
+                argv,
+                cwd=Path(scratch),
+                environment=restricted_environment(("SIRO_CLAUDE_BIN", "CLAUDE_CONFIG_DIR")),
+                timeout=self._timeout,
+            )
+        if result.get("returncode") != 0:
+>           raise DecisionError("claude_failed")
+E           siro.services.computer_use.interface.DecisionError: claude_failed
+
+src/siro/services/computer_use/decision.py:574: DecisionError
+_______________ test_parse_decision_accepts_combo_alias_and_hold _______________
+
+>   ???
+
+E:\coding\股票策略機器學習\SiroV2\tests\unit\test_computer_use_perception.py:325: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '{"kind":"act","action":{"kind":"key","combo":"ctrl+a","hold_ms":300},"confidence":0.7}'
+
+    def parse_decision(text: str) -> Decision:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        try:
+            raw = json.loads(match.group(0)) if match else None
+        except json.JSONDecodeError:
+            raw = None
+        if not isinstance(raw, dict):
+            raise DecisionError("not_json")
+        has_action = isinstance(raw.get("action"), dict)
+        kind = _coerce_kind(raw.get("kind"), has_action=has_action)
+        if kind is None:
+            raise DecisionError("bad_kind")
+        raw = {**raw, "kind": kind}
+        confidence = raw.get("confidence")
+        if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
+            confidence = 0.55  # small local models often omit confidence
+        confidence = float(confidence)
+        if not 0 <= confidence <= 1:
+            raise DecisionError("bad_confidence")
+        action = None
+        if kind == "act":
+            spec = raw.get("action")
+            if not isinstance(spec, dict) or spec.get("kind") not in ALLOWED_KINDS:
+                raise DecisionError("bad_action")
+            action = InputAction(
+                kind=str(spec["kind"]),
+                x=_int(spec.get("x")),
+                y=_int(spec.get("y")),
+                button=str(spec.get("button", "left")),
+                key=str(spec.get("key") or spec.get("combo") or ""),
+                text=str(spec.get("text", "")),
+                amount=_int(spec.get("amount")) or 0,
+                hold_ms=_int(spec.get("hold_ms")) or 0,
+            )
+            incomplete = (
+                (action.kind in {"move", "click"} and (action.x is None or action.y is None))
+                or (action.kind == "key" and not action.key.strip())
+                or (action.kind == "type" and not action.text)
+                or (action.kind == "scroll" and action.amount == 0)
+            )
+            if incomplete:
+                raise DecisionError("incomplete_action")
+        reason = str(raw.get("reason", ""))[:300]
+        seen = str(raw.get("seen", "")).strip()[:200] or reason[:200]
+        expect = str(raw.get("expect", "")).strip()[:300]
+        if kind == "act" and not expect:
+>           raise DecisionError("missing_expect")
+E           siro.services.computer_use.interface.DecisionError: missing_expect
+
+src/siro/services/computer_use/decision.py:170: DecisionError
+___________________ test_seen_is_parsed_and_shown_in_history ___________________
+
+>   ???
+E   AssertionError: assert ('saw: title screen' in '1. scene=- saw=title screen | did=key(z) | expect=next line | outcome=ok | changed=True')
+
+E:\coding\股票策略機器學習\SiroV2\tests\unit\test_computer_use_perception.py:339: AssertionError
+=============================== warnings summary ===============================
+../../../../../home/pepepig/.venvs/sirov2/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/pepepig/.venvs/sirov2/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_computer_use_perception.py::test_vision_decider_runs_claude_with_read_only_screenshot
+FAILED tests/unit/test_computer_use_perception.py::test_vision_decider_retries_transient_claude_failure
+FAILED tests/unit/test_computer_use_perception.py::test_parse_decision_accepts_combo_alias_and_hold
+FAILED tests/unit/test_computer_use_perception.py::test_seen_is_parsed_and_shown_in_history
+4 failed, 429 passed, 1 warning in 44.62s
