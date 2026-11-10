@@ -49,6 +49,8 @@ def test_all_contract_modes(setup_sim: None, mode: str) -> None:
         assert result["hits"] == result["clicks"] == 4
     if mode in {"gate-off", "wrong-process", "no-whitelist", "secret", "emergency"}:
         assert result["clicks"] == result["advances"] == 0
+    if result["decisions"] == 0:
+        assert result["seconds_per_decision"] is None
 
 
 @pytest.mark.parametrize("mode", ["oracle", "scripted-json", "bad-once"])
@@ -124,3 +126,21 @@ def test_new_guards_independently_default_off(
     loop = DecisionLoop(desktop.bridge, sim.ReplayDecider(desktop))
     for attr in flags:
         assert getattr(loop, attr) == (attr == feature)
+
+
+def test_simulation_has_no_process_or_network_executor(
+    setup_sim: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess
+    from typing import Any
+
+    import httpx
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("Real process/network execution forbidden in simulator")
+
+    monkeypatch.setattr(subprocess, "Popen", forbidden)
+    monkeypatch.setattr(httpx.Client, "request", forbidden)
+    monkeypatch.setattr(httpx.AsyncClient, "request", forbidden)
+    result = asyncio.run(sim.simulate(Path("/synthetic"), "oracle", fast=True))
+    assert result["pass"] and result["advances"] == 4

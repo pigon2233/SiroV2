@@ -428,7 +428,7 @@ async def simulate(
             "hits": sum(e["hit"] for e in desktop.events),
             "hit_rate": sum(e["hit"] for e in desktop.events) / count if count else None,
             "seconds": elapsed,
-            "seconds_per_decision": elapsed / max(1, desktop.decisions),
+            "seconds_per_decision": elapsed / desktop.decisions if desktop.decisions else None,
             "false_stuck": int(positive and state != "done"),
             "false_progress": false_progress,
             "false_effective": false_effective,
@@ -437,6 +437,15 @@ async def simulate(
             "proofs": desktop.proofs,
             "steps": steps,
         }
+
+
+def timing_mean(rows: list[dict[str, Any]], mode: str) -> float | None:
+    measured = [
+        r["seconds_per_decision"]
+        for r in rows
+        if r["mode"] == mode and r["seconds_per_decision"] is not None
+    ]
+    return statistics.mean(measured) if measured else None
 
 
 async def evaluate(
@@ -467,9 +476,7 @@ async def evaluate(
             m: {
                 "passes": sum(r["pass"] for r in rows if r["mode"] == m),
                 "runs": repeats,
-                "mean_seconds_per_decision": statistics.mean(
-                    r["seconds_per_decision"] for r in rows if r["mode"] == m
-                ),
+                "mean_seconds_per_decision": timing_mean(rows, m),
             }
             for m in modes
         },
