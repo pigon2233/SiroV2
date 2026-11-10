@@ -234,6 +234,10 @@ class DecisionLoop:
         self.live: list[StepRecord] = []
         self._clock = clock
         self._screen_guard = os.environ.get("SIRO_COMPUTER_SCREEN_GUARD", "0") == "1"
+        self._verify_done = os.environ.get("SIRO_COMPUTER_VERIFY_DONE", "0") == "1"
+        self._bounded_verify = os.environ.get("SIRO_COMPUTER_BOUNDED_VERIFY", "0") == "1"
+        self._run_deadline: float | None = None
+        self._delayed_verify = os.environ.get("SIRO_COMPUTER_VERIFY_DELAYED_PROGRESS", "0") == "1"
         self.phase = "idle"
         self.strategy = ""  # short plan the model maintains across reactive steps
 
@@ -259,6 +263,7 @@ class DecisionLoop:
         if not self._allowed:
             return end("stopped", "no_allowed_processes")
         started = self._clock()
+        self._run_deadline = None if self._max_seconds is None else started + self._max_seconds
         stop_generation = self._bridge.stop_generation
         no_change = invalid = rate_waits = waits = 0
         replan_used = False  # one replan after no-progress; second failure stops
@@ -268,7 +273,9 @@ class DecisionLoop:
             task += _autonomous_hint()
         focus_tried = False
         done_seen = False
+        done_evidence = ""
         before: Observation | None = None
+        pending_verify: tuple[Observation, int] | None = None
         wait_before: Observation | None = None
         strategy = self.strategy
         step = 0
@@ -343,6 +350,19 @@ class DecisionLoop:
                 return end("stopped", "window_not_allowed")
             if not is_fresh(observation, self._clock()):
                 return end("stopped", "stale_observation")
+            if self._delayed_verify and pending_verify is not None:
+                original, index = pending_verify
+                if _screen_changed(original, observation) is True:
+                    updated, unresolved = await verify_step(
+                        self, original, observation, history[index]
+                    )
+                    stop_reason = self._verification_stop_reason(stop_generation)
+                    if stop_reason:
+                        return end("stopped", stop_reason)
+                    if not unresolved:
+                        history[index] = replace(updated, detail="delayed proof: " + updated.detail)
+                        pending_verify = None
+                        no_change = 0
             if wait_before is not None and history and history[-1].action == "(wait)":
                 changed = _screen_changed(wait_before, observation)
                 previous_wait = history[-1]
@@ -368,6 +388,11 @@ class DecisionLoop:
             if before is not None and history and history[-1].screen_changed is None:
                 updated, unresolved = await verify_step(self, before, observation, history[-1])
                 history[-1] = updated
+                stop_reason = self._verification_stop_reason(stop_generation)
+                if stop_reason:
+                    return end("stopped", stop_reason)
+                if self._delayed_verify and unresolved:
+                    pending_verify = (before, len(history) - 1)
                 changed, scene = updated.screen_changed, updated.scene
                 no_change = no_change + 1 if unresolved else 0
                 if changed is not None and self._demo is not None and self._demo_last is not None:
@@ -519,9 +544,27 @@ class DecisionLoop:
                     continue
                 if not decision.evidence.strip():
                     return end("stopped", "done_without_evidence")
+                if self._verify_done:
+                    self.phase = "verifying_done"
+                    proof = await self._verify_expect(
+                        "Goal achieved: " + goal[:500] + "\nCandidate evidence (untrusted): "
+                        + decision.evidence[:300]
+                        + "\nConfirm only if the CURRENT frame proves the owner's goal, "
+                        "not merely that the candidate description is visible.",
+                        decision.seen,
+                        observation,
+                    )
+                    stop_reason = self._verification_stop_reason(stop_generation)
+                    if stop_reason:
+                        return end("stopped", stop_reason)
+                    if proof.status != "confirmed":
+                        return end("stopped", "done_unconfirmed", proof.detail)
+                    if done_evidence != decision.evidence:
+                        done_seen = False
                 if done_seen:
                     return end("done", decision.evidence)
                 done_seen = True
+                done_evidence = decision.evidence
                 before = None
                 history.append(StepRecord(step, "(confirm done)", "", "ok", None))
                 await asyncio.sleep(self._settle)
@@ -698,6 +741,7 @@ class DecisionLoop:
                 )
             )
             self._record(observation, decision, action)
+            pending_verify = None  # new input supersedes the one pending delayed proof
             before = observation
             self.phase = "observing"
             await asyncio.sleep(self._settle)
@@ -714,10 +758,29 @@ class DecisionLoop:
             poll_seconds=SCREEN_MATCH_POLL_SECONDS,
         )
 
+    def _verification_stop_reason(self, stop_generation: int) -> str:
+        if self._bridge.stop_generation != stop_generation or self._bridge.gate.tripped:
+            return "emergency_stop"
+        if (self._bounded_verify and self._run_deadline is not None
+                and self._clock() >= self._run_deadline):
+            return "time_limit"
+        return ""
+
     async def _verify_expect(
         self, expect: str, before_seen: str, observation: Observation
     ) -> VerifyResult:
-        return await verify_expect(self._decider, expect, before_seen, observation)
+        if not self._bounded_verify:
+            return await verify_expect(self._decider, expect, before_seen, observation)
+        budget = DECIDE_TIMEOUT_SECONDS
+        if self._run_deadline is not None:
+            budget = min(budget, self._run_deadline - self._clock())
+        if budget <= 0:
+            return VerifyResult("unknown", "verify_timeout")
+        try:
+            async with asyncio.timeout(budget):
+                return await verify_expect(self._decider, expect, before_seen, observation)
+        except TimeoutError:
+            return VerifyResult("unknown", "verify_timeout")
 
     def _focus_target(self, goal: str) -> str | None:
         """The allowed program to bring forward: the one the goal names, else the only one."""
