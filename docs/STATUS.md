@@ -1,5 +1,13 @@
 # 狀態總覽（2026-10-24 整理；先看這裡，下面是由新到舊的時間序列紀錄）
 
+## 2026-11-10 — 回覆動作 cue 與程序化動作（UI-MOTION-03）
+
+回覆可以帶 `[[g:…]]`、`[[e:…]]`、`[[l:…]]`、`[[p:…]]`。這些標記在聊天、TTS、工作記憶和 turn 紀錄之前被拿掉，改走既有的 `/ws/body`（`body.gesture`／`body.emotion`／`body.look`）。沒有標記時用詞彙後備，不呼叫分類模型。`SIRO_MOTION_CUES=0` 關掉。VRM 在片段之上加了可混合的姿勢：平面雙骨 IK 的點與伸手、歪頭、前傾、聳肩、輕點頭／搖頭、依情緒改變的呼吸。聽的時候歪頭、回覆出現時看聊天框、查資料時拿筆記、視窗靠螢幕一側時頭轉向另一側。`wave`／`bow`／`bye` 仍是 CC BY-NC，沒有新增片段。SpringBone 仍是 `vrm.update`。細節在 `renderers/vrm/BEHAVIOUR.md`。
+
+電腦操控路徑沒有改。
+
+驗證（Linux，2026-11-10）：`uv run pytest tests/test_motion_cues.py tests/contract/test_body_adapter.py tests/integration/test_desktop_web.py tests/integration/test_persistent_companion.py::test_runtime_offline_does_not_disable_core_conversation` 通過（cue／body／桌寵頁／一則 companion）。`uv run ruff check` 這次改的 Python 檔通過。`uv run mypy` 對 `motion_cues.py`、`companion.py`、`conversation.py`、`ports/body.py`、`adapters/body/web.py` 通過。`integrated.py` 仍是原先的 `reply` 先是 bool 再當文字，以及 `unavailable_hint`，沒有落在這次新增的函式上。`node --test renderers/vrm/test/procedural.test.js` 4 passed。`prepare_vrm_renderer.build_renderer` 成功，輸出含 `src/procedural.js`。沒有在 Linux 上載入真的 VRM 角色、麥克風、TTS 或 Electron；無頭 Chrome 只畫了 IK 手臂的示意。`wave`／`bow`／`bye` 仍是 CC BY-NC。
+
 ## 2026-11-10 — 桌寵獨立頁（UI-PET-02）
 
 `/desktop` 不再把整份控制台包一層 CSS。桌寵改載自己的 `pet.html`／`pet.js`／`pet.css`，直接走既有的 `/v1/session`、`/v1/conversations/browser/turns`、取消、`/v1/audio/*` 與 `/ws/control`。`/ws/body` 仍由角色 iframe 連，桌寵頁不搶這條連線。預設只看得到角色與一個小狀態點；說話、停止、更多要滑過或按右鍵才出現。雙擊或 F2 打開半透明對話，再收起。控制台仍是 `/?view=control`，只從系統匣或桌寵選單開。

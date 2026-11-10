@@ -1,5 +1,13 @@
 # 決策紀錄
 
+## UI-MOTION-03 / 2026-11-10 / 回覆動作 cue 沿用 body.v1
+
+回覆裡的動作標記在進聊天、TTS、工作記憶與 turn 紀錄之前去掉。cue 只用既有的
+`body.gesture`、`body.emotion`、`body.look`（姿勢也走 `body.gesture`，名稱是程序化動作）。
+`body.speech` 增加選填 `motion`，值只有 `server`：表示這句的手勢已經用上面的訊息送過，
+renderer 不要再從正文猜。不送這個欄位時，舊的正文規則不變。依契約，新增選填欄位不升版。
+`SIRO_MOTION_CUES=0` 關掉提示、刪標記與後備 cue。沒有新的分類模型呼叫。
+
 ## MEM-03-A / 2026-10-20 / owner來源接納邊界
 
 沿既有events與conversations／MEM01 tombstones，不加schema。對自動owner來源明定UserTextEvent

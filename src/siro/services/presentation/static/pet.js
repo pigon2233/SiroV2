@@ -8,6 +8,8 @@
   let submissionGeneration = 0, pendingSubmission, recorder, ttsAudio, ttsController;
   let ttsGeneration = 0, speechCancelled = false, liveSpeech, lastSpeech, speechStream = false;
   let speechEnabled = true, listening = false, recognizing = false, speaking = false, lastError = "";
+  let replyGlanced = false;
+  const researchTools = new Set();
   let phase = "connecting", stops = 0, chatOpen = false, roleDragged = false, hotTimer, reply, replyTimer;
   const runningTools = new Map();
   const startedAt = Date.now();
@@ -58,6 +60,46 @@
     if (err) { err.hidden = !lastError; err.textContent = lastError || ""; }
     const stop = $("#desktop-stop");
     if (stop) stop.hidden = !(listening || speaking || recognizing || currentTurn || pendingSubmission || runningTools.size);
+    postAttention(attentionMode());
+  }
+  function attentionMode() {
+    if (listening) return "listening";
+    if (researchTools.size) return "research";
+    if (recognizing || currentTurn || pendingSubmission || runningTools.size) return "thinking";
+    return "idle";
+  }
+  function screenSide() {
+    const width = window.screen?.width;
+    if (!width) return 0;
+    const mid = (window.screenX || 0) + (window.outerWidth || window.innerWidth || 0) / 2;
+    return Math.max(-1, Math.min(1, (mid / width) * 2 - 1));
+  }
+  function postToRenderer(message) {
+    const frame = $("#companion");
+    if (!frame?.contentWindow || typeof frame.contentWindow.postMessage !== "function") return;
+    try { frame.contentWindow.postMessage(message, location.origin); } catch { /* renderer gone */ }
+  }
+  function postAttention(mode) {
+    postToRenderer({type: "siro.attention", v: 1, mode, side: screenSide()});
+  }
+  function glanceAt(node) {
+    const frame = $("#companion");
+    if (!frame || typeof frame.getBoundingClientRect !== "function" || typeof node?.getBoundingClientRect !== "function") return false;
+    const a = frame.getBoundingClientRect();
+    const b = node.getBoundingClientRect();
+    if (!a.width || !a.height || b.width < 8 || b.height < 8) return false;
+    const x = (b.left + b.width / 2 - a.left - a.width / 2) / a.width;
+    const y = (b.top + b.height / 2 - a.top - a.height / 2) / a.height;
+    postToRenderer({type: "siro.view.focus", v: 1, x, y});
+    return true;
+  }
+  function glanceAtReply() {
+    const chat = $("#pet-chat");
+    if (chat && !chat.hidden && glanceAt(chat)) return;
+    postAttention("reply");
+  }
+  function isResearchTool(name) {
+    return typeof name === "string" && (name.startsWith("browser.") || name === "claude.ask");
   }
   function setNotice(text) {
     const bad = /未確認|沒有送出|中斷|無法|失敗|停用|尚未完成/.test(text);
@@ -327,6 +369,7 @@
     for (const [id, stream] of runningTools) {
       if (typeof data.stream_id === "string" && stream !== data.stream_id) continue;
       runningTools.delete(id);
+      researchTools.delete(id);
       updateToolProposal(id, data.state === "cancelled" ? "已停止：這次工作已取消，沒有自動重送。" : `未完成：沒有收到這個操作的結果${data.error ? `（${data.error}）` : ""}，不會自動重送。`);
     }
   }
@@ -372,6 +415,7 @@
     if (data.type === "assistant_started") {
       assistantBubble = appendMessage("assistant", "");
       liveSpeech = beginLiveSpeech();
+      replyGlanced = false;
     }
     if (data.type === "assistant_delta") {
       if (lastError && /限流/.test(lastError)) lastError = "";
@@ -381,6 +425,7 @@
       rememberReply(assistantBubble.textContent.trim());
       const box = $("#messages");
       if (box) box.scrollTop = box.scrollHeight;
+      if (!replyGlanced) { replyGlanced = true; glanceAtReply(); }
     }
     if (data.type === "assistant_terminal") {
       const canonicalText = assistantBubble?.textContent || "";
@@ -406,9 +451,15 @@
       assistantBubble = undefined; currentTurn = undefined; liveSpeech = undefined; publishState();
     }
     if (data.type === "tool_proposal") renderToolProposal(data);
-    if (data.type === "tool_started") { runningTools.set(data.proposal_id, data.stream_id); updateToolProposal(data.proposal_id, "執行中…"); publishState(); }
+    if (data.type === "tool_started") {
+      runningTools.set(data.proposal_id, data.stream_id);
+      if (isResearchTool(data.capability)) researchTools.add(data.proposal_id);
+      updateToolProposal(data.proposal_id, "執行中…");
+      publishState();
+    }
     if (data.type === "tool_result") {
       runningTools.delete(data.proposal_id);
+      researchTools.delete(data.proposal_id);
       updateToolProposal(data.proposal_id, "完成");
       publishState();
     }
@@ -1378,7 +1429,9 @@
       if (!frame.contentWindow || !(ttsAudio || ttsController || microphoneCapture || transcriptionController || handsFree.on)) return;
       try { frame.contentWindow.postMessage({type: "siro.audio.busy", v: 1, busy: true}, location.origin); } catch { /* renderer gone */ }
     }, 1000);
+    const attentionPulse = setInterval(() => postAttention(attentionMode()), 2000);
     audioBusy?.unref?.();
+    attentionPulse?.unref?.();
     window.addEventListener("message", event => {
       if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
       const data = event.data;
@@ -1401,7 +1454,7 @@
       setChat(false);
     });
     window.addEventListener("pagehide", () => {
-      observerStop?.(); unreadObserver.disconnect(); detachRole(); clearInterval(audioBusy); clearTimeout(hotTimer); clearTimeout(replyTimer);
+      observerStop?.(); unreadObserver.disconnect(); detachRole(); clearInterval(audioBusy); clearInterval(attentionPulse); clearTimeout(hotTimer); clearTimeout(replyTimer);
     }, {once: true});
     window.addEventListener("beforeunload", () => {
       pageClosing = true; controlDispose?.("頁面已關閉"); controlEpoch += 1;

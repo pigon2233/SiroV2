@@ -24,6 +24,7 @@ class SpeechIntent:
     rate: float = 1.0
     pitch: float = 0.0
     energy: float = 0.5
+    motion: str = ""
 
     def __post_init__(self) -> None:
         if not self.intent_id or not self.generation_id:
@@ -36,6 +37,8 @@ class SpeechIntent:
             raise ValueError("speech pitch must be between -1 and 1")
         if not 0.0 <= self.energy <= 1.0:
             raise ValueError("speech energy must be between 0 and 1")
+        if self.motion not in {"", "server"}:
+            raise ValueError("speech motion must be empty or server")
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +54,28 @@ class EmotionIntent:
 
 
 @dataclass(frozen=True, slots=True)
+class GestureIntent:
+    name: str
+    intensity: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("gesture name cannot be empty")
+        if not 0.0 <= self.intensity <= 1.0:
+            raise ValueError("gesture intensity must be between 0 and 1")
+
+
+@dataclass(frozen=True, slots=True)
+class LookIntent:
+    x: float
+    y: float
+
+    def __post_init__(self) -> None:
+        if not -1.0 <= self.x <= 1.0 or not -1.0 <= self.y <= 1.0:
+            raise ValueError("look target must be between -1 and 1")
+
+
+@dataclass(frozen=True, slots=True)
 class BodyStatus:
     connection: BodyConnection
     renderer: str
@@ -60,6 +85,10 @@ class BodyAdapter(Protocol):
     async def speak(self, intent: SpeechIntent) -> bool: ...
 
     async def set_emotion(self, intent: EmotionIntent) -> bool: ...
+
+    async def gesture(self, intent: GestureIntent) -> bool: ...
+
+    async def look(self, intent: LookIntent) -> bool: ...
 
     async def cancel(self, generation_id: str, reason: str = "cancelled") -> bool: ...
 

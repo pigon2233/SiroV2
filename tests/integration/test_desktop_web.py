@@ -214,17 +214,18 @@ window.siroDesktopView.walkUpdate({id:'walk-1',state:'started',direction:-1,dist
  ramp:1.4,cruise:0.2,delay:1.4});
 window.siroDesktopView.walkUpdate({id:'walk-1',state:'teleported'});
 window.siroDesktopView.walkUpdate({id:'walk-1',state:'started',distance:'far'});
-assert.equal(toRole.length,1);
-assert.deepEqual(toRole[0].message,{id:'walk-1',state:'started',direction:-1,distance:400,
+const walks=()=>toRole.filter(item=>item.message.type==='siro.desktop.walk.state');
+assert.equal(walks().length,1);
+assert.deepEqual(walks()[0].message,{id:'walk-1',state:'started',direction:-1,distance:400,
  ramp:1.4,cruise:0.2,delay:1.4,type:'siro.desktop.walk.state',v:1});
-assert.equal(toRole[0].origin,location.origin);
+assert.equal(walks()[0].origin,location.origin);
 // With the chat open she does not wander off from it.
 existing.get('#text').focus=()=>{};
 document.querySelector('#desktop-chat').click();
 fromRole({type:'siro.desktop.walk',v:1,action:'start',id:'walk-3',direction:1,
  distance:400,speed:250,ramp:1.4,delay:1.4});
 assert(!nativeMessages.some(item=>item.id==='walk-3'));
-assert.deepEqual(toRole.at(-1).message,{id:'walk-3',state:'refused',reason:'chat',
+assert.deepEqual(walks().at(-1).message,{id:'walk-3',state:'refused',reason:'chat',
  type:'siro.desktop.walk.state',v:1});
 """,
         "const toRole=[];\n"

@@ -6,7 +6,14 @@ import asyncio
 import contextlib
 from typing import Protocol
 
-from siro.ports.body import BodyConnection, BodyStatus, EmotionIntent, SpeechIntent
+from siro.ports.body import (
+    BodyConnection,
+    BodyStatus,
+    EmotionIntent,
+    GestureIntent,
+    LookIntent,
+    SpeechIntent,
+)
 
 
 class BodyTransport(Protocol):
@@ -100,20 +107,22 @@ class MinimalWebBodyAdapter:
         self._transport = transport
 
     async def speak(self, intent: SpeechIntent) -> bool:
-        return await self._send(
-            {
-                "v": 1,
-                "type": "body.speech",
-                "intent_id": intent.intent_id,
-                "generation_id": intent.generation_id,
-                "text": intent.text,
-                "prosody": {
-                    "rate": intent.rate,
-                    "pitch": intent.pitch,
-                    "energy": intent.energy,
-                },
-            }
-        )
+        message: dict[str, object] = {
+            "v": 1,
+            "type": "body.speech",
+            "intent_id": intent.intent_id,
+            "generation_id": intent.generation_id,
+            "text": intent.text,
+            "prosody": {
+                "rate": intent.rate,
+                "pitch": intent.pitch,
+                "energy": intent.energy,
+            },
+        }
+        if intent.motion == "server":
+            # The reply's gestures already went out as body.gesture / look / emotion.
+            message["motion"] = "server"
+        return await self._send(message)
 
     async def set_emotion(self, intent: EmotionIntent) -> bool:
         message: dict[str, object] = {
@@ -125,6 +134,19 @@ class MinimalWebBodyAdapter:
         if isinstance(self._transport, WebSocketBodyTransport):
             self._transport.remember_emotion(message)
         return await self._send(message)
+
+    async def gesture(self, intent: GestureIntent) -> bool:
+        return await self._send(
+            {
+                "v": 1,
+                "type": "body.gesture",
+                "name": intent.name,
+                "intensity": intent.intensity,
+            }
+        )
+
+    async def look(self, intent: LookIntent) -> bool:
+        return await self._send({"v": 1, "type": "body.look", "x": intent.x, "y": intent.y})
 
     async def cancel(self, generation_id: str, reason: str = "cancelled") -> bool:
         if not generation_id:

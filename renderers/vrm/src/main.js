@@ -9,6 +9,15 @@ import {
   createVRMAnimationClip,
 } from '@pixiv/three-vrm-animation';
 import { createSfx } from './sfx.js';
+import {
+  breathRadians,
+  createPoseMixer,
+  hangingTwoBone,
+  proceduralInsteadOfClip,
+  reachPoint,
+  suppressClientSpeechGesture,
+  userYawBias,
+} from './procedural.js';
 
 const MODEL_URL = '/vrm-model/model.vrm';
 const PACK_URL = './motions/pack.json';
@@ -149,6 +158,10 @@ let reaction = null;
 let gestureFace = null;
 // A point she is interested in (the pointer, the chat box) and until when; Core's body.look wins.
 const interest = { point: new THREE.Vector3(), until: -1 };
+// Page attention: listening, thinking, research, or a glance at a new reply. side is where the
+// window sits on the screen (-1 left, +1 right); she faces back toward the rest of the desk.
+const attention = { mode: 'idle', until: -1, side: 0 };
+const poses = createPoseMixer();
 let reach; // world-space box every clip's hands reach, for framing
 // Points any clip reaches, as [y, z]: boot soles (the lowest a foot gets, sole included) and hand
 // tips (the highest, skin included). Framing keeps their perspective projection inside the frame.
@@ -226,6 +239,18 @@ window.addEventListener('message', event => {
     }
   } else if (data.type === 'siro.audio.busy') {
     audioBusyUntil = data.busy ? elapsed + 2.5 : -Infinity;
+  } else if (data.type === 'siro.attention') {
+    const mode = String(data.mode || 'idle');
+    attention.mode = mode;
+    attention.until = elapsed + 2.5;
+    const side = Number(data.side);
+    if (Number.isFinite(side)) attention.side = THREE.MathUtils.clamp(side, -1, 1);
+    if (mode === 'reply' && vrm) {
+      const head = bone('head')?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3(0, 1.4, 0);
+      interest.point.set(-0.35 * view.width, view.centerY + 0.28 * view.height, head.z + 0.8);
+      interest.until = elapsed + 1.6;
+    }
+    if (mode === 'listening' || mode === 'thinking' || mode === 'research' || mode === 'reply') engage();
   } else if (data.type === 'siro.view.focus') {
     // Something on the page worth a look (the chat box while you type), as an offset from the
     // centre of this frame in frame widths and heights.
@@ -315,6 +340,15 @@ window.addEventListener('resize', fitCamera);
 
 function bone(name) {
   return vrm?.humanoid?.getNormalizedBoneNode(name) ?? null;
+}
+
+function armLengths() {
+  const upper = bone('rightUpperArm');
+  const lower = bone('rightLowerArm');
+  const hand = bone('rightHand');
+  const l1 = upper && lower ? upper.position.distanceTo(lower.position) : 0;
+  const l2 = lower && hand ? lower.position.distanceTo(hand.position) : 0;
+  return { l1: l1 > 0.05 ? l1 : 0.25, l2: l2 > 0.05 ? l2 : 0.22 };
 }
 
 function hasExpression(name) {
@@ -564,6 +598,8 @@ function updateLife(delta) {
     yaw += life.glanceYaw * glance;
     pitch += life.glancePitch * glance - (curious ? 0 : style.gaze * 0.35 * DEG);
     headPitch += (life.glancePitch * glance - style.gaze * 0.2 * DEG);
+    // The window is usually in a corner. Face the open side of the screen, where the person is.
+    if (!curious) yaw += userYawBias(attention.side);
     // Small saccades, like looking between someone's eyes and mouth; the eyes only, not the head.
     if (elapsed >= life.nextSaccade) {
       const size = THREE.MathUtils.clamp(style.pace, 0.5, 1.3);
@@ -590,6 +626,27 @@ function updateLife(delta) {
   // The pat clip has its own head dip; the lean toward the hand stays, smaller, on top of it.
   smoothDamp('pat', elapsed < pat.until ? (playing('pat') ? 0.4 : 1) : 0, 0.25, delta);
   smoothDamp('carried', carry.active && !playing('dangle') ? 1 : 0, 0.2, delta);
+  if (attention.mode === 'listening' && elapsed < attention.until) poses.hold('attentive', elapsed, 0.85);
+  if (attention.mode === 'thinking' && elapsed < attention.until) poses.hold('think', elapsed, 0.55);
+  if (attention.mode === 'research' && elapsed < attention.until && !hold) {
+    poses.hold('think', elapsed, 0.7);
+    poses.hold('lean', elapsed, 0.45);
+  }
+  const pose = poses.sample(elapsed);
+  turn('head', pose.nod * 12 * DEG + pose.think * -6 * DEG, pose.shake * 14 * DEG, (pose.tilt + pose.attentive) * 12 * DEG);
+  turn('neck', pose.attentive * 3 * DEG + pose.think * -2 * DEG, pose.shake * 4 * DEG, pose.attentive * 4 * DEG);
+  turn('chest', pose.lean * 8 * DEG, 0, 0);
+  turn('spine', (pose.lean * 4 + pose.think * 3) * DEG, 0, 0);
+  turn('leftUpperArm', pose.shrug * -10 * DEG, 0, pose.shrug * 12 * DEG);
+  turn('rightUpperArm', pose.shrug * -10 * DEG, 0, pose.shrug * -12 * DEG);
+  const reachWeight = Math.max(pose.point, pose.reach);
+  if (reachWeight > 0.02) {
+    const lengths = armLengths();
+    const aim = reachPoint(pose.reach > pose.point ? 'reach' : 'point', lengths.l1 + lengths.l2);
+    const ik = hangingTwoBone(lengths.l1, lengths.l2, aim.x, aim.y);
+    turn('rightUpperArm', -ik.shoulder * reachWeight, 0, -ik.shoulder * 0.35 * reachWeight);
+    turn('rightLowerArm', ik.elbow * reachWeight, 0, 0);
+  }
 
   if (elapsed >= life.nextShift) {
     life.shiftGoal = (Math.random() * 2 - 1) * (Math.abs(life.shiftGoal) > 0.4 ? 0.4 : 1);
@@ -626,6 +683,10 @@ function updateLife(delta) {
   // Mood: a sad head hangs and the chest sinks, a happy one lifts and tilts, an angry chin drops.
   turn('chest', life.chestPose * 0.6 * DEG, 0, 0);
   turn('spine', life.chestPose * 0.4 * DEG, 0, 0);
+  // Emotion changes how fast the chest rises. The clip already breathes; this is a small extra.
+  const breath = breathRadians(desiredEmotion, t);
+  turn('chest', breath, 0, 0);
+  turn('spine', breath * 0.55, 0, 0);
   turn('neck', life.pitchPose * 0.4 * DEG, 0, 0);
   turn('head', life.pitchPose * 0.6 * DEG, 0, life.tiltPose * DEG);
   // A pat on the head: she leans into the hand, chin down, eyes closing in a smile.
@@ -731,11 +792,16 @@ function renderSiro(message) {
     lookTarget.position.set(head.x + x * 0.8, head.y + y * 0.5, head.z + 1.2);
     lookUntil = elapsed + LOOK_HOLD_SECONDS;
   } else if (message.type === 'body.gesture') {
-    if (!perform(String(message.name || 'nod'))) gestureStart = elapsed;
+    const intensity = Number(message.intensity);
+    const amount = Number.isFinite(intensity) ? Math.max(0, Math.min(1, intensity)) : 1;
+    if (!playCue(String(message.name || 'nod'), amount)) gestureStart = elapsed;
   } else if (message.type === 'body.speech') {
     const generation = String(message.generation_id ?? '');
     replyGeneration = generation;
-    if (generation !== speechGeneration || !generation) {
+    if (suppressClientSpeechGesture(message)) {
+      // The server already chose the gesture. Guessing again from the words would play it twice.
+      speechGeneration = generation || speechGeneration;
+    } else if (generation !== speechGeneration || !generation) {
       const gesture = speechGesture(String(message.text ?? ''));
       if (gesture && currentAction === idleAction && playGesture(gesture)) {
         speechGeneration = generation;
@@ -1485,6 +1551,16 @@ function perform(name) {
   if (name === 'stroll') return startStroll();
   if (hold || stroll) return false;
   return playGesture(name);
+}
+
+// A cue can be a clip, a pose on top of whatever is already playing, or a small nod instead of
+// the whole captured nod. Poses do not take the mixer, so they combine with the idle or a clip.
+function playCue(name, intensity) {
+  if (proceduralInsteadOfClip(name, intensity)) {
+    poses.play(name, elapsed, intensity, name === 'point' || name === 'reach' ? 1.8 : 1.4);
+    return true;
+  }
+  return perform(name);
 }
 
 // Whether a clip the pack may or may not have is the one playing now.
