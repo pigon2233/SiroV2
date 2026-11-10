@@ -897,14 +897,14 @@ def create_app(
 
     desktop_renderer: WebSocket | None = None
 
-    def render_index(*, desktop: bool = False, controls: bool = False) -> HTMLResponse:
+    def render_index(*, controls: bool = False) -> HTMLResponse:
         path = Path(__file__).with_name("static") / "index.html"
         html = path.read_text(encoding="utf-8")
         if vrm_dist is not None:
-            renderer_path = "/vrm/?presentation=desktop" if desktop else "/vrm/"
+            renderer_path = "/vrm/"
             renderer_status = "VRM 角色載入中…"
         elif live2d_dist is not None:
-            renderer_path = "/live2d/?presentation=desktop" if desktop else "/live2d/"
+            renderer_path = "/live2d/"
             renderer_status = "Live2D 載入中…"
         else:
             renderer_path = "/body"
@@ -916,16 +916,10 @@ def create_app(
             setup_notices.append("角色目前顯示替身。尚未載入 Live2D。")
         if setup_notices:
             setup_notices.append("請使用 scripts/start-runtime-product 啟動正式產品入口。")
-        if controls or (desktop_renderer is not None and not desktop):
+        if controls or desktop_renderer is not None:
             renderer_path = "about:blank"
             renderer_status = "角色目前在獨立桌寵視窗"
             html = html.replace("<body>", '<body class="siro-control">')
-        if desktop:
-            html = html.replace("<body>", '<body class="siro-desktop">')
-            html = html.replace(
-                "</head>", '<link rel="stylesheet" href="/static/desktop.css"></head>'
-            )
-            html = html.replace("</body>", '<script src="/static/desktop.js"></script></body>')
         return HTMLResponse(
             html.replace("__SIRO_RENDERER_PATH__", renderer_path)
             .replace("__SIRO_RENDERER_STATUS__", renderer_status)
@@ -937,25 +931,33 @@ def create_app(
     async def index(request: Request) -> HTMLResponse:
         return render_index(controls=request.query_params.get("view") == "control")
 
+    def render_pet() -> HTMLResponse:
+        if vrm_dist is not None:
+            renderer_path = "/vrm/?presentation=desktop"
+        elif live2d_dist is not None:
+            renderer_path = "/live2d/?presentation=desktop"
+        else:
+            raise HTTPException(status_code=503, detail="desktop requires prepared Live2D")
+        page = Path(__file__).with_name("static") / "pet.html"
+        html = page.read_text(encoding="utf-8")
+        return HTMLResponse(html.replace("__SIRO_RENDERER_PATH__", renderer_path))
+
     @app.get("/desktop", response_class=HTMLResponse)
     async def desktop_index() -> HTMLResponse:
-        if live2d_dist is None and vrm_dist is None:
-            raise HTTPException(status_code=503, detail="desktop requires prepared Live2D")
-        return render_index(desktop=True)
+        # The pet is its own page. The console stays at / and /?view=control.
+        return render_pet()
 
-    @app.get("/static/desktop.css")
-    async def desktop_styles() -> Response:
-        return Response(
-            (Path(__file__).with_name("static") / "desktop.css").read_text(),
-            media_type="text/css",
-        )
+    def pet_asset(name: str, media_type: str) -> Response:
+        asset = Path(__file__).with_name("static") / name
+        return Response(asset.read_text(encoding="utf-8"), media_type=media_type)
 
-    @app.get("/static/desktop.js")
-    async def desktop_script() -> Response:
-        return Response(
-            (Path(__file__).with_name("static") / "desktop.js").read_text(),
-            media_type="application/javascript",
-        )
+    @app.get("/static/pet.css")
+    async def pet_styles() -> Response:
+        return pet_asset("pet.css", "text/css")
+
+    @app.get("/static/pet.js")
+    async def pet_script() -> Response:
+        return pet_asset("pet.js", "application/javascript")
 
     @app.get("/body", response_class=HTMLResponse)
     async def body_page() -> HTMLResponse:

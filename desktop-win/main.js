@@ -288,6 +288,7 @@ app.whenReady().then(async () => {
       onPetCleared: rememberPetHome,
     }),
   }).start();
+  // Dedicated pet page. The console opens only from the tray or desktop.console.
   win.loadURL(`${origin}/desktop`);
   setInterval(pollCursor, 50);
   setInterval(refreshMask, 700);

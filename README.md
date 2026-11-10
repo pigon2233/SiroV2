@@ -62,7 +62,7 @@ SIRO_OLLAMA_MODEL=qwen3:4b uv run pytest -m real_provider tests/real/test_model_
 
 ESP32 的 MQTT broker 與 OTA 轉送只在這台電腦已經放好設定時才會安靜啟動。舊的 Live2D／GTK 入口留在 `scripts/legacy/`，不是日常用法。`Play-SIRO.cmd` 屬於電腦操控，不在這個啟動流程裡。
 
-桌面角色提供「聊聊／移動／控制台／暫藏／退出」。控制台也可從 [SIRO](http://127.0.0.1:8000/?view=control) 開啟。頁面應顯示「雲端對話」或「本機對話」，以及角色已就緒；缺少模型或角色時入口會明確停止。
+桌面上預設只看得到角色。滑過或按右鍵才出現說話、停止與更多；雙擊角色或按 F2 打開對話，再雙擊就收起。控制台從系統匣、桌寵的「更多」，或 [SIRO](http://127.0.0.1:8000/?view=control) 開啟。缺少模型或角色時入口會明確停止。
 
 需要 PID 管理可用 `scripts/start .siro-data/companion-service.pid`，停止用 `scripts/stop .siro-data/companion-service.pid`。這兩種正式入口使用同一個 launcher。
 
