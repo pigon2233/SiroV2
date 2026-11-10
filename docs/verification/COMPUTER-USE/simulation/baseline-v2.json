@@ -1,0 +1,399 @@
+{
+  "kind": "simulated_contract_NOT_real_game_or_VLM",
+  "fixed_flags": false,
+  "fast_test_timings": false,
+  "states": [
+    {
+      "name": "menu",
+      "source": "existing manual_visual_review, top-left1024x576 letterbox: menu-continue",
+      "sha256": "ae1ab9db4ac93031bec4800c1abb6bc0711d65802b19af0b936a7b998cd58699",
+      "box": [
+        351,
+        319,
+        437,
+        341
+      ]
+    },
+    {
+      "name": "map",
+      "source": "synthetic fixture, not saved STS2",
+      "sha256": "d4c1e030c22ea1ab762f58dda02de14cf57bac7f17f963c0e90edd1d70a3251e",
+      "box": [
+        400,
+        250,
+        450,
+        300
+      ]
+    },
+    {
+      "name": "combat",
+      "source": "existing manual_visual_review, top-left1024x576 letterbox: combat-right-defend",
+      "sha256": "fe7c9ab031913c217b11b692ab08eb69aa1d2ee8dcb0684bd648258afe2dcd9c",
+      "box": [
+        552,
+        434,
+        647,
+        510
+      ]
+    },
+    {
+      "name": "end-turn",
+      "source": "existing manual_visual_review, top-left1024x576 letterbox: zero-energy-end-turn",
+      "sha256": "47c5702a1ef6d3605f5e2d3657d52e8d05fc227821269f5d24d024a22623b4e8",
+      "box": [
+        858,
+        384,
+        977,
+        435
+      ]
+    },
+    {
+      "name": "next-turn",
+      "source": "existing frame reused as scripted next-turn checkpoint; NOT real transition",
+      "sha256": "fe7c9ab031913c217b11b692ab08eb69aa1d2ee8dcb0684bd648258afe2dcd9c",
+      "box": null
+    }
+  ],
+  "rows": [
+    {
+      "mode": "oracle",
+      "pass": true,
+      "state": "done",
+      "reason": "state:4",
+      "advances": 4,
+      "decisions": 6,
+      "steps_to_full_progress": 4,
+      "clicks": 4,
+      "hits": 4,
+      "hit_rate": 1.0,
+      "seconds": 2.1480013959990174,
+      "seconds_per_decision": 0.3580002326665029,
+      "false_stuck": 0,
+      "false_progress": 0,
+      "false_effective": 0,
+      "observations": 10,
+      "events": [
+        {
+          "before": 0,
+          "after": 1,
+          "hit": true,
+          "x": 739,
+          "y": 596
+        },
+        {
+          "before": 1,
+          "after": 2,
+          "hit": true,
+          "x": 797,
+          "y": 497
+        },
+        {
+          "before": 2,
+          "after": 3,
+          "hit": true,
+          "x": 1123,
+          "y": 852
+        },
+        {
+          "before": 3,
+          "after": 4,
+          "hit": true,
+          "x": 1719,
+          "y": 738
+        }
+      ],
+      "proofs": [
+        {
+          "expect": "state:1",
+          "index": 1,
+          "truth": true
+        },
+        {
+          "expect": "state:2",
+          "index": 2,
+          "truth": true
+        },
+        {
+          "expect": "state:3",
+          "index": 3,
+          "truth": true
+        },
+        {
+          "expect": "state:4",
+          "index": 4,
+          "truth": true
+        }
+      ],
+      "steps": [
+        {
+          "step": 1,
+          "action": "click(394,330,left)",
+          "expect": "state:1",
+          "outcome": "effective",
+          "screen_changed": true,
+          "seen": "map",
+          "scene": "map",
+          "detail": "simulated state proof"
+        },
+        {
+          "step": 2,
+          "action": "click(425,275,left)",
+          "expect": "state:2",
+          "outcome": "effective",
+          "screen_changed": true,
+          "seen": "combat",
+          "scene": "combat",
+          "detail": "simulated state proof"
+        },
+        {
+          "step": 3,
+          "action": "click(599,472,left)",
+          "expect": "state:3",
+          "outcome": "effective",
+          "screen_changed": true,
+          "seen": "end-turn",
+          "scene": "combat",
+          "detail": "simulated state proof"
+        },
+        {
+          "step": 4,
+          "action": "click(917,409,left)",
+          "expect": "state:4",
+          "outcome": "effective",
+          "screen_changed": true,
+          "seen": "next-turn",
+          "scene": "combat",
+          "detail": "simulated state proof"
+        },
+        {
+          "step": 5,
+          "action": "(confirm done)",
+          "expect": "",
+          "outcome": "ok",
+          "screen_changed": null,
+          "seen": "",
+          "scene": "",
+          "detail": ""
+        }
+      ],
+      "run": 1
+    },
+    {
+      "mode": "liar-done",
+      "pass": false,
+      "state": "done",
+      "reason": "state:0",
+      "advances": 0,
+      "decisions": 2,
+      "steps_to_full_progress": null,
+      "clicks": 0,
+      "hits": 0,
+      "hit_rate": null,
+      "seconds": 0.4026476690014533,
+      "seconds_per_decision": 0.20132383450072666,
+      "false_stuck": 0,
+      "false_progress": 1,
+      "false_effective": 0,
+      "observations": 2,
+      "events": [],
+      "proofs": [],
+      "steps": [
+        {
+          "step": 1,
+          "action": "(confirm done)",
+          "expect": "",
+          "outcome": "ok",
+          "screen_changed": null,
+          "seen": "",
+          "scene": "",
+          "detail": ""
+        }
+      ],
+      "run": 1
+    },
+    {
+      "mode": "verifier-timeout",
+      "pass": false,
+      "state": "failed",
+      "reason": "harness_timeout",
+      "advances": 1,
+      "decisions": 1,
+      "steps_to_full_progress": null,
+      "clicks": 1,
+      "hits": 1,
+      "hit_rate": 1.0,
+      "seconds": 0.6026443560003827,
+      "seconds_per_decision": 0.6026443560003827,
+      "false_stuck": 0,
+      "false_progress": 0,
+      "false_effective": 0,
+      "observations": 3,
+      "events": [
+        {
+          "before": 0,
+          "after": 1,
+          "hit": true,
+          "x": 739,
+          "y": 596
+        }
+      ],
+      "proofs": [],
+      "steps": [
+        {
+          "step": 1,
+          "action": "click(394,330,left)",
+          "expect": "state:1",
+          "outcome": "sent",
+          "screen_changed": null,
+          "seen": "menu",
+          "scene": "menu",
+          "detail": "img 1024x576 rect=[0, 0, 1920, 1040] \u2192 screen(739,596)"
+        }
+      ],
+      "run": 1
+    },
+    {
+      "mode": "delayed-transition",
+      "pass": false,
+      "state": "stopped",
+      "reason": "too_many_invalid_decisions",
+      "advances": 1,
+      "decisions": 8,
+      "steps_to_full_progress": null,
+      "clicks": 1,
+      "hits": 1,
+      "hit_rate": 1.0,
+      "seconds": 1.4372743080002692,
+      "seconds_per_decision": 0.17965928850003365,
+      "false_stuck": 1,
+      "false_progress": 0,
+      "false_effective": 0,
+      "observations": 9,
+      "events": [
+        {
+          "before": 0,
+          "after": 0,
+          "hit": true,
+          "x": 739,
+          "y": 596
+        }
+      ],
+      "proofs": [],
+      "steps": [
+        {
+          "step": 1,
+          "action": "click(394,330,left)",
+          "expect": "state:1",
+          "outcome": "ineffective",
+          "screen_changed": false,
+          "seen": "menu",
+          "scene": "menu",
+          "detail": "no visual_change after expect=state:1"
+        },
+        {
+          "step": 2,
+          "action": "(wait)",
+          "expect": "state:1",
+          "outcome": "ok",
+          "screen_changed": true,
+          "seen": "transition pending",
+          "scene": "",
+          "detail": ""
+        },
+        {
+          "step": 3,
+          "action": "(rejected)",
+          "expect": "state:2",
+          "outcome": "invalid:repeat_click",
+          "screen_changed": null,
+          "seen": "map",
+          "scene": "map",
+          "detail": "repeat_click"
+        },
+        {
+          "step": 4,
+          "action": "(rejected)",
+          "expect": "state:2",
+          "outcome": "invalid:repeat_click",
+          "screen_changed": null,
+          "seen": "map",
+          "scene": "map",
+          "detail": "repeat_click"
+        },
+        {
+          "step": 5,
+          "action": "(rejected)",
+          "expect": "state:2",
+          "outcome": "invalid:repeat_click",
+          "screen_changed": null,
+          "seen": "map",
+          "scene": "map",
+          "detail": "repeat_click"
+        },
+        {
+          "step": 5,
+          "action": "(replan)",
+          "expect": "",
+          "outcome": "ok",
+          "screen_changed": null,
+          "seen": "too many invalid decisions; replan",
+          "scene": "map",
+          "detail": "repeat_click"
+        },
+        {
+          "step": 6,
+          "action": "(rejected)",
+          "expect": "state:2",
+          "outcome": "invalid:repeat_click",
+          "screen_changed": null,
+          "seen": "map",
+          "scene": "map",
+          "detail": "repeat_click"
+        },
+        {
+          "step": 7,
+          "action": "(rejected)",
+          "expect": "state:2",
+          "outcome": "invalid:repeat_click",
+          "screen_changed": null,
+          "seen": "map",
+          "scene": "map",
+          "detail": "repeat_click"
+        },
+        {
+          "step": 8,
+          "action": "(rejected)",
+          "expect": "state:2",
+          "outcome": "invalid:repeat_click",
+          "screen_changed": null,
+          "seen": "map",
+          "scene": "map",
+          "detail": "repeat_click"
+        }
+      ],
+      "run": 1
+    }
+  ],
+  "summary": {
+    "oracle": {
+      "passes": 1,
+      "runs": 1,
+      "mean_seconds_per_decision": 0.3580002326665029
+    },
+    "liar-done": {
+      "passes": 0,
+      "runs": 1,
+      "mean_seconds_per_decision": 0.20132383450072666
+    },
+    "verifier-timeout": {
+      "passes": 0,
+      "runs": 1,
+      "mean_seconds_per_decision": 0.6026443560003827
+    },
+    "delayed-transition": {
+      "passes": 0,
+      "runs": 1,
+      "mean_seconds_per_decision": 0.17965928850003365
+    }
+  }
+}

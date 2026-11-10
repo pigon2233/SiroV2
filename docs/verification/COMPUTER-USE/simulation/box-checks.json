@@ -1,0 +1,74 @@
+{
+  "recorded_at": "2026-11-11T02:51:45.024354+08:00",
+  "checks": [
+    {
+      "name": "box-unit-final",
+      "command": [
+        "/workspace/venvs/siro-sim/bin/pytest",
+        "tests/unit/test_computer_loop_sim.py",
+        "-q"
+      ],
+      "exit_code": 0,
+      "seconds": 4.528814878000048
+    },
+    {
+      "name": "box-regression-final",
+      "command": [
+        "/workspace/venvs/siro-sim/bin/pytest",
+        "tests/unit/test_computer_claude_verify.py",
+        "tests/unit/test_computer_click_eval.py",
+        "tests/unit/test_computer_loop_sim.py",
+        "tests/unit/test_computer_process_names.py",
+        "tests/unit/test_computer_reply_trace.py",
+        "tests/unit/test_computer_runtime_diagnostics.py",
+        "tests/unit/test_computer_use_batch.py",
+        "tests/unit/test_computer_use_bench.py",
+        "tests/unit/test_computer_use_dataset.py",
+        "tests/unit/test_computer_use_demos.py",
+        "tests/unit/test_computer_use_groq_decider.py",
+        "tests/unit/test_computer_use_http.py",
+        "tests/unit/test_computer_use_hybrid.py",
+        "tests/unit/test_computer_use_intent.py",
+        "tests/unit/test_computer_use_loop.py",
+        "tests/unit/test_computer_use_modules.py",
+        "tests/unit/test_computer_use_numbered.py",
+        "tests/unit/test_computer_use_ollama_decider.py",
+        "tests/unit/test_computer_use_perception.py",
+        "tests/unit/test_computer_use_playbook.py",
+        "tests/unit/test_computer_use_router.py",
+        "tests/unit/test_computer_use_safety.py",
+        "tests/unit/test_computer_use_tool.py",
+        "tests/integration/test_computer_driver.py",
+        "tests/integration/test_computer_use_catalog.py",
+        "tests/integration/test_computer_use_chat_hook.py",
+        "-q"
+      ],
+      "exit_code": 1,
+      "seconds": 21.55515618500067
+    },
+    {
+      "name": "box-ruff-final",
+      "command": [
+        "/workspace/venvs/siro-sim/bin/ruff",
+        "check",
+        "scripts/computer_loop_sim.py",
+        "tests/unit/test_computer_loop_sim.py",
+        "src/siro/services/computer_use/loop.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.009694124999441556
+    },
+    {
+      "name": "box-mypy-final",
+      "command": [
+        "/workspace/venvs/siro-sim/bin/mypy",
+        "--follow-imports=silent",
+        "scripts/computer_loop_sim.py",
+        "tests/unit/test_computer_loop_sim.py",
+        "src/siro/services/computer_use/loop.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.6166792050007643
+    }
+  ]
+}

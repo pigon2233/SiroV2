@@ -1,0 +1,329 @@
+/workspace/venvs/siro-sim/lib/python3.12/site-packages/pytest_asyncio/plugin.py:300: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the "fixture" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+........................................................................ [ 16%]
+............................s........................................... [ 33%]
+........................................................................ [ 49%]
+........................................................................ [ 66%]
+........................................................................ [ 83%]
+.......................F.F....FF.......................................F [ 99%]
+.                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_vision_decider_runs_claude_with_read_only_screenshot ___________
+
+    @pytest.mark.asyncio
+    async def test_vision_decider_runs_claude_with_read_only_screenshot() -> None:
+        captured: dict[str, Any] = {}
+    
+        async def run(argv: tuple[str, ...], *, cwd: Path, **kwargs: Any) -> dict[str, object]:
+            captured.update(
+                argv=argv, shot=(cwd / "screen.png").read_bytes(), env=kwargs["environment"]
+            )
+            return {"returncode": 0, "stdout": json.dumps({"result": GOOD, "is_error": False})}
+    
+        decider = ClaudeVisionDecider(
+            binary=Path("claude"), run=run, env={"SIRO_COMPUTER_CLOUD_SCREEN": "1"}, model="m"
+        )
+>       decision = await decider.decide("win", [], _obs())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_computer_use_perception.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/computer_use/decision.py:684: in decide
+    return await self._decide_once(goal, history, observation, strategy=strategy)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/siro/services/computer_use/decision.py:567: in _decide_once
+    result = await self._run(
+tests/unit/test_computer_use_perception.py:209: in run
+    argv=argv, shot=(cwd / "screen.png").read_bytes(), env=kwargs["environment"]
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/box/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/pathlib.py:1019: in read_bytes
+    with self.open(mode='rb') as f:
+         ^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/siro-screen-1v9_q5zt/screen.png'), mode = 'rb'
+buffering = -1, encoding = None, errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/siro-screen-1v9_q5zt/screen.png'
+
+/home/box/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_____________ test_vision_decider_retries_transient_claude_failure _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ffab8837560>
+
+    @pytest.mark.asyncio
+    async def test_vision_decider_retries_transient_claude_failure(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        async def _no_sleep(*args: Any, **kwargs: Any) -> None:
+            return None
+    
+        monkeypatch.setattr(asyncio, "sleep", _no_sleep)
+        calls = {"n": 0}
+    
+        async def flaky(*args: Any, **kwargs: Any) -> dict[str, object]:
+            calls["n"] += 1
+            if calls["n"] < 3:
+                return {"returncode": 1, "stdout": ""}
+            return {"returncode": 0, "stdout": json.dumps({"result": GOOD, "is_error": False})}
+    
+        decider = ClaudeVisionDecider(
+            binary=Path("claude"), run=flaky, env={"SIRO_COMPUTER_CLOUD_SCREEN": "1"}
+        )
+>       assert (await decider.decide("g", [], _obs())).kind == "act"
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_computer_use_perception.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/siro/services/computer_use/decision.py:684: in decide
+    return await self._decide_once(goal, history, observation, strategy=strategy)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <siro.services.computer_use.decision.ClaudeVisionDecider object at 0x7ffab6853230>
+goal = 'g', history = []
+observation = Observation(seq=1, taken_at=0.0, window_title='Cool Game', process='game.exe', window_rect=(0, 0, 800, 600), screen=(1...e_size=(960, 540), image_rect=(0, 0, 1920, 1080), focus_is_secret=False, blocked_reason=None, window_id=None, pid=None)
+strategy = ''
+
+    async def _decide_once(
+        self,
+        goal: str,
+        history: Sequence[StepRecord],
+        observation: Observation,
+        *,
+        strategy: str = "",
+    ) -> Decision:
+        if not cloud_screen_allowed(self._env):
+            raise CloudScreenNotAllowed(CLOUD_SCREEN_FLAG)
+        if not observation.image_png_b64:
+            raise DecisionError("no_image")
+        binary = self._binary or claude_binary()
+        if binary is None:
+            raise DecisionError("claude_cli_missing")
+        with tempfile.TemporaryDirectory(prefix="siro-screen-") as scratch:
+            # Local captures may be JPEG now; Claude still Reads the bytes via this path name.
+            screen_name = "screen.jpg"
+            vision = annotate_coord_grid(observation.image_png_b64, env=self._env)
+            (Path(scratch) / screen_name).write_bytes(base64.b64decode(vision))
+            prompt = CLAUDE_DECISION_PROMPT.format(
+                image=screen_name,
+                **_prompt_fields(goal, history, observation, strategy=strategy),
+            )
+            # --effort low cuts thinking time; do not use --bare (it disables OAuth login).
+            argv = (
+                str(binary),
+                "-p",
+                "--effort",
+                "low",
+                "--model",
+                self._model,
+                "--output-format",
+                "json",
+                "--tools",
+                "Read",
+                "--allowedTools",
+                "Read",
+                "--no-session-persistence",
+                prompt,
+            )
+            result = await self._run(
+                argv,
+                cwd=Path(scratch),
+                environment=restricted_environment(("SIRO_CLAUDE_BIN", "CLAUDE_CONFIG_DIR")),
+                timeout=self._timeout,
+            )
+        if result.get("returncode") != 0:
+>           raise DecisionError("claude_failed")
+E           siro.services.computer_use.interface.DecisionError: claude_failed
+
+src/siro/services/computer_use/decision.py:574: DecisionError
+_______________ test_parse_decision_accepts_combo_alias_and_hold _______________
+
+    def test_parse_decision_accepts_combo_alias_and_hold() -> None:
+>       decision = parse_decision(
+            '{"kind":"act","action":{"kind":"key","combo":"ctrl+a","hold_ms":300},"confidence":0.7}'
+        )
+
+tests/unit/test_computer_use_perception.py:325: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+text = '{"kind":"act","action":{"kind":"key","combo":"ctrl+a","hold_ms":300},"confidence":0.7}'
+
+    def parse_decision(text: str) -> Decision:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        try:
+            raw = json.loads(match.group(0)) if match else None
+        except json.JSONDecodeError:
+            raw = None
+        if not isinstance(raw, dict):
+            raise DecisionError("not_json")
+        has_action = isinstance(raw.get("action"), dict)
+        kind = _coerce_kind(raw.get("kind"), has_action=has_action)
+        if kind is None:
+            raise DecisionError("bad_kind")
+        raw = {**raw, "kind": kind}
+        confidence = raw.get("confidence")
+        if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
+            confidence = 0.55  # small local models often omit confidence
+        confidence = float(confidence)
+        if not 0 <= confidence <= 1:
+            raise DecisionError("bad_confidence")
+        action = None
+        if kind == "act":
+            spec = raw.get("action")
+            if not isinstance(spec, dict) or spec.get("kind") not in ALLOWED_KINDS:
+                raise DecisionError("bad_action")
+            action = InputAction(
+                kind=str(spec["kind"]),
+                x=_int(spec.get("x")),
+                y=_int(spec.get("y")),
+                button=str(spec.get("button", "left")),
+                key=str(spec.get("key") or spec.get("combo") or ""),
+                text=str(spec.get("text", "")),
+                amount=_int(spec.get("amount")) or 0,
+                hold_ms=_int(spec.get("hold_ms")) or 0,
+            )
+            incomplete = (
+                (action.kind in {"move", "click"} and (action.x is None or action.y is None))
+                or (action.kind == "key" and not action.key.strip())
+                or (action.kind == "type" and not action.text)
+                or (action.kind == "scroll" and action.amount == 0)
+            )
+            if incomplete:
+                raise DecisionError("incomplete_action")
+        reason = str(raw.get("reason", ""))[:300]
+        seen = str(raw.get("seen", "")).strip()[:200] or reason[:200]
+        expect = str(raw.get("expect", "")).strip()[:300]
+        if kind == "act" and not expect:
+>           raise DecisionError("missing_expect")
+E           siro.services.computer_use.interface.DecisionError: missing_expect
+
+src/siro/services/computer_use/decision.py:170: DecisionError
+___________________ test_seen_is_parsed_and_shown_in_history ___________________
+
+    def test_seen_is_parsed_and_shown_in_history() -> None:
+        from siro.services.computer_use.decision import StepRecord, _history_text
+    
+        decision = parse_decision(
+            '{"kind":"wait","seen":"intro panel with text","confidence":0.9,"expect":"x"}'
+        )
+        assert decision.kind == "wait" and decision.seen == "intro panel with text"
+        text = _history_text([StepRecord(1, "key(z)", "next line", "ok", True, "title screen")])
+>       assert "saw: title screen" in text and "did: key(z)" in text
+E       AssertionError: assert ('saw: title screen' in '1. scene=- saw=title screen | did=key(z) | expect=next line | outcome=ok | changed=True')
+
+tests/unit/test_computer_use_perception.py:339: AssertionError
+_____ test_play_order_offers_only_computer_play_while_chat_keeps_all_tools _____
+
+tmp_path = PosixPath('/tmp/pytest-of-box/pytest-5/test_play_order_offers_only_co0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ffaaf96f140>
+
+    def test_play_order_offers_only_computer_play_while_chat_keeps_all_tools(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import uvicorn
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+    
+        from siro.ports.models import CancellationToken, ModelChunk, ModelRequest
+        from siro.services.computer_use import http as computer_http
+        from siro.services.presentation.gateway import main
+    
+        requests: list[ModelRequest] = []
+    
+        class Model:
+            name = "hook-fixture"
+    
+            def __init__(self, **kwargs: object) -> None:
+                pass
+    
+            async def stream(
+                self, request: ModelRequest, cancellation: CancellationToken
+            ) -> AsyncIterator[ModelChunk]:
+                requests.append(request)
+                yield ModelChunk("text", "ok")
+                yield ModelChunk("finished")
+    
+        for key in list(os.environ):
+            if key.startswith("SIRO_") or key == "GROQ_API_KEY":
+                monkeypatch.delenv(key)
+        monkeypatch.setenv("SIRO_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("SIRO_CONTEXT_TOKEN_BUDGET_ENABLED", "0")
+        monkeypatch.setenv("SIRO_RUNTIME_PROFILE", "candidate")
+        monkeypatch.setenv("SIRO_OLLAMA_MODEL", "synthetic")
+        monkeypatch.setenv("SIRO_COMPUTER_TOKEN", "t" * 40)
+        monkeypatch.setenv("SIRO_COMPUTER_ROUTER", "0")  # never call the real Haiku from a test
+        monkeypatch.setattr("siro.adapters.models.ollama.OllamaAdapter", Model)
+        monkeypatch.setattr("shutil.which", lambda name: None)
+        computer_http.reset_shared_runs()
+    
+        def turn(client: TestClient, headers: dict[str, str], session: str, text: str) -> ModelRequest:
+            before = len(requests)
+            client.post(f"/v1/conversations/{session}/turns", headers=headers, json={"text": text})
+            deadline = time.monotonic() + 10
+            while len(requests) <= before and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert len(requests) > before
+            return requests[before]
+    
+        seen: dict[str, set[str]] = {}
+    
+        def run(app: FastAPI, **kwargs: object) -> None:
+            runs = computer_http.shared_runs()
+            assert runs is not None
+            runs.bridge.gate.enable()
+            runs.bridge._last_poll = runs.bridge._clock()  # the Windows shell is polling
+            with TestClient(app) as client:
+                token = client.post("/v1/session", headers={"origin": "http://127.0.0.1:8000"}).json()[
+                    "token"
+                ]
+                headers = {"authorization": f"Bearer {token}"}
+                for name, session, text in (
+                    ("order", "hook-a", "幫我玩UNDERTALE"),
+                    ("chat", "hook-b", "今天天氣如何"),
+                    ("question", "hook-c", "你會玩Undertale嗎？"),
+                ):
+                    request = turn(client, headers, session, text)
+                    seen[name] = {t.name for t in request.tools}
+                    time.sleep(0.3)
+    
+        monkeypatch.setattr(uvicorn, "run", run)
+        try:
+            main()
+        finally:
+            computer_http.reset_shared_runs()
+        assert seen["order"] == {"computer.play"}
+>       assert {"computer.play", "computer.status", "claude.ask", "filesystem.read"} <= seen["chat"]
+E       AssertionError: assert {'claude.ask'...esystem.read'} <= {'computer.ex...puter.status'}
+E         
+E         Extra items in the left set:
+E         'filesystem.read'
+E         'claude.ask'
+
+tests/integration/test_computer_use_chat_hook.py:87: AssertionError
+=============================== warnings summary ===============================
+../venvs/siro-sim/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /workspace/venvs/siro-sim/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/unit/test_computer_process_names.py:84: Windows PowerShell unavailable
+FAILED tests/unit/test_computer_use_perception.py::test_vision_decider_runs_claude_with_read_only_screenshot
+FAILED tests/unit/test_computer_use_perception.py::test_vision_decider_retries_transient_claude_failure
+FAILED tests/unit/test_computer_use_perception.py::test_parse_decision_accepts_combo_alias_and_hold
+FAILED tests/unit/test_computer_use_perception.py::test_seen_is_parsed_and_shown_in_history
+FAILED tests/integration/test_computer_use_chat_hook.py::test_play_order_offers_only_computer_play_while_chat_keeps_all_tools
+5 failed, 427 passed, 1 skipped, 1 warning in 21.19s
