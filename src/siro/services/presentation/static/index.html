@@ -385,6 +385,7 @@
     </div>
     <script>
       let handsFreeAutoStarted = false, socket, currentTurn, assistantBubble, microphoneEnabled = false, authorizationMode = "full";
+      let replyGlanced = false;
       let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false, reconnectTimer, reconnectAttempts = 0, pageClosing = false;
       let submissionGeneration = 0, pendingSubmission;
       let improvementEpoch = 0, improvementController, improvementTimeout;
@@ -1032,6 +1033,7 @@
           if (data.type === "turn_started") { currentTurn = data.turn_id; speechCancelled = false; stopTts(); }
           if (data.type === "sensor_listen" && microphoneEnabled && recorder?.state !== "recording") document.querySelector("#voice")?.click();
           if (data.type === "assistant_started") {
+            replyGlanced = false;
             const routeNotice = document.querySelector("#service-notice");
             if (routeNotice?.dataset?.routeNotice) {
               routeNotice.hidden = true; routeNotice.textContent = ""; delete routeNotice.dataset.routeNotice;
@@ -1056,6 +1058,7 @@
             assistantBubble.textContent += data.text;
             liveSpeech?.push(data.text);
             document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;
+            if (!replyGlanced) { replyGlanced = true; glanceAtReply(); }
           }
           if (data.type === "assistant_terminal") {
             clearRetryNotice();
@@ -1085,8 +1088,16 @@
           }
           if (data.type === "tool_proposal") renderToolProposal(data);
           if (data.type === "memory_saved" || data.type === "memory_confirm") renderMemoryCard(data);
-          if (data.type === "tool_started") { runningTools.set(data.proposal_id, data.stream_id); updateToolProposal(data.proposal_id, "執行中…"); }
-          if (data.type === "tool_result") { runningTools.delete(data.proposal_id); renderToolResult(data); }
+          if (data.type === "tool_started") {
+            runningTools.set(data.proposal_id, data.stream_id);
+            if (isResearchTool(data.capability)) researchTools.add(data.proposal_id);
+            updateToolProposal(data.proposal_id, "執行中…");
+          }
+          if (data.type === "tool_result") {
+            runningTools.delete(data.proposal_id);
+            researchTools.delete(data.proposal_id);
+            renderToolResult(data);
+          }
           document.querySelector("#connection").textContent = "已連線";
           document.querySelector("#connection").className = "connection-pill ok";
         };
@@ -1423,10 +1434,15 @@
       }
       // A run that ends without completing sends no later tool_result; its cards must not stay "running".
       const runningTools = new Map();
+      const researchTools = new Set();
+      function isResearchTool(name) {
+        return typeof name === "string" && (name.startsWith("browser.") || name === "claude.ask");
+      }
       function settleRunningTools(data) {
         for (const [id, stream] of runningTools) {
           if (typeof data.stream_id === "string" && stream !== data.stream_id) continue;
           runningTools.delete(id);
+          researchTools.delete(id);
           updateToolProposal(id, data.state === "cancelled"
             ? "已停止：這次工作已取消，這個操作沒有完成，也不會自動重送。"
             : `未完成：沒有收到這個操作的結果${data.error ? `（${data.error}）` : ""}，不會自動重送；請先確認實際狀態。`);
@@ -2267,6 +2283,43 @@
         const isImeEvent = chatInputComposing || event.isComposing || event.keyCode === 229 || event.which === 229;
         if (event.key === "Enter" && !event.shiftKey && !isImeEvent) { event.preventDefault(); document.querySelector("#chat").requestSubmit(); }
       });
+      function screenSide() {
+        const width = window.screen?.width;
+        if (!width) return 0;
+        const mid = (window.screenX || 0) + (window.outerWidth || window.innerWidth || 0) / 2;
+        return Math.max(-1, Math.min(1, (mid / width) * 2 - 1));
+      }
+      function postToRenderer(message) {
+        const frame = document.querySelector("#companion");
+        if (!frame?.contentWindow || typeof frame.contentWindow.postMessage !== "function") return;
+        try { frame.contentWindow.postMessage(message, location.origin); } catch (_) { /* renderer gone */ }
+      }
+      function attentionMode() {
+        const voice = document.querySelector("#voice-status")?.textContent || "";
+        if (/正在聆聽|免手動聆聽/.test(voice)) return "listening";
+        if (researchTools.size) return "research";
+        if (currentTurn) return "thinking";
+        return "idle";
+      }
+      function postAttention(mode) {
+        postToRenderer({type: "siro.attention", v: 1, mode, side: screenSide()});
+      }
+      function glanceAt(node) {
+        const frame = document.querySelector("#companion");
+        if (!frame || typeof frame.getBoundingClientRect !== "function" || typeof node?.getBoundingClientRect !== "function") return false;
+        const a = frame.getBoundingClientRect(), b = node.getBoundingClientRect();
+        if (!a.width || !a.height || b.width < 8 || b.height < 8) return false;
+        postToRenderer({
+          type: "siro.view.focus", v: 1,
+          x: (b.left + b.width / 2 - a.left - a.width / 2) / a.width,
+          y: (b.top + b.height / 2 - a.top - a.height / 2) / a.height,
+        });
+        return true;
+      }
+      function glanceAtReply() {
+        const messages = document.querySelector("#messages");
+        if (!glanceAt(messages)) postAttention("reply");
+      }
       // The character watches what you type: tell her where the input sits relative to her frame.
       let focusSentAt = -Infinity;
       const shareFocus = () => {
@@ -2287,6 +2340,8 @@
         try { frame.contentWindow.postMessage({type: "siro.audio.busy", v: 1, busy: true}, location.origin); } catch (_) { /* renderer gone */ }
       }, 1000);
       audioBusyTimer?.unref?.(); // a page-level heartbeat must not keep a test harness's event loop alive
+      const attentionTimer = setInterval(() => postAttention(attentionMode()), 2000);
+      attentionTimer?.unref?.();
       boot().catch(() => { document.querySelector("#connection").textContent = "連線未完成"; const notice = document.querySelector("#service-notice"); notice.hidden = false; notice.textContent = "目前無法連接 SIRO。請確認服務已啟動，再按重新連線；已送出的工作不會自動重送。"; });
     </script>
   </body>

@@ -8,6 +8,16 @@
   let submissionGeneration = 0, pendingSubmission, recorder, ttsAudio, ttsController;
   let ttsGeneration = 0, speechCancelled = false, liveSpeech, lastSpeech, speechStream = false;
   let speechEnabled = true, listening = false, recognizing = false, speaking = false, lastError = "";
+  let replyGlanced = false;
+  let openStream = null;
+  const parkedAside = [];
+  const researchTools = new Set();
+  const GESTURES = [
+    ["wave", "揮手"], ["bow", "鞠躬"], ["bye", "掰掰"], ["nod", "點頭"],
+    ["shake", "搖頭"], ["think", "思考"], ["attention", "注意"], ["sit", "坐下"],
+    ["clap", "拍手"], ["stretch", "伸懶腰"], ["hum", "哼歌"], ["notebook", "看筆記"],
+    ["stroll", "散步"],
+  ];
   let phase = "connecting", stops = 0, chatOpen = false, roleDragged = false, hotTimer, reply, replyTimer;
   const runningTools = new Map();
   const startedAt = Date.now();
@@ -58,6 +68,46 @@
     if (err) { err.hidden = !lastError; err.textContent = lastError || ""; }
     const stop = $("#desktop-stop");
     if (stop) stop.hidden = !(listening || speaking || recognizing || currentTurn || pendingSubmission || runningTools.size);
+    postAttention(attentionMode());
+  }
+  function attentionMode() {
+    if (listening) return "listening";
+    if (researchTools.size) return "research";
+    if (recognizing || currentTurn || pendingSubmission || runningTools.size) return "thinking";
+    return "idle";
+  }
+  function screenSide() {
+    const width = window.screen?.width;
+    if (!width) return 0;
+    const mid = (window.screenX || 0) + (window.outerWidth || window.innerWidth || 0) / 2;
+    return Math.max(-1, Math.min(1, (mid / width) * 2 - 1));
+  }
+  function postToRenderer(message) {
+    const frame = $("#companion");
+    if (!frame?.contentWindow || typeof frame.contentWindow.postMessage !== "function") return;
+    try { frame.contentWindow.postMessage(message, location.origin); } catch { /* renderer gone */ }
+  }
+  function postAttention(mode) {
+    postToRenderer({type: "siro.attention", v: 1, mode, side: screenSide()});
+  }
+  function glanceAt(node) {
+    const frame = $("#companion");
+    if (!frame || typeof frame.getBoundingClientRect !== "function" || typeof node?.getBoundingClientRect !== "function") return false;
+    const a = frame.getBoundingClientRect();
+    const b = node.getBoundingClientRect();
+    if (!a.width || !a.height || b.width < 8 || b.height < 8) return false;
+    const x = (b.left + b.width / 2 - a.left - a.width / 2) / a.width;
+    const y = (b.top + b.height / 2 - a.top - a.height / 2) / a.height;
+    postToRenderer({type: "siro.view.focus", v: 1, x, y});
+    return true;
+  }
+  function glanceAtReply() {
+    const chat = $("#pet-chat");
+    if (chat && !chat.hidden && glanceAt(chat)) return;
+    postAttention("reply");
+  }
+  function isResearchTool(name) {
+    return typeof name === "string" && (name.startsWith("browser.") || name === "claude.ask");
   }
   function setNotice(text) {
     const bad = /未確認|沒有送出|中斷|無法|失敗|停用|尚未完成/.test(text);
@@ -327,6 +377,7 @@
     for (const [id, stream] of runningTools) {
       if (typeof data.stream_id === "string" && stream !== data.stream_id) continue;
       runningTools.delete(id);
+      researchTools.delete(id);
       updateToolProposal(id, data.state === "cancelled" ? "已停止：這次工作已取消，沒有自動重送。" : `未完成：沒有收到這個操作的結果${data.error ? `（${data.error}）` : ""}，不會自動重送。`);
     }
   }
@@ -337,8 +388,14 @@
       speechStream = Boolean((await response.json()).speech_stream);
     } catch { /* snapshot already describes the switches */ }
   }
+  const ASIDE = new Set(["assistant_started", "assistant_delta", "assistant_terminal", "assistant_retry_wait", "assistant_route_notice"]);
   function handleControlMessage(data) {
     if (!data || typeof data.type !== "string") return;
+    // A pat line (or any other aside) that arrives mid-reply must not steal the open bubble.
+    if (openStream && typeof data.stream_id === "string" && data.stream_id !== openStream && ASIDE.has(data.type)) {
+      parkedAside.push(data);
+      return;
+    }
     if (!acceptRunEvent(data)) return;
     if (data.type === "assistant_terminal" && data.state !== "completed") settleRunningTools(data);
     if (!foregroundControl.event(data)) return;
@@ -370,8 +427,10 @@
     }
     if (data.type === "assistant_route_notice" && typeof data.text === "string" && data.text) setNotice(data.text);
     if (data.type === "assistant_started") {
+      openStream = typeof data.stream_id === "string" ? data.stream_id : (openStream || "reply");
       assistantBubble = appendMessage("assistant", "");
       liveSpeech = beginLiveSpeech();
+      replyGlanced = false;
     }
     if (data.type === "assistant_delta") {
       if (lastError && /限流/.test(lastError)) lastError = "";
@@ -381,6 +440,7 @@
       rememberReply(assistantBubble.textContent.trim());
       const box = $("#messages");
       if (box) box.scrollTop = box.scrollHeight;
+      if (!replyGlanced) { replyGlanced = true; glanceAtReply(); }
     }
     if (data.type === "assistant_terminal") {
       const canonicalText = assistantBubble?.textContent || "";
@@ -403,12 +463,23 @@
         else if (!speechCancelled) playTts(canonicalText, lastSpeech.prosody);
         rememberReply(canonicalText);
       }
-      assistantBubble = undefined; currentTurn = undefined; liveSpeech = undefined; publishState();
+      assistantBubble = undefined; currentTurn = undefined; liveSpeech = undefined; openStream = null;
+      publishState();
+      if (parkedAside.length) {
+        const waiting = parkedAside.splice(0);
+        for (const item of waiting) handleControlMessage(item);
+      }
     }
     if (data.type === "tool_proposal") renderToolProposal(data);
-    if (data.type === "tool_started") { runningTools.set(data.proposal_id, data.stream_id); updateToolProposal(data.proposal_id, "執行中…"); publishState(); }
+    if (data.type === "tool_started") {
+      runningTools.set(data.proposal_id, data.stream_id);
+      if (isResearchTool(data.capability)) researchTools.add(data.proposal_id);
+      updateToolProposal(data.proposal_id, "執行中…");
+      publishState();
+    }
     if (data.type === "tool_result") {
       runningTools.delete(data.proposal_id);
+      researchTools.delete(data.proposal_id);
       updateToolProposal(data.proposal_id, "完成");
       publishState();
     }
@@ -1290,6 +1361,31 @@
     bind("#desktop-console", () => openControl());
     bind("#desktop-hide", () => nativeCommand({type: "desktop.hide"}));
     bind("#desktop-quit", () => nativeCommand({type: "desktop.quit"}));
+    const gestures = document.createElement("div");
+    gestures.id = "pet-gestures";
+    const gestureLabel = document.createElement("span");
+    gestureLabel.textContent = "動作";
+    gestures.appendChild(gestureLabel);
+    for (const [name, text] of GESTURES) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = text;
+      button.dataset.gesture = name;
+      button.addEventListener("click", () => {
+        postToRenderer({type: "siro.gesture", v: 1, name});
+        setMenu(false);
+      });
+      gestures.appendChild(button);
+    }
+    const sound = document.createElement("button");
+    sound.type = "button";
+    sound.textContent = "音效";
+    sound.addEventListener("click", () => {
+      postToRenderer({type: "siro.sfx", v: 1});
+      setMenu(false);
+    });
+    gestures.appendChild(sound);
+    $("#pet-more")?.appendChild(gestures);
     $("#desktop-move")?.addEventListener("pointerdown", event => {
       if (event.button !== 0) return;
       event.preventDefault();
@@ -1378,7 +1474,9 @@
       if (!frame.contentWindow || !(ttsAudio || ttsController || microphoneCapture || transcriptionController || handsFree.on)) return;
       try { frame.contentWindow.postMessage({type: "siro.audio.busy", v: 1, busy: true}, location.origin); } catch { /* renderer gone */ }
     }, 1000);
+    const attentionPulse = setInterval(() => postAttention(attentionMode()), 2000);
     audioBusy?.unref?.();
+    attentionPulse?.unref?.();
     window.addEventListener("message", event => {
       if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
       const data = event.data;
@@ -1390,18 +1488,25 @@
       }
       if (data?.type === "siro.renderer.ready") nativeCommand({type: "desktop.ready"});
       if (data?.type === "siro.desktop.walk" && data.v === 1) walkRequest(data);
+      if (data?.type === "siro.contextmenu" && data.v === 1) setMenu(true);
+      if (data?.type === "siro.key" && data.v === 1) onHostKey(data.key, null);
     });
-    window.addEventListener("keydown", event => {
-      if (event.key === "F2") { event.preventDefault?.(); setChat(!chatOpen); return; }
-      if (event.key !== "Escape") return;
+    function onHostKey(key, target) {
+      if (key === "F2") { setChat(!chatOpen); return; }
+      if (key !== "Escape") return;
       const bubbleNode = $("#desktop-bubble");
-      if (event.target === bubbleNode || bubbleNode?.contains?.(event.target)) return;
+      if (target === bubbleNode || bubbleNode?.contains?.(target)) return;
       setMenu(false);
       stopAll();
       setChat(false);
+    }
+    window.addEventListener("keydown", event => {
+      if (event.key !== "F2" && event.key !== "Escape") return;
+      if (event.key === "F2") event.preventDefault?.();
+      onHostKey(event.key, event.target);
     });
     window.addEventListener("pagehide", () => {
-      observerStop?.(); unreadObserver.disconnect(); detachRole(); clearInterval(audioBusy); clearTimeout(hotTimer); clearTimeout(replyTimer);
+      observerStop?.(); unreadObserver.disconnect(); detachRole(); clearInterval(audioBusy); clearInterval(attentionPulse); clearTimeout(hotTimer); clearTimeout(replyTimer);
     }, {once: true});
     window.addEventListener("beforeunload", () => {
       pageClosing = true; controlDispose?.("頁面已關閉"); controlEpoch += 1;
