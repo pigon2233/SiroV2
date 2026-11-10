@@ -4,7 +4,7 @@
 - Owner／session：Cursor cloud agent，2026-11-10 UTC。
 - 狀態：實作完成，待 PR。這張卡疊在未合併的 UI-LAUNCH-01（`cursor/win-launcher-cleanup-b58f`，PR #7）上。開始時該分支工作區乾淨。沒有另一張遠端鎖認領這範圍；本檔是交接。
 - Base SHA：`58acf5b8b6f4dafdef68ecd6541a5eabada99541`（`cursor/win-launcher-cleanup-b58f`）。
-- Branch：`cursor/desktop-pet-page-24cc`。Worktree：這個 cloud agent checkout。
+- Branch：`cursor/desktop-pet-page-24cc`。實作 commit：`992affbbed858ceb77fb3e40fad672023624f128`。Worktree：這個 cloud agent checkout。
 - 推送：使用者這次明確要求開一個 pull request，並寫明可疊在 PR #7。這是對 `docs/AI_COLLABORATION.md`「不得 push」的偏離，只針對這個分支與這一個 PR。不合併、不部署。
 
 ## 允許修改
