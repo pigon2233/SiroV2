@@ -13,6 +13,7 @@ from siro.services.computer_use.bridge import BridgeResult
 from siro.services.computer_use.decision import DecisionError
 from siro.services.computer_use.ocr import OcrFrame
 from siro.services.computer_use.perception import Observation, is_fresh
+from siro.services.computer_use.process_names import process_in
 from siro.services.computer_use.safety import ControlGate, InputAction
 
 BATCH_ENV = "SIRO_COMPUTER_ACTION_BATCH"
@@ -157,7 +158,7 @@ async def execute_batch(
             return None, error or "observe_failed"
         if current.blocked_reason:
             return None, current.blocked_reason
-        if current.process not in allowed or not same_window(initial, current):
+        if not process_in(current.process, allowed) or not same_window(initial, current):
             return None, "window_changed"
         if not is_fresh(current, clock()):
             return None, "stale_observation"
@@ -175,7 +176,7 @@ async def execute_batch(
                 return BatchResult(tuple(sent), None, current.blocked_reason)
             if (
                 not same_window(initial, current)
-                or current.process not in allowed
+                or not process_in(current.process, allowed)
                 or not is_fresh(current, clock())
             ):
                 return BatchResult(tuple(sent), None, "window_changed")

@@ -53,6 +53,7 @@ from siro.services.computer_use.perception import (
     is_fresh,
 )
 from siro.services.computer_use.playbook import PlaybookStore, notes_block
+from siro.services.computer_use.process_names import process_in
 from siro.services.computer_use.safety import InputAction
 from siro.services.computer_use.stuck import (
     _click_ineffective_same_spot as _click_ineffective_same_spot,
@@ -286,7 +287,7 @@ class DecisionLoop:
             wrong_window = error == "window_not_visible" or (
                 observation is not None
                 and not observation.blocked_reason
-                and observation.process not in self._allowed
+                and not process_in(observation.process, self._allowed)
             )
             if wrong_window:
                 # Autonomous: keep bringing the game forward; never act on a non-allowed window.
@@ -338,7 +339,7 @@ class DecisionLoop:
                 return end("stopped", error)
             if observation.blocked_reason:
                 return end("stopped", observation.blocked_reason)
-            if observation.process not in self._allowed:
+            if not process_in(observation.process, self._allowed):
                 return end("stopped", "window_not_allowed")
             if not is_fresh(observation, self._clock()):
                 return end("stopped", "stale_observation")

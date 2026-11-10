@@ -14,6 +14,8 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from siro.services.computer_use.process_names import process_in
+
 ALLOW_ENV = "SIRO_COMPUTER_ALLOWED_PROCESSES"  # comma list, e.g. "game.exe,notepad.exe"
 # Optional affine fix for residual multi-monitor / DPI miss: ox,oy,sx,sy → (ox+sx*x, oy+sy*y)
 COORD_CALIB_ENV = "SIRO_COMPUTER_COORD_CALIB"
@@ -120,7 +122,7 @@ def sanitize(raw: Mapping[str, object], *, seq: int, now: float) -> Observation:
         reason = "bad_screen_report"
     elif not process:
         reason = "unknown_window"
-    elif process in BLOCKED_PROCESSES:
+    elif process_in(process, BLOCKED_PROCESSES):
         reason = "blocked_process"
     elif BLOCKED_TITLE.search(title):
         reason = "blocked_title"
@@ -186,7 +188,7 @@ def image_to_screen(
     sx = left + round(x * width / size[0])
     sy = top + round(y * height / size[1])
     ox, oy, mx, my = coord_calib(env)
-    return int(round(ox + sx * mx)), int(round(oy + sy * my))
+    return round(ox + sx * mx), round(oy + sy * my)
 
 
 def annotate_coord_grid(
@@ -219,11 +221,14 @@ def annotate_coord_grid(
         cx, cy = width // 2, height // 2
         draw.line([(cx - 14, cy), (cx + 14, cy)], fill=(255, 70, 70), width=2)
         draw.line([(cx, cy - 14), (cx, cy + 14)], fill=(255, 70, 70), width=2)
-        draw.text((min(width - 90, cx + 6), min(height - 14, cy + 6)), f"{cx},{cy}", fill=(255, 70, 70))
+        draw.text(
+            (min(width - 90, cx + 6), min(height - 14, cy + 6)),
+            f"{cx},{cy}", fill=(255, 70, 70),
+        )
         out = io.BytesIO()
         image.save(out, format="JPEG", quality=72)
         return base64.b64encode(out.getvalue()).decode("ascii")
-    except Exception:  # noqa: BLE001 — vision must still run without labels
+    except Exception:  # Vision must still run without labels.
         return image_b64
 
 

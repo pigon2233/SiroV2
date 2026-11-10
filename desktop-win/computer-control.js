@@ -12,6 +12,18 @@ const ALIASES = {control: 'ctrl', del: 'delete', windows: 'win', esc: 'escape'};
 const SECRET = /sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./;
 const normalize = key => String(key).split('+').map(p => p.trim().toLowerCase()).filter(Boolean).map(p => ALIASES[p] || p).join('+');
 
+// Pure, shared-vector-tested equivalent of backend process_key; not an allowlist itself.
+function processNameKey(name) {
+  if (typeof name !== 'string' || !name || name.length > 80 || /[\\/:\x00]/.test(name)) return '';
+  let key = '';
+  for (const c of name.trim().toLowerCase().replace(/\.exe$/, '')) {
+    if (/[\p{L}\p{N}]/u.test(c)) key += c;
+    else if (/[\s\p{P}]/u.test(c) || (c.codePointAt(0) >= 33 && c.codePointAt(0) <= 126)) continue;
+    else return '';
+  }
+  return key;
+}
+
 function defaultSpawn() {
   const script = path.join(__dirname, 'input-helper.ps1');
   return spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script],
@@ -87,10 +99,12 @@ class ComputerControl {
     return this.send(action);
   }
   // Bring a named program's window to the front (the backend only asks for allowlisted programs).
-  focus(process) {
+  focus(process, normalizeNames = false) {
     if (!this.active) return Promise.resolve({ok: false, error: this.stopped ? 'emergency_stop' : 'control_disabled'});
-    if (typeof process !== 'string' || !/^[A-Za-z0-9._-]{1,60}$/.test(process)) return Promise.resolve({ok: false, error: 'bad_process'});
-    return this.send({kind: 'focus', process});
+    const valid = typeof process === 'string' && (normalizeNames === true
+      ? !!processNameKey(process) : /^[A-Za-z0-9._-]{1,60}$/.test(process));
+    if (!valid) return Promise.resolve({ok: false, error: 'bad_process'});
+    return this.send({kind: 'focus', process, ...(normalizeNames === true ? {normalize_process_names: true} : {})});
   }
   // Read-only foreground window query (title, process, rect, password-focus). Only while active.
   queryWindow() {
@@ -114,4 +128,4 @@ class ComputerControl {
   }
 }
 
-module.exports = {ComputerControl, normalize};
+module.exports = {ComputerControl, normalize, processNameKey};

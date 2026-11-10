@@ -407,6 +407,7 @@ def main() -> int:
         prepared = asyncio.run(prepare_ocr(args.cases, args.ocr_cache, args.image_root))
         text = json.dumps(prepared, indent=2) + "\n"
         if args.out:
+            args.out.parent.mkdir(parents=True, exist_ok=True)
             args.out.write_text(text, encoding="utf-8")
         print(text)
         return 0
@@ -423,9 +424,10 @@ def main() -> int:
         )
     )
     text = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
+    print(text)  # preserve complete measurements even if an output filesystem fails
     if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(text, encoding="utf-8")
-    print(text)
     return 0 if all(r["status"] == "measured" for r in result["results"]) else 2
 
 

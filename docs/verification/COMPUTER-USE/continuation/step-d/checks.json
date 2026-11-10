@@ -1,0 +1,215 @@
+[
+  {
+    "check": "new-unit",
+    "command": [
+      "uv",
+      "run",
+      "--no-sync",
+      "pytest",
+      "tests/unit/test_computer_use_hybrid.py",
+      "tests/unit/test_computer_use_batch.py",
+      "tests/unit/test_computer_use_modules.py",
+      "tests/unit/test_computer_process_names.py",
+      "tests/unit/test_computer_click_eval.py",
+      "-q"
+    ],
+    "exit_code": 0,
+    "seconds": 2.790802508010529,
+    "log": ".siro-data/continuation-checks/new-unit.log",
+    "summary": [
+      "97 passed in 2.40s"
+    ],
+    "failure_names": []
+  },
+  {
+    "check": "regression",
+    "command": [
+      "uv",
+      "run",
+      "--no-sync",
+      "pytest",
+      "tests/unit/test_computer_click_eval.py",
+      "tests/unit/test_computer_process_names.py",
+      "tests/unit/test_computer_use_batch.py",
+      "tests/unit/test_computer_use_bench.py",
+      "tests/unit/test_computer_use_dataset.py",
+      "tests/unit/test_computer_use_demos.py",
+      "tests/unit/test_computer_use_groq_decider.py",
+      "tests/unit/test_computer_use_http.py",
+      "tests/unit/test_computer_use_hybrid.py",
+      "tests/unit/test_computer_use_intent.py",
+      "tests/unit/test_computer_use_loop.py",
+      "tests/unit/test_computer_use_modules.py",
+      "tests/unit/test_computer_use_numbered.py",
+      "tests/unit/test_computer_use_ollama_decider.py",
+      "tests/unit/test_computer_use_perception.py",
+      "tests/unit/test_computer_use_playbook.py",
+      "tests/unit/test_computer_use_router.py",
+      "tests/unit/test_computer_use_safety.py",
+      "tests/unit/test_computer_use_tool.py",
+      "tests/integration/test_computer_driver.py",
+      "tests/integration/test_computer_use_catalog.py",
+      "tests/integration/test_computer_use_chat_hook.py",
+      "-q"
+    ],
+    "exit_code": 1,
+    "seconds": 27.640701669966802,
+    "log": ".siro-data/continuation-checks/regression.log",
+    "summary": [
+      "4 failed, 359 passed, 1 warning in 26.89s"
+    ],
+    "failure_names": [
+      "test_vision_decider_runs_claude_with_read_only_screenshot",
+      "test_vision_decider_retries_transient_claude_failure",
+      "test_parse_decision_accepts_combo_alias_and_hold",
+      "test_seen_is_parsed_and_shown_in_history"
+    ]
+  },
+  {
+    "check": "regression-normalized",
+    "command": [
+      "uv",
+      "run",
+      "--no-sync",
+      "pytest",
+      "tests/unit/test_computer_click_eval.py",
+      "tests/unit/test_computer_process_names.py",
+      "tests/unit/test_computer_use_batch.py",
+      "tests/unit/test_computer_use_bench.py",
+      "tests/unit/test_computer_use_dataset.py",
+      "tests/unit/test_computer_use_demos.py",
+      "tests/unit/test_computer_use_groq_decider.py",
+      "tests/unit/test_computer_use_http.py",
+      "tests/unit/test_computer_use_hybrid.py",
+      "tests/unit/test_computer_use_intent.py",
+      "tests/unit/test_computer_use_loop.py",
+      "tests/unit/test_computer_use_modules.py",
+      "tests/unit/test_computer_use_numbered.py",
+      "tests/unit/test_computer_use_ollama_decider.py",
+      "tests/unit/test_computer_use_perception.py",
+      "tests/unit/test_computer_use_playbook.py",
+      "tests/unit/test_computer_use_router.py",
+      "tests/unit/test_computer_use_safety.py",
+      "tests/unit/test_computer_use_tool.py",
+      "tests/integration/test_computer_driver.py",
+      "tests/integration/test_computer_use_catalog.py",
+      "tests/integration/test_computer_use_chat_hook.py",
+      "-q"
+    ],
+    "exit_code": 1,
+    "seconds": 26.262044418952428,
+    "log": ".siro-data/continuation-checks/regression-normalized.log",
+    "summary": [
+      "4 failed, 359 passed, 1 warning in 25.44s"
+    ],
+    "failure_names": [
+      "test_vision_decider_runs_claude_with_read_only_screenshot",
+      "test_vision_decider_retries_transient_claude_failure",
+      "test_parse_decision_accepts_combo_alias_and_hold",
+      "test_seen_is_parsed_and_shown_in_history"
+    ]
+  },
+  {
+    "check": "ruff",
+    "command": [
+      "uv",
+      "run",
+      "--no-sync",
+      "ruff",
+      "check",
+      "src/siro/services/computer_use/batch.py",
+      "src/siro/services/computer_use/batch_decision.py",
+      "src/siro/services/computer_use/bridge.py",
+      "src/siro/services/computer_use/decide.py",
+      "src/siro/services/computer_use/decision.py",
+      "src/siro/services/computer_use/execute.py",
+      "src/siro/services/computer_use/hybrid.py",
+      "src/siro/services/computer_use/intent.py",
+      "src/siro/services/computer_use/interface.py",
+      "src/siro/services/computer_use/loop.py",
+      "src/siro/services/computer_use/numbered.py",
+      "src/siro/services/computer_use/observe.py",
+      "src/siro/services/computer_use/perception.py",
+      "src/siro/services/computer_use/process_names.py",
+      "src/siro/services/computer_use/regions.py",
+      "src/siro/services/computer_use/stuck.py",
+      "src/siro/services/computer_use/verify.py",
+      "tests/unit/test_computer_use_hybrid.py",
+      "tests/unit/test_computer_use_batch.py",
+      "tests/unit/test_computer_use_modules.py",
+      "tests/unit/test_computer_process_names.py",
+      "scripts/computer_click_eval.py",
+      "scripts/computer_batch_eval.py",
+      "tests/unit/test_computer_click_eval.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.2431594820227474,
+    "log": ".siro-data/continuation-checks/ruff.log",
+    "summary": [
+      "All checks passed!"
+    ],
+    "failure_names": []
+  },
+  {
+    "check": "mypy",
+    "command": [
+      "uv",
+      "run",
+      "--no-sync",
+      "mypy",
+      "--follow-imports=silent",
+      "src/siro/services/computer_use/batch.py",
+      "src/siro/services/computer_use/batch_decision.py",
+      "src/siro/services/computer_use/bridge.py",
+      "src/siro/services/computer_use/decide.py",
+      "src/siro/services/computer_use/decision.py",
+      "src/siro/services/computer_use/execute.py",
+      "src/siro/services/computer_use/hybrid.py",
+      "src/siro/services/computer_use/intent.py",
+      "src/siro/services/computer_use/interface.py",
+      "src/siro/services/computer_use/loop.py",
+      "src/siro/services/computer_use/numbered.py",
+      "src/siro/services/computer_use/observe.py",
+      "src/siro/services/computer_use/perception.py",
+      "src/siro/services/computer_use/process_names.py",
+      "src/siro/services/computer_use/regions.py",
+      "src/siro/services/computer_use/stuck.py",
+      "src/siro/services/computer_use/verify.py",
+      "tests/unit/test_computer_use_hybrid.py",
+      "tests/unit/test_computer_use_batch.py",
+      "tests/unit/test_computer_use_modules.py",
+      "tests/unit/test_computer_process_names.py",
+      "scripts/computer_click_eval.py",
+      "scripts/computer_batch_eval.py",
+      "tests/unit/test_computer_click_eval.py"
+    ],
+    "exit_code": 0,
+    "seconds": 2.7076629149960354,
+    "log": ".siro-data/continuation-checks/mypy.log",
+    "summary": [
+      "Success: no issues found in 24 source files"
+    ],
+    "failure_names": []
+  },
+  {
+    "check": "desktop-unit",
+    "command": [
+      "node",
+      "--test",
+      "desktop-win/computer-control.test.js",
+      "desktop-win/computer-bridge.test.js",
+      "desktop-win/computer-config.test.js",
+      "desktop-win/process-names.test.js"
+    ],
+    "exit_code": 0,
+    "seconds": 16.69780481304042,
+    "log": ".siro-data/continuation-checks/desktop-unit.log",
+    "summary": [
+      "# tests 32",
+      "# pass 32",
+      "# fail 0",
+      "# skipped 0"
+    ],
+    "failure_names": []
+  }
+]

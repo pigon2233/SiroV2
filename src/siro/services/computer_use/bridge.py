@@ -15,6 +15,7 @@ from typing import Any
 from uuid import uuid4
 
 from siro.services.computer_use.perception import Observation, sanitize
+from siro.services.computer_use.process_names import normalization_enabled
 from siro.services.computer_use.safety import ControlGate, InputAction
 
 INPUT_TIMEOUT = 12.0  # covers a cold helper start (C# compile) plus the 3 s input timeout
@@ -96,7 +97,10 @@ class ComputerBridge:
             return BridgeResult(
                 False, "emergency_stop" if self.gate.tripped else "control_disabled"
             )
-        return await self._request("focus", {"process": process}, FOCUS_TIMEOUT, "focus_timeout")
+        payload: dict[str, Any] = {"process": process}
+        if normalization_enabled():
+            payload["normalize_process_names"] = True
+        return await self._request("focus", payload, FOCUS_TIMEOUT, "focus_timeout")
 
     async def observe(self) -> tuple[Observation | None, str]:
         if self.gate.tripped:

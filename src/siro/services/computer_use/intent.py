@@ -16,6 +16,7 @@ from collections.abc import Iterable, Sequence
 
 from siro.ports.models import ToolDefinition
 from siro.services.computer_use.perception import allowed_processes
+from siro.services.computer_use.process_names import mentions_process, normalization_enabled
 
 MAX_LENGTH = 80
 _FILLER = r"(?:好[啊吧啦]?|那|就|現在|請|麻煩|你|可以|先|再|[，,、\s])*"
@@ -32,6 +33,8 @@ _VERB = re.compile(r"玩|遊玩|操控|操作|通關|過關|打")
 
 def names_program(stem: str, text: str) -> bool:
     """``text`` (lower-cased) mentions this program: 3+ chars, not inside a longer ASCII word."""
+    if normalization_enabled():
+        return mentions_process(stem,text)
     return (
         len(stem) >= 3
         and re.search(rf"(?<![a-z0-9]){re.escape(stem)}(?![a-z0-9])", text) is not None

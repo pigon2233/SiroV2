@@ -20,6 +20,7 @@ from siro.services.computer_use.hybrid import VisualSelector
 from siro.services.computer_use.numbered import TextReader
 from siro.services.computer_use.ocr import WindowsTextReader
 from siro.services.computer_use.perception import Observation
+from siro.services.computer_use.process_names import process_in
 from siro.services.computer_use.regions import overlay, region_frame
 
 
@@ -67,7 +68,7 @@ class BatchingDecider:
         strategy: str = "",
     ) -> Decision:
         self._pending = None
-        if observation.process in self.processes and not observation.blocked_reason:
+        if process_in(observation.process, self.processes) and not observation.blocked_reason:
             try:
                 plan = await self.planner.plan(goal, observation)
             except CloudScreenNotAllowed:

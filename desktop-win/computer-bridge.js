@@ -50,7 +50,7 @@ class ComputerBridgeClient {
       if (BLOCKED_TITLE.test(now.data.title || '')) return {ok: false, error: 'blocked_title'};
       return this.control.execute({...command.payload, expected_window: target});
     }
-    if (command.op === 'focus') return this.control.focus(command.payload && command.payload.process);
+    if (command.op === 'focus') return this.control.focus(command.payload && command.payload.process, command.payload && command.payload.normalize_process_names === true);
     return {ok: false, error: 'unknown_op'};
   }
   async loop() {

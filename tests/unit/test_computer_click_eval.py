@@ -228,3 +228,16 @@ def test_mean_and_median_and_error_attempt_accounting() -> None:
     assert result["errors"] == 1
     result = bench.summarize("claude", "m", [{"hit": False, "seconds": 1}], 3)
     assert result["status"] == "not_measured" and result["hit_rate"] is None
+
+
+def test_cli_creates_report_parent_without_any_live_input(
+    dataset: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_evaluate(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        return {"results": [{"status": "measured"}]}
+
+    output = tmp_path / "new" / "nested" / "report.json"
+    monkeypatch.setattr(bench, "evaluate", fake_evaluate)
+    monkeypatch.setattr(sys, "argv", ["computer_click_eval", str(dataset), "--out", str(output)])
+    assert bench.main() == 0
+    assert json.loads(output.read_text()) == {"results": [{"status": "measured"}]}

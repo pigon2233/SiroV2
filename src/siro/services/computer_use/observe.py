@@ -14,6 +14,7 @@ from PIL import Image
 
 from siro.services.computer_use.bridge import ComputerBridge
 from siro.services.computer_use.perception import Observation, is_fresh
+from siro.services.computer_use.process_names import process_in
 
 
 class ObservationContext(Protocol):
@@ -109,7 +110,7 @@ async def wait_for_same_screen(
             return None, error
         if current.blocked_reason:
             return None, current.blocked_reason
-        if current.process not in context._allowed or not _same_target(original, current):
+        if not process_in(current.process, context._allowed) or not _same_target(original, current):
             return None, "window_changed"
         if not is_fresh(current, context._clock()):
             return None, "stale_observation"

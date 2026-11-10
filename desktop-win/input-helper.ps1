@@ -1,3 +1,4 @@
+. (Join-Path $PSScriptRoot 'process-names.ps1')
 # Long-lived Windows input helper: reads one JSON action per stdin line, writes one JSON result per line.
 # Started and killed by computer-control.js; exits when stdin closes. Coordinates are physical pixels.
 $ErrorActionPreference = 'Stop'
@@ -150,7 +151,11 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
                  [SiroInput]::Combo([uint16[]]@(([string]$a.key).ToLower().Split('+') | ForEach-Object { KeyCode $_ }), $hold) }
       'type'   { [SiroInput]::Text([string]$a.text) }
       'focus'  { $n = ([string]$a.process) -replace '\.exe$', ''
-                 $p = Get-Process -Name $n -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+                 if ($a.normalize_process_names -is [bool] -and $a.normalize_process_names) {
+                   $p = Select-SiroNormalizedProcess @(Get-Process -ErrorAction SilentlyContinue) ([string]$a.process)
+                 } else {
+                   $p = Get-Process -Name $n -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+                 }
                  if ($null -eq $p) { throw 'no_window' }
                  if (-not [SiroInput]::Focus($p.MainWindowHandle)) { throw 'focus_denied' } }
       'window' { $w = [SiroInput]::Foreground()
