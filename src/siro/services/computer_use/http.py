@@ -22,12 +22,14 @@ from siro.services.computer_use.decision import Decider, StepRecord, make_decide
 from siro.services.computer_use.demos import DemoRecorder, demos_dir
 from siro.services.computer_use.loop import ComputerLimitError, DecisionLoop, LoopReport
 from siro.services.computer_use.playbook import ClaudeReflector, PlaybookStore, playbook_dir
+from siro.services.computer_use.runtime_info import runtime_info
 from siro.services.computer_use.safety import ControlGate
 
 TOKEN_ENV = "SIRO_COMPUTER_TOKEN"
 TOKEN_HEADER = "X-SIRO-Computer-Token"
 AUTONOMOUS_FLAG = "SIRO_COMPUTER_AUTONOMOUS"
-ENDLESS_FLAG = "SIRO_COMPUTER_ENDLESS"  # with autonomous: start another segment after recoverable stops
+# With autonomous: start another segment after recoverable stops.
+ENDLESS_FLAG = "SIRO_COMPUTER_ENDLESS"
 MAX_SEGMENTS_ENV = "SIRO_COMPUTER_MAX_SEGMENTS"
 SAME_REASON_LIMIT_ENV = "SIRO_COMPUTER_SAME_SEGMENT_REASON_LIMIT"
 DEFAULT_MAX_SEGMENTS = 48
@@ -129,7 +131,13 @@ class ComputerRuns:
             detail = reason.removeprefix("decider_error:")
             if "timeout" in detail:
                 return "decider_error:timeout"
-            if detail in {"not_json", "bad_action", "incomplete_action", "missing_expect", "bad_kind"}:
+            if detail in {
+                "not_json",
+                "bad_action",
+                "incomplete_action",
+                "missing_expect",
+                "bad_kind",
+            }:
                 return "decider_error:bad_format"
             return f"decider_error:{detail}"
         return reason
@@ -177,9 +185,7 @@ class ComputerRuns:
         # Keep going after transient model glitches, but never spin on auth/login failure.
         if report.reason.startswith("decider_error:"):
             detail = report.reason.removeprefix("decider_error:")
-            if detail in {"claude_auth", "claude_cli_missing"} or "auth" in detail:
-                return False
-            return True
+            return not (detail in {"claude_auth", "claude_cli_missing"} or "auth" in detail)
         return False
 
     async def _run(self, goal: str) -> None:
@@ -213,9 +219,7 @@ class ComputerRuns:
                 "detail": report.detail,
             }
             self.segment_ends.append(end_info)
-            hit_segment_cap = (
-                max_segments is not None and self.session_segments >= max_segments
-            )
+            hit_segment_cap = max_segments is not None and self.session_segments >= max_segments
             will_continue = self._should_continue(report) and not hit_segment_cap
             if will_continue:
                 key = self._reason_key(report)
@@ -239,10 +243,7 @@ class ComputerRuns:
                 else:
                     self._last_continue_reason = key
                     self._same_reason_streak = 0
-            if (
-                not will_continue
-                or not self.bridge.gate.enabled
-            ):
+            if not will_continue or not self.bridge.gate.enabled:
                 if self._endless() and hit_segment_cap:
                     self.report = LoopReport(
                         report.state,
@@ -300,7 +301,7 @@ class ComputerRuns:
             limits["session_segments"] = self.session_segments
             limits["same_segment_reason_limit"] = self._same_reason_limit()
         last_end = self.segment_ends[-1] if self.segment_ends else None
-        return {
+        result = {
             "enabled": gate.enabled,
             "tripped": gate.tripped,
             "executor_online": self.bridge.executor_online,
@@ -323,6 +324,11 @@ class ComputerRuns:
                 "steps": _steps(report.steps),
             },
         }
+
+        identity = runtime_info(self._decider)
+        if identity is not None:
+            result["runtime"] = identity
+        return result
 
 
 def _steps(records: Sequence[StepRecord]) -> list[dict[str, Any]]:

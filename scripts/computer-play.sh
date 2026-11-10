@@ -26,6 +26,9 @@ stop_run() {
 trap 'stop_run; exit 130' INT TERM
 
 status="$(api "$base/status" || true)"
+# Optional fail-closed source identity check BEFORE countdown or any /run POST.
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+printf '%s' "$status" | python3 "$project_root/scripts/computer_runtime_check.py" --expected "$project_root" --config "$env_file"
 case "$status" in *'"enabled":true'*) ;; *) echo "電腦操控沒有開啟：請先在托盤選單開啟「電腦操控」。" >&2; exit 1;; esac
 echo "請把遊戲視窗點到最前面；$delay 秒後開始（Ctrl+C 停止；Ctrl+Alt+Shift+Esc 急停）。"
 sleep "$delay"
