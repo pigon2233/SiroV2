@@ -11,6 +11,7 @@ import {inputMask} from './input-mask.mjs';
 import {desktopLayout} from './layout.mjs';
 import {stopPlan, walkPlan, walkRoom} from './wander.mjs';
 
+// /desktop is the dedicated pet page (pet.html), not the console.
 const url = GLib.getenv('SIRO_DESKTOP_URL') || 'http://127.0.0.1:8000/desktop';
 const parsed = GLib.Uri.parse(url, GLib.UriFlags.NONE);
 if (parsed.get_scheme() !== 'http' || !['127.0.0.1', 'localhost'].includes(parsed.get_host()) || parsed.get_path() !== '/desktop' || parsed.get_userinfo() || parsed.get_query())

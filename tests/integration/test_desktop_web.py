@@ -26,12 +26,16 @@ class Element {
   constructor(tag) {
     this.tagName=tag; this.children=[]; this.textContent=''; this.className='';
     this.attrs={}; this.events=new Map();
+    const data={};
     this.classList={
       contains: name => this.className.split(/\s+/).includes(name),
       add: name => {if(!this.classList.contains(name)) this.className+=' '+name;},
       remove: name => {this.className=this.className.split(/\s+/).filter(x=>x!==name).join(' ');},
       toggle: (name,on) => {if(on) this.classList.add(name);else this.classList.remove(name);}
     };
+    this.style={setProperty(){}};
+    // HTMLElement.dataset is getter-only. Replacing it must throw, as it does in the browser.
+    Object.defineProperty(this,'dataset',{get(){return data;},enumerable:true});
   }
   setAttribute(key,value) {this.attrs[key]=value;}
   getAttribute(key) {return this.attrs[key]??null;}
@@ -42,16 +46,36 @@ class Element {
   focus() {document.activeElement=this;}
 }
 const document={readyState:'complete',body:new Element('body'),documentElement:new Element('html'),
-  createElement: tag=>new Element(tag)};
+  createElement: tag=>new Element(tag),activeElement:null};
 document.body.className='siro-desktop';
 const existing=new Map();
-for(const id of ['companion','messages','text','voice','cancel','connection',
-                'voice-status','tts-status']) {
-  const node=new Element('div');node.id=id;existing.set('#'+id,node);
+const add=(id,tag,parent)=>{
+  const node=new Element(tag);node.id=id;
+  (parent||document.body).appendChild(node);
+  existing.set('#'+id,node);return node;
+};
+const stage=add('pet-stage','main');
+const petFrame=add('companion','iframe',stage);
+petFrame.contentWindow={renderer:true};
+add('pet-state-label','span',add('pet-state','p',stage));
+const petBubble=add('desktop-bubble','div',stage);petBubble.hidden=true;
+for(const [tag,cls] of [['span','desktop-bubble-icon'],['span','desktop-bubble-label']]){
+  const node=new Element(tag);node.className=cls;petBubble.appendChild(node);
 }
-const conversation=new Element('section');conversation.className='conversation';
-existing.set('.conversation',conversation);
-existing.get('#companion').contentWindow={renderer:true};
+const bubbleAction=new Element('button');
+bubbleAction.hidden=true;petBubble.appendChild(bubbleAction);
+const controls=add('pet-controls','nav',stage);
+add('desktop-voice','button',controls);
+const stop=add('desktop-stop','button',controls);stop.hidden=true;
+add('desktop-more','button',controls);
+const more=add('pet-more','div',controls);more.hidden=true;
+for(const id of ['desktop-chat','desktop-microphone','desktop-voice-auto','desktop-speech',
+  'desktop-replay','desktop-smaller','desktop-scale','desktop-larger','desktop-move',
+  'desktop-console','desktop-hide','desktop-quit']) add(id,'button',more);
+const chat=add('pet-chat','section');chat.hidden=true;
+add('messages','div',chat);
+add('text','textarea',add('chat','form',chat));
+const err=add('pet-error','p');err.hidden=true;
 const find=(node,id)=>node.id===id?node:node.children.map(child=>find(child,id)).find(Boolean);
 document.querySelector=selector=>existing.get(selector)||find(document.body,selector.slice(1))||null;
 const window={
@@ -61,21 +85,15 @@ const window={
   },
   open(url,name) {opened.push({url,name});}
 };
-const location={origin:'http://localhost'};
+const location={origin:'http://localhost',protocol:'http:',host:'localhost'};
 class MutationObserver {
   constructor(fn) {this.fn=fn;this.owned=[];observers.push(this);}
   observe(node,options) {this.owned.push(node);}
   disconnect() {this.disconnected=true;}
 }
 const dispatch=(name,event)=>{for(const fn of listeners.get(name)||[])fn(event);};
-let stopped=0,voiced=0;
-existing.get('#cancel').onclick=()=>stopped++;
-existing.get('#voice').onclick=()=>voiced++;
-existing.get('#connection').textContent='已連線';
-existing.get('#voice-status').textContent='麥克風待命';
-existing.get('#tts-status').textContent='TTS 待命';
 """
-    run_node(setup + before + STATIC.joinpath("desktop.js").read_text() + "\n" + checks)
+    run_node(setup + before + STATIC.joinpath("pet.js").read_text() + "\n" + checks)
 
 
 def test_desktop_scale_controls_request_only_fixed_native_steps() -> None:
@@ -89,7 +107,7 @@ assert.deepEqual(nativeMessages.slice(-3),[
 ]);
 assert.equal(existing.get('#companion'),originalFrame);
 document.querySelector('#desktop-stop').click();
-assert.equal(stopped,1);
+assert.equal(window.siroPet.stops,1);
 """,
         "const originalFrame=existing.get('#companion');\n",
     )
@@ -111,12 +129,12 @@ assert.deepEqual(nativeMessages.filter(item=>item.type==='desktop.move'),[
 role.events.get('pointerup')(event(120,115));
 dispatch('message',{origin:location.origin,source:existing.get('#companion').contentWindow,
  data:{type:'siro.renderer.interact'}});
-assert.equal(conversation.inert,true);
+assert.equal(document.querySelector('#pet-chat').hidden,true);
 role.events.get('pointerdown')(event(120,115));
 role.events.get('pointerup')(event(120,115));
 dispatch('message',{origin:location.origin,source:existing.get('#companion').contentWindow,
  data:{type:'siro.renderer.interact'}});
-assert.equal(conversation.inert,true);
+assert.equal(document.querySelector('#pet-chat').hidden,true);
 """,
         """
 const role=new Element('document');
@@ -137,28 +155,20 @@ assert(!nativeMessages.some(item=>item.type==='desktop.move'));
     )
 
 
-def test_desktop_visible_speech_switch_uses_original_checkbox_and_change() -> None:
+def test_desktop_speech_switch_toggles_without_scraping_the_console() -> None:
     run_desktop(
         """
 const speech=document.querySelector('#desktop-speech');
-assert.equal(output.checked,false);
-assert.equal(speech.attrs['aria-pressed'],'false');
-speech.click();
-assert.equal(output.checked,true);
-assert.equal(changes,1);
 assert.equal(speech.attrs['aria-pressed'],'true');
-assert(speech.textContent.includes('開'));
+assert(!speech.textContent.includes('\uff1a開'));
 speech.click();
-assert.equal(output.checked,false);
-assert.equal(changes,2);
-assert.equal(existing.get('#voice-output'),output);
-""",
-        """
-let changes=0;
-const output=new Element('input');output.checked=false;
-output.dispatchEvent=event=>{assert.equal(event.type,'change');changes++;};
-existing.set('#voice-output',output);
-""",
+assert.equal(speech.attrs['aria-pressed'],'false');
+assert(!speech.textContent.includes('\uff1a關'));
+speech.click();
+assert.equal(speech.attrs['aria-pressed'],'true');
+assert.equal(document.querySelector('#connection'),null);
+assert.equal(document.querySelector('#tts-status'),null);
+"""
     )
 
 
@@ -208,17 +218,18 @@ window.siroDesktopView.walkUpdate({id:'walk-1',state:'started',direction:-1,dist
  ramp:1.4,cruise:0.2,delay:1.4});
 window.siroDesktopView.walkUpdate({id:'walk-1',state:'teleported'});
 window.siroDesktopView.walkUpdate({id:'walk-1',state:'started',distance:'far'});
-assert.equal(toRole.length,1);
-assert.deepEqual(toRole[0].message,{id:'walk-1',state:'started',direction:-1,distance:400,
+const walks=()=>toRole.filter(item=>item.message.type==='siro.desktop.walk.state');
+assert.equal(walks().length,1);
+assert.deepEqual(walks()[0].message,{id:'walk-1',state:'started',direction:-1,distance:400,
  ramp:1.4,cruise:0.2,delay:1.4,type:'siro.desktop.walk.state',v:1});
-assert.equal(toRole[0].origin,location.origin);
+assert.equal(walks()[0].origin,location.origin);
 // With the chat open she does not wander off from it.
 existing.get('#text').focus=()=>{};
 document.querySelector('#desktop-chat').click();
 fromRole({type:'siro.desktop.walk',v:1,action:'start',id:'walk-3',direction:1,
  distance:400,speed:250,ramp:1.4,delay:1.4});
 assert(!nativeMessages.some(item=>item.id==='walk-3'));
-assert.deepEqual(toRole.at(-1).message,{id:'walk-3',state:'refused',reason:'chat',
+assert.deepEqual(walks().at(-1).message,{id:'walk-3',state:'refused',reason:'chat',
  type:'siro.desktop.walk.state',v:1});
 """,
         "const toRole=[];\n"
@@ -231,23 +242,15 @@ def test_desktop_microphone_switch_forwards_without_starting_recording() -> None
     run_desktop(
         """
 const button=document.querySelector('#desktop-microphone');
-assert.equal(button.textContent,'麥克風\uff1a關');
+assert.equal(button.getAttribute('aria-pressed'),'false');
+assert(!button.textContent.includes('\uff1a關'));
+let calls=0;
+globalThis.navigator={mediaDevices:{getUserMedia(){calls++;
+  return Promise.resolve({getTracks(){return [];}});}}};
 button.click();
-assert.equal(toggled,1);assert.equal(voiced,0);
-observers.find(item=>item.owned.includes(microphone)).fn();
-assert.equal(button.textContent,'麥克風\uff1a開');
-assert.equal(button.attrs['aria-pressed'],'true');
-microphone.disabled=true;
-observers.find(item=>item.owned.includes(microphone)).fn();
-assert.equal(button.disabled,true);
-""",
-        """
-let toggled=0;
-const microphone=new Element('button');
-microphone.textContent='麥克風\uff1a關';microphone.setAttribute('aria-pressed','false');
-microphone.onclick=()=>{toggled++;microphone.textContent='麥克風\uff1a開';microphone.setAttribute('aria-pressed','true');};
-existing.set('#microphone-toggle',microphone);
-""",
+assert.equal(calls,0);
+assert.equal(button.attrs['aria-pressed'],'false');
+"""
     )
 
 
@@ -318,14 +321,14 @@ def test_desktop_chat_uses_original_nodes_and_native_focus_notification() -> Non
     run_desktop(
         """
 assert(window.siroDesktopView);
-assert.equal(conversation.inert,true);
+assert.equal(document.querySelector('#pet-chat').hidden,true);
 const input=existing.get('#text'),frame=existing.get('#companion');
 assert.equal(window.siroDesktopView.openChat(),true);
 assert.equal(document.activeElement,input);
-assert.equal(conversation.inert,false);
+assert.equal(document.querySelector('#pet-chat').hidden,false);
 assert.deepEqual(nativeMessages.at(-1),{type:'desktop.chat',open:true});
 assert.equal(window.siroDesktopView.toggleChat(),false);
-assert.equal(conversation.inert,true);
+assert.equal(document.querySelector('#pet-chat').hidden,true);
 assert.equal(existing.get('#companion'),frame);
 assert.equal(existing.get('#text'),input);
 assert.equal(document.querySelector('#desktop-chat').attrs['aria-expanded'],'false');
@@ -338,8 +341,9 @@ def test_native_controls_and_escape_keep_real_stop_and_voice_paths_reachable() -
         """
 document.querySelector('#desktop-stop').click();
 document.querySelector('#desktop-voice').click();
-assert.equal(stopped,1);assert.equal(voiced,1);
-assert.equal(conversation.inert,true);
+assert.equal(window.siroPet.stops,1);
+assert.match(document.querySelector('#pet-error').textContent,/麥克風/);
+assert.equal(document.querySelector('#pet-chat').hidden,true);
 let prevented=0;
 document.querySelector('#desktop-move').events.get('pointerdown')({
   button:0,screenX:123,screenY:234,preventDefault(){prevented++;}
@@ -351,7 +355,7 @@ assert.deepEqual(nativeMessages.slice(-3),[
   {type:'desktop.console'},{type:'desktop.hide'},{type:'desktop.quit'}
 ]);
 dispatch('keydown',{key:'Escape'});
-assert.equal(stopped,2);assert.equal(conversation.inert,true);
+assert.equal(window.siroPet.stops,2);assert.equal(document.querySelector('#pet-chat').hidden,true);
 assert.equal(opened.length,0);
 """
     )
@@ -367,12 +371,33 @@ assert(!document.querySelector('#desktop-chat').classList.contains('desktop-unre
 const detached={type:'siro.renderer.detached'};
 dispatch('message',{origin:'http://foreign',source:existing.get('#companion').contentWindow,data:detached});
 dispatch('message',{origin:location.origin,source:{},data:detached});
-assert(document.querySelector('#desktop-status').textContent.includes('已連線'));
+window.siroPet.applyControl({type:'snapshot',authorization_mode:'full',kill_switches:{microphone:false},active_turns:{},routes:{},health:{},identity:{}});
+assert.equal(document.querySelector('#pet-state').getAttribute('data-state'),'ready');
 dispatch('message',{origin:location.origin,source:existing.get('#companion').contentWindow,data:detached});
-assert(document.querySelector('#desktop-status').textContent.includes('已交接'));
+assert(document.querySelector('#pet-state-label').textContent.includes('交接'));
 dispatch('pagehide',{});
 assert(observers.every(item=>item.disconnected));
 """
+    )
+
+
+def test_desktop_startup_does_not_open_a_browser_tab() -> None:
+    run_desktop(
+        """
+assert.equal(opened.length,0);
+assert.equal(nativeMessages.length,0);
+assert.equal(document.querySelector('#desktop-hide').title,'最小化；可從工作列恢復');
+"""  # noqa: RUF001
+    )
+
+
+def test_electron_hide_hint_points_at_the_tray() -> None:
+    run_desktop(
+        """
+assert.equal(document.querySelector('#desktop-hide').title,'先藏起來；可從系統匣恢復');
+assert.equal(opened.length,0);
+""",  # noqa: RUF001
+        before="window.siroDesktopHost='electron';\n",
     )
 
 
@@ -533,6 +558,21 @@ const view=(items,status='ok')=>({status,items:new Map(items.map(item=>[item.act
 """  # noqa: E501
 
 
+def test_activity_bubble_without_native_bridge_opens_one_control_tab_on_click() -> None:
+    run_desktop(
+        """
+feed(view([act('a','running',[tool('browser.navigate+read','running')])]));
+feed(view([act('a','completed',[tool('browser.navigate+read','completed')])]));
+assert.equal(opened.length,0);
+delete window.webkit;
+document.querySelector('#desktop-bubble').children[2].click();
+assert.deepEqual(opened,[{url:'/?view=control#/activity',name:'siro-control'}]);
+assert.equal(nativeMessages.length,0);
+""",
+        before=BUBBLE_FEED,
+    )
+
+
 def test_bubble_only_says_working_when_the_journal_has_a_running_tool() -> None:
     run_desktop(
         """
@@ -567,13 +607,13 @@ const bubble=document.querySelector('#desktop-bubble');
 feed(view([act('c','proposed',[tool('computer.execute','proposed',{program:'git'})],null)]));
 assert.equal(bubble.children[1].textContent,'等你允許：執行 git');
 bubble.events.get('keydown')({key:'Escape',stopPropagation(){}});
-assert.equal(bubble.hidden,true); assert.equal(stopped,0);
+assert.equal(bubble.hidden,true); assert.equal(window.siroPet.stops,0);
 feed(view([act('c','proposed',[tool('computer.execute','proposed',{program:'git'})],null)]));
 assert.equal(bubble.hidden,true);
 feed(view([])); feed(view([act('c','proposed',[tool('computer.execute','proposed',{program:'git'})],null)]));
 assert.equal(bubble.hidden,false);
 bubble.children[2].click();
-assert.equal(conversation.inert,false);
+assert.equal(document.querySelector('#pet-chat').hidden,false);
 dispatch('pagehide',{}); assert.equal(feed,null);
 """,  # noqa: E501, RUF001
         before=BUBBLE_FEED,
@@ -608,10 +648,163 @@ assert.equal(bubble.children[1].textContent,'查好了，要聽嗎？');
 bubble.children[2].click();
 assert.deepEqual(shared,['n1']);
 bubble.events.get('keydown')({key:'Escape',stopPropagation(){}});
-assert.deepEqual(seen,['n1']); assert.equal(bubble.hidden,true); assert.equal(stopped,0);
+assert.deepEqual(seen,['n1']);
+assert.equal(bubble.hidden,true);
+assert.equal(window.siroPet.stops,0);
 """,  # noqa: RUF001
         before=BUBBLE_FEED,
     )
+
+
+def test_pet_state_comes_from_control_events_not_hidden_console_nodes() -> None:
+    run_desktop(
+        """
+assert.equal(document.querySelector('#connection'),null);
+assert.equal(document.querySelector('#tts-status'),null);
+assert.equal(document.querySelector('#voice-status'),null);
+document.querySelector('#desktop-speech').click();
+const snap={type:'snapshot',authorization_mode:'full',kill_switches:{microphone:false},
+  active_turns:{},routes:{},health:{},identity:{}};
+window.siroPet.applyControl(snap);
+assert.equal(window.siroPet.state,'ready');
+window.siroPet.applyControl({type:'turn_started',turn_id:'t1',session_id:'browser'});
+assert.equal(window.siroPet.state,'thinking');
+assert.equal(document.querySelector('#desktop-stop').hidden,false);
+assert.equal(document.body.classList.contains('pet-busy'),true);
+window.siroPet.applyControl({type:'turn_cancelled',turn_id:'t1'});
+assert.equal(window.siroPet.state,'ready');
+assert.equal(document.body.classList.contains('pet-busy'),false);
+window.siroPet.applyControl({type:'assistant_started',stream_id:'s1'});
+window.siroPet.applyControl({type:'assistant_delta',stream_id:'s1',text:'你好'});
+assert.equal(document.querySelector('#messages').children.at(-1).textContent,'你好');
+assert.equal(window.siroPet.speakablePrefix('你好。下一句'),'你好。');
+assert.equal(window.siroPet.speakablePrefix('還沒說完'),'');
+window.siroPet.applyControl({type:'assistant_started',stream_id:'touch'});
+window.siroPet.applyControl({type:'assistant_delta',stream_id:'touch',text:'嘿嘿好舒服'});
+window.siroPet.applyControl({type:'assistant_terminal',stream_id:'touch',state:'completed'});
+window.siroPet.applyControl({type:'assistant_delta',stream_id:'s1',text:'今天也好'});
+assert.equal(document.querySelector('#messages').children.length,1);
+assert.equal(document.querySelector('#messages').children[0].textContent,'你好今天也好');
+window.siroPet.applyControl({type:'assistant_terminal',stream_id:'s1',state:'completed'});
+assert.equal(document.querySelector('#messages').children.length,2);
+assert.equal(document.querySelector('#messages').children[1].textContent,'嘿嘿好舒服');
+"""
+    )
+
+
+def test_pet_menu_owns_gestures_and_iframe_keys_still_open_chat() -> None:
+    run_desktop(
+        """
+const probe=document.createElement('button');
+assert.throws(()=>{ "use strict"; probe.dataset={gesture:'no'}; }, TypeError);
+probe.dataset.gesture='wave';
+assert.equal(probe.dataset.gesture,'wave');
+const frame=existing.get('#companion');
+const sent=[];
+frame.contentWindow.postMessage=(message)=>sent.push(message);
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.contextmenu',v:1,x:10,y:20}});
+assert.equal(document.body.classList.contains('pet-menu'),true);
+const wave=[...document.querySelector('#pet-gestures').children]
+  .find(node=>node.dataset?.gesture==='wave');
+assert.equal(wave.textContent,'揮手');
+wave.click();
+assert.deepEqual(sent.at(-1),{type:'siro.gesture',v:1,name:'wave'});
+assert.equal(document.body.classList.contains('pet-menu'),false);
+const input=document.querySelector('#text');
+input.focus();
+assert.equal(document.activeElement,input);
+input.events.get('keydown')({key:'a',preventDefault(){},isComposing:false,keyCode:65,which:65});
+assert.equal(document.querySelector('#pet-chat').hidden,true);
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.key',v:1,key:'F2'}});
+assert.equal(document.querySelector('#pet-chat').hidden,false);
+input.focus();
+assert.equal(document.activeElement,input);
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.key',v:1,key:'Enter'}});
+assert.equal(document.querySelector('#pet-chat').hidden,false);
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.key',v:1,key:'Escape'}});
+assert.equal(document.querySelector('#pet-chat').hidden,true);
+""",
+    )
+
+
+def test_left_click_on_the_character_closes_the_one_menu() -> None:
+    run_desktop(
+        """
+const frame=existing.get('#companion');
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.contextmenu',v:1,x:4,y:8}});
+assert.equal(document.body.classList.contains('pet-menu'),true);
+assert.equal(document.querySelector('#pet-more').hidden,false);
+assert.equal(document.querySelector('#desktop-more').attrs['aria-expanded'],'true');
+frame.contentDocument.events.get('pointerdown')({button:2,screenX:1,screenY:1,pointerId:1,preventDefault(){}});
+assert.equal(document.body.classList.contains('pet-menu'),true);
+frame.contentDocument.events.get('pointerdown')({button:0,screenX:2,screenY:2,pointerId:1,preventDefault(){}});
+assert.equal(document.body.classList.contains('pet-menu'),false);
+assert.equal(document.querySelector('#pet-more').hidden,true);
+assert.equal(document.querySelector('#pet-stage').getAttribute('data-dock'),'right');
+dispatch('message',{origin:location.origin,source:frame.contentWindow,
+  data:{type:'siro.contextmenu',v:1}});
+dispatch('keydown',{key:'Escape'});
+assert.equal(document.querySelector('#pet-more').hidden,true);
+""",
+        "existing.get('#companion').contentDocument=new Element('document');\n",
+    )
+
+
+def test_pet_page_keeps_the_audio_and_renderer_contract() -> None:
+    source = (STATIC / "pet.js").read_text(encoding="utf-8")
+    page = (STATIC / "pet.html").read_text(encoding="utf-8")
+    for needle in (
+        "/v1/session",
+        "/v1/conversations/browser/turns",
+        "/v1/turns/",
+        "/v1/audio/speech",
+        "/v1/audio/speech/stream",
+        "/v1/audio/speech/plan",
+        "/v1/audio/transcriptions",
+        "/ws/control",
+        "siro.speech.mouth",
+        "siro.desktop.walk",
+        "siro.view.focus",
+        "siro.audio.busy",
+        "siro.renderer.ready",
+        "siro.contextmenu",
+        "siro.key",
+        "siro.gesture",
+        "siro.sfx",
+        "desktop.scale",
+    ):
+        assert needle in source
+    assert "#connection" not in source
+    assert "#tts-status" not in source
+    assert "app-shell" not in page
+    assert 'id="companion"' in page
+    assert 'id="pet-state"' in page
+    for needle in (
+        'aria-label="說話"',
+        'aria-label="聊聊"',
+        'aria-label="停止"',
+        'aria-label="更多"',
+        'id="pet-actions"',
+        'id="desktop-quit"',
+    ):
+        assert needle in page
+    assert "麥克風：關" not in page  # noqa: RUF001
+    assert "朗讀：開" not in page  # noqa: RUF001
+    assert "免手動：關" not in page  # noqa: RUF001
+    css = (STATIC / "pet.css").read_text(encoding="utf-8")
+    assert "background: transparent" in css
+    assert "pet-hot" in css
+    assert "pet-busy" in css
+    assert "data-dock" in css
+    assert "backdrop-filter" in css
+    assert "prefers-reduced-motion" in css
+    assert "#pet-controls" in css
+    assert "pointer-events: none" in css
 
 
 def test_bubble_in_focus_mode_hides_what_she_is_doing_but_keeps_what_needs_the_owner() -> None:

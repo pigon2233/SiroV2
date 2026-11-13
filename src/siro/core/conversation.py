@@ -63,6 +63,14 @@ class ConversationRepository(Protocol):
     async def finish_turn(self, result: TurnResult) -> None: ...
 
 
+class TextStream(Protocol):
+    """Rewrites model text before it is stored, shown, or spoken. ``push`` may hold a suffix."""
+
+    def push(self, chunk: str) -> str: ...
+
+    def finish(self) -> str: ...
+
+
 DeltaHandler = Callable[[str], Awaitable[None]]
 SignalHandler = Callable[[ConversationSignal], Awaitable[None]]
 
@@ -106,6 +114,7 @@ class ConversationEngine:
         tools: tuple[ToolDefinition, ...] = (),
         messages: tuple[ModelMessage, ...] = (),
         on_before_request: Callable[[], Awaitable[None]] | None = None,
+        stream_text: TextStream | None = None,
     ) -> TurnResult:
         turn_id, generation_id, trace_id = str(uuid4()), str(uuid4()), str(uuid4())
         token = CancellationToken()
@@ -142,7 +151,14 @@ class ConversationEngine:
                                 state = TurnState.CANCELLED
                                 break
                             if chunk.kind == "text" and chunk.text:
-                                pieces.append(chunk.text)
+                                spoken = (
+                                    stream_text.push(chunk.text)
+                                    if stream_text is not None
+                                    else chunk.text
+                                )
+                                if not spoken:
+                                    continue
+                                pieces.append(spoken)
                                 await self._on_signal(
                                     ConversationSignal(
                                         "text_delta",
@@ -150,11 +166,11 @@ class ConversationEngine:
                                         turn_id,
                                         generation_id,
                                         index=len(pieces) - 1,
-                                        text=chunk.text,
+                                        text=spoken,
                                     )
                                 )
                                 if on_delta is not None:
-                                    await on_delta(chunk.text)
+                                    await on_delta(spoken)
                             elif chunk.kind == "tool_request" and chunk.tool_call is not None:
                                 tool_calls.append(chunk.tool_call)
                     except Exception as exception:
@@ -196,6 +212,22 @@ class ConversationEngine:
             state, error = TurnState.FAILED, type(exception).__name__
         if token.cancelled and state is TurnState.COMPLETED:
             state = TurnState.CANCELLED
+        if stream_text is not None:
+            tail = stream_text.finish()
+            if tail:
+                pieces.append(tail)
+                await self._on_signal(
+                    ConversationSignal(
+                        "text_delta",
+                        trace_id,
+                        turn_id,
+                        generation_id,
+                        index=len(pieces) - 1,
+                        text=tail,
+                    )
+                )
+                if on_delta is not None:
+                    await on_delta(tail)
         result = TurnResult(
             turn_id,
             generation_id,

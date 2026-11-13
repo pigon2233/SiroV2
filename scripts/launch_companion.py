@@ -42,6 +42,30 @@ def _selected_release(root: Path) -> VerifiedRelease | None:
         raise SystemExit(str(error)) from None
 
 
+def _apply_candidate_vrm(root: Path, selected: VerifiedRelease | None) -> None:
+    """Point a candidate launch at the registered preview model, never the daily one."""
+
+    variant = os.environ.get("SIRO_VRM_VARIANT", "")
+    if variant == "":
+        return
+    if variant != "candidate":
+        raise SystemExit("SIRO_VRM_VARIANT 只接受 candidate。")
+    if selected is not None or os.environ.get("SIRO_VRM_MODEL_MANIFEST"):
+        return
+    data = Path(os.environ.get("SIRO_DATA_DIR", ".siro-data"))
+    if not data.is_absolute():
+        data = root / data
+    manifest = data / "vroid" / "candidate-registered" / "asset-manifest.json"
+    renderer = root / "models" / "vrm-renderer"
+    if not manifest.is_file() or not (renderer / "index.html").is_file():
+        raise SystemExit(
+            "找不到候選 VRM。請確認 .siro-data/vroid/candidate-registered/asset-manifest.json"
+            " 與 models/vrm-renderer/index.html 已準備。或使用本機的候選啟動器。"
+        )
+    os.environ["SIRO_VRM_DIST"] = str(renderer)
+    os.environ["SIRO_VRM_MODEL_MANIFEST"] = str(manifest)
+
+
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
     os.chdir(root)
@@ -83,6 +107,7 @@ def main() -> None:
             "此模型尚無已驗證的 token 預算設定。請使用已支援的 Groq GPT-OSS20b。"
             "或明確設定 SIRO_CONTEXT_TOKEN_BUDGET_ENABLED=0 使用既有 byte 預算。"
         )
+    _apply_candidate_vrm(root, selected)
     os.environ["SIRO_RUNTIME_PROFILE"] = "candidate"
     for key in (
         "SIRO_WORKSPACE_ENABLED",

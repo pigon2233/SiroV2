@@ -190,6 +190,7 @@ function enableControl() {
 }
 
 function openCenter(page) {
+  // #/activity is the monitor page's activity section. The console shows chat otherwise.
   const hash = page === 'activity' ? '#/activity' : '';
   if (!center || center.isDestroyed()) {
     center = new BrowserWindow({width: 1080, height: 760, title: 'SIRO · 控制台'});
@@ -241,7 +242,7 @@ app.whenReady().then(async () => {
   });
   win = new BrowserWindow({
     width: 360, height: 640, frame: false, transparent: true, hasShadow: false, resizable: false,
-    alwaysOnTop: true, skipTaskbar: false, show: false, focusable: false, title: 'SIRO 桌寵',
+    alwaysOnTop: true, skipTaskbar: true, show: false, focusable: false, title: 'SIRO 桌寵',
     webPreferences: {preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegrationInSubFrames: true},
   });
   win.setAlwaysOnTop(true, 'screen-saver');
@@ -287,6 +288,7 @@ app.whenReady().then(async () => {
       onPetCleared: rememberPetHome,
     }),
   }).start();
+  // Dedicated pet page. The console opens only from the tray or desktop.console.
   win.loadURL(`${origin}/desktop`);
   setInterval(pollCursor, 50);
   setInterval(refreshMask, 700);

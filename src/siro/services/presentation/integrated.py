@@ -41,6 +41,7 @@ from siro.core.memory_autonomy import (
     parse_contextual_nominations,
     parse_nominations,
 )
+from siro.core.motion_cues import MotionCue, body_message, motion_cues_enabled, research_capability
 from siro.core.preferences import extract_explicit_preference
 from siro.core.relationships import (
     RelationshipEvent,
@@ -65,7 +66,7 @@ from siro.persistence.memory import SQLiteMemoryRepository
 from siro.persistence.relationships import SQLiteRelationshipRepository
 from siro.persistence.sqlite import SQLiteStore
 from siro.persistence.state import SQLiteIdentityRepository
-from siro.ports.body import EmotionIntent, SpeechIntent
+from siro.ports.body import EmotionIntent, GestureIntent, LookIntent, SpeechIntent
 from siro.ports.models import (
     CancellationToken,
     LanguageModel,
@@ -248,6 +249,9 @@ class IntegratedCompanion:
         # D80 P2a dry-run: told about each committed memory (memory, source, explicit).
         self.memory_observer: Callable[[Memory, str, bool], Coroutine[Any, Any, None]] | None = None
         self._speaking_until = datetime.min.replace(tzinfo=UTC)
+        # One presenter at a time: a touch line must not emit assistant_started in the middle
+        # of a reply that is already on screen.
+        self._presentation_lock = asyncio.Lock()
         self._planning = False
         # Set by the gateway when the Claude planner is wired.
         self.auto_plan_classifier: Classifier | None = None
@@ -305,8 +309,8 @@ class IntegratedCompanion:
     async def _broadcast_stream(
         self, stream_id: str, message: dict[str, object], *, urgent: bool = False
     ) -> None:
-        if self._runtime_profile == "candidate":
-            message = {**message, "stream_id": stream_id}
+        # Every aside and reply carries a stream id so the page can keep them in separate bubbles.
+        message = {**message, "stream_id": stream_id}
         await self._hub.broadcast(message, urgent=urgent)
 
     def _privacy_for_turn(self, text: str) -> Privacy:
@@ -371,6 +375,22 @@ class IntegratedCompanion:
             urgent=True,
         )
 
+    def _with_server_motion(self, intent: SpeechIntent) -> SpeechIntent:
+        """Mark speech whose gestures were already sent, so the renderer does not guess again."""
+
+        if motion_cues_enabled() and intent.motion != "server":
+            return replace(intent, motion="server")
+        return intent
+
+    async def _emit_motion(self, cue: MotionCue) -> None:
+        message = body_message(cue)
+        if message["type"] == "body.emotion":
+            await self._body.set_emotion(EmotionIntent(str(message["name"]), float(cue.intensity)))
+        elif message["type"] == "body.look":
+            await self._body.look(LookIntent(float(cue.x), float(cue.y)))
+        else:
+            await self._body.gesture(GestureIntent(str(message["name"]), float(cue.intensity)))
+
     async def _speak(self, intent: SpeechIntent) -> None:
         # Roughly how long the line takes to say, so a touch reply never talks over it.
         seconds = 2 + len(intent.text) / 4
@@ -400,33 +420,41 @@ class IntegratedCompanion:
             self._touching = False
 
     async def _say_line(self, line: str, prosody: dict[str, float], fallback_session: str) -> None:
+        """Say one short aside. If a reply is already streaming, wait until that reply ends
+        so its bubble is not split by a second assistant_started."""
+
         session_id = self._last_session or fallback_session
         stream_id = str(uuid4())
 
         async def emit(message: dict[str, object]) -> None:
             await self._broadcast_stream(stream_id, message)
 
-        await emit({"type": "assistant_started", "session_id": session_id})
-        await emit({"type": "assistant_delta", "session_id": session_id, "text": line})
-        await emit(
-            {
-                "type": "assistant_terminal",
-                "session_id": session_id,
-                "state": TurnState.COMPLETED,
-                "error": None,
-                "prosody": prosody,
-            }
-        )
-        await self._speak(
-            SpeechIntent(
-                str(uuid4()),
-                line,
-                str(uuid4()),
-                prosody["rate"],
-                prosody["pitch"],
-                prosody["energy"],
-            )
-        )
+        while True:
+            async with self._presentation_lock:
+                if not self.foreground_active:
+                    await emit({"type": "assistant_started", "session_id": session_id})
+                    await emit({"type": "assistant_delta", "session_id": session_id, "text": line})
+                    await emit(
+                        {
+                            "type": "assistant_terminal",
+                            "session_id": session_id,
+                            "state": TurnState.COMPLETED,
+                            "error": None,
+                            "prosody": prosody,
+                        }
+                    )
+                    await self._speak(
+                        SpeechIntent(
+                            str(uuid4()),
+                            line,
+                            str(uuid4()),
+                            prosody["rate"],
+                            prosody["pitch"],
+                            prosody["energy"],
+                        )
+                    )
+                    return
+            await asyncio.sleep(0.05)
 
     async def react_to_sensor(self, facts: dict[str, object]) -> None:
         """A change in the room: she decides whether to say one short line, or nothing."""
@@ -794,8 +822,9 @@ class IntegratedCompanion:
         async def emit(message: dict[str, object], *, urgent: bool = False) -> None:
             await self._broadcast_stream(stream_id, message, urgent=urgent)
 
-        self._active_sessions.add(session_id)
-        await emit({"type": "assistant_started", "session_id": session_id})
+        async with self._presentation_lock:
+            self._active_sessions.add(session_id)
+            await emit({"type": "assistant_started", "session_id": session_id})
         if direct_command is not None:
             emotion, reply = direct_command
             if plan_goal is not None:
@@ -1133,6 +1162,7 @@ class IntegratedCompanion:
                 text,
                 privacy=privacy,
                 on_delta=delta,
+                on_motion=self._emit_motion,
                 verified_context=verified_preferences,
                 tools=tools,
                 message_history=self._message_histories.get(agent_run.run_id),
@@ -1163,13 +1193,15 @@ class IntegratedCompanion:
                 )
                 if result.state is TurnState.COMPLETED and result.text:
                     await self._speak(
-                        SpeechIntent(
-                            str(uuid4()),
-                            result.text,
-                            result.generation_id,
-                            expression.speech_rate,
-                            expression.pitch,
-                            expression.energy,
+                        self._with_server_motion(
+                            SpeechIntent(
+                                str(uuid4()),
+                                result.text,
+                                result.generation_id,
+                                expression.speech_rate,
+                                expression.pitch,
+                                expression.energy,
+                            )
                         )
                     )
                 return
@@ -1213,13 +1245,15 @@ class IntegratedCompanion:
             )
             if result.state is TurnState.COMPLETED and result.text:
                 await self._speak(
-                    SpeechIntent(
-                        str(uuid4()),
-                        result.text,
-                        result.generation_id,
-                        expression.speech_rate,
-                        expression.pitch,
-                        expression.energy,
+                    self._with_server_motion(
+                        SpeechIntent(
+                            str(uuid4()),
+                            result.text,
+                            result.generation_id,
+                            expression.speech_rate,
+                            expression.pitch,
+                            expression.energy,
+                        )
                     )
                 )
         finally:
@@ -1361,6 +1395,7 @@ class IntegratedCompanion:
             prompt,
             privacy=privacy,
             on_delta=continuation_delta,
+            on_motion=self._emit_motion,
             tools=tools,
             message_history=history,
             on_messages_ready=self._checkpoint_callback(run_id, capability_context),
@@ -1380,7 +1415,11 @@ class IntegratedCompanion:
                 rejected_tool_calls=result.tool_calls,
             )
             if result.state is TurnState.COMPLETED and result.text:
-                await self._speak(SpeechIntent(str(uuid4()), result.text, result.generation_id))
+                await self._speak(
+                    self._with_server_motion(
+                        SpeechIntent(str(uuid4()), result.text, result.generation_id)
+                    )
+                )
             return
         self._agent_steps.pop(session_id, None)
         self._message_histories.pop(run_id, None)
@@ -1416,7 +1455,11 @@ class IntegratedCompanion:
             }
         )
         if result.state is TurnState.COMPLETED and result.text:
-            await self._speak(SpeechIntent(str(uuid4()), result.text, result.generation_id))
+            await self._speak(
+                self._with_server_motion(
+                    SpeechIntent(str(uuid4()), result.text, result.generation_id)
+                )
+            )
 
     async def _propose_tool_calls(self, session_id: str, calls: tuple[ToolCall, ...]) -> None:
         orchestrator = self._tool_orchestrator
@@ -1471,6 +1514,8 @@ class IntegratedCompanion:
                     run_id, session_id, TurnState.FAILED, type(error).__name__
                 )
                 return
+            if motion_cues_enabled() and research_capability(capability):
+                await self._body.gesture(GestureIntent("notebook", 0.8))
             if self._runtime_profile == "candidate":
                 orchestrator.bind_proposal(run_id, proposal)
                 assert self._agent_runs is not None

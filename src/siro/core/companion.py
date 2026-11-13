@@ -20,6 +20,7 @@ from siro.core.memory import (
     WorkingMessage,
     assemble_prompt,
 )
+from siro.core.motion_cues import MotionCue, MotionStream, motion_cues_enabled
 from siro.ports.models import ModelMessage, Privacy, ToolDefinition
 
 
@@ -55,6 +56,7 @@ class CompanionCore:
         on_messages_ready: Callable[[], Awaitable[None]] | None = None,
         recent_messages: tuple[ModelMessage, ...] | None = None,
         memory_route_privacy: EventPrivacy | None = None,
+        on_motion: Callable[[MotionCue], Awaitable[None]] | None = None,
     ) -> TurnResult:
         route = (
             EventPrivacy.CLOUD_ALLOWED
@@ -136,6 +138,7 @@ class CompanionCore:
                 cloud_route=route is EventPrivacy.CLOUD_ALLOWED,
                 context_evidence=context,
                 native_dialogue=message_history is not None,
+                motion_cues=motion_cues_enabled(),
             )
             self._working.append(session_id, "user", user_text, privacy=route)
             if message_history is not None:
@@ -162,16 +165,29 @@ class CompanionCore:
             ):
                 raise ContextSourceChanged("selected context sources changed before dispatch")
 
+        stream = MotionStream() if motion_cues_enabled() else None
+
+        async def relay(spoken: str) -> None:
+            if on_delta is not None:
+                await on_delta(spoken)
+            if on_motion is not None and stream is not None:
+                for cue in stream.drain():
+                    await on_motion(cue)
+
         result = await self._conversation.respond(
             session_id,
             identity_id,
             prompt,
             privacy=privacy,
-            on_delta=on_delta,
+            on_delta=relay if stream is not None else on_delta,
             tools=tools,
             messages=tuple(message_history) if message_history is not None else (),
             on_before_request=preflight,
+            stream_text=stream,
         )
+        if stream is not None and on_motion is not None:
+            for cue in stream.drain():
+                await on_motion(cue)
         if message_history is not None:
             # Partial intent from a failed/cancelled generation is not an accepted batch.
             calls = result.tool_calls if result.state is TurnState.COMPLETED else ()

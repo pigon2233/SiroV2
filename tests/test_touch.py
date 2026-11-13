@@ -1,7 +1,16 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pytest
+
+from siro.adapters.body.web import MinimalWebBodyAdapter, WebSocketBodyTransport
+from siro.adapters.models.mock import MockModel
 from siro.core.touch import Touch, TouchMemory, TouchReplies, clean_touch_line, touch_prompt
+from siro.ports.models import Privacy
+from siro.services.presentation.gateway import GatewayHub
+from siro.services.presentation.integrated import IntegratedCompanion
 
 NOON = datetime(2026, 10, 20, 4, 0, tzinfo=UTC)  # 12:00 in Taipei
 
@@ -50,3 +59,43 @@ def test_prompt_and_context_describe_the_touch() -> None:
     assert "patted her head at 12:00 (SIRO said: 嘿嘿。)" in context
     assert "moved her across the screen at 12:01" in context
     assert memory.context(NOON + timedelta(minutes=12), zone) is None
+
+
+class _RecordingHub(GatewayHub):
+    def __init__(self) -> None:
+        super().__init__()
+        self.sent: list[dict[str, object]] = []
+
+    async def broadcast(self, message: dict[str, object], *, urgent: bool = False) -> None:
+        self.sent.append(dict(message))
+        await super().broadcast(message, urgent=urgent)
+
+
+@pytest.mark.asyncio
+async def test_touch_line_waits_until_the_open_reply_finishes(tmp_path: Path) -> None:
+    hub = _RecordingHub()
+    controller = IntegratedCompanion(
+        tmp_path,
+        MockModel(()),
+        hub,
+        MinimalWebBodyAdapter(WebSocketBodyTransport()),
+        privacy=Privacy.LOCAL_ONLY,
+    )
+
+    async def line(_kind: str, _count: int, _now: datetime) -> str:
+        controller._active_sessions.add("browser")
+        return "嘿嘿好舒服"
+
+    controller._touch_line = line  # type: ignore[assignment]
+    pending = asyncio.create_task(controller.react_to_touch("pat", 1))
+    await asyncio.sleep(0.12)
+    assert not any(item.get("type") == "assistant_started" for item in hub.sent)
+    controller._active_sessions.discard("browser")
+    await pending
+    assert [item["type"] for item in hub.sent] == [
+        "assistant_started",
+        "assistant_delta",
+        "assistant_terminal",
+    ]
+    assert hub.sent[1]["text"] == "嘿嘿好舒服"
+    assert isinstance(hub.sent[0]["stream_id"], str)

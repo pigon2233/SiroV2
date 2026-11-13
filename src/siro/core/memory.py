@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from siro.contracts.events import Event, Privacy, UserTextEvent
 from siro.core.identity import IdentityState
+from siro.core.motion_cues import motion_prompt
 
 if TYPE_CHECKING:
     from siro.core.memory_retrieval import HybridMemoryRetriever
@@ -408,6 +409,7 @@ def assemble_prompt(
     context_evidence: str | None = None,
     native_dialogue: bool = False,
     now: datetime | None = None,
+    motion_cues: bool = False,
 ) -> str:
     moment = (now or datetime.now(ZoneInfo("Asia/Taipei"))).astimezone(ZoneInfo("Asia/Taipei"))
     weekday = "一二三四五六日"[moment.weekday()]
@@ -489,6 +491,7 @@ def assemble_prompt(
         "task needs it; keep each part focused and avoid repeating earlier points.\n"
         "- Stop once the answer is complete. Do not pad, repeat, or announce that you will "
         "continue unless the owner asks.\n"
+        f"{motion_prompt(motion_cues)}"
         "- Greetings and questions about your abilities do not require episodic memory evidence.\n"
         "- NO_SOURCE only means no relevant verified personal memory was retrieved; do not use it "
         "as a generic refusal or claim that you have no memory system.\n"

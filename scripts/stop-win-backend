@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Stop the WSL backend used by the Windows pet.
+# siro-stop knows the machine install. The checkout pid file is the fallback.
+set -u
+stop_bin="${SIRO_STOP_BIN:-$HOME/.local/bin/siro-stop}"
+if [[ -x "$stop_bin" ]]; then
+  exec "$stop_bin"
+fi
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+data_dir="${SIRO_DATA_DIR:-$root/.siro-data}"
+if [[ "$data_dir" != /* ]]; then
+  data_dir="$root/$data_dir"
+fi
+pid_file="$data_dir/companion-service.pid"
+if [[ -f "$pid_file" ]]; then
+  exec bash "$root/scripts/stop" "$pid_file"
+fi
+echo "沒有找到可停止的 SIRO 服務。" >&2
+exit 1

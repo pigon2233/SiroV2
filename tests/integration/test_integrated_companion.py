@@ -67,7 +67,7 @@ def test_i01_gateway_persistent_core_streaming_and_body_offline_isolation(
                 )
                 assert response.status_code == 200
                 messages = [socket.receive_json() for _ in range(6)]
-                body_messages = [body.receive_json() for _ in range(3)]
+                body_messages = [body.receive_json() for _ in range(4)]
                 response = client.post(
                     "/v1/conversations/browser/turns",
                     headers={"authorization": f"Bearer {token}"},
@@ -105,12 +105,15 @@ def test_i01_gateway_persistent_core_streaming_and_body_offline_isolation(
     assert "".join(message.get("text", "") for message in messages) == "你好、我是 SIRO。"
     assert [message["type"] for message in body_messages] == [
         "body.emotion",
+        "body.gesture",
         "body.speech",
         "body.emotion",
     ]
     assert body_messages[0]["name"] == "neutral"
-    assert body_messages[1]["text"] == "你好、我是 SIRO。"
-    assert body_messages[2]["name"] == "neutral"
+    assert body_messages[1]["name"] == "wave"
+    assert body_messages[2]["text"] == "你好、我是 SIRO。"
+    assert body_messages[2]["motion"] == "server"
+    assert body_messages[3]["name"] == "neutral"
     assert [message["type"] for message in emotion_messages] == [
         "turn_started",
         "assistant_started",

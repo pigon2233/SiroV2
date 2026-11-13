@@ -1,5 +1,39 @@
 # 狀態總覽（2026-10-24 整理；先看這裡，下面是由新到舊的時間序列紀錄）
 
+## 2026-11-10 — 桌寵快捷列改成側邊圓鈕與一塊面板（UI-PET-03）
+
+桌寵快捷不再是鋪在角色身上的文字膠囊。滑過或聚焦時，角色旁邊（視窗靠螢幕哪一側，就放在另一側，沿用 `screenSide()`）出現一條直的圓鈕：說話、聊聊、更多；回覆、工具或朗讀進行時，停止鈕出現在說話上面，整條留在畫面上。更多是同一塊磨砂卡片：語音用按下／沒按下表示開關，大小是 －／百分比／＋，動作預設收合，視窗四個小鈕裡退出比較淡。右鍵仍只開這一個選單，Esc 或點角色外面會收起。頁面背景維持透明。
+
+電腦操控路徑沒有改。
+
+驗證（Linux，2026-11-10）：`PYTHONPATH=src python3 -m pytest tests/integration/test_desktop_web.py` 29 passed。`ruff check`／`ruff format --check` 這次改的測試檔通過。`node --check` 過 `pet.js`。`tests/integration/test_desktop_entry_scripts.py` 42 passed，1 failed：`test_installer_runs_actual_selected_uv_environment_without_repo_venv` 因為這個環境沒有 `uv`，與這次介面無關。`test_desktop_host.py` 沒跑，這個環境沒有專案 venv，gateway 匯入鏈不完整。無頭 Chrome 420×640、深色底：閒置圓鈕、更多面板（動作收合）、動作展開。角色是頁面上的佔位，不是主人的 VRM。沒有真的麥克風、TTS 或 Electron。
+
+## 2026-11-10 — 回覆動作 cue 與程序化動作（UI-MOTION-03）
+
+回覆可以帶 `[[g:…]]`、`[[e:…]]`、`[[l:…]]`、`[[p:…]]`。這些標記在聊天、TTS、工作記憶和 turn 紀錄之前被拿掉，改走既有的 `/ws/body`（`body.gesture`／`body.emotion`／`body.look`）。沒有標記時用詞彙後備，不呼叫分類模型。`SIRO_MOTION_CUES=0` 關掉。VRM 在片段之上加了可混合的姿勢：平面雙骨 IK 的點與伸手、歪頭、前傾、聳肩、輕點頭／搖頭、依情緒改變的呼吸。聽的時候歪頭、回覆出現時看聊天框、查資料時拿筆記、視窗靠螢幕一側時頭轉向另一側。`wave`／`bow`／`bye` 仍是 CC BY-NC，沒有新增片段。SpringBone 仍是 `vrm.update`。細節在 `renderers/vrm/BEHAVIOUR.md`。
+
+電腦操控路徑沒有改。
+
+嵌在桌寵頁裡時，renderer 不再另外開手勢選單，右鍵與 F2／Esc 交給頁面；動作收在桌寵選單裡。單獨打開 renderer 時選單仍在。摸頭的短句若碰上正在流出的回覆，會等那則回覆結束再出現，不會把氣泡切成兩半。
+
+驗證（Linux，2026-11-10）：`uv run pytest tests/test_motion_cues.py tests/contract/test_body_adapter.py tests/integration/test_desktop_web.py tests/integration/test_persistent_companion.py::test_runtime_offline_does_not_disable_core_conversation` 通過（cue／body／桌寵頁／一則 companion）。`uv run ruff check` 這次改的 Python 檔通過。`uv run mypy` 對 `motion_cues.py`、`companion.py`、`conversation.py`、`ports/body.py`、`adapters/body/web.py` 通過。`integrated.py` 仍是原先的 `reply` 先是 bool 再當文字，以及 `unavailable_hint`，沒有落在這次新增的函式上。`node --test renderers/vrm/test/procedural.test.js` 4 passed。`prepare_vrm_renderer.build_renderer` 成功，輸出含 `src/procedural.js`。沒有在 Linux 上載入真的 VRM 角色、麥克風、TTS 或 Electron；無頭 Chrome 只畫了 IK 手臂的示意。`wave`／`bow`／`bye` 仍是 CC BY-NC。
+
+## 2026-11-10 — 桌寵獨立頁（UI-PET-02）
+
+`/desktop` 不再把整份控制台包一層 CSS。桌寵改載自己的 `pet.html`／`pet.js`／`pet.css`，直接走既有的 `/v1/session`、`/v1/conversations/browser/turns`、取消、`/v1/audio/*` 與 `/ws/control`。`/ws/body` 仍由角色 iframe 連，桌寵頁不搶這條連線。預設只看得到角色與一個小狀態點；說話、停止、更多要滑過或按右鍵才出現。雙擊或 F2 打開半透明對話，再收起。控制台仍是 `/?view=control`，只從系統匣或桌寵選單開。
+
+舊的 `desktop.css`／`desktop.js`（藏控制台、用 MutationObserver 刮 `#connection` 等隱藏節點）已刪。`index.html` 裡沒有桌寵專用樣式，控制台沒改。Electron 與 GTK 仍載入 `/desktop`。電腦操控與 VRM 動作沒改。
+
+驗證（Linux，2026-11-10）：`test_desktop_web.py`、`test_desktop_host.py` 34 passed；啟動腳本、桌寵設定、導覽 63 passed；控制台語音／麥克風／嘴型相關 75 passed。`ruff check` 這次改的 Python 檔通過。`mypy` 對 `gateway.py` 仍是原先的 `render_stream`、`create_task`、`ProfileService` 三處，沒有新增。沒有改 Rust，沒有跑 cargo。沒有在 Linux 上打開 Electron、GTK／WebKit、真的麥克風或真的 TTS 喇叭；截圖是無頭 Chrome，角色是佔位，背後的漸層只為了讓透明頁看得到。
+
+## 2026-11-10 — Windows 桌寵單一入口（UI-LAUNCH-01）
+
+日常啟動改為根目錄 `Start-SIRO-VRM-Win.cmd`：預設開後端與 Electron 桌寵，`/backend` 只開後端，`/candidate` 預覽候選 VRM，`/stop` 關掉桌寵、ESP32 broker 與 WSL 服務。`Stop-SIRO-Win.cmd` 只轉呼叫 `/stop`。舊的 `Start-SIRO.cmd`、`Start-SIRO-VRM.cmd`、`Start-SIRO-VRM-Candidate.cmd`、`Stop-SIRO.cmd`、`Start-ESP32-Broker.cmd` 移到 `scripts/legacy/`，沒有刪除。`Play-SIRO.cmd` 與電腦操控程式沒有改。
+
+`scripts/start-win-backend` 優先用專案裡的 `scripts/start-companion`（`COMPANION_BACKEND_ONLY=1`），並自己讀取 `computer.env` 的 `SIRO_COMPUTER_*`。本機 wrapper 只在專案這份已經結束、而且連接埠還沒被佔用時才啟動。`#/activity` 會打開監控頁的活動紀錄，不再掉回對話。Windows 桌寵 `skipTaskbar: true`，暫藏提示改為從系統匣恢復。
+
+驗證（Linux，2026-11-10）：`scripts/check` 裡的 cargo fmt／build／test／clippy 通過（runtime 24 passed）。接著 `ruff format --check` 在 19 個既有檔失敗，其中包含電腦操控檔，這次沒有改它們。`ruff check .` 另有 173 個既有錯誤，不在這次改的檔。完整 mypy 被既有的 `tests.contract.test_ollama_reasoning_options` 重複模組名擋住；這次改的四個測試檔 mypy 通過。pytest 預設收集會在兩個既有 import（`No module named tests`）停下；設 `PYTHONPATH` 後全套 **3362 passed／59 failed／126 skipped**。失敗在 skill、profile、computer-use，不是這次的啟動器或桌寵測試。這次相關測試 65 passed。沒有 Windows 機器，所以 `.cmd` 的隱藏主控台、Electron 視窗與 MessageBox 沒有實機點過。電腦操控路徑未改。
+
 ## 2026-10-31 — 依任務選擇對話模型（D81）
 
 `SIRO_MODEL_ROUTER` 預設 0，原本「有 Ollama 就永遠只用 Ollama」不變。設為 1 且至少兩個提供者時，閒聊與 `local_only` 留在本機，寫程式、規劃、工具續答與長題目才走 Claude（已登入的 `claude` CLI）、然後 Groq、然後本機。Claude 以滾動 5 小時、預設 10 次計，寫在資料目錄，用完或 CLI 限流會改走下一家，並在 `routes.model_actual` 與畫面上說明何時可以再用。說明見 `docs/MODEL_ROUTING.md`。
