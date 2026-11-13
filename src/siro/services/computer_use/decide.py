@@ -2,11 +2,35 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import os
+from collections.abc import Mapping, Sequence
 
 from siro.services.computer_use.interface import Decision, StepRecord
 from siro.services.computer_use.perception import Observation
 from siro.services.computer_use.stuck import _last_real_click, _recovery_hint
+
+KEEP_GROUNDED_ACT_ENV = "SIRO_COMPUTER_KEEP_GROUNDED_ACT"
+
+
+def keep_grounded_act_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """Owner opt-in; default OFF. Keeps a complete act when uncertainty is set."""
+    return (os.environ if env is None else env).get(KEEP_GROUNDED_ACT_ENV, "0") == "1"
+
+
+def _is_grounded_act(decision: Decision) -> bool:
+    """True when the model already supplied a complete action, not a missing target."""
+    action = decision.action
+    if decision.kind != "act" or action is None:
+        return False
+    if action.kind in {"click", "move"}:
+        return action.x is not None and action.y is not None
+    if action.kind == "key":
+        return bool(action.key.strip())
+    if action.kind == "type":
+        return bool(action.text)
+    if action.kind == "scroll":
+        return action.amount != 0
+    return False
 
 
 def decision_goal(
@@ -55,8 +79,14 @@ def decision_goal(
 
 
 def decision_policy(
-    decision: Decision, *, autonomous: bool, min_confidence: float
+    decision: Decision,
+    *,
+    autonomous: bool,
+    min_confidence: float,
+    keep_grounded_act: bool | None = None,
 ) -> tuple[Decision, str, str]:
+    if keep_grounded_act is None:
+        keep_grounded_act = keep_grounded_act_enabled()
     if decision.kind == "ask":
         if not autonomous:
             return decision, "needs_owner", decision.reason.strip()[:300]
@@ -91,8 +121,15 @@ def decision_policy(
             decision.targets,
             decision.uncertainty,
         )
-    if decision.uncertainty.strip() and decision.kind == "act":
-        # Unreadable UI: observe again instead of guessing coordinates.
+    # Default: any non-empty uncertainty forces wait, including a complete
+    # click whose uncertainty is only about other UI (2026-11-14 STS2 title).
+    # Opt-in keeps the grounded act; model-chosen waits and incomplete acts
+    # still wait. This is not a safety-gate change.
+    if (
+        decision.uncertainty.strip()
+        and decision.kind == "act"
+        and not (keep_grounded_act and _is_grounded_act(decision))
+    ):
         decision = Decision(
             "wait",
             None,

@@ -54,6 +54,7 @@ MODES = (
     "no-whitelist",
     "secret",
     "emergency",
+    "uncertain-act",
 )
 ENV = {
     "SIRO_COMPUTER_ALLOWED_PROCESSES": "slaythespire2.exe",
@@ -74,6 +75,7 @@ ENV = {
     "SIRO_COMPUTER_DUMP_FRAMES": "",
     "SIRO_COMPUTER_TRACE_REPLIES": "0",
     "SIRO_COMPUTER_COORD_CALIB": "",
+    "SIRO_COMPUTER_KEEP_GROUNDED_ACT": "0",
 }
 
 
@@ -304,9 +306,15 @@ class ReplayDecider:
             "act",
             InputAction("click", x=x, y=y),
             "state:" + str(d.index + 1),
-            confidence=0.99,
+            confidence=0.8 if d.mode == "uncertain-act" else 0.99,
             seen=state.name,
             scene=state.scene,
+            uncertainty=(
+                "Whether 存档1 holds an in-progress run is not visible. "
+                "Bottom-right loading text is small and unreadable."
+                if d.mode == "uncertain-act"
+                else ""
+            ),
         )
         if d.mode == "scripted-json":
             return parse_decision(json.dumps(asdict(choice)))
@@ -334,7 +342,12 @@ class ReplayDecider:
 
 
 async def simulate(
-    root: Path, mode: str, *, fixed_flags: bool = True, fast: bool = False
+    root: Path,
+    mode: str,
+    *,
+    fixed_flags: bool = True,
+    fast: bool = False,
+    keep_grounded_act: bool | None = None,
 ) -> dict[str, Any]:
     if os.environ.get(SIM_FLAG) != "1":
         raise ValueError("simulation is default OFF; set " + SIM_FLAG + "=1")
@@ -353,6 +366,9 @@ async def simulate(
             SIRO_COMPUTER_BOUNDED_VERIFY="0",
             SIRO_COMPUTER_VERIFY_DELAYED_PROGRESS="0",
         )
+    if keep_grounded_act is None:
+        keep_grounded_act = fixed_flags
+    values["SIRO_COMPUTER_KEEP_GROUNDED_ACT"] = "1" if keep_grounded_act else "0"
     if mode == "no-whitelist":
         values["SIRO_COMPUTER_ALLOWED_PROCESSES"] = ""
     with patch.dict(os.environ, values):
@@ -388,6 +404,7 @@ async def simulate(
             "bad-soft-once",
             "transient-animation",
             "delayed-transition",
+            "uncertain-act",
         }
         false_progress = int(state == "done" and desktop.index != len(states) - 1)
         false_effective = sum(

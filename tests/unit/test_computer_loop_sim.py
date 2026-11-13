@@ -44,7 +44,14 @@ def test_all_contract_modes(setup_sim: None, mode: str) -> None:
     result = asyncio.run(sim.simulate(Path("/synthetic"), mode, fast=True))
     assert result["pass"], result
     assert result["false_effective"] == result["false_progress"] == 0
-    if mode in {"oracle", "scripted-json", "bad-once", "transient-animation", "delayed-transition"}:
+    if mode in {
+        "oracle",
+        "scripted-json",
+        "bad-once",
+        "transient-animation",
+        "delayed-transition",
+        "uncertain-act",
+    }:
         assert result["advances"] == 4
         assert result["hits"] == result["clicks"] == 4
     if mode in {"gate-off", "wrong-process", "no-whitelist", "secret", "emergency"}:
@@ -144,3 +151,32 @@ def test_simulation_has_no_process_or_network_executor(
     monkeypatch.setattr(httpx.AsyncClient, "request", forbidden)
     result = asyncio.run(sim.simulate(Path("/synthetic"), "oracle", fast=True))
     assert result["pass"] and result["advances"] == 4
+
+
+def test_uncertain_act_gets_stuck_waiting_when_flag_off(setup_sim: None) -> None:
+    result = asyncio.run(
+        sim.simulate(
+            Path("/synthetic"),
+            "uncertain-act",
+            fast=True,
+            keep_grounded_act=False,
+        )
+    )
+    assert result["reason"] == "stuck_waiting"
+    assert result["advances"] == result["clicks"] == 0
+    assert result["false_stuck"] == 1
+    assert any(s["action"] == "(wait)" for s in result["steps"])
+
+
+def test_uncertain_act_passes_menu_when_flag_on(setup_sim: None) -> None:
+    result = asyncio.run(
+        sim.simulate(
+            Path("/synthetic"),
+            "uncertain-act",
+            fast=True,
+            keep_grounded_act=True,
+        )
+    )
+    assert result["pass"] and result["advances"] == 4
+    assert result["hits"] == result["clicks"] == 4
+    assert result["false_stuck"] == 0
