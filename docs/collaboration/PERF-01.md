@@ -4,7 +4,7 @@
 - Owner／session：Cursor cloud agent，2026-11-13 UTC。
 - 狀態：實作完成，待主人在 Windows 上看手感。本檔是交接，不是鎖。
 - Base SHA：`e65f2d8026175684a7feb4125832da5d81b1bfcf`（`origin/main`）。開始時本機 `main` 停在 `c40ab48`，已 fast-forward。
-- Branch：`cursor/pet-gpu-perf-391c`。Worktree：這個 cloud agent checkout。
+- Branch：`cursor/pet-gpu-perf-391c`。實作 commit：`5bd182648967a3dd64557e93c44cc19a89608797`。Worktree：這個 cloud agent checkout。
 - 推送：使用者這次明確要求對 `main` 開 PR。這是對 `docs/AI_COLLABORATION.md`「不得 push」的偏離，只針對這個分支與這一個 PR。不合併、不部署。
 - 當時開放 PR：#8、#10、#12（桌寵頁／動作，內容已在這次的 `main` 上）、#11（主人的 VRM 模型）。沒有改那些分支，也沒有改電腦操控檔。
 
