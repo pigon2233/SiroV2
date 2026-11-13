@@ -6,7 +6,7 @@
   let controlAttempt, controlDispose, controlEpoch = 0, controlAuthenticated = false;
   let reconnectTimer, reconnectAttempts = 0, pageClosing = false, online = false, detached = false;
   let submissionGeneration = 0, pendingSubmission, recorder, ttsAudio, ttsController;
-  let ttsGeneration = 0, speechCancelled = false, liveSpeech, lastSpeech, speechStream = false;
+  let ttsGeneration = 0, mouthWatch = 0, speechCancelled = false, liveSpeech, lastSpeech, speechStream = false;
   let speechEnabled = true, listening = false, recognizing = false, speaking = false, lastError = "";
   let replyGlanced = false;
   let openStream = null;
@@ -65,11 +65,18 @@
     const name = $("#pet-state-label");
     if (name) name.textContent = label;
     const err = $("#pet-error");
-    if (err) { err.hidden = !lastError; err.textContent = lastError || ""; }
+    let errorChanged = false;
+    if (err) {
+      const hide = !lastError;
+      errorChanged = err.hidden !== hide;
+      err.hidden = hide; err.textContent = lastError || "";
+    }
     const busy = Boolean(listening || speaking || recognizing || currentTurn || pendingSubmission || runningTools.size || openStream);
+    const wasBusy = document.body.classList.contains("pet-busy");
     const stop = $("#desktop-stop");
     if (stop) stop.hidden = !busy;
     document.body.classList.toggle("pet-busy", busy);
+    if (wasBusy !== busy || errorChanged) publishHitMask();
     postAttention(attentionMode());
   }
   function attentionMode() {
@@ -571,24 +578,46 @@
         }).catch(() => null);
       }
       function syncMouth(audio, blob, current) {
-        const target = document.querySelector("#companion")?.contentWindow, frame = globalThis.requestAnimationFrame;
-        if (!target || typeof frame !== "function") return;
-        let envelope = null, sent = -1, quiet = 0;
+        const target = document.querySelector("#companion")?.contentWindow;
+        if (!target) return;
+        const watch = ++mouthWatch;
+        let envelope = null, sent = -1, sentAt = 0, stopped = false, timer = 0;
         const send = (level, tone) => {
-          // skip near-duplicates, but refresh every few frames: the renderer closes a stale mouth
-          if (Math.abs(level - sent) < 0.02 && (level !== 0 || sent === 0) && ++quiet < 6) return;
-          sent = level; quiet = 0;
+          // Skip near-duplicates, but refresh before the renderer treats the mouth as stale.
+          if (Math.abs(level - sent) < 0.02 && (level !== 0 || sent === 0) && performance.now() - sentAt < 150) return;
+          sent = level; sentAt = performance.now();
           try { target.postMessage({type: "siro.speech.mouth", v: 1, level, tone}, location.origin); } catch (_) { /* renderer gone */ }
         };
         if (Array.isArray(blob?.envelope)) envelope = blob.envelope; // streaming: grows as chunks arrive
         else speechEnvelope(blob).then(value => { envelope = value; });
-        const step = () => {
-          if (ttsAudio !== audio || !current()) { send(0, 0.5); return; }
+        const finish = notify => {
+          if (stopped) return;
+          stopped = true;
+          window.removeEventListener("message", onFrame);
+          clearTimeout(timer); timer = 0;
+          if (!notify || watch !== mouthWatch) return;
+          send(0, 0.5);
+          try { target.postMessage({type: "siro.mouth.watch", v: 1, on: false}, location.origin); } catch (_) { /* renderer gone */ }
+        };
+        const sampleNow = () => {
+          if (watch !== mouthWatch) { finish(false); return; }
+          if (ttsAudio !== audio || !current()) { finish(true); return; }
           const sample = envelope && !audio.paused ? envelope[Math.floor(audio.currentTime * MOUTH_RATE)] : null;
           send(sample?.[0] ?? 0, sample?.[1] ?? 0.5);
-          frame(step);
         };
-        frame(step);
+        // The renderer asks for a sample on each frame it actually draws (20/30 fps).
+        // Until that hook is alive, a 30 Hz timer matches the desktop render cap.
+        const onFrame = event => {
+          if (watch !== mouthWatch) { finish(false); return; }
+          if (stopped || event.origin !== location.origin || event.source !== target) return;
+          if (event.data?.type !== "siro.renderer.frame" || event.data?.v !== 1) return;
+          clearTimeout(timer); timer = 0;
+          sampleNow();
+        };
+        window.addEventListener("message", onFrame);
+        try { target.postMessage({type: "siro.mouth.watch", v: 1, on: true}, location.origin); } catch (_) { /* renderer gone */ }
+        const pump = () => { timer = 0; if (stopped || watch !== mouthWatch) return; sampleNow(); if (!stopped && watch === mouthWatch) timer = setTimeout(pump, 1000 / 30); };
+        timer = setTimeout(pump, 1000 / 30);
       }
       const validSpeechPlan = plan => Array.isArray(plan.segments) && plan.segments.length > 0 && plan.segments.length <= 128 &&
         plan.max_chars === 80 && plan.max_segments === 128 && plan.max_total_chars === 8000 &&
@@ -1080,6 +1109,53 @@
     bridge.postMessage(JSON.stringify(message));
     return true;
   }
+  let characterMask = null, lastMaskPayload = "";
+  function opaqueUiRects() {
+    const rects = [];
+    const push = node => {
+      if (!node || node.hidden) return;
+      const box = node.getBoundingClientRect?.();
+      if (!box || box.width < 1 || box.height < 1) return;
+      rects.push({x: box.left, y: box.top, w: box.width, h: box.height});
+    };
+    const controls = $("#pet-controls");
+    const interactive = document.body.classList.contains("pet-hot") || document.body.classList.contains("pet-menu") || document.body.classList.contains("pet-busy") || Boolean(controls?.matches?.(":focus-within"));
+    if (interactive) {
+      push($("#pet-more"));
+      const buttons = document.querySelectorAll?.(".pet-dock button") || [];
+      for (const button of buttons) push(button);
+    }
+    if (document.body.classList.contains("desktop-chat-open")) push($("#pet-chat"));
+    push($("#desktop-bubble"));
+    push($("#pet-error"));
+    push($("#pet-state"));
+    return rects;
+  }
+  function publishHitMask() {
+    if (!characterMask || !window.webkit?.messageHandlers?.siroDesktop) return;
+    const frame = $("#companion");
+    const box = frame?.getBoundingClientRect?.();
+    const width = Math.round(window.innerWidth || 0), height = Math.round(window.innerHeight || 0);
+    if (!box || box.width < 1 || box.height < 1 || width < 1 || height < 1) return;
+    const message = {
+      type: "desktop.mask", v: 1, width, height,
+      character: {x: box.left, y: box.top, width: box.width, height: box.height, columns: characterMask.columns, rows: characterMask.rows, bits: characterMask.bits},
+      rects: opaqueUiRects(),
+    };
+    const text = JSON.stringify(message);
+    if (text === lastMaskPayload) return;
+    if (!nativeCommand(message)) return;
+    lastMaskPayload = text;
+  }
+  function takeCharacterMask(data) {
+    if (!data || data.v !== 1 || data.type !== "siro.alpha.mask") return false;
+    if (!Number.isInteger(data.columns) || !Number.isInteger(data.rows)) return false;
+    if (data.columns < 1 || data.rows < 1 || data.columns > 1024 || data.rows > 1024) return false;
+    if (typeof data.bits !== "string" || data.bits.length > 200000) return false;
+    characterMask = {columns: data.columns, rows: data.rows, bits: data.bits};
+    publishHitMask();
+    return true;
+  }
   function openControl(page) {
     const message = page ? {type: "desktop.console", page} : {type: "desktop.console"};
     if (nativeCommand(message)) return;
@@ -1097,6 +1173,7 @@
     nativeCommand({type: "desktop.chat", open: chatOpen});
     if (chatOpen) $("#text")?.focus();
     renderBubble();
+    publishHitMask();
     return chatOpen;
   }
   function setMenu(open) {
@@ -1106,14 +1183,22 @@
     if (more) more.hidden = !open;
     $("#desktop-more")?.setAttribute("aria-expanded", String(open));
     if (!open && !document.body.classList.contains("pet-hot")) document.body.classList.remove("pet-hot");
+    publishHitMask();
   }
   function armHot() {
     clearTimeout(hotTimer);
+    const was = document.body.classList.contains("pet-hot");
     document.body.classList.add("pet-hot");
+    if (!was) publishHitMask();
   }
   function disarmHot() {
     clearTimeout(hotTimer);
-    hotTimer = setTimeout(() => { if (!document.body.classList.contains("pet-menu")) document.body.classList.remove("pet-hot"); }, 2000);
+    hotTimer = setTimeout(() => {
+      if (document.body.classList.contains("pet-menu")) return;
+      const was = document.body.classList.contains("pet-hot");
+      document.body.classList.remove("pet-hot");
+      if (was) publishHitMask();
+    }, 2000);
   }
   function stopAll() {
     stops += 1;
@@ -1135,6 +1220,7 @@
     const label = scaleButton();
     if (label) label.textContent = `${Math.round(layout.scale * 100)}%`;
     placeDock();
+    publishHitMask();
   }
   const LIVE = new Set(["proposed", "queued", "running", "paused", "cancelling"]);
   const TOOL_NAMES = {"browser.navigate+read": "開網頁", "computer.execute": "執行程式"};
@@ -1174,13 +1260,18 @@
   function renderBubble() {
     const bubble = $("#desktop-bubble");
     if (!bubble) return;
+    const wasHidden = bubble.hidden;
     const quiet = chatOpen || window.siroSpeechBusy?.() || document.activeElement === $("#text");
     if (reply && (chatOpen || Date.now() >= reply.until)) reply = undefined;
     const next = reply ? {icon: "", text: reply.text, kind: "reply"} : lastView && !quiet ? bubbleFor(lastView) : null;
     const show = next && next.text !== dismissed ? next : null;
     if (!next) dismissed = "";
     bubble.hidden = !show;
-    if (!show) { bubbleRun = bubbleNote = undefined; return; }
+    if (!show) {
+      bubbleRun = bubbleNote = undefined;
+      if (wasHidden !== bubble.hidden) publishHitMask();
+      return;
+    }
     bubble.setAttribute("data-tone", show.tone || "");
     bubble.setAttribute("data-kind", show.kind || "");
     bubble.children[0].textContent = show.icon;
@@ -1190,6 +1281,7 @@
     bubble.children[2].textContent = show.action || "";
     bubbleRun = show.run;
     bubbleNote = show.note;
+    if (wasHidden !== bubble.hidden) publishHitMask();
   }
   function onActivity(view) {
     const seen = onActivity.seen || (onActivity.seen = new Map());
@@ -1542,6 +1634,7 @@
         publishState();
       }
       if (data?.type === "siro.renderer.ready") nativeCommand({type: "desktop.ready"});
+      if (data?.type === "siro.alpha.mask") takeCharacterMask(data);
       if (data?.type === "siro.desktop.walk" && data.v === 1) walkRequest(data);
       if (data?.type === "siro.contextmenu" && data.v === 1) setMenu(true);
       if (data?.type === "siro.key" && data.v === 1) onHostKey(data.key, null);
@@ -1560,10 +1653,11 @@
       if (event.key === "F2") event.preventDefault?.();
       onHostKey(event.key, event.target);
     });
-    window.addEventListener("resize", placeDock);
+    const onResize = () => { placeDock(); publishHitMask(); };
+    window.addEventListener("resize", onResize);
     window.addEventListener("pagehide", () => {
       observerStop?.(); unreadObserver.disconnect(); detachRole(); clearInterval(audioBusy); clearInterval(attentionPulse); clearTimeout(hotTimer); clearTimeout(replyTimer);
-      window.removeEventListener?.("resize", placeDock);
+      window.removeEventListener?.("resize", onResize);
     }, {once: true});
     window.addEventListener("beforeunload", () => {
       pageClosing = true; controlDispose?.("頁面已關閉"); controlEpoch += 1;

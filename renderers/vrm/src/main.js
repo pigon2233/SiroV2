@@ -144,6 +144,8 @@ let nextBlink = 2;
 let blinkStart = -1;
 let elapsed = 0;
 let frames = 0;
+let mouthFrames = false;
+let maskNeedsSample = false;
 let mixer;
 let idleAction;
 let currentAction;
@@ -270,7 +272,8 @@ window.addEventListener('message', event => {
     );
     interest.until = elapsed + 1.6;
     engage();
-  } else if (data.type === 'siro.desktop.walk.state') walkState(data);
+  } else if (data.type === 'siro.mouth.watch') mouthFrames = Boolean(data.on);
+  else if (data.type === 'siro.desktop.walk.state') walkState(data);
   else if (data.type === 'siro.desktop.pointer') cursorSeen(Number(data.x), Number(data.y));
 });
 
@@ -340,6 +343,7 @@ function fitCamera() {
     Object.assign(view, { centerY, height: visibleHeight, width: visibleHeight * camera.aspect });
   }
   camera.updateProjectionMatrix();
+  maskNeedsSample = true;
 }
 window.addEventListener('resize', fitCamera);
 
@@ -735,6 +739,146 @@ function announceEmotion() {
   lastAnnounced = desiredEmotion;
 }
 
+// Coarse alpha grid for the desktop click-through mask. Packed least-significant
+// bit first, matching desktop-win/click-mask.js. Not used outside the pet iframe.
+function packMaskBits(cells) {
+  const bytes = new Uint8Array(Math.ceil(cells.length / 8));
+  for (let i = 0; i < cells.length; i++) if (cells[i]) bytes[i >> 3] |= 1 << (i & 7);
+  let text = '';
+  for (let i = 0; i < bytes.length; i++) text += String.fromCharCode(bytes[i]);
+  return btoa(text);
+}
+
+// Downsampled occupancy of the frame just drawn. A pose that moves the silhouette
+// is sampled every two rendered frames (async, so the GPU is not stalled); idle
+// breathing waits 2.5s. Pixel ratio, MSAA and the frame cap are untouched.
+const maskRead = {
+  tex: null, fb: null, pbo: null, sampleCols: 0, sampleRows: 0,
+  pending: false, sinceRender: 0, kickedAtFrame: -1, lastKick: 0,
+  columns: 0, rows: 0, width: 0, height: 0, posted: '',
+};
+let maskPoseKey = '';
+let maskPoseUntil = -1;
+function silhouetteMoving() {
+  const key = [
+    currentAction && currentAction !== idleAction ? 'clip' : 'idle',
+    stroll ? stroll.phase : '',
+    carry.active ? 1 : 0,
+    hold ? hold.kind : '',
+    elapsed < pat.until ? 1 : 0,
+  ].join('|');
+  if (maskPoseKey && key !== maskPoseKey) maskPoseUntil = elapsed + 1.2;
+  maskPoseKey = key;
+  if (stroll || carry.active) return true;
+  if (currentAction && idleAction && currentAction !== idleAction && !looping.has(currentAction)) return true;
+  return elapsed < maskPoseUntil;
+}
+function releaseMaskGl(gl) {
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  try { renderer.resetState(); } catch (_) { /* the next render rebinds */ }
+}
+function ensureMaskTarget(gl, sampleCols, sampleRows) {
+  if (!maskRead.tex) {
+    maskRead.tex = gl.createTexture();
+    maskRead.fb = gl.createFramebuffer();
+    maskRead.pbo = gl.createBuffer();
+  }
+  if (maskRead.sampleCols === sampleCols && maskRead.sampleRows === sampleRows) return;
+  gl.bindTexture(gl.TEXTURE_2D, maskRead.tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, sampleCols, sampleRows, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, maskRead.fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, maskRead.tex, 0);
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  if (status !== gl.FRAMEBUFFER_COMPLETE) throw new Error('mask framebuffer incomplete');
+  maskRead.sampleCols = sampleCols;
+  maskRead.sampleRows = sampleRows;
+}
+function kickMaskRead(gl, now) {
+  const width = Math.max(1, Math.round(window.innerWidth || 1));
+  const height = Math.max(1, Math.round(window.innerHeight || 1));
+  const columns = Math.ceil(width / 4);
+  const rows = Math.ceil(height / 4);
+  const srcW = gl.drawingBufferWidth;
+  const srcH = gl.drawingBufferHeight;
+  if (columns > 1024 || rows > 1024 || !srcW || !srcH) {
+    maskRead.lastKick = now;
+    maskNeedsSample = false;
+    return;
+  }
+  const sampleCols = columns * 2;
+  const sampleRows = rows * 2;
+  while (gl.getError()) { /* drop a stale error so this read is judged on its own */ }
+  ensureMaskTarget(gl, sampleCols, sampleRows);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, maskRead.fb);
+  gl.blitFramebuffer(0, 0, srcW, srcH, 0, 0, sampleCols, sampleRows, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, maskRead.fb);
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, maskRead.pbo);
+  const nbytes = sampleCols * sampleRows * 4;
+  if (maskRead.pboBytes !== nbytes) {
+    gl.bufferData(gl.PIXEL_PACK_BUFFER, nbytes, gl.STREAM_READ);
+    maskRead.pboBytes = nbytes;
+  }
+  gl.readPixels(0, 0, sampleCols, sampleRows, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+  if (gl.getError()) throw new Error('mask read failed');
+  maskRead.pending = true;
+  maskRead.kickedAtFrame = maskRead.sinceRender;
+  maskRead.lastKick = now;
+  maskRead.columns = columns;
+  maskRead.rows = rows;
+  maskRead.width = width;
+  maskRead.height = height;
+  maskNeedsSample = false;
+}
+function collectMaskRead(gl) {
+  const {sampleCols, sampleRows, columns, rows, width, height} = maskRead;
+  const pixels = new Uint8Array(sampleCols * sampleRows * 4);
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, maskRead.pbo);
+  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, pixels);
+  maskRead.pending = false;
+  const cells = new Uint8Array(columns * rows);
+  let occupied = 0;
+  for (let y = 0; y < sampleRows; y++) {
+    const cssRow = Math.min(rows - 1, Math.floor((sampleRows - 1 - y) / 2));
+    for (let x = 0; x < sampleCols; x++) {
+      if (pixels[(y * sampleCols + x) * 4 + 3] <= 16) continue;
+      const i = cssRow * columns + Math.min(columns - 1, Math.floor(x / 2));
+      if (!cells[i]) { cells[i] = 1; occupied++; }
+    }
+  }
+  if (!occupied || window.parent === window) return;
+  const bits = packMaskBits(cells);
+  if (bits === maskRead.posted) return;
+  maskRead.posted = bits;
+  window.parent.postMessage(
+    {type: 'siro.alpha.mask', v: 1, columns, rows, width, height, bits},
+    location.origin,
+  );
+}
+function publishClickMask(now) {
+  if (!desktop || !vrm) return;
+  const gl = renderer.getContext();
+  if (!gl || typeof gl.blitFramebuffer !== 'function' || !gl.PIXEL_PACK_BUFFER) return;
+  maskRead.sinceRender += 1;
+  if (maskRead.pending && maskRead.sinceRender - maskRead.kickedAtFrame >= 2) {
+    try { collectMaskRead(gl); } catch (_) { maskRead.pending = false; }
+    finally { releaseMaskGl(gl); }
+  }
+  const due = maskNeedsSample || (silhouetteMoving()
+    ? maskRead.sinceRender - maskRead.kickedAtFrame >= 2
+    : now - maskRead.lastKick >= 2500);
+  if (maskRead.pending || !due) return;
+  try { kickMaskRead(gl, now); }
+  catch (_) { maskRead.pending = false; maskRead.lastKick = now; maskNeedsSample = false; }
+  finally { releaseMaskGl(gl); }
+}
+
 const clock = new THREE.Clock();
 let lastDesktopFrame = 0;
 // Standing idle with nothing going on: no gesture, hold, drag, pat or talk, and no one for a while.
@@ -777,6 +921,10 @@ function loop(now) {
   }
   renderer.render(scene, camera);
   frames += 1;
+  if (desktop && mouthFrames && window.parent !== window) {
+    window.parent.postMessage({type: 'siro.renderer.frame', v: 1}, location.origin);
+  }
+  publishClickMask(now);
 }
 
 function renderSiro(message) {

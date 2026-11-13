@@ -7,6 +7,7 @@ const {ComputerControl} = require('./computer-control.js');
 const {ComputerBridgeClient} = require('./computer-bridge.js');
 const {makeObserver} = require('./computer-perception.js');
 const {computerToken} = require('./computer-config.js');
+const {buildMask, overOpaque, composePageMask, wantsCapture, pointerShouldNotify, CAPTURE_FALLBACK_MS} = require('./click-mask.js');
 
 if (process.env.SIRO_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.SIRO_DEBUG_PORT);
 // Keep Chromium/Electron per-monitor DPI aware so display.bounds + dipToScreenPoint match Win32 physical pixels.
@@ -17,6 +18,7 @@ const permitted = url => { try { return new URL(url).origin === origin; } catch 
 const STOP_KEY = 'Control+Alt+Shift+Escape';
 let control;
 let tray, win, center, captureHost, desktopLayout, wander, mask, dragging = false, walk = null, lastCursor = null, scale = 1, chat = false, controlsHeight = 132, layout, dragTimer = 0;
+let pageMaskAt = 0, maskStale = true, lastPointerAt = 0, lastHit = null;
 /** DIP bounds to restore after computer-control moves SIRO off the game window (still visible). */
 let petHome = null;
 
@@ -60,7 +62,7 @@ function startDrag(point) {
     if (!win || Date.now() - began > 20000) { stopDrag(); return; }
     const now = screen.getCursorScreenPoint();
     win.setPosition(Math.round(startX + now.x - origin0.x), Math.round(startY + now.y - origin0.y));
-  }, 8);
+  }, 16);
   void fromX; void fromY;
 }
 
@@ -107,43 +109,37 @@ function finishWalk(reason) {
 }
 function haltWalk(reason) { if (walk) finishWalk(reason); }
 
-// ---- Click-through: transparent pixels pass clicks to whatever is behind her. A snapshot of the
-// page gives an opaque-cell mask; the cursor poll flips mouse capture on only over those cells.
-const CELL = 4;
-function buildMask(image) {
-  const {width, height} = image.getSize(), bitmap = image.toBitmap();
-  const columns = Math.ceil(width / CELL), rows = Math.ceil(height / CELL), cells = new Uint8Array(columns * rows);
-  let occupied = 0;
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    if (bitmap[(y * width + x) * 4 + 3] > 16) { const i = Math.floor(y / CELL) * columns + Math.floor(x / CELL); if (!cells[i]) { cells[i] = 1; occupied++; } }
-  }
-  return {width, height, columns, rows, cells, occupied};
-}
+// ---- Click-through: transparent pixels pass clicks to whatever is behind her.
+// The page posts a downsampled alpha mask (character grid plus opaque controls).
+// capturePage is only the loading fallback, and only on a slow interval, so the
+// GPU is not read back in full several times a second.
 let capturing = false;
 async function refreshMask() {
   if (!win || capturing || !win.isVisible()) return;
+  const started = Date.now();
+  if (!wantsCapture({now: started, pageMaskAt, maskStale})) return;
   capturing = true;
-  try { mask = buildMask(await win.webContents.capturePage()); } catch (_) { /* keep the last mask */ } finally { capturing = false; }
-}
-function overOpaque(point, bounds) {
-  if (!mask || mask.occupied === 0) return point.y - bounds.y < 48; // rescue strip while the page loads
-  const px = (point.x - bounds.x) * mask.width / bounds.width, py = (point.y - bounds.y) * mask.height / bounds.height;
-  if (px < 0 || py < 0 || px >= mask.width || py >= mask.height) return false;
-  const cx = Math.floor(px / CELL), cy = Math.floor(py / CELL);
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-    const x = cx + dx, y = cy + dy;
-    if (x >= 0 && y >= 0 && x < mask.columns && y < mask.rows && mask.cells[y * mask.columns + x]) return true;
-  }
-  return false;
+  try {
+    const image = await win.webContents.capturePage();
+    if (pageMaskAt > started && !maskStale) return;
+    mask = buildMask(image);
+  } catch (_) { /* keep the last mask */ } finally { capturing = false; }
 }
 let ignoring = false;
 function pollCursor() {
   if (!win || win.isDestroyed()) return;
   const point = screen.getCursorScreenPoint(), bounds = win.getBounds();
-  const wantIgnore = !dragging && !overOpaque(point, bounds);
+  const hit = dragging || overOpaque(mask, point, bounds);
+  const wantIgnore = !hit;
   if (wantIgnore !== ignoring) { ignoring = wantIgnore; win.setIgnoreMouseEvents(ignoring); if (process.env.SIRO_DEBUG_LOG) console.log('ignore', ignoring, point.x, point.y, JSON.stringify(bounds), mask && mask.occupied); }
   const rx = point.x - bounds.x, ry = point.y - bounds.y;
-  if (!lastCursor || Math.hypot(rx - lastCursor[0], ry - lastCursor[1]) >= 4) { lastCursor = [rx, ry]; toPage('pointerUpdate', `${rx}, ${ry}`); }
+  const movedPx = lastCursor ? Math.hypot(rx - lastCursor[0], ry - lastCursor[1]) : Infinity;
+  const crossed = lastHit !== null && lastHit !== hit;
+  const now = Date.now();
+  if (pointerShouldNotify({now, lastAt: lastPointerAt, movedPx, crossed})) {
+    lastCursor = [rx, ry]; lastPointerAt = now; toPage('pointerUpdate', `${rx}, ${ry}`);
+  }
+  lastHit = hit;
 }
 
 // ---- Tray icon: she has no taskbar button, so show/hide, console and quit live here.
@@ -222,6 +218,12 @@ function handle(message) {
       if (message.button === 1 && Number.isFinite(message.screenX) && Number.isFinite(message.screenY)) startDrag(message);
       break;
     case 'desktop.ready': applyLayout(); break;
+    case 'desktop.mask': {
+      const next = composePageMask(message);
+      if (!next) break;
+      mask = next; pageMaskAt = Date.now(); maskStale = false;
+      break;
+    }
     case 'desktop.walk':
       if (typeof message.id === 'string' && message.id.length <= 40 && [-1, 0, 1].includes(message.direction) &&
           [message.distance, message.speed, message.ramp, message.delay].every(Number.isFinite) &&
@@ -250,14 +252,15 @@ app.whenReady().then(async () => {
   win.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
   win.webContents.on('will-navigate', event => { if (!permitted(event.url)) event.preventDefault(); });
   ipcMain.on('siro.desktop', (event, text) => {
-    if (event.sender !== win.webContents || !permitted(event.senderFrame?.url || '')) return;
+    if (event.sender !== win.webContents || typeof text !== 'string' || text.length > 400000 || !permitted(event.senderFrame?.url || '')) return;
     let message; try { message = JSON.parse(text); } catch (_) { return; }
     if (message && typeof message.type === 'string') handle(message);
   });
   ipcMain.on('siro.drag.end', stopDrag);
   // Size the window as soon as the page is up: the renderer's ready message can come late or be
   // missed, and until then the 640 px window crops the controls under her.
-  win.webContents.on('did-finish-load', applyLayout);
+  win.webContents.on('did-finish-load', () => { applyLayout(); refreshMask(); });
+  win.on('resize', () => { maskStale = true; });
   win.on('closed', () => app.quit());
   // Keep her on top even after a full-screen app or the taskbar takes the top slot.
   win.on('blur', () => win.setAlwaysOnTop(true, 'screen-saver'));
@@ -291,7 +294,7 @@ app.whenReady().then(async () => {
   // Dedicated pet page. The console opens only from the tray or desktop.console.
   win.loadURL(`${origin}/desktop`);
   setInterval(pollCursor, 50);
-  setInterval(refreshMask, 700);
+  setInterval(() => { if (wantsCapture({now: Date.now(), pageMaskAt, maskStale})) refreshMask(); }, CAPTURE_FALLBACK_MS);
 });
 app.on('will-quit', () => {
   if (control) control.disable();

@@ -1,5 +1,15 @@
 # 狀態總覽（2026-10-24 整理；先看這裡，下面是由新到舊的時間序列紀錄）
 
+## 2026-11-13 — 桌寵少佔 GPU，畫質與幀率不變（PERF-01）
+
+Windows 桌寵在顯卡幾乎滿的機器上，常駐成本來自四件事，這次只減那些成本。畫質（pixel ratio、MSAA、描邊、貼圖）、桌寵 30／20 fps 上限、Ollama `keep_alive`、TTS 暖機／閒置／裝置都沒改。模型仍常駐。
+
+點擊穿透不再每 700ms 對整個透明視窗 `capturePage()` 並在主程序掃每一個像素。角色 iframe 在自己已經畫完的畫面上，把 alpha 縮成 4 CSS 像素一格（每格再取 2×2，門檻仍是 alpha > 16），用非同步 pixel buffer 讀回；閒置約 2.5 秒一次，走路、拖曳或非循環動作時每兩個已畫出的影格一次，結果大約晚兩個影格。頁面把這張格子和圓鈕、選單、對話、氣泡的矩形合成後送給主程序。主程序只有在角色遮罩還沒到，或視窗改了大小卻超過 2.5 秒沒收到新遮罩時，才退回整窗擷取。游標仍每 50ms 在主程序做命中測試；通知頁面改成進入／離開角色可點區立刻送，其餘至少移動 8px 且最快 10 次／秒。拖曳視窗從 8ms 改成 16ms。嘴型不再另開 60Hz `requestAnimationFrame`，改跟 renderer 實際畫出的影格取樣（renderer 還沒回幀時用 30Hz 計時器，對齊桌寵幀率上限）。圓鈕、更多面板、對話的 `backdrop-filter` 拿掉，改成接近原來的深色半透明實底。按鈕 id 沒變。
+
+電腦操控路徑沒有改。
+
+驗證（Linux，2026-11-13）：`node --test desktop-win/click-mask.test.js` 7 passed。`node --check` 過 `desktop-win/main.js`、`click-mask.js`、`pet.js`、`renderers/vrm/src/main.js`。先 `uv sync --locked --only-group dev --no-install-project --no-default-groups`，再 `uv run --no-sync pytest tests/integration/test_desktop_web.py tests/integration/test_win_launcher.py` 41 passed。`uv run --no-sync ruff check` 與 `ruff format --check` 這次改的 `tests/integration/test_desktop_web.py` 通過。沒有 Windows、Electron 或主人的 GPU，所以點擊穿透手感、視線、嘴型與實底外觀沒有在那台機器上量過。完整 `scripts/check` 會再裝整份專案依賴並跑 cargo／全套 pytest；這環境沒有做那一步。省下的 GPU 讀回是由路徑推的設計估計，不是那台 8GB 卡上的量測。細節在 `docs/collaboration/PERF-01.md`。
+
 ## 2026-11-10 — 桌寵快捷列改成側邊圓鈕與一塊面板（UI-PET-03）
 
 桌寵快捷不再是鋪在角色身上的文字膠囊。滑過或聚焦時，角色旁邊（視窗靠螢幕哪一側，就放在另一側，沿用 `screenSide()`）出現一條直的圓鈕：說話、聊聊、更多；回覆、工具或朗讀進行時，停止鈕出現在說話上面，整條留在畫面上。更多是同一塊磨砂卡片：語音用按下／沒按下表示開關，大小是 －／百分比／＋，動作預設收合，視窗四個小鈕裡退出比較淡。右鍵仍只開這一個選單，Esc 或點角色外面會收起。頁面背景維持透明。
