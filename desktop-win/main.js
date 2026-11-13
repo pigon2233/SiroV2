@@ -1,6 +1,6 @@
 'use strict';
 const {app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage, screen, session, Tray} = require('electron');
-const {spawn} = require('node:child_process');
+const {execFile, spawn} = require('node:child_process');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 const {ComputerControl} = require('./computer-control.js');
@@ -8,10 +8,15 @@ const {ComputerBridgeClient} = require('./computer-bridge.js');
 const {makeObserver} = require('./computer-perception.js');
 const {computerToken} = require('./computer-config.js');
 const {buildMask, overOpaque, composePageMask, wantsCapture, pointerShouldNotify, CAPTURE_FALLBACK_MS} = require('./click-mask.js');
+const {petGpuPlan, appendGpuQuery, applyWindowsGpuPreference} = require('./gpu-preference.js');
 
 if (process.env.SIRO_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.SIRO_DEBUG_PORT);
 // Keep Chromium/Electron per-monitor DPI aware so display.bounds + dipToScreenPoint match Win32 physical pixels.
 app.commandLine.appendSwitch('high-dpi-support', '1');
+// Draw the pet on the integrated GPU before the GPU process starts. ANGLE stays
+// on the Windows D3D11 default; hardware acceleration and window transparency stay on.
+const gpuPlan = petGpuPlan(process.env.SIRO_PET_GPU);
+for (const flag of gpuPlan.switches) app.commandLine.appendSwitch(flag);
 
 const origin = process.env.SIRO_DESKTOP_ORIGIN || 'http://127.0.0.1:8000';
 const permitted = url => { try { return new URL(url).origin === origin; } catch (_) { return false; } };
@@ -236,7 +241,22 @@ function handle(message) {
   }
 }
 
+function installDesktopGpuQuery(ses) {
+  if (!gpuPlan.powerPreference) return;
+  const urls = [`${origin}/vrm/*`, `${origin}/vrm/?*`];
+  ses.webRequest.onBeforeRequest({urls}, (details, callback) => {
+    try {
+      const next = appendGpuQuery(details.url, gpuPlan.powerPreference);
+      callback(next === details.url ? {} : {redirectURL: next});
+    } catch (_) { callback({}); }
+  });
+}
+
 app.whenReady().then(async () => {
+  installDesktopGpuQuery(session.defaultSession);
+  applyWindowsGpuPreference({
+    platform: process.platform, envValue: process.env.SIRO_PET_GPU, exePath: process.execPath, execFile,
+  });
   ({desktopLayout} = await import(pathToFileURL(path.join(__dirname, '..', 'desktop', 'layout.mjs')).href));
   wander = await import(pathToFileURL(path.join(__dirname, '..', 'desktop', 'wander.mjs')).href);
   session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {

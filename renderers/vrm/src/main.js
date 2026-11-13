@@ -111,7 +111,15 @@ const LOOK_HOLD_SECONDS = 4;
 // with multisampling instead.
 const pixelRatio = desktop ? Math.max(window.devicePixelRatio || 1, 1.25) : Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
 const supersampled = pixelRatio >= 1.5 * (window.devicePixelRatio || 1);
-const renderer = new THREE.WebGLRenderer({ antialias: !supersampled, alpha: true });
+// The Electron host adds gpu= when it wants a specific adapter. Pixel ratio,
+// MSAA and the frame cap below are unchanged either way.
+const desktopGpu = desktop ? new URLSearchParams(location.search).get('gpu') : null;
+const powerPreference = desktopGpu === 'low-power' || desktopGpu === 'high-performance' ? desktopGpu : null;
+const renderer = new THREE.WebGLRenderer({
+  antialias: !supersampled,
+  alpha: true,
+  ...(powerPreference ? {powerPreference} : {}),
+});
 renderer.setPixelRatio(pixelRatio);
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;

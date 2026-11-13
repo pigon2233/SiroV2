@@ -11,6 +11,9 @@
 ## 允許修改
 
 - `desktop-win/main.js`、`desktop-win/click-mask.js`（新）、`desktop-win/click-mask.test.js`（新）
+- `desktop-win/gpu-preference.js`（新）、`desktop-win/gpu-preference.test.js`（新）
+- `scripts/set-pet-gpu-preference.ps1`（新）、`Start-SIRO-VRM-Win.cmd`（啟動前寫登錄）
+- `README.md`
 - `src/siro/services/presentation/static/pet.js`、`pet.css`
 - `renderers/vrm/src/main.js`（只加幀鉤子與 alpha 遮罩；pixel ratio、MSAA、30／20 fps 判斷沒改）
 - `tests/integration/test_desktop_web.py`
@@ -26,6 +29,7 @@
 2. **游標。** 命中測試仍每 50ms 在主程序做（`getCursorScreenPoint`，不進頁面）。`executeJavaScript` 的 `pointerUpdate` 改成：進入或離開可點區立刻送；其餘要移動至少 8px，而且最快 100ms 一次。頁面裡的 hover／摸頭仍走原本的 DOM 事件（視窗沒有忽略滑鼠時）。看向桌面游標的 `cursorSeen` 仍收到座標，慢速移動不會因為每步都小於 40px 而被這次改動弄成完全不看。拖曳 `setPosition` 從 8ms 改成 16ms。散步仍是 16ms。
 3. **嘴型。** `pet.js` 不再為嘴型另開 60Hz `requestAnimationFrame`。說話時請 renderer 在它真正畫出的影格（桌寵 30fps，站著閒置 20fps）回 `siro.renderer.frame`，頁面用同一份 60Hz 音量包絡取當下樣本。renderer 還沒回幀時，用 30Hz `setTimeout` 補，對齊桌寵幀率上限，不另外排一個 60Hz 合成幀。近重複的樣本仍略過，但最久 150ms 會再送一次，短於 renderer 0.25 秒沒收到就閉嘴的判斷。控制台 `index.html` 的嘴型迴圈沒改。
 4. **玻璃。** `pet.css` 裡圓鈕、更多面板、對話的 `backdrop-filter` 移除。圓鈕改 `rgba(16, 14, 24, 0.88)`，懸停 `rgba(62, 48, 84, 0.94)`，更多展開 `rgba(92, 58, 120, 0.94)`。更多面板與對話改 `rgba(16, 14, 24, 0.94)`。頁面背景仍透明。按鈕 id 沒變。
+5. **顯卡。** 桌寵預設走內顯，獨立顯卡留給 TTS 與對話模型。`SIRO_PET_GPU` 未設或 `low-power`：Chromium `force_low_power_gpu`（`app.ready` 之前），WebGL `powerPreference: 'low-power'`。`high-performance` 或 `discrete`：不加強制，WebGL 改 `high-performance`。`default`：兩者都不設。不關硬體加速，不改 ANGLE（Windows 仍是 D3D11），pixel ratio／MSAA／幀率上限不變。啟動器在 `electron.exe` 啟動前寫 `HKCU\Software\Microsoft\DirectX\UserGpuPreferences`（值名稱是那支 `electron.exe` 的完整路徑）：預設只在還沒有值時寫 `GpuPreference=1;`，明確的 `low-power` 寫 1，`high-performance`／`discrete` 寫 2，`default` 不寫。Electron 進程裡再套用一次，只影響下一次直接啟動。
 
 ## 預期省下的工作（設計估計，不是主人機器上的量測）
 
@@ -35,9 +39,9 @@
 
 ## 驗收
 
-- `node --test desktop-win/click-mask.test.js`：7 passed。覆蓋 4px／alpha>16、一格膨脹、頁面遮罩合成、空遮罩拒絕、2.5 秒後才退回擷取、游標進入／離開與 100ms 節流，以及 renderer 的 bit pack 與主程序解碼一致。
-- `node --check`：`desktop-win/main.js`、`desktop-win/click-mask.js`、`pet.js`、`renderers/vrm/src/main.js` 通過。
-- `uv sync --locked --only-group dev --no-install-project --no-default-groups`，然後 `uv run --no-sync pytest tests/integration/test_desktop_web.py tests/integration/test_win_launcher.py`：41 passed。含角色遮罩轉成 `desktop.mask`、嘴型不再用 `requestAnimationFrame`、CSS 不再有 `backdrop-filter`、pixel ratio 與 30／20 fps 字串仍在。
+- `node --test desktop-win/click-mask.test.js desktop-win/gpu-preference.test.js`：11 passed。遮罩測試同上。顯卡測試覆蓋預設內顯、`high-performance`／`discrete`、`default`、不蓋掉已有的登錄值，以及非 Windows 不寫登錄。
+- `node --check`：`desktop-win/main.js`、`click-mask.js`、`gpu-preference.js`、`pet.js`、`renderers/vrm/src/main.js` 通過。
+- `uv sync --locked --only-group dev --no-install-project --no-default-groups`，然後 `uv run --no-sync pytest tests/integration/test_desktop_web.py tests/integration/test_win_launcher.py`：42 passed。含角色遮罩、嘴型、CSS、pixel ratio 與 30／20 fps，以及 `powerPreference` 只在 `gpu=` 查詢出現時接上。
 - `uv run --no-sync ruff check` 與 `ruff format --check` `tests/integration/test_desktop_web.py`：通過。
 - 沒有跑完整 `scripts/check`。這環境原本沒有專案 venv；只 `uv sync --locked --only-group dev --no-install-project`。mypy 需要 `pydantic.mypy`，沒有裝專案本體所以沒跑。cargo 在機器上，但沒有改 Rust，沒有重跑。全套 pytest 會進到已知的 skill／profile／computer-use 失敗，這次沒有為了它們重跑。
 
@@ -49,7 +53,8 @@
 - 嘴型跟得上聲音。
 - 實底圓鈕／面板在主人桌面上看起來是否夠接近原來的磨砂。
 - 若 WebGL blit 或 pixel buffer 在那台 Electron 上失敗，主程序會退回每 2.5 秒一次整窗擷取（仍少於原來的 700ms），直到遮罩成功。
+- `electron.exe` 是否真的落在 Intel UHD Graphics 770，而不是 RTX 3050。Chromium 的 `force_low_power_gpu` 在混合顯卡上有時不夠，所以啟動器另外寫 Windows 的每程式 GPU 偏好；這台機器還沒跑過。
 
 ## 回退
 
-撤掉這個分支即可。點擊穿透回到每 700ms 整窗擷取，游標回到每 4px 注入，拖曳回到 8ms，嘴型回到 60Hz，玻璃模糊回來。
+撤掉這個分支即可。點擊穿透回到每 700ms 整窗擷取，游標回到每 4px 注入，拖曳回到 8ms，嘴型回到 60Hz，玻璃模糊回來。若登錄裡已經寫了這支 `electron.exe` 的 `GpuPreference`，撤程式不會自動刪掉那一筆；可在 Windows 顯示設定的圖形選項裡移除，或設 `SIRO_PET_GPU=default` 後自行刪除該值。

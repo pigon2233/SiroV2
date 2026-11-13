@@ -56,6 +56,8 @@ if defined VARIANT (
 if errorlevel 1 goto failed
 if /I "%MODE%"=="backend" exit /b 0
 if not exist "%SIRO_DIR%desktop-win\node_modules\electron\dist\electron.exe" goto missing_electron
+rem Choose the GPU before electron.exe starts. The default is the integrated adapter.
+powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%SIRO_DIR%scripts\set-pet-gpu-preference.ps1" -ExePath "%SIRO_DIR%desktop-win\node_modules\electron\dist\electron.exe"
 start "" /d "%SIRO_DIR%desktop-win" "%SIRO_DIR%desktop-win\node_modules\electron\dist\electron.exe" .
 exit /b 0
 

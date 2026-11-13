@@ -809,6 +809,29 @@ def test_pet_page_keeps_the_audio_and_renderer_contract() -> None:
     assert "pointer-events: none" in css
 
 
+def test_desktop_renderer_power_preference_follows_the_host_query() -> None:
+    renderer = Path("renderers/vrm/src/main.js").read_text(encoding="utf-8")
+    options = renderer[renderer.index("const pixelRatio") : renderer.index("const scene")]
+    assert "powerPreference" in options
+    assert "low-power" in options and "high-performance" in options
+    assert "Math.max(window.devicePixelRatio || 1, 1.25)" in options
+    assert "antialias: !supersampled" in options
+    assert "alpha: true" in options
+    assert "1000 / (resting() ? 20 : 30)" in renderer
+    host = Path("desktop-win/main.js").read_text(encoding="utf-8")
+    assert "petGpuPlan" in host and "force_low_power_gpu" not in host.split("petGpuPlan", 1)[0]
+    assert "appendGpuQuery" in host and "SIRO_PET_GPU" in host
+    assert "disableHardwareAcceleration" not in host
+    plan = Path("desktop-win/gpu-preference.js").read_text(encoding="utf-8")
+    assert "force_low_power_gpu" in plan
+    launcher = Path("Start-SIRO-VRM-Win.cmd").read_text(encoding="utf-8")
+    preference = Path("scripts/set-pet-gpu-preference.ps1").read_text(encoding="utf-8")
+    script_at = launcher.index("set-pet-gpu-preference.ps1")
+    assert script_at < launcher.index("electron.exe", script_at)
+    assert "UserGpuPreferences" in preference
+    assert "GpuPreference=1;" in preference and "GpuPreference=2;" in preference
+
+
 def test_pet_hit_mask_and_mouth_sync_skip_the_extra_loops() -> None:
     pet = (STATIC / "pet.js").read_text(encoding="utf-8")
     mouth = pet[pet.index("function syncMouth") : pet.index("const validSpeechPlan")]

@@ -8,7 +8,9 @@ Windows 桌寵在顯卡幾乎滿的機器上，常駐成本來自四件事，這
 
 電腦操控路徑沒有改。
 
-驗證（Linux，2026-11-13）：`node --test desktop-win/click-mask.test.js` 7 passed。`node --check` 過 `desktop-win/main.js`、`click-mask.js`、`pet.js`、`renderers/vrm/src/main.js`。先 `uv sync --locked --only-group dev --no-install-project --no-default-groups`，再 `uv run --no-sync pytest tests/integration/test_desktop_web.py tests/integration/test_win_launcher.py` 41 passed。`uv run --no-sync ruff check` 與 `ruff format --check` 這次改的 `tests/integration/test_desktop_web.py` 通過。沒有 Windows、Electron 或主人的 GPU，所以點擊穿透手感、視線、嘴型與實底外觀沒有在那台機器上量過。完整 `scripts/check` 會再裝整份專案依賴並跑 cargo／全套 pytest；這環境沒有做那一步。省下的 GPU 讀回是由路徑推的設計估計，不是那台 8GB 卡上的量測。細節在 `docs/collaboration/PERF-01.md`。
+同一張卡接著把桌寵畫在內顯上，讓 8GB 級的 RTX 3050 留給語音和對話模型。預設 `SIRO_PET_GPU` 未設時，Electron 在 `app.ready` 之前加上 Chromium 的 `force_low_power_gpu`，不關硬體加速、不改 ANGLE 的 D3D11 預設，透明視窗維持原樣。VRM 只有在網址帶 `gpu=low-power` 或 `gpu=high-performance`（由 Electron 加在桌寵的 `/vrm/?presentation=desktop` 上）時才把 WebGL `powerPreference` 設成同一個值；pixel ratio、MSAA 與 30／20 fps 沒改。`SIRO_PET_GPU=high-performance` 或 `discrete` 改回獨立顯卡；`default` 則不插手。Windows 啟動器在 `electron.exe` 起來之前，若登錄裡還沒有這支程式的選擇，會寫 `HKCU\Software\Microsoft\DirectX\UserGpuPreferences` 的 `GpuPreference=1`（內顯）。已經有的值不會被蓋掉，除非環境變數明確寫 `low-power`（改回 1）或 `high-performance`／`discrete`（改成 2）。
+
+驗證（Linux，2026-11-13）：`node --test desktop-win/click-mask.test.js desktop-win/gpu-preference.test.js` 11 passed。`node --check` 過 `desktop-win/main.js`、`click-mask.js`、`gpu-preference.js`、`pet.js`、`renderers/vrm/src/main.js`。先 `uv sync --locked --only-group dev --no-install-project --no-default-groups`，再 `uv run --no-sync pytest tests/integration/test_desktop_web.py tests/integration/test_win_launcher.py` 42 passed。`uv run --no-sync ruff check` 與 `ruff format --check` 這次改的 `tests/integration/test_desktop_web.py` 通過。沒有 Windows、Electron 或主人的 GPU，所以點擊穿透手感、視線、嘴型、實底外觀，以及 `electron.exe` 實際落在哪張卡，都沒有在那台機器上量過。完整 `scripts/check` 會再裝整份專案依賴並跑 cargo／全套 pytest；這環境沒有做那一步。省下的 GPU 讀回是由路徑推的設計估計，不是那台 8GB 卡上的量測。細節在 `docs/collaboration/PERF-01.md`。
 
 ## 2026-11-10 — 桌寵快捷列改成側邊圓鈕與一塊面板（UI-PET-03）
 
