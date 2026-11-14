@@ -801,10 +801,71 @@ def test_pet_page_keeps_the_audio_and_renderer_contract() -> None:
     assert "pet-hot" in css
     assert "pet-busy" in css
     assert "data-dock" in css
-    assert "backdrop-filter" in css
+    assert "backdrop-filter" not in css
+    assert "rgba(16, 14, 24, 0.88)" in css
+    assert "rgba(16, 14, 24, 0.94)" in css
     assert "prefers-reduced-motion" in css
     assert "#pet-controls" in css
     assert "pointer-events: none" in css
+
+
+def test_desktop_renderer_power_preference_follows_the_host_query() -> None:
+    renderer = Path("renderers/vrm/src/main.js").read_text(encoding="utf-8")
+    options = renderer[renderer.index("const pixelRatio") : renderer.index("const scene")]
+    assert "powerPreference" in options
+    assert "low-power" in options and "high-performance" in options
+    assert "Math.max(window.devicePixelRatio || 1, 1.25)" in options
+    assert "antialias: !supersampled" in options
+    assert "alpha: true" in options
+    assert "1000 / (resting() ? 20 : 30)" in renderer
+    host = Path("desktop-win/main.js").read_text(encoding="utf-8")
+    assert "petGpuPlan" in host and "force_low_power_gpu" not in host.split("petGpuPlan", 1)[0]
+    assert "appendGpuQuery" in host and "SIRO_PET_GPU" in host
+    assert "disableHardwareAcceleration" not in host
+    plan = Path("desktop-win/gpu-preference.js").read_text(encoding="utf-8")
+    assert "force_low_power_gpu" in plan
+    launcher = Path("Start-SIRO-VRM-Win.cmd").read_text(encoding="utf-8")
+    preference = Path("scripts/set-pet-gpu-preference.ps1").read_text(encoding="utf-8")
+    script_at = launcher.index("set-pet-gpu-preference.ps1")
+    assert script_at < launcher.index("electron.exe", script_at)
+    assert "UserGpuPreferences" in preference
+    assert "GpuPreference=1;" in preference and "GpuPreference=2;" in preference
+
+
+def test_pet_hit_mask_and_mouth_sync_skip_the_extra_loops() -> None:
+    pet = (STATIC / "pet.js").read_text(encoding="utf-8")
+    mouth = pet[pet.index("function syncMouth") : pet.index("const validSpeechPlan")]
+    assert "requestAnimationFrame" not in mouth
+    assert "siro.renderer.frame" in mouth
+    assert "siro.mouth.watch" in mouth
+    assert "1000 / 30" in mouth
+    host = Path("desktop-win/main.js").read_text(encoding="utf-8")
+    assert "setInterval(refreshMask, 700)" not in host
+    assert "CAPTURE_FALLBACK_MS" in host
+    assert "}, 8);" not in host
+    assert "pointerShouldNotify" in host
+    renderer = Path("renderers/vrm/src/main.js").read_text(encoding="utf-8")
+    assert "siro.alpha.mask" in renderer
+    assert "siro.mouth.watch" in renderer
+    assert "Math.max(window.devicePixelRatio || 1, 1.25)" in renderer
+    assert "1000 / (resting() ? 20 : 30)" in renderer
+    run_desktop(
+        """
+window.innerWidth=80; window.innerHeight=64;
+Element.prototype.getBoundingClientRect=()=>({left:4,top:8,width:72,height:48});
+document.querySelectorAll=sel=>sel==='.pet-dock button'
+  ? [existing.get('#desktop-voice')].filter(Boolean) : [];
+document.body.classList.add('pet-hot');
+dispatch('message',{origin:location.origin,source:existing.get('#companion').contentWindow,
+  data:{type:'siro.alpha.mask',v:1,columns:2,rows:2,width:72,height:48,bits:'AQ=='}});
+const posted=nativeMessages.filter(item=>item.type==='desktop.mask');
+assert.equal(posted.length,1);
+assert.equal(posted[0].width,80);
+assert.equal(posted[0].character.bits,'AQ==');
+assert.equal(posted[0].character.columns,2);
+assert.ok(posted[0].rects.length>=1);
+""",
+    )
 
 
 def test_bubble_in_focus_mode_hides_what_she_is_doing_but_keeps_what_needs_the_owner() -> None:
