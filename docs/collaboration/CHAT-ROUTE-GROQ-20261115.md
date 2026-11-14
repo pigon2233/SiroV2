@@ -25,3 +25,15 @@
 ## 遠端
 
 LOCAL_ONLY／NOT PUSHED。使用者自行 push 與開 PR。
+
+## 2026-11-15 補充：既有 ruff／測試失敗
+
+- 環境補齊（WSL 獨立 venv `~/.venvs/chat-route-groq`、worktree 的 `.venv` 連到它、複製 tokenizer 與
+  `target/debug/siro-runtime`、PATH 加 `~/.local/bin` 與 Playwright Chromium 的 `chromium` 連結）後，
+  完整 pytest：3592 passed、35 failed；其中 30 個重跑全過（環境），剩 5 個：
+  `tests/unit/test_computer_use_perception.py` 4 個、`tests/unit/test_undertale_wait_counterfactual.py` 1 個，
+  屬 computer-use 範圍，未修。
+- ruff check：170 → 2（剩 `tests/unit/test_computer_use_loop.py`，不碰）。commit 7c76c4c。
+- `test_vrm_renderer.py` 只改換行；其 14 個測試因未 `npm ci` 被 skip，未實跑。
+- mypy：全庫原本在重複模組名處中止。試加 `explicit_package_bases` 後可完整檢查，但出現 196 個既有型別錯誤，
+  已撤回該設定，未修。
