@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlsplit
 
+import httpx
+
 if TYPE_CHECKING:
     from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
 
@@ -45,7 +47,8 @@ DEFAULT_BUDGET = 10
 DEFAULT_COOLDOWN_SECONDS = 900
 LOCAL_CALL_MAX_TOKENS = 512
 _LONG_TEXT = 480
-TaskKind = Literal["local", "reason"]
+TaskKind = Literal["local", "chat", "reason"]
+ChatRoute = Literal["local", "groq"]
 BudgetReason = Literal["ok", "budget", "rate_limit", "unreadable", "disabled"]
 
 _SENSITIVE = re.compile(
@@ -82,6 +85,16 @@ def _flag(env: Mapping[str, str], name: str, *, default: str = "1") -> bool:
     return value == "1"
 
 
+def chat_route(env: Mapping[str, str]) -> ChatRoute:
+    """`SIRO_CHAT_ROUTE`: where ordinary chat goes when the router is on."""
+    value = env.get("SIRO_CHAT_ROUTE", "local")
+    if value == "local":
+        return "local"
+    if value == "groq":
+        return "groq"
+    raise ValueError("SIRO_CHAT_ROUTE must be local or groq")
+
+
 def _bounded_int(env: Mapping[str, str], name: str, default: int, low: int, high: int) -> int:
     raw = env.get(name)
     if raw is None or raw.strip() == "":
@@ -103,13 +116,13 @@ def user_text(request: ModelRequest) -> str:
 
 
 def classify_user_text(text: str) -> TaskKind:
-    """Cheap task/chat split. Sensitive text and ordinary chat stay local."""
+    """Cheap task/chat split. Empty and sensitive text stay local."""
     stripped = text.strip()
     if not stripped or _SENSITIVE.search(stripped):
         return "local"
     if _REASON.search(stripped) or len(stripped) >= _LONG_TEXT:
         return "reason"
-    return "local"
+    return "chat"
 
 
 def classify_request(request: ModelRequest) -> TaskKind:
@@ -316,7 +329,10 @@ class ModelRouter:
         on_notice: Callable[[ModelRequest, str], Awaitable[None]] | None = None,
         cooldown: timedelta = timedelta(seconds=DEFAULT_COOLDOWN_SECONDS),
         clock: Callable[[], datetime] | None = None,
+        chat_route: ChatRoute = "local",
     ) -> None:
+        if chat_route not in {"local", "groq"}:
+            raise ValueError("chat_route must be local or groq")
         if not providers:
             raise ValueError("at least one routed provider is required")
         if len({item.kind for item in providers}) != len(providers):
@@ -329,6 +345,8 @@ class ModelRouter:
         self._on_notice = on_notice
         self._cooldown = cooldown
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._chat_route = chat_route
+        self._groq_until: datetime | None = None
         self.name = "router"
         self.last_model_name = providers[0].label
 
@@ -339,9 +357,18 @@ class ModelRouter:
             return Privacy.CLOUD_ALLOWED
         if not self._cloud_enabled():
             return Privacy.LOCAL_ONLY
-        if classify_user_text(text) == "local":
+        kind = classify_user_text(text)
+        if kind == "local":
+            return Privacy.LOCAL_ONLY
+        if kind == "chat" and not self._chat_to_groq():
             return Privacy.LOCAL_ONLY
         return Privacy.CLOUD_ALLOWED
+
+    def _chat_to_groq(self) -> bool:
+        """Chat goes to Groq only when opted in, configured and not cooling down."""
+        if self._chat_route != "groq" or "groq" not in self._by_kind:
+            return False
+        return self._groq_until is None or self._clock() >= self._groq_until
 
     def claude_available_at(self) -> str | None:
         if self._budget is None:
@@ -368,7 +395,7 @@ class ModelRouter:
                 yield ModelChunk("finished")
                 return
             raise PermissionError("cloud egress requires cloud_allowed privacy")
-        groq_failed = False
+        groq_failed = ""
         last_error: Exception | None = None
         for index, provider in enumerate(chain):
             if cancellation.cancelled:
@@ -403,7 +430,7 @@ class ModelRouter:
                 if emitted or cancellation.cancelled or index == len(chain) - 1:
                     raise
                 if provider.kind == "groq":
-                    groq_failed = True
+                    groq_failed = self._remember_groq_failure(error)
                 if provider.kind == "claude":
                     skip_reason = skip_reason or "unavailable"
                 last_error = error
@@ -420,7 +447,10 @@ class ModelRouter:
         claude = self._by_kind.get("claude")
         if secret and local is None:
             return [], "", False
-        if decision == "local" or not cloud_open:
+        if decision == "chat" and cloud_open and self._chat_to_groq() and groq is not None:
+            # Chat never reserves Claude budget: Groq first, local as the fallback.
+            return [groq] if local is None else [groq, local], "", False
+        if decision != "reason" or not cloud_open:
             if local is not None:
                 return [local], "", False
             if not cloud_open:
@@ -459,12 +489,31 @@ class ModelRouter:
         )
         await self._budget.note_rate_limit(until)
 
+    def _remember_groq_failure(self, error: Exception) -> str:
+        """Return the Groq failure kind; a 429 pauses chat-to-Groq for a cooldown."""
+        if not isinstance(error, httpx.HTTPStatusError) or error.response.status_code != 429:
+            return "error"
+        now = self._clock()
+        until = now + self._cooldown
+        raw = error.response.headers.get("retry-after", "").strip()
+        try:
+            seconds = float(raw)
+        except ValueError:
+            seconds = -1.0
+        daily = error.response.headers.get("x-ratelimit-remaining-requests", "").strip()
+        if seconds >= 0 and seconds < 5 * 60 * 60 and daily != "0":
+            until = now + timedelta(seconds=seconds)
+        elif seconds >= 0 and seconds < 24 * 60 * 60:
+            until = max(until, now + timedelta(seconds=seconds))
+        self._groq_until = until
+        return "rate_limit"
+
     async def _announce(
         self,
         request: ModelRequest,
         provider: RouteProvider,
         skip_reason: str,
-        groq_failed: bool,
+        groq_failed: str,
     ) -> None:
         notice = ""
         if skip_reason and provider.kind != "claude":
@@ -475,6 +524,10 @@ class ModelRouter:
                 None if view is None else view.available_at,
                 limit=0 if self._budget is None else self._budget.limit,
             )
+        elif groq_failed == "rate_limit" and provider.kind == "local":
+            when = _when(self._groq_until)
+            follow = f"預計 {when} 之後再試 Groq。" if when else ""
+            notice = f"Groq 目前被限流，這次回覆改用本機模型。{follow}"  # noqa: RUF001
         elif groq_failed and provider.kind == "local":
             notice = "雲端模型這次沒有回應，已改用本機模型。"  # noqa: RUF001
         self.last_model_name = provider.label
@@ -588,6 +641,7 @@ def choose_conversation_model(
     clock: Callable[[], datetime] | None = None,
 ) -> ModelChoice:
     """Select the conversation model. Router flag 0 preserves the historical priority."""
+    route = chat_route(env)
     if not router_enabled(env):
         return _legacy_choice(env)
     providers: list[RouteProvider] = []
@@ -645,6 +699,7 @@ def choose_conversation_model(
         on_notice=on_notice,
         cooldown=timedelta(seconds=cooldown),
         clock=clock,
+        chat_route=route,
     )
     has_local = any(item.kind == "local" for item in providers)
     return ModelChoice(

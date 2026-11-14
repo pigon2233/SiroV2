@@ -15,7 +15,13 @@ SIRO_OPENAI_BASE_URL=https://api.groq.com/openai
 SIRO_OPENAI_MODEL=openai/gpt-oss-20b
 SIRO_OPENAI_API_KEY=你的金鑰
 SIRO_CLAUDE_BUDGET_CALLS=10
+SIRO_CHAT_ROUTE=groq
 ```
+
+`SIRO_CHAT_ROUTE` 決定一般閒聊走哪裡：`local`（預設，維持原本只用本機）或 `groq`
+（先 Groq，失敗再本機）。其他值會在啟動時報錯。Groq 模型沿用
+`openai/gpt-oss-20b`，因為啟動器的 token 預算只驗證過這個模型；換更大的模型要另外處理
+`SIRO_CONTEXT_TOKEN_BUDGET_ENABLED` 與 tokenizer。
 
 Claude 用這台電腦已經登入的 `claude` 指令，不另存 API 金鑰。模型名稱沿用
 `SIRO_CLAUDE_MODEL`（預設與 `claude.ask` 相同）。找不到指令、或
@@ -34,12 +40,17 @@ Claude 用這台電腦已經登入的 `claude` 指令，不另存 API 金鑰。�
 
 - 請求是 `local_only`、輸出上限不超過 512 token（觸摸、記憶提名這類內部短呼叫）、
   或內容像密碼／私鑰：只用本機。沒有本機模型時，密碼類內容不會改送雲端，回覆會直接說明沒有送出。
-- 短句、陪伴、沒有寫程式／規劃／除錯等字樣：本機。
+- 空白或含密碼／私鑰等敏感字樣：本機，提示一律 `local_only`。
+- 一般閒聊（短句、陪伴、沒有寫程式／規劃／除錯等字樣）：`SIRO_CHAT_ROUTE=local` 時本機；
+  `groq` 時先 Groq、再本機，提示改成 `cloud_allowed`。閒聊從不排 Claude，也不扣 Claude 額度。
+  Groq 回 429 時這句改用本機並顯示一句提示；每日額度用完（或限流沒寫恢復時間）後，
+  冷卻期間閒聊直接走本機，不會每句先打一次 Groq。其他錯誤（逾時、5xx）只退回本機。
 - 寫程式、規劃、除錯、很長的題目，或這輪已經在呼叫工具：Claude，還有額度就用；
   否則 Groq；再不行才本機。
 - 雲端開關關掉之後，有本機就全部留在本機。
 
-閒聊那一輪的提示會維持 `local_only`，所以本機記憶與工作情境還在。
+閒聊走本機時，那一輪的提示維持 `local_only`，所以本機記憶與工作情境還在。
+閒聊改走 Groq 時，提示只放 `cloud_allowed` 的記憶；存成 `local_only` 的日常偏好她會暫時記不得。
 推理那一輪改成 `cloud_allowed`，本機限定的記憶不會放進提示。
 同一段對話因此分成兩條隱私紀錄：雲端推理看不到只留在本機的上一句閒聊。
 這是原本的隱私分軌，不是把本機對話外送。

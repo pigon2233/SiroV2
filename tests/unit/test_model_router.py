@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
 import pytest
 
 from siro.adapters.models.claude_cli import (
@@ -23,6 +24,7 @@ from siro.adapters.models.router import (
     ModelRouter,
     RouteProvider,
     RouteStatus,
+    chat_route,
     choose_conversation_model,
     classify_request,
     classify_user_text,
@@ -88,8 +90,9 @@ def _collect(router: ModelRouter, request: ModelRequest) -> list[ModelChunk]:
 
 
 def test_classifier_keeps_chat_local_and_sends_work_upward() -> None:
-    assert classify_user_text("你好") == "local"
-    assert classify_user_text("今天過得怎麼樣") == "local"
+    assert classify_user_text("") == "local"
+    assert classify_user_text("你好") == "chat"
+    assert classify_user_text("今天過得怎麼樣") == "chat"
     assert classify_user_text("幫我寫一個 python 排序函式") == "reason"
     assert classify_user_text("請規劃三個步驟來重構這段程式") == "reason"
     assert classify_user_text("x" * 480) == "reason"
@@ -359,3 +362,130 @@ def test_claude_cli_refuses_local_only_before_the_runner(tmp_path: Path) -> None
                 raise AssertionError("no chunk")
 
     asyncio.run(run())
+
+
+def _groq_429(retry_after: str | None = None, *, daily: str | None = None) -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    headers = {}
+    if retry_after is not None:
+        headers["retry-after"] = retry_after
+    if daily is not None:
+        headers["x-ratelimit-remaining-requests"] = daily
+    response = httpx.Response(429, request=request, headers=headers)
+    return httpx.HTTPStatusError("synthetic limited", request=request, response=response)
+
+
+def _three(
+    local: Script, groq: Script, claude: Script, budget: ClaudeBudget, **kwargs: object
+) -> ModelRouter:
+    return ModelRouter(
+        (
+            RouteProvider("local", "ollama:qwen", local),
+            RouteProvider("groq", "groq:oss", groq),
+            RouteProvider("claude", "claude:haiku", claude),
+        ),
+        budget=budget,
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+def test_chat_route_flag_is_validated(tmp_path: Path) -> None:
+    assert chat_route({}) == "local"
+    assert chat_route({"SIRO_CHAT_ROUTE": "groq"}) == "groq"
+    with pytest.raises(ValueError, match="SIRO_CHAT_ROUTE"):
+        chat_route({"SIRO_CHAT_ROUTE": "claude"})
+    with pytest.raises(ValueError, match="SIRO_CHAT_ROUTE"):
+        choose_conversation_model(
+            {"SIRO_MODEL_ROUTER": "1", "SIRO_CHAT_ROUTE": "GROQ"}, data_dir=tmp_path
+        )
+
+
+def test_chat_goes_to_groq_then_local_and_never_claude(tmp_path: Path) -> None:
+    budget = ClaudeBudget(tmp_path / "budget.json", limit=3)
+    claude, groq, local = Script("claude"), Script("groq"), Script("local")
+    router = _three(local, groq, claude, budget, chat_route="groq")
+    assert router.turn_privacy("今天過得怎麼樣") is Privacy.CLOUD_ALLOWED
+    assert _collect(router, _request("今天過得怎麼樣"))[-2].text == "groq"
+    assert claude.calls == 0
+    assert local.calls == 0
+    assert budget.peek().remaining == 3
+    assert not (tmp_path / "budget.json").exists()
+    chain, _skip, reserved = asyncio.run(router._chain("chat", True, False))
+    assert [item.kind for item in chain] == ["groq", "local"]
+    assert reserved is False
+    # Sensitive text and short internal calls still stay on the machine.
+    assert router.turn_privacy("我的密碼是 hunter2") is Privacy.LOCAL_ONLY
+    assert router.turn_privacy("這是我的私鑰") is Privacy.LOCAL_ONLY
+    _collect(router, _request("我的密碼是 hunter2"))
+    _collect(router, _request("-----BEGIN OPENSSH PRIVATE KEY-----"))
+    _collect(router, _request("今天過得怎麼樣", tokens=512))
+    _collect(router, _request("今天過得怎麼樣", privacy=Privacy.LOCAL_ONLY))
+    assert local.calls == 4
+    assert groq.calls == 1
+    assert claude.calls == 0
+    # Reasoning keeps the Claude-first order.
+    assert _collect(router, _request("幫我寫一個 python 函式"))[-2].text == "claude"
+
+
+def test_chat_route_local_or_cloud_off_keeps_chat_local(tmp_path: Path) -> None:
+    budget = ClaudeBudget(tmp_path / "budget.json", limit=3)
+    claude, groq, local = Script("claude"), Script("groq"), Script("local")
+    default = _three(local, groq, claude, budget)
+    assert default.turn_privacy("你好") is Privacy.LOCAL_ONLY
+    assert _collect(default, _request("你好"))[-2].text == "local"
+    enabled = {"cloud": False}
+    switched = _three(
+        local, groq, claude, budget, chat_route="groq", cloud_enabled=lambda: enabled["cloud"]
+    )
+    assert switched.turn_privacy("你好") is Privacy.LOCAL_ONLY
+    assert _collect(switched, _request("你好"))[-2].text == "local"
+    assert groq.calls == 0
+    assert claude.calls == 0
+
+
+def test_groq_429_falls_back_locally_and_cools_down_chat(tmp_path: Path) -> None:
+    start = datetime(2026, 11, 14, 9, 0, tzinfo=UTC)
+    now = {"at": start}
+    notices: list[str] = []
+    budget = ClaudeBudget(tmp_path / "budget.json", limit=3, clock=lambda: now["at"])
+    claude, local = Script("claude"), Script("local")
+    groq = Script("groq", _groq_429("7200", daily="0"))
+    router = _three(
+        local,
+        groq,
+        claude,
+        budget,
+        chat_route="groq",
+        on_notice=lambda _request, text: _record(notices, text),
+        cooldown=timedelta(minutes=15),
+        clock=lambda: now["at"],
+    )
+    assert _collect(router, _request("你好"))[-2].text == "local"
+    assert groq.calls == 1
+    assert "Groq 目前被限流" in notices[-1]
+    assert "本機模型" in notices[-1]
+    # Daily quota is gone: chat skips Groq without another attempt until it resets.
+    now["at"] = start + timedelta(minutes=30)
+    assert router.turn_privacy("你好") is Privacy.LOCAL_ONLY
+    assert _collect(router, _request("你好"))[-2].text == "local"
+    assert groq.calls == 1
+    now["at"] = start + timedelta(hours=2)
+    assert router.turn_privacy("你好") is Privacy.CLOUD_ALLOWED
+    _collect(router, _request("你好"))
+    assert groq.calls == 2
+    assert claude.calls == 0
+
+    minute = Script("groq", _groq_429("20", daily="99"))
+    short = _three(
+        Script("local"),
+        minute,
+        Script("claude"),
+        budget,
+        chat_route="groq",
+        cooldown=timedelta(minutes=15),
+        clock=lambda: now["at"],
+    )
+    _collect(short, _request("你好"))
+    now["at"] += timedelta(seconds=21)
+    _collect(short, _request("你好"))
+    assert minute.calls == 2
