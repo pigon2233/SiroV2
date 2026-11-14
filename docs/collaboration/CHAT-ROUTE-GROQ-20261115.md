@@ -37,3 +37,14 @@ LOCAL_ONLY／NOT PUSHED。使用者自行 push 與開 PR。
 - `test_vrm_renderer.py` 只改換行；其 14 個測試因未 `npm ci` 被 skip，未實跑。
 - mypy：全庫原本在重複模組名處中止。試加 `explicit_package_bases` 後可完整檢查，但出現 196 個既有型別錯誤，
   已撤回該設定，未修。
+
+## 2026-11-15 階段二：記憶隱私腳本（第 5 項）
+
+- `scripts/report_memory_privacy.py`：唯讀（`mode=ro` + `query_only`），依來源事件 privacy 計算等級，
+  關鍵字分類 稱呼／喜好／作息／敏感／其他。對 WSL 實際資料庫執行：63 筆有效記憶全為 local_only；
+  可升級候選 喜好 3、作息 1、稱呼 0。
+- `scripts/promote_memory_privacy.py`：需 exclusive_data_owner 鎖（SIRO 須停止、限 Linux）；逐類 y/s/N、
+  最後再確認；敏感類不列出；有 derivation 或 semantic_facts 的記憶跳過。寫入方式：新增 cloud_allowed
+  `memory.corrected.v1` 同意事件 + 新記憶，舊記憶軟刪除並記 revision，log 寫 `memory-privacy-promotions.jsonl`。
+  未對實際資料庫執行（需使用者親自逐類確認）。
+- 測試：`tests/unit/test_memory_privacy_scripts.py` 3 passed；ruff、format、mypy --strict 乾淨。

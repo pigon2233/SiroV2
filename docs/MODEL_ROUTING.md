@@ -55,6 +55,26 @@ Claude 用這台電腦已經登入的 `claude` 指令，不另存 API 金鑰。�
 同一段對話因此分成兩條隱私紀錄：雲端推理看不到只留在本機的上一句閒聊。
 這是原本的隱私分軌，不是把本機對話外送。
 
+## 閒聊走 Groq 時的記憶
+
+先看目前記憶的隱私分布（唯讀，不會改資料庫）：
+
+```bash
+python scripts/report_memory_privacy.py --database ~/.local/share/siro/data/siro.db
+```
+
+要讓稱呼、喜好、作息這類記憶在閒聊走 Groq 時也能用，先停止 SIRO，再在 WSL 執行：
+
+```bash
+~/.venvs/sirov2/bin/python scripts/promote_memory_privacy.py --database ~/.local/share/siro/data/siro.db
+```
+
+腳本會逐類列出記憶，每一類都要你回答 y（全部）、s（逐筆）或跳過，最後還要再確認一次才會寫入。
+密碼、身分、財務等敏感內容不會出現在清單裡，永遠是 `local_only`。有衍生記憶或語意事實的記憶這次也不處理。
+來源事件不會被修改：每筆同意的記憶會新增一個 `cloud_allowed` 的同意事件和一份新記憶，
+舊記憶以軟刪除留下版本紀錄，變更逐筆寫進資料庫旁的 `memory-privacy-promotions.jsonl`。
+新寫入記憶的預設等級沒有改變。
+
 ## 額度
 
 `SIRO_CLAUDE_BUDGET_CALLS` 預設 10，計算滾動 5 小時內真正打到 Claude CLI 的次數，
