@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import defaultdict, deque
 from collections.abc import Sequence
@@ -398,6 +399,9 @@ class WorkingMemory:
         self._sessions.pop(session_id, None)
 
 
+LIVE_CONTEXT_MARKER = "[SIRO_LIVE_CONTEXT]\n"
+
+
 def assemble_prompt(
     identity: IdentityState,
     user_text: str,
@@ -470,11 +474,18 @@ def assemble_prompt(
         )
         or "- (none)"
     )
+    clock = (
+        f"Current local date and time (Asia/Taipei): {moment:%Y-%m-%d %H:%M} 星期{weekday}. "
+        "This is the real present; your training data is older, so never assume another date.\n"
+    )
+    memory_block = f"Verified memories:\n{evidence}\nVerified preferences:\n{context}\n"
+    # Default layout keeps everything that changes between turns (clock, memories, dialogue)
+    # after LIVE_CONTEXT_MARKER, so a local model's prompt cache covers the stable prefix.
+    legacy = os.environ.get("SIRO_PROMPT_LAYOUT", "").strip().lower() == "legacy"
     return (
         f"Identity: {identity.core.name} ({identity.identity_id})\n"
         f"Baseline: {identity.core.baseline_identity}\nValues: {values}\n"
-        f"Current local date and time (Asia/Taipei): {moment:%Y-%m-%d %H:%M} 星期{weekday}. "
-        "This is the real present; your training data is older, so never assume another date.\n"
+        f"{clock if legacy else ''}"
         "Conversation policy:\n"
         "- Facts that can change after your training (current events, conditions, prices, "
         "schedules, the state of any system) are not answerable from memory. Use an available "
@@ -502,7 +513,7 @@ def assemble_prompt(
         "- Use the available tools for requested computer tasks. Describe actual observations; "
         "never claim an action succeeded before its result. Workspace tools are one scoped option; "
         "explicit owner requests elsewhere use the separately authorized computer tools.\n"
-        f"Verified memories:\n{evidence}\nVerified preferences:\n{context}\n"
+        f"{memory_block if legacy else ''}"
         "Affect policy:\n"
         "- Treat sourced internal affect as bounded machine state that changes tone and coping.\n"
         "- Apply only the coping strategy selected by sourced current affect. Without such a "
@@ -512,5 +523,10 @@ def assemble_prompt(
         "seek_support listens.\n"
         "- Affect never overrides facts, permissions, privacy, or user control, and is not proof "
         "of consciousness.\n"
-        f"{recent_label}:\n{recent}\n{context_instructions}{current_request}"
+        + (
+            f"{recent_label}:\n{recent}\n{context_instructions}{current_request}"
+            if legacy
+            else f"{context_instructions}{LIVE_CONTEXT_MARKER}{clock}{memory_block}"
+            f"{recent_label}:\n{recent}\n{current_request}"
+        )
     )
