@@ -10,6 +10,10 @@ you approve, the script records your consent as a new cloud_allowed `memory.corr
 event, adds a copy of the memory backed only by that event, and soft-deletes the old
 local_only memory with a revision. Every change is appended to
 `memory-privacy-promotions.jsonl` next to the database.
+
+--everyday lists all three categories at once and skips the per-category questions; the
+final y/N still decides. --dry-run only reads (no lock, so SIRO may keep running) and
+writes nothing: no events, memories, revisions or jsonl lines.
 """
 
 from __future__ import annotations
@@ -74,8 +78,14 @@ def candidates(database: Path) -> dict[str, list[MemoryRow]]:
 
 
 def choose(
-    grouped: dict[str, list[MemoryRow]], ask: Ask, say: Callable[[str], None]
+    grouped: dict[str, list[MemoryRow]],
+    ask: Ask,
+    say: Callable[[str], None],
+    *,
+    everyday: bool = False,
 ) -> list[MemoryRow]:
+    """Per-category choice. `everyday` selects every listed memory without per-category
+    questions; the caller still asks for the final confirmation."""
     chosen: list[MemoryRow] = []
     for key in PROMOTABLE:
         items = grouped[key]
@@ -84,6 +94,9 @@ def choose(
         say(f"\n【{LABELS[key]}】{len(items)} 筆：")
         for index, item in enumerate(items, 1):
             say(f"  {index}. [{item.kind}] {' '.join(item.text.split())}")
+        if everyday:
+            chosen.extend(items)
+            continue
         answer = ask(
             f"把「{LABELS[key]}」這 {len(items)} 筆改成 cloud_allowed？[y=全部 / s=逐筆 / N=跳過] "
         )
@@ -162,14 +175,22 @@ def run(
     say: Callable[[str], None] = print,
     *,
     now: datetime | None = None,
+    everyday: bool = False,
+    dry_run: bool = False,
 ) -> int:
     grouped = candidates(database)
     if not any(grouped.values()):
         say("沒有可以改成 cloud_allowed 的稱呼、喜好、作息記憶。")
         return 0
-    chosen = choose(grouped, ask, say)
+    if everyday:
+        say("--everyday：稱呼、喜好、作息三類全部列入；敏感類不會列出。")
+    chosen = choose(grouped, ask, say, everyday=everyday)
     if not chosen:
         say("\n沒有選任何記憶，資料庫沒有變動。")
+        return 0
+    if dry_run:
+        say(f"\n--dry-run：共 {len(chosen)} 筆會改成 cloud_allowed。")
+        say("沒有寫入資料庫、revision 或 jsonl 紀錄。")
         return 0
     say(f"\n共 {len(chosen)} 筆會改成 cloud_allowed，之後閒聊走 Groq 時會放進提示。")
     if ask("確定寫入？[y/N] ").strip().lower() != "y":
@@ -185,11 +206,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--database", type=Path, default=None, help="default $SIRO_DATA_DIR/siro.db"
     )
+    parser.add_argument(
+        "--everyday",
+        action="store_true",
+        help="list 稱呼、喜好、作息 together; still asks one final y/N",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show what would change; read-only, works while SIRO is running",
+    )
     args = parser.parse_args(argv)
     database = (args.database or default_database()).resolve()
     try:
+        if args.dry_run:
+            # Read-only connection: no data-owner lock needed, nothing is written.
+            return run(database, everyday=args.everyday, dry_run=True)
         with exclusive_data_owner(database):
-            return run(database)
+            return run(database, everyday=args.everyday)
     except DataOwnerBusyError:
         print("SIRO 正在使用這個資料庫，請先停止 SIRO 再執行。")
         return 2

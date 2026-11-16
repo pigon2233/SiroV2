@@ -8,6 +8,7 @@ import importlib.util
 import json
 import sqlite3
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
@@ -92,6 +93,14 @@ async def _database(path: Path) -> dict[str, UUID]:
         )
     )
     return ids
+
+
+def _yes(prompts: list[str]) -> Callable[[str], str]:
+    def ask(prompt: str) -> str:
+        prompts.append(prompt)
+        return "y"
+
+    return ask
 
 
 def _digest(path: Path) -> str:
@@ -201,5 +210,97 @@ def test_opt_in_changes_nothing_without_final_yes(
     said: list[str] = []
     assert promote.run(database, lambda _prompt: next(answers), said.append, now=NOW) == 0
     assert "已取消" in said[-1]
+    assert _digest(database) == before
+    assert not (tmp_path / promote.LOG_NAME).exists()
+
+
+def test_report_lists_skipped_memories_with_reasons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report = _load("report_memory_privacy", monkeypatch)
+    database = tmp_path / "siro.db"
+    ids = asyncio.run(_database(database))
+    result = report.report(database)
+    skipped = {row["memory_id"]: row for row in result["skipped"]}
+    assert set(skipped) == {str(ids["parent"]), str(ids["child"])}
+    assert all(row["reasons"] == ["derivation"] for row in skipped.values())
+    assert all(row["category"] == "preference" for row in skipped.values())
+    rendered = report.render(result)
+    assert "不會被升級" in rendered
+    assert str(ids["parent"]) in rendered and "memory_derivations" in rendered
+    assert "hunter2" not in "\n".join(row["text"] for row in result["skipped"])
+
+
+def test_everyday_selects_three_categories_but_still_needs_final_yes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    promote = _load("promote_memory_privacy", monkeypatch)
+    report = sys.modules["report_memory_privacy"]
+    database = tmp_path / "siro.db"
+    asyncio.run(_database(database))
+    with sqlite3.connect(database) as connection:
+        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    before = _digest(database)
+    prompts: list[str] = []
+    said: list[str] = []
+
+    def decline(prompt: str) -> str:
+        prompts.append(prompt)
+        return "n"
+
+    assert promote.run(database, decline, said.append, now=NOW, everyday=True) == 0
+    # Only the final confirmation is asked; no per-category questions.
+    assert len(prompts) == 1 and "確定寫入" in prompts[0]
+    assert "共 3 筆" in "\n".join(said)
+    assert _digest(database) == before
+    assert not (tmp_path / promote.LOG_NAME).exists()
+
+    prompts.clear()
+    said.clear()
+    assert promote.run(database, _yes(prompts), said.append, now=NOW, everyday=True) == 0
+    assert len(prompts) == 1
+    text = "\n".join(said)
+    assert "hunter2" not in text and "redtea" not in text
+    assert report.report(database)["promotable"] == {}
+    log = (tmp_path / promote.LOG_NAME).read_text(encoding="utf-8").splitlines()
+    assert sorted(json.loads(line)["category"] for line in log) == [
+        "name",
+        "preference",
+        "routine",
+    ]
+
+
+def test_dry_run_writes_nothing_and_needs_no_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    promote = _load("promote_memory_privacy", monkeypatch)
+    database = tmp_path / "siro.db"
+    asyncio.run(_database(database))
+    with sqlite3.connect(database) as connection:
+        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    before = _digest(database)
+    prompts: list[str] = []
+    said: list[str] = []
+    assert (
+        promote.run(
+            database,
+            _yes(prompts),
+            said.append,
+            now=NOW,
+            everyday=True,
+            dry_run=True,
+        )
+        == 0
+    )
+    assert prompts == []
+    assert "--dry-run" in "\n".join(said) and "共 3 筆" in "\n".join(said)
+    assert _digest(database) == before
+    assert not (tmp_path / promote.LOG_NAME).exists()
+
+    def locked(_path: Path) -> object:
+        raise AssertionError("dry-run must not take the data-owner lock")
+
+    monkeypatch.setattr(promote, "exclusive_data_owner", locked)
+    assert promote.main(["--database", str(database), "--everyday", "--dry-run"]) == 0
     assert _digest(database) == before
     assert not (tmp_path / promote.LOG_NAME).exists()

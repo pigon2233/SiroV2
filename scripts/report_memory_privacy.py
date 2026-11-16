@@ -92,6 +92,7 @@ class MemoryRow:
     category: str
     linked: bool
     revoked: bool
+    link_reasons: tuple[str, ...] = ()
 
 
 def default_database() -> Path:
@@ -116,18 +117,23 @@ def read_memories(connection: sqlite3.Connection) -> list[MemoryRow]:
             "WHERE s.memory_id = ?",
             (memory_id,),
         ).fetchall()
-        linked = (
+        reasons: list[str] = []
+        if (
             connection.execute(
                 "SELECT 1 FROM memory_derivations WHERE parent_memory_id = ? "
                 "OR child_memory_id = ? LIMIT 1",
                 (memory_id, memory_id),
             ).fetchone()
             is not None
-            or connection.execute(
+        ):
+            reasons.append("derivation")
+        if (
+            connection.execute(
                 "SELECT 1 FROM semantic_facts WHERE memory_id = ? LIMIT 1", (memory_id,)
             ).fetchone()
             is not None
-        )
+        ):
+            reasons.append("semantic_fact")
         result.append(
             MemoryRow(
                 memory_id=memory_id,
@@ -141,8 +147,9 @@ def read_memories(connection: sqlite3.Connection) -> list[MemoryRow]:
                 revision=int(row["revision"]),
                 level=level([source["privacy"] for source in sources]),
                 category=categorize(row["text"]),
-                linked=linked,
+                linked=bool(reasons),
                 revoked=any(source["revoked"] is not None for source in sources),
+                link_reasons=tuple(reasons),
             )
         )
     return result
@@ -155,6 +162,28 @@ def open_read_only(database: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=1)
     connection.execute("PRAGMA query_only=ON")
     return connection
+
+
+SKIP_LABELS = {
+    "derivation": "有衍生記憶（memory_derivations）",
+    "semantic_fact": "有語意事實（semantic_facts）",
+    "revoked": "來源已撤銷",
+}
+
+
+def skipped(memories: list[MemoryRow]) -> list[MemoryRow]:
+    """Everyday memories that are not cloud_allowed but promotion leaves alone."""
+    return [
+        item
+        for item in memories
+        if item.category in PROMOTABLE
+        and item.level != "cloud_allowed"
+        and (item.linked or item.revoked)
+    ]
+
+
+def skip_reasons(item: MemoryRow) -> tuple[str, ...]:
+    return item.link_reasons + (("revoked",) if item.revoked else ())
 
 
 def _short(text: str, width: int = 60) -> str:
@@ -194,6 +223,16 @@ def report(database: Path, *, examples: int = 3) -> dict[str, object]:
         "linked_skipped": sum(
             1 for item in memories if item.linked and item.category in PROMOTABLE
         ),
+        "skipped": [
+            {
+                "memory_id": item.memory_id,
+                "category": item.category,
+                "level": item.level,
+                "reasons": list(skip_reasons(item)),
+                "text": _short(item.text),
+            }
+            for item in skipped(memories)
+        ],
     }
 
 
@@ -216,6 +255,16 @@ def render(result: dict[str, object]) -> str:
     for key in PROMOTABLE:
         lines.append(f"  {LABELS[key]}: {promotable.get(key, 0)}")
     lines.append(f"  有衍生記憶或語意事實、這次不處理的: {result['linked_skipped']}")
+    skipped_rows = result["skipped"]
+    assert isinstance(skipped_rows, list)
+    if skipped_rows:
+        lines += ["", "不會被升級的稱呼／喜好／作息記憶與原因："]
+        for row in skipped_rows:
+            reasons = "、".join(SKIP_LABELS[reason] for reason in row["reasons"])
+            lines.append(
+                f"  - {row['memory_id']} {LABELS[row['category']]} [{row['level']}] "
+                f"{row['text']}（{reasons}）"
+            )
     return "\n".join(lines)
 
 
