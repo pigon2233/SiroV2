@@ -313,5 +313,5 @@ cd /mnt/e/coding/股票策略機器學習/SiroV2; D=~/.local/share/siro/data
 - `SIRO_WEB_SEARCH=brave`＋`SIRO_BRAVE_API_KEY`（端點 `api.search.brave.com/res/v1/web/search`，header `X-Subscription-Token`；
   無金鑰請求回 422 指出缺這個 header，已確認端點與 header 名稱；回應欄位 `web.results[].title/url/description` 沒有用真金鑰驗證）。
 - `SIRO_WEB_SEARCH=searxng`＋`SIRO_SEARXNG_URL`（自架、`/search?format=json`，需在 SearXNG 設定開啟 json 格式；未實測）。
-**需 owner 決定／動手**：申請 Brave Search API 金鑰或自架 SearXNG，並把這三個鍵加進 `launch_companion.py` 的 `.env.local` 白名單
-（我沒加白名單，因為金鑰來源未定）。未做：自主研究（`self_activity.py` 的 `SELF_TOOLS`）還沒允許用 `web.search`；模型是否會主動叫它沒評測。
+**需 owner 決定／動手**：申請 Brave Search API 金鑰或自架 SearXNG，再把設定寫進 `.env.local`（白名單已加這三個鍵與 `SIRO_PROMPT_LAYOUT`、`SIRO_OLLAMA_CONTEXT_LENGTH`）
+。未做：自主研究（`self_activity.py` 的 `SELF_TOOLS`）還沒允許用 `web.search`；模型是否會主動叫它沒評測。
