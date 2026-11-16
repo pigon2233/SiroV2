@@ -2,9 +2,13 @@
 
 Every guarded caller in this process shares one ``ClaudeBudget`` per data-directory
 file (``claude-budget.json``). The file is the counter, so a restart does not reset
-it. A path-keyed lock makes reserves thread-safe and safe across tasks on the event
-loop: the critical section does not await. Computer-use call sites are not wired
-here; see ``docs/patches/claude-budget-computer-use.patch``.
+it. Every read-modify-write holds a path-keyed thread lock and an OS file lock on
+``claude-budget.json.lock`` (``msvcrt`` on Windows, ``fcntl`` elsewhere), so threads,
+tasks on the event loop, and other SIRO processes on the same OS cannot lose updates.
+The OS drops the file lock when a holder dies, so there is no stale lock to break.
+Writes go to a ``<name>.<pid>.<random>.tmp`` file and are moved in with ``os.replace``.
+The critical section does not await. Computer-use call sites are not wired here; see
+``docs/patches/claude-budget-computer-use.patch``.
 """
 
 from __future__ import annotations
@@ -12,9 +16,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
+import sys
 import threading
+import time
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -26,6 +33,8 @@ DEFAULT_BUDGET = 10
 DEFAULT_COOLDOWN_SECONDS = 900
 DEFAULT_TIMEOUT_SECONDS = 120
 _CALLER_MAX = 64
+LOCK_TIMEOUT_SECONDS = 5.0
+_LOCK_POLL_SECONDS = 0.005
 BudgetReason = Literal["ok", "budget", "rate_limit", "unreadable", "disabled"]
 
 _shared_guard = threading.Lock()
@@ -137,8 +146,11 @@ class ClaudeBudget:
         return self._clock()
 
     def peek(self) -> BudgetView:
-        with _exclusive(self._path):
-            return self._view(self._clock())
+        try:
+            with _exclusive(self._path):
+                return self._view(self._clock())
+        except BudgetLockTimeout:
+            return self._lock_refusal()
 
     async def snapshot(self) -> BudgetView:
         return self.peek()
@@ -148,6 +160,16 @@ class ClaudeBudget:
         return self._try_reserve(caller)
 
     def _try_reserve(self, caller: str | None) -> BudgetView:
+        try:
+            return self._reserve_locked(caller)
+        except BudgetLockTimeout:
+            return self._lock_refusal()
+
+    def _lock_refusal(self) -> BudgetView:
+        _LOG.warning("claude budget lock busy for %ss; refusing the call", LOCK_TIMEOUT_SECONDS)
+        return BudgetView(False, 0, self._limit, None, "unreadable")
+
+    def _reserve_locked(self, caller: str | None) -> BudgetView:
         with _exclusive(self._path):
             view = self._view(self._clock())
             if not view.allowed:
@@ -168,14 +190,18 @@ class ClaudeBudget:
             return BudgetView(True, updated.remaining, self._limit, None, "ok")
 
     async def note_rate_limit(self, until: datetime) -> None:
-        with _exclusive(self._path):
-            now = self._clock()
-            calls, labels, current, problem = self._load(now)
-            if problem == "unreadable":
-                return
-            later = until if current is None or until > current else current
-            self._write(calls, labels, later)
-            _LOG.info("claude rate limit cooldown until %s", later.astimezone(UTC).isoformat())
+        try:
+            with _exclusive(self._path):
+                now = self._clock()
+                calls, labels, current, problem = self._load(now)
+                if problem == "unreadable":
+                    return
+                later = until if current is None or until > current else current
+                self._write(calls, labels, later)
+        except BudgetLockTimeout:
+            _LOG.warning("claude budget lock busy; rate limit cooldown not recorded")
+            return
+        _LOG.info("claude rate limit cooldown until %s", later.astimezone(UTC).isoformat())
 
     def _view(self, now: datetime) -> BudgetView:
         calls, _labels, rate_until, problem = self._load(now)
@@ -248,12 +274,26 @@ class ClaudeBudget:
             else rate_until.astimezone(UTC).isoformat(),
         }
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self._path.with_suffix(".json.tmp")
-        temporary.write_text(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+        data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        temporary = self._path.with_name(
+            f"{self._path.name}.{os.getpid()}.{secrets.token_hex(6)}.tmp"
         )
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, self._path)
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_BINARY, 0o600)
+        try:
+            try:
+                view = memoryview(data)
+                while view:
+                    written = os.write(fd, view)
+                    view = view[written:]
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, self._path)
+        except BaseException:
+            with suppress(OSError):
+                temporary.unlink()
+            raise
 
 
 def _labels(stored: object, count: int) -> list[str]:
@@ -267,12 +307,74 @@ def _labels(stored: object, count: int) -> list[str]:
     return [item[:_CALLER_MAX] for item in stored]
 
 
+class BudgetLockTimeout(TimeoutError):
+    """Another holder kept the budget file lock longer than ``LOCK_TIMEOUT_SECONDS``."""
+
+
+_O_BINARY = getattr(os, "O_BINARY", 0)
+
+
+if sys.platform == "win32":
+    import msvcrt
+
+    def _try_os_lock(fd: int) -> bool:
+        os.lseek(fd, 0, os.SEEK_SET)
+        try:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        except OSError:
+            return False
+        return True
+
+    def _os_unlock(fd: int) -> None:
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+
+else:
+    import fcntl
+
+    def _try_os_lock(fd: int) -> bool:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        return True
+
+    def _os_unlock(fd: int) -> None:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+
 @contextmanager
-def _exclusive(path: Path) -> Iterator[None]:
-    """One lock per budget file, shared by every instance and every thread in this process."""
+def _file_lock(path: Path, timeout: float) -> Iterator[None]:
+    """Exclusive OS lock on ``<budget>.lock``. Released by the OS if the holder dies."""
+    lock_path = path.with_name(path.name + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | _O_BINARY, 0o600)
+    try:
+        deadline = time.monotonic() + timeout
+        while not _try_os_lock(fd):
+            if time.monotonic() >= deadline:
+                raise BudgetLockTimeout(str(lock_path))
+            time.sleep(_LOCK_POLL_SECONDS)
+        try:
+            yield
+        finally:
+            _os_unlock(fd)
+    finally:
+        os.close(fd)
+
+
+@contextmanager
+def _exclusive(path: Path, timeout: float | None = None) -> Iterator[None]:
+    """Thread lock for this process, then the cross-process file lock, for one budget file."""
+    wait = LOCK_TIMEOUT_SECONDS if timeout is None else timeout
     lock = _thread_lock_for(path)
-    with lock:
-        yield
+    if not lock.acquire(timeout=wait):
+        raise BudgetLockTimeout(str(path))
+    try:
+        with _file_lock(path, wait):
+            yield
+    finally:
+        lock.release()
 
 
 _shared: dict[str, ClaudeBudget] = {}

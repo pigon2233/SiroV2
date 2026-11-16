@@ -41,6 +41,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from siro.adapters.body.assets import verified_vrm_model
 from siro.adapters.body.web import WebSocketBodyTransport
+from siro.adapters.models.claude_budget import claude_timeout_seconds
 from siro.adapters.vision import PixelScreenAnalyzer
 from siro.config import ProactivitySettings
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
@@ -122,7 +123,6 @@ from siro.services.tools.claude import (
     ask_claude,
     claude_model,
     claude_ready,
-    claude_timeout_seconds,
 )
 from siro.services.tools.execution import (
     ExecutionCancelled,
