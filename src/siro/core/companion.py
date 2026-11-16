@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from collections.abc import Awaitable, Callable, Sequence
 
 from siro.contracts.events import Privacy as EventPrivacy
@@ -22,6 +24,8 @@ from siro.core.memory import (
 )
 from siro.core.motion_cues import MotionCue, MotionStream, motion_cues_enabled
 from siro.ports.models import ModelMessage, Privacy, ToolDefinition
+
+_LOG = logging.getLogger(__name__)
 
 
 class CompanionCore:
@@ -58,6 +62,8 @@ class CompanionCore:
         memory_route_privacy: EventPrivacy | None = None,
         on_motion: Callable[[MotionCue], Awaitable[None]] | None = None,
     ) -> TurnResult:
+        started = time.monotonic()
+        continuation = bool(message_history)
         route = (
             EventPrivacy.CLOUD_ALLOWED
             if privacy is Privacy.CLOUD_ALLOWED
@@ -157,6 +163,18 @@ class CompanionCore:
             )
         if on_messages_ready is not None:
             await on_messages_ready()
+        system = (
+            message_history[0].content
+            if message_history and message_history[0].role == "system"
+            else prompt
+        )
+        _LOG.info(
+            "chat prompt assembled seconds=%.2f system_chars=%d tools=%d continuation=%s",
+            time.monotonic() - started,
+            len(system),
+            len(tools),
+            continuation,
+        )
 
         async def preflight() -> None:
             if snapshot is not None and (

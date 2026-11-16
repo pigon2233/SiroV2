@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import logging
 import os
 import sys
+import time
 import wave
 from collections.abc import Coroutine
 from contextlib import suppress
@@ -18,6 +20,7 @@ from siro.services.audio.stt import Transcript
 
 _T = TypeVar("_T")
 _idle_seconds = idle_seconds
+_LOG = logging.getLogger(__name__)
 
 
 class LocalWhisper:
@@ -77,8 +80,16 @@ class LocalWhisper:
         if self._lock.locked():
             raise RuntimeError("local speech worker is busy")
         async with self._lock:
+            started = time.monotonic()
             process = await self._owned(self._ensure_worker(), self._startup_timeout)
+            loaded = time.monotonic()
             result = await self._owned(self._exchange(process, wav, language), self._timeout)
+            _LOG.info(
+                "speech transcribed route=local bytes=%d startup_seconds=%.2f seconds=%.2f",
+                len(wav),
+                loaded - started,
+                time.monotonic() - started,
+            )
             if (
                 not isinstance(result, dict)
                 or not isinstance(result.get("text"), str)

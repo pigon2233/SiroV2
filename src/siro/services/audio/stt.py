@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 from typing import Protocol
 
 import httpx
+
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +44,7 @@ class GroqWhisper:
         data = {"model": self._model, "response_format": "verbose_json"}
         if language:
             data["language"] = language
+        started = time.monotonic()
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.post(
                 self._url,
@@ -49,11 +54,18 @@ class GroqWhisper:
             )
         response.raise_for_status()
         payload = response.json()
-        return Transcript(
+        transcript = Transcript(
             text=str(payload.get("text", "")).strip(),
             language=str(payload["language"]) if payload.get("language") else language,
             final=True,
         )
+        _LOG.info(
+            "speech transcribed route=cloud model=%s bytes=%d seconds=%.2f",
+            self._model,
+            len(wav),
+            time.monotonic() - started,
+        )
+        return transcript
 
 
 class MockSpeechToText:

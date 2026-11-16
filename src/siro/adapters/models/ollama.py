@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from collections.abc import AsyncIterator
@@ -22,6 +23,8 @@ from siro.adapters.models.openai_compatible import (
 )
 from siro.ports.models import CancellationToken, ModelChunk, ModelMessage, ModelRequest, ToolCall
 
+_LOG = logging.getLogger(__name__)
+
 
 def _serialize_message(message: ModelMessage) -> dict[str, object]:
     serialized: dict[str, object] = {"role": message.role, "content": message.content}
@@ -33,6 +36,25 @@ def _serialize_message(message: ModelMessage) -> dict[str, object]:
     if message.tool_call_id is not None:
         serialized["tool_call_id"] = message.tool_call_id
     return serialized
+
+
+def _seconds(value: object) -> str:
+    return f"{value / 1e9:.2f}" if isinstance(value, int) else "none"
+
+
+def _log_done(model: str, event: dict[str, object]) -> None:
+    # Ollama reports only the prompt tokens it had to evaluate, so prompt_eval_count far below
+    # the prompt size means its prefix cache was reused (P0-6).
+    _LOG.info(
+        "ollama done model=%s prompt_eval_count=%s prompt_eval_seconds=%s load_seconds=%s "
+        "eval_count=%s total_seconds=%s",
+        model,
+        event.get("prompt_eval_count", "none"),
+        _seconds(event.get("prompt_eval_duration")),
+        _seconds(event.get("load_duration")),
+        event.get("eval_count", "none"),
+        _seconds(event.get("total_duration")),
+    )
 
 
 def _completion_error(reason: object) -> ProviderOutputIncomplete | None:
@@ -67,11 +89,15 @@ class OllamaAdapter:
             raise ValueError("context_length must be an integer between 512 and 32768")
         self._url = f"{base_url.rstrip('/')}/api/chat"
         self._model = model
+        # Read by the chat timing log; `name` stays the backend kind other code compares against.
+        self.last_model_name = f"ollama:{model}"
         self._transport = transport or HttpxStreamingTransport()
         self._timeout = timeout
         self._thinking = thinking
         self._context_length = context_length
         # Ollama unloads the model after 5 idle minutes; the next reply then pays a ~6 s reload.
+        # Hook for the VRAM policy (P0-5): pass keep_alive or set SIRO_OLLAMA_KEEP_ALIVE; this
+        # adapter deliberately keeps Ollama's default when neither is given.
         configured = (
             keep_alive if keep_alive is not None else os.environ.get("SIRO_OLLAMA_KEEP_ALIVE")
         )
@@ -165,6 +191,7 @@ class OllamaAdapter:
             yield ModelChunk("tool_request", tool_call=call)
             if cancellation.cancelled:
                 return
+        _log_done(self._model, response)
         prompt_count, output_count = response.get("prompt_eval_count"), response.get("eval_count")
         if isinstance(prompt_count, int) and isinstance(output_count, int):
             yield ModelChunk("usage", usage_tokens=prompt_count + output_count)
@@ -224,6 +251,7 @@ class OllamaAdapter:
                     )
                 if event.get("done") is True:
                     done = True
+                    _log_done(self._model, event)
                     prompt_count = event.get("prompt_eval_count")
                     output_count = event.get("eval_count")
                     if isinstance(prompt_count, int) and isinstance(output_count, int):

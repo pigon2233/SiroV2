@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -19,6 +21,7 @@ from siro.ports.models import (
     ToolDefinition,
 )
 
+_LOG = logging.getLogger(__name__)
 MAX_CONTINUATIONS = 3
 # Adapters add this note to an error when the model had begun emitting a tool call. Named here
 # rather than imported: core does not depend on provider adapters.
@@ -79,6 +82,12 @@ async def _ignore_signal(_signal: ConversationSignal) -> None:
     return None
 
 
+def model_route_label(model: object) -> str:
+    """The provider that actually served the last request (routers record it), else the model."""
+    label = getattr(model, "last_model_name", None) or getattr(model, "name", None)
+    return str(label) if label else type(model).__name__
+
+
 @dataclass(slots=True)
 class _ActiveTurn:
     generation_id: str
@@ -129,6 +138,10 @@ class ConversationEngine:
         tool_calls: list[ToolCall] = []
         state = TurnState.COMPLETED
         error: str | None = None
+        started = time.monotonic()
+        dispatched: float | None = None
+        first_delta: float | None = None
+        continuations = 0
         try:
             async with asyncio.timeout(self._timeout):
                 request = ModelRequest(
@@ -141,7 +154,7 @@ class ConversationEngine:
                 )
                 if on_before_request is not None:
                     await on_before_request()
-                continuations = 0
+                dispatched = time.monotonic()
                 while not token.cancelled:
                     try:
                         async for chunk in self._model.stream(request, token):
@@ -150,6 +163,8 @@ class ConversationEngine:
                             ):
                                 state = TurnState.CANCELLED
                                 break
+                            if chunk.kind == "text" and chunk.text and first_delta is None:
+                                first_delta = time.monotonic() - dispatched
                             if chunk.kind == "text" and chunk.text:
                                 spoken = (
                                     stream_text.push(chunk.text)
@@ -236,6 +251,22 @@ class ConversationEngine:
             error,
             trace_id,
             tuple(tool_calls),
+        )
+        # P0-6: model-only latency. first_delta counts from dispatch (after preflight) to the
+        # first provider text chunk; setup is preflight and anything before it in this call.
+        finished = time.monotonic()
+        _LOG.info(
+            "chat reply route=%s state=%s first_delta_seconds=%s total_seconds=%.2f "
+            "setup_seconds=%.2f chars=%d tool_calls=%d continuations=%d error=%s",
+            model_route_label(self._model),
+            state.value,
+            "none" if first_delta is None else f"{first_delta:.2f}",
+            finished - started,
+            (dispatched if dispatched is not None else finished) - started,
+            len(result.text),
+            len(tool_calls),
+            continuations,
+            error or "none",
         )
         await self._repository.finish_turn(result)
         await self._on_signal(

@@ -1142,6 +1142,7 @@ def create_app(
                 fell_back[0] = True
                 return await fallback_speech_to_text.transcribe(audio, language=language)
 
+        started = time.monotonic()
         transcription = asyncio.create_task(recognize())
         disconnected = asyncio.create_task(input_closed())
         try:
@@ -1157,7 +1158,10 @@ def create_app(
             raise
         except Exception as error:
             logging.getLogger(__name__).warning(
-                "speech recognition failed: %s", type(error).__name__
+                "speech recognition failed: %s route=%s seconds=%.2f",
+                type(error).__name__,
+                "cloud" if cloud_active[0] else "local",
+                time.monotonic() - started,
             )
             raise HTTPException(status_code=502, detail="speech recognition failed") from error
         finally:
@@ -1166,6 +1170,14 @@ def create_app(
                 if not task.done():
                     task.cancel()
             await asyncio.gather(transcription, disconnected, return_exceptions=True)
+        logging.getLogger(__name__).info(
+            "speech recognized route=%s fallback=%s bytes=%d chars=%d seconds=%.2f",
+            "cloud" if cloud_active[0] else "local",
+            fell_back[0],
+            len(audio),
+            len(transcript.text),
+            time.monotonic() - started,
+        )
         result: dict[str, object] = {
             "text": transcript.text,
             "language": transcript.language,

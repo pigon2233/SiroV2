@@ -7,6 +7,7 @@ import contextlib
 import json
 import logging
 import os
+import time
 from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
@@ -28,7 +29,7 @@ from siro.contracts.events import Privacy as EventPrivacy
 from siro.core.affect import AffectSystem, SelfConcern, concern_outcome_from_text
 from siro.core.companion import CompanionCore
 from siro.core.context import asks_about_research
-from siro.core.conversation import ConversationEngine, TurnState
+from siro.core.conversation import ConversationEngine, TurnState, model_route_label
 from siro.core.expression import ExpressionPolicy, expression_context_from_text
 from siro.core.identity import IdentityService, ImmutableCore
 from siro.core.memory import Memory, MemoryService
@@ -754,6 +755,7 @@ class IntegratedCompanion:
         )
 
     async def respond(self, session_id: str, text: str, input_mode: str = "text") -> None:
+        received = time.monotonic()
         self._last_session = session_id
         await self._ensure_core()
         assert self._core is not None
@@ -993,9 +995,13 @@ class IntegratedCompanion:
         expression = self._expression.decide(affect_result, expression_context_from_text(text))
         await self._body.set_emotion(EmotionIntent(expression.expression, expression.intensity))
 
+        first_visible: list[float] = []
+
         async def delta(value: str) -> None:
             if agent_run.run_id in self._terminated:
                 return
+            if not first_visible:
+                first_visible.append(time.monotonic() - received)
             await emit({"type": "assistant_delta", "session_id": session_id, "text": value})
 
         try:
@@ -1156,6 +1162,7 @@ class IntegratedCompanion:
             tools = await route_tools(text, tools, recent_user_texts(recent_messages))
             if (hint := unavailable_hint(text, tools)) is not None:
                 verified_preferences += (hint,)
+            model_called = time.monotonic() - received
             result = await self._core.respond(
                 session_id,
                 "siro",
@@ -1171,6 +1178,18 @@ class IntegratedCompanion:
                 memory_route_privacy=EventPrivacy(privacy.value)
                 if self._runtime_profile == "candidate"
                 else None,
+            )
+            # P0-6: what the owner waits for, from receiving the turn to the first shown text.
+            logging.getLogger(__name__).info(
+                "chat turn route=%s input=%s state=%s pre_model_seconds=%.2f "
+                "first_visible_seconds=%s total_seconds=%.2f tools=%d",
+                model_route_label(self._model),
+                input_mode,
+                result.state.value,
+                model_called,
+                f"{first_visible[0]:.2f}" if first_visible else "none",
+                time.monotonic() - received,
+                len(tools),
             )
             if agent_run.run_id in self._terminated:
                 return
