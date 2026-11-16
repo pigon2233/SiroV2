@@ -32,7 +32,7 @@ from siro.core.context import asks_about_research
 from siro.core.conversation import ConversationEngine, TurnState, model_route_label
 from siro.core.expression import ExpressionPolicy, expression_context_from_text
 from siro.core.identity import IdentityService, ImmutableCore
-from siro.core.memory import Memory, MemoryService
+from siro.core.memory import TURN_CONTEXT_MARKER, Memory, MemoryService
 from siro.core.memory_autonomy import (
     CONTEXT_MESSAGES,
     AutonomousMemory,
@@ -123,6 +123,27 @@ from siro.services.tools.orchestrator import (
 _AGENT_TOOLS = DEFAULT_MODEL_TOOLS
 _CAPABILITY_BLOCK_START = "\n\n[SIRO_TOOL_CAPABILITIES_V1]\n"
 _CAPABILITY_BLOCK_END = "\n[/SIRO_TOOL_CAPABILITIES_V1]"
+
+
+def _with_capability_block(system: str, capability_context: str) -> str:
+    """Place a fresh capability block at the end of the turn-invariant part of the prompt.
+
+    Only the part before TURN_CONTEXT_MARKER is searched, so quoted per-turn data that happens to
+    contain the block markers is never cut. Prompts without the marker get the block appended.
+    """
+    head, marker, tail = system.partition(TURN_CONTEXT_MARKER)
+    if marker:
+        start = head.find(_CAPABILITY_BLOCK_START)
+        end = head.find(_CAPABILITY_BLOCK_END, start) if start != -1 else -1
+        if end != -1:
+            head = head[:start] + head[end + len(_CAPABILITY_BLOCK_END) :]
+    elif system.endswith(_CAPABILITY_BLOCK_END):
+        # Checkpoint from before P0-6: the block was appended last.
+        base, found, _ = system.rpartition(_CAPABILITY_BLOCK_START)
+        head = base if found else system
+    block = _CAPABILITY_BLOCK_START + capability_context + _CAPABILITY_BLOCK_END
+    return head + block + marker + tail
+
 
 _EMOTION_COMMANDS = {
     "生氣": ("angry", "現在示範生氣的表情。"),
@@ -291,17 +312,9 @@ class IntegratedCompanion:
             if capability_context is not None:
                 if not history or history[0].role != "system":
                     raise RuntimeError("native history has no system context")
-                content = history[0].content
-                if content.endswith(_CAPABILITY_BLOCK_END):
-                    base, marker, _ = content.rpartition(_CAPABILITY_BLOCK_START)
-                    if marker:
-                        content = base
                 history[0] = replace(
                     history[0],
-                    content=content
-                    + _CAPABILITY_BLOCK_START
-                    + capability_context
-                    + _CAPABILITY_BLOCK_END,
+                    content=_with_capability_block(history[0].content, capability_context),
                 )
             await self._agent_runs.checkpoint(run_id, history)
 

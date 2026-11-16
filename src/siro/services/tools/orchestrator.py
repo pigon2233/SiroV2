@@ -190,6 +190,9 @@ class ToolMetadata:
     failure_behavior: str | None = None
 
 
+_PER_ROW_KEYS = frozenset({"name", "available", "availability", "reason_code"})
+
+
 @dataclass(frozen=True, slots=True)
 class ToolCatalogSnapshot:
     definitions: tuple[ToolDefinition, ...]
@@ -204,12 +207,25 @@ class ToolCatalogSnapshot:
             for row in self.inventory
             if row["model_visible"]
         ]
+        # P0-6: metadata repeated on every row (failure behaviour, version, permissions, unknown
+        # fields) is stated once in "shared"; each row keeps its own identity and current state.
+        shared: dict[str, object] = {}
+        if len(rows) > 1:
+            shared = {
+                key: value
+                for key, value in rows[0].items()
+                if key not in _PER_ROW_KEYS
+                and all(key in row and row[key] == value for row in rows[1:])
+            }
+            rows = [{k: v for k, v in row.items() if k not in shared} for row in rows]
         return json.dumps(
             {
                 "authorizes_execution": False,
                 "instruction": "Registered capabilities for this request, not proof of success. "
-                "Use only current request tool definitions; null means unknown. "
+                "Use only current request tool definitions; null means unknown. Every row also "
+                "has each shared field it does not list itself. "
                 "Unavailable tools must not be bypassed with another capability.",
+                "shared": shared,
                 "capabilities": rows,
             },
             ensure_ascii=False,

@@ -413,7 +413,6 @@ def assemble_prompt(
 ) -> str:
     moment = (now or datetime.now(ZoneInfo("Asia/Taipei"))).astimezone(ZoneInfo("Asia/Taipei"))
     weekday = "一二三四五六日"[moment.weekday()]
-    values = ", ".join(identity.core.core_values)
     evidence = "\n".join(
         f"- {memory.text} [source:{memory.source_event_ids[0]}]" for memory in memories
     )
@@ -470,12 +469,36 @@ def assemble_prompt(
         )
         or "- (none)"
     )
+    # P0-6: everything that changes between turns comes after TURN_CONTEXT_MARKER, so the text
+    # before it is byte-identical across turns and the local model's prompt cache can reuse it.
+    stable = stable_prompt_prefix(
+        identity, motion_cues=motion_cues, context_policy=context_instructions
+    )
+    return (
+        f"{stable}{TURN_CONTEXT_MARKER}"
+        "Per-turn context (data for this reply only; the rules above still apply):\n"
+        f"Current local date and time (Asia/Taipei): {moment:%Y-%m-%d %H:%M} 星期{weekday}.\n"
+        f"Verified memories:\n{evidence}\nVerified preferences:\n{context}\n"
+        f"{recent_label}:\n{recent}\n{current_request}"
+    )
+
+
+# Separates the turn-invariant system prompt from per-turn data; integrated inserts the tool
+# capability block just before it.
+TURN_CONTEXT_MARKER = "\n[SIRO_TURN_CONTEXT_V1]\n"
+
+
+def stable_prompt_prefix(
+    identity: IdentityState, *, motion_cues: bool = False, context_policy: str = ""
+) -> str:
+    """System prompt text that must not change between turns (no time, memory or state)."""
+    values = ", ".join(identity.core.core_values)
     return (
         f"Identity: {identity.core.name} ({identity.identity_id})\n"
         f"Baseline: {identity.core.baseline_identity}\nValues: {values}\n"
-        f"Current local date and time (Asia/Taipei): {moment:%Y-%m-%d %H:%M} 星期{weekday}. "
-        "This is the real present; your training data is older, so never assume another date.\n"
         "Conversation policy:\n"
+        "- The current local date and time is given in the per-turn context at the end. It is "
+        "the real present; your training data is older, so never assume another date.\n"
         "- Facts that can change after your training (current events, conditions, prices, "
         "schedules, the state of any system) are not answerable from memory. Use an available "
         "tool to check them and answer only from what it returned; if none is available or it "
@@ -502,7 +525,6 @@ def assemble_prompt(
         "- Use the available tools for requested computer tasks. Describe actual observations; "
         "never claim an action succeeded before its result. Workspace tools are one scoped option; "
         "explicit owner requests elsewhere use the separately authorized computer tools.\n"
-        f"Verified memories:\n{evidence}\nVerified preferences:\n{context}\n"
         "Affect policy:\n"
         "- Treat sourced internal affect as bounded machine state that changes tone and coping.\n"
         "- Apply only the coping strategy selected by sourced current affect. Without such a "
@@ -512,5 +534,5 @@ def assemble_prompt(
         "seek_support listens.\n"
         "- Affect never overrides facts, permissions, privacy, or user control, and is not proof "
         "of consciousness.\n"
-        f"{recent_label}:\n{recent}\n{context_instructions}{current_request}"
+        f"{context_policy}"
     )
