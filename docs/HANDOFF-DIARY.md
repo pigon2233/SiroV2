@@ -285,3 +285,22 @@ cd /mnt/e/coding/股票策略機器學習/SiroV2; D=~/.local/share/siro/data
 - 測試 `tests/unit/test_generate_tts_sentences.py` 4 passed；ruff 通過。
 - 和語料的對應：`metadata.csv` 是 `編號|句子`，用句子文字 join `styles.tsv` 即可得到每個 wav 的語氣。
 - 用途（未做）：訓練時當語氣條件；SIRO 回覆已有 `[[e:…]]` 情緒 cue（`core/motion_cues.py`），之後可對應到這些語氣 id。
+
+## 2026-11-17 自主目標串（Fable）：目標 1–3 — DONE（自動測試層級；NOT PUSHED；未打真 Ollama）
+
+當時 GPU 被語料合成佔用（97%），所以沒有啟動 SIRO、沒有量 `ollama timing`。
+
+1. 測試（commit `0b6f7b6`）：main 全套實際是 11 failed／3637 passed，不是 59。其中 5 個是過期測試（`screen.jpg`、最多兩次嘗試、
+   `expect` 必填、歷史格式），已改測試對齊現行程式；`test_undertale_wait_counterfactual` 的一個測試改成 skip，因為它切換的
+   NEW_RULE 已不在 `DECISION_PROMPT`（要恢復規則還是淘汰該 probe，需 owner／任務負責人決定）。其餘失敗是沒設
+   `UV_PROJECT_ENVIRONMENT=~/.venvs/sirov2`（`scripts/start` 用 `uv run`）或負載造成；用 login shell 並設好後通過。
+2. 提示詞快取（commit `e5fc67e`）：`assemble_prompt` 把時間、記憶、偏好、對話移到 `[SIRO_LIVE_CONTEXT]` 之後，前面的人格／政策固定；
+   `integrated.py` 把能力清單插在該標記之前。`SIRO_PROMPT_LAYOUT=legacy` 回到舊順序。
+   未驗：真實 prefill 省多少（重啟後看 `ollama timing prefill=`，第二輪起應明顯下降）；gemma 的回話行為是否受順序影響。
+   已知限制：system 訊息尾端每輪都變，所以其後的對話歷史仍會重新 prefill；工具定義由 Ollama 樣板放在哪裡沒查。
+3. Ollama 選項統一（commit `5abf213`）：新模組 `src/siro/adapters/models/ollama_options.py`。電腦操控三個 decider 與記憶相關性判斷，
+   只要模型等於 `SIRO_OLLAMA_MODEL`，就沿用 `SIRO_OLLAMA_CONTEXT_LENGTH`（不小於自身需求時）與 `SIRO_OLLAMA_GPU_LAYERS`
+   （`SIRO_COMPUTER_OLLAMA_GPU_LAYERS` 仍優先）；`keep_alive` 一律讀 `SIRO_OLLAMA_KEEP_ALIVE`，電腦操控未設時統一 30m。
+   未改：對話 adapter 未設時仍不送 keep_alive（既有契約測試）；記憶相關性需要 16384 ctx，若對話 ctx 是 8192 仍會重載；
+   embeddings 是另一個模型，維持 5m。**建議 owner 在 `.env.local` 設 `SIRO_OLLAMA_KEEP_ALIVE=30m`**（我沒有改）。
+   未驗：`journalctl --user -u ollama` 的實際載入次數。
