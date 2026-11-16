@@ -65,3 +65,30 @@ TTS 既有 `qwen tts queue_wait`、`worker ready`、`speech synthesized seconds=
 gemma4:e4b 的工具呼叫行為有沒有變（沒有評測集）。若她開始亂叫或不叫工具，先設 `SIRO_CAPABILITY_CONTEXT=full` 排除。
 未做：system prompt 其他段落（人格、記憶、情境）沒動。
 
+
+## 2026-11-16 VRAM 實測（owner 目標：SIRO 總佔用 < 4 GB）— 只有量測，未改程式
+
+量法：Windows `Get-Counter '\GPU Process Memory(*)\Dedicated Usage'` 的 `vmwp`（= 整個 WSL）；TTS 另用 `nvidia-smi` 差值。
+Windows 自己（dwm、Discord 等）另佔約 1.0 GB，不算 SIRO。RTX 3050 8 GB，gemma4:e4b 是 7.5B Q4_K_M、含視覺／聲音 projector 與 draft 模型。
+
+| gemma4:e4b 設定（ctx 8192） | WSL VRAM | 生成速度 |
+|---|---|---|
+| 預設（全部上 GPU） | 4,645 MB | 53 tok/s |
+| `num_gpu=42` | 3,367 MB | 45 tok/s（5.7k token prefill 3.7 s，1,545 tok/s） |
+| `num_gpu=40` | 3,245 MB | 40 tok/s |
+| `num_gpu=36` | 2,997 MB | 31 tok/s（prefill 4.5 s） |
+| `num_gpu=30` | 2,629 MB | 25 tok/s |
+| `num_gpu=24` | 2,267 MB | 19 tok/s |
+| `num_gpu=12` | 1,599 MB | 11 tok/s |
+| `num_gpu=0` | ≈0 | 10 tok/s |
+| ctx 4096（全 GPU） | 4,583 MB | 只省 60 MB，不值得 |
+| `draft_num_predict=0`（全 GPU） | 4,499 MB | 45 tok/s，變慢又沒省多少 |
+
+Qwen3-TTS worker（cuda-graph、bf16）：載入後 torch allocated 2,070 MB，warmup 後 2,332 MB，整個行程約 2.7 GB。
+talker 就佔 1,728 MB 且已是 bfloat16，沒有 fp32 可省。**檔案在 page cache 時 worker 8 秒就 ready**，
+所以 55–117 秒的冷載主要是從磁碟讀 2.4 GB（WSL 丟掉 page cache），不是運算。
+
+結論：兩個模型同時常駐最少也要 1.6 + 2.7 = 4.3 GB（而且那時 gemma 只剩 11 tok/s），同時常駐 < 4 GB 做不到。
+可行路線：(A) `num_gpu=42` + TTS 閒置卸載＝平常 3.4 GB、說話時短暫 6.1 GB；(B) 嚴格分時，兩者不同時在顯卡，峰值 3.4 GB，
+每次說話前多等約 8 秒；(C) 對話走 Groq、TTS 常駐＝2.7 GB；(D) gemma `num_gpu=42` 常駐、語音改 Edge／Kokoro＝3.4 GB、聲線會變。
+`OllamaAdapter` 目前沒有 `num_gpu` 選項（電腦操控有 `SIRO_COMPUTER_OLLAMA_GPU_LAYERS`）；`launch_companion.py` 只從 `.env.local` 讀白名單內的鍵。
