@@ -8,7 +8,7 @@
 
 1. ~~語音可靠度~~ DONE（見下）
 2. ~~每回合分段計時日誌~~ DONE（見下）
-3. 提示詞瘦身：system 內 `Registered capabilities` JSON 與 API `tools` 參數重複（AUDIT-2026-10-28 實測 5.9k→4.3k token）；改 prompt 需評測
+3. ~~提示詞瘦身（能力清單精簡）~~ DONE（見下；真實省多少 token 未量）
 4. Ollama `keep_alive` 統一：`hybrid.py` 15m、`numbered.py` 5m、`decision.py` 30m、embeddings／memory_relevance 5m，彼此覆蓋
 5. 真正的搜尋來源（目前只有瀏覽器讀頁，DDG CAPTCHA、Bing 讀不到）
 6. `docs/collaboration/CONSOLE-REDESIGN-PLAN.md`（記憶自我整理、主線／子線）仍等 owner 審
@@ -50,4 +50,18 @@ TTS 既有 `qwen tts queue_wait`、`worker ready`、`speech synthesized seconds=
 未做：非串流路徑、Groq／Claude CLI 沒有同樣的計時；Python 前處理時間（AUDIT 量過 <0.1 s）沒有記。
 
 下一步（階段 3 提示詞瘦身）先用這行日誌量一天的 `prompt_tokens`／`prefill` 基準再動 prompt。
+
+## 2026-11-16 階段 3：能力清單精簡 — DONE（自動測試層級，行為影響未評測）
+
+修改：`src/siro/services/tools/orchestrator.py` `ToolCatalogSnapshot.model_context()` 預設輸出精簡版：
+去掉 `model_visible`／`display_name`／`version`／`provenance`／`timeout_seconds`、值為 null 的欄位、以及 `reason_code=ready`；
+說明文字的「null means unknown」同步改成「a missing field means unknown」。
+保留 `available` 與 `output_contract`（即使 null），因為 `test_capability_product.py:161`、`test_capability_inventory.py` 依賴它們。
+`SIRO_CAPABILITY_CONTEXT=full` 回到原本輸出。
+
+驗證：`test_capability_inventory.py`、`test_capability_product.py` 14 passed；ruff、mypy（該檔）通過。
+合成資料（20 列、metadata 全 null）6,654 → 2,885 bytes。
+未驗：live 目錄實際省多少 token（重啟後比對 `ollama timing prompt_tokens`，AUDIT 基準 5,906）；
+gemma4:e4b 的工具呼叫行為有沒有變（沒有評測集）。若她開始亂叫或不叫工具，先設 `SIRO_CAPABILITY_CONTEXT=full` 排除。
+未做：system prompt 其他段落（人格、記憶、情境）沒動。
 
