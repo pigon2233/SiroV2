@@ -64,7 +64,7 @@ STYLES = (
     "夾雜一兩個常見英文單字或縮寫的句子",
 )
 MIN_CHARS, MAX_CHARS = 5, 40
-_ALLOWED = re.compile(r"^[一-鿿A-Za-z0-9，。！？、；：～…「」『』（）\- %.:/+]+$")
+_ALLOWED = re.compile(r"^[一-鿿A-Za-z0-9，。！？、；：～…「」『』（）\- %.:/+,'!?&]+$")
 _NUMBERING = re.compile(r"^\s*(?:[-*•]|\d+[.)、．])\s*")
 
 
@@ -84,6 +84,8 @@ def clean(reply: str) -> list[str]:
     for line in reply.splitlines():
         text = _NUMBERING.sub("", line).strip().strip("\"'「」")
         text = " ".join(text.split())
+        if text and text[-1] not in "。！？!?～…":
+            text += "。"  # a closing mark gives the voice a sentence-final fall
         if MIN_CHARS <= len(text) <= MAX_CHARS and _ALLOWED.fullmatch(text):
             sentences.append(text)
     return sentences
@@ -104,12 +106,17 @@ def http_ask(base_url: str, model: str, key: str) -> Callable[[str], str]:
             "model": model,
             "messages": [{"role": "user", "content": text}],
             "temperature": 1.0,
-            "max_tokens": 2000,
+            "max_tokens": 4000,
         }
         request = urllib.request.Request(
             url,
             json.dumps(body).encode(),
-            {"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+            {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {key}",
+                # Groq's edge answers urllib's default agent with 403 (error code 1010).
+                "User-Agent": "tts-sentence-generator/1.0",
+            },
         )
         with urllib.request.urlopen(request, timeout=120) as response:
             payload = json.load(response)
@@ -142,16 +149,24 @@ def generate(
             failures = 0
         except (urllib.error.URLError, TimeoutError, KeyError, ValueError) as error:
             failures += 1
-            print(f"request failed: {type(error).__name__}", file=sys.stderr)
-            time.sleep(max(pause, 1.0) * failures)
+            code = getattr(error, "code", "")
+            print(f"request failed: {type(error).__name__} {code}", file=sys.stderr, flush=True)
+            # 429 is the per-minute token limit; wait it out instead of giving up early.
+            time.sleep((20.0 if code == 429 else max(pause, 1.0)) * failures)
             continue
-        fresh = [text for text in dict.fromkeys(clean(reply)) if text not in known]
+        kept = clean(reply)
+        fresh = [text for text in dict.fromkeys(kept) if text not in known]
         if fresh:
             with out.open("a", encoding="utf-8") as target_file:
                 target_file.write("\n".join(fresh) + "\n")
             known.update(fresh)
             added += len(fresh)
-        print(f"{len(known)}/{target} sentences ({topic} / {style})", file=sys.stderr, flush=True)
+        print(
+            f"{len(known)}/{target} sentences; kept {len(kept)} of "
+            f"{sum(1 for line in reply.splitlines() if line.strip())} lines ({topic} / {style})",
+            file=sys.stderr,
+            flush=True,
+        )
         time.sleep(pause)
     return added
 
