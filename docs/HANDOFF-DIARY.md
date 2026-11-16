@@ -208,3 +208,33 @@ Owner 原話重點：想自己訓練模型；對話用一個專門訓練的小�
 - 推理／寫程式：不自己訓練，用現成的（路由已會把寫程式／規劃送 Claude CLI／Groq）；若要本機，需要時才載入、和對話小模型輪替。
 - 語音：用現有 Qwen 聲線批次產生數小時語料，訓練單一聲音的小型 TTS（VITS 類）在 CPU 即時合成，VRAM 歸零。音質要用耳朵比，風險最大。
 建議的第一步（未做）：先量一個現成小模型在 1.3 GB 內的速度與回話水準當基準，再決定是否投入訓練。
+
+## 2026-11-16 固定聲音語音模型 第一步：語料產生腳本 — DONE（腳本可用；語料還沒產生）
+
+Owner 決定先做語音模型：用現有 Qwen 聲線產生語料，訓練只會 SIRO 一個聲音的小型 TTS，在 CPU 即時合成（VRAM 歸零）。
+
+新增：
+- `scripts/generate_tts_corpus.py`：讀文字檔（UTF-8、一行一句），啟動既有的 `qwen_tts_worker.py`，輸出 LJSpeech 格式
+  `<out>/wavs/000001.wav`＋`<out>/metadata.csv`（`編號|文字`）。worker 拒絕的句子（超過 512 token 上限、輸出不完整）寫進 `skipped.txt`。
+  可中斷重跑（已寫／已跳過的句子不重做）。worker 快取放 `<out>/worker-cache`，不碰產品的 tts-cache。只用 stdlib。
+- `tests/unit/test_generate_tts_corpus.py`（假 worker）：1 passed；ruff 通過。
+
+真聲音試跑（暫存目錄，已刪）：四句裡寫出兩句後我手動停掉。那時 owner 的 SIRO 正在用，GPU 7.9／8 GB、98%，
+這支 worker 被擠到共用記憶體，413 秒才兩句。**結論：產生語料時必須先完全關掉 SIRO（`Start-SIRO-VRM-Win.cmd /stop`）**，
+獨佔 GPU 時暖機後每句約 1.1–1.3 秒（先前 park 測試的數字）。
+
+用法（WSL 內，SIRO 關閉後）：
+```
+cd /mnt/e/coding/股票策略機器學習/SiroV2
+D=~/.local/share/siro/data
+~/.venvs/sirov2/bin/python scripts/generate_tts_corpus.py --python $D/qwen-tts-venv/bin/python \
+  --model $D/models/qwen3-tts-0.6b-base --voice-profile $D/voices/siro-sweet-b-v1.json \
+  --texts <句子檔> --out ~/.local/share/siro/tts-corpus/siro-sweet-b-v1
+```
+
+還缺、未做：
+1. **句子檔**。需要幾千句多樣的繁體中文（短句、問句、感嘆、數字、英文夾雜），每句約 5–40 字。來源未定：可由大模型產生，
+   或從公開授權的文本取得；不要用 owner 的私人對話。目標量依單一說話人 TTS 的常見做法約 3–10 小時（這是一般經驗，不是本專案量測）。
+2. 選訓練框架（Piper／VITS 或其他支援中文的），核實授權與是否支援繁中斷詞／注音或拼音前處理。未調查。
+3. 訓練、匯出 ONNX、寫 CPU 推論 adapter（gateway 已有 `KokoroLocalTTS` 的接法可參考）、和 Qwen 做聽感 A/B。音質能否不輸 Qwen 未知，是最大風險。
+4. Qwen 每次取樣不同，語料裡同一句的語氣會有隨機性；可能需要挑掉發音怪的檔（例如用 Whisper 轉回文字比對）。未做。
