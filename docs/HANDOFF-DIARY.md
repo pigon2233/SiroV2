@@ -238,3 +238,18 @@ D=~/.local/share/siro/data
 2. 選訓練框架（Piper／VITS 或其他支援中文的），核實授權與是否支援繁中斷詞／注音或拼音前處理。未調查。
 3. 訓練、匯出 ONNX、寫 CPU 推論 adapter（gateway 已有 `KokoroLocalTTS` 的接法可參考）、和 Qwen 做聽感 A/B。音質能否不輸 Qwen 未知，是最大風險。
 4. Qwen 每次取樣不同，語料裡同一句的語氣會有隨機性；可能需要挑掉發音怪的檔（例如用 Whisper 轉回文字比對）。未做。
+
+## 2026-11-16 固定聲音語音模型 第二步：句子檔產生腳本 — DONE（假模型測試；**沒有打真的 API、句子檔還沒產生**）
+
+新增 `scripts/generate_tts_sentences.py`（只用 stdlib）：對 OpenAI 相容端點（預設 Groq）分批要句子，24 個主題 × 6 種語氣輪流，
+每句 5–40 字，只留中英數與常見標點、去編號、去重，附加寫入、可重跑接續；連續 5 次請求失敗就停。
+只送這些通用提示，不讀 SIRO 的對話或記憶。金鑰讀環境變數 `SIRO_OPENAI_API_KEY`／`SIRO_OPENAI_MODEL`／`SIRO_OPENAI_BASE_URL`，或 `--env-file`。
+測試 `tests/unit/test_generate_tts_sentences.py` 3 passed；ruff 通過（兩檔開頭 `# ruff: noqa: RUF001`，內容本來就是全形標點）。
+
+沒有實際執行的原因：repo 根目錄沒有 `.env.local`，Groq 金鑰放在哪我沒有去找（不翻找金鑰）。Owner 自己執行：
+```
+SIRO_OPENAI_API_KEY=… SIRO_OPENAI_MODEL=openai/gpt-oss-20b ~/.venvs/sirov2/bin/python scripts/generate_tts_sentences.py \
+  --out ~/.local/share/siro/tts-corpus/sentences.txt --target 3000
+```
+未驗：真模型回的句子品質、3,000 句要幾次請求（每次要 40 句，過濾後會少一些）、Groq 額度是否足夠。
+產生後請人工掃一眼句子檔，再關掉 SIRO 跑 `generate_tts_corpus.py`。下一步仍是調查訓練框架（上一節第 2 點）。
