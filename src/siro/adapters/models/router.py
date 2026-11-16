@@ -15,10 +15,7 @@ spent on companionship.
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
-import os
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -30,6 +27,21 @@ from urllib.parse import urlsplit
 if TYPE_CHECKING:
     from siro.adapters.models.openai_compatible import OpenAICompatibleAdapter
 
+from siro.adapters.models.claude_budget import (
+    DEFAULT_BUDGET,
+    DEFAULT_COOLDOWN_SECONDS,
+    claude_timeout_seconds,
+    shared_claude_budget,
+)
+from siro.adapters.models.claude_budget import (
+    WINDOW as WINDOW,
+)
+from siro.adapters.models.claude_budget import (
+    ClaudeBudget as ClaudeBudget,
+)
+from siro.adapters.models.claude_budget import (
+    bounded_int as _bounded_int,
+)
 from siro.adapters.models.claude_cli import ClaudeCliModel, ClaudeRateLimited
 from siro.ports.models import (
     CancellationToken,
@@ -40,14 +52,9 @@ from siro.ports.models import (
 )
 
 _LOG = logging.getLogger(__name__)
-WINDOW = timedelta(hours=5)
-DEFAULT_BUDGET = 10
-DEFAULT_COOLDOWN_SECONDS = 900
 LOCAL_CALL_MAX_TOKENS = 512
 _LONG_TEXT = 480
 TaskKind = Literal["local", "reason"]
-BudgetReason = Literal["ok", "budget", "rate_limit", "unreadable", "disabled"]
-
 _SENSITIVE = re.compile(
     r"(?:密碼|密码|身分證|身份证|信用卡號|信用卡号|私鑰|私钥|"
     r"api[\s_-]?key|secret[\s_-]?key|BEGIN (?:RSA |OPENSSH )?PRIVATE)",
@@ -82,19 +89,6 @@ def _flag(env: Mapping[str, str], name: str, *, default: str = "1") -> bool:
     return value == "1"
 
 
-def _bounded_int(env: Mapping[str, str], name: str, default: int, low: int, high: int) -> int:
-    raw = env.get(name)
-    if raw is None or raw.strip() == "":
-        return default
-    try:
-        value = int(raw)
-    except ValueError as error:
-        raise ValueError(f"{name} must be an integer") from error
-    if not low <= value <= high:
-        raise ValueError(f"{name} must be between {low} and {high}")
-    return value
-
-
 def user_text(request: ModelRequest) -> str:
     for message in reversed(request.messages):
         if message.role == "user" and message.content.strip():
@@ -126,15 +120,6 @@ def classify_request(request: ModelRequest) -> TaskKind:
 
 
 @dataclass(frozen=True, slots=True)
-class BudgetView:
-    allowed: bool
-    remaining: int
-    limit: int
-    available_at: datetime | None
-    reason: BudgetReason
-
-
-@dataclass(frozen=True, slots=True)
 class RouteProvider:
     kind: Literal["local", "groq", "claude"]
     label: str
@@ -146,127 +131,6 @@ class RouteStatus:
     label: str
     notice: str
     available_at: str | None
-
-
-class ClaudeBudget:
-    """Rolling 5-hour Claude call count, persisted so a restart does not reset it."""
-
-    def __init__(
-        self,
-        path: Path,
-        *,
-        limit: int = DEFAULT_BUDGET,
-        clock: Callable[[], datetime] | None = None,
-    ) -> None:
-        if not 0 <= limit <= 200:
-            raise ValueError("Claude budget must be between 0 and 200 calls")
-        self._path = path
-        self._limit = limit
-        self._clock = clock or (lambda: datetime.now(UTC))
-        self._lock = asyncio.Lock()
-
-    @property
-    def limit(self) -> int:
-        return self._limit
-
-    def peek(self) -> BudgetView:
-        now = self._clock()
-        calls, rate_until, problem = self._load(now)
-        if problem == "unreadable":
-            return BudgetView(False, 0, self._limit, None, "unreadable")
-        if self._limit == 0:
-            return BudgetView(False, 0, 0, None, "disabled")
-        remaining = self._limit - len(calls)
-        blockers: list[tuple[BudgetReason, datetime]] = []
-        if remaining <= 0 and calls:
-            blockers.append(("budget", min(calls) + WINDOW))
-        if rate_until is not None and rate_until > now:
-            blockers.append(("rate_limit", rate_until))
-        if not blockers:
-            return BudgetView(True, remaining, self._limit, None, "ok")
-        reason, when = max(blockers, key=lambda item: item[1])
-        return BudgetView(False, max(0, remaining), self._limit, when, reason)
-
-    async def snapshot(self) -> BudgetView:
-        async with self._lock:
-            return self.peek()
-
-    async def try_reserve(self) -> BudgetView:
-        """Count one Claude attempt. A refused view does not consume a slot."""
-        async with self._lock:
-            view = self.peek()
-            if not view.allowed:
-                return view
-            now = self._clock()
-            calls, rate_until, _problem = self._load(now)
-            self._write([*calls, now], rate_until)
-            # The slot just taken still counts as allowed for this caller, even when it
-            # was the last one in the window.
-            updated = self.peek()
-            return BudgetView(True, updated.remaining, self._limit, None, "ok")
-
-    async def note_rate_limit(self, until: datetime) -> None:
-        async with self._lock:
-            now = self._clock()
-            calls, current, problem = self._load(now)
-            if problem == "unreadable":
-                return
-            later = until if current is None or until > current else current
-            self._write(calls, later)
-
-    def _load(self, now: datetime) -> tuple[list[datetime], datetime | None, str]:
-        if not self._path.is_file():
-            return [], None, ""
-        try:
-            raw = json.loads(self._path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            return [], None, "unreadable"
-        if not isinstance(raw, dict):
-            return [], None, "unreadable"
-        stored = raw.get("calls")
-        if not isinstance(stored, list):
-            return [], None, "unreadable"
-        calls: list[datetime] = []
-        for item in stored:
-            if not isinstance(item, str):
-                return [], None, "unreadable"
-            try:
-                parsed = datetime.fromisoformat(item)
-            except ValueError:
-                return [], None, "unreadable"
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=UTC)
-            calls.append(parsed.astimezone(UTC))
-        rate_raw = raw.get("rate_limited_until")
-        rate_until: datetime | None = None
-        if rate_raw is not None:
-            if not isinstance(rate_raw, str):
-                return [], None, "unreadable"
-            try:
-                rate_until = datetime.fromisoformat(rate_raw)
-            except ValueError:
-                return [], None, "unreadable"
-            if rate_until.tzinfo is None:
-                rate_until = rate_until.replace(tzinfo=UTC)
-            rate_until = rate_until.astimezone(UTC)
-        active = [call for call in calls if now < call + WINDOW]
-        return active, rate_until, ""
-
-    def _write(self, calls: list[datetime], rate_until: datetime | None) -> None:
-        payload = {
-            "version": 1,
-            "calls": [call.astimezone(UTC).isoformat() for call in calls],
-            "rate_limited_until": None
-            if rate_until is None
-            else rate_until.astimezone(UTC).isoformat(),
-        }
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self._path.with_suffix(".json.tmp")
-        temporary.write_text(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
-        )
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, self._path)
 
 
 def _provider_phrase(label: str) -> str:
@@ -434,7 +298,7 @@ class ModelRouter:
         skip = ""
         reserved = False
         if claude is not None and self._budget is not None:
-            view = await self._budget.try_reserve()
+            view = await self._budget.try_reserve("router")
             if view.allowed:
                 chain.append(claude)
                 reserved = True
@@ -617,7 +481,7 @@ def choose_conversation_model(
     claude_on = _flag(env, "SIRO_CLAUDE_ENABLED")
     if claude_on and claude_binary is not None and claude_binary.is_file():
         model_name = claude_model_name or env.get("SIRO_CLAUDE_MODEL") or "claude-haiku-5-5"
-        timeout = float(_bounded_int(env, "SIRO_CLAUDE_TIMEOUT_SECONDS", 120, 10, 240))
+        timeout = float(claude_timeout_seconds(env))
         cli = ClaudeCliModel(
             model=model_name,
             binary=claude_binary,
@@ -636,7 +500,13 @@ def choose_conversation_model(
     )
     budget = None
     if any(item.kind == "claude" for item in providers):
-        budget = ClaudeBudget(data_dir / "claude-budget.json", limit=limit, clock=clock)
+        # Production shares one object with ask_claude. An injected clock stays private
+        # so a test clock does not stick in the process cache.
+        budget = (
+            shared_claude_budget(env, data_dir=data_dir)
+            if clock is None
+            else ClaudeBudget(data_dir / "claude-budget.json", limit=limit, clock=clock)
+        )
     router = ModelRouter(
         tuple(providers),
         budget=budget,

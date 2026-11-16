@@ -122,8 +122,8 @@ from siro.services.tools.claude import (
     ask_claude,
     claude_model,
     claude_ready,
+    claude_timeout_seconds,
 )
-from siro.services.tools.claude import TIMEOUT_SECONDS as CLAUDE_TIMEOUT_SECONDS
 from siro.services.tools.execution import (
     ExecutionCancelled,
     ExecutionCleanupError,
@@ -2834,7 +2834,7 @@ def _run_gateway(
         profile_source = SQLiteProfileSource(shared_store)
         profile_service = ProfileService(
             memory_service,
-            ClaudePlannerModel(claude_model()),
+            ClaudePlannerModel(claude_model(), caller="profile"),
         )
 
     from siro.services.tools.browser_session import BrowserSessions
@@ -3087,7 +3087,9 @@ def _run_gateway(
     claude_contextual = {}
     if runtime_profile == "candidate" and os.environ.get("SIRO_CLAUDE_ENABLED", "1") == "1":
         handlers[CLAUDE_TOOL] = browser_without_context
-        claude_contextual[CLAUDE_TOOL] = partial(ask_claude, model=claude_tool_model)
+        claude_contextual[CLAUDE_TOOL] = partial(
+            ask_claude, model=claude_tool_model, caller="claude.ask"
+        )
 
     # Desktop control exists only with SIRO_COMPUTER_TOKEN; the owner's tray switch still gates use.
     computer_runs = computer_shared_runs() if runtime_profile == "candidate" else None
@@ -3174,7 +3176,7 @@ def _run_gateway(
             provenance="siro_builtin",
             timeout_seconds=120
             if name == "computer.execute"
-            else CLAUDE_TIMEOUT_SECONDS
+            else claude_timeout_seconds()
             if name == CLAUDE_TOOL
             else (30 if name.startswith("browser.") and browser_sessions is not None else None),
             failure_behavior="Failures produce failed observations. Unknown effects are not "
@@ -3398,7 +3400,12 @@ def _run_gateway(
         if not (state.kill_switches["cloud"] and claude_ready()):
             raise RuntimeError("cloud summary unavailable")
         result = await ask_claude(
-            {"task": prompt}, model=claude_tool_model, prefix="", limit=6000, search=False
+            {"task": prompt},
+            model=claude_tool_model,
+            prefix="",
+            limit=6000,
+            search=False,
+            caller="recap",
         )
         return str(result["answer"])
 

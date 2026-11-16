@@ -57,6 +57,7 @@ def claude_classifier(model: str) -> Classifier:
             prefix="Follow the instructions exactly. Output only what is asked.\n\n",
             limit=1_200 + len(_CLASSIFY_PROMPT),
             search=False,
+            caller="auto_plan",
         )
         return str(result["answer"]).strip().upper().startswith("YES")
 

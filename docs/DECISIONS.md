@@ -696,3 +696,11 @@ source gate只授權讀，寫入另需既有Policy的序列化lease；取消等�
 Claude 次數以滾動 5 小時窗口計，預設 10 次，存在資料目錄 `claude-budget.json`，重開機不歸零。用完、紀錄讀不到或 CLI 限流就改走下一家，並在 `routes.model_actual`、`model_notice`、`claude_available_at` 與 `assistant_route_notice` 告訴主人何時可以再用。提示的隱私跟這一輪走：閒聊維持 `local_only`，推理才是 `cloud_allowed`，所以本機限定的記憶不會跟著推理送出；兩邊的近期對話也不會混在同一條隱私紀錄裡。這是既有分軌，不是新的外送許可。
 
 不改電腦控制路徑。`claude.ask` 仍是工具，不是這次的對話腦。回退是把 `SIRO_MODEL_ROUTER` 設回 0。
+
+## D82 / 2026-11-16 / Claude 額度改成全行程共用
+
+D81 的 5 小時額度只包住「對話模型選 Claude」那一條。24 小時開著時，`claude.ask`、規劃器、人物側寫、聽寫對象判斷、自動規劃和每日回顧仍會各自打 `claude` CLI，付費額度可以被旁邊的功能耗盡。
+
+這些非電腦操控的呼叫改走同一份 `claude-budget.json` 和同一段限流冷卻。環境變數不變（`SIRO_CLAUDE_BUDGET_CALLS`、`SIRO_CLAUDE_RATE_LIMIT_COOLDOWN_SECONDS`、`SIRO_CLAUDE_TIMEOUT_SECONDS`）。超過額度或冷卻中不啟動 CLI。工具、規劃、側寫和回顧依序改問已設定的 OpenAI 相容模型（Groq）、再不行改本機 Ollama；兩邊都沒有就回「claude unavailable」，呼叫端原本就會接住。聽寫對象判斷和自動規劃不改送另一家模型，分別回到規則和關鍵字。任何 `ask_claude` 結果若是限流，就寫進共用冷卻。額度檔多記每個呼叫者的短名稱，只為事後看得出來是誰用掉的。
+
+電腦操控的三處（畫面決策、遊玩判斷、反思）這次不改，建議補丁在 `docs/patches/claude-budget-computer-use.patch`，沒有套用。回退是還原這個分支；舊的額度檔沒有呼叫者名單也能繼續讀。

@@ -154,6 +154,7 @@ def claude_classifier(model: str) -> Classifier:
             prefix="Follow the instructions exactly. Output only what is asked.\n\n",
             limit=len(prompt) + 200,
             search=False,
+            caller="addressee",
         )
         audience = parse_audience(str(result["answer"]))
         if audience is None:
