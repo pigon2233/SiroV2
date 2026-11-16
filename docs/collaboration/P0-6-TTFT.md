@@ -2,7 +2,8 @@
 
 - Task: P0-6 — timing instrumentation, system-prompt dedup + stable prefix, snapshot tests, TTFT bench.
 - Owner/session: Claude (Opus 5.5) Claude Code session, 2026-11-16 (Asia/Taipei).
-- Status: IN_PROGRESS
+- Status: PARTIAL — code, tests and bench done; live TTFT not measured (Ollama unreachable
+  from the implementing session). See Handoff below.
 - Base SHA: d12708d68300b2aaff80bbc0076b2fd437d6e623 (origin/main)
 - Branch / worktree: `perf/p0-6-ttft` / `SiroV2-wt-p06`
 - Remote: the owner explicitly authorised `git push -u origin perf/p0-6-ttft` for this task only.
@@ -29,3 +30,17 @@
 
 Stable prefix byte-identical across turns with different time/memory/state; capability
 dedup within a char budget; ruff + relevant pytest pass; TTFT numbers only if Ollama is reachable.
+
+## Handoff
+
+- Commits: `03018c5` (timing logs), `e86e58c` (stable prefix + capability dedup + tests +
+  bench), plus this handoff commit. Pushed to `origin/perf/p0-6-ttft` under the owner's
+  explicit authorisation; no PR, no merge.
+- Measured (bench `--prompt-only`, 10 turns): system prompt 15,087 → 12,695 chars;
+  capability block 5,971 → 3,404; identical prefix between turns 138 → 8,645 chars.
+- Not measured: live TTFT (Ollama unreachable from the session), real-model behaviour after
+  the section reorder.
+- Next: on the Ollama machine run `scripts/bench_ttft.py --turns 10` for main (`--src`) and
+  this branch, and check `ollama done ... prompt_eval_count=` in live logs. Then consider
+  making the tool set turn-invariant (P0-6 follow-up) and keep_alive (P0-5).
+- Rollback: revert the three commits; no schema, data or config changes.
