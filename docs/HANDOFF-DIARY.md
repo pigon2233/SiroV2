@@ -187,3 +187,13 @@ Owner 要求直接換。先實測，結果不支持：
 下一步選項（都沒做）：(1) `tts.py` 閒置時改送 park 而不是 retire（要處理 lifecycle／epoch／取消路徑，動到 `_retire_if_idle`）；
 (2) 查 parked 還佔的 1.4 GB 是什麼（`torch.cuda.memory_summary()`、把 speech tokenizer 也搬走）；
 (3) unpark 後先跑一次極短的暖身合成，把 3–4 秒藏在使用者還沒要出聲的時候；(4) B2／B3 gateway 輪替仍照前面一節。
+
+## 2026-11-16 語音常駐下的結論與現成分支（未改程式）
+
+Owner 新增限制：**語音必須常駐**。語音 2.7 GB ⇒ 4 GB 目標只剩 1.3 GB 給對話模型；gemma 在 `num_gpu=12` 就要 1.6 GB 且只剩 11 tok/s，
+等於只能跑 CPU（10 tok/s、CPU prefill 約 69 tok/s）。已告知 owner：四個條件（語音常駐、< 4 GB、品質不降、即時）同時滿足的只有
+「對話預設走 Groq、語音常駐、本機 gemma 只處理 local_only」。**Owner 尚未回覆是否接受閒聊上雲端。**
+
+不要重做：本機分支 `claude/chat-route-groq`（worktree `E:/coding/Worktrees/chat-route-groq`，2026-11-16 看到 head `71deea9`，未合併進 main）
+已有 `SIRO_CHAT_ROUTE=local|groq`，回想到 local_only 記憶時該輪留在本機。它和 main 的差異動到 `integrated.py`、`gateway.py`、`tests/unit/test_model_router.py` 等 12 檔。
+Owner 同意後應由整合者合併該分支（本串這幾個 commit 動過 `ollama.py`、`orchestrator.py`、`tts.py`、`launch_companion.py`、`qwen_tts_worker.py`，合併前先看衝突）。
