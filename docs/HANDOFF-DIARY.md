@@ -253,3 +253,24 @@ SIRO_OPENAI_API_KEY=… SIRO_OPENAI_MODEL=openai/gpt-oss-20b ~/.venvs/sirov2/bin
 ```
 未驗：真模型回的句子品質、3,000 句要幾次請求（每次要 40 句，過濾後會少一些）、Groq 額度是否足夠。
 產生後請人工掃一眼句子檔，再關掉 SIRO 跑 `generate_tts_corpus.py`。下一步仍是調查訓練框架（上一節第 2 點）。
+
+## 2026-11-17 句子檔已產生：2,334 句（owner 授權我自己用 Groq 金鑰）
+
+- 檔案：WSL `~/.local/share/siro/tts-corpus/sentences.txt`（不在 repo）。2,334 句、無重複、平均 19.5 字。
+  前 1,324 句來自 `openai/gpt-oss-120b`，後 1,010 句來自 `openai/gpt-oss-20b`；兩個模型都在連續 5 次 429 後停下，所以沒到 3,000。
+  額度恢復後重跑同一指令會接著補（`--target 3000`）。
+- 金鑰來源：repo 沒有 `.env.local`；我從執行中 gateway 的行程環境（`/proc/<pid>/environ`）取 `SIRO_OPENAI_API_KEY`，沒有印出或寫入任何檔案。
+  gateway 環境裡沒有設 `SIRO_OPENAI_MODEL`。金鑰實際存在哪個檔沒查。
+- 腳本修正（commit `67b38b1`）：Groq 會用 403／1010 擋 urllib 預設 User-Agent，已加 UA；放寬半形標點；句尾沒標點的補「。」；遇 429 每次多等 20 秒。
+- 品質抽看：120b 的句子是自然的台灣口語；20b 的略遜（出現「出租車」這種非台灣用語、偶有不通順的句子如「最快者可以。」）。
+  **沒有逐句人工審過**；產生語料前建議掃一遍，或之後用 Whisper 轉寫比對挑掉怪的。
+- 估計語料長度約 2.6 小時（以每句約 4 秒推估，沒有實際合成）。
+
+下一步（owner 要先 `Start-SIRO-VRM-Win.cmd /stop`，否則會搶顯卡）：
+```
+cd /mnt/e/coding/股票策略機器學習/SiroV2; D=~/.local/share/siro/data
+~/.venvs/sirov2/bin/python scripts/generate_tts_corpus.py --python $D/qwen-tts-venv/bin/python \
+  --model $D/models/qwen3-tts-0.6b-base --voice-profile $D/voices/siro-sweet-b-v1.json \
+  --texts ~/.local/share/siro/tts-corpus/sentences.txt --out ~/.local/share/siro/tts-corpus/siro-sweet-b-v1
+```
+獨佔顯卡時估計一小時內跑完（每句約 1.2 秒的推估）。之後才是選訓練框架與訓練，仍未調查。
