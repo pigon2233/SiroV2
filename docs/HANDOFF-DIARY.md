@@ -304,3 +304,14 @@ cd /mnt/e/coding/股票策略機器學習/SiroV2; D=~/.local/share/siro/data
    未改：對話 adapter 未設時仍不送 keep_alive（既有契約測試）；記憶相關性需要 16384 ctx，若對話 ctx 是 8192 仍會重載；
    embeddings 是另一個模型，維持 5m。**建議 owner 在 `.env.local` 設 `SIRO_OLLAMA_KEEP_ALIVE=30m`**（我沒有改）。
    未驗：`journalctl --user -u ollama` 的實際載入次數。
+
+## 2026-11-17 目標 4：網路搜尋工具 `web.search` — DONE（假 transport 測試；**預設關閉，沒有打真 API**）
+
+實測：免金鑰的 DuckDuckGo（`html.`／`lite.`）對程式用戶端回 challenge 頁、0 筆結果，所以不做爬取式搜尋。
+新增 `src/siro/services/tools/web_search.py`＋`tests/unit/test_web_search.py`（3 passed）；`gateway.py` 只在 candidate profile
+且設定有效時註冊工具，可用性綁 cloud kill switch（查詢字串會離開本機），設定錯誤只記 warning、不擋啟動。
+- `SIRO_WEB_SEARCH=brave`＋`SIRO_BRAVE_API_KEY`（端點 `api.search.brave.com/res/v1/web/search`，header `X-Subscription-Token`；
+  無金鑰請求回 422 指出缺這個 header，已確認端點與 header 名稱；回應欄位 `web.results[].title/url/description` 沒有用真金鑰驗證）。
+- `SIRO_WEB_SEARCH=searxng`＋`SIRO_SEARXNG_URL`（自架、`/search?format=json`，需在 SearXNG 設定開啟 json 格式；未實測）。
+**需 owner 決定／動手**：申請 Brave Search API 金鑰或自架 SearXNG，並把這三個鍵加進 `launch_companion.py` 的 `.env.local` 白名單
+（我沒加白名單，因為金鑰來源未定）。未做：自主研究（`self_activity.py` 的 `SELF_TOOLS`）還沒允許用 `web.search`；模型是否會主動叫它沒評測。
