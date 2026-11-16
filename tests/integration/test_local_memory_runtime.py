@@ -22,7 +22,6 @@ from siro.persistence.conversation import SQLiteConversationRepository
 from siro.persistence.memory import SQLiteMemoryRepository
 from siro.persistence.sqlite import SQLiteStore, apply_migrations, load_migrations
 from siro.persistence.state import SQLiteIdentityRepository
-from siro.ports.embeddings import RetrievalUnavailable
 from siro.ports.models import CancellationToken, ModelChunk, ModelRequest
 from siro.services.agent.local_memory import LocalMemoryProfile, build_local_memory
 

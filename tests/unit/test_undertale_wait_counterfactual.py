@@ -3,7 +3,9 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -12,7 +14,7 @@ from siro.services.computer_use.safety import InputAction
 
 
 @pytest.fixture
-def probe(monkeypatch: pytest.MonkeyPatch) -> object:
+def probe(monkeypatch: pytest.MonkeyPatch) -> Any:
     scripts = Path(__file__).parents[2] / "scripts"
     monkeypatch.syspath_prepend(str(scripts))
     spec = importlib.util.spec_from_file_location(
@@ -24,19 +26,19 @@ def probe(monkeypatch: pytest.MonkeyPatch) -> object:
     return module
 
 
-def test_summary_never_contains_private_reason_or_unknown_key(probe: object) -> None:
+def test_summary_never_contains_private_reason_or_unknown_key(probe: Any) -> None:
     private = "private-user-game-content"
     decision = Decision(
         "act", InputAction("key", key=private), reason=private, seen=private, confidence=0.8
     )
-    output = json.dumps(probe.summarize(decision))  # type: ignore[attr-defined]
+    output = json.dumps(probe.summarize(decision))
     assert private not in output
     assert json.loads(output)["key"] == "other"
 
 
 @pytest.mark.asyncio
 async def test_changed_frame_never_reaches_model(
-    probe: object,
+    probe: Any,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -46,15 +48,15 @@ async def test_changed_frame_never_reaches_model(
         "SIRO_COMPUTER_CLOUD_SCREEN=1\nSIRO_COMPUTER_ALLOWED_PROCESSES=undertale.exe\n"
     )
     monkeypatch.setattr(probe, "CONFIG", config)
-    monkeypatch.setattr(probe.tempfile, "gettempdir", lambda: "/dev/shm")  # type: ignore[attr-defined]
-    monkeypatch.setattr(probe.sys, "stdin", io.StringIO('{"same":false}\n'))  # type: ignore[attr-defined]
+    monkeypatch.setattr(probe.tempfile, "gettempdir", lambda: "/dev/shm")
+    monkeypatch.setattr(probe.sys, "stdin", io.StringIO('{"same":false}\n'))
     calls = []
 
     def decider(**kwargs: object) -> None:
         calls.append(True)
 
     monkeypatch.setattr(probe, "ClaudeVisionDecider", decider)
-    await probe.main()  # type: ignore[attr-defined]
+    await probe.main()
     result = json.loads(capsys.readouterr().out)
     assert result["error_code"] == "frames_not_identical"
     assert result["input_sent"] is False
@@ -63,7 +65,7 @@ async def test_changed_frame_never_reaches_model(
 
 @pytest.mark.asyncio
 async def test_simulated_histories_and_model_text_are_bounded(
-    probe: object,
+    probe: Any,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -73,13 +75,13 @@ async def test_simulated_histories_and_model_text_are_bounded(
         "SIRO_COMPUTER_CLOUD_SCREEN=1\nSIRO_COMPUTER_ALLOWED_PROCESSES=undertale.exe\n"
     )
     monkeypatch.setattr(probe, "CONFIG", config)
-    monkeypatch.setattr(probe.tempfile, "gettempdir", lambda: "/dev/shm")  # type: ignore[attr-defined]
+    monkeypatch.setattr(probe.tempfile, "gettempdir", lambda: "/dev/shm")
     monkeypatch.setattr(
         probe.sys,
         "stdin",
         io.StringIO(
             json.dumps(
-                {  # type: ignore[attr-defined]
+                {
                     "same": True,
                     "width": 64,
                     "height": 64,
@@ -96,14 +98,14 @@ async def test_simulated_histories_and_model_text_are_bounded(
         def __init__(self, **kwargs: object) -> None:
             pass
 
-        async def decide(self, goal: str, history: object, obs: object) -> Decision:
-            observed.append([(step.action, step.screen_changed) for step in history])  # type: ignore[union-attr]
+        async def decide(self, goal: str, history: Sequence[Any], obs: object) -> Decision:
+            observed.append([(step.action, step.screen_changed) for step in history])
             return Decision(
                 "act", InputAction("key", key=private), reason=private, seen=private, confidence=0.8
             )
 
     monkeypatch.setattr(probe, "ClaudeVisionDecider", FakeDecider)
-    await probe.main()  # type: ignore[attr-defined]
+    await probe.main()
     output = capsys.readouterr().out
     result = json.loads(output)
     assert private not in output

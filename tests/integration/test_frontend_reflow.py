@@ -39,7 +39,8 @@ L => {
       final: longUrl, redirected: true, status: 'unknown'}],
       gaps: ['http_status_not_captured', 'subresource_requests_not_listed']}});
   const activity = (id, state) => ({activity_id: id, kind: 'agent_run', origin: 'owner_request',
-    state, reason: id + L, reason_truncated: true, error: null, created_at: '2026-10-18T10:00:00+08:00',
+    state, reason: id + L, reason_truncated: true, error: null,
+    created_at: '2026-10-18T10:00:00+08:00',
     updated_at: '2026-10-18T10:0' + id + ':00+08:00', tools: [tool(state)],
     coverage: {tools: 'journal', network: ['browser_adapter']}});
   activityView.items = new Map(['1', '2', '3'].map((id, i) =>

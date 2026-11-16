@@ -12,7 +12,7 @@ import threading
 from collections.abc import AsyncIterator, Awaitable, Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -643,7 +643,7 @@ def test_gateway_stop_route_maps_outcomes() -> None:
     }
 
     async def stop(activity_id: str) -> dict[str, object]:
-        return outcomes[activity_id]
+        return cast(dict[str, object], outcomes[activity_id])
 
     app = create_app(allowed_origins={origin}, on_activity_stop=stop)
     with TestClient(app) as client:

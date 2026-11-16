@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-import computer_loop_sim as sim
+import computer_loop_sim as sim  # type: ignore[import-not-found]
 
 
 @pytest.fixture

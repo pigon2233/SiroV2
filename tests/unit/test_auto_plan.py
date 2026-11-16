@@ -8,12 +8,12 @@ from siro.services.agent.resume import resume_enabled
 
 
 def test_multistep_requests_are_planned() -> None:
-    assert looks_multistep("先幫我搜尋三家雲端供應商的價格，然後比較差異，最後整理成表格")
+    assert looks_multistep("先幫我搜尋三家雲端供應商的價格，然後比較差異，最後整理成表格")  # noqa: RUF001
     assert looks_multistep("First search the docs, then compare the two options and summarize")
 
 
 def test_ordinary_chat_is_not_planned() -> None:
-    assert not looks_multistep("你好，今天過得怎麼樣？")
+    assert not looks_multistep("你好，今天過得怎麼樣？")  # noqa: RUF001
     assert not looks_multistep("先吃飯然後睡覺好不好呢今天晚上真的很晚了耶")
     assert not looks_multistep("/plan 先查再整理然後寫成一份報告給我看看吧")
     assert not looks_multistep("")
@@ -51,13 +51,13 @@ async def _slow(_t: str) -> bool:
     return True
 
 
-MULTI = "先幫我搜尋三家雲端供應商的價格，然後比較差異，最後整理成表格"
+MULTI = "先幫我搜尋三家雲端供應商的價格，然後比較差異，最後整理成表格"  # noqa: RUF001
 PLAIN = "今天天氣真的很好呢你覺得呢"
 
 
 @pytest.mark.asyncio
 async def test_claude_decides_when_available() -> None:
-    assert await should_plan(PLAIN + "，幫我查一下", _yes) is True
+    assert await should_plan(PLAIN + "，幫我查一下", _yes) is True  # noqa: RUF001
     assert await should_plan(MULTI, _no) is False
 
 
@@ -79,4 +79,4 @@ async def test_prefilter_skips_classifier() -> None:
 @pytest.mark.asyncio
 async def test_casual_chat_never_reaches_classifier() -> None:
     assert await should_plan("hello synthetic foreground", _yes) is False
-    assert await should_plan("你好，今天過得怎麼樣？", _yes) is False
+    assert await should_plan("你好，今天過得怎麼樣？", _yes) is False  # noqa: RUF001

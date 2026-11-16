@@ -227,7 +227,7 @@ async def test_reply_cut_at_the_output_limit_is_continued(tmp_path: Path) -> Non
         ),
         now=datetime.now(UTC),
     )
-    conversation = ConversationEngine(Cutting(), SQLiteConversationRepository(store))  # type: ignore[arg-type]
+    conversation = ConversationEngine(Cutting(), SQLiteConversationRepository(store))
 
     async def ignore(_text: str) -> None:
         return None
@@ -272,7 +272,7 @@ async def test_reply_cut_while_emitting_a_tool_call_fails_instead_of_dropping_it
         ),
         now=datetime.now(UTC),
     )
-    conversation = ConversationEngine(Cutting(), SQLiteConversationRepository(store))  # type: ignore[arg-type]
+    conversation = ConversationEngine(Cutting(), SQLiteConversationRepository(store))
 
     async def ignore(_text: str) -> None:
         return None

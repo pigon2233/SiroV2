@@ -58,7 +58,9 @@ def test_computer_tools_appear_only_with_token_and_stay_gated(
         main()
     finally:
         computer_http.reset_shared_runs()
-    assert {"computer.play", "computer.status"} <= set(seen["tools"])  # type: ignore[arg-type]
+    tools = seen["tools"]
+    assert isinstance(tools, dict)
+    assert {"computer.play", "computer.status"} <= {str(name) for name in tools}
     assert seen["play_available"] is False
     assert seen["status_available"] is True
     assert seen["router_enabled"] is False

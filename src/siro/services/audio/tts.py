@@ -11,7 +11,7 @@ import logging
 import re
 import time
 import wave
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -544,7 +544,7 @@ class QwenReferenceTTS:
         finally:
             self._pending -= 1
 
-    async def render_stream(self, text: str) -> AsyncIterator[tuple[bytes, int]]:
+    async def render_stream(self, text: str) -> AsyncGenerator[tuple[bytes, int], None]:
         """Yield (PCM16 mono chunk, sample rate) as the worker decodes them.
 
         Only a stream that ends with a verified completion line is complete. Anything

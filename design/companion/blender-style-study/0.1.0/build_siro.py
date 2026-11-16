@@ -5,6 +5,7 @@ import argparse
 import math
 import os
 import sys
+from itertools import pairwise
 
 import bmesh
 import bpy
@@ -76,8 +77,10 @@ def sub(o, lv=2):
     s.render_levels = lv
 
 
-def ribbon(name, pts, widths, m, parent, thick=0.003, normal=Vector((0, -1, 0)), normals=None):
+def ribbon(name, pts, widths, m, parent, thick=0.003, normal=None, normals=None):
     """Tapered swept lock: centre polyline pts, per-point half widths, facing normal(s)."""
+    if normal is None:
+        normal = Vector((0, -1, 0))
     me = bpy.data.meshes.new(name)
     bm = bmesh.new()
     rows = []
@@ -86,7 +89,7 @@ def ribbon(name, pts, widths, m, parent, thick=0.003, normal=Vector((0, -1, 0)),
         t = (Vector(pts[min(i + 1, len(pts) - 1)]) - Vector(pts[max(i - 1, 0)])).normalized()
         side = t.cross(normals[i] if normals else normal).normalized() * widths[i]
         rows.append([bm.verts.new(p - side), bm.verts.new(p), bm.verts.new(p + side)])
-    for a, b in zip(rows, rows[1:]):
+    for a, b in pairwise(rows):
         bm.faces.new((a[0], a[1], b[1], b[0]))
         bm.faces.new((a[1], a[2], b[2], b[1]))
     bm.to_mesh(me)
@@ -105,7 +108,7 @@ def stroke(name, pts, m, parent, bevel=0.004):
     cu.dimensions = "3D"
     sp = cu.splines.new("BEZIER")
     sp.bezier_points.add(len(pts) - 1)
-    for bp, (p, r) in zip(sp.bezier_points, pts):
+    for bp, (p, r) in zip(sp.bezier_points, pts, strict=False):
         bp.co = p
         bp.handle_left_type = bp.handle_right_type = "AUTO"
         bp.radius = r
@@ -317,7 +320,10 @@ for j, (xt, zt) in enumerate(
     ((-0.125, 0.14), (-0.10, 0.19), (-0.075, 0.22), (-0.035, 0.245), (0.085, 0.22), (0.13, 0.16))
 ):
     yt = -0.16 + 0.6 * abs(xt)
-    lx = lambda f: root.x + (xt - root.x) * f
+
+    def lx(f, xt=xt):
+        return root.x + (xt - root.x) * f
+
     pts = [
         root,
         (lx(0.3), -0.15, 0.30),
@@ -416,10 +422,13 @@ bpy.ops.export_scene.gltf(
 )
 with open(os.path.join(OUT, "README.md"), "w") as fh:
     fh.write(
-        "# SIRO 3D style study\n\nPreview bust only. GLB is a plain glTF preview, NOT a valid VRM: no humanoid "
-        "skeleton, no MToon extension, no spring-bone physics, no blendshapes, no outlines. Principled base "
-        "colours and emission transfer; Cycles lighting and color management do not. Face decals are baked flat onto "
-        "the head surface. Head turn is an object keyframe on HeadPivot (frames 1-72). Mood study, not an exact "
+        "# SIRO 3D style study\n\n"
+        "Preview bust only. GLB is a plain glTF preview, NOT a valid VRM: "
+        "no humanoid skeleton, no MToon extension, no spring-bone physics, "
+        "no blendshapes, no outlines. Principled base colours and emission "
+        "transfer; Cycles lighting and color management do not. Face decals "
+        "are baked flat onto the head surface. Head turn is an object "
+        "keyframe on HeadPivot (frames 1-72). Mood study, not an exact "
         "likeness.\n"
     )
 print("SIRO done:", OUT)
