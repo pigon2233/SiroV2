@@ -14,6 +14,7 @@ from pathlib import Path
 
 import httpx
 
+from siro.adapters.models import ollama_options
 from siro.services.computer_use.interface import CloudScreenNotAllowed as CloudScreenNotAllowed
 from siro.services.computer_use.interface import Decider as Decider
 from siro.services.computer_use.interface import Decision as Decision
@@ -344,6 +345,21 @@ class OllamaVisionDecider:
         self._client = client
         self._num_predict = _ollama_num_predict(values)
 
+    def _options(self, predict: int) -> dict[str, object]:
+        # Same context/GPU split as the chat model when shared, so Ollama keeps one load.
+        options: dict[str, object] = {
+            "temperature": 0.1,
+            "num_predict": predict,
+            "num_ctx": ollama_options.context_length(self._env, self._model, 2048),
+        }
+        try:
+            layers = ollama_options.gpu_layers(self._env, self._model)
+        except ValueError:
+            raise DecisionError("ollama_gpu_layers_invalid") from None
+        if layers is not None:
+            options["num_gpu"] = layers
+        return options
+
     async def _chat(
         self, prompt: str, observation: Observation, *, num_predict: int | None = None
     ) -> str:
@@ -356,7 +372,7 @@ class OllamaVisionDecider:
             "stream": False,
             "think": False,
             "keep_alive": values_keep_alive(self._env),
-            "options": {"temperature": 0.1, "num_predict": predict, "num_ctx": 2048},
+            "options": self._options(predict),
             "messages": [
                 {
                     "role": "user",
@@ -487,8 +503,7 @@ class OllamaVisionDecider:
 
 
 def values_keep_alive(env: Mapping[str, str] | None) -> str:
-    values = os.environ if env is None else env
-    return values.get("SIRO_OLLAMA_KEEP_ALIVE") or "30m"
+    return ollama_options.keep_alive(env)
 
 
 def _ollama_num_predict(env: Mapping[str, str] | None) -> int:
