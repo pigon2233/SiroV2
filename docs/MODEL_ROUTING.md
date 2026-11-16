@@ -50,10 +50,17 @@ Claude 用這台電腦已經登入的 `claude` 指令，不另存 API 金鑰。�
 - 雲端開關關掉之後，有本機就全部留在本機。
 
 閒聊走本機時，那一輪的提示維持 `local_only`，所以本機記憶與工作情境還在。
-閒聊改走 Groq 時，提示只放 `cloud_allowed` 的記憶；存成 `local_only` 的日常偏好她會暫時記不得。
+閒聊改走 Groq 前，會先用同一套記憶檢索看這句話會叫出哪些記憶：只要其中有一筆不是
+`cloud_allowed`（來源事件不是全部 `cloud_allowed`），這一輪就整輪改成 `local_only`、交給本機回答，
+本機記憶照常可用，Groq 完全收不到這一輪。叫不出記憶，或叫出的全部是 `cloud_allowed`，才送 Groq，
+提示也只放 `cloud_allowed` 的記憶。檢查本身出錯時同樣留在本機。含密碼／私鑰等字樣的句子
+不論記憶如何都是 `local_only`。`SIRO_CHAT_ROUTE=local`（預設）時這項檢查不會執行，行為與以前相同。
+只看記憶表；`affect` 的偏好紀錄仍沿用原本的隱私篩選，不會讓一輪改成本機。
 推理那一輪改成 `cloud_allowed`，本機限定的記憶不會放進提示。
 同一段對話因此分成兩條隱私紀錄：雲端推理看不到只留在本機的上一句閒聊。
-這是原本的隱私分軌，不是把本機對話外送。
+這是原本的隱私分軌，不是把本機對話外送。對話還原（`recent_session_messages`）只取同一隱私等級
+已完成的回合（`run_journal.privacy` 完全相同），所以走 Groq 的那輪不會帶到 `local_only` 回合的內容；
+反過來，本機那輪也只看本機回合。代價是兩條紀錄之間的接續話題，對方模型看不到。
 
 ## 閒聊走 Groq 時的記憶
 
@@ -69,8 +76,18 @@ python scripts/report_memory_privacy.py --database ~/.local/share/siro/data/siro
 ~/.venvs/sirov2/bin/python scripts/promote_memory_privacy.py --database ~/.local/share/siro/data/siro.db
 ```
 
+想先看會改哪些、不改任何東西，加 `--dry-run`：只讀資料庫，不拿獨占鎖（SIRO 可以繼續開著），
+不寫事件、記憶、revision 或 jsonl：
+
+```bash
+~/.venvs/sirov2/bin/python scripts/promote_memory_privacy.py --database ~/.local/share/siro/data/siro.db --everyday --dry-run
+```
+
 腳本會逐類列出記憶，每一類都要你回答 y（全部）、s（逐筆）或跳過，最後還要再確認一次才會寫入。
-密碼、身分、財務等敏感內容不會出現在清單裡，永遠是 `local_only`。有衍生記憶或語意事實的記憶這次也不處理。
+加 `--everyday` 時稱呼、喜好、作息三類一次全部列入，不再逐類詢問，但最後的 y/N 仍然要回答 y 才會寫入。
+真正寫入時必須停止 SIRO：寫入會產生 revision 與 jsonl 紀錄，SIRO 開著時拿不到獨占鎖，腳本會直接結束。
+密碼、身分、財務等敏感內容不會出現在清單裡，永遠是 `local_only`。有衍生記憶（`memory_derivations`）、
+語意事實（`semantic_facts`）或來源已撤銷的記憶不處理；報告會逐筆列出這些記憶和原因。
 來源事件不會被修改：每筆同意的記憶會新增一個 `cloud_allowed` 的同意事件和一份新記憶，
 舊記憶以軟刪除留下版本紀錄，變更逐筆寫進資料庫旁的 `memory-privacy-promotions.jsonl`。
 新寫入記憶的預設等級沒有改變。
