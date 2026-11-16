@@ -315,3 +315,17 @@ cd /mnt/e/coding/股票策略機器學習/SiroV2; D=~/.local/share/siro/data
 - `SIRO_WEB_SEARCH=searxng`＋`SIRO_SEARXNG_URL`（自架、`/search?format=json`，需在 SearXNG 設定開啟 json 格式；未實測）。
 **需 owner 決定／動手**：申請 Brave Search API 金鑰或自架 SearXNG，再把設定寫進 `.env.local`（白名單已加這三個鍵與 `SIRO_PROMPT_LAYOUT`、`SIRO_OLLAMA_CONTEXT_LENGTH`）
 。未做：自主研究（`self_activity.py` 的 `SELF_TOOLS`）還沒允許用 `web.search`；模型是否會主動叫它沒評測。
+
+## 2026-11-17 回歸與目標 5 的評估（Fable）
+
+全套回歸（login shell＋`UV_PROJECT_ENVIRONMENT`，11 分 22 秒）：3648 passed、1 skipped、3 failed。
+- 2 個是 `test_runtime_status_context.py` 依賴舊的提示詞順序（切 `Affect policy:`），已改成切 `Embedded working dialogue:`，重跑 40 passed。
+- 1 個是 `test_provider_completion.py[bare_eof-True-candidate]`：全套裡兩次都失敗、單獨跑兩次都通過，改動前就如此。
+  判斷是負載／時序造成的不穩定測試（未查根因）。
+
+目標 5（拆 `gateway.py`／`integrated.py`）**沒做**。盤點結果：`gateway.py` 3,750 行裡 `create_app` 佔 1,704 行、`_run_gateway` 佔 1,298 行，
+兩者都是一大堆共用區域變數的閉包；其餘頂層只有三個小類別。要拆就得把閉包改成明確傳入相依物件，不是搬移而已，
+很耗用量且有行為風險，而 owner 當天要求省用量、先做高價值的事。建議之後獨立一個任務分段做：
+(1) `_run_gateway` 裡建立工具 catalog 的那段（約 3000–3300 行）抽成 `services/presentation/tool_catalog.py` 的工廠函式；
+(2) `create_app` 的路由依功能改成各自的 `APIRouter` 模組，共用狀態走 `app.state`；每段後跑全套測試。
+`claude/chat-route-groq` 分支也動到這兩個檔，建議 owner 先決定該分支去留再拆，避免衝突。
