@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
+import time
 from collections.abc import AsyncIterator
 from typing import cast
 
@@ -182,6 +184,8 @@ class OllamaAdapter:
         calls: list[ToolCall] = []
         has_text = False
         done = False
+        started = time.monotonic()
+        first_text: float | None = None
         lines = transport.stream_lines(self._url, payload, {}, self._timeout, cancellation)
         primary_error: Exception | None = None
         try:
@@ -200,6 +204,8 @@ class OllamaAdapter:
                     raise ValueError("Ollama stream message is invalid")
                 content = message.get("content")
                 if isinstance(content, str) and content:
+                    if first_text is None:
+                        first_text = time.monotonic() - started
                     has_text = True
                     yield ModelChunk("text", content)
                 if cancellation.cancelled:
@@ -224,6 +230,7 @@ class OllamaAdapter:
                     )
                 if event.get("done") is True:
                     done = True
+                    _log_timing(self._model, event, time.monotonic() - started, first_text)
                     prompt_count = event.get("prompt_eval_count")
                     output_count = event.get("eval_count")
                     if isinstance(prompt_count, int) and isinstance(output_count, int):
@@ -268,3 +275,26 @@ class OllamaAdapter:
             if cancellation.cancelled:
                 return
         yield ModelChunk("finished")
+
+
+def _log_timing(
+    model: str, event: dict[str, object], total: float, first_text: float | None
+) -> None:
+    """One line per call: where the time went (counts and durations only, never content)."""
+
+    def seconds(key: str) -> float:
+        value = event.get(key)
+        return value / 1e9 if isinstance(value, int) else -1.0
+
+    logging.getLogger(__name__).info(
+        "ollama timing model=%s total=%.2fs first_text=%.2fs load=%.2fs "
+        "prompt_tokens=%s prefill=%.2fs output_tokens=%s generate=%.2fs",
+        model,
+        total,
+        -1.0 if first_text is None else first_text,
+        seconds("load_duration"),
+        event.get("prompt_eval_count"),
+        seconds("prompt_eval_duration"),
+        event.get("eval_count"),
+        seconds("eval_duration"),
+    )

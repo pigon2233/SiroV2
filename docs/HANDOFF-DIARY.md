@@ -7,7 +7,7 @@
 ## 待辦（依優先）
 
 1. ~~語音可靠度~~ DONE（見下）
-2. 每回合分段計時日誌（preface／prefill／first token／TTS queue），之後優化才量得準
+2. ~~每回合分段計時日誌~~ DONE（見下）
 3. 提示詞瘦身：system 內 `Registered capabilities` JSON 與 API `tools` 參數重複（AUDIT-2026-10-28 實測 5.9k→4.3k token）；改 prompt 需評測
 4. Ollama `keep_alive` 統一：`hybrid.py` 15m、`numbered.py` 5m、`decision.py` 30m、embeddings／memory_relevance 5m，彼此覆蓋
 5. 真正的搜尋來源（目前只有瀏覽器讀頁，DDG CAPTCHA、Bing 讀不到）
@@ -37,3 +37,17 @@ Owner 已拒絕、不要再提：Rust 移植、UI 選 provider、全螢幕偵測
 代價是常駐約 2.5 GB RAM 與一塊 VRAM（8 GB 卡上 gemma 已佔 5.65 GB）。
 
 回退：`git revert` 本階段 commit；`model-hashes.memo` 可直接刪。
+
+## 2026-11-16 階段 2：分段計時日誌 — DONE（自動測試層級）
+
+修改：`src/siro/adapters/models/ollama.py` 串流路徑在 done 事件記一行（只有數字，不含內容）：
+`ollama timing model=… total= first_text= load= prompt_tokens= prefill= output_tokens= generate=`。
+`load`／`prefill`／`generate` 直接取 Ollama 回傳的 `load_duration`／`prompt_eval_duration`／`eval_duration`，缺值記 -1。
+TTS 既有 `qwen tts queue_wait`、`worker ready`、`speech synthesized seconds=` 已足夠，未動。
+
+驗證：Ollama contract 三檔 56 passed；ruff check／format、mypy（該檔）通過。
+未驗：沒有打真 Ollama 看實際輸出（`tests/real` 的 ollama 測試被 skip）。重啟後 `grep "ollama timing" ~/.local/share/siro/logs/siro.log`。
+未做：非串流路徑、Groq／Claude CLI 沒有同樣的計時；Python 前處理時間（AUDIT 量過 <0.1 s）沒有記。
+
+下一步（階段 3 提示詞瘦身）先用這行日誌量一天的 `prompt_tokens`／`prefill` 基準再動 prompt。
+
