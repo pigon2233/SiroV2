@@ -68,6 +68,8 @@ async def test_simulated_histories_and_model_text_are_bounded(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    if probe.NEW_RULE not in probe.decision_module.DECISION_PROMPT:  # type: ignore[attr-defined]
+        pytest.skip("the wait-comparison rule this probe toggles is no longer in DECISION_PROMPT")
     config = tmp_path / "computer.env"
     config.write_text(
         "SIRO_COMPUTER_CLOUD_SCREEN=1\nSIRO_COMPUTER_ALLOWED_PROCESSES=undertale.exe\n"
