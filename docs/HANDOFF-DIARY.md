@@ -139,3 +139,23 @@ Owner：選 B，但「8 秒有點過分」，希望模型在不同記憶體間�
 - B2 gateway：合成前先讓 Ollama 釋放（`keep_alive: 0` 的空請求），合成完再預載 gemma；回覆要整段生成完才開始合成（現在第一句會邊生成邊合成，兩者會同時在 GPU）。
 - B3 背景工作（自主活動、記憶整理、電腦操控）在說話期間不得把 gemma 叫回來，否則會超過 4 GB。
 - 預期體感（推估，未跑過整個流程）：文字生成完到開始出聲多約 1.5 s；說完話後 gemma 在播放期間重載，緊接著的下一句可能多等數秒。
+
+## 2026-11-16 繞過 Ollama 直接跑 llama.cpp — 實測後**不建議現在換**（未改程式）
+
+Owner 要求直接換。先實測，結果不支持：
+
+- Ollama 0.34.3 本來就是啟動內建的 `~/.local/ollama/0.34.3/lib/ollama/llama-server`。它的完整指令（`ps` 抓到）：
+  `--model <blob 370c28…> -c 8192 -np 1 --no-jinja --chat-template chatml --mmproj <blob 4cb21b…> --no-mmproj-offload --spec-type draft-mtp --spec-draft-n-max 3
+  --spec-draft-backend-sampling --spec-draft-model <blob 05612e…> --cache-type-k q8_0 --cache-type-v q8_0 --flash-attn on -b 512 -ub 512 -ngl 42 --context-shift --keep 4`。
+  `--no-jinja --chat-template chatml` 表示提示詞樣板與工具呼叫的格式化／解析是 Ollama 的 Go 層在做，不是 llama.cpp。
+- 我用同一個執行檔在 38999 埠直接啟動（改 `--jinja`、不帶 mmproj）：啟動 3.2–3.4 s，和 Ollama 自己記錄的 3.77 s 差不多，**載入時間沒有賺到**。
+- 我設的 `LD_LIBRARY_PATH=$L:$L/cuda_v13` **沒有載到 CUDA 後端**（GPU 只多約 200 MB，5.7k token prefill 83 s、生成 13 tok/s＝在跑 CPU）。
+  Ollama 另外給了什麼環境變數才載到 GPU 後端，沒查出來。所以直接跑的 GPU 載入秒數其實沒量到。
+- `--slot-save-path` 的 save／restore 本身很快（5,808 token，62 MB，0.03 s／0.02 s），但重啟後 restore 再送「相同前綴＋新一輪」，
+  `cache_n=0`、整段重新 prefill。也就是「存回對話狀態省掉重讀提示詞」**沒有照預期生效**，原因未查。
+- `--jinja` 下 `/v1/chat/completions` 的工具呼叫可用（回了正確的 `tool_calls`），但一般對話 60 token 的 `content` 是空的（可能全進了思考區），
+  行為和 Ollama 的樣板不同，換過去需要重新評測對話與工具品質。
+
+結論：先前「直接跑可降到 2–3 秒且免重讀提示詞」是推估，實測沒有證據支持。換掉 Ollama 要自己處理樣板、工具解析、GPU 後端載入與行程管理，
+風險高而好處未證實。gemma 回到顯卡仍以「Ollama 重載約 4 s＋重新 prefill」估算。若之後要再試：先查 Ollama 啟動 runner 時的環境變數，
+並用 `--no-jinja --chat-template chatml` 加上 Ollama 產生的原始提示詞來比對 slot restore。
