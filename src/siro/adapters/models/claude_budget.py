@@ -198,10 +198,9 @@ class ClaudeBudget:
                     return
                 later = until if current is None or until > current else current
                 self._write(calls, labels, later)
+                _LOG.info("claude rate limit cooldown until %s", later.astimezone(UTC).isoformat())
         except BudgetLockTimeout:
             _LOG.warning("claude budget lock busy; rate limit cooldown not recorded")
-            return
-        _LOG.info("claude rate limit cooldown until %s", later.astimezone(UTC).isoformat())
 
     def _view(self, now: datetime) -> BudgetView:
         calls, _labels, rate_until, problem = self._load(now)
@@ -284,6 +283,8 @@ class ClaudeBudget:
                 view = memoryview(data)
                 while view:
                     written = os.write(fd, view)
+                    if written <= 0:
+                        raise OSError("claude budget write made no progress")
                     view = view[written:]
                 os.fsync(fd)
             finally:
@@ -343,6 +344,13 @@ else:
         fcntl.flock(fd, fcntl.LOCK_UN)
 
 
+def _ensure_lock_byte(fd: int) -> None:
+    """Windows ``msvcrt.locking`` refuses a range that extends past EOF."""
+    if os.lseek(fd, 0, os.SEEK_END) == 0:
+        os.write(fd, b"\0")
+    os.lseek(fd, 0, os.SEEK_SET)
+
+
 @contextmanager
 def _file_lock(path: Path, timeout: float) -> Iterator[None]:
     """Exclusive OS lock on ``<budget>.lock``. Released by the OS if the holder dies."""
@@ -350,11 +358,13 @@ def _file_lock(path: Path, timeout: float) -> Iterator[None]:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | _O_BINARY, 0o600)
     try:
+        os.chmod(lock_path, 0o600)
+        _ensure_lock_byte(fd)
         deadline = time.monotonic() + timeout
         while not _try_os_lock(fd):
             if time.monotonic() >= deadline:
                 raise BudgetLockTimeout(str(lock_path))
-            time.sleep(_LOCK_POLL_SECONDS)
+            time.sleep(min(_LOCK_POLL_SECONDS, max(0.0, deadline - time.monotonic())))
         try:
             yield
         finally:
@@ -365,13 +375,21 @@ def _file_lock(path: Path, timeout: float) -> Iterator[None]:
 
 @contextmanager
 def _exclusive(path: Path, timeout: float | None = None) -> Iterator[None]:
-    """Thread lock for this process, then the cross-process file lock, for one budget file."""
+    """Thread lock for this process, then the cross-process file lock, for one budget file.
+
+    Both waits share one deadline so a busy lock cannot stall the caller for two full timeouts.
+    """
     wait = LOCK_TIMEOUT_SECONDS if timeout is None else timeout
+    deadline = time.monotonic() + wait
     lock = _thread_lock_for(path)
-    if not lock.acquire(timeout=wait):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0 or not lock.acquire(timeout=remaining):
         raise BudgetLockTimeout(str(path))
     try:
-        with _file_lock(path, wait):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise BudgetLockTimeout(str(path))
+        with _file_lock(path, remaining):
             yield
     finally:
         lock.release()

@@ -1,6 +1,6 @@
 diff -ruN a/src/siro/services/computer_use/decision.py b/src/siro/services/computer_use/decision.py
---- a/src/siro/services/computer_use/decision.py	2026-11-16 06:07:57.883766078 +0000
-+++ b/src/siro/services/computer_use/decision.py	2026-11-16 06:07:57.883766078 +0000
+--- a/src/siro/services/computer_use/decision.py	2026-11-16 07:09:45.166068752 +0000
++++ b/src/siro/services/computer_use/decision.py	2026-11-16 07:09:45.178068811 +0000
 @@ -14,6 +14,7 @@
  
  import httpx
@@ -48,59 +48,110 @@ diff -ruN a/src/siro/services/computer_use/decision.py b/src/siro/services/compu
              return VerifyResult("unknown", "claude_verify_failed")
          try:
 diff -ruN a/src/siro/services/computer_use/http.py b/src/siro/services/computer_use/http.py
---- a/src/siro/services/computer_use/http.py	2026-11-16 06:07:57.883766078 +0000
-+++ b/src/siro/services/computer_use/http.py	2026-11-16 06:07:57.887766032 +0000
+--- a/src/siro/services/computer_use/http.py	2026-11-16 07:09:45.166068752 +0000
++++ b/src/siro/services/computer_use/http.py	2026-11-16 07:09:45.178068811 +0000
 @@ -460,6 +460,7 @@
              ComputerBridge(ControlGate()),
              make_decider(env_map),
              playbook=PlaybookStore(playbook_dir(env_map)) if learning else None,
-+            # ClaudeReflector.reflect reserves the shared budget before it calls the CLI.
++            # ClaudeReflector.reflect passes caller= so ask_claude shares the budget.
              reflector=ClaudeReflector(env=env_map) if learning else None,
              recorder=DemoRecorder(demos_dir(env_map))
              if values.get("SIRO_COMPUTER_RECORD", "0") == "1"
+diff -ruN a/src/siro/services/computer_use/hybrid.py b/src/siro/services/computer_use/hybrid.py
+--- a/src/siro/services/computer_use/hybrid.py	2026-11-16 07:09:45.170068772 +0000
++++ b/src/siro/services/computer_use/hybrid.py	2026-11-16 07:09:45.178068811 +0000
+@@ -12,6 +12,7 @@
+ 
+ import httpx
+ 
++from siro.adapters.models.claude_budget import observe_cli_rate_limit, reserve_claude_call
+ from siro.services.computer_use.decision import (
+     DEFAULT_GROQ_MODEL,
+     DEFAULT_OLLAMA_MODEL,
+@@ -79,6 +80,9 @@
+             binary = claude_binary()
+             if binary is None:
+                 raise DecisionError("claude_cli_missing")
++            view = await reserve_claude_call("computer.hybrid")
++            if not view.allowed:
++                raise DecisionError("claude_unavailable")
+             with tempfile.TemporaryDirectory(prefix="siro-regions-") as scratch:
+                 Path(scratch, "regions.png").write_bytes(image)
+                 result = await execute_bounded_argv(
+@@ -102,6 +106,8 @@
+                     environment=restricted_environment(),
+                     timeout=self.timeout,
+                 )
++            if await observe_cli_rate_limit(result):
++                raise DecisionError("claude_unavailable")
+             if result.get("returncode") != 0:
+                 raise DecisionError("claude_region_failed")
+             body = json.loads(str(result.get("stdout", "")))
+diff -ruN a/src/siro/services/computer_use/numbered.py b/src/siro/services/computer_use/numbered.py
+--- a/src/siro/services/computer_use/numbered.py	2026-11-16 07:09:45.170068772 +0000
++++ b/src/siro/services/computer_use/numbered.py	2026-11-16 07:09:45.178068811 +0000
+@@ -11,6 +11,7 @@
+ 
+ import httpx
+ 
++from siro.adapters.models.claude_budget import observe_cli_rate_limit, reserve_claude_call
+ from siro.services.computer_use.decision import (
+     DEFAULT_GROQ_MODEL,
+     DEFAULT_OLLAMA_MODEL,
+@@ -109,6 +110,9 @@
+             binary = claude_binary()
+             if binary is None:
+                 raise DecisionError("claude_cli_missing")
++            view = await reserve_claude_call("computer.numbered")
++            if not view.allowed:
++                raise DecisionError("claude_unavailable")
+             with tempfile.TemporaryDirectory(prefix="siro-number-") as scratch:
+                 result = await execute_bounded_argv(
+                     (
+@@ -129,6 +133,8 @@
+                     environment=restricted_environment(),
+                     timeout=self.timeout,
+                 )
++            if await observe_cli_rate_limit(result):
++                raise DecisionError("claude_unavailable")
+             if result.get("returncode") != 0:
+                 raise DecisionError("claude_number_failed")
+             body = json.loads(str(result.get("stdout", "")))
 diff -ruN a/src/siro/services/computer_use/playbook.py b/src/siro/services/computer_use/playbook.py
---- a/src/siro/services/computer_use/playbook.py	2026-11-16 06:07:57.883766078 +0000
-+++ b/src/siro/services/computer_use/playbook.py	2026-11-16 06:07:57.887766032 +0000
-@@ -16,6 +16,7 @@
- from dataclasses import dataclass
- from pathlib import Path
- 
-+from siro.adapters.models.claude_budget import reserve_claude_call
- from siro.services.computer_use.decision import StepRecord, cloud_screen_allowed
- from siro.services.computer_use.perception import _SECRET
- from siro.services.tools.claude import ClaudeUnavailable, ask_claude
-@@ -181,6 +182,11 @@
-     ) -> list[str]:
-         if not cloud_screen_allowed(self._env):
-             return []
-+        # Reserve here. Do not also pass caller= to ask_claude; that would take a second slot.
-+        # ask_claude already records a rate-limit cooldown on this same budget.
-+        view = await reserve_claude_call("computer.reflector")
-+        if not view.allowed:
-+            return []
-         prompt = reflect_prompt(game, goal, state, reason, existing, steps)
-         kwargs: dict[str, object] = {"search": False, "prefix": "", "limit": 12000}
+--- a/src/siro/services/computer_use/playbook.py	2026-11-16 07:09:45.170068772 +0000
++++ b/src/siro/services/computer_use/playbook.py	2026-11-16 07:09:45.178068811 +0000
+@@ -186,7 +186,13 @@
          if self._run is not None:
+             kwargs["run"] = self._run
+         try:
+-            answer = await ask_claude({"task": prompt}, **kwargs)  # type: ignore[arg-type]
++            # caller= reserves one shared-budget slot inside ask_claude. Do not also
++            # call reserve_claude_call here. A refusal raises ClaudeUnavailable, which
++            # this method already turns into no new notes. If Groq or Ollama is
++            # configured, ask_claude may return that text instead of raising.
++            answer = await ask_claude(  # type: ignore[arg-type]
++                {"task": prompt}, caller="computer.reflector", **kwargs
++            )
+         except (ClaudeUnavailable, ValueError, OSError):
+             return []
+         return parse_notes(str(answer.get("answer", "")))
 diff -ruN a/src/siro/services/computer_use/router.py b/src/siro/services/computer_use/router.py
---- a/src/siro/services/computer_use/router.py	2026-11-16 06:07:57.883766078 +0000
-+++ b/src/siro/services/computer_use/router.py	2026-11-16 06:07:57.887766032 +0000
-@@ -17,6 +17,7 @@
- from collections.abc import Awaitable, Callable, Iterable, Sequence
- from typing import Any
- 
-+from siro.adapters.models.claude_budget import reserve_claude_call
- from siro.ports.models import ToolDefinition
- from siro.services.computer_use.intent import narrow_for_play_order
- from siro.services.computer_use.perception import _SECRET, allowed_processes
-@@ -97,6 +98,11 @@
-         options: dict[str, Any] = {"search": False, "prefix": "", "limit": 2000, "run": bounded}
+--- a/src/siro/services/computer_use/router.py	2026-11-16 07:09:45.170068772 +0000
++++ b/src/siro/services/computer_use/router.py	2026-11-16 07:09:45.178068811 +0000
+@@ -98,8 +98,14 @@
          if self._model:
              options["model"] = self._model
-+        # Reserve here. Do not also pass caller= to ask_claude; that would take a second slot.
-+        # ask_claude already records a rate-limit cooldown on this same budget.
-+        view = await reserve_claude_call("computer.play_router")
-+        if not view.allowed:
-+            return None
          try:
++            # caller= reserves one shared-budget slot inside ask_claude. Do not also
++            # call reserve_claude_call here. ClaudeUnavailable stays "not an order".
++            # A configured Groq or Ollama fallback can still return text to parse.
              answer = await asyncio.wait_for(
-                 ask_claude({"task": prompt}, **options), timeout=self._timeout + 5
+-                ask_claude({"task": prompt}, **options), timeout=self._timeout + 5
++                ask_claude(
++                    {"task": prompt}, caller="computer.play_router", **options
++                ),
++                timeout=self._timeout + 5,
+             )
+         except (ClaudeUnavailable, ValueError, OSError, TimeoutError):
+             return None

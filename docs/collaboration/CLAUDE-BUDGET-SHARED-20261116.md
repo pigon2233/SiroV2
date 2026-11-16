@@ -4,6 +4,7 @@
 - Owner: Cursor cloud agent (this session)
 - When: 2026-11-16 UTC
 - Status: IMPLEMENTED, not merged. Computer-use patch is not applied.
+- Follow-up: fast-forwarded `bac26f2` (WIP review fixes) and finished the lock, patch, and timeout note on this branch. Do not rebase onto main until PR #16 is accounted for. At that rebase, the profile line in `gateway.py` should become `cast(Completer, ClaudePlannerModel(claude_model(), caller="profile"))`.
 - Base SHA: `d12708d68300b2aaff80bbc0076b2fd437d6e623` (origin/main). The read-only audit was of `335aaa6`; the only commits after it add the owner VRM asset and do not touch Claude call sites.
 - Branch: `cursor/claude-shared-budget-bbf9`
 - Worktree: `/agent/repos/SiroV2`

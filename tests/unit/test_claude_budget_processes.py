@@ -66,6 +66,7 @@ def test_two_processes_lose_no_updates_and_never_tear_the_file(tmp_path: Path) -
     assert stored["callers"].count("proc0") == PER_PROCESS
     assert stored["callers"].count("proc1") == PER_PROCESS
     assert not list(tmp_path.glob("*.tmp"))
+    assert (tmp_path / "claude-budget.json.lock").is_file()
 
     last = asyncio.run(ClaudeBudget(path, limit=LIMIT).try_reserve("after"))
     assert not last.allowed
