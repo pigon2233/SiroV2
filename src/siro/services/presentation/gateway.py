@@ -3318,6 +3318,7 @@ def _run_gateway(
     )
     if route_model is not None:
         controller.turn_privacy_for = route_model.turn_privacy
+        controller.chat_turn_to_groq = route_model.chat_turn_to_groq
 
     self_owner = (
         SelfActivityOwner(

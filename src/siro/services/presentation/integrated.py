@@ -31,7 +31,7 @@ from siro.core.context import asks_about_research
 from siro.core.conversation import ConversationEngine, TurnState
 from siro.core.expression import ExpressionPolicy, expression_context_from_text
 from siro.core.identity import IdentityService, ImmutableCore
-from siro.core.memory import Memory, MemoryService
+from siro.core.memory import Memory, MemoryKind, MemoryService
 from siro.core.memory_autonomy import (
     CONTEXT_MESSAGES,
     AutonomousMemory,
@@ -210,6 +210,8 @@ class IntegratedCompanion:
         self._body = body
         self._privacy = privacy
         self.turn_privacy_for: Callable[[str], Privacy] | None = None
+        # Set by the gateway when SIRO_CHAT_ROUTE=groq: is this turn chat bound for Groq?
+        self.chat_turn_to_groq: Callable[[str], bool] | None = None
         self._run_privacy: dict[str, Privacy] = {}
         self._tool_orchestrator = tool_orchestrator
         self._agent_planner_factory = agent_planner_factory
@@ -313,15 +315,49 @@ class IntegratedCompanion:
         message = {**message, "stream_id": stream_id}
         await self._hub.broadcast(message, urgent=urgent)
 
-    def _privacy_for_turn(self, text: str) -> Privacy:
-        """Per-turn privacy. Small talk can stay local while the session still allows cloud."""
+    async def _privacy_for_turn(self, text: str) -> Privacy:
+        """Per-turn privacy. Small talk can stay local while the session still allows cloud.
+
+        Chat bound for Groq stays local_only when a memory relevant to the text is not
+        cloud_allowed: the local model can use it, and Groq never sees it.
+        """
         decider = self.turn_privacy_for
         if decider is None or self._privacy is not Privacy.CLOUD_ALLOWED:
             return self._privacy
         decided = decider(text)
         if decided is Privacy.LOCAL_ONLY:
             return Privacy.LOCAL_ONLY
+        to_groq = self.chat_turn_to_groq
+        if to_groq is not None and to_groq(text) and await self._needs_local_memory(text):
+            return Privacy.LOCAL_ONLY
         return Privacy.CLOUD_ALLOWED
+
+    async def _needs_local_memory(self, text: str) -> bool:
+        """Would the local prompt recall a memory the cloud prompt has to leave out?
+
+        Uses the same recall as prompt assembly. Any failure counts as yes (stay local).
+        """
+        service = self._memory_service
+        if service is None:
+            return True
+        try:
+            local = await service.recall_context(
+                "siro", text, route_privacy=EventPrivacy.LOCAL_ONLY
+            )
+            if not asks_about_research(text):
+                local = [m for m in local if m.kind is not MemoryKind.SELF]
+            if not local:
+                return False
+            cloud = await service.recall_context(
+                "siro", text, route_privacy=EventPrivacy.CLOUD_ALLOWED
+            )
+        except Exception:
+            logging.getLogger(__name__).warning(
+                "memory privacy check failed; keeping the turn local", exc_info=True
+            )
+            return True
+        shared = {memory.memory_id for memory in cloud}
+        return any(memory.memory_id not in shared for memory in local)
 
     async def model_route_notice(self, generation_id: str, text: str) -> None:
         """Tell the active run that this reply moved off the preferred model."""
@@ -799,7 +835,7 @@ class IntegratedCompanion:
             plan_goal = None
         if plan_goal is not None:
             direct_command = ("neutral", "")
-        privacy = self._privacy_for_turn(text)
+        privacy = await self._privacy_for_turn(text)
         recent_messages = None
         runtime_status = None
         if (

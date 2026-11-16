@@ -364,6 +364,16 @@ class ModelRouter:
             return Privacy.LOCAL_ONLY
         return Privacy.CLOUD_ALLOWED
 
+    def chat_turn_to_groq(self, text: str) -> bool:
+        """True when this turn is ordinary chat bound for Groq with a local fallback.
+
+        The caller may still keep the turn local_only, e.g. when a memory relevant to the
+        text has not been opted into cloud_allowed.
+        """
+        if "local" not in self._by_kind or not self._cloud_enabled():
+            return False
+        return classify_user_text(text) == "chat" and self._chat_to_groq()
+
     def _chat_to_groq(self) -> bool:
         """Chat goes to Groq only when opted in, configured and not cooling down."""
         if self._chat_route != "groq" or "groq" not in self._by_kind:

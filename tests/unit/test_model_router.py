@@ -427,6 +427,24 @@ def test_chat_goes_to_groq_then_local_and_never_claude(tmp_path: Path) -> None:
     assert _collect(router, _request("幫我寫一個 python 函式"))[-2].text == "claude"
 
 
+def test_chat_turn_to_groq_marks_only_groq_bound_chat(tmp_path: Path) -> None:
+    budget = ClaudeBudget(tmp_path / "budget.json", limit=3)
+    claude, groq, local = Script("claude"), Script("groq"), Script("local")
+    enabled = {"cloud": True}
+    router = _three(
+        local, groq, claude, budget, chat_route="groq", cloud_enabled=lambda: enabled["cloud"]
+    )
+    assert router.chat_turn_to_groq("今天過得怎麼樣") is True
+    assert router.chat_turn_to_groq("我的密碼是 hunter2") is False
+    assert router.chat_turn_to_groq("幫我寫一個 python 函式") is False
+    enabled["cloud"] = False
+    assert router.chat_turn_to_groq("今天過得怎麼樣") is False
+    assert _three(local, groq, claude, budget).chat_turn_to_groq("今天過得怎麼樣") is False
+    # Without a local model there is nowhere to keep the turn, so it is not offered.
+    alone = ModelRouter((RouteProvider("groq", "groq:oss", groq),), chat_route="groq")
+    assert alone.chat_turn_to_groq("今天過得怎麼樣") is False
+
+
 def test_chat_route_local_or_cloud_off_keeps_chat_local(tmp_path: Path) -> None:
     budget = ClaudeBudget(tmp_path / "budget.json", limit=3)
     claude, groq, local = Script("claude"), Script("groq"), Script("local")
