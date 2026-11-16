@@ -159,3 +159,31 @@ Owner 要求直接換。先實測，結果不支持：
 結論：先前「直接跑可降到 2–3 秒且免重讀提示詞」是推估，實測沒有證據支持。換掉 Ollama 要自己處理樣板、工具解析、GPU 後端載入與行程管理，
 風險高而好處未證實。gemma 回到顯卡仍以「Ollama 重載約 4 s＋重新 prefill」估算。若之後要再試：先查 Ollama 啟動 runner 時的環境變數，
 並用 `--no-jinja --chat-template chatml` 加上 Ollama 產生的原始提示詞來比對 slot restore。
+
+## 2026-11-16 方案 B 第一段（B1 worker 端）：TTS worker 支援 park／unpark — DONE（真模型實測；用戶端尚未使用）
+
+修改：`scripts/qwen_tts_worker.py`
+- `FastVoiceClone.park()`：丟掉兩個 CUDA graph、`model.model.to("cpu")`、`empty_cache`。`unpark()`：搬回 GPU、照 `from_pretrained` 重建兩個 graph、`warmup`。
+- stdin 指令 `{"park": true}`／`{"unpark": true}`，回 `{"parked": bool, "seconds": float}`（帶回 `request_id`／`epoch`）。
+- 合成／串流請求遇到 parked 會先自動 `unpark`；快取命中不需要 GPU，parked 狀態下照樣回。
+- **`QwenReferenceTTS`（`tts.py`）還沒送這兩個指令**，所以目前行為完全不變。
+
+驗證：worker 相關四個測試檔 96 passed；ruff 通過。真模型＋真聲線、暫存快取目錄，直接驅動 worker：
+
+| 動作 | 時間 |
+|---|---|
+| park | 0.85–0.99 s |
+| unpark（含重建 graph） | 1.40 s |
+| unpark 後第一句合成 | 4.2–5.8 s（暖的時候同長度 1.1–1.3 s） |
+| parked 時快取命中 | 0.00 s |
+
+誠實的結論（比先前推估差）：
+- 「回到顯卡約 1.3–1.5 秒」只是搬移＋重建；**第一句合成還會多慢 3–4 秒**（graph 首次重播），所以從 parked 到出聲實際約 5–6 秒，不是 1.5 秒。
+  當時 gemma 也在 GPU 上（總用量 7.8／8 GB），有搶資源的成分，獨佔時是否較快沒量。
+- park 只讓 `nvidia-smi` 少約 0.7 GB（7,785 → 7,081 MB），parked 的 worker 仍佔約 1.4 GB（CUDA context、speech tokenizer、graph 記憶體池等沒釋放）。
+  較早一次拋棄式測試少了約 1.75 GB。兩次差異原因未查。**所以 park 不能讓「gemma＋停放的 TTS」低於 4 GB**（3.4＋1.4）。
+- 比起殺掉 worker（釋放全部 2.7 GB；重載 8 s／冷的時候 55–117 s），park 的價值是「不會遇到冷載」，不是省最多 VRAM。
+
+下一步選項（都沒做）：(1) `tts.py` 閒置時改送 park 而不是 retire（要處理 lifecycle／epoch／取消路徑，動到 `_retire_if_idle`）；
+(2) 查 parked 還佔的 1.4 GB 是什麼（`torch.cuda.memory_summary()`、把 speech tokenizer 也搬走）；
+(3) unpark 後先跑一次極短的暖身合成，把 3–4 秒藏在使用者還沒要出聲的時候；(4) B2／B3 gateway 輪替仍照前面一節。

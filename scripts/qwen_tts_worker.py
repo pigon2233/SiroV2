@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import wave
 from collections.abc import Iterator
 from importlib.metadata import version
@@ -177,6 +178,61 @@ class FastVoiceClone:
     def __init__(self, fast: Any) -> None:
         self.fast = fast
         self.model = fast.model if hasattr(fast, "model") else fast.base_model
+        self.parked = False
+
+    def park(self) -> None:
+        """Move the weights to system RAM so the GPU is free; unpark() brings them back.
+
+        The captured CUDA graphs point at the old GPU tensors, so they are dropped here and
+        rebuilt on return. Generating on stale graphs raises a device-side assert that
+        poisons the whole CUDA context.
+        """
+        if self.parked:
+            return
+        import gc
+
+        import torch  # type: ignore[import-not-found]
+
+        self.fast.predictor_graph = None
+        self.fast.talker_graph = None
+        self.model.model.to("cpu")
+        gc.collect()
+        torch.cuda.empty_cache()
+        self.parked = True
+
+    def unpark(self) -> None:
+        if not self.parked:
+            return
+        from faster_qwen3_tts.predictor_graph import (  # type: ignore[import-not-found]
+            PredictorGraph,
+        )
+        from faster_qwen3_tts.talker_graph import TalkerGraph  # type: ignore[import-not-found]
+
+        root = self.model.model.to(self.fast.device)
+        talker = root.talker
+        config = root.config.talker_config
+        predictor = talker.code_predictor
+        # Same construction as FasterQwen3TTS.from_pretrained.
+        self.fast.predictor_graph = PredictorGraph(
+            predictor,
+            predictor.model.config,
+            config.hidden_size,
+            device=self.fast.device,
+            dtype=self.fast.dtype,
+            do_sample=True,
+            top_k=50,
+            temperature=0.9,
+        )
+        self.fast.talker_graph = TalkerGraph(
+            talker.model,
+            config,
+            device=self.fast.device,
+            dtype=self.fast.dtype,
+            max_seq_len=self.fast.max_seq_len,
+        )
+        self.fast._warmed_up = False
+        self.fast.warmup(prefill_len=100)
+        self.parked = False
 
     def synthesize(self, text: str, voice: Any) -> tuple[Any, int, dict[str, object]]:
         import faster_qwen3_tts.generate as fast_generate_module  # type: ignore[import-not-found]
@@ -502,6 +558,20 @@ def main() -> int:
         try:
             request = json.loads(line)
             identity = {key: request[key] for key in ("request_id", "epoch") if key in request}
+            if request.get("park") is True or request.get("unpark") is True:
+                if backend is None:
+                    raise QwenOutputIncomplete("parking needs the CUDA-graph backend")
+                moved = time.monotonic()
+                if request.get("park") is True:
+                    backend.park()
+                else:
+                    backend.unpark()
+                seconds = round(time.monotonic() - moved, 3)
+                print(
+                    json.dumps({**identity, "parked": backend.parked, "seconds": seconds}),
+                    flush=True,
+                )
+                continue
             text = str(request["text"]).strip()
             if not text:
                 raise ValueError("text is empty")
@@ -514,9 +584,12 @@ def main() -> int:
             elif request.get("stream") is True:
                 if backend is None:
                     raise QwenOutputIncomplete("streaming needs the CUDA-graph backend")
+                backend.unpark()
                 stream_chunks(backend, text, voice, identity, cached, digest, fingerprint)
                 continue
             else:
+                if backend is not None:
+                    backend.unpark()
                 wavs, sample_rate, completion = (
                     backend.synthesize(text, voice)
                     if backend is not None
