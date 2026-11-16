@@ -329,3 +329,24 @@ cd /mnt/e/coding/股票策略機器學習/SiroV2; D=~/.local/share/siro/data
 (1) `_run_gateway` 裡建立工具 catalog 的那段（約 3000–3300 行）抽成 `services/presentation/tool_catalog.py` 的工廠函式；
 (2) `create_app` 的路由依功能改成各自的 `APIRouter` 模組，共用狀態走 `app.state`；每段後跑全套測試。
 `claude/chat-route-groq` 分支也動到這兩個檔，建議 owner 先決定該分支去留再拆，避免衝突。
+
+## 2026-11-17 語料已合成：2,649 句、181.9 分鐘（owner 要我代跑）
+
+- 位置（WSL，不在 repo）：`~/.local/share/siro/tts-corpus/siro-sweet-b-v1/`：`wavs/000001.wav…002649.wav`、`metadata.csv`（`編號|句子`）、`skipped.txt`（3 句）、`run.log`。
+  格式 24 kHz／單聲道／16-bit；總長 181.9 分鐘，中位 4.1 秒，最短 1.3、最長 11.5 秒。wavs 506 MB；`worker-cache/` 673 MB 是合成快取，語料確認無誤後可刪。
+- 第一批 2,331 句花了約 127 分鐘（每句約 3.3 秒，比我估的 1.2 秒慢；期間顯卡另有約 3–5 GB 被 Windows 端程式佔用）。第二批 318 句情緒句子 21.2 分鐘錄音。
+- 為了跑這個，我關掉了 SIRO：停掉 `desktop-win` 的 Electron、`scripts/stop-win-backend`、對 Ollama 送 `keep_alive: 0`。**跑完沒有重新啟動 SIRO**，由 owner 自己開。
+- 句子檔現為 2,652 句（`sentences.txt`），語氣 sidecar `sentences.styles.tsv`：calm 1,410、question 319、lively 239、shy 192、english 174（以上為 guessed），
+  angry 80、relaxed 110、sleepy 43、surprised 45、worried 40（requested）。**happy／sad／teasing 為 0**：Groq 兩個模型都 429。
+  額度恢復後補（金鑰在 `/mnt/c/Users/pepepig/siro-computer/computer.env`，腳本只讀 `SIRO_OPENAI_*`）：
+  ```
+  SIRO_OPENAI_MODEL=openai/gpt-oss-120b ~/.venvs/sirov2/bin/python scripts/generate_tts_sentences.py \
+    --env-file /mnt/c/Users/pepepig/siro-computer/computer.env --out ~/.local/share/siro/tts-corpus/sentences.txt \
+    --target 3534 --styles happy,sad,teasing
+  ```
+  然後關掉 SIRO 重跑 `generate_tts_corpus.py`（同一指令，會只做新增的句子）。
+- 已知品質問題，都還沒處理：
+  1. **沒有人聽過這些錄音**。Qwen 取樣有隨機性，可能有念錯、怪腔的檔；建議用 Whisper 轉寫比對文字，挑掉不符的。
+  2. Qwen base 的聲音複製不能指定情緒，情緒句子的錄音只靠文字與標點帶語氣，實際情緒表現未知。
+  3. 有些句子沒照要求的情緒寫（例：標 relaxed 的「火山噴發時的氣體裡藏著大量的硫磺味。」）；20b 產生的句子有非台灣用語。
+- 下一步：調查並選定訓練框架（支援中文、授權、8 GB 顯卡可訓練、可匯出 ONNX 在 CPU 即時推論），然後訓練、接 adapter、和 Qwen 做聽感 A/B。仍未開始。
