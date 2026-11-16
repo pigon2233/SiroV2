@@ -197,3 +197,14 @@ Owner 新增限制：**語音必須常駐**。語音 2.7 GB ⇒ 4 GB 目標只�
 不要重做：本機分支 `claude/chat-route-groq`（worktree `E:/coding/Worktrees/chat-route-groq`，2026-11-16 看到 head `71deea9`，未合併進 main）
 已有 `SIRO_CHAT_ROUTE=local|groq`，回想到 local_only 記憶時該輪留在本機。它和 main 的差異動到 `integrated.py`、`gateway.py`、`tests/unit/test_model_router.py` 等 12 檔。
 Owner 同意後應由整合者合併該分支（本串這幾個 commit 動過 `ollama.py`、`orchestrator.py`、`tts.py`、`launch_companion.py`、`qwen_tts_worker.py`，合併前先看衝突）。
+
+## 2026-11-16 Owner 的新方向：各司其職的專用模型（只有方向，未動工）
+
+Owner 原話重點：想自己訓練模型；對話用一個專門訓練的小模型，推理用另一個（只推理不對話），寫程式也用專門的模型。
+澄清：「語音常駐」是指每句都要有語音，不是佔著 VRAM；Qwen TTS 跑 CPU 很爛（owner 記得，CPU 測試被 owner 中止，不要再測）。
+
+已向 owner 提出、**尚未得到確認**的構想：
+- 對話：用大模型依 SIRO 人格產生對話，LoRA 微調 1–2B 小模型（約 1–1.5 GB，人格進權重後提示詞可大幅縮短）。品質只能訓練後評測，不能事先保證。
+- 推理／寫程式：不自己訓練，用現成的（路由已會把寫程式／規劃送 Claude CLI／Groq）；若要本機，需要時才載入、和對話小模型輪替。
+- 語音：用現有 Qwen 聲線批次產生數小時語料，訓練單一聲音的小型 TTS（VITS 類）在 CPU 即時合成，VRAM 歸零。音質要用耳朵比，風險最大。
+建議的第一步（未做）：先量一個現成小模型在 1.3 GB 內的速度與回話水準當基準，再決定是否投入訓練。
