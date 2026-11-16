@@ -112,3 +112,30 @@ Owner 的限制（2026-11-16）：聲音與對話品質都不能降，SIRO 總 V
 下一步（方案 A 第二步）：讓 TTS 模型檔留在 page cache，使閒置卸載後重載約 8 秒而不是 55–117 秒。
 候選做法：Windows 使用者目錄 `.wslconfig` 的 `[experimental] autoMemoryReclaim=disabled`（改 owner 的系統設定，需 owner 同意），
 或 gateway 定期讀一次模型檔。兩者都還沒做、也還沒驗證哪個有效。
+
+## 2026-11-16 方案 B（owner 選定）：兩個模型輪流用顯卡 — 只有量測，未改程式
+
+Owner：選 B，但「8 秒有點過分」，希望模型在不同記憶體間搬移。實測（拋棄式行程，`faster_qwen3_tts`，cuda-graph）：
+
+| 動作 | 時間 |
+|---|---|
+| TTS 模型 `root.to("cpu")`（`root = fast.model.model`）＋丟掉兩個 graph＋`empty_cache` | 1.0–1.2 s |
+| `root.to("cuda")` | 0.3 s |
+| 重建 `PredictorGraph`／`TalkerGraph`＋`warmup(prefill_len=100)` | 1.0 s |
+| gemma4:e4b 由 Ollama 重載（檔案在 page cache） | 4–5 s，另加整段提示詞重新 prefill（5.7k token 約 3.7 s） |
+
+重點：
+- 搬回 GPU 後**不重建 graph 就生成會 `CUDA error: device-side assert`**，而且會弄壞整個 CUDA context；一定要重建再 warmup。
+  重建方式照 `faster_qwen3_tts/model.py` `from_pretrained` 後半（`talker = root.talker`、`cfg = root.config.talker_config`、
+  `pred = talker.code_predictor`，`PredictorGraph(pred, pred.model.config, cfg.hidden_size, device, dtype, do_sample=True, top_k=50, temperature=0.9)`、
+  `TalkerGraph(talker.model, cfg, device, dtype, max_seq_len)`，再把 `_warmed_up=False` 後 `warmup`）。
+- 停在 RAM 時 torch 仍 allocated 約 390 MB（speech tokenizer、voice prompt 沒跟著搬）加上 CUDA context，
+  估計還佔 0.7–0.9 GB VRAM。要讓 gemma(42 層 3.4 GB)＋停放的 TTS < 4 GB，得連 speech tokenizer 一起搬，或把 gemma 降到 36 層（3.0 GB、31 tok/s）。未驗證。
+- 冷啟時 `import torch` 14.7 s、`from_pretrained` 50.9 s（page cache 幾分鐘內就被丟掉）；常駐 worker 把權重留在自己的 RAM 可以完全避開。
+- 這輪測到的生成時間（20 s）不可信：參考文字是假的，而且背景自主活動中途把 gemma 載回 GPU 搶資源。
+
+實作分段（都還沒做）：
+- B1 worker：`qwen_tts_worker.py` 加 `{"park": true}`／`{"unpark": true}` 指令（搬移＋重建 graph），`QwenReferenceTTS` 閒置時改成 park 而不是殺行程。
+- B2 gateway：合成前先讓 Ollama 釋放（`keep_alive: 0` 的空請求），合成完再預載 gemma；回覆要整段生成完才開始合成（現在第一句會邊生成邊合成，兩者會同時在 GPU）。
+- B3 背景工作（自主活動、記憶整理、電腦操控）在說話期間不得把 gemma 叫回來，否則會超過 4 GB。
+- 預期體感（推估，未跑過整個流程）：文字生成完到開始出聲多約 1.5 s；說完話後 gemma 在播放期間重載，緊接著的下一句可能多等數秒。
