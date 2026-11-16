@@ -274,3 +274,14 @@ cd /mnt/e/coding/股票策略機器學習/SiroV2; D=~/.local/share/siro/data
   --texts ~/.local/share/siro/tts-corpus/sentences.txt --out ~/.local/share/siro/tts-corpus/siro-sweet-b-v1
 ```
 獨佔顯卡時估計一小時內跑完（每句約 1.2 秒的推估）。之後才是選訓練框架與訓練，仍未調查。
+
+## 2026-11-17 每句的語氣類別（owner 要求補做）— DONE
+
+- `scripts/generate_tts_sentences.py`：新產生的句子會同時寫 sidecar `<句子檔名>.styles.tsv`（`句子<TAB>語氣<TAB>requested`），
+  語氣 id 為 `gentle`／`question`／`lively`／`shy`／`calm`／`english`（對應 `STYLES` 六種；`english` 是內容類型不是語氣）。
+- `--backfill-styles`：不連網，對沒有紀錄的句子用標點規則猜（`…`或「嗯／那個／呃」開頭→shy、問號→question、驚嘆號→lively、含英文字母→english、其餘→calm），來源欄寫 `guessed`。
+- 已對現有 2,334 句回填：calm 1,410、question 319、lively 239、shy 192、english 174。檔案 `~/.local/share/siro/tts-corpus/sentences.styles.tsv`。
+  **這些都是 `guessed`**：原本要求的「溫柔」與「冷靜」分不出來，全歸 calm；規則只看標點，不保證 Qwen 實際念出來的語氣相符。
+- 測試 `tests/unit/test_generate_tts_sentences.py` 4 passed；ruff 通過。
+- 和語料的對應：`metadata.csv` 是 `編號|句子`，用句子文字 join `styles.tsv` 即可得到每個 wav 的語氣。
+- 用途（未做）：訓練時當語氣條件；SIRO 回覆已有 `[[e:…]]` 情緒 cue（`core/motion_cues.py`），之後可對應到這些語氣 id。

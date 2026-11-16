@@ -63,6 +63,11 @@ STYLES = (
     "冷靜清楚的說明句",
     "夾雜一兩個常見英文單字或縮寫的句子",
 )
+# Short ids for the styles above, written next to each sentence so a later TTS can be
+# trained with a tone label. "english" is a content style, not a tone.
+STYLE_IDS = dict(
+    zip(STYLES, ("gentle", "question", "lively", "shy", "calm", "english"), strict=True)
+)
 MIN_CHARS, MAX_CHARS = 5, 40
 _ALLOWED = re.compile(r"^[一-鿿A-Za-z0-9，。！？、；：～…「」『』（）\- %.:/+,'!?&]+$")
 _NUMBERING = re.compile(r"^\s*(?:[-*•]|\d+[.)、．])\s*")
@@ -89,6 +94,39 @@ def clean(reply: str) -> list[str]:
         if MIN_CHARS <= len(text) <= MAX_CHARS and _ALLOWED.fullmatch(text):
             sentences.append(text)
     return sentences
+
+
+def styles_path(out: Path) -> Path:
+    """Sidecar of ``out``: one ``sentence<TAB>style id<TAB>source`` row per sentence."""
+    return out.with_name(out.stem + ".styles.tsv")
+
+
+def guess_style(text: str) -> str:
+    """Tone from punctuation, for sentences whose requested style was not recorded."""
+    if "…" in text or text.startswith(("嗯", "那個", "呃")):
+        return "shy"
+    if "？" in text or "?" in text:
+        return "question"
+    if "！" in text or "!" in text:
+        return "lively"
+    if any(character.isascii() and character.isalpha() for character in text):
+        return "english"
+    return "calm"
+
+
+def backfill_styles(out: Path) -> int:
+    """Add a guessed row for every sentence in ``out`` that has none; returns rows added."""
+    sidecar = styles_path(out)
+    labelled = set()
+    if sidecar.is_file():
+        labelled = {row.split("\t", 1)[0] for row in sidecar.read_text("utf-8").splitlines()}
+    missing = [
+        text for text in out.read_text(encoding="utf-8").splitlines() if text not in labelled
+    ]
+    if missing:
+        with sidecar.open("a", encoding="utf-8") as target:
+            target.writelines(f"{text}\t{guess_style(text)}\tguessed\n" for text in missing)
+    return len(missing)
 
 
 def load_env_file(path: Path) -> None:
@@ -159,6 +197,8 @@ def generate(
         if fresh:
             with out.open("a", encoding="utf-8") as target_file:
                 target_file.write("\n".join(fresh) + "\n")
+            with styles_path(out).open("a", encoding="utf-8") as target_file:
+                target_file.writelines(f"{text}\t{STYLE_IDS[style]}\trequested\n" for text in fresh)
             known.update(fresh)
             added += len(fresh)
         print(
@@ -179,7 +219,16 @@ def main() -> int:
     parser.add_argument("--max-requests", type=int, default=400)
     parser.add_argument("--pause", type=float, default=2.0, help="seconds between requests")
     parser.add_argument("--env-file", type=Path, default=None)
+    parser.add_argument(
+        "--backfill-styles",
+        action="store_true",
+        help="only label sentences that have no style row yet (no network), then exit",
+    )
     arguments = parser.parse_args()
+    if arguments.backfill_styles:
+        labelled = backfill_styles(arguments.out.expanduser())
+        print(f"labelled={labelled} styles={styles_path(arguments.out.expanduser())}")
+        return 0
     if arguments.env_file is not None:
         load_env_file(arguments.env_file.expanduser())
     key = os.environ.get("SIRO_OPENAI_API_KEY", "")

@@ -59,3 +59,25 @@ def test_generate_stops_after_repeated_failures(tmp_path: Path) -> None:
     sentences.time.sleep = lambda _seconds: None  # type: ignore[attr-defined]
     assert sentences.generate(ask, tmp_path / "s.txt", 10) == 0
     assert calls == 5
+
+
+def test_styles_are_recorded_for_new_sentences_and_backfilled_for_old(tmp_path: Path) -> None:
+    out = tmp_path / "s.txt"
+    out.write_text(
+        "嗯…我想一下喔。\n你今天過得好嗎？\n太棒了！\n這個 API 很好用。\n今天天氣不錯。\n", "utf-8"
+    )
+    assert sentences.backfill_styles(out) == 5
+    assert sentences.backfill_styles(out) == 0
+    rows = [row.split("\t") for row in sentences.styles_path(out).read_text("utf-8").splitlines()]
+    assert [row[1:] for row in rows] == [
+        ["shy", "guessed"],
+        ["question", "guessed"],
+        ["lively", "guessed"],
+        ["english", "guessed"],
+        ["calm", "guessed"],
+    ]
+
+    assert sentences.generate(lambda _prompt: "這是模型新產生的一句話。", out, 6) == 1
+    last = sentences.styles_path(out).read_text("utf-8").splitlines()[-1].split("\t")
+    assert last[0] == "這是模型新產生的一句話。" and last[2] == "requested"
+    assert last[1] in sentences.STYLE_IDS.values()
