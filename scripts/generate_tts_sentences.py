@@ -62,11 +62,39 @@ STYLES = (
     "有點害羞或猶豫、帶停頓的句子",
     "冷靜清楚的說明句",
     "夾雜一兩個常見英文單字或縮寫的句子",
+    "開心、雀躍的句子",
+    "難過、失落的句子",
+    "有點生氣或鬧彆扭的句子",
+    "驚訝、嚇一跳的句子",
+    "放鬆、慵懶的句子",
+    "擔心、不安的句子",
+    "很睏、想睡的句子",
+    "調皮、開玩笑逗對方的句子",
 )
 # Short ids for the styles above, written next to each sentence so a later TTS can be
-# trained with a tone label. "english" is a content style, not a tone.
+# trained with a tone label. "english" is a content style, not a tone. happy, sad, angry,
+# surprised and relaxed are the emotion names SIRO's replies already carry (motion_cues).
 STYLE_IDS = dict(
-    zip(STYLES, ("gentle", "question", "lively", "shy", "calm", "english"), strict=True)
+    zip(
+        STYLES,
+        (
+            "gentle",
+            "question",
+            "lively",
+            "shy",
+            "calm",
+            "english",
+            "happy",
+            "sad",
+            "angry",
+            "surprised",
+            "relaxed",
+            "worried",
+            "sleepy",
+            "teasing",
+        ),
+        strict=True,
+    )
 )
 MIN_CHARS, MAX_CHARS = 5, 40
 _ALLOWED = re.compile(r"^[一-鿿A-Za-z0-9，。！？、；：～…「」『』（）\- %.:/+,'!?&]+$")
@@ -172,11 +200,15 @@ def generate(
     max_requests: int = 400,
     pause: float = 0.0,
     seed: int = 0,
+    only_styles: frozenset[str] | None = None,
 ) -> int:
     """Append new sentences to ``out`` until it holds ``target``; returns how many were added."""
     out.parent.mkdir(parents=True, exist_ok=True)
     known = set(out.read_text(encoding="utf-8").splitlines()) if out.is_file() else set()
-    combos = list(itertools.product(TOPICS, STYLES))
+    styles = [s for s in STYLES if only_styles is None or STYLE_IDS[s] in only_styles]
+    if not styles:
+        raise ValueError("no known style id selected")
+    combos = list(itertools.product(TOPICS, styles))
     random.Random(seed + len(known)).shuffle(combos)
     added = failures = 0
     for request_index, (topic, style) in enumerate(itertools.cycle(combos)):
@@ -220,6 +252,11 @@ def main() -> int:
     parser.add_argument("--pause", type=float, default=2.0, help="seconds between requests")
     parser.add_argument("--env-file", type=Path, default=None)
     parser.add_argument(
+        "--styles",
+        default="",
+        help="comma-separated style ids to ask for (default all): " + ",".join(STYLE_IDS.values()),
+    )
+    parser.add_argument(
         "--backfill-styles",
         action="store_true",
         help="only label sentences that have no style row yet (no network), then exit",
@@ -243,6 +280,7 @@ def main() -> int:
         batch=arguments.batch,
         max_requests=arguments.max_requests,
         pause=arguments.pause,
+        only_styles=frozenset(arguments.styles.split(",")) if arguments.styles else None,
     )
     print(f"added={added} out={arguments.out.expanduser()}")
     return 0
