@@ -253,6 +253,44 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def model_hashes(model_path: Path, files: list[Path], memo: Path | None) -> list[tuple[str, str]]:
+    """Hash model files; with ``memo``, reuse digests whose size and mtime are unchanged."""
+    known: dict[str, list[object]] = {}
+    if memo is not None:
+        try:
+            loaded = json.loads(memo.read_bytes())
+            if isinstance(loaded, dict):
+                known = loaded
+        except (OSError, ValueError):
+            known = {}
+    fresh: dict[str, list[object]] = {}
+    result = []
+    for path in files:
+        name = str(path.relative_to(model_path))
+        stat = path.stat()
+        entry = known.get(name)
+        if (
+            isinstance(entry, list)
+            and len(entry) == 3
+            and entry[:2] == [stat.st_size, stat.st_mtime_ns]
+            and isinstance(entry[2], str)
+        ):
+            digest = entry[2]
+        else:
+            digest = file_sha256(path)
+        fresh[name] = [stat.st_size, stat.st_mtime_ns, digest]
+        result.append((name, digest))
+    if memo is not None and fresh != known:
+        try:
+            memo.parent.mkdir(parents=True, exist_ok=True)
+            temporary = memo.with_suffix(".tmp")
+            temporary.write_text(json.dumps(fresh))
+            temporary.replace(memo)
+        except OSError:
+            pass
+    return result
+
+
 def cache_fingerprint(
     model_path: Path,
     reference_path: Path,
@@ -261,6 +299,7 @@ def cache_fingerprint(
     generation_settings: dict[str, object],
     *,
     attention: str = "eager",
+    hash_memo: Path | None = None,
 ) -> str:
     files = sorted(path for path in model_path.rglob("*") if path.is_file())
     if not files:
@@ -269,7 +308,7 @@ def cache_fingerprint(
         "cache_version": CACHE_VERSION,
         "completion_protocol": COMPLETION_PROTOCOL,
         "segment_version": SEGMENT_VERSION,
-        "model": [(str(path.relative_to(model_path)), file_sha256(path)) for path in files],
+        "model": model_hashes(model_path, files, hash_memo),
         "reference_sha256": file_sha256(reference_path),
         "reference_text_sha256": hashlib.sha256(reference_text.encode()).hexdigest(),
         "versions": versions,
@@ -443,6 +482,7 @@ def main() -> int:
         versions,
         model._merge_generate_kwargs(max_new_tokens=MAX_NEW_TOKENS),
         attention=attention,
+        hash_memo=Path(cache_text) / "model-hashes.memo",
     )
     cache = Path(cache_text) / CACHE_VERSION / fingerprint
     cache.mkdir(parents=True, exist_ok=True)

@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 import logging
+import os
 import re
 import time
 import wave
@@ -275,7 +276,7 @@ class QwenReferenceTTS:
         reference_text: str,
         cache_dir: Path,
         *,
-        startup_timeout: float = 120,
+        startup_timeout: float | None = None,
         render_timeout: float = 900,
         lifecycle: bool = False,
         max_pending: int = 8,
@@ -292,7 +293,12 @@ class QwenReferenceTTS:
             reference_text,
             str(cache_dir),
         )
-        self._startup_timeout = startup_timeout
+        # Cold loads were measured at 55-117 s; 120 s made warmup fail and left speech dead.
+        self._startup_timeout = (
+            float(os.environ.get("SIRO_TTS_STARTUP_TIMEOUT", "300"))
+            if startup_timeout is None
+            else startup_timeout
+        )
         self._render_timeout = render_timeout
         self._process: asyncio.subprocess.Process | None = None
         self._lock = asyncio.Lock()
