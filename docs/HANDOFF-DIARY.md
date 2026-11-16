@@ -92,3 +92,23 @@ talker 就佔 1,728 MB 且已是 bfloat16，沒有 fp32 可省。**檔案在 pag
 可行路線：(A) `num_gpu=42` + TTS 閒置卸載＝平常 3.4 GB、說話時短暫 6.1 GB；(B) 嚴格分時，兩者不同時在顯卡，峰值 3.4 GB，
 每次說話前多等約 8 秒；(C) 對話走 Groq、TTS 常駐＝2.7 GB；(D) gemma `num_gpu=42` 常駐、語音改 Edge／Kokoro＝3.4 GB、聲線會變。
 `OllamaAdapter` 目前沒有 `num_gpu` 選項（電腦操控有 `SIRO_COMPUTER_OLLAMA_GPU_LAYERS`）；`launch_companion.py` 只從 `.env.local` 讀白名單內的鍵。
+
+## 2026-11-16 方案 A 第一步：對話模型可設定顯卡層數 — DONE（自動測試層級；預設不變）
+
+Owner 的限制（2026-11-16）：聲音與對話品質都不能降，SIRO 總 VRAM 目標 < 4 GB。所以不換聲線、不換小模型。
+
+修改：
+- `src/siro/adapters/models/ollama.py`：讀 `SIRO_OLLAMA_GPU_LAYERS`（0–256 整數），有設才在 `options` 加 `num_gpu`；沒設＝行為不變。
+- `scripts/launch_companion.py`：`.env.local` 白名單加 `SIRO_OLLAMA_GPU_LAYERS`、`SIRO_OLLAMA_KEEP_ALIVE`（後者原本讀不到）。
+- 新增 `tests/contract/test_ollama_gpu_layers.py`。
+
+驗證：Ollama contract 四檔＋`test_companion_launcher.py`＋`tests/unit/test_model_router.py` 80 passed；ruff、mypy（adapter）通過。
+
+要生效：owner 在 `.env.local` 加 `SIRO_OLLAMA_GPU_LAYERS=42` 後重啟（我沒有改 owner 的 `.env.local`）。
+未驗：設了之後 live 對話的實際 VRAM 與速度（上表是直接打 Ollama API 量的）。
+已知風險：其他直接打 Ollama 的呼叫點沒有帶 `num_gpu`（`ollama_memory_relevance.py`、電腦操控的 `hybrid.py`／`numbered.py`／`decision.py`，
+後者有自己的 `SIRO_COMPUTER_OLLAMA_GPU_LAYERS`）。若它們用同一個模型但選項不同，Ollama 可能重載回全 GPU；要看 `journalctl --user -u ollama` 的載入次數確認。
+
+下一步（方案 A 第二步）：讓 TTS 模型檔留在 page cache，使閒置卸載後重載約 8 秒而不是 55–117 秒。
+候選做法：Windows 使用者目錄 `.wslconfig` 的 `[experimental] autoMemoryReclaim=disabled`（改 owner 的系統設定，需 owner 同意），
+或 gateway 定期讀一次模型檔。兩者都還沒做、也還沒驗證哪個有效。

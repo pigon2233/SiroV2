@@ -80,6 +80,12 @@ class OllamaAdapter:
         if configured is not None and not re.fullmatch(r"-?\d+|\d+[smh]", configured):
             raise ValueError("keep_alive must be seconds or a duration such as 30m")
         self._keep_alive = configured or None
+        # Layers kept on the GPU; unset lets Ollama decide. On the 8 GB card 42 of gemma4:e4b's
+        # layers measured 3.4 GB instead of 4.6 GB at 45 instead of 53 tok/s (same weights).
+        layers = os.environ.get("SIRO_OLLAMA_GPU_LAYERS", "").strip()
+        if layers and not (layers.isdigit() and int(layers) <= 256):
+            raise ValueError("SIRO_OLLAMA_GPU_LAYERS must be an integer between 0 and 256")
+        self._gpu_layers = int(layers) if layers else None
 
     async def stream(
         self, request: ModelRequest, cancellation: CancellationToken
@@ -105,6 +111,8 @@ class OllamaAdapter:
                 "num_predict": request.max_output_tokens,
                 "num_ctx": self._context_length,
             }
+        if self._gpu_layers is not None:
+            cast(dict[str, object], payload["options"])["num_gpu"] = self._gpu_layers
         if request.tools:
             payload["tools"] = [
                 {
