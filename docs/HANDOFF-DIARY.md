@@ -370,7 +370,7 @@ Owner（2026-11-17，經協調端轉述原話）：「訓練吧」，並問閒�
 需要下載（都還沒做）：MeloTTS 原始碼（GitHub）、其 Python 相依套件（含 torch，數 GB，裝進新的 `~/.venvs/melotts`）、
 `python -m unidic download`、HuggingFace 上的 BERT 模型與（若要微調）MeloTTS 中文預訓練 checkpoint。
 
-## 2026-11-17 語音訓練 階段 1、2（MeloTTS）— 階段 2 PARTIAL（文字前處理與下載待 owner 同意）
+## 2026-11-17 語音訓練 階段 1、2（MeloTTS）— 階段 2 DONE（未開始訓練）
 
 階段 1（DONE）：`~/tts-train/MeloTTS`（commit 2091453）；獨立 venv `~/.venvs/melotts`（uv、Python 3.10.21、7.1 GB）：
 torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip install -e .`、unidic 3.1.0。
@@ -387,10 +387,15 @@ torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip in
   `ZH_MIX_EN`（Melo 官方 ZH 模型推論時就是用它）0 錯誤、0 未知音素；只丟掉 `% . : & / +` 共 19 個符號。數字由 cn2an 轉中文（「3D」→「三D」）。
 - 繁體（結論：**需要轉簡體再給前端**）：繁體字本身都能轉拼音、不報錯，但 jieba 斷詞用簡體詞典，多音字會選錯。
   自製 14 組繁／簡對照有 5 組不同：音樂 yin **le**、配樂 pei **le**、樂團 **le**、睡覺 shui **jue**、銀行 yin **xing**（簡體都正確）。
-  決定：`prepare_melo_dataset.py --t2s` 用 opencc t2s 只轉給前端的文字；推論時也要先 t2s。**未完成**：在 melotts venv 安裝 `opencc` 被權限擋下，需 owner 同意。
-- 預訓練（未完成）：`check_melo_pretrained.py` 會下載 train.py 預設載入的 `pretrained/G.pth、D.pth、DUR.pth`、ZH base checkpoint／config、
-  `bert-base-multilingual-uncased`，並比對張量形狀；執行（下載）被權限擋下，尚未跑。
+  決定：`prepare_melo_dataset.py --t2s` 用 opencc t2s 只轉給前端的文字；推論時也要先 t2s。（owner 同意後已在 melotts venv 裝 opencc 1.4.2，`metadata.list` 已是簡體。）
+- 前處理（DONE）：`cd ~/tts-train/MeloTTS/melo && ~/.venvs/melotts/bin/python preprocess_text.py --metadata ~/tts-train/data/siro-sweet-b-v1/metadata.list --val-per-spk 30 --max-val-total 30`
+  → 0 錯誤、0 新符號；train.list 2,619、val.list 30；2,649 個 `.bert.pt`；`config.json`（n_speakers 1、spk2id siro:0、batch_size 6）。log 在資料夾內 `preprocess.log`。
+- 預訓練權重（2026-11-17 實測）：train.py 預設載入的 S3 `pretrained/G.pth、D.pth、DUR.pth` 和 S3 ZH checkpoint **全部 404**。
+  僅 HuggingFace `myshell-ai/MeloTTS-Chinese` 的 `checkpoint.pth`（G，198 MB）可下載；**沒有官方 D／DUR**，只能從隨機初始化（音質風險，未驗證）。
+  ZH 模型的表是 112 符號／11 tone／4 語言／256 speaker，我們的 config 是 219／16／8／1；直接載入會讓 phone/tone/語言 embedding 變隨機。
+  `convert_zh_checkpoint.py` 依符號名稱重排（ZH 的 112 個符號都在我們表中，我們用到的 92 個音素都在 ZH 表中；tone/語言編號前段一致），
+  speaker 用 ZH speaker 初始化 → `~/tts-train/pretrained/zh-remapped/G_0.pth`；`utils.load_checkpoint` 載入 0 mismatch。
+  BERT `bert-base-multilingual-uncased` 已在 `~/.cache/huggingface`。
+- **階段 3 必須先處理**：`train.py` 第 169 行無條件呼叫 `load_pretrain_model()`（S3 404 → 直接 crash），`train.sh` 也不傳 `--pretrain_G`。
+  需改 train.py（只在沒指定時才下載、失敗不當掉）並以 `--pretrain_G ~/tts-train/pretrained/zh-remapped/G_0.pth` 啟動。
 - batch_size：官方 config 為 6（segment_size 16384）。沒實測；8 GB 建議先 4，OOM 再降 2–3（推估，未驗證）。
-- 下一步（owner 同意下載後）：裝 opencc → `prepare_melo_dataset.py --t2s`（音檔已存在會跳過）→
-  `cd ~/tts-train/MeloTTS/melo && ~/.venvs/melotts/bin/python preprocess_text.py --metadata ~/tts-train/data/siro-sweet-b-v1/metadata.list --val-per-spk 30 --max-val-total 30`
-  → 跑 `check_melo_pretrained.py --config <產生的 config.json>`。之後才是訓練（階段 3）。

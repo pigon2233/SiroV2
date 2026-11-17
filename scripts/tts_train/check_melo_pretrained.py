@@ -60,13 +60,31 @@ def main() -> int:
 
     import melo
     from melo import utils
-    from melo.download_utils import DOWNLOAD_CKPT_URLS, DOWNLOAD_CONFIG_URLS, load_pretrain_model
+    from melo.download_utils import (
+        DOWNLOAD_CKPT_URLS,
+        DOWNLOAD_CONFIG_URLS,
+        LANG_TO_HF_REPO_ID,
+        load_pretrain_model,
+    )
     from melo.models import MultiPeriodDiscriminator
     from melo.text.symbols import num_languages, num_tones, symbols
 
-    g_path, d_path, dur_path = load_pretrain_model()
-    zh_ckpt = str(cached_path(DOWNLOAD_CKPT_URLS["ZH"]))
-    zh_cfg = str(cached_path(DOWNLOAD_CONFIG_URLS["ZH"]))
+    # The S3 URLs in download_utils returned 404 on 2026-11-17; keep trying them so
+    # a restored host is noticed, but fall back to the HuggingFace ZH model.
+    try:
+        g_path, d_path, dur_path = (str(p) for p in load_pretrain_model())
+    except Exception as exc:  # noqa: BLE001
+        print(f"generic pretrained G/D/DUR unavailable: {exc!r}")
+        g_path = d_path = dur_path = None
+    try:
+        zh_ckpt = str(cached_path(DOWNLOAD_CKPT_URLS["ZH"]))
+        zh_cfg = str(cached_path(DOWNLOAD_CONFIG_URLS["ZH"]))
+    except Exception as exc:  # noqa: BLE001
+        print(f"ZH checkpoint on S3 unavailable ({exc!r}); using HuggingFace")
+        from huggingface_hub import hf_hub_download
+
+        zh_ckpt = hf_hub_download(LANG_TO_HF_REPO_ID["ZH"], "checkpoint.pth")
+        zh_cfg = hf_hub_download(LANG_TO_HF_REPO_ID["ZH"], "config.json")
 
     from transformers import AutoModelForMaskedLM, AutoTokenizer
 
@@ -90,10 +108,14 @@ def main() -> int:
           f"symbols={len(zh['symbols'])} spk2id={zh['data']['spk2id']}")
 
     net_g = build_generator(hps)
-    compare("pretrained G", g_path, net_g)
+    if g_path:
+        compare("pretrained G", g_path, net_g)
     compare("ZH base G", zh_ckpt, net_g)
-    compare("pretrained D", d_path, MultiPeriodDiscriminator(hps.model.use_spectral_norm))
-    print(f"pretrained DUR: {dur_path} ({os.path.getsize(dur_path) / 2**20:.0f} MB)")
+    if d_path:
+        compare("pretrained D", d_path, MultiPeriodDiscriminator(hps.model.use_spectral_norm))
+        print(f"pretrained DUR: {dur_path} ({os.path.getsize(dur_path) / 2**20:.0f} MB)")
+    else:
+        print("no pretrained D / DUR: they would start from random init")
     return 0
 
 
