@@ -400,7 +400,7 @@ torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip in
   需改 train.py（只在沒指定時才下載、失敗不當掉）並以 `--pretrain_G ~/tts-train/pretrained/zh-remapped/G_0.pth` 啟動。
 - batch_size：官方 config 為 6（segment_size 16384）。沒實測；8 GB 建議先 4，OOM 再降 2–3（推估，未驗證）。
 
-## 2026-11-17 語音訓練 階段 3：訓練設定與試跑 — PARTIAL（正式開跑待 owner 親自同意）
+## 2026-11-17 語音訓練 階段 3：訓練中（owner 親自同意後於 22:35 開跑）
 
 - SIRO：檢查時已經沒在跑（沒有 gateway／TTS 程序、`ollama ps` 無模型、GPU 只用 922 MiB，是 Windows 桌面）。`Stop-SIRO-Win.cmd` 執行被權限擋下（協調端轉述的同意不算），但實際上不需要。
 - MeloTTS 修改（`scripts/tts_train/melotts-train.patch`，套在 `~/tts-train/MeloTTS` commit 2091453）：
@@ -413,7 +413,7 @@ torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip in
   - 第 0 步 loss：disc 5.98、gen 3.58、fm 0.41、mel 26.0、dur 3.30、kl 5.87；之後的 loss 趨勢還沒看到（第一次試跑的 log 被我的 stdout 導向覆寫；已改為 stdout → `console.log`）。
   - 第 0 步會做一次 eval（30 句）並存 checkpoint，要等約 1–2 分鐘才開始跑步數。
 - 預估：20k 步 × 0.78 秒 ≈ 4.3 小時，加上每 1000 步的 eval／存檔，約 4.5–5 小時（推估）。
-- 開跑（**還沒開跑**；背景啟動被權限擋下，需 owner 同意）：
+- 開跑（2026-11-17 22:35 已用下列指令啟動；第 300 步 mel 16.4、kl 2.8，比第 0 步下降；約 0.83 秒／步）：
   `setsid nohup bash /mnt/e/coding/股票策略機器學習/SiroV2/scripts/tts_train/train_siro.sh > ~/tts-train/train_siro.nohup 2>&1 < /dev/null &`
   run 資料夾 `~/tts-train/runs/siro-sweet-b-v1/`：`train.log`（loss）、`console.log`（stdout）、`G_/D_/DUR_*.pth`（每 1000 步、保留 3 組）。
   看進度：`bash scripts/tts_train/status.sh`；要停：`touch ~/tts-train/runs/siro-sweet-b-v1/STOP` 再 `pkill -f 'train.py --c'`。

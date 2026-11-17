@@ -15,7 +15,10 @@ rows = []
 for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
     m = re.search(r"(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d).*\[([^\]]+)\]\s*$", line)
     if m and "INFO" in line:
-        vals = [float(v) for v in m.group(2).split(",")]
+        try:
+            vals = [float(v) for v in m.group(2).split(",")]
+        except ValueError:  # e.g. "Train Epoch: 1 [0%]"
+            continue
         if len(vals) >= 8:
             rows.append((datetime.fromisoformat(m.group(1)), int(vals[6]), vals))
 if rows:
