@@ -1,0 +1,43 @@
+diff --git a/melo/train.py b/melo/train.py
+index 88b4fe6..c8fd031 100644
+--- a/melo/train.py
++++ b/melo/train.py
+@@ -78,7 +78,7 @@ def run():
+     collate_fn = TextAudioSpeakerCollate()
+     train_loader = DataLoader(
+         train_dataset,
+-        num_workers=16,
++        num_workers=getattr(hps.train, "num_workers", 16),  # SIRO patch: configurable
+         shuffle=False,
+         pin_memory=True,
+         collate_fn=collate_fn,
+@@ -166,10 +166,17 @@ def run():
+     net_g = DDP(net_g, device_ids=[rank], find_unused_parameters=True)
+     net_d = DDP(net_d, device_ids=[rank], find_unused_parameters=True)
+     
+-    pretrain_G, pretrain_D, pretrain_dur = load_pretrain_model()
+-    hps.pretrain_G = hps.pretrain_G or pretrain_G
+-    hps.pretrain_D = hps.pretrain_D or pretrain_D
+-    hps.pretrain_dur = hps.pretrain_dur or pretrain_dur
++    # SIRO patch: the S3 pretrained G/D/DUR return 404 (2026-11-17). Only download
++    # when no --pretrain_G was given, and never crash on a failed download; D/DUR
++    # without a checkpoint simply start from random init.
++    if not hps.pretrain_G:
++        try:
++            pretrain_G, pretrain_D, pretrain_dur = load_pretrain_model()
++            hps.pretrain_G = hps.pretrain_G or pretrain_G
++            hps.pretrain_D = hps.pretrain_D or pretrain_D
++            hps.pretrain_dur = hps.pretrain_dur or pretrain_dur
++        except Exception as e:
++            print("pretrained download failed, training from scratch:", e)
+ 
+     if hps.pretrain_G:
+         utils.load_checkpoint(
+@@ -281,6 +288,7 @@ def run():
+                 )
+         except Exception as e:
+             print(e)
++            import traceback; traceback.print_exc()  # SIRO patch: show where an epoch died
+             torch.cuda.empty_cache()
+         scheduler_g.step()
+         scheduler_d.step()

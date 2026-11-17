@@ -399,3 +399,22 @@ torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip in
 - **階段 3 必須先處理**：`train.py` 第 169 行無條件呼叫 `load_pretrain_model()`（S3 404 → 直接 crash），`train.sh` 也不傳 `--pretrain_G`。
   需改 train.py（只在沒指定時才下載、失敗不當掉）並以 `--pretrain_G ~/tts-train/pretrained/zh-remapped/G_0.pth` 啟動。
 - batch_size：官方 config 為 6（segment_size 16384）。沒實測；8 GB 建議先 4，OOM 再降 2–3（推估，未驗證）。
+
+## 2026-11-17 語音訓練 階段 3：訓練設定與試跑 — PARTIAL（正式開跑待 owner 親自同意）
+
+- SIRO：檢查時已經沒在跑（沒有 gateway／TTS 程序、`ollama ps` 無模型、GPU 只用 922 MiB，是 Windows 桌面）。`Stop-SIRO-Win.cmd` 執行被權限擋下（協調端轉述的同意不算），但實際上不需要。
+- MeloTTS 修改（`scripts/tts_train/melotts-train.patch`，套在 `~/tts-train/MeloTTS` commit 2091453）：
+  (1) 有 `--pretrain_G` 時不下載 S3 預訓練、下載失敗不當掉（D/DUR 從零）；(2) `num_workers` 可由 config 設（原寫死 16）；
+  (3) epoch 迴圈的 except 會吞掉整個 epoch，只印一行錯誤 → 加 `traceback.print_exc()`。
+- 環境補件：melotts venv 裝 `matplotlib<3.8`（3.7.5）。train.py 每次 log 會畫頻譜圖；沒裝會讓每個 epoch 在第一次 log 就被吞掉，3.8+ 沒有 `tostring_rgb`。
+- 試跑（batch 4，`train_config.json` 由 `train_siro.sh` 產生）：
+  - **fp16 不能用**：第一步就在 duration predictor 的 spline 出現 NaN → 空 tensor（`min(): ... numel() == 0`），所以 `train_siro.sh` 預設 `FP16=false`。
+  - fp32：7 分鐘跑到第 413 步，沒有 OOM，峰值 VRAM 約 6.2 GB（含 Windows 約 0.9 GB），約 **0.78 秒／步**（1.25–1.3 it/s）。
+  - 第 0 步 loss：disc 5.98、gen 3.58、fm 0.41、mel 26.0、dur 3.30、kl 5.87；之後的 loss 趨勢還沒看到（第一次試跑的 log 被我的 stdout 導向覆寫；已改為 stdout → `console.log`）。
+  - 第 0 步會做一次 eval（30 句）並存 checkpoint，要等約 1–2 分鐘才開始跑步數。
+- 預估：20k 步 × 0.78 秒 ≈ 4.3 小時，加上每 1000 步的 eval／存檔，約 4.5–5 小時（推估）。
+- 開跑（**還沒開跑**；背景啟動被權限擋下，需 owner 同意）：
+  `setsid nohup bash /mnt/e/coding/股票策略機器學習/SiroV2/scripts/tts_train/train_siro.sh > ~/tts-train/train_siro.nohup 2>&1 < /dev/null &`
+  run 資料夾 `~/tts-train/runs/siro-sweet-b-v1/`：`train.log`（loss）、`console.log`（stdout）、`G_/D_/DUR_*.pth`（每 1000 步、保留 3 組）。
+  看進度：`bash scripts/tts_train/status.sh`；要停：`touch ~/tts-train/runs/siro-sweet-b-v1/STOP` 再 `pkill -f 'train.py --c'`。
+- 試跑留下的 `~/tts-train/runs/smoke-b4/` 可刪。
