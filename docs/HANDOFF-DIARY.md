@@ -369,3 +369,28 @@ Owner（2026-11-17，經協調端轉述原話）：「訓練吧」，並問閒�
 
 需要下載（都還沒做）：MeloTTS 原始碼（GitHub）、其 Python 相依套件（含 torch，數 GB，裝進新的 `~/.venvs/melotts`）、
 `python -m unidic download`、HuggingFace 上的 BERT 模型與（若要微調）MeloTTS 中文預訓練 checkpoint。
+
+## 2026-11-17 語音訓練 階段 1、2（MeloTTS）— 階段 2 PARTIAL（文字前處理與下載待 owner 同意）
+
+階段 1（DONE）：`~/tts-train/MeloTTS`（commit 2091453）；獨立 venv `~/.venvs/melotts`（uv、Python 3.10.21、7.1 GB）：
+torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip install -e .`、unidic 3.1.0。
+`import melo`／`melo.api.TTS` 成功、`torch.cuda.is_available()` 為 True（RTX 3050 8 GB）。
+坑：setuptools 84 拿掉 `pkg_resources`，librosa 0.9.1 import 失敗 → 釘 `setuptools<81`（80.10.2）。第一次 import 會自動下載 nltk 資料到 `~/nltk_data`。
+
+階段 2（腳本在 `scripts/tts_train/`，只用 `~/.venvs/melotts` 跑）：
+- 格式（讀 `docs/training.md`、`preprocess_text.py`、`data_utils.py`、`configs/config.json`）：`metadata.list` 每行 `wav|speaker|語言|文字`；
+  預設 44.1 kHz、hop 512；`data_utils` 用檔案大小估長度，所以必須單聲道 16-bit；bert 特徵存成 `<wav>.bert.pt`；
+  `preprocess_text.py` 預設 val 每人 4 句、上限 8 → 要加 `--val-per-spk 30 --max-val-total 30`；需在 `melo/` 目錄執行並用 GPU 算 BERT。
+- 音檔（DONE）：`prepare_melo_dataset.py` → `~/tts-train/data/siro-sweet-b-v1/wavs/`，2,649 檔、44.1 kHz／單聲道／16-bit、924 MB，
+  scipy `resample_poly`，0 檔削波，時長與原檔一致。原始語料未修改。來源是 24 kHz，所以 12 kHz 以上沒有內容（升頻不會補回）。
+- 語言碼（決定）：用 **`ZH_MIX_EN`**，不是 `ZH`。`probe_zh_frontend.py` 全量測試：`ZH` 會把英文刪掉並在 222 句 assert 失敗；
+  `ZH_MIX_EN`（Melo 官方 ZH 模型推論時就是用它）0 錯誤、0 未知音素；只丟掉 `% . : & / +` 共 19 個符號。數字由 cn2an 轉中文（「3D」→「三D」）。
+- 繁體（結論：**需要轉簡體再給前端**）：繁體字本身都能轉拼音、不報錯，但 jieba 斷詞用簡體詞典，多音字會選錯。
+  自製 14 組繁／簡對照有 5 組不同：音樂 yin **le**、配樂 pei **le**、樂團 **le**、睡覺 shui **jue**、銀行 yin **xing**（簡體都正確）。
+  決定：`prepare_melo_dataset.py --t2s` 用 opencc t2s 只轉給前端的文字；推論時也要先 t2s。**未完成**：在 melotts venv 安裝 `opencc` 被權限擋下，需 owner 同意。
+- 預訓練（未完成）：`check_melo_pretrained.py` 會下載 train.py 預設載入的 `pretrained/G.pth、D.pth、DUR.pth`、ZH base checkpoint／config、
+  `bert-base-multilingual-uncased`，並比對張量形狀；執行（下載）被權限擋下，尚未跑。
+- batch_size：官方 config 為 6（segment_size 16384）。沒實測；8 GB 建議先 4，OOM 再降 2–3（推估，未驗證）。
+- 下一步（owner 同意下載後）：裝 opencc → `prepare_melo_dataset.py --t2s`（音檔已存在會跳過）→
+  `cd ~/tts-train/MeloTTS/melo && ~/.venvs/melotts/bin/python preprocess_text.py --metadata ~/tts-train/data/siro-sweet-b-v1/metadata.list --val-per-spk 30 --max-val-total 30`
+  → 跑 `check_melo_pretrained.py --config <產生的 config.json>`。之後才是訓練（階段 3）。
