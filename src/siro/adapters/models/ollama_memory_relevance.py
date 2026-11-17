@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
+from siro.adapters.models import ollama_options
 from siro.ports.embeddings import RetrievalUnavailable
 from siro.ports.memory_relevance import RelevanceCandidate
 
@@ -269,9 +270,16 @@ class OllamaMemoryRelevance:
                             "temperature": 0,
                             "seed": 42,
                             "num_predict": OUTPUT_TOKENS,
-                            "num_ctx": CONTEXT_TOKENS,
+                            "num_ctx": ollama_options.context_length(
+                                None, self._model, CONTEXT_TOKENS
+                            ),
+                            **(
+                                {}
+                                if (layers := ollama_options.gpu_layers(None, self._model)) is None
+                                else {"num_gpu": layers}
+                            ),
                         },
-                        "keep_alive": "5m",
+                        "keep_alive": ollama_options.keep_alive(default="5m"),
                     },
                 )
                 response.raise_for_status()

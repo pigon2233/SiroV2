@@ -206,7 +206,7 @@ async def test_vision_decider_runs_claude_with_read_only_screenshot() -> None:
 
     async def run(argv: tuple[str, ...], *, cwd: Path, **kwargs: Any) -> dict[str, object]:
         captured.update(
-            argv=argv, shot=(cwd / "screen.png").read_bytes(), env=kwargs["environment"]
+            argv=argv, shot=(cwd / "screen.jpg").read_bytes(), env=kwargs["environment"]
         )
         return {"returncode": 0, "stdout": json.dumps({"result": GOOD, "is_error": False})}
 
@@ -255,7 +255,7 @@ async def test_vision_decider_retries_transient_claude_failure(
 
     async def flaky(*args: Any, **kwargs: Any) -> dict[str, object]:
         calls["n"] += 1
-        if calls["n"] < 3:
+        if calls["n"] < 2:  # the decider makes at most two attempts
             return {"returncode": 1, "stdout": ""}
         return {"returncode": 0, "stdout": json.dumps({"result": GOOD, "is_error": False})}
 
@@ -263,7 +263,7 @@ async def test_vision_decider_retries_transient_claude_failure(
         binary=Path("claude"), run=flaky, env={"SIRO_COMPUTER_CLOUD_SCREEN": "1"}
     )
     assert (await decider.decide("g", [], _obs())).kind == "act"
-    assert calls["n"] == 3
+    assert calls["n"] == 2
 
 
 @pytest.mark.asyncio
@@ -323,7 +323,8 @@ async def test_shell_parked_in_a_long_poll_counts_as_online() -> None:
 
 def test_parse_decision_accepts_combo_alias_and_hold() -> None:
     decision = parse_decision(
-        '{"kind":"act","action":{"kind":"key","combo":"ctrl+a","hold_ms":300},"confidence":0.7}'
+        '{"kind":"act","action":{"kind":"key","combo":"ctrl+a","hold_ms":300},'
+        '"expect":"all selected","confidence":0.7}'
     )
     assert decision.action == InputAction("key", key="ctrl+a", hold_ms=300)
 
@@ -336,7 +337,7 @@ def test_seen_is_parsed_and_shown_in_history() -> None:
     )
     assert decision.kind == "wait" and decision.seen == "intro panel with text"
     text = _history_text([StepRecord(1, "key(z)", "next line", "ok", True, "title screen")])
-    assert "saw: title screen" in text and "did: key(z)" in text
+    assert "saw=title screen" in text and "did=key(z)" in text
 
 
 @pytest.mark.asyncio

@@ -11,6 +11,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from siro.adapters.models import ollama_options
 from siro.services.computer_use.decision import (
     DEFAULT_GROQ_MODEL,
     DEFAULT_OLLAMA_MODEL,
@@ -148,18 +149,25 @@ class NumberSelector:
                 == "1"
             ):
                 options["draft_num_predict"] = 0
-            layers = self.env.get("SIRO_COMPUTER_OLLAMA_GPU_LAYERS")
-            if layers is not None:
-                if not layers.isdigit() or not 0 <= int(layers) <= 256:
-                    raise DecisionError("ollama_gpu_layers_invalid")
-                options["num_gpu"] = int(layers)
-            payload: dict[str, Any] = {
-                "model": self.env.get("SIRO_COMPUTER_OLLAMA_MODEL")
+            model = (
+                self.env.get("SIRO_COMPUTER_OLLAMA_MODEL")
                 or self.env.get("SIRO_OLLAMA_MODEL")
-                or DEFAULT_OLLAMA_MODEL,
+                or DEFAULT_OLLAMA_MODEL
+            )
+            options["num_ctx"] = ollama_options.context_length(self.env, model, 8192)
+            try:
+                layers = ollama_options.gpu_layers(
+                    self.env, model, override="SIRO_COMPUTER_OLLAMA_GPU_LAYERS"
+                )
+            except ValueError:
+                raise DecisionError("ollama_gpu_layers_invalid") from None
+            if layers is not None:
+                options["num_gpu"] = layers
+            payload: dict[str, Any] = {
+                "model": model,
                 "stream": False,
                 "think": False,
-                "keep_alive": self.env.get("SIRO_OLLAMA_KEEP_ALIVE", "5m"),
+                "keep_alive": ollama_options.keep_alive(self.env),
                 "options": options,
                 "messages": [{"role": "user", "content": prompt}],
             }

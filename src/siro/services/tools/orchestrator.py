@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sqlite3
 from collections.abc import Awaitable, Callable
 from copy import deepcopy
@@ -190,6 +191,11 @@ class ToolMetadata:
     failure_behavior: str | None = None
 
 
+_CONTEXT_BOOKKEEPING = frozenset(
+    {"model_visible", "display_name", "version", "provenance", "timeout_seconds"}
+)
+
+
 @dataclass(frozen=True, slots=True)
 class ToolCatalogSnapshot:
     definitions: tuple[ToolDefinition, ...]
@@ -204,11 +210,27 @@ class ToolCatalogSnapshot:
             for row in self.inventory
             if row["model_visible"]
         ]
+        compact = os.environ.get("SIRO_CAPABILITY_CONTEXT", "compact") != "full"
+        if compact:
+            # Sent every turn to a small local model: keep what guides a decision, drop
+            # bookkeeping, unset fields, and the reason code of tools that are simply ready.
+            rows = [
+                {
+                    k: v
+                    for k, v in row.items()
+                    if k not in _CONTEXT_BOOKKEEPING
+                    and (v is not None or k == "output_contract")
+                    and not (k == "reason_code" and v == AvailabilityReason.READY.value)
+                }
+                for row in rows
+            ]
         return json.dumps(
             {
                 "authorizes_execution": False,
                 "instruction": "Registered capabilities for this request, not proof of success. "
-                "Use only current request tool definitions; null means unknown. "
+                "Use only current request tool definitions; "
+                + ("a missing field" if compact else "null")
+                + " means unknown. "
                 "Unavailable tools must not be bypassed with another capability.",
                 "capabilities": rows,
             },

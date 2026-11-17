@@ -148,6 +148,7 @@ from siro.services.tools.skill_candidates import (
     SkillCandidateClosed,
     SkillCandidatePreparer,
 )
+from siro.services.tools.web_search import WEB_SEARCH_DEFINITION, WEB_SEARCH_TOOL, WebSearch
 from siro.services.tools.workspace import WorkspaceRuntime
 
 
@@ -3089,6 +3090,16 @@ def _run_gateway(
         handlers[CLAUDE_TOOL] = browser_without_context
         claude_contextual[CLAUDE_TOOL] = partial(ask_claude, model=claude_tool_model)
 
+    # Optional web search (SIRO_WEB_SEARCH); a bad setting disables it instead of blocking startup.
+    web_search = None
+    if runtime_profile == "candidate":
+        try:
+            web_search = WebSearch.from_env(os.environ)
+        except ValueError as error:
+            logging.getLogger(__name__).warning("web search disabled: %s", error)
+    if web_search is not None:
+        handlers[WEB_SEARCH_TOOL] = web_search.execute
+
     # Desktop control exists only with SIRO_COMPUTER_TOKEN; the owner's tray switch still gates use.
     computer_runs = computer_shared_runs() if runtime_profile == "candidate" else None
     if computer_runs is not None:
@@ -3106,6 +3117,8 @@ def _run_gateway(
     if browser_sessions is not None:
         definitions.update({d.name: d for d in BROWSER_SESSION_TOOLS})
     definitions[CLAUDE_TOOL] = CLAUDE_DEFINITION
+    if web_search is not None:
+        definitions[WEB_SEARCH_TOOL] = WEB_SEARCH_DEFINITION
     if computer_runs is not None:
         definitions.update(computer_tool.DEFINITIONS)
 
@@ -3116,6 +3129,12 @@ def _run_gateway(
             )
         if name in computer_tool.COMPUTER_TOOL_NAMES:
             ready = computer_runs is not None and computer_tool.computer_ready(computer_runs, name)
+            return ToolAvailability(
+                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
+                AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,
+            )
+        if name == WEB_SEARCH_TOOL:  # the query leaves this machine
+            ready = state.kill_switches["cloud"]
             return ToolAvailability(
                 AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
                 AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,
@@ -3155,10 +3174,12 @@ def _run_gateway(
             "filesystem.read": "讀取工作目錄文字檔",
             "filesystem.list": "查看工作目錄檔案",
             CLAUDE_TOOL: "請 Claude 幫忙查",
+            WEB_SEARCH_TOOL: "搜尋網路",
             **computer_tool.LABELS,
         }
         read_only = name in computer_tool.READ_ONLY or name in {
             CLAUDE_TOOL,
+            WEB_SEARCH_TOOL,
             "browser.navigate+read",
             "browser.read",
             "filesystem.read",
@@ -3201,6 +3222,7 @@ def _run_gateway(
                     or name
                     in {
                         CLAUDE_TOOL,
+                        WEB_SEARCH_TOOL,
                         "browser.navigate+read",
                         "browser.read",
                         "filesystem.read",

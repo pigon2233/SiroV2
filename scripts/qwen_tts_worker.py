@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import wave
 from collections.abc import Iterator
 from importlib.metadata import version
@@ -177,6 +178,61 @@ class FastVoiceClone:
     def __init__(self, fast: Any) -> None:
         self.fast = fast
         self.model = fast.model if hasattr(fast, "model") else fast.base_model
+        self.parked = False
+
+    def park(self) -> None:
+        """Move the weights to system RAM so the GPU is free; unpark() brings them back.
+
+        The captured CUDA graphs point at the old GPU tensors, so they are dropped here and
+        rebuilt on return. Generating on stale graphs raises a device-side assert that
+        poisons the whole CUDA context.
+        """
+        if self.parked:
+            return
+        import gc
+
+        import torch  # type: ignore[import-not-found]
+
+        self.fast.predictor_graph = None
+        self.fast.talker_graph = None
+        self.model.model.to("cpu")
+        gc.collect()
+        torch.cuda.empty_cache()
+        self.parked = True
+
+    def unpark(self) -> None:
+        if not self.parked:
+            return
+        from faster_qwen3_tts.predictor_graph import (  # type: ignore[import-not-found]
+            PredictorGraph,
+        )
+        from faster_qwen3_tts.talker_graph import TalkerGraph  # type: ignore[import-not-found]
+
+        root = self.model.model.to(self.fast.device)
+        talker = root.talker
+        config = root.config.talker_config
+        predictor = talker.code_predictor
+        # Same construction as FasterQwen3TTS.from_pretrained.
+        self.fast.predictor_graph = PredictorGraph(
+            predictor,
+            predictor.model.config,
+            config.hidden_size,
+            device=self.fast.device,
+            dtype=self.fast.dtype,
+            do_sample=True,
+            top_k=50,
+            temperature=0.9,
+        )
+        self.fast.talker_graph = TalkerGraph(
+            talker.model,
+            config,
+            device=self.fast.device,
+            dtype=self.fast.dtype,
+            max_seq_len=self.fast.max_seq_len,
+        )
+        self.fast._warmed_up = False
+        self.fast.warmup(prefill_len=100)
+        self.parked = False
 
     def synthesize(self, text: str, voice: Any) -> tuple[Any, int, dict[str, object]]:
         import faster_qwen3_tts.generate as fast_generate_module  # type: ignore[import-not-found]
@@ -253,6 +309,44 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def model_hashes(model_path: Path, files: list[Path], memo: Path | None) -> list[tuple[str, str]]:
+    """Hash model files; with ``memo``, reuse digests whose size and mtime are unchanged."""
+    known: dict[str, list[object]] = {}
+    if memo is not None:
+        try:
+            loaded = json.loads(memo.read_bytes())
+            if isinstance(loaded, dict):
+                known = loaded
+        except (OSError, ValueError):
+            known = {}
+    fresh: dict[str, list[object]] = {}
+    result = []
+    for path in files:
+        name = str(path.relative_to(model_path))
+        stat = path.stat()
+        entry = known.get(name)
+        if (
+            isinstance(entry, list)
+            and len(entry) == 3
+            and entry[:2] == [stat.st_size, stat.st_mtime_ns]
+            and isinstance(entry[2], str)
+        ):
+            digest = entry[2]
+        else:
+            digest = file_sha256(path)
+        fresh[name] = [stat.st_size, stat.st_mtime_ns, digest]
+        result.append((name, digest))
+    if memo is not None and fresh != known:
+        try:
+            memo.parent.mkdir(parents=True, exist_ok=True)
+            temporary = memo.with_suffix(".tmp")
+            temporary.write_text(json.dumps(fresh))
+            temporary.replace(memo)
+        except OSError:
+            pass
+    return result
+
+
 def cache_fingerprint(
     model_path: Path,
     reference_path: Path,
@@ -261,6 +355,7 @@ def cache_fingerprint(
     generation_settings: dict[str, object],
     *,
     attention: str = "eager",
+    hash_memo: Path | None = None,
 ) -> str:
     files = sorted(path for path in model_path.rglob("*") if path.is_file())
     if not files:
@@ -269,7 +364,7 @@ def cache_fingerprint(
         "cache_version": CACHE_VERSION,
         "completion_protocol": COMPLETION_PROTOCOL,
         "segment_version": SEGMENT_VERSION,
-        "model": [(str(path.relative_to(model_path)), file_sha256(path)) for path in files],
+        "model": model_hashes(model_path, files, hash_memo),
         "reference_sha256": file_sha256(reference_path),
         "reference_text_sha256": hashlib.sha256(reference_text.encode()).hexdigest(),
         "versions": versions,
@@ -443,6 +538,7 @@ def main() -> int:
         versions,
         model._merge_generate_kwargs(max_new_tokens=MAX_NEW_TOKENS),
         attention=attention,
+        hash_memo=Path(cache_text) / "model-hashes.memo",
     )
     cache = Path(cache_text) / CACHE_VERSION / fingerprint
     cache.mkdir(parents=True, exist_ok=True)
@@ -462,6 +558,20 @@ def main() -> int:
         try:
             request = json.loads(line)
             identity = {key: request[key] for key in ("request_id", "epoch") if key in request}
+            if request.get("park") is True or request.get("unpark") is True:
+                if backend is None:
+                    raise QwenOutputIncomplete("parking needs the CUDA-graph backend")
+                moved = time.monotonic()
+                if request.get("park") is True:
+                    backend.park()
+                else:
+                    backend.unpark()
+                seconds = round(time.monotonic() - moved, 3)
+                print(
+                    json.dumps({**identity, "parked": backend.parked, "seconds": seconds}),
+                    flush=True,
+                )
+                continue
             text = str(request["text"]).strip()
             if not text:
                 raise ValueError("text is empty")
@@ -474,9 +584,12 @@ def main() -> int:
             elif request.get("stream") is True:
                 if backend is None:
                     raise QwenOutputIncomplete("streaming needs the CUDA-graph backend")
+                backend.unpark()
                 stream_chunks(backend, text, voice, identity, cached, digest, fingerprint)
                 continue
             else:
+                if backend is not None:
+                    backend.unpark()
                 wavs, sample_rate, completion = (
                     backend.synthesize(text, voice)
                     if backend is not None

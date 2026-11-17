@@ -279,7 +279,7 @@ async def test_status_wiring_before_new_run_start_and_egress_gates(
         observations = (
             request.messages[0]
             .content.split("Verified preferences:\n", 1)[1]
-            .split("\nAffect policy:", 1)[0]
+            .split("\nEmbedded working dialogue:", 1)[0]
         )
         records = [json.loads(line) for line in observations.splitlines()]
         [status] = [r for r in records if r["value"].startswith("Own runtime status: ")]

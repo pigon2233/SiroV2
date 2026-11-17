@@ -31,7 +31,7 @@ from siro.core.context import asks_about_research
 from siro.core.conversation import ConversationEngine, TurnState
 from siro.core.expression import ExpressionPolicy, expression_context_from_text
 from siro.core.identity import IdentityService, ImmutableCore
-from siro.core.memory import Memory, MemoryKind, MemoryService
+from siro.core.memory import LIVE_CONTEXT_MARKER, Memory, MemoryKind, MemoryService
 from siro.core.memory_autonomy import (
     CONTEXT_MESSAGES,
     AutonomousMemory,
@@ -292,18 +292,17 @@ class IntegratedCompanion:
             if capability_context is not None:
                 if not history or history[0].role != "system":
                     raise RuntimeError("native history has no system context")
-                content = history[0].content
-                if content.endswith(_CAPABILITY_BLOCK_END):
+                # The catalog rarely changes, so it sits before the per-turn live context
+                # (clock, memories) when the prompt has one; the model's prompt cache then
+                # covers it. Legacy prompts keep it at the end.
+                content, live, tail = history[0].content.partition(LIVE_CONTEXT_MARKER)
+                gap = "\n" if live else ""
+                if content.endswith(_CAPABILITY_BLOCK_END + gap):
                     base, marker, _ = content.rpartition(_CAPABILITY_BLOCK_START)
                     if marker:
                         content = base
-                history[0] = replace(
-                    history[0],
-                    content=content
-                    + _CAPABILITY_BLOCK_START
-                    + capability_context
-                    + _CAPABILITY_BLOCK_END,
-                )
+                block = _CAPABILITY_BLOCK_START + capability_context + _CAPABILITY_BLOCK_END
+                history[0] = replace(history[0], content=content + block + gap + live + tail)
             await self._agent_runs.checkpoint(run_id, history)
 
         return ready
