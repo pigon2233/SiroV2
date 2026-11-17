@@ -350,3 +350,22 @@ cd /mnt/e/coding/股票策略機器學習/SiroV2; D=~/.local/share/siro/data
   2. Qwen base 的聲音複製不能指定情緒，情緒句子的錄音只靠文字與標點帶語氣，實際情緒表現未知。
   3. 有些句子沒照要求的情緒寫（例：標 relaxed 的「火山噴發時的氣體裡藏著大量的硫磺味。」）；20b 產生的句子有非台灣用語。
 - 下一步：調查並選定訓練框架（支援中文、授權、8 GB 顯卡可訓練、可匯出 ONNX 在 CPU 即時推論），然後訓練、接 adapter、和 Qwen 做聽感 A/B。仍未開始。
+
+## 2026-11-17 訓練框架：暫定 MeloTTS（查證到的事實；**尚未下載或安裝任何東西，等 owner 同意下載**）
+
+Owner（2026-11-17，經協調端轉述原話）：「訓練吧」，並問閒聊改走 Groq 後沒額度／玩遊戲連續呼叫／寫程式時會不會不能用。
+
+查到的（來源：MeloTTS 官方 `docs/training.md`、`docs/install.md`、README／model card；Piper 舊版 TRAINING.md；sherpa-onnx Matcha 文件）：
+- **MeloTTS**（myshell-ai，MIT）：中文支援中英夾雜；官方稱 CPU 可即時；有官方自訂資料訓練流程：
+  `pip install -e .` → `cd melo` → `metadata.list` 每行 `音檔路徑|說話人|語言代碼|文字`（建議 44.1 kHz）→
+  `python preprocess_text.py --metadata <metadata.list>`（產生 `config.json`）→ `bash train.sh <config.json> <gpu數>`（OOM 就調小 config 的 batch size；train.sh 會自動續跑）→
+  `python infer.py --text … -m G_<iter>.pth -o <dir>`。官方只寫在 Ubuntu 20.04＋Python 3.9 測過。文件沒寫如何從預訓練 checkpoint 微調、也沒寫顯存需求。
+- **Piper**：沒查到對中文（普通話）phonemizer 的確認；舊文件的顯存數字是 24 GB 卡 batch 32；piper1-gpl 是 GPL。暫不選。
+- **Matcha（sherpa-onnx）**：有中文預訓練模型但 Baker 資料集僅限非商用；沒查到自訂聲音訓練與 ONNX 匯出流程。暫不選。
+
+選 MeloTTS 的未驗證風險：(1) 我們的語料是 24 kHz，要升頻到 44.1 kHz 或改 config 取樣率；(2) 句子是繁體，Melo 中文前處理是否正確處理繁體未知，
+可能要先轉簡體（訓練與推論都要一致）；(3) 8 GB 顯卡要多小的 batch、要訓練多久未知；(4) 推論時用到 BERT，CPU 即時與否、記憶體多少要實測；
+(5) Python 3.9 環境要另外建（uv 可裝），不要動 `~/.venvs/sirov2`。
+
+需要下載（都還沒做）：MeloTTS 原始碼（GitHub）、其 Python 相依套件（含 torch，數 GB，裝進新的 `~/.venvs/melotts`）、
+`python -m unidic download`、HuggingFace 上的 BERT 模型與（若要微調）MeloTTS 中文預訓練 checkpoint。
