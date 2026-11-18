@@ -83,7 +83,7 @@ def main() -> int:
         for item in plan["items"]:
             for variant in plan["variants"]:
                 text = item[f"text_{variant}"]
-                for k in range(k_per):
+                for k in range(int(item.get("candidates", k_per))):  # per-item override
                     cid = f"{item['sentence']}_{variant}{k}"
                     wav = out / "wavs" / f"{cid}.wav"
                     if wav.exists():

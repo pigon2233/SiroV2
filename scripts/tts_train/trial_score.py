@@ -96,7 +96,8 @@ def main() -> int:
             )
 
     print("\n繁體 vs 簡體（每組 = 全部候選；best = 每句該組 3 個候選中最好的一個）")
-    for variant in ("trad", "simp"):
+    present = [v for v in ("trad", "simp") if any(r["variant"] == v for r in rows)]
+    for variant in present:
         vs = [r for r in rows if r["variant"] == variant]
         bs = [b for (s, v), b in best.items() if v == variant]
         print(
@@ -107,11 +108,12 @@ def main() -> int:
             f"  SenseVoice {statistics.mean(b['sensevoice_cer'] for b in bs):.3f}"
             f"  零錯字句 {sum(b['whisper_cer'] == 0 and b['sensevoice_cer'] == 0 for b in bs)}/{len(bs)}"
         )
-    win = {"trad": 0, "simp": 0, "tie": 0}
-    for s in {r["sentence"] for r in rows}:
-        a, b = best[(s, "trad")]["_score"][0], best[(s, "simp")]["_score"][0]
-        win["tie" if abs(a - b) < 1e-9 else ("trad" if a < b else "simp")] += 1
-    print(f"  每句最佳候選誰比較好（字錯率）：繁體 {win['trad']}、簡體 {win['simp']}、平手 {win['tie']}")
+    if len(present) == 2:
+        win = {"trad": 0, "simp": 0, "tie": 0}
+        for s in {r["sentence"] for r in rows}:
+            a, b = best[(s, "trad")]["_score"][0], best[(s, "simp")]["_score"][0]
+            win["tie" if abs(a - b) < 1e-9 else ("trad" if a < b else "simp")] += 1
+        print(f"  每句最佳候選誰比較好（字錯率）：繁體 {win['trad']}、簡體 {win['simp']}、平手 {win['tie']}")
     gen = [r["gen_sec"] for r in rows]
     print(f"  生成時間：平均 {statistics.mean(gen):.2f} 秒／候選，共 {sum(gen) / 60:.1f} 分鐘")
     return 0

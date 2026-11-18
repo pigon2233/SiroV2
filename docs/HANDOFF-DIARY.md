@@ -503,3 +503,14 @@ Owner 決定（經協調端與 owner 原話）：取消目前訓練與訓練監�
   （這 50 句故意偏難，含 owner 判怪的 30 句，所以數字比 v1 全體中位數高。）生成 2.94 秒／候選（50×6 共 14.7 分鐘），打分約 1.4 秒／候選。
 - 試聽頁 `%LOCALAPPDATA%\siro-corpus\trial.html`（每句繁／簡各一個最佳候選並排，可展開其他候選；「選這個」／「全部怪」；下載 `siro-trial-choices.json`，頁面上統計選繁／選簡數）。
 - 全量估計（簡體輸入、每句 3 候選）：2,652×3×2.94 秒 ≈ 6.5 小時生成＋約 3 小時打分 ≈ 9–10 小時；每句 2 候選約 6–7 小時。生成期間 SIRO 須關閉。尚未開始，等 owner 試聽決定。
+
+## 2026-11-19 全量重新生成 v2（進行中）
+
+- Owner 試聽試做 50 句（`siro-sweet-b-v2-trial/owner-choices-1.json`）：45 句有可用版本（選簡體 43、繁體 2），5 句全部怪（含 2 句「龜」、1 句「饗」）。
+  owner 選的與自動最佳（簡體組）只有 24/43 相同 → 字錯率能挑出「念對」，挑不出「最好聽」。Owner 決定：自動挑、只抽聽。
+- 2026-11-19 04:23 起背景執行 `scripts/tts_train/regen_full.sh`（setsid nohup；可中斷後重跑續做）：`full_plan.py` → `trial_generate.py` → `trial_score.py` → `spot_plan.py` → `build_trial_page.py`。
+  輸出 `~/.local/share/siro/tts-corpus/siro-sweet-b-v2/`（log `run.log`）。v2 句子 2,652：生成 2,595 句、7,809 個候選（簡體輸入、temperature 0.65、top_k 30、每句 3 個；含「龜／饗」的 8 句各 6 個），
+  沿用 57 句（試做 owner 選中 45、v1 OK 且文字未改 12；`reused.json`）。實測約 2.45 秒／候選。
+- 完成後：`auto_choice.json`（每句字錯率最低的候選）、`spot_plan.json`＋`%LOCALAPPDATA%\siro-corpus\spot.html`（最佳候選仍有錯字的句子，最多 200 句，加隨機 50 句；owner 沒動的句子照自動選）。
+- 進度：雙擊 `Show-Corpus-Progress.cmd`（監測讀 `~/tts-train/data/siro-regen` → v2 資料夾）。
+- 注意：在 Windows 用 Python `write_text` 改 `.sh` 會變成 CRLF，正在跑的 bash 腳本被改到會壞（bash 依位元組位置續讀）。這次已改回原本的 LF 內容，只改動尚未執行到的尾段。

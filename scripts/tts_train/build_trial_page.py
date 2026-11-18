@@ -31,7 +31,7 @@ def clip(r: dict, best: bool) -> str:
         f'<div class="clip{" best" if best else ""}" data-id="{r["id"]}">'
         f'<div class="meta">{"★ 本組最佳 · " if best else ""}#{int(r["candidate"]) + 1} · {cer} · '
         f"可疑 {float(r['suspicion']):.1f}</div>"
-        f'<audio controls preload="none" src="trial/{r["id"]}.wav"></audio>'
+        f'<audio controls preload="none" src="{{AUDIO_DIR}}/{r["id"]}.wav"></audio>'
         f'<div class="asr">Whisper：{html.escape(r["asr"])}</div>'
         f'<button class="pick" data-v="{r["id"]}">選這個</button></div>'
     )
@@ -41,12 +41,18 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--trial", required=True)
     ap.add_argument("--page-dir", required=True)
+    ap.add_argument("--plan", default=None, help="plan JSON to list (default <trial>/plan.json)")
+    ap.add_argument("--page-name", default="trial.html")
+    ap.add_argument("--title", default=None)
     args = ap.parse_args()
     trial = Path(args.trial).expanduser()
     page_dir = Path(args.page_dir).expanduser()
     rows = list(csv.DictReader(open(trial / "trial_quality.csv", encoding="utf-8")))
-    plan = json.loads((trial / "plan.json").read_text(encoding="utf-8"))
-    audio = page_dir / "trial"
+    plan = json.loads(Path(args.plan or trial / "plan.json").expanduser().read_text(encoding="utf-8"))
+    wanted = {i["sentence"] for i in plan["items"]}
+    rows = [r for r in rows if r["sentence"] in wanted]
+    sub = Path(args.page_name).stem
+    audio = page_dir / sub
     if audio.exists():
         shutil.rmtree(audio)
     audio.mkdir(parents=True)
@@ -78,8 +84,14 @@ def main() -> int:
             f'<button class="none" data-v="none">全部怪</button><span class="status"></span></div>'
         )
     n = len(plan["items"])
+    title = args.title or "SIRO 重新生成試聽"
+    help_text = plan.get("help") or (
+        "新設定（隨機性 0.65、top_k 30）。每句左右兩組：同一句分別用「繁體字」和「簡體字」餵給 Qwen，各生成 3 次；"
+        "每組先放字錯率最低的那個（★），其他的點「其他候選」展開。<br>每句請選一個你覺得最好的按「選這個」；"
+        "全部都不行就按「全部怪」。選擇會自動存在這個瀏覽器，做完按「下載選擇」。最上面會統計你選的有幾個來自繁體、幾個來自簡體。"
+    )
     page = f"""<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>SIRO 重新生成試聽</title><style>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(title)}</title><style>
 :root{{color-scheme:light dark;--bg:#f6f6f4;--fg:#222;--card:#fff;--muted:#6b6b6b;--line:#e3e3e0;--ok:#2e7d32;--bad:#c62828;--pick:#1565c0}}
 @media (prefers-color-scheme:dark){{:root{{--bg:#1b1b1d;--fg:#eee;--card:#26262a;--muted:#a0a0a0;--line:#3a3a40}}}}
 body{{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,"Microsoft JhengHei",sans-serif}}
@@ -96,10 +108,8 @@ button{{font-size:14px;padding:3px 14px;margin:4px 8px 0 0;border-radius:6px;bor
 .status{{font-size:13px;color:var(--muted)}} details summary{{cursor:pointer;color:var(--muted);font-size:13px;margin-top:4px}}
 .bar{{position:sticky;top:0;z-index:1;background:var(--bg);padding:10px 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid var(--line)}}
 .bar .grow{{flex:1}}</style></head><body><main>
-<h1>SIRO 重新生成試聽（{n} 句）</h1>
-<p class="help">新設定（隨機性 0.65、top_k 30）。每句左右兩組：同一句分別用「繁體字」和「簡體字」餵給 Qwen，各生成 3 次；
-每組先放字錯率最低的那個（★），其他的點「其他候選」展開。<br>每句請選一個你覺得最好的按「選這個」；全部都不行就按「全部怪」。
-選擇會自動存在這個瀏覽器，做完按「下載選擇」。最上面會統計你選的有幾個來自繁體、幾個來自簡體。</p>
+<h1>{html.escape(title)}（{n} 句）</h1>
+<p class="help">{help_text}</p>
 <div class="bar"><span id="count"></span><span class="grow"></span><button id="dl">下載選擇</button>
 <button id="imp" type="button">匯入</button><input id="file" type="file" accept=".json" hidden></div>
 {"".join(cards)}
@@ -141,7 +151,8 @@ document.getElementById("file").onchange = async e => {{
 }};
 paint();
 </script></main></body></html>"""
-    (page_dir / "trial.html").write_text(page, encoding="utf-8")
+    page = page.replace("{AUDIO_DIR}", sub)
+    (page_dir / args.page_name).write_text(page, encoding="utf-8")
     print(f"trial page: {page_dir / 'trial.html'} ({len(rows)} clips, {n} sentences)")
     return 0
 

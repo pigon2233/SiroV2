@@ -114,6 +114,7 @@ def render(gen_dir: str) -> str:
     now = datetime.now(TPE)
     total = int(plan.get("total_sentences") or 0)
     k = int(plan.get("candidates_per_sentence") or 0)
+    tk = int(plan.get("total_candidates") or total * k)  # exact total when items differ
     # lines with "areas" are scored candidates; the others are "generated" events
     scored = [r for r in rows if "areas" in r]
     generated = [r for r in rows if "areas" not in r] or scored
@@ -122,14 +123,14 @@ def render(gen_dir: str) -> str:
         per_sentence[r["sentence"]] = per_sentence.get(r["sentence"], 0) + 1
     done = sum(1 for n in per_sentence.values() if not k or n >= k)
     passed = sum(bool(r.get("passed")) for r in scored)
-    done_pct = len(generated) / (total * k) if total and k else (done / total if total else 0.0)
+    done_pct = len(generated) / (tk) if total and k else (done / total if total else 0.0)
     info = []
     if not rows:
         state = "尚未開始" if not plan else "準備中"
     else:
         age = (now - rows[-1]["_t"]).total_seconds()
-        if total and k and len(generated) >= total * k:
-            state = "已完成" if len(scored) >= total * k else "打分中"
+        if total and k and len(generated) >= tk:
+            state = "已完成" if len(scored) >= tk else "打分中"
         else:
             state = "生成中" if age < 300 else "停住了（5 分鐘沒有新資料）"
     info.append(("狀態", state))
@@ -138,7 +139,7 @@ def render(gen_dir: str) -> str:
     if k:
         info.append(("每句候選數", str(k)))
     if generated:
-        info.append(("已生成候選", f"{len(generated):,}" + (f" / {total * k:,}" if total and k else "")))
+        info.append(("已生成候選", f"{len(generated):,}" + (f" / {tk:,}" if total and k else "")))
     if scored:
         info.append(
             (
@@ -159,7 +160,7 @@ def render(gen_dir: str) -> str:
             per_cand = span / (len(recent) - 1)
             info.append(("速度", f"約 {per_cand:.1f} 秒／候選"))
             if total and k and state == "生成中":
-                left = max(0, total * k - len(generated)) * per_cand
+                left = max(0, tk - len(generated)) * per_cand
                 info.append(
                     (
                         "預計完成",
