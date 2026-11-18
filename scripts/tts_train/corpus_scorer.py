@@ -1,4 +1,3 @@
-# ruff: noqa: RUF001
 """Score TTS corpus recordings: tone, quality, spectrum, ASR confidence, emotion.
 
 Runs in its own venv (~/.venvs/corpus-scorer: torch cu121, faster-whisper,
@@ -71,7 +70,7 @@ def fold(text: str) -> str:
     for num in re.findall(r"\d+(?:\.\d+)?", text):
         try:
             text = text.replace(num, cn2an.an2cn(num), 1)
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
     return "".join(re.findall(r"[一-鿿a-z]", _conv(text).lower()))
 
@@ -127,12 +126,14 @@ def acoustic(wav: str, words: list) -> dict:
         if chars and end > start:
             step = (end - start) / len(chars)
             slices += [(start + k * step, start + (k + 1) * step, c) for k, c in enumerate(chars)]
-    tones = lazy_pinyin("".join(c for *_, c in slices), style=Style.TONE3, neutral_tone_with_five=True)
+    tones = lazy_pinyin(
+        "".join(c for *_, c in slices), style=Style.TONE3, neutral_tone_with_five=True
+    )
     med, bad, n = out["f0_med"], 0, 0
     for (a, b, _c), py in zip(slices, tones, strict=False):
         if not py or not py[-1].isdigit() or py[-1] == "5":
             continue
-        seg = st[int(a * 100): max(int(a * 100) + 1, int(b * 100))]
+        seg = st[int(a * 100) : max(int(a * 100) + 1, int(b * 100))]
         ok = ~np.isnan(seg)
         if ok.sum() < 5:
             continue
@@ -141,8 +142,12 @@ def acoustic(wav: str, words: list) -> dict:
         level = float(np.nanmean(seg)) - med
         tone = int(py[-1])
         n += 1
-        bad += (tone == 2 and slope < -20) or (tone == 4 and slope > 20) or \
-               (tone == 1 and abs(slope) > 45) or (tone == 3 and level > 4)
+        bad += (
+            (tone == 2 and slope < -20)
+            or (tone == 4 and slope > 20)
+            or (tone == 1 and abs(slope) > 45)
+            or (tone == 3 and level > 4)
+        )
     out["tone_n"] = n
     out["tone_mismatch"] = bad / n if n >= 4 else np.nan
     return out
@@ -152,7 +157,7 @@ def _acoustic_job(job):
     key, wav, words = job
     try:
         return key, acoustic(wav, words)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return key, {"acoustic_error": repr(exc)[:200]}
 
 
@@ -162,13 +167,26 @@ class CorpusScorer:
         from faster_whisper import WhisperModel
         from funasr import AutoModel
 
-        self.whisper = WhisperModel(os.path.expanduser(whisper_dir), device=device,
-                                    compute_type="float16" if device == "cuda" else "int8")
+        self.whisper = WhisperModel(
+            os.path.expanduser(whisper_dir),
+            device=device,
+            compute_type="float16" if device == "cuda" else "int8",
+        )
         dev = "cuda:0" if device == "cuda" else "cpu"
-        self.sensevoice = AutoModel(model="FunAudioLLM/SenseVoiceSmall", hub="hf", device=dev,
-                                    disable_update=True, log_level="ERROR")
-        self.emotion = AutoModel(model="emotion2vec/emotion2vec_plus_large", hub="hf", device=dev,
-                                 disable_update=True, log_level="ERROR")
+        self.sensevoice = AutoModel(
+            model="FunAudioLLM/SenseVoiceSmall",
+            hub="hf",
+            device=dev,
+            disable_update=True,
+            log_level="ERROR",
+        )
+        self.emotion = AutoModel(
+            model="emotion2vec/emotion2vec_plus_large",
+            hub="hf",
+            device=dev,
+            disable_update=True,
+            log_level="ERROR",
+        )
 
     def model_features(self, wav: str, text: str) -> dict:
         import librosa
@@ -177,31 +195,46 @@ class CorpusScorer:
             deep_noise_suppression_mean_opinion_score as dnsmos,
         )
 
-        segs, _ = self.whisper.transcribe(wav, language="zh", beam_size=5, word_timestamps=True,
-                                          condition_on_previous_text=False)
+        segs, _ = self.whisper.transcribe(
+            wav, language="zh", beam_size=5, word_timestamps=True, condition_on_previous_text=False
+        )
         segs = list(segs)
         asr = "".join(s.text for s in segs).strip()
-        words = [[round(w.start, 3), round(w.end, 3), w.word, round(w.probability, 3)]
-                 for s in segs for w in (s.words or [])]
-        sv = self.sensevoice.generate(input=wav, language="zh", use_itn=True, disable_pbar=True)[0]["text"]
+        words = [
+            [round(w.start, 3), round(w.end, 3), w.word, round(w.probability, 3)]
+            for s in segs
+            for w in (s.words or [])
+        ]
+        sv = self.sensevoice.generate(input=wav, language="zh", use_itn=True, disable_pbar=True)[0][
+            "text"
+        ]
         sv_tags = re.findall(r"<\|([^|]+)\|>", sv)
         sv_text = re.sub(r"<\|[^|]+\|>", "", sv).strip()
-        em = self.emotion.generate(wav, granularity="utterance", extract_embedding=False, disable_pbar=True)[0]
+        em = self.emotion.generate(
+            wav, granularity="utterance", extract_embedding=False, disable_pbar=True
+        )[0]
         labels = [lab.split("/")[-1] for lab in em["labels"]]
         top = int(np.argmax(em["scores"]))
         y, _ = librosa.load(wav, sr=16000)
         p808, sig, bak, ovrl = dnsmos(torch.tensor(y), 16000, personalized=False).tolist()
         ref = fold(text)
         return {
-            "asr": asr, "words": words,
+            "asr": asr,
+            "words": words,
             "whisper_cer": round(cer(ref, fold(asr)), 4),
             "avg_logprob": round(sum(s.avg_logprob for s in segs) / len(segs), 4) if segs else -9.0,
             "no_speech_prob": round(max((s.no_speech_prob for s in segs), default=1.0), 4),
-            "sensevoice": sv_text, "sensevoice_cer": round(cer(ref, fold(sv_text)), 4),
+            "sensevoice": sv_text,
+            "sensevoice_cer": round(cer(ref, fold(sv_text)), 4),
             "sensevoice_tags": sv_tags,
-            "emotion": labels[top], "emotion_score": round(float(em["scores"][top]), 4),
-            "emotion_scores": {lab: round(float(s), 4) for lab, s in zip(labels, em["scores"], strict=False)},
-            "dnsmos_p808": round(p808, 3), "dnsmos_sig": round(sig, 3), "dnsmos_bak": round(bak, 3),
+            "emotion": labels[top],
+            "emotion_score": round(float(em["scores"][top]), 4),
+            "emotion_scores": {
+                lab: round(float(s), 4) for lab, s in zip(labels, em["scores"], strict=False)
+            },
+            "dnsmos_p808": round(p808, 3),
+            "dnsmos_sig": round(sig, 3),
+            "dnsmos_bak": round(bak, 3),
             "dnsmos_ovrl": round(ovrl, 3),
             "ref_chars": len(ref),
         }
@@ -236,11 +269,21 @@ def rank(rows: list[dict], cut_quantile: float = 0.85) -> list[dict]:
     emo_bad = [r.get("emotion_scores", {}) for r in rows]
     emo_bad = [sum(s.get(k, 0) for k in BAD_EMOTIONS) for s in emo_bad]
     area = {
-        "tone": (_rz(g("tone_mismatch")) + _rz(g("jump_rate")) + 0.5 * _abs_rz(g("f0_range"))) / 2.5,
-        "quality": (_rz(g("dnsmos_ovrl"), False) + _rz(g("dnsmos_sig"), False) + _rz(g("dnsmos_p808"), False)
-                    + 2 * _rz(g("clip_ratio")) + _rz(g("silence_ratio"))) / 6,
+        "tone": (_rz(g("tone_mismatch")) + _rz(g("jump_rate")) + 0.5 * _abs_rz(g("f0_range")))
+        / 2.5,
+        "quality": (
+            _rz(g("dnsmos_ovrl"), False)
+            + _rz(g("dnsmos_sig"), False)
+            + _rz(g("dnsmos_p808"), False)
+            + 2 * _rz(g("clip_ratio"))
+            + _rz(g("silence_ratio"))
+        )
+        / 6,
         "spectrum": (_abs_rz(g("centroid")) + _abs_rz(g("rolloff95")) + _abs_rz(g("cps"))) / 3,
-        "asr": (1.5 * _rz(g("whisper_cer")) + _rz(g("sensevoice_cer")) + _rz(g("avg_logprob"), False)) / 3.5,
+        "asr": (
+            1.5 * _rz(g("whisper_cer")) + _rz(g("sensevoice_cer")) + _rz(g("avg_logprob"), False)
+        )
+        / 3.5,
         # absolute, not a z-score: nearly every clip is "happy", so any small
         # angry/sad probability became a 6-sigma outlier and dominated the ranking
         "emotion": np.clip(6 * np.array(emo_bad, dtype=float), 0, 6),
@@ -248,7 +291,9 @@ def rank(rows: list[dict], cut_quantile: float = 0.85) -> list[dict]:
     total = sum(WEIGHTS[a] * area[a] for a in AREAS)
     cut = float(np.quantile(total, cut_quantile)) if len(total) else 0.0
     # broken source text (check_corpus_text.py): the recording cannot be right
-    text_bad = np.array([1.0 if str(r.get("text_issue") or "").strip() not in ("", "nan") else 0.0 for r in rows])
+    text_bad = np.array(
+        [1.0 if str(r.get("text_issue") or "").strip() not in ("", "nan") else 0.0 for r in rows]
+    )
     total = total + TEXT_PENALTY * text_bad
     for i, r in enumerate(rows):
         for a in AREAS:
@@ -261,11 +306,41 @@ def rank(rows: list[dict], cut_quantile: float = 0.85) -> list[dict]:
     return rows
 
 
-CSV_KEYS = ["rank", "id", "passed", "owner_mark", "suspicion", "text_issue", *[f"bad_{a}" for a in AREAS], "whisper_cer", "sensevoice_cer",
-            "avg_logprob", "no_speech_prob", "dnsmos_ovrl", "dnsmos_sig", "dnsmos_bak", "dnsmos_p808",
-            "clip_ratio", "silence_ratio", "centroid", "rolloff95", "cps", "f0_med", "f0_range", "jump_rate",
-            "tone_mismatch", "tone_n", "voiced_ratio", "emotion", "emotion_score", "dur", "text", "asr",
-            "sensevoice", "wav"]
+CSV_KEYS = [
+    "rank",
+    "id",
+    "passed",
+    "owner_mark",
+    "suspicion",
+    "text_issue",
+    *[f"bad_{a}" for a in AREAS],
+    "whisper_cer",
+    "sensevoice_cer",
+    "avg_logprob",
+    "no_speech_prob",
+    "dnsmos_ovrl",
+    "dnsmos_sig",
+    "dnsmos_bak",
+    "dnsmos_p808",
+    "clip_ratio",
+    "silence_ratio",
+    "centroid",
+    "rolloff95",
+    "cps",
+    "f0_med",
+    "f0_range",
+    "jump_rate",
+    "tone_mismatch",
+    "tone_n",
+    "voiced_ratio",
+    "emotion",
+    "emotion_score",
+    "dur",
+    "text",
+    "asr",
+    "sensevoice",
+    "wav",
+]
 
 
 def write_csv(rows: list[dict], path: Path) -> None:
@@ -279,8 +354,11 @@ def write_csv(rows: list[dict], path: Path) -> None:
 # ------------------------------------------------------------------ CLI
 def cmd_score(args) -> int:
     corpus = Path(args.corpus).expanduser()
-    items = [line.split("|", 1) for line in (corpus / "metadata.csv").read_text(encoding="utf-8").splitlines()
-             if line.strip()]
+    items = [
+        line.split("|", 1)
+        for line in (corpus / "metadata.csv").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     if args.limit:
         items = items[: args.limit]
     raw_path = Path(args.raw or (str(Path(args.out).expanduser()) + ".raw.jsonl")).expanduser()
@@ -297,8 +375,13 @@ def cmd_score(args) -> int:
             for n, (u, text) in enumerate(todo, 1):
                 wav = str(corpus / "wavs" / f"{u}.wav")
                 try:
-                    r = {"id": u, "text": text.strip(), "wav": wav, **scorer.model_features(wav, text)}
-                except Exception as exc:  # noqa: BLE001
+                    r = {
+                        "id": u,
+                        "text": text.strip(),
+                        "wav": wav,
+                        **scorer.model_features(wav, text),
+                    }
+                except Exception as exc:
                     r = {"id": u, "text": text.strip(), "wav": wav, "model_error": repr(exc)[:200]}
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
                 f.flush()
@@ -329,8 +412,22 @@ def cmd_rerank(args) -> int:
         row = {}
         for k, v in r.items():
             try:
-                row[k] = float(v) if k not in ("id", "text", "asr", "sensevoice", "wav", "emotion", "passed",
-                                               "text_issue", "owner_mark") else ("" if v == "nan" else v)
+                row[k] = (
+                    float(v)
+                    if k
+                    not in (
+                        "id",
+                        "text",
+                        "asr",
+                        "sensevoice",
+                        "wav",
+                        "emotion",
+                        "passed",
+                        "text_issue",
+                        "owner_mark",
+                    )
+                    else ("" if v == "nan" else v)
+                )
             except ValueError:
                 row[k] = np.nan if v in ("", "nan") else v
         row["emotion_scores"] = raw.get(r["id"], {}).get("emotion_scores", {})
@@ -339,7 +436,9 @@ def cmd_rerank(args) -> int:
     # The owner's listening marks always win over the automatic verdict.
     owner: dict[str, str] = {}
     for path in args.marks or []:
-        owner.update(json.loads(Path(path).expanduser().read_text(encoding="utf-8")).get("marks", {}))
+        owner.update(
+            json.loads(Path(path).expanduser().read_text(encoding="utf-8")).get("marks", {})
+        )
     for row in rows:
         mark = owner.get(row["id"], row.get("owner_mark") or "")
         row["owner_mark"] = mark
@@ -356,7 +455,9 @@ def main() -> int:
     rr = sub.add_parser("rerank")
     rr.add_argument("--out", required=True)
     rr.add_argument("--raw", default=None)
-    rr.add_argument("--marks", nargs="*", help="owner listening-mark JSON files; their ok/bad override passed")
+    rr.add_argument(
+        "--marks", nargs="*", help="owner listening-mark JSON files; their ok/bad override passed"
+    )
     s = sub.add_parser("score")
     s.add_argument("--corpus", required=True)
     s.add_argument("--out", required=True)

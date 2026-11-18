@@ -51,7 +51,7 @@ def main() -> int:
         wav_out = out / "wavs" / f"{utt}.wav"
         try:
             clean_text(text, "ZH_MIX_EN")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             errors.append((utt, text, repr(exc)[:80]))
             continue
         if not wav_out.exists():
@@ -65,7 +65,9 @@ def main() -> int:
         if n % 1000 == 0:
             print(f"{n}/{len(items)}", flush=True)
     (out / "metadata.list").write_text("".join(rows), encoding="utf-8")
-    print(f"sentences={len(items)} written={len(rows)} frontend_errors={len(errors)} hours={seconds / 3600:.2f}")
+    print(
+        f"sentences={len(items)} written={len(rows)} frontend_errors={len(errors)} hours={seconds / 3600:.2f}"
+    )
     for e in errors[:20]:
         print("  error", e)
     return 0

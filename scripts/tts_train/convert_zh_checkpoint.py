@@ -31,21 +31,26 @@ def main() -> int:
 
     import torch
     from huggingface_hub import hf_hub_download
-
     from melo import utils
     from melo.models import SynthesizerTrn
 
     zh_ckpt = hf_hub_download("myshell-ai/MeloTTS-Chinese", "checkpoint.pth")
-    zh_cfg = json.loads(Path(hf_hub_download("myshell-ai/MeloTTS-Chinese", "config.json"))
-                        .read_text(encoding="utf-8"))
+    zh_cfg = json.loads(
+        Path(hf_hub_download("myshell-ai/MeloTTS-Chinese", "config.json")).read_text(
+            encoding="utf-8"
+        )
+    )
     src = torch.load(zh_ckpt, map_location="cpu")["model"]
 
     hps = utils.get_hparams_from_file(str(args.config.expanduser()))
     net_g = SynthesizerTrn(
-        len(hps.symbols), hps.data.filter_length // 2 + 1,
+        len(hps.symbols),
+        hps.data.filter_length // 2 + 1,
         hps.train.segment_size // hps.data.hop_length,
-        n_speakers=hps.data.n_speakers, num_tones=hps.num_tones,
-        num_languages=hps.num_languages, **hps.model,
+        n_speakers=hps.data.n_speakers,
+        num_tones=hps.num_tones,
+        num_languages=hps.num_languages,
+        **hps.model,
     )
     dst = net_g.state_dict()
 
@@ -70,10 +75,14 @@ def main() -> int:
         print("still mismatched:", bad)
         return 1
     args.out.expanduser().parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"model": src, "iteration": 0, "learning_rate": hps.train.learning_rate,
-                "optimizer": None}, args.out.expanduser())
-    print(f"wrote {args.out} keys={len(src)} (symbols {len(zh_cfg['symbols'])}->{len(hps.symbols)}, "
-          f"speaker seeded from ZH id {zh_sid})")
+    torch.save(
+        {"model": src, "iteration": 0, "learning_rate": hps.train.learning_rate, "optimizer": None},
+        args.out.expanduser(),
+    )
+    print(
+        f"wrote {args.out} keys={len(src)} (symbols {len(zh_cfg['symbols'])}->{len(hps.symbols)}, "
+        f"speaker seeded from ZH id {zh_sid})"
+    )
     return 0
 
 

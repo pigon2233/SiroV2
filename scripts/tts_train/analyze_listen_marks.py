@@ -18,9 +18,27 @@ import sys
 from pathlib import Path
 
 REFS = {"001329", "000620", "000001", "000004"}
-FEATS = ["suspicion", "bad_tone", "bad_quality", "bad_spectrum", "bad_asr", "bad_emotion", "whisper_cer",
-         "sensevoice_cer", "avg_logprob", "dnsmos_ovrl", "dnsmos_sig", "tone_mismatch", "jump_rate", "f0_range",
-         "cps", "silence_ratio", "centroid", "rolloff95", "emotion_score"]
+FEATS = [
+    "suspicion",
+    "bad_tone",
+    "bad_quality",
+    "bad_spectrum",
+    "bad_asr",
+    "bad_emotion",
+    "whisper_cer",
+    "sensevoice_cer",
+    "avg_logprob",
+    "dnsmos_ovrl",
+    "dnsmos_sig",
+    "tone_mismatch",
+    "jump_rate",
+    "f0_range",
+    "cps",
+    "silence_ratio",
+    "centroid",
+    "rolloff95",
+    "emotion_score",
+]
 
 
 def main() -> int:
@@ -28,7 +46,9 @@ def main() -> int:
     ap.add_argument("--quality", required=True)
     ap.add_argument("--marks", required=True)
     args = ap.parse_args()
-    rows = {r["id"]: r for r in csv.DictReader(open(Path(args.quality).expanduser(), encoding="utf-8"))}
+    rows = {
+        r["id"]: r for r in csv.DictReader(open(Path(args.quality).expanduser(), encoding="utf-8"))
+    }
     marks = json.load(open(Path(args.marks).expanduser(), encoding="utf-8"))["marks"]
     n = len(rows)
     failed = sum(r["passed"] == "False" for r in rows.values())
@@ -50,8 +70,16 @@ def main() -> int:
         print(f"{k}: {len(v)} 句，怪 {v.count('bad')}（{v.count('bad') / len(v):.0%}）")
 
     def auc(f):
-        pos = [float(rows[i][f]) for i, m in marks.items() if m == "bad" and rows[i].get(f) not in ("", "nan", None)]
-        neg = [float(rows[i][f]) for i, m in marks.items() if m == "ok" and rows[i].get(f) not in ("", "nan", None)]
+        pos = [
+            float(rows[i][f])
+            for i, m in marks.items()
+            if m == "bad" and rows[i].get(f) not in ("", "nan", None)
+        ]
+        neg = [
+            float(rows[i][f])
+            for i, m in marks.items()
+            if m == "ok" and rows[i].get(f) not in ("", "nan", None)
+        ]
         if not pos or not neg:
             return float("nan")
         return sum((p > q) + 0.5 * (p == q) for p in pos for q in neg) / (len(pos) * len(neg))
@@ -67,7 +95,9 @@ def main() -> int:
     print()
     for i, m in sorted(marks.items(), key=lambda x: int(rows[x[0]]["rank"])):
         r = rows[i]
-        print(f"{r['rank']:>5} {i} {m:3s} {float(r['suspicion']):.2f} {r.get('text_issue', '')[:20]} {r['text'][:28]}")
+        print(
+            f"{r['rank']:>5} {i} {m:3s} {float(r['suspicion']):.2f} {r.get('text_issue', '')[:20]} {r['text'][:28]}"
+        )
     return 0
 
 

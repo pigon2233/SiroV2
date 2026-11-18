@@ -24,9 +24,19 @@ import shutil
 import sys
 from pathlib import Path
 
-REFS = {"001329": "擁有者：音調怪", "000620": "擁有者：完美", "000001": "擁有者：聽不懂", "000004": "擁有者：聽不懂"}
-AREA_ZH = [("bad_tone", "音調"), ("bad_quality", "音質"), ("bad_spectrum", "音頻"), ("bad_asr", "信心"),
-           ("bad_emotion", "情緒")]
+REFS = {
+    "001329": "擁有者：音調怪",
+    "000620": "擁有者：完美",
+    "000001": "擁有者：聽不懂",
+    "000004": "擁有者：聽不懂",
+}
+AREA_ZH = [
+    ("bad_tone", "音調"),
+    ("bad_quality", "音質"),
+    ("bad_spectrum", "音頻"),
+    ("bad_asr", "信心"),
+    ("bad_emotion", "情緒"),
+]
 
 
 def pick(rows: list[dict], show_all: bool) -> list[dict]:
@@ -36,7 +46,7 @@ def pick(rows: list[dict], show_all: bool) -> list[dict]:
     n = len(rows)
     failed = sum(r["passed"] == "False" for r in rows)
     lo = max(10, failed - 10)
-    chosen = rows[:10] + rows[lo: min(n - 10, failed + 10)] + rows[-10:]
+    chosen = rows[:10] + rows[lo : min(n - 10, failed + 10)] + rows[-10:]
     chosen += [r for r in rows if r["id"] in REFS and r not in chosen]
     seen, out = set(), []
     for r in sorted(chosen, key=lambda r: int(r["rank"])):
@@ -49,7 +59,9 @@ def pick(rows: list[dict], show_all: bool) -> list[dict]:
 def card(r: dict, n_cand: int) -> str:
     bars = "".join(
         f'<span class="chip" title="{zh}：0 為一般，越大越可疑">{zh} '
-        f'<b style="--v:{min(float(r[k]), 6) / 6:.2f}">{float(r[k]):.1f}</b></span>' for k, zh in AREA_ZH)
+        f'<b style="--v:{min(float(r[k]), 6) / 6:.2f}">{float(r[k]):.1f}</b></span>'
+        for k, zh in AREA_ZH
+    )
     ref = f'<span class="ref">{html.escape(REFS[r["id"]])}</span>' if r["id"] in REFS else ""
     choose = '<button data-v="pick">選這個</button>' if n_cand > 1 else ""
     verdict = "可能有問題" if r["passed"] == "False" else "看起來正常"
@@ -58,11 +70,12 @@ def card(r: dict, n_cand: int) -> str:
         f'<div class="meta">#{r["rank"]} · {r["id"]} · 可疑分數 {float(r["suspicion"]):.2f}（{verdict}）{ref}</div>'
         f'<div class="text">{html.escape(r["text"])}</div>'
         f'<div class="asr">Whisper：{html.escape(r["asr"])}　SenseVoice：{html.escape(r.get("sensevoice", ""))}　'
-        f'情緒：{html.escape(r.get("emotion", ""))} {float(r.get("emotion_score") or 0):.0%}　'
-        f'DNSMOS {float(r.get("dnsmos_ovrl") or 0):.2f}</div>'
+        f"情緒：{html.escape(r.get('emotion', ''))} {float(r.get('emotion_score') or 0):.0%}　"
+        f"DNSMOS {float(r.get('dnsmos_ovrl') or 0):.2f}</div>"
         f'<div class="chips">{bars}</div>'
         f'<audio controls preload="none" src="listen/{r["id"]}.wav"></audio>'
-        f'<div class="btns"><button data-v="ok">OK</button><button data-v="bad">怪</button>{choose}</div></div>')
+        f'<div class="btns"><button data-v="ok">OK</button><button data-v="bad">怪</button>{choose}</div></div>'
+    )
 
 
 def main() -> int:

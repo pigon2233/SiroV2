@@ -40,8 +40,11 @@ def compare(name: str, ckpt_path: str, model) -> None:
     state = torch.load(ckpt_path, map_location="cpu")
     weights = state.get("model", state)
     own = model.state_dict()
-    mismatch = [(k, tuple(v.shape), tuple(own[k].shape)) for k, v in weights.items()
-                if k in own and own[k].shape != v.shape]
+    mismatch = [
+        (k, tuple(v.shape), tuple(own[k].shape))
+        for k, v in weights.items()
+        if k in own and own[k].shape != v.shape
+    ]
     missing = [k for k in own if k not in weights]
     size = os.path.getsize(ckpt_path) / 2**20
     print(f"{name}: {ckpt_path} ({size:.0f} MB) iteration={state.get('iteration')}")
@@ -52,13 +55,16 @@ def compare(name: str, ckpt_path: str, model) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", type=Path, default=None,
-                    help="training config.json (default: MeloTTS configs/config.json + symbols)")
+    ap.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="training config.json (default: MeloTTS configs/config.json + symbols)",
+    )
     args = ap.parse_args()
 
-    from cached_path import cached_path
-
     import melo
+    from cached_path import cached_path
     from melo import utils
     from melo.download_utils import (
         DOWNLOAD_CKPT_URLS,
@@ -73,13 +79,13 @@ def main() -> int:
     # a restored host is noticed, but fall back to the HuggingFace ZH model.
     try:
         g_path, d_path, dur_path = (str(p) for p in load_pretrain_model())
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"generic pretrained G/D/DUR unavailable: {exc!r}")
         g_path = d_path = dur_path = None
     try:
         zh_ckpt = str(cached_path(DOWNLOAD_CKPT_URLS["ZH"]))
         zh_cfg = str(cached_path(DOWNLOAD_CONFIG_URLS["ZH"]))
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"ZH checkpoint on S3 unavailable ({exc!r}); using HuggingFace")
         from huggingface_hub import hf_hub_download
 
@@ -101,11 +107,15 @@ def main() -> int:
         tmp = Path("/tmp/melo_check_config.json")
         tmp.write_text(json.dumps(cfg), encoding="utf-8")
         hps = utils.get_hparams_from_file(str(tmp))
-    print(f"config: symbols={len(hps.symbols)} n_speakers={hps.data.n_speakers} sr={hps.data.sampling_rate}")
+    print(
+        f"config: symbols={len(hps.symbols)} n_speakers={hps.data.n_speakers} sr={hps.data.sampling_rate}"
+    )
 
     zh = json.loads(Path(zh_cfg).read_text(encoding="utf-8"))
-    print(f"ZH base config: sr={zh['data']['sampling_rate']} n_speakers={zh['data']['n_speakers']} "
-          f"symbols={len(zh['symbols'])} spk2id={zh['data']['spk2id']}")
+    print(
+        f"ZH base config: sr={zh['data']['sampling_rate']} n_speakers={zh['data']['n_speakers']} "
+        f"symbols={len(zh['symbols'])} spk2id={zh['data']['spk2id']}"
+    )
 
     net_g = build_generator(hps)
     if g_path:

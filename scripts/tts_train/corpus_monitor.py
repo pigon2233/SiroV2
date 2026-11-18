@@ -25,8 +25,13 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 TPE = timezone(timedelta(hours=8))
-AREAS = [("tone", "音調", "#8e24aa"), ("quality", "音質", "#1e88e5"), ("spectrum", "音頻", "#00897b"),
-         ("asr", "信心", "#f4511e"), ("emotion", "情緒", "#6d6d6d")]
+AREAS = [
+    ("tone", "音調", "#8e24aa"),
+    ("quality", "音質", "#1e88e5"),
+    ("spectrum", "音頻", "#00897b"),
+    ("asr", "信心", "#f4511e"),
+    ("emotion", "情緒", "#6d6d6d"),
+]
 
 
 def load(gen_dir: str) -> tuple[dict, list[dict]]:
@@ -50,11 +55,19 @@ def load(gen_dir: str) -> tuple[dict, list[dict]]:
 
 def gpu() -> str:
     try:
-        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total,utilization.gpu",
-                              "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5).stdout
+        out = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=memory.used,memory.total,utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout
         u, t, p = (int(x) for x in out.strip().split(", ")[:3])
         return f"{u:,} / {t:,} MiB，使用率 {p}%"
-    except Exception:  # noqa: BLE001
+    except Exception:
         return "讀不到"
 
 
@@ -66,23 +79,34 @@ def chart(rows: list[dict]) -> str:
     series = {}
     for key, _zh, _c in AREAS:
         vals = [float(r.get("areas", {}).get(key, 0)) for r in rows]
-        series[key] = [sum(vals[max(0, i - 24): i + 1]) / len(vals[max(0, i - 24): i + 1]) for i in range(len(vals))]
+        series[key] = [
+            sum(vals[max(0, i - 24) : i + 1]) / len(vals[max(0, i - 24) : i + 1])
+            for i in range(len(vals))
+        ]
     hi = max(1.0, max(max(v) for v in series.values()))
     n = len(rows)
     px = lambda i: left + i / (n - 1) * (w - left - right)  # noqa: E731
     py = lambda y: top + (hi - y) / hi * (h - top - bottom)  # noqa: E731
-    parts = [f'<line x1="{left}" x2="{w - right}" y1="{py(hi * k / 4):.1f}" y2="{py(hi * k / 4):.1f}" class="grid"/>'
-             f'<text x="{left - 6}" y="{py(hi * k / 4) + 4:.1f}" text-anchor="end">{hi * k / 4:.1f}</text>'
-             for k in range(5)]
-    parts += [f'<text x="{px(int((n - 1) * k / 4)):.1f}" y="{h - 6}" text-anchor="middle">{int((n - 1) * k / 4) + 1}</text>'
-              for k in range(5)]
+    parts = [
+        f'<line x1="{left}" x2="{w - right}" y1="{py(hi * k / 4):.1f}" y2="{py(hi * k / 4):.1f}" class="grid"/>'
+        f'<text x="{left - 6}" y="{py(hi * k / 4) + 4:.1f}" text-anchor="end">{hi * k / 4:.1f}</text>'
+        for k in range(5)
+    ]
+    parts += [
+        f'<text x="{px(int((n - 1) * k / 4)):.1f}" y="{h - 6}" text-anchor="middle">{int((n - 1) * k / 4) + 1}</text>'
+        for k in range(5)
+    ]
     for key, _zh, color in AREAS:
         pts = " ".join(f"{px(i):.1f},{py(v):.1f}" for i, v in enumerate(series[key]))
         parts.append(f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="2"/>')
-    legend = "".join(f'<span><i style="background:{c}"></i>{zh} {series[k][-1]:.2f}</span>' for k, zh, c in AREAS)
-    return (f'<div class="legend">{legend}</div><svg viewBox="0 0 {w} {h}" role="img" '
-            f'aria-label="各項分數移動平均">{"".join(parts)}</svg>'
-            '<p class="muted">橫軸是第幾個候選；線是最近 25 個候選的平均，越低越好（0 是一般）。</p>')
+    legend = "".join(
+        f'<span><i style="background:{c}"></i>{zh} {series[k][-1]:.2f}</span>' for k, zh, c in AREAS
+    )
+    return (
+        f'<div class="legend">{legend}</div><svg viewBox="0 0 {w} {h}" role="img" '
+        f'aria-label="各項分數移動平均">{"".join(parts)}</svg>'
+        '<p class="muted">橫軸是第幾個候選；線是最近 25 個候選的平均，越低越好（0 是一般）。</p>'
+    )
 
 
 def render(gen_dir: str) -> str:
@@ -98,16 +122,27 @@ def render(gen_dir: str) -> str:
         state = "尚未開始" if not plan else "準備中"
     else:
         age = (now - rows[-1]["_t"]).total_seconds()
-        state = "已完成" if total and len(sentences) >= total else ("生成中" if age < 300 else "停住了（5 分鐘沒有新資料）")
+        state = (
+            "已完成"
+            if total and len(sentences) >= total
+            else ("生成中" if age < 300 else "停住了（5 分鐘沒有新資料）")
+        )
     info.append(("狀態", state))
     if total:
         info.append(("已生成句數", f"{len(sentences):,} / {total:,}（{done_pct:.1%}）"))
     if k:
         info.append(("每句候選數", str(k)))
     if rows:
-        info.append(("候選", f"共 {len(rows):,}，通過 {passed:,}，淘汰 {len(rows) - passed:,}（通過率 {passed / len(rows):.0%}）"))
-        avg = "　".join(f"{zh} {sum(float(r.get('areas', {}).get(key, 0)) for r in rows) / len(rows):.2f}"
-                       for key, zh, _ in AREAS)
+        info.append(
+            (
+                "候選",
+                f"共 {len(rows):,}，通過 {passed:,}，淘汰 {len(rows) - passed:,}（通過率 {passed / len(rows):.0%}）",
+            )
+        )
+        avg = "　".join(
+            f"{zh} {sum(float(r.get('areas', {}).get(key, 0)) for r in rows) / len(rows):.2f}"
+            for key, zh, _ in AREAS
+        )
         info.append(("各項平均", avg))
         recent = rows[-50:]
         span = (recent[-1]["_t"] - recent[0]["_t"]).total_seconds()
@@ -116,7 +151,12 @@ def render(gen_dir: str) -> str:
             info.append(("速度", f"約 {per_cand:.1f} 秒／候選"))
             if total and k and state == "生成中":
                 left = max(0, total * k - len(rows)) * per_cand
-                info.append(("預計完成", f"{now + timedelta(seconds=left):%m/%d %H:%M}（台北，約 {left / 3600:.1f} 小時後）"))
+                info.append(
+                    (
+                        "預計完成",
+                        f"{now + timedelta(seconds=left):%m/%d %H:%M}（台北，約 {left / 3600:.1f} 小時後）",
+                    )
+                )
     info.append(("顯卡", gpu()))
     table = "".join(f"<tr><th>{html.escape(a)}</th><td>{html.escape(b)}</td></tr>" for a, b in info)
     color = {"生成中": "#2e7d32", "已完成": "#1565c0"}.get(state, "#ef6c00")

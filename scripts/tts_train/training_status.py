@@ -26,8 +26,10 @@ LOSS = re.compile(r"(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d).*\tINFO\t\[([^\]]+)\]\s*$")
 
 def collect(run: str) -> dict:
     s: dict = {"now": datetime.now(TPE), "run": run}
-    s["running"] = subprocess.run(["pgrep", "-f", f"[t]rain.py --c {run}/"],
-                                  capture_output=True).returncode == 0
+    s["running"] = (
+        subprocess.run(["pgrep", "-f", f"[t]rain.py --c {run}/"], capture_output=True).returncode
+        == 0
+    )
     s["stopfile"] = os.path.exists(os.path.join(run, "STOP"))
     rows = []
     try:
@@ -73,10 +75,20 @@ def collect(run: str) -> dict:
                 s["eta"], s["left_h"] = s["now"] + timedelta(seconds=left), left / 3600
     ck = sorted(glob.glob(os.path.join(run, "G_*.pth")), key=os.path.getmtime)
     if ck:
-        s["ckpt"] = (os.path.basename(ck[-1]), datetime.fromtimestamp(os.path.getmtime(ck[-1]), TPE))
+        s["ckpt"] = (
+            os.path.basename(ck[-1]),
+            datetime.fromtimestamp(os.path.getmtime(ck[-1]), TPE),
+        )
     try:
-        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total,utilization.gpu",
-                              "--format=csv,noheader,nounits"], capture_output=True, text=True).stdout
+        out = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=memory.used,memory.total,utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+        ).stdout
         s["gpu"] = [int(x) for x in out.strip().split(", ")[:3]]
     except (OSError, ValueError):
         s["gpu"] = None
@@ -95,10 +107,22 @@ def lines(s: dict) -> list[tuple[str, str]]:
     out = [("狀態", s["state"])]
     if "step" in s:
         total = s.get("total")
-        out.append(("步數", f"{s['step']:,} / {total:,}（{s['step'] / total:.1%}）" if total else f"{s['step']:,}"))
+        out.append(
+            (
+                "步數",
+                f"{s['step']:,} / {total:,}（{s['step'] / total:.1%}）"
+                if total
+                else f"{s['step']:,}",
+            )
+        )
         lo = s["loss"]
-        out.append(("loss", f"mel {lo['mel']:.2f}　kl {lo['kl']:.2f}　dur {lo['dur']:.2f}　"
-                            f"gen {lo['gen']:.2f}　disc {lo['disc']:.2f}（mel 越低越好；起點 26.0）"))
+        out.append(
+            (
+                "loss",
+                f"mel {lo['mel']:.2f}　kl {lo['kl']:.2f}　dur {lo['dur']:.2f}　"
+                f"gen {lo['gen']:.2f}　disc {lo['disc']:.2f}（mel 越低越好；起點 26.0）",
+            )
+        )
         out.append(("最後紀錄", f"{s['time']:%m/%d %H:%M:%S}"))
     if "sec" in s:
         out.append(("速度", f"約 {s['sec']:.2f} 秒／步"))
@@ -112,8 +136,13 @@ def lines(s: dict) -> list[tuple[str, str]]:
     return out
 
 
-SERIES = {"mel": (3, "#1e88e5"), "kl": (5, "#8e24aa"), "dur": (4, "#00897b"),
-          "gen": (1, "#f4511e"), "disc": (0, "#6d6d6d")}
+SERIES = {
+    "mel": (3, "#1e88e5"),
+    "kl": (5, "#8e24aa"),
+    "dur": (4, "#00897b"),
+    "gen": (1, "#f4511e"),
+    "disc": (0, "#6d6d6d"),
+}
 
 
 def svg_chart(rows: list, keys: list[str], title: str) -> str:
@@ -140,8 +169,10 @@ def svg_chart(rows: list, keys: list[str], title: str) -> str:
     parts = []
     for i in range(5):  # horizontal grid + y labels
         y = lo + (hi - lo) * i / 4
-        parts.append(f'<line x1="{left}" x2="{w - right}" y1="{py(y):.1f}" y2="{py(y):.1f}" class="grid"/>'
-                     f'<text x="{left - 6}" y="{py(y) + 4:.1f}" text-anchor="end">{y:.1f}</text>')
+        parts.append(
+            f'<line x1="{left}" x2="{w - right}" y1="{py(y):.1f}" y2="{py(y):.1f}" class="grid"/>'
+            f'<text x="{left - 6}" y="{py(y) + 4:.1f}" text-anchor="end">{y:.1f}</text>'
+        )
     for i in range(5):  # x labels (steps)
         x = x0 + (x1 - x0) * i / 4
         parts.append(f'<text x="{px(x):.1f}" y="{h - 6}" text-anchor="middle">{int(x):,}</text>')
@@ -149,20 +180,28 @@ def svg_chart(rows: list, keys: list[str], title: str) -> str:
     for k in keys:
         color, v = SERIES[k][1], vals[k]
         raw = " ".join(f"{px(x):.1f},{py(y):.1f}" for x, y in zip(xs, v, strict=True))
-        ma = [sum(v[max(0, i - 8): i + 1]) / len(v[max(0, i - 8): i + 1]) for i in range(len(v))]
+        ma = [sum(v[max(0, i - 8) : i + 1]) / len(v[max(0, i - 8) : i + 1]) for i in range(len(v))]
         smooth = " ".join(f"{px(x):.1f},{py(y):.1f}" for x, y in zip(xs, ma, strict=True))
-        parts.append(f'<polyline points="{raw}" fill="none" stroke="{color}" stroke-opacity=".25" stroke-width="1"/>'
-                     f'<polyline points="{smooth}" fill="none" stroke="{color}" stroke-width="2"/>')
+        parts.append(
+            f'<polyline points="{raw}" fill="none" stroke="{color}" stroke-opacity=".25" stroke-width="1"/>'
+            f'<polyline points="{smooth}" fill="none" stroke="{color}" stroke-width="2"/>'
+        )
         legend.append(f'<span><i style="background:{color}"></i>{k} {v[-1]:.2f}</span>')
-    return (f'<div class="chart"><div class="ctitle">{html.escape(title)}</div>'
-            f'<div class="legend">{"".join(legend)}</div>'
-            f'<svg viewBox="0 0 {w} {h}" role="img" aria-label="{html.escape(title)}">{"".join(parts)}</svg></div>')
+    return (
+        f'<div class="chart"><div class="ctitle">{html.escape(title)}</div>'
+        f'<div class="legend">{"".join(legend)}</div>'
+        f'<svg viewBox="0 0 {w} {h}" role="img" aria-label="{html.escape(title)}">{"".join(parts)}</svg></div>'
+    )
 
 
 def render_html(s: dict) -> str:
     pct = min(1.0, s["step"] / s["total"]) if s.get("total") and "step" in s else 0.0
-    rows = "".join(f"<tr><th>{html.escape(k)}</th><td>{html.escape(v)}</td></tr>" for k, v in lines(s))
-    color = {"訓練中": "#2e7d32", "已完成": "#1565c0", "已暫停": "#ef6c00"}.get(s["state"], "#c62828")
+    rows = "".join(
+        f"<tr><th>{html.escape(k)}</th><td>{html.escape(v)}</td></tr>" for k, v in lines(s)
+    )
+    color = {"訓練中": "#2e7d32", "已完成": "#1565c0", "已暫停": "#ef6c00"}.get(
+        s["state"], "#c62828"
+    )
     return f"""<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <meta http-equiv="refresh" content="5"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SIRO 語音訓練</title><style>
@@ -211,7 +250,9 @@ def main() -> int:
         with open(csv + ".tmp", "w", encoding="utf-8") as f:
             f.write("time,step,disc,gen,fm,mel,dur,kl\n")
             for t, step, v in s["rows"]:
-                f.write(f"{t:%Y-%m-%d %H:%M:%S},{step}," + ",".join(f"{x:.4f}" for x in v[:6]) + "\n")
+                f.write(
+                    f"{t:%Y-%m-%d %H:%M:%S},{step}," + ",".join(f"{x:.4f}" for x in v[:6]) + "\n"
+                )
         os.replace(csv + ".tmp", csv)
     else:
         print(f"SIRO 語音訓練　{s['now']:%Y-%m-%d %H:%M:%S}（台北）")

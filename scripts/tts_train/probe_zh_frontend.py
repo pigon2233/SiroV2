@@ -54,8 +54,8 @@ def main() -> int:
     ap.add_argument("--languages", default="ZH,ZH_MIX_EN")
     args = ap.parse_args()
 
-    from melo.text.cleaner import clean_text
     from melo.text.chinese_mix import rep_map
+    from melo.text.cleaner import clean_text
     from melo.text.symbols import symbols
 
     known = set(symbols)
@@ -69,13 +69,20 @@ def main() -> int:
         for utt, text in rows:
             try:
                 norm, phones, tones, word2ph = clean_text(text, lang)
-            except Exception as exc:  # noqa: BLE001 - we want every failure
+            except Exception as exc:
                 errors.append((utt, text, repr(exc)[:120]))
                 continue
             unknown.update(p for p in phones if p not in known)
             # characters that vanished (not mapped punctuation, not digits -> 中文數字)
-            dropped.update(c for c in text if c not in norm and not c.isspace()
-                           and not c.isdigit() and c not in rep_map and c not in "嗯呣")
+            dropped.update(
+                c
+                for c in text
+                if c not in norm
+                and not c.isspace()
+                and not c.isdigit()
+                and c not in rep_map
+                and c not in "嗯呣"
+            )
             if LATIN.search(text) and not LATIN.search(norm):
                 lost_latin += 1
             if utt in sample_ids:

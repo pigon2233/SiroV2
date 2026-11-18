@@ -59,8 +59,11 @@ def main() -> int:
     wav_out = out / "wavs"
     wav_out.mkdir(parents=True, exist_ok=True)
 
-    rows = [line.split("|", 1) for line in
-            (corpus / "metadata.csv").read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = [
+        line.split("|", 1)
+        for line in (corpus / "metadata.csv").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     lines, missing, clipped = [], 0, 0
     for n, (utt, text) in enumerate(rows, 1):
         src, dst = corpus / "wavs" / f"{utt}.wav", wav_out / f"{utt}.wav"
@@ -77,7 +80,9 @@ def main() -> int:
             print(f"{n}/{len(rows)}", flush=True)
 
     (out / "metadata.list").write_text("".join(lines), encoding="utf-8")
-    print(f"rows={len(rows)} written={len(lines)} missing_wav={missing} clipped={clipped} t2s={bool(convert)}")
+    print(
+        f"rows={len(rows)} written={len(lines)} missing_wav={missing} clipped={clipped} t2s={bool(convert)}"
+    )
     return 0
 
 

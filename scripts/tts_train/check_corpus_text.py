@@ -40,7 +40,9 @@ def rules(text: str) -> list[str]:
         issues.append("沒有句尾標點")
     if len(re.sub(r"[^一-鿿A-Za-z0-9]", "", text)) < 6:
         issues.append("過短")
-    if re.search(r"(?<![A-Za-z])[A-Za-z](?![A-Za-z ])", text) and not re.search(r"[A-Z]{1,}\d|\d[A-Za-z]", text):
+    if re.search(r"(?<![A-Za-z])[A-Za-z](?![A-Za-z ])", text) and not re.search(
+        r"[A-Z]{1,}\d|\d[A-Za-z]", text
+    ):
         issues.append("單一英文字母")
     if re.search(r"(.{2,})\1", re.sub(r"[^一-鿿]", "", text)):
         issues.append("字詞重複")
@@ -49,8 +51,13 @@ def rules(text: str) -> list[str]:
         last = words[-1]
         if last.flag in BAD_LAST_POS:
             issues.append(f"結尾是{last.word}（{last.flag}）")
-        elif len(last.word) == 1 and last.flag.startswith("v") and len(words) >= 2 \
-                and words[-2].flag.startswith(("n", "v")) and len(words[-2].word) >= 2:
+        elif (
+            len(last.word) == 1
+            and last.flag.startswith("v")
+            and len(words) >= 2
+            and words[-2].flag.startswith(("n", "v"))
+            and len(words[-2].word) >= 2
+        ):
             issues.append(f"結尾單字動詞「{last.word}」可能截斷")
     return issues
 
@@ -58,19 +65,35 @@ def rules(text: str) -> list[str]:
 def cmd_rules(args) -> int:
     work = Path(args.work).expanduser()
     work.mkdir(parents=True, exist_ok=True)
-    rows = [line.split("|", 1) for line in Path(args.metadata).expanduser().read_text(encoding="utf-8").splitlines()
-            if line.strip()]
+    rows = [
+        line.split("|", 1)
+        for line in Path(args.metadata).expanduser().read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     with (work / "rules.jsonl").open("w", encoding="utf-8") as f:
         for utt, text in rows:
-            f.write(json.dumps({"id": utt, "text": text.strip(), "rules": rules(text.strip())}, ensure_ascii=False) + "\n")
+            f.write(
+                json.dumps(
+                    {"id": utt, "text": text.strip(), "rules": rules(text.strip())},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
     for old in work.glob("batch_*.txt"):
         old.unlink()
     for i in range(0, len(rows), args.batch):
-        chunk = rows[i: i + args.batch]
+        chunk = rows[i : i + args.batch]
         (work / f"batch_{i // args.batch:03d}.txt").write_text(
-            "".join(f"{u}|{t.strip()}\n" for u, t in chunk), encoding="utf-8")
-    n = sum(1 for line in (work / "rules.jsonl").read_text(encoding="utf-8").splitlines() if json.loads(line)["rules"])
-    print(f"{len(rows)} sentences, {n} flagged by rules, {(len(rows) + args.batch - 1) // args.batch} LLM batches in {work}")
+            "".join(f"{u}|{t.strip()}\n" for u, t in chunk), encoding="utf-8"
+        )
+    n = sum(
+        1
+        for line in (work / "rules.jsonl").read_text(encoding="utf-8").splitlines()
+        if json.loads(line)["rules"]
+    )
+    print(
+        f"{len(rows)} sentences, {n} flagged by rules, {(len(rows) + args.batch - 1) // args.batch} LLM batches in {work}"
+    )
     return 0
 
 
@@ -93,7 +116,9 @@ def cmd_merge(args) -> int:
     # The LLM read every sentence; rule hits alone were mostly false positives on
     # 2026-11-18 (e.g. 「超好聽。」 flagged as a truncated verb). Only unbalanced
     # quotes/brackets are trusted without the LLM agreeing.
-    strong = [r for r in issues if r["llm"] or any(x.startswith("括號引號不成對") for x in r["rules"])]
+    strong = [
+        r for r in issues if r["llm"] or any(x.startswith("括號引號不成對") for x in r["rules"])
+    ]
     out = Path(args.out).expanduser()
     with out.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
@@ -101,8 +126,10 @@ def cmd_merge(args) -> int:
         for r in sorted(issues, key=lambda r: r["id"]):
             sev = "strong" if r in strong else "weak"
             w.writerow([r["id"], r["text"], sev, "；".join(r["rules"]), r["llm"]])
-    print(f"LLM judged {llm_done}/{len(found)}; issues: {len(issues)} (strong {len(strong)}, "
-          f"LLM {sum(bool(r['llm']) for r in issues)}, rules {sum(bool(r['rules']) for r in issues)}) -> {out}")
+    print(
+        f"LLM judged {llm_done}/{len(found)}; issues: {len(issues)} (strong {len(strong)}, "
+        f"LLM {sum(bool(r['llm']) for r in issues)}, rules {sum(bool(r['rules']) for r in issues)}) -> {out}"
+    )
     if args.quality:
         q = Path(args.quality).expanduser()
         rows = list(csv.DictReader(q.open(encoding="utf-8")))
@@ -116,7 +143,9 @@ def cmd_merge(args) -> int:
             w = csv.DictWriter(f, fieldnames=keys)
             w.writeheader()
             w.writerows(rows)
-        print(f"marked {len(strong_ids)} rows in {q} (run corpus_scorer.sh rerank to fold into the ranking)")
+        print(
+            f"marked {len(strong_ids)} rows in {q} (run corpus_scorer.sh rerank to fold into the ranking)"
+        )
     return 0
 
 
