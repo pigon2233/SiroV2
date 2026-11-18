@@ -470,3 +470,21 @@ Owner 決定（經協調端與 owner 原話）：取消目前訓練與訓練監�
   推論用 speaker=siro。優點：發音聲調一直有 csmsc 撐著，siro 語料裡殘留的怪語調不會主導；一次訓練完成。估 30–40k 步 × 約 0.9–1.1 秒 ≈ 9–12 小時。
 - B. 先 csmsc 打底（約 20k 步，5–6 小時）再只用 siro 微調（約 5–10k 步，1.5–3 小時）：較快看到 siro 音色，但微調時只看 siro 資料，容易把怪語調又學回來、忘掉 csmsc 的發音。
 - 推薦 A。開始前要：owner 篩完 siro 句子 → 合併 metadata → 跑 `preprocess_text.py` 算 BERT（csmsc 1 萬句約 15–20 分鐘）→ 用 `train_siro.sh`（改 RUN_NAME／DATA）開跑。
+
+## 2026-11-18 owner 試聽結果與文字檢查 → 建議重新生成
+
+- Owner 標記（44 句：14 OK、30 怪）存 `~/tts-train/data/siro-sweet-b-v1/listen-marks-1.json`。Owner 原話：「我說 OK 的都是 OK 的」→ 人工標記優先：
+  `corpus_scorer.sh rerank --marks <json…>` 寫入 `owner_mark` 欄，OK 一律 passed、怪一律 fail（含文字截斷但照字念對的 001569／001622）。
+- 依試聽頁分組的怪比例：最可疑 10 → 7（70%）；分界附近 20 → 18（90%）；最乾淨 10 → 2（20%）；參考 4 → 3（001329 中段也是怪）。
+  `scripts/tts_train/analyze_listen_marks.py` 可重算。單項預測力（AUC）：Whisper CER 0.79、SenseVoice CER 0.77、綜合 0.67；音調 0.68、頻譜 0.63、DNSMOS 0.45–0.58、情緒 0.53（≈ 猜）。
+  → 權重改為信心 1.5／音調 0.6／音頻 0.4／音質 0.3／情緒 0.2，綜合 AUC 0.76（只有 44 個樣本，仍可能過擬合）。
+- 推估：分界附近已 90% 怪、最乾淨也 20% 怪，中段沒有抽樣；整份 v1 被 owner 判怪的比例粗估 50–70%（很不確定），可用約 800–1,300 句（約 1–1.5 小時）。
+  要找出它們得由 owner 聽完全部約 2,600 句（光播放就約 3 小時），且這些句子仍帶 Qwen 的語調習慣。
+- 文字檢查（`check_corpus_text.py`＋`check_corpus_text.ps1`，claude CLI haiku 讀全部 2,649 句＋規則）：115 句文字有問題（語意不明 40、用詞錯誤 29、不通順 28、截斷 16、引號不成對 2），
+  `~/tts-train/data/siro-sweet-b-v1/text_issues.csv`，已併入 quality.csv（`text_issue` 欄，+3 分並判 fail，owner OK 除外）。jieba 規則單獨誤報太多，只當參考。
+- 截斷／壞句的來源（`scripts/generate_tts_sentences.py`）：Groq gpt-oss-20b／120b、`temperature 1.0`、`max_tokens 4000`（推理模型的思考也吃這個額度，回覆尾端可能被截，最後一行半句）；
+  `clean()` 只檢查 5–40 字與允許字元，沒有通順度檢查；而且 `.strip("\"'「」")` 會剝掉句首／句尾的引號，留下不成對的「」（例如 000988「…就像有人在說「歡迎回家。」）。
+- 建議：**(b) 重新生成**，不靠篩選救 v1（v1 的 14 句 OK 保留）。重新生成時：
+  1. 句子檔先修：刪／改 115 句問題句；生成句子時 temperature 降到 0.7、max_tokens 拉高或不用推理模型、加上通順度檢查、不要剝引號。
+  2. Qwen：temperature 0.6–0.7、top_k 30；每句 3 個候選；用 Whisper／SenseVoice CER 排序（目前最準的指標）再交 owner 試聽「選這個」。
+  3. 先試 50 句：同句各用繁體原文與 opencc 轉簡體餵 Qwen（owner 發現錯字多在「癒、饗、炫」這類字；Qwen 訓練資料以簡體為主，推測簡體輸入較準，未驗證），owner 聽完選定再全量。

@@ -49,7 +49,10 @@ GOOD_EMOTIONS = {"neutral", "happy"}
 BAD_EMOTIONS = {"angry", "sad", "fearful", "disgusted"}
 AREAS = ["tone", "quality", "spectrum", "asr", "emotion"]
 AREA_ZH = {"tone": "音調", "quality": "音質", "spectrum": "音頻", "asr": "信心", "emotion": "情緒"}
-WEIGHTS = {"tone": 1.0, "quality": 0.7, "spectrum": 0.5, "asr": 1.0, "emotion": 0.5}
+# 2026-11-18, owner's 44 marks: ASR CER predicts "bad" best (Whisper AUC 0.79,
+# SenseVoice 0.77); tone 0.68, spectrum 0.63, quality 0.58, emotion 0.53 (~chance).
+WEIGHTS = {"tone": 0.6, "quality": 0.3, "spectrum": 0.4, "asr": 1.5, "emotion": 0.2}
+TEXT_PENALTY = 3.0
 
 
 # ---------------------------------------------------------------- text helpers
@@ -244,18 +247,21 @@ def rank(rows: list[dict], cut_quantile: float = 0.85) -> list[dict]:
     }
     total = sum(WEIGHTS[a] * area[a] for a in AREAS)
     cut = float(np.quantile(total, cut_quantile)) if len(total) else 0.0
+    # broken source text (check_corpus_text.py): the recording cannot be right
+    text_bad = np.array([1.0 if str(r.get("text_issue") or "").strip() not in ("", "nan") else 0.0 for r in rows])
+    total = total + TEXT_PENALTY * text_bad
     for i, r in enumerate(rows):
         for a in AREAS:
             r[f"bad_{a}"] = round(float(area[a][i]), 3)
         r["suspicion"] = round(float(total[i]), 3)
-        r["passed"] = bool(total[i] <= cut)
+        r["passed"] = bool(total[i] <= cut and not text_bad[i])
     order = sorted(range(len(rows)), key=lambda i: -total[i])
     for rank_no, i in enumerate(order, 1):
         rows[i]["rank"] = rank_no
     return rows
 
 
-CSV_KEYS = ["rank", "id", "passed", "suspicion", *[f"bad_{a}" for a in AREAS], "whisper_cer", "sensevoice_cer",
+CSV_KEYS = ["rank", "id", "passed", "owner_mark", "suspicion", "text_issue", *[f"bad_{a}" for a in AREAS], "whisper_cer", "sensevoice_cer",
             "avg_logprob", "no_speech_prob", "dnsmos_ovrl", "dnsmos_sig", "dnsmos_bak", "dnsmos_p808",
             "clip_ratio", "silence_ratio", "centroid", "rolloff95", "cps", "f0_med", "f0_range", "jump_rate",
             "tone_mismatch", "tone_n", "voiced_ratio", "emotion", "emotion_score", "dur", "text", "asr",
@@ -323,12 +329,22 @@ def cmd_rerank(args) -> int:
         row = {}
         for k, v in r.items():
             try:
-                row[k] = float(v) if k not in ("id", "text", "asr", "sensevoice", "wav", "emotion", "passed") else v
+                row[k] = float(v) if k not in ("id", "text", "asr", "sensevoice", "wav", "emotion", "passed",
+                                               "text_issue", "owner_mark") else ("" if v == "nan" else v)
             except ValueError:
                 row[k] = np.nan if v in ("", "nan") else v
         row["emotion_scores"] = raw.get(r["id"], {}).get("emotion_scores", {})
         rows.append(row)
     rank(rows)
+    # The owner's listening marks always win over the automatic verdict.
+    owner: dict[str, str] = {}
+    for path in args.marks or []:
+        owner.update(json.loads(Path(path).expanduser().read_text(encoding="utf-8")).get("marks", {}))
+    for row in rows:
+        mark = owner.get(row["id"], row.get("owner_mark") or "")
+        row["owner_mark"] = mark
+        if mark in ("ok", "bad"):
+            row["passed"] = mark == "ok"
     write_csv(rows, out)
     print(f"reranked {len(rows)} -> {out}")
     return 0
@@ -340,6 +356,7 @@ def main() -> int:
     rr = sub.add_parser("rerank")
     rr.add_argument("--out", required=True)
     rr.add_argument("--raw", default=None)
+    rr.add_argument("--marks", nargs="*", help="owner listening-mark JSON files; their ok/bad override passed")
     s = sub.add_parser("score")
     s.add_argument("--corpus", required=True)
     s.add_argument("--out", required=True)
