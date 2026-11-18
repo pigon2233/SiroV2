@@ -423,3 +423,6 @@ torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip in
   （原本放 repo 內 `.scratch/` 並用預設關聯開啟：此機 .html 關聯到 iexplore，且 repo 內檔案每 5 秒改寫會被 Claude app 重複打開原始碼 → 已移出 repo。）
   只讀訓練檔。`status.sh` 改為呼叫同一支 `training_status.py` 印中文文字版。`.cmd` 必須保持純 ASCII（cmd 以 ANSI 讀檔，UTF-8 中文會讓整行錯位）。
   注意：MeloTTS 續跑以 epoch 起點計步，暫停後顯示的步數會往回跳（模型權重沒有倒退）。
+- Owner 要求（2026-11-18）：訓練完成後刪掉進度網頁與 `Show-Voice-Training.cmd`。由 `status_html_loop.sh` 處理：偵測到 `console.log` 最後一行為 `=== exit 0`（train_siro.sh 正常結束）
+  就刪 `%LOCALAPPDATA%\siro-voice-training\` 和 repo 根目錄的 cmd 後結束（cmd 是已追蹤檔，刪除後要另外 commit）。只有網頁產生器在跑時才會自動刪；
+  若訓練曾暫停超過 1 小時，產生器會先自己結束，那就要在訓練完成後手動刪。
