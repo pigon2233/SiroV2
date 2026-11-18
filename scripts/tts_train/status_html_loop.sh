@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
-# Rewrite the training progress page every 5 s (read-only on training files).
-# Started by Show-Voice-Training.cmd; a pidfile keeps it to one copy. Stops by
-# itself once training has been finished or stopped for an hour.
-OUT=${1:-$(cd "$(dirname "$0")/../.." && pwd)/.scratch/voice-training.html}
+# Rewrite the training progress page every 5 s (read-only on training files;
+# never opens any window). Started by Show-Voice-Training.cmd; a pidfile keeps
+# it to one copy. Stops by itself once training has been stopped for an hour.
+# The page lives in %LOCALAPPDATA%\siro-voice-training, outside the repo, so
+# editors / the Claude app do not reopen it on every rewrite.
+if [ -n "${1:-}" ]; then
+  OUT=$1
+else
+  OUT="$(wslpath "$(cmd.exe /c 'echo %LOCALAPPDATA%' 2>/dev/null | tr -d '\r')")/siro-voice-training/index.html"
+fi
+mkdir -p "$(dirname "$OUT")"
 PIDFILE=$HOME/tts-train/status_html_loop.pid
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then exit 0; fi
 echo $$ > "$PIDFILE"

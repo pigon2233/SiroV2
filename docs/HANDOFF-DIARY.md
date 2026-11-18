@@ -419,6 +419,7 @@ torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip in
   看進度：`bash scripts/tts_train/status.sh`；要停：`touch ~/tts-train/runs/siro-sweet-b-v1/STOP` 再 `pkill -f 'train.py --c'`。
 - 試跑留下的 `~/tts-train/runs/smoke-b4/` 可刪。
 - 進度網頁（2026-11-18）：雙擊 repo 根目錄 `Show-Voice-Training.cmd` → 在 WSL 背景啟動 `scripts/tts_train/status_html_loop.sh`（pidfile 確保只有一份，
-  訓練停止滿 1 小時自動結束），每 5 秒用 `training_status.py` 重寫 `.scratch/voice-training.html`（meta refresh 5 秒），並用預設瀏覽器打開。
+  訓練停止滿 1 小時自動結束），每 5 秒用 `training_status.py` 重寫 `%LOCALAPPDATA%siro-voice-trainingindex.html`（meta refresh 5 秒），並明確用 Chrome／Edge 打開一次。
+  （原本放 repo 內 `.scratch/` 並用預設關聯開啟：此機 .html 關聯到 iexplore，且 repo 內檔案每 5 秒改寫會被 Claude app 重複打開原始碼 → 已移出 repo。）
   只讀訓練檔。`status.sh` 改為呼叫同一支 `training_status.py` 印中文文字版。`.cmd` 必須保持純 ASCII（cmd 以 ANSI 讀檔，UTF-8 中文會讓整行錯位）。
   注意：MeloTTS 續跑以 epoch 起點計步，暫停後顯示的步數會往回跳（模型權重沒有倒退）。
