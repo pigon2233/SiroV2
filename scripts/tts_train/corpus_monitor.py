@@ -114,43 +114,52 @@ def render(gen_dir: str) -> str:
     now = datetime.now(TPE)
     total = int(plan.get("total_sentences") or 0)
     k = int(plan.get("candidates_per_sentence") or 0)
-    sentences = {r["sentence"] for r in rows}
-    passed = sum(bool(r.get("passed")) for r in rows)
-    done_pct = len(sentences) / total if total else 0.0
+    # lines with "areas" are scored candidates; the others are "generated" events
+    scored = [r for r in rows if "areas" in r]
+    generated = [r for r in rows if "areas" not in r] or scored
+    per_sentence: dict[str, int] = {}
+    for r in generated:
+        per_sentence[r["sentence"]] = per_sentence.get(r["sentence"], 0) + 1
+    done = sum(1 for n in per_sentence.values() if not k or n >= k)
+    passed = sum(bool(r.get("passed")) for r in scored)
+    done_pct = len(generated) / (total * k) if total and k else (done / total if total else 0.0)
     info = []
     if not rows:
         state = "尚未開始" if not plan else "準備中"
     else:
         age = (now - rows[-1]["_t"]).total_seconds()
-        state = (
-            "已完成"
-            if total and len(sentences) >= total
-            else ("生成中" if age < 300 else "停住了（5 分鐘沒有新資料）")
-        )
+        if total and k and len(generated) >= total * k:
+            state = "已完成" if len(scored) >= total * k else "打分中"
+        else:
+            state = "生成中" if age < 300 else "停住了（5 分鐘沒有新資料）"
     info.append(("狀態", state))
     if total:
-        info.append(("已生成句數", f"{len(sentences):,} / {total:,}（{done_pct:.1%}）"))
+        info.append(("已生成句數", f"{done:,} / {total:,}（候選 {done_pct:.1%}）"))
     if k:
         info.append(("每句候選數", str(k)))
-    if rows:
+    if generated:
+        info.append(("已生成候選", f"{len(generated):,}" + (f" / {total * k:,}" if total and k else "")))
+    if scored:
         info.append(
             (
-                "候選",
-                f"共 {len(rows):,}，通過 {passed:,}，淘汰 {len(rows) - passed:,}（通過率 {passed / len(rows):.0%}）",
+                "已打分",
+                f"{len(scored):,}，通過 {passed:,}，淘汰 {len(scored) - passed:,}"
+                f"（通過率 {passed / len(scored):.0%}）",
             )
         )
         avg = "　".join(
-            f"{zh} {sum(float(r.get('areas', {}).get(key, 0)) for r in rows) / len(rows):.2f}"
+            f"{zh} {sum(float(r.get('areas', {}).get(key, 0)) for r in scored) / len(scored):.2f}"
             for key, zh, _ in AREAS
         )
         info.append(("各項平均", avg))
-        recent = rows[-50:]
+    if len(generated) > 1:
+        recent = generated[-50:]
         span = (recent[-1]["_t"] - recent[0]["_t"]).total_seconds()
         if len(recent) > 1 and span > 0:
             per_cand = span / (len(recent) - 1)
             info.append(("速度", f"約 {per_cand:.1f} 秒／候選"))
             if total and k and state == "生成中":
-                left = max(0, total * k - len(rows)) * per_cand
+                left = max(0, total * k - len(generated)) * per_cand
                 info.append(
                     (
                         "預計完成",
@@ -174,7 +183,7 @@ td{{padding:6px 0}} svg{{width:100%;height:auto;display:block}} svg text{{font-s
 .legend{{font-size:13px;color:var(--muted)}} .legend span{{margin-right:14px;white-space:nowrap}} .legend i{{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}}
 </style></head><body><main><div class="card"><h1>SIRO 語料製作　<span class="state">{html.escape(state)}</span></h1>
 <div class="bar"><div></div></div><table>{table}</table></div>
-<div class="card"><b>各項分數（音調／音質／音頻／信心／情緒）</b>{chart(rows)}</div>
+<div class="card"><b>各項分數（音調／音質／音頻／信心／情緒）</b>{chart(scored)}</div>
 <p class="muted">最後更新 {now:%Y-%m-%d %H:%M:%S}（台北）・每 5 秒自動重新整理・關掉網頁不影響生成</p></main></body></html>"""
 
 

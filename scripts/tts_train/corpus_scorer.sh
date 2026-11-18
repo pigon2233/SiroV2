@@ -6,4 +6,4 @@ NV=$V/lib/python3.10/site-packages/nvidia
 export PATH=$V/bin:/usr/local/bin:/usr/bin:/bin
 export LD_LIBRARY_PATH=$NV/cublas/lib:$NV/cudnn/lib:${LD_LIBRARY_PATH:-}
 HERE=$(dirname "$(readlink -f "$0")")
-cd /tmp && exec "$V/bin/python" "$HERE/corpus_scorer.py" "$@"
+cd /tmp && exec "$V/bin/python" "$HERE/${SCORER_SCRIPT:-corpus_scorer.py}" "$@"

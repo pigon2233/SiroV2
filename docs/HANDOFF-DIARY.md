@@ -488,3 +488,18 @@ Owner 決定（經協調端與 owner 原話）：取消目前訓練與訓練監�
   1. 句子檔先修：刪／改 115 句問題句；生成句子時 temperature 降到 0.7、max_tokens 拉高或不用推理模型、加上通順度檢查、不要剝引號。
   2. Qwen：temperature 0.6–0.7、top_k 30；每句 3 個候選；用 Whisper／SenseVoice CER 排序（目前最準的指標）再交 owner 試聽「選這個」。
   3. 先試 50 句：同句各用繁體原文與 opencc 轉簡體餵 Qwen（owner 發現錯字多在「癒、饗、炫」這類字；Qwen 訓練資料以簡體為主，推測簡體輸入較準，未驗證），owner 聽完選定再全量。
+
+## 2026-11-18 重新生成：句子 v2＋50 句試做（繁體 vs 簡體輸入）
+
+- 句子 v2：`scripts/tts_train/make_sentences_v2.py`（prep／apply）＋`make_sentences_v2.ps1`（claude haiku 改寫）→ `~/.local/share/siro/tts-corpus/sentences-v2.txt`／`sentences-v2.styles.tsv`，
+  2,652 句，115 句問題句全部改寫（0 句丟棄），對照表 `~/tts-train/data/sentences-v2/rewrites.csv`。v1 檔案未動。改寫句常加「喔～／呢」語尾。
+- `scripts/generate_tts_sentences.py`：不再替沒標點的行補「。」（截斷句會變成「做三明治時把。」）而是丟掉；只剝一對外層引號；丟引號括號不成對的行；temperature 1.0→0.8；max_tokens 4000→8000；prompt 要求完整句加標點。新增測試，`tests/unit/test_generate_tts_sentences.py` 5 passed，ruff 通過。
+- 試做：`trial_select.py`（50 句＝owner 判怪 30＋少見字 5＋中英 6＋數字 4＋隨機 5，各附 opencc t2s 簡體）→ `trial_generate.py`（qwen-tts-venv，faster_qwen3_tts，**talker 與 code predictor 都用 temperature 0.65／top_k 30**，產品 worker 是 0.9／50；沒有快取，每次都是新取樣）
+  → `trial_score.py`（`SCORER_SCRIPT=trial_score.py bash corpus_scorer.sh <dir>`）→ `build_trial_page.py`。輸出 `~/.local/share/siro/tts-corpus/siro-sweet-b-v2-trial/`（300 wav、candidates.jsonl、trial_quality.csv）。
+  監測網頁讀 `~/tts-train/data/siro-regen`（symlink 到試做資料夾）。
+- 結果（自動字錯率；owner 尚未試聽）：
+  繁體輸入 150 候選：Whisper CER 平均 18.3%、SenseVoice 14.6%、零錯字候選 5%；每句最佳（3 選 1）零錯字 5/50 句。
+  **簡體輸入**：Whisper 7.3%、SenseVoice 2.7%、零錯字候選 44%；每句最佳零錯字 **30/50**。逐句比最佳候選：簡體勝 40、繁體勝 2、平手 8。
+  （這 50 句故意偏難，含 owner 判怪的 30 句，所以數字比 v1 全體中位數高。）生成 2.94 秒／候選（50×6 共 14.7 分鐘），打分約 1.4 秒／候選。
+- 試聽頁 `%LOCALAPPDATA%\siro-corpus\trial.html`（每句繁／簡各一個最佳候選並排，可展開其他候選；「選這個」／「全部怪」；下載 `siro-trial-choices.json`，頁面上統計選繁／選簡數）。
+- 全量估計（簡體輸入、每句 3 候選）：2,652×3×2.94 秒 ≈ 6.5 小時生成＋約 3 小時打分 ≈ 9–10 小時；每句 2 候選約 6–7 小時。生成期間 SIRO 須關閉。尚未開始，等 owner 試聽決定。
