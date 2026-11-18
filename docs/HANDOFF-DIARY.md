@@ -428,3 +428,12 @@ torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip in
   若訓練曾暫停超過 1 小時，產生器會先自己結束，那就要在訓練完成後手動刪。
 - 進度網頁加 loss 折線圖（2026-11-18）：`training_status.py` 解析 train.log 全部歷史（續跑步數回跳時丟掉被重算的舊點，折線不倒退），內嵌 SVG（離線可看）：
   mel 單獨一張、kl/dur/gen/disc 一張，淡線原始值＋9 點移動平均。另寫 `~/tts-train/runs/siro-sweet-b-v1/loss_history.csv`（time,step,disc,gen,fm,mel,dur,kl；訓練不讀它）。
+
+## 2026-11-18 語料可懂度抽查（owner 聽 000001／000004 說聽不懂）
+
+- `scripts/tts_train/check_corpus_asr.py`：sirov2 venv 的 faster-whisper（SIRO 已下載的 `~/.local/share/siro/data/models/faster-whisper-small`，CPU int8，不搶訓練 GPU、不改套件）轉寫，
+  melotts venv 用 opencc 統一繁簡後算 CER。
+- 結果（000001、000004＋隨機 60 句，原始 24k）：CER 中位數 6%、平均 9%、>30% 3 句（5%）、>60% 0。44.1k 版的 000001／000004 轉寫與 24k 完全相同 → 不是重取樣造成。
+  000001「超治癒」→「超之一」17%；000004「影展／超炫／視聽雙饗宴」→「營展／超選／試聽雙水葉」23%。開頭的中英夾雜流行語句較常念錯。
+  CER 高的也含假陽性（000289「1,050」被轉成中文數字）。Whisper small 本身也會錯，數字只能當相對指標。
+- 結論：語料不是大面積不可懂，但有部分念錯字。待 owner 聽 Whisper 判定正確的 001329／000620：聽得懂 → 全量 Whisper 篩掉高 CER 句再重訓；也聽不懂 → 聲線本身問題，需重做語料。
