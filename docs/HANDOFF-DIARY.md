@@ -426,3 +426,5 @@ torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip in
 - Owner 要求（2026-11-18）：訓練完成後刪掉進度網頁與 `Show-Voice-Training.cmd`。由 `status_html_loop.sh` 處理：偵測到 `console.log` 最後一行為 `=== exit 0`（train_siro.sh 正常結束）
   就刪 `%LOCALAPPDATA%\siro-voice-training\` 和 repo 根目錄的 cmd 後結束（cmd 是已追蹤檔，刪除後要另外 commit）。只有網頁產生器在跑時才會自動刪；
   若訓練曾暫停超過 1 小時，產生器會先自己結束，那就要在訓練完成後手動刪。
+- 進度網頁加 loss 折線圖（2026-11-18）：`training_status.py` 解析 train.log 全部歷史（續跑步數回跳時丟掉被重算的舊點，折線不倒退），內嵌 SVG（離線可看）：
+  mel 單獨一張、kl/dur/gen/disc 一張，淡線原始值＋9 點移動平均。另寫 `~/tts-train/runs/siro-sweet-b-v1/loss_history.csv`（time,step,disc,gen,fm,mel,dur,kl；訓練不讀它）。

@@ -40,9 +40,15 @@ def collect(run: str) -> dict:
             except ValueError:
                 continue
             if len(v) >= 8:
-                rows.append((datetime.fromisoformat(m.group(1)).replace(tzinfo=TPE), int(v[6]), v))
+                step = int(v[6])
+                # A resume restarts the counter at an epoch boundary; drop the
+                # earlier points it re-trains so the history never runs backwards.
+                while rows and rows[-1][1] >= step:
+                    rows.pop()
+                rows.append((datetime.fromisoformat(m.group(1)).replace(tzinfo=TPE), step, v))
     except OSError:
         pass
+    s["rows"] = rows
     try:
         epochs = json.load(open(os.path.join(run, "train_config.json")))["train"]["epochs"]
         tail = open(os.path.join(run, "console.log"), errors="replace").read()[-20000:]
@@ -106,6 +112,53 @@ def lines(s: dict) -> list[tuple[str, str]]:
     return out
 
 
+SERIES = {"mel": (3, "#1e88e5"), "kl": (5, "#8e24aa"), "dur": (4, "#00897b"),
+          "gen": (1, "#f4511e"), "disc": (0, "#6d6d6d")}
+
+
+def svg_chart(rows: list, keys: list[str], title: str) -> str:
+    """Inline SVG line chart: faint raw points + 9-point moving average."""
+    if len(rows) < 2:
+        return ""
+    w, h, left, right, top, bottom = 600, 220, 44, 12, 12, 26
+    xs = [r[1] for r in rows]
+    vals = {k: [r[2][SERIES[k][0]] for r in rows] for k in keys}
+    lo = min(min(v) for v in vals.values())
+    hi = max(max(v) for v in vals.values())
+    if hi - lo < 1e-9:
+        hi = lo + 1
+    pad = (hi - lo) * 0.05
+    lo, hi = max(0.0, lo - pad), hi + pad
+    x0, x1 = xs[0], max(xs[-1], xs[0] + 1)
+
+    def px(x: float) -> float:
+        return left + (x - x0) / (x1 - x0) * (w - left - right)
+
+    def py(y: float) -> float:
+        return top + (hi - y) / (hi - lo) * (h - top - bottom)
+
+    parts = []
+    for i in range(5):  # horizontal grid + y labels
+        y = lo + (hi - lo) * i / 4
+        parts.append(f'<line x1="{left}" x2="{w - right}" y1="{py(y):.1f}" y2="{py(y):.1f}" class="grid"/>'
+                     f'<text x="{left - 6}" y="{py(y) + 4:.1f}" text-anchor="end">{y:.1f}</text>')
+    for i in range(5):  # x labels (steps)
+        x = x0 + (x1 - x0) * i / 4
+        parts.append(f'<text x="{px(x):.1f}" y="{h - 6}" text-anchor="middle">{int(x):,}</text>')
+    legend = []
+    for k in keys:
+        color, v = SERIES[k][1], vals[k]
+        raw = " ".join(f"{px(x):.1f},{py(y):.1f}" for x, y in zip(xs, v, strict=True))
+        ma = [sum(v[max(0, i - 8): i + 1]) / len(v[max(0, i - 8): i + 1]) for i in range(len(v))]
+        smooth = " ".join(f"{px(x):.1f},{py(y):.1f}" for x, y in zip(xs, ma, strict=True))
+        parts.append(f'<polyline points="{raw}" fill="none" stroke="{color}" stroke-opacity=".25" stroke-width="1"/>'
+                     f'<polyline points="{smooth}" fill="none" stroke="{color}" stroke-width="2"/>')
+        legend.append(f'<span><i style="background:{color}"></i>{k} {v[-1]:.2f}</span>')
+    return (f'<div class="chart"><div class="ctitle">{html.escape(title)}</div>'
+            f'<div class="legend">{"".join(legend)}</div>'
+            f'<svg viewBox="0 0 {w} {h}" role="img" aria-label="{html.escape(title)}">{"".join(parts)}</svg></div>')
+
+
 def render_html(s: dict) -> str:
     pct = min(1.0, s["step"] / s["total"]) if s.get("total") and "step" in s else 0.0
     rows = "".join(f"<tr><th>{html.escape(k)}</th><td>{html.escape(v)}</td></tr>" for k, v in lines(s))
@@ -124,10 +177,20 @@ h1{{font-size:20px;margin:0 0 4px}} .state{{color:{color};font-weight:700}}
 .pct{{text-align:right;color:var(--muted);font-size:14px}}
 table{{width:100%;border-collapse:collapse;margin-top:8px}} th{{text-align:left;font-weight:500;color:var(--muted);
 white-space:nowrap;padding:6px 16px 6px 0;vertical-align:top}} td{{padding:6px 0;word-break:break-all}}
-footer{{color:var(--muted);font-size:13px;margin-top:12px}}</style></head><body><main><div class="card">
+footer{{color:var(--muted);font-size:13px;margin-top:12px}}
+.chart{{margin-top:20px}} .ctitle{{font-weight:600}} svg{{width:100%;height:auto;display:block}}
+svg text{{font-size:11px;fill:var(--muted)}} .grid{{stroke:var(--bar);stroke-width:1}}
+.legend{{font-size:13px;color:var(--muted);margin:2px 0 4px}} .legend span{{margin-right:14px;white-space:nowrap}}
+.legend i{{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}}
+.note{{font-size:12px;color:var(--muted)}}</style></head><body><main><div class="card">
 <h1>SIRO 語音模型訓練　<span class="state">{html.escape(s["state"])}</span></h1>
 <div class="bar"><div></div></div><div class="pct">{pct:.1%}</div>
 <table>{rows}</table></div>
+<div class="card" style="margin-top:16px">
+{svg_chart(s["rows"], ["mel"], "mel loss（主要指標，越低越好）")}
+{svg_chart(s["rows"], ["kl", "dur", "gen", "disc"], "其他 loss")}
+<div class="note">橫軸是步數；淡線是原始值（每 50 步一點），粗線是 9 點移動平均。暫停後續跑時重算的區段只保留最新的。</div>
+</div>
 <footer>最後更新 {s["now"]:%Y-%m-%d %H:%M:%S}（台北）・每 5 秒自動重新整理・關掉網頁不影響訓練</footer>
 </main></body></html>"""
 
@@ -143,6 +206,13 @@ def main() -> int:
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(render_html(s))
         os.replace(tmp, args.html)
+        # loss history for later reference (separate file; training never reads it)
+        csv = os.path.join(args.run, "loss_history.csv")
+        with open(csv + ".tmp", "w", encoding="utf-8") as f:
+            f.write("time,step,disc,gen,fm,mel,dur,kl\n")
+            for t, step, v in s["rows"]:
+                f.write(f"{t:%Y-%m-%d %H:%M:%S},{step}," + ",".join(f"{x:.4f}" for x in v[:6]) + "\n")
+        os.replace(csv + ".tmp", csv)
     else:
         print(f"SIRO 語音訓練　{s['now']:%Y-%m-%d %H:%M:%S}（台北）")
         for k, v in lines(s):
