@@ -437,3 +437,36 @@ torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip in
   000001「超治癒」→「超之一」17%；000004「影展／超炫／視聽雙饗宴」→「營展／超選／試聽雙水葉」23%。開頭的中英夾雜流行語句較常念錯。
   CER 高的也含假陽性（000289「1,050」被轉成中文數字）。Whisper small 本身也會錯，數字只能當相對指標。
 - 結論：語料不是大面積不可懂，但有部分念錯字。待 owner 聽 Whisper 判定正確的 001329／000620：聽得懂 → 全量 Whisper 篩掉高 CER 句再重訓；也聽不懂 → 聲線本身問題，需重做語料。
+
+## 2026-11-18 語音：取消訓練、語料打分＋試聽篩選、CSMSC、方案 3 計畫（尚未生成、尚未訓練）
+
+Owner 決定（經協調端與 owner 原話）：取消目前訓練與訓練監測；重新生成語料前先打分篩選，篩選由 owner 試聽決定；選方案 3（CSMSC 打底學發音聲調＋篩過的 SIRO 句學音色）。
+- 訓練已取消：程序全部結束，`~/tts-train/runs/siro-sweet-b-v1/`（G/D/DUR 0、1000、2000、3000）保留未刪。訓練進度網頁、`Show-Voice-Training.cmd` 已移除。
+- 打分環境：獨立 venv `~/.venvs/corpus-scorer`（Python 3.10、torch 2.5.1+cu121、faster-whisper、funasr 1.4.27、torchmetrics 1.9 DNSMOS、onnxruntime、librosa 0.11；約 5.9 GB），不動 sirov2／melotts。
+  坑：WSL PATH 裡的 Windows `ffmpeg` 無法執行，funasr import 時會炸 → `corpus_scorer.sh` 改用 Linux-only PATH 並加 venv 的 cublas／cudnn 到 LD_LIBRARY_PATH。
+  sirov2 的 faster-whisper 沒有 CUDA 函式庫（libcublas.so.12）只能 CPU。transformers 新版要求 torch>=2.6（只是警告，funasr 用不到）。
+- `scripts/tts_train/corpus_scorer.py`（模組＋CLI，`score`／`rerank`）五個面向：音調（pypinyin 聲調 vs 每字 F0 斜率、F0 跳動、音域）、音質（DNSMOS SIG/BAK/OVRL/P808、削波、靜音比例）、
+  音頻（頻譜重心、95% roll-off、每秒字數）、信心（Whisper small CER、avg_logprob、SenseVoiceSmall CER）、情緒（emotion2vec+ large；負面情緒機率）。各面向為相對整份語料的 robust z（0＝一般），加權為可疑分數，前 15% 判 fail。
+  結果 `~/tts-train/data/siro-sweet-b-v1/quality.csv`（原始量測 `quality.csv.raw.jsonl`）。2,649 句 GPU 模型約 50 分鐘＋音高 CPU 約 10 分鐘（後者原用 16 核，owner 電腦變卡 → 預設改半數核心）。
+- 分布：Whisper CER 中位 5.9%、p90 20%；SenseVoice CER 中位 0%、p90 14%；DNSMOS OVRL 中位 3.06（p10 2.79）；削波 0；每秒 4.2 字；
+  emotion2vec 幾乎全判 happy（2,327）／surprised（317），情緒面向幾乎沒有鑑別力（第一版把它當 z 分數，任何一點負面就變 6σ，已改成絕對機率）。
+- 4 句校準（owner 標記）：000004 第 137 名、000001 第 198 名 → 判 fail（正確）；000620 第 2,145 名 → 乾淨（正確）；
+  **001329（字對但音調怪）第 1,263 名、判 pass → 自動分數抓不到這種韻律問題**（tone_mismatch 0.29，000620 是 0.25）。沒有為了這句硬調權重。結論：自動分數只用來排序，owner 試聽才是篩選。
+- 試聽網頁：`scripts/tts_train/build_listen_page.py` → `%LOCALAPPDATA%\siro-corpus\listen.html`（最可疑 10＋分界附近 20＋最乾淨 10＋4 句參考＝44 句），
+  OK／怪（多候選時有「選這個」），標記存 localStorage，可下載／匯入 `siro-listen-marks.json`（`{"version":1,"marks":{id:"ok"|"bad"},"choice":{sentence:id}}`）。`--all` 可列全部。
+- 語料製作監測：`scripts/tts_train/corpus_monitor.py`＋`corpus_monitor_loop.sh`＋repo 根目錄 `Show-Corpus-Progress.cmd`（ASCII；Chrome 開 `%LOCALAPPDATA%\siro-corpus\progress.html`，每 5 秒刷新）。
+  讀 `~/tts-train/data/siro-regen/plan.json` 與 `progress.jsonl`（格式見 corpus_monitor.py docstring）；生成還沒開始，所以現在顯示「尚未開始」。
+- CSMSC：HF 鏡像 `openspeech/BZNSYP`（重新打包 Databaker 原檔，鏡像未標授權；Databaker 以非商業研究用途公開，官方頁條文未能自動讀取、未逐字核對）。來源記在 `~/tts-train/data/csmsc/LICENSE-SOURCE.txt`。
+  `scripts/tts_train/prepare_csmsc.py` → `~/tts-train/data/csmsc/melo/`：1 萬句、11.86 小時、44.1k／單聲道／16-bit、speaker csmsc、ZH_MIX_EN、去掉 #1–#4 韻律標記；Melo 前端 0 錯誤。尚未算 BERT。原始 48k 在 `raw/`（含 2.5 GB tar.bz2，可刪）。
+
+### 重新生成建議（尚未開始）
+- 原設定（`scripts/qwen_tts_worker.py`）：Qwen3-TTS 0.6B base 聲音複製，`do_sample=True, top_k=50, temperature=0.9`，每句只取 1 次。高 temperature 是語調亂飄的最可能原因（推論，未對照實驗）。
+- 建議：temperature 0.6–0.7、top_k 30；每句 3 個候選；每個候選用 corpus_scorer 打分寫入 progress.jsonl（監測網頁會顯示），依可疑分數排序後交 owner 試聽「選這個」。
+  先小規模試做 50 句 × 3 候選讓 owner 聽，確認比舊語料穩定再全量。中英夾雜流行語句子最容易念錯，可考慮降低比例。
+- 時間估計：生成約 2.5–3.3 秒／候選（上次實測 3.3 秒，含 Windows 程式搶顯卡）× 2,649 × 3 ≈ 5.5–7 小時；打分約 1 秒／候選 ≈ 2 小時（可邊生成邊打分）。生成期間 SIRO 必須關閉。
+
+### 訓練計畫（方案 3，尚未開始）
+- A. 多說話人一起訓練（推薦）：csmsc＋siro（owner 篩過的句子）同一份 train.list，n_speakers 2，從 `zh-remapped/G_0.pth` 開始；siro 句子重複 3–4 次以平衡（csmsc 11.9 h vs siro 約 2–2.5 h）。
+  推論用 speaker=siro。優點：發音聲調一直有 csmsc 撐著，siro 語料裡殘留的怪語調不會主導；一次訓練完成。估 30–40k 步 × 約 0.9–1.1 秒 ≈ 9–12 小時。
+- B. 先 csmsc 打底（約 20k 步，5–6 小時）再只用 siro 微調（約 5–10k 步，1.5–3 小時）：較快看到 siro 音色，但微調時只看 siro 資料，容易把怪語調又學回來、忘掉 csmsc 的發音。
+- 推薦 A。開始前要：owner 篩完 siro 句子 → 合併 metadata → 跑 `preprocess_text.py` 算 BERT（csmsc 1 萬句約 15–20 分鐘）→ 用 `train_siro.sh`（改 RUN_NAME／DATA）開跑。
