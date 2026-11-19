@@ -280,7 +280,9 @@ def test_schema17_to18_preserves_checksums_and_failed_upgrade_rolls_back(tmp_pat
         apply_migrations(c, migrations)
         apply_migrations(c, migrations)
         assert c.execute("SELECT * FROM schema_migrations WHERE version<=17").fetchall() == old
-        assert c.execute("SELECT max(version) FROM schema_migrations").fetchone()[0] == len(migrations)
+        assert c.execute("SELECT max(version) FROM schema_migrations").fetchone()[0] == len(
+            migrations
+        )
 
 
 class Capture:
@@ -357,9 +359,12 @@ async def test_low_similarity_is_not_recalled_and_distinct_conflicts_not_dedupli
             return ((0.0, 1.0) + (0.0,) * 30,) if query else await super().embed(texts, query=query)
 
     # Dense-only matches below the floor are dropped; lexical hits are kept.
-    assert await HybridMemoryRetriever(cache, Orthogonal()).recall(
-        "siro", "unrelated", [], route=ROUTE
-    ) == []
+    assert (
+        await HybridMemoryRetriever(cache, Orthogonal()).recall(
+            "siro", "unrelated", [], route=ROUTE
+        )
+        == []
+    )
     kept = await HybridMemoryRetriever(cache, Orthogonal()).recall(
         "siro", "unrelated", [left, right], route=ROUTE
     )
@@ -377,9 +382,7 @@ async def test_embedder_unavailable_keeps_lexical_hits(tmp_path: Path) -> None:
         async def embed(self, texts, *, query):  # type: ignore[no-untyped-def]
             raise RetrievalUnavailable("down")
 
-    found = await HybridMemoryRetriever(cache, Down()).recall(
-        "siro", "茶", [hit], route=ROUTE
-    )
+    found = await HybridMemoryRetriever(cache, Down()).recall("siro", "茶", [hit], route=ROUTE)
     assert [m.memory_id for m in found] == [hit.memory_id]
 
 
