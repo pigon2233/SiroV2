@@ -369,3 +369,156 @@ Owner（2026-11-17，經協調端轉述原話）：「訓練吧」，並問閒�
 
 需要下載（都還沒做）：MeloTTS 原始碼（GitHub）、其 Python 相依套件（含 torch，數 GB，裝進新的 `~/.venvs/melotts`）、
 `python -m unidic download`、HuggingFace 上的 BERT 模型與（若要微調）MeloTTS 中文預訓練 checkpoint。
+
+## 2026-11-17 語音訓練 階段 1、2（MeloTTS）— 階段 2 DONE（未開始訓練）
+
+階段 1（DONE）：`~/tts-train/MeloTTS`（commit 2091453）；獨立 venv `~/.venvs/melotts`（uv、Python 3.10.21、7.1 GB）：
+torch 2.5.1+cu121、numpy 1.26.4、librosa 0.9.1、transformers 4.27.4；`pip install -e .`、unidic 3.1.0。
+`import melo`／`melo.api.TTS` 成功、`torch.cuda.is_available()` 為 True（RTX 3050 8 GB）。
+坑：setuptools 84 拿掉 `pkg_resources`，librosa 0.9.1 import 失敗 → 釘 `setuptools<81`（80.10.2）。第一次 import 會自動下載 nltk 資料到 `~/nltk_data`。
+
+階段 2（腳本在 `scripts/tts_train/`，只用 `~/.venvs/melotts` 跑）：
+- 格式（讀 `docs/training.md`、`preprocess_text.py`、`data_utils.py`、`configs/config.json`）：`metadata.list` 每行 `wav|speaker|語言|文字`；
+  預設 44.1 kHz、hop 512；`data_utils` 用檔案大小估長度，所以必須單聲道 16-bit；bert 特徵存成 `<wav>.bert.pt`；
+  `preprocess_text.py` 預設 val 每人 4 句、上限 8 → 要加 `--val-per-spk 30 --max-val-total 30`；需在 `melo/` 目錄執行並用 GPU 算 BERT。
+- 音檔（DONE）：`prepare_melo_dataset.py` → `~/tts-train/data/siro-sweet-b-v1/wavs/`，2,649 檔、44.1 kHz／單聲道／16-bit、924 MB，
+  scipy `resample_poly`，0 檔削波，時長與原檔一致。原始語料未修改。來源是 24 kHz，所以 12 kHz 以上沒有內容（升頻不會補回）。
+- 語言碼（決定）：用 **`ZH_MIX_EN`**，不是 `ZH`。`probe_zh_frontend.py` 全量測試：`ZH` 會把英文刪掉並在 222 句 assert 失敗；
+  `ZH_MIX_EN`（Melo 官方 ZH 模型推論時就是用它）0 錯誤、0 未知音素；只丟掉 `% . : & / +` 共 19 個符號。數字由 cn2an 轉中文（「3D」→「三D」）。
+- 繁體（結論：**需要轉簡體再給前端**）：繁體字本身都能轉拼音、不報錯，但 jieba 斷詞用簡體詞典，多音字會選錯。
+  自製 14 組繁／簡對照有 5 組不同：音樂 yin **le**、配樂 pei **le**、樂團 **le**、睡覺 shui **jue**、銀行 yin **xing**（簡體都正確）。
+  決定：`prepare_melo_dataset.py --t2s` 用 opencc t2s 只轉給前端的文字；推論時也要先 t2s。（owner 同意後已在 melotts venv 裝 opencc 1.4.2，`metadata.list` 已是簡體。）
+- 前處理（DONE）：`cd ~/tts-train/MeloTTS/melo && ~/.venvs/melotts/bin/python preprocess_text.py --metadata ~/tts-train/data/siro-sweet-b-v1/metadata.list --val-per-spk 30 --max-val-total 30`
+  → 0 錯誤、0 新符號；train.list 2,619、val.list 30；2,649 個 `.bert.pt`；`config.json`（n_speakers 1、spk2id siro:0、batch_size 6）。log 在資料夾內 `preprocess.log`。
+- 預訓練權重（2026-11-17 實測）：train.py 預設載入的 S3 `pretrained/G.pth、D.pth、DUR.pth` 和 S3 ZH checkpoint **全部 404**。
+  僅 HuggingFace `myshell-ai/MeloTTS-Chinese` 的 `checkpoint.pth`（G，198 MB）可下載；**沒有官方 D／DUR**，只能從隨機初始化（音質風險，未驗證）。
+  ZH 模型的表是 112 符號／11 tone／4 語言／256 speaker，我們的 config 是 219／16／8／1；直接載入會讓 phone/tone/語言 embedding 變隨機。
+  `convert_zh_checkpoint.py` 依符號名稱重排（ZH 的 112 個符號都在我們表中，我們用到的 92 個音素都在 ZH 表中；tone/語言編號前段一致），
+  speaker 用 ZH speaker 初始化 → `~/tts-train/pretrained/zh-remapped/G_0.pth`；`utils.load_checkpoint` 載入 0 mismatch。
+  BERT `bert-base-multilingual-uncased` 已在 `~/.cache/huggingface`。
+- **階段 3 必須先處理**：`train.py` 第 169 行無條件呼叫 `load_pretrain_model()`（S3 404 → 直接 crash），`train.sh` 也不傳 `--pretrain_G`。
+  需改 train.py（只在沒指定時才下載、失敗不當掉）並以 `--pretrain_G ~/tts-train/pretrained/zh-remapped/G_0.pth` 啟動。
+- batch_size：官方 config 為 6（segment_size 16384）。沒實測；8 GB 建議先 4，OOM 再降 2–3（推估，未驗證）。
+
+## 2026-11-17 語音訓練 階段 3：訓練中（owner 親自同意後於 22:35 開跑）
+
+- SIRO：檢查時已經沒在跑（沒有 gateway／TTS 程序、`ollama ps` 無模型、GPU 只用 922 MiB，是 Windows 桌面）。`Stop-SIRO-Win.cmd` 執行被權限擋下（協調端轉述的同意不算），但實際上不需要。
+- MeloTTS 修改（`scripts/tts_train/melotts-train.patch`，套在 `~/tts-train/MeloTTS` commit 2091453）：
+  (1) 有 `--pretrain_G` 時不下載 S3 預訓練、下載失敗不當掉（D/DUR 從零）；(2) `num_workers` 可由 config 設（原寫死 16）；
+  (3) epoch 迴圈的 except 會吞掉整個 epoch，只印一行錯誤 → 加 `traceback.print_exc()`。
+- 環境補件：melotts venv 裝 `matplotlib<3.8`（3.7.5）。train.py 每次 log 會畫頻譜圖；沒裝會讓每個 epoch 在第一次 log 就被吞掉，3.8+ 沒有 `tostring_rgb`。
+- 試跑（batch 4，`train_config.json` 由 `train_siro.sh` 產生）：
+  - **fp16 不能用**：第一步就在 duration predictor 的 spline 出現 NaN → 空 tensor（`min(): ... numel() == 0`），所以 `train_siro.sh` 預設 `FP16=false`。
+  - fp32：7 分鐘跑到第 413 步，沒有 OOM，峰值 VRAM 約 6.2 GB（含 Windows 約 0.9 GB），約 **0.78 秒／步**（1.25–1.3 it/s）。
+  - 第 0 步 loss：disc 5.98、gen 3.58、fm 0.41、mel 26.0、dur 3.30、kl 5.87；之後的 loss 趨勢還沒看到（第一次試跑的 log 被我的 stdout 導向覆寫；已改為 stdout → `console.log`）。
+  - 第 0 步會做一次 eval（30 句）並存 checkpoint，要等約 1–2 分鐘才開始跑步數。
+- 預估：20k 步 × 0.78 秒 ≈ 4.3 小時，加上每 1000 步的 eval／存檔，約 4.5–5 小時（推估）。
+- 開跑（2026-11-17 22:35 已用下列指令啟動；第 300 步 mel 16.4、kl 2.8，比第 0 步下降；約 0.83 秒／步）：
+  `setsid nohup bash /mnt/e/coding/股票策略機器學習/SiroV2/scripts/tts_train/train_siro.sh > ~/tts-train/train_siro.nohup 2>&1 < /dev/null &`
+  run 資料夾 `~/tts-train/runs/siro-sweet-b-v1/`：`train.log`（loss）、`console.log`（stdout）、`G_/D_/DUR_*.pth`（每 1000 步、保留 3 組）。
+  看進度：`bash scripts/tts_train/status.sh`；要停：`touch ~/tts-train/runs/siro-sweet-b-v1/STOP` 再 `pkill -f 'train.py --c'`。
+- 試跑留下的 `~/tts-train/runs/smoke-b4/` 可刪。
+- 進度網頁（2026-11-18）：雙擊 repo 根目錄 `Show-Voice-Training.cmd` → 在 WSL 背景啟動 `scripts/tts_train/status_html_loop.sh`（pidfile 確保只有一份，
+  訓練停止滿 1 小時自動結束），每 5 秒用 `training_status.py` 重寫 `%LOCALAPPDATA%\siro-voice-training\index.html`（meta refresh 5 秒），並明確用 Chrome／Edge 打開一次。
+  （原本放 repo 內 `.scratch/` 並用預設關聯開啟：此機 .html 關聯到 iexplore，且 repo 內檔案每 5 秒改寫會被 Claude app 重複打開原始碼 → 已移出 repo。）
+  只讀訓練檔。`status.sh` 改為呼叫同一支 `training_status.py` 印中文文字版。`.cmd` 必須保持純 ASCII（cmd 以 ANSI 讀檔，UTF-8 中文會讓整行錯位）。
+  注意：MeloTTS 續跑以 epoch 起點計步，暫停後顯示的步數會往回跳（模型權重沒有倒退）。
+- Owner 要求（2026-11-18）：訓練完成後刪掉進度網頁與 `Show-Voice-Training.cmd`。由 `status_html_loop.sh` 處理：偵測到 `console.log` 最後一行為 `=== exit 0`（train_siro.sh 正常結束）
+  就刪 `%LOCALAPPDATA%\siro-voice-training\` 和 repo 根目錄的 cmd 後結束（cmd 是已追蹤檔，刪除後要另外 commit）。只有網頁產生器在跑時才會自動刪；
+  若訓練曾暫停超過 1 小時，產生器會先自己結束，那就要在訓練完成後手動刪。
+- 進度網頁加 loss 折線圖（2026-11-18）：`training_status.py` 解析 train.log 全部歷史（續跑步數回跳時丟掉被重算的舊點，折線不倒退），內嵌 SVG（離線可看）：
+  mel 單獨一張、kl/dur/gen/disc 一張，淡線原始值＋9 點移動平均。另寫 `~/tts-train/runs/siro-sweet-b-v1/loss_history.csv`（time,step,disc,gen,fm,mel,dur,kl；訓練不讀它）。
+
+## 2026-11-18 語料可懂度抽查（owner 聽 000001／000004 說聽不懂）
+
+- `scripts/tts_train/check_corpus_asr.py`：sirov2 venv 的 faster-whisper（SIRO 已下載的 `~/.local/share/siro/data/models/faster-whisper-small`，CPU int8，不搶訓練 GPU、不改套件）轉寫，
+  melotts venv 用 opencc 統一繁簡後算 CER。
+- 結果（000001、000004＋隨機 60 句，原始 24k）：CER 中位數 6%、平均 9%、>30% 3 句（5%）、>60% 0。44.1k 版的 000001／000004 轉寫與 24k 完全相同 → 不是重取樣造成。
+  000001「超治癒」→「超之一」17%；000004「影展／超炫／視聽雙饗宴」→「營展／超選／試聽雙水葉」23%。開頭的中英夾雜流行語句較常念錯。
+  CER 高的也含假陽性（000289「1,050」被轉成中文數字）。Whisper small 本身也會錯，數字只能當相對指標。
+- 結論：語料不是大面積不可懂，但有部分念錯字。待 owner 聽 Whisper 判定正確的 001329／000620：聽得懂 → 全量 Whisper 篩掉高 CER 句再重訓；也聽不懂 → 聲線本身問題，需重做語料。
+
+## 2026-11-18 語音：取消訓練、語料打分＋試聽篩選、CSMSC、方案 3 計畫（尚未生成、尚未訓練）
+
+Owner 決定（經協調端與 owner 原話）：取消目前訓練與訓練監測；重新生成語料前先打分篩選，篩選由 owner 試聽決定；選方案 3（CSMSC 打底學發音聲調＋篩過的 SIRO 句學音色）。
+- 訓練已取消：程序全部結束，`~/tts-train/runs/siro-sweet-b-v1/`（G/D/DUR 0、1000、2000、3000）保留未刪。訓練進度網頁、`Show-Voice-Training.cmd` 已移除。
+- 打分環境：獨立 venv `~/.venvs/corpus-scorer`（Python 3.10、torch 2.5.1+cu121、faster-whisper、funasr 1.4.27、torchmetrics 1.9 DNSMOS、onnxruntime、librosa 0.11；約 5.9 GB），不動 sirov2／melotts。
+  坑：WSL PATH 裡的 Windows `ffmpeg` 無法執行，funasr import 時會炸 → `corpus_scorer.sh` 改用 Linux-only PATH 並加 venv 的 cublas／cudnn 到 LD_LIBRARY_PATH。
+  sirov2 的 faster-whisper 沒有 CUDA 函式庫（libcublas.so.12）只能 CPU。transformers 新版要求 torch>=2.6（只是警告，funasr 用不到）。
+- `scripts/tts_train/corpus_scorer.py`（模組＋CLI，`score`／`rerank`）五個面向：音調（pypinyin 聲調 vs 每字 F0 斜率、F0 跳動、音域）、音質（DNSMOS SIG/BAK/OVRL/P808、削波、靜音比例）、
+  音頻（頻譜重心、95% roll-off、每秒字數）、信心（Whisper small CER、avg_logprob、SenseVoiceSmall CER）、情緒（emotion2vec+ large；負面情緒機率）。各面向為相對整份語料的 robust z（0＝一般），加權為可疑分數，前 15% 判 fail。
+  結果 `~/tts-train/data/siro-sweet-b-v1/quality.csv`（原始量測 `quality.csv.raw.jsonl`）。2,649 句 GPU 模型約 50 分鐘＋音高 CPU 約 10 分鐘（後者原用 16 核，owner 電腦變卡 → 預設改半數核心）。
+- 分布：Whisper CER 中位 5.9%、p90 20%；SenseVoice CER 中位 0%、p90 14%；DNSMOS OVRL 中位 3.06（p10 2.79）；削波 0；每秒 4.2 字；
+  emotion2vec 幾乎全判 happy（2,327）／surprised（317），情緒面向幾乎沒有鑑別力（第一版把它當 z 分數，任何一點負面就變 6σ，已改成絕對機率）。
+- 4 句校準（owner 標記）：000004 第 137 名、000001 第 198 名 → 判 fail（正確）；000620 第 2,145 名 → 乾淨（正確）；
+  **001329（字對但音調怪）第 1,263 名、判 pass → 自動分數抓不到這種韻律問題**（tone_mismatch 0.29，000620 是 0.25）。沒有為了這句硬調權重。結論：自動分數只用來排序，owner 試聽才是篩選。
+- 試聽網頁：`scripts/tts_train/build_listen_page.py` → `%LOCALAPPDATA%\siro-corpus\listen.html`（最可疑 10＋分界附近 20＋最乾淨 10＋4 句參考＝44 句），
+  OK／怪（多候選時有「選這個」），標記存 localStorage，可下載／匯入 `siro-listen-marks.json`（`{"version":1,"marks":{id:"ok"|"bad"},"choice":{sentence:id}}`）。`--all` 可列全部。
+- 語料製作監測：`scripts/tts_train/corpus_monitor.py`＋`corpus_monitor_loop.sh`＋repo 根目錄 `Show-Corpus-Progress.cmd`（ASCII；Chrome 開 `%LOCALAPPDATA%\siro-corpus\progress.html`，每 5 秒刷新）。
+  讀 `~/tts-train/data/siro-regen/plan.json` 與 `progress.jsonl`（格式見 corpus_monitor.py docstring）；生成還沒開始，所以現在顯示「尚未開始」。
+- CSMSC：HF 鏡像 `openspeech/BZNSYP`（重新打包 Databaker 原檔，鏡像未標授權；Databaker 以非商業研究用途公開，官方頁條文未能自動讀取、未逐字核對）。來源記在 `~/tts-train/data/csmsc/LICENSE-SOURCE.txt`。
+  `scripts/tts_train/prepare_csmsc.py` → `~/tts-train/data/csmsc/melo/`：1 萬句、11.86 小時、44.1k／單聲道／16-bit、speaker csmsc、ZH_MIX_EN、去掉 #1–#4 韻律標記；Melo 前端 0 錯誤。尚未算 BERT。原始 48k 在 `raw/`（含 2.5 GB tar.bz2，可刪）。
+
+### 重新生成建議（尚未開始）
+- 原設定（`scripts/qwen_tts_worker.py`）：Qwen3-TTS 0.6B base 聲音複製，`do_sample=True, top_k=50, temperature=0.9`，每句只取 1 次。高 temperature 是語調亂飄的最可能原因（推論，未對照實驗）。
+- 建議：temperature 0.6–0.7、top_k 30；每句 3 個候選；每個候選用 corpus_scorer 打分寫入 progress.jsonl（監測網頁會顯示），依可疑分數排序後交 owner 試聽「選這個」。
+  先小規模試做 50 句 × 3 候選讓 owner 聽，確認比舊語料穩定再全量。中英夾雜流行語句子最容易念錯，可考慮降低比例。
+- 時間估計：生成約 2.5–3.3 秒／候選（上次實測 3.3 秒，含 Windows 程式搶顯卡）× 2,649 × 3 ≈ 5.5–7 小時；打分約 1 秒／候選 ≈ 2 小時（可邊生成邊打分）。生成期間 SIRO 必須關閉。
+
+### 訓練計畫（方案 3，尚未開始）
+- A. 多說話人一起訓練（推薦）：csmsc＋siro（owner 篩過的句子）同一份 train.list，n_speakers 2，從 `zh-remapped/G_0.pth` 開始；siro 句子重複 3–4 次以平衡（csmsc 11.9 h vs siro 約 2–2.5 h）。
+  推論用 speaker=siro。優點：發音聲調一直有 csmsc 撐著，siro 語料裡殘留的怪語調不會主導；一次訓練完成。估 30–40k 步 × 約 0.9–1.1 秒 ≈ 9–12 小時。
+- B. 先 csmsc 打底（約 20k 步，5–6 小時）再只用 siro 微調（約 5–10k 步，1.5–3 小時）：較快看到 siro 音色，但微調時只看 siro 資料，容易把怪語調又學回來、忘掉 csmsc 的發音。
+- 推薦 A。開始前要：owner 篩完 siro 句子 → 合併 metadata → 跑 `preprocess_text.py` 算 BERT（csmsc 1 萬句約 15–20 分鐘）→ 用 `train_siro.sh`（改 RUN_NAME／DATA）開跑。
+
+## 2026-11-18 owner 試聽結果與文字檢查 → 建議重新生成
+
+- Owner 標記（44 句：14 OK、30 怪）存 `~/tts-train/data/siro-sweet-b-v1/listen-marks-1.json`。Owner 原話：「我說 OK 的都是 OK 的」→ 人工標記優先：
+  `corpus_scorer.sh rerank --marks <json…>` 寫入 `owner_mark` 欄，OK 一律 passed、怪一律 fail（含文字截斷但照字念對的 001569／001622）。
+- 依試聽頁分組的怪比例：最可疑 10 → 7（70%）；分界附近 20 → 18（90%）；最乾淨 10 → 2（20%）；參考 4 → 3（001329 中段也是怪）。
+  `scripts/tts_train/analyze_listen_marks.py` 可重算。單項預測力（AUC）：Whisper CER 0.79、SenseVoice CER 0.77、綜合 0.67；音調 0.68、頻譜 0.63、DNSMOS 0.45–0.58、情緒 0.53（≈ 猜）。
+  → 權重改為信心 1.5／音調 0.6／音頻 0.4／音質 0.3／情緒 0.2，綜合 AUC 0.76（只有 44 個樣本，仍可能過擬合）。
+- 推估：分界附近已 90% 怪、最乾淨也 20% 怪，中段沒有抽樣；整份 v1 被 owner 判怪的比例粗估 50–70%（很不確定），可用約 800–1,300 句（約 1–1.5 小時）。
+  要找出它們得由 owner 聽完全部約 2,600 句（光播放就約 3 小時），且這些句子仍帶 Qwen 的語調習慣。
+- 文字檢查（`check_corpus_text.py`＋`check_corpus_text.ps1`，claude CLI haiku 讀全部 2,649 句＋規則）：115 句文字有問題（語意不明 40、用詞錯誤 29、不通順 28、截斷 16、引號不成對 2），
+  `~/tts-train/data/siro-sweet-b-v1/text_issues.csv`，已併入 quality.csv（`text_issue` 欄，+3 分並判 fail，owner OK 除外）。jieba 規則單獨誤報太多，只當參考。
+- 截斷／壞句的來源（`scripts/generate_tts_sentences.py`）：Groq gpt-oss-20b／120b、`temperature 1.0`、`max_tokens 4000`（推理模型的思考也吃這個額度，回覆尾端可能被截，最後一行半句）；
+  `clean()` 只檢查 5–40 字與允許字元，沒有通順度檢查；而且 `.strip("\"'「」")` 會剝掉句首／句尾的引號，留下不成對的「」（例如 000988「…就像有人在說「歡迎回家。」）。
+- 建議：**(b) 重新生成**，不靠篩選救 v1（v1 的 14 句 OK 保留）。重新生成時：
+  1. 句子檔先修：刪／改 115 句問題句；生成句子時 temperature 降到 0.7、max_tokens 拉高或不用推理模型、加上通順度檢查、不要剝引號。
+  2. Qwen：temperature 0.6–0.7、top_k 30；每句 3 個候選；用 Whisper／SenseVoice CER 排序（目前最準的指標）再交 owner 試聽「選這個」。
+  3. 先試 50 句：同句各用繁體原文與 opencc 轉簡體餵 Qwen（owner 發現錯字多在「癒、饗、炫」這類字；Qwen 訓練資料以簡體為主，推測簡體輸入較準，未驗證），owner 聽完選定再全量。
+
+## 2026-11-18 重新生成：句子 v2＋50 句試做（繁體 vs 簡體輸入）
+
+- 句子 v2：`scripts/tts_train/make_sentences_v2.py`（prep／apply）＋`make_sentences_v2.ps1`（claude haiku 改寫）→ `~/.local/share/siro/tts-corpus/sentences-v2.txt`／`sentences-v2.styles.tsv`，
+  2,652 句，115 句問題句全部改寫（0 句丟棄），對照表 `~/tts-train/data/sentences-v2/rewrites.csv`。v1 檔案未動。改寫句常加「喔～／呢」語尾。
+- `scripts/generate_tts_sentences.py`：不再替沒標點的行補「。」（截斷句會變成「做三明治時把。」）而是丟掉；只剝一對外層引號；丟引號括號不成對的行；temperature 1.0→0.8；max_tokens 4000→8000；prompt 要求完整句加標點。新增測試，`tests/unit/test_generate_tts_sentences.py` 5 passed，ruff 通過。
+- 試做：`trial_select.py`（50 句＝owner 判怪 30＋少見字 5＋中英 6＋數字 4＋隨機 5，各附 opencc t2s 簡體）→ `trial_generate.py`（qwen-tts-venv，faster_qwen3_tts，**talker 與 code predictor 都用 temperature 0.65／top_k 30**，產品 worker 是 0.9／50；沒有快取，每次都是新取樣）
+  → `trial_score.py`（`SCORER_SCRIPT=trial_score.py bash corpus_scorer.sh <dir>`）→ `build_trial_page.py`。輸出 `~/.local/share/siro/tts-corpus/siro-sweet-b-v2-trial/`（300 wav、candidates.jsonl、trial_quality.csv）。
+  監測網頁讀 `~/tts-train/data/siro-regen`（symlink 到試做資料夾）。
+- 結果（自動字錯率；owner 尚未試聽）：
+  繁體輸入 150 候選：Whisper CER 平均 18.3%、SenseVoice 14.6%、零錯字候選 5%；每句最佳（3 選 1）零錯字 5/50 句。
+  **簡體輸入**：Whisper 7.3%、SenseVoice 2.7%、零錯字候選 44%；每句最佳零錯字 **30/50**。逐句比最佳候選：簡體勝 40、繁體勝 2、平手 8。
+  （這 50 句故意偏難，含 owner 判怪的 30 句，所以數字比 v1 全體中位數高。）生成 2.94 秒／候選（50×6 共 14.7 分鐘），打分約 1.4 秒／候選。
+- 試聽頁 `%LOCALAPPDATA%\siro-corpus\trial.html`（每句繁／簡各一個最佳候選並排，可展開其他候選；「選這個」／「全部怪」；下載 `siro-trial-choices.json`，頁面上統計選繁／選簡數）。
+- 全量估計（簡體輸入、每句 3 候選）：2,652×3×2.94 秒 ≈ 6.5 小時生成＋約 3 小時打分 ≈ 9–10 小時；每句 2 候選約 6–7 小時。生成期間 SIRO 須關閉。尚未開始，等 owner 試聽決定。
+
+## 2026-11-19 全量重新生成 v2（進行中）
+
+- Owner 試聽試做 50 句（`siro-sweet-b-v2-trial/owner-choices-1.json`）：45 句有可用版本（選簡體 43、繁體 2），5 句全部怪（含 2 句「龜」、1 句「饗」）。
+  owner 選的與自動最佳（簡體組）只有 24/43 相同 → 字錯率能挑出「念對」，挑不出「最好聽」。Owner 決定：自動挑、只抽聽。
+- 2026-11-19 04:23 起背景執行 `scripts/tts_train/regen_full.sh`（setsid nohup；可中斷後重跑續做）：`full_plan.py` → `trial_generate.py` → `trial_score.py` → `spot_plan.py` → `build_trial_page.py`。
+  輸出 `~/.local/share/siro/tts-corpus/siro-sweet-b-v2/`（log `run.log`）。v2 句子 2,652：生成 2,595 句、7,809 個候選（簡體輸入、temperature 0.65、top_k 30、每句 3 個；含「龜／饗」的 8 句各 6 個），
+  沿用 57 句（試做 owner 選中 45、v1 OK 且文字未改 12；`reused.json`）。實測約 2.45 秒／候選。
+- 完成後：`auto_choice.json`（每句字錯率最低的候選）、`spot_plan.json`＋`%LOCALAPPDATA%\siro-corpus\spot.html`（最佳候選仍有錯字的句子，最多 200 句，加隨機 50 句；owner 沒動的句子照自動選）。
+- 進度：雙擊 `Show-Corpus-Progress.cmd`（監測讀 `~/tts-train/data/siro-regen` → v2 資料夾）。
+- 注意：在 Windows 用 Python `write_text` 改 `.sh` 會變成 CRLF，正在跑的 bash 腳本被改到會壞（bash 依位元組位置續讀）。這次已改回原本的 LF 內容，只改動尚未執行到的尾段。
+
+## 2026-11-19 v2 語料完成並選定（尚未訓練）
+
+- 全量生成 04:23–09:20（7,809 候選，平均 2.27 秒／候選），打分到 11:45，無錯誤。每句最佳候選：零錯字 1,694／2,595（65%）、W+S CER ≤ 8% 2,115（82%）、> 20% 88 句；平均 Whisper 2.4%、SenseVoice 1.5%（v1 Whisper 中位數約 6%，且有語調問題）。
+- Owner：250 句抽聽太多 → 可疑的 480 句（最佳候選 W+S CER > 0.08）直接排除。`scripts/tts_train/select_final.py` → `~/.local/share/siro/tts-corpus/siro-sweet-b-v2/selected.csv`：
+  **2,172 句、2.44 小時**（自動 2,115＋owner 認可沿用 57）。抽聽通過句隨機 20 句（`%LOCALAPPDATA%\siro-corpus\v2check\listen.html`）→ owner：「全部 ok」。
+- 舊的 250 句抽聽清單留在 `spot_plan_250.json`、`spot.html`（未使用）。
+- 下一步（未開始）：方案 3 A（csmsc＋siro v2 多說話人一起訓練，siro 重複 3–4 次，從 zh-remapped G_0）；要做 siro v2 轉 44.1k＋ZH_MIX_EN（簡體文字給前端）＋合併 csmsc metadata＋preprocess_text 算 BERT。

@@ -32,6 +32,18 @@ def test_clean_keeps_only_readable_lines() -> None:
     ]
 
 
+def test_clean_drops_truncated_and_unbalanced_lines() -> None:
+    reply = "\n".join(
+        [
+            "做三明治時把",  # cut off by the token limit: no final mark, must not become 「…把。」
+            "走廊的燈一亮，就像有人在說「歡迎回家。",  # unbalanced quote
+            "「她說「晚安」就睡了。」",  # one outer pair removed, inner pair kept
+            "\"今天也要加油喔！\"",
+        ]
+    )
+    assert sentences.clean(reply) == ["她說「晚安」就睡了。", "今天也要加油喔！"]
+
+
 def test_generate_appends_unique_sentences_and_resumes(tmp_path: Path) -> None:
     out = tmp_path / "s.txt"
     out.write_text("已經存在的第一句話。\n", encoding="utf-8")

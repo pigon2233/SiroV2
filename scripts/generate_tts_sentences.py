@@ -108,17 +108,35 @@ def prompt(topic: str, style: str, count: int) -> str:
         f"說話的人是一位親切的年輕女性桌面夥伴，對象是熟悉的朋友。\n"
         f"每句 {MIN_CHARS + 3} 到 {MAX_CHARS - 5} 個字，句子之間不要重複句型，"
         "不要提到任何真實人名。\n"
+        "每句都要是意思完整、通順的一句話，結尾加上標點（。！？…～）。\n"
         "一行一句，不要編號、不要引號、不要表情符號、不要任何說明。"
     )
 
 
+_PAIRS = (("「", "」"), ("『", "』"), ("（", "）"), ('"', '"'), ("'", "'"))
+
+
 def clean(reply: str) -> list[str]:
+    """Keep complete, readable lines.
+
+    2026-11-18 corpus review: appending "。" to lines without a final mark turned
+    replies cut off by the token limit into sentences like 「做三明治時把。」, and
+    stripping 「」 from both ends left unbalanced quotes inside the sentence. Now a
+    line must already end with a sentence-final mark (else it is likely
+    truncated and dropped), only one matching outer quote pair is removed, and
+    lines with unbalanced quotes or brackets are dropped.
+    """
     sentences = []
     for line in reply.splitlines():
-        text = _NUMBERING.sub("", line).strip().strip("\"'「」")
-        text = " ".join(text.split())
-        if text and text[-1] not in "。！？!?～…":
-            text += "。"  # a closing mark gives the voice a sentence-final fall
+        text = " ".join(_NUMBERING.sub("", line).split())
+        for left, right in _PAIRS:
+            if len(text) > 2 and text.startswith(left) and text.endswith(right):
+                text = text[len(left): -len(right)].strip()
+                break
+        if not text or text[-1] not in "。！？!?～…":
+            continue
+        if any(text.count(a) != text.count(b) for a, b in _PAIRS[:3]):
+            continue
         if MIN_CHARS <= len(text) <= MAX_CHARS and _ALLOWED.fullmatch(text):
             sentences.append(text)
     return sentences
@@ -171,8 +189,8 @@ def http_ask(base_url: str, model: str, key: str) -> Callable[[str], str]:
         body = {
             "model": model,
             "messages": [{"role": "user", "content": text}],
-            "temperature": 1.0,
-            "max_tokens": 4000,
+            "temperature": 0.8,  # 1.0 produced garbled sentences (115 of 2,649 in v1)
+            "max_tokens": 8000,  # reasoning models think inside this; 4000 cut replies short
         }
         request = urllib.request.Request(
             url,

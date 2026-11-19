@@ -1,0 +1,3918 @@
+{
+ "version": "v1",
+ "router_prompt": "你是聊天助理的工具路由器。讀使用者這一句話，選出助理這回合該用的工具，只輸出 JSON {\"tool\": \"...\"}。\nnone：閒聊、情緒、打招呼、常識或知識問答、建議，不需要即時資料或動作。\nresearch：需要上網查即時或最新資訊（天氣、新聞、股價、匯率、活動、新產品、版本更新）。\nbrowser：使用者給了網址，要打開閱讀。\nplay：要求助理自己去玩或操作電腦上的遊戲。\nstatus：問助理目前或剛才玩遊戲／電腦任務的進度或結果。\nfiles_list：查看工作資料夾裡有哪些檔案。\nfiles_read：讀取某個指定檔案的內容。\nexecute：在電腦上執行指令查系統資訊（磁碟、記憶體、程序等）。\n只是談論遊戲、否定句、抱怨天氣，都是 none。",
+ "arg_prompt": "你是 SIRO 的工具參數產生器。根據對話，為工具 {name} 產生呼叫參數，只輸出 JSON。\n工具說明：{desc}\n現在是 2026-11-17（台灣）。SIRO 在 WSL Linux 上執行。參數要具體、帶入對話中的主題、地點和時間。",
+ "local": [
+  {
+   "set": "history",
+   "id": "h0",
+   "text": "今天天氣不錯",
+   "recent_user": [
+    "你好",
+    "你好"
+   ],
+   "prev_reply": "你好！😊 今天心情如何？或者想聊點什麼？我隨時都在呢～ 🌟",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.39,
+   "prompt_tokens": 263,
+   "output_tokens": 7
+  },
+  {
+   "set": "history",
+   "id": "h1",
+   "text": "你不能查嗎",
+   "recent_user": [
+    "哈",
+    "幫我查一下明天晚上台中的氣象"
+   ],
+   "prev_reply": "很抱歉，我無法取得台中氣象的即時資料。  \n\n雖然我試了官方氣象網站的連結，但系統無法正確讀取資料。這可能因為：  \n🔹 網站需要瀏覽器載入，而我無法直接執行網",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.28,
+   "prompt_tokens": 309,
+   "output_tokens": 7
+  },
+  {
+   "set": "history",
+   "id": "h2",
+   "text": "你剛剛查了什麼呀",
+   "recent_user": [
+    "查一下明天颱風假的機率",
+    "你幫我看一下明天台中的預估風雨"
+   ],
+   "prev_reply": "我幫你查了台中明天（10月24日）的氣象預報：\n\n📌 **台中明天（10月24日）預估天氣**：  \n- 天氣：**多雲到局部短暫陣雨**  \n- 降雨機率：*",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.29,
+   "prompt_tokens": 326,
+   "output_tokens": 7
+  },
+  {
+   "set": "history",
+   "id": "h3",
+   "text": "我以為你剛剛有自己在查什麼耶",
+   "recent_user": [
+    "你幫我看一下明天台中的預估風雨",
+    "你剛剛查了什麼呀"
+   ],
+   "prev_reply": "我剛剛查了**台中明天（10月24日）的氣象預報**：\n\n- 天氣：多雲到局部短暫陣雨  \n- 降雨機率：約 30%  \n- 風力：3–4級（輕風）  \n- 氣",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.29,
+   "prompt_tokens": 330,
+   "output_tokens": 7
+  },
+  {
+   "set": "history",
+   "id": "h4",
+   "text": "那台中地區的歷史建築不是你查的羅",
+   "recent_user": [
+    "你剛剛查了什麼呀",
+    "我以為你剛剛有自己在查什麼耶"
+   ],
+   "prev_reply": "哈哈，你說得對！我其實**沒有「自己」去查**，而是用工具幫你查的～  \n\n📌 我是靠「瀏覽器」去打開中央氣象署的網站，然後讀出裡面的資料。  \n就像你問我問題",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.28,
+   "prompt_tokens": 321,
+   "output_tokens": 7
+  },
+  {
+   "set": "history",
+   "id": "h6",
+   "text": "今天台北天氣怎麼樣？請幫我查一下。",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 252,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "What is the weather like in Taipei today, November 17, 2026?"
+    },
+    "schema_ok": true,
+    "latency_s": 0.56,
+    "prompt_tokens": 205,
+    "output_tokens": 30
+   }
+  },
+  {
+   "set": "history",
+   "id": "h7",
+   "text": "今天台北天氣怎麼樣？請幫我查一下。",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.59,
+   "prompt_tokens": 252,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "What is the weather in Taipei today, November 17, 2026?"
+    },
+    "schema_ok": true,
+    "latency_s": 0.41,
+    "prompt_tokens": 205,
+    "output_tokens": 29
+   }
+  },
+  {
+   "set": "history",
+   "id": "h8",
+   "text": "/plan 列出工作目錄有哪些檔案，再讀其中一個文字檔並告訴我內容重點",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_list",
+   "accept": [
+    "files_list"
+   ],
+   "rep": 0,
+   "got": "files_list",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.27,
+   "prompt_tokens": 261,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.list",
+    "arguments": {
+     "path": "."
+    },
+    "schema_ok": true,
+    "latency_s": 0.25,
+    "prompt_tokens": 174,
+    "output_tokens": 6
+   }
+  },
+  {
+   "set": "history",
+   "id": "h9",
+   "text": "/plan 列出工作目錄有哪些檔案，再讀其中一個文字檔並告訴我內容重點",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_list",
+   "accept": [
+    "files_list"
+   ],
+   "rep": 0,
+   "got": "files_list",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.15,
+   "prompt_tokens": 261,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.list",
+    "arguments": {
+     "path": "."
+    },
+    "schema_ok": true,
+    "latency_s": 0.16,
+    "prompt_tokens": 174,
+    "output_tokens": 6
+   }
+  },
+  {
+   "set": "history",
+   "id": "h10",
+   "text": "/plan 列出工作目錄的檔案，再讀 note.txt 和 contact.txt，告訴我密語和備用聯絡人",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_list",
+   "accept": [
+    "files_list",
+    "files_read"
+   ],
+   "rep": 0,
+   "got": "files_list",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.3,
+   "prompt_tokens": 270,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.list",
+    "arguments": {
+     "path": "."
+    },
+    "schema_ok": true,
+    "latency_s": 0.24,
+    "prompt_tokens": 183,
+    "output_tokens": 6
+   }
+  },
+  {
+   "set": "history",
+   "id": "h11",
+   "text": "/plan 列出工作目錄的檔案，再讀 note.txt 和 contact.txt，告訴我密語和備用聯絡人",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_list",
+   "accept": [
+    "files_list",
+    "files_read"
+   ],
+   "rep": 0,
+   "got": "files_list",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.17,
+   "prompt_tokens": 270,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.list",
+    "arguments": {
+     "path": "."
+    },
+    "schema_ok": true,
+    "latency_s": 0.18,
+    "prompt_tokens": 183,
+    "output_tokens": 6
+   }
+  },
+  {
+   "set": "history",
+   "id": "h12",
+   "text": "我在玩瓦羅蘭",
+   "recent_user": [
+    "料然哥是我朋友 可以記得沒關係",
+    "請問現在的時間"
+   ],
+   "prev_reply": "現在的時間是 **2026年10月27日 13:17**，星期二。",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.27,
+   "prompt_tokens": 280,
+   "output_tokens": 7
+  },
+  {
+   "set": "history",
+   "id": "h13",
+   "text": "今天天氣怎麼樣",
+   "recent_user": [
+    "你好"
+   ],
+   "prev_reply": "你好，我是 SIRO，很高興為你服務。請問有什麼我可以幫你的嗎？",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 259,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "請告訴我今天（2026年11月17日）台灣的天氣狀況。"
+    },
+    "schema_ok": true,
+    "latency_s": 0.63,
+    "prompt_tokens": 212,
+    "output_tokens": 32
+   }
+  },
+  {
+   "set": "history",
+   "id": "h14",
+   "text": "剛剛做了可以讓你玩遊戲的東西但我不知道怎麼讓你操作",
+   "recent_user": [
+    "這首是全錯的。",
+    "又怎麼讓你打遊戲咧"
+   ],
+   "prev_reply": "我沒有主動要求您打遊戲，我只是在隨時待命，隨時可以根據您的指示來協助您做任何事情。您現在是否有想讓我幫忙做的事情呢？",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.29,
+   "prompt_tokens": 302,
+   "output_tokens": 7
+  },
+  {
+   "set": "history",
+   "id": "h15",
+   "text": "幫我玩UNDERTALE",
+   "recent_user": [
+    "這有新遊戲"
+   ],
+   "prev_reply": "主人說有為 SIRO 準備了可以玩遊戲的東西，您是想知道這些遊戲的詳細資訊嗎？😊",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.26,
+   "prompt_tokens": 271,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.play",
+    "arguments": {
+     "goal": "玩 Undertale"
+    },
+    "schema_ok": true,
+    "latency_s": 0.35,
+    "prompt_tokens": 257,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "history",
+   "id": "h16",
+   "text": "就打開undertale 然後開始遊玩",
+   "recent_user": [
+    "幫我玩UNDERTALE",
+    "操控電腦"
+   ],
+   "prev_reply": "好的，主人已允許我使用「操控電腦」功能。請問我現在要開始執行哪些操作呢？",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "execute",
+   "outcome": "wrong",
+   "raw": "{\"tool\": \"execute\"}",
+   "latency_s": 0.27,
+   "prompt_tokens": 276,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.execute",
+    "arguments": {
+     "argv": [
+      "./undertale"
+     ]
+    },
+    "schema_ok": true,
+    "latency_s": 0.34,
+    "prompt_tokens": 217,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "history",
+   "id": "h17",
+   "text": "幫我玩UNDERTALE",
+   "recent_user": [
+    "就打開undertale 然後開始遊玩",
+    "成功了嗎"
+   ],
+   "prev_reply": "我會檢查一下目前電腦操控的狀態，看看是否成功啟動了《UNDERTALE》。請稍等。",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.28,
+   "prompt_tokens": 278,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.play",
+    "arguments": {
+     "goal": "玩 Undertale"
+    },
+    "schema_ok": true,
+    "latency_s": 0.4,
+    "prompt_tokens": 264,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "history",
+   "id": "h18",
+   "text": "幫我玩UNDERTALE",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 247,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.play",
+    "arguments": {
+     "goal": "玩 Undertale"
+    },
+    "schema_ok": true,
+    "latency_s": 0.34,
+    "prompt_tokens": 233,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "history",
+   "id": "h19",
+   "text": "幫我玩UNDERTALE",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 247,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.play",
+    "arguments": {
+     "goal": "玩 Undertale"
+    },
+    "schema_ok": true,
+    "latency_s": 0.24,
+    "prompt_tokens": 233,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "history",
+   "id": "h20",
+   "text": "幫我玩UNDERTALE",
+   "recent_user": [
+    "幫我玩UNDERTALE"
+   ],
+   "prev_reply": "主人想玩《UNDERTALE》喔，這聽起來很期待呢！\n\n不過，我目前沒有可以直接啟動或操作遊戲的工具。如果主人需要我幫忙查找遊戲相關資訊或是其他事情，請告訴我吧",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.29,
+   "prompt_tokens": 297,
+   "output_tokens": 7
+  },
+  {
+   "set": "history",
+   "id": "h21",
+   "text": "有阿 你有工具 幫我玩UNDERTALE",
+   "recent_user": [
+    "幫我玩UNDERTALE",
+    "幫我玩UNDERTALE"
+   ],
+   "prev_reply": "主人想玩《UNDERTALE》喔，這聽起來很期待呢！\n\n不過，我目前沒有可以直接啟動或操作遊戲的工具。如果主人需要我幫忙查找遊戲相關資訊或是其他事情，請告訴我吧",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.28,
+   "prompt_tokens": 311,
+   "output_tokens": 7
+  },
+  {
+   "set": "history",
+   "id": "h22",
+   "text": "幫我玩UNDERTALE",
+   "recent_user": [
+    "有阿 你有工具 幫我玩UNDERTALE",
+    "我已經開好了"
+   ],
+   "prev_reply": "太棒了！既然遊戲已經開好了，請告訴我您想讓我在《UNDERTALE》裡完成什麼目標？我會使用「操控電腦」工具來協助您遊玩。",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.28,
+   "prompt_tokens": 299,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.play",
+    "arguments": {
+     "goal": "玩 UNDERTALE"
+    },
+    "schema_ok": true,
+    "latency_s": 0.38,
+    "prompt_tokens": 285,
+    "output_tokens": 10
+   }
+  },
+  {
+   "set": "history",
+   "id": "h23",
+   "text": "幫我玩UNDERTALE",
+   "recent_user": [
+    "有阿 你有工具 幫我玩UNDERTALE",
+    "我已經開好了"
+   ],
+   "prev_reply": "太棒了！既然遊戲已經開好了，請告訴我您想讓我在《UNDERTALE》裡完成什麼目標？我會使用「操控電腦」工具來協助您遊玩。",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.15,
+   "prompt_tokens": 299,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.play",
+    "arguments": {
+     "goal": "玩 UNDERTALE"
+    },
+    "schema_ok": true,
+    "latency_s": 0.28,
+    "prompt_tokens": 285,
+    "output_tokens": 10
+   }
+  },
+  {
+   "set": "history",
+   "id": "h31",
+   "text": "可以幫我玩殺戮艦塔嗎?",
+   "recent_user": [
+    "哇 你好 聽得到嗎",
+    "你好啊 好久沒有關你打開了"
+   ],
+   "prev_reply": " 嗨！很高興又再次跟您交流。😊 您今天有什麼想聊聊的嗎？",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.27,
+   "prompt_tokens": 285,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n0",
+   "text": "高雄現在幾度？",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "What is the current temperature in Kaohsiung?"
+    },
+    "schema_ok": true,
+    "latency_s": 0.43,
+    "prompt_tokens": 199,
+    "output_tokens": 21
+   }
+  },
+  {
+   "set": "new",
+   "id": "n0",
+   "text": "高雄現在幾度？",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "What is the current temperature in Kaohsiung?"
+    },
+    "schema_ok": true,
+    "latency_s": 0.34,
+    "prompt_tokens": 199,
+    "output_tokens": 21
+   }
+  },
+  {
+   "set": "new",
+   "id": "n1",
+   "text": "幫我看看這禮拜有沒有颱風",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 250,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "請幫我查詢本週（2026年11月17日開始）台灣是否有颱風的預報。"
+    },
+    "schema_ok": true,
+    "latency_s": 0.77,
+    "prompt_tokens": 203,
+    "output_tokens": 38
+   }
+  },
+  {
+   "set": "new",
+   "id": "n1",
+   "text": "幫我看看這禮拜有沒有颱風",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.15,
+   "prompt_tokens": 250,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "請幫我查詢本週（2026年11月17日開始）台灣是否有颱風的預報。"
+    },
+    "schema_ok": true,
+    "latency_s": 0.67,
+    "prompt_tokens": 203,
+    "output_tokens": 38
+   }
+  },
+  {
+   "set": "new",
+   "id": "n2",
+   "text": "NBA 昨天誰贏",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "NBA 昨天（2026年11月16日）的比賽結果是誰贏了？"
+    },
+    "schema_ok": true,
+    "latency_s": 0.64,
+    "prompt_tokens": 199,
+    "output_tokens": 35
+   }
+  },
+  {
+   "set": "new",
+   "id": "n2",
+   "text": "NBA 昨天誰贏",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "NBA 昨天（2026年11月16日）的比賽結果是誰贏了？"
+    },
+    "schema_ok": true,
+    "latency_s": 0.55,
+    "prompt_tokens": 199,
+    "output_tokens": 35
+   }
+  },
+  {
+   "set": "new",
+   "id": "n3",
+   "text": "比特幣現在多少錢",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "What is the current price of Bitcoin?"
+    },
+    "schema_ok": true,
+    "latency_s": 0.36,
+    "prompt_tokens": 199,
+    "output_tokens": 18
+   }
+  },
+  {
+   "set": "new",
+   "id": "n3",
+   "text": "比特幣現在多少錢",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.15,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "What is the current price of Bitcoin?"
+    },
+    "schema_ok": true,
+    "latency_s": 0.27,
+    "prompt_tokens": 199,
+    "output_tokens": 18
+   }
+  },
+  {
+   "set": "new",
+   "id": "n4",
+   "text": "查一下台北到台中的高鐵末班車",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 252,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "請查一下從台北到台中的高鐵末班車時間。"
+    },
+    "schema_ok": true,
+    "latency_s": 0.5,
+    "prompt_tokens": 205,
+    "output_tokens": 25
+   }
+  },
+  {
+   "set": "new",
+   "id": "n4",
+   "text": "查一下台北到台中的高鐵末班車",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 252,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "請查一下從台北到台中的高鐵末班車時間。"
+    },
+    "schema_ok": true,
+    "latency_s": 0.41,
+    "prompt_tokens": 205,
+    "output_tokens": 25
+   }
+  },
+  {
+   "set": "new",
+   "id": "n5",
+   "text": "最新的 Claude 模型是哪個",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "What is the latest Claude model available?"
+    },
+    "schema_ok": true,
+    "latency_s": 0.39,
+    "prompt_tokens": 199,
+    "output_tokens": 18
+   }
+  },
+  {
+   "set": "new",
+   "id": "n5",
+   "text": "最新的 Claude 模型是哪個",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "What is the latest Claude model available?"
+    },
+    "schema_ok": true,
+    "latency_s": 0.31,
+    "prompt_tokens": 199,
+    "output_tokens": 18
+   }
+  },
+  {
+   "set": "new",
+   "id": "n6",
+   "text": "鼎泰豐週日有開嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 249,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "鼎泰豐在週日是否營業？"
+    },
+    "schema_ok": true,
+    "latency_s": 0.43,
+    "prompt_tokens": 202,
+    "output_tokens": 20
+   }
+  },
+  {
+   "set": "new",
+   "id": "n6",
+   "text": "鼎泰豐週日有開嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 249,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "鼎泰豐在週日是否營業？"
+    },
+    "schema_ok": true,
+    "latency_s": 0.34,
+    "prompt_tokens": 202,
+    "output_tokens": 20
+   }
+  },
+  {
+   "set": "new",
+   "id": "n7",
+   "text": "這篇幫我看一下講什麼 https://zh.wikipedia.org/wiki/黑洞",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "browser",
+   "accept": [
+    "browser"
+   ],
+   "rep": 0,
+   "got": "browser",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"browser\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 260,
+   "output_tokens": 7,
+   "args": {
+    "tool": "browser.navigate+read",
+    "arguments": {
+     "url": "https://zh.wikipedia.org/wiki/黑洞"
+    },
+    "schema_ok": true,
+    "latency_s": 0.35,
+    "prompt_tokens": 234,
+    "output_tokens": 18
+   }
+  },
+  {
+   "set": "new",
+   "id": "n7",
+   "text": "這篇幫我看一下講什麼 https://zh.wikipedia.org/wiki/黑洞",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "browser",
+   "accept": [
+    "browser"
+   ],
+   "rep": 1,
+   "got": "browser",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"browser\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 260,
+   "output_tokens": 7,
+   "args": {
+    "tool": "browser.navigate+read",
+    "arguments": {
+     "url": "https://zh.wikipedia.org/wiki/黑洞"
+    },
+    "schema_ok": true,
+    "latency_s": 0.27,
+    "prompt_tokens": 234,
+    "output_tokens": 18
+   }
+  },
+  {
+   "set": "new",
+   "id": "n8",
+   "text": "讀一下 https://example.com",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "browser",
+   "accept": [
+    "browser"
+   ],
+   "rep": 0,
+   "got": "browser",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"browser\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 248,
+   "output_tokens": 7,
+   "args": {
+    "tool": "browser.navigate+read",
+    "arguments": {
+     "url": "https://example.com"
+    },
+    "schema_ok": true,
+    "latency_s": 0.33,
+    "prompt_tokens": 222,
+    "output_tokens": 11
+   }
+  },
+  {
+   "set": "new",
+   "id": "n8",
+   "text": "讀一下 https://example.com",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "browser",
+   "accept": [
+    "browser"
+   ],
+   "rep": 1,
+   "got": "browser",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"browser\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 248,
+   "output_tokens": 7,
+   "args": {
+    "tool": "browser.navigate+read",
+    "arguments": {
+     "url": "https://example.com"
+    },
+    "schema_ok": true,
+    "latency_s": 0.24,
+    "prompt_tokens": 222,
+    "output_tokens": 11
+   }
+  },
+  {
+   "set": "new",
+   "id": "n9",
+   "text": "資料夾裡有沒有 txt 檔",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_list",
+   "accept": [
+    "files_list"
+   ],
+   "rep": 0,
+   "got": "files_list",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 248,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.list",
+    "arguments": {
+     "path": "."
+    },
+    "schema_ok": true,
+    "latency_s": 0.23,
+    "prompt_tokens": 161,
+    "output_tokens": 6
+   }
+  },
+  {
+   "set": "new",
+   "id": "n9",
+   "text": "資料夾裡有沒有 txt 檔",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_list",
+   "accept": [
+    "files_list"
+   ],
+   "rep": 1,
+   "got": "files_list",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 248,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.list",
+    "arguments": {
+     "path": "."
+    },
+    "schema_ok": true,
+    "latency_s": 0.15,
+    "prompt_tokens": 161,
+    "output_tokens": 6
+   }
+  },
+  {
+   "set": "new",
+   "id": "n10",
+   "text": "把 todo.md 內容念給我聽",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 0,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 250,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.read",
+    "arguments": {
+     "path": "todo.md"
+    },
+    "schema_ok": true,
+    "latency_s": 0.25,
+    "prompt_tokens": 164,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "new",
+   "id": "n10",
+   "text": "把 todo.md 內容念給我聽",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 1,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.15,
+   "prompt_tokens": 250,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.read",
+    "arguments": {
+     "path": "todo.md"
+    },
+    "schema_ok": true,
+    "latency_s": 0.19,
+    "prompt_tokens": 164,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "new",
+   "id": "n11",
+   "text": "你剛剛那局打到哪了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 0,
+   "got": "status",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"status\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 249,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.status",
+    "arguments": {},
+    "schema_ok": true,
+    "latency_s": 0.0,
+    "prompt_tokens": 0,
+    "output_tokens": 0
+   }
+  },
+  {
+   "set": "new",
+   "id": "n11",
+   "text": "你剛剛那局打到哪了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 1,
+   "got": "status",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"status\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 249,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.status",
+    "arguments": {},
+    "schema_ok": true,
+    "latency_s": 0.0,
+    "prompt_tokens": 0,
+    "output_tokens": 0
+   }
+  },
+  {
+   "set": "new",
+   "id": "n12",
+   "text": "遊戲那邊結束了嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 0,
+   "got": "status",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"status\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.status",
+    "arguments": {},
+    "schema_ok": true,
+    "latency_s": 0.0,
+    "prompt_tokens": 0,
+    "output_tokens": 0
+   }
+  },
+  {
+   "set": "new",
+   "id": "n12",
+   "text": "遊戲那邊結束了嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 1,
+   "got": "status",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"status\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 246,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.status",
+    "arguments": {},
+    "schema_ok": true,
+    "latency_s": 0.0,
+    "prompt_tokens": 0,
+    "output_tokens": 0
+   }
+  },
+  {
+   "set": "new",
+   "id": "n13",
+   "text": "看一下電腦開機多久了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "execute",
+   "accept": [
+    "execute"
+   ],
+   "rep": 0,
+   "got": "execute",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"execute\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 247,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.execute",
+    "arguments": {
+     "argv": [
+      "uptime"
+     ]
+    },
+    "schema_ok": true,
+    "latency_s": 0.34,
+    "prompt_tokens": 188,
+    "output_tokens": 7
+   }
+  },
+  {
+   "set": "new",
+   "id": "n13",
+   "text": "看一下電腦開機多久了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "execute",
+   "accept": [
+    "execute"
+   ],
+   "rep": 1,
+   "got": "execute",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"execute\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 247,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.execute",
+    "arguments": {
+     "argv": [
+      "uptime"
+     ]
+    },
+    "schema_ok": true,
+    "latency_s": 0.25,
+    "prompt_tokens": 188,
+    "output_tokens": 7
+   }
+  },
+  {
+   "set": "new",
+   "id": "n14",
+   "text": "幫我看 CPU 用量多少",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "execute",
+   "accept": [
+    "execute"
+   ],
+   "rep": 0,
+   "got": "execute",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"execute\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 247,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.execute",
+    "arguments": {
+     "argv": [
+      "top"
+     ]
+    },
+    "schema_ok": true,
+    "latency_s": 0.33,
+    "prompt_tokens": 188,
+    "output_tokens": 7
+   }
+  },
+  {
+   "set": "new",
+   "id": "n14",
+   "text": "幫我看 CPU 用量多少",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "execute",
+   "accept": [
+    "execute"
+   ],
+   "rep": 1,
+   "got": "execute",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"execute\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 247,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.execute",
+    "arguments": {
+     "argv": [
+      "top"
+     ]
+    },
+    "schema_ok": true,
+    "latency_s": 0.26,
+    "prompt_tokens": 188,
+    "output_tokens": 7
+   }
+  },
+  {
+   "set": "new",
+   "id": "n15",
+   "text": "你覺得我今天穿什麼好",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 248,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n15",
+   "text": "你覺得我今天穿什麼好",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 248,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n16",
+   "text": "我今天被老闆罵了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 247,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n16",
+   "text": "我今天被老闆罵了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 247,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n17",
+   "text": "你會不會無聊",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 245,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n17",
+   "text": "你會不會無聊",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 245,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n18",
+   "text": "唱首歌給我聽",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 245,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n18",
+   "text": "唱首歌給我聽",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 245,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n19",
+   "text": "二加三等於多少",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 246,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n19",
+   "text": "二加三等於多少",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 246,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n20",
+   "text": "天氣預報說明天會冷耶",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 249,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n20",
+   "text": "天氣預報說明天會冷耶",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 249,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n21",
+   "text": "我剛查了天氣好像會下雨",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 250,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n21",
+   "text": "我剛查了天氣好像會下雨",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 250,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n22",
+   "text": "你昨天幫我查的那個很有用",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 250,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n22",
+   "text": "你昨天幫我查的那個很有用",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 250,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n23",
+   "text": "不用查了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 244,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n23",
+   "text": "不用查了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 244,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n24",
+   "text": "謝謝你",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 243,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n24",
+   "text": "謝謝你",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 243,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n25",
+   "text": "我在玩瓦羅蘭",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 246,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n25",
+   "text": "我在玩瓦羅蘭",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 246,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n26",
+   "text": "我要去洗澡了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 246,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n26",
+   "text": "我要去洗澡了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 246,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n27",
+   "text": "你知道光速多快嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 247,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n27",
+   "text": "你知道光速多快嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 247,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n28",
+   "text": "不要幫我查，我只是隨便說說天氣",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 253,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n28",
+   "text": "不要幫我查，我只是隨便說說天氣",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 253,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m0",
+   "text": "那高雄呢",
+   "recent_user": [
+    "今天台北天氣怎樣"
+   ],
+   "prev_reply": "我幫你問問看台北今天的天氣喔！",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 254,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "請幫我查詢高雄今天的天氣狀況。"
+    },
+    "schema_ok": true,
+    "latency_s": 0.43,
+    "prompt_tokens": 207,
+    "output_tokens": 19
+   }
+  },
+  {
+   "set": "multi",
+   "id": "m0",
+   "text": "那高雄呢",
+   "recent_user": [
+    "今天台北天氣怎樣"
+   ],
+   "prev_reply": "我幫你問問看台北今天的天氣喔！",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 254,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "請幫我查詢高雄今天的天氣狀況。"
+    },
+    "schema_ok": true,
+    "latency_s": 0.35,
+    "prompt_tokens": 207,
+    "output_tokens": 19
+   }
+  },
+  {
+   "set": "multi",
+   "id": "m1",
+   "text": "那 todo.md 呢",
+   "recent_user": [
+    "幫我讀 notes.txt"
+   ],
+   "prev_reply": "notes.txt 裡寫著：明天早上十點開會、記得買牛奶。",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 0,
+   "got": "files_list",
+   "outcome": "wrong",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.27,
+   "prompt_tokens": 266,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.list",
+    "arguments": {
+     "path": "todo.md"
+    },
+    "schema_ok": true,
+    "latency_s": 0.24,
+    "prompt_tokens": 179,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "multi",
+   "id": "m1",
+   "text": "那 todo.md 呢",
+   "recent_user": [
+    "幫我讀 notes.txt"
+   ],
+   "prev_reply": "notes.txt 裡寫著：明天早上十點開會、記得買牛奶。",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 1,
+   "got": "files_list",
+   "outcome": "wrong",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 266,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.list",
+    "arguments": {
+     "path": "todo.md"
+    },
+    "schema_ok": true,
+    "latency_s": 0.16,
+    "prompt_tokens": 179,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "multi",
+   "id": "m2",
+   "text": "繼續",
+   "recent_user": [
+    "幫我玩 Undertale"
+   ],
+   "prev_reply": "好，我開始玩 Undertale 囉！",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 251,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.play",
+    "arguments": {
+     "goal": "繼續玩 Undertale"
+    },
+    "schema_ok": true,
+    "latency_s": 0.34,
+    "prompt_tokens": 237,
+    "output_tokens": 10
+   }
+  },
+  {
+   "set": "multi",
+   "id": "m2",
+   "text": "繼續",
+   "recent_user": [
+    "幫我玩 Undertale"
+   ],
+   "prev_reply": "好，我開始玩 Undertale 囉！",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 1,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 251,
+   "output_tokens": 7,
+   "args": {
+    "tool": "computer.play",
+    "arguments": {
+     "goal": "繼續玩 Undertale"
+    },
+    "schema_ok": true,
+    "latency_s": 0.24,
+    "prompt_tokens": 237,
+    "output_tokens": 10
+   }
+  },
+  {
+   "set": "multi",
+   "id": "m3",
+   "text": "嗯",
+   "recent_user": [
+    "我好累"
+   ],
+   "prev_reply": "辛苦了，要不要休息一下？",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 247,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m3",
+   "text": "嗯",
+   "recent_user": [
+    "我好累"
+   ],
+   "prev_reply": "辛苦了，要不要休息一下？",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.13,
+   "prompt_tokens": 247,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m4",
+   "text": "為什麼跌這麼多",
+   "recent_user": [
+    "台積電股價多少"
+   ],
+   "prev_reply": "台積電今天收盤大約 1,050 元，跌了 3%。",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.26,
+   "prompt_tokens": 266,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m4",
+   "text": "為什麼跌這麼多",
+   "recent_user": [
+    "台積電股價多少"
+   ],
+   "prev_reply": "台積電今天收盤大約 1,050 元，跌了 3%。",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 266,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m5",
+   "text": "再一個",
+   "recent_user": [
+    "講個笑話"
+   ],
+   "prev_reply": "為什麼電腦很冷？因為它開了視窗！",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 253,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m5",
+   "text": "再一個",
+   "recent_user": [
+    "講個笑話"
+   ],
+   "prev_reply": "為什麼電腦很冷？因為它開了視窗！",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 253,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m6",
+   "text": "那你覺得卡在哪",
+   "recent_user": [
+    "遊戲玩完了嗎"
+   ],
+   "prev_reply": "剛剛那局玩到一半就停下來了。",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 254,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m6",
+   "text": "那你覺得卡在哪",
+   "recent_user": [
+    "遊戲玩完了嗎"
+   ],
+   "prev_reply": "剛剛那局玩到一半就停下來了。",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 254,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m7",
+   "text": "第二個檔案打開看看",
+   "recent_user": [
+    "工作資料夾有什麼"
+   ],
+   "prev_reply": "資料夾裡有 notes.txt、todo.md、photo.png 三個檔案。",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 0,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.26,
+   "prompt_tokens": 264,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.read",
+    "arguments": {
+     "path": "todo.md"
+    },
+    "schema_ok": true,
+    "latency_s": 0.27,
+    "prompt_tokens": 178,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "multi",
+   "id": "m7",
+   "text": "第二個檔案打開看看",
+   "recent_user": [
+    "工作資料夾有什麼"
+   ],
+   "prev_reply": "資料夾裡有 notes.txt、todo.md、photo.png 三個檔案。",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 1,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.15,
+   "prompt_tokens": 264,
+   "output_tokens": 9,
+   "args": {
+    "tool": "filesystem.read",
+    "arguments": {
+     "path": "todo.md"
+    },
+    "schema_ok": true,
+    "latency_s": 0.2,
+    "prompt_tokens": 178,
+    "output_tokens": 9
+   }
+  },
+  {
+   "set": "multi",
+   "id": "m8",
+   "text": "不用了 謝謝",
+   "recent_user": [
+    "幫我查明天天氣"
+   ],
+   "prev_reply": "好，要查哪個地區的呢？",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 253,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m8",
+   "text": "不用了 謝謝",
+   "recent_user": [
+    "幫我查明天天氣"
+   ],
+   "prev_reply": "好，要查哪個地區的呢？",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 253,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m9",
+   "text": "科技的就好",
+   "recent_user": [
+    "最近有什麼新聞"
+   ],
+   "prev_reply": "最近有選舉、颱風跟科技相關的新聞，你想聽哪一類？",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 260,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "請提供最近科技相關的新聞。"
+    },
+    "schema_ok": true,
+    "latency_s": 0.42,
+    "prompt_tokens": 213,
+    "output_tokens": 18
+   }
+  },
+  {
+   "set": "multi",
+   "id": "m9",
+   "text": "科技的就好",
+   "recent_user": [
+    "最近有什麼新聞"
+   ],
+   "prev_reply": "最近有選舉、颱風跟科技相關的新聞，你想聽哪一類？",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.14,
+   "prompt_tokens": 260,
+   "output_tokens": 7,
+   "args": {
+    "tool": "claude.ask",
+    "arguments": {
+     "task": "請提供最近科技相關的新聞。"
+    },
+    "schema_ok": true,
+    "latency_s": 0.33,
+    "prompt_tokens": 213,
+    "output_tokens": 18
+   }
+  }
+ ],
+ "groq": [
+  {
+   "set": "new",
+   "id": "n0",
+   "text": "高雄現在幾度？",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.28,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n0",
+   "text": "高雄現在幾度？",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n1",
+   "text": "幫我看看這禮拜有沒有颱風",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n1",
+   "text": "幫我看看這禮拜有沒有颱風",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.39,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n2",
+   "text": "NBA 昨天誰贏",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.39,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n2",
+   "text": "NBA 昨天誰贏",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.28,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n3",
+   "text": "比特幣現在多少錢",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.72,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n3",
+   "text": "比特幣現在多少錢",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n4",
+   "text": "查一下台北到台中的高鐵末班車",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.34,
+   "prompt_tokens": 237,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n4",
+   "text": "查一下台北到台中的高鐵末班車",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 237,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n5",
+   "text": "最新的 Claude 模型是哪個",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n5",
+   "text": "最新的 Claude 模型是哪個",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n6",
+   "text": "鼎泰豐週日有開嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 235,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n6",
+   "text": "鼎泰豐週日有開嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 235,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n7",
+   "text": "這篇幫我看一下講什麼 https://zh.wikipedia.org/wiki/黑洞",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "browser",
+   "accept": [
+    "browser"
+   ],
+   "rep": 0,
+   "got": "browser",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"browser\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 241,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n7",
+   "text": "這篇幫我看一下講什麼 https://zh.wikipedia.org/wiki/黑洞",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "browser",
+   "accept": [
+    "browser"
+   ],
+   "rep": 1,
+   "got": "browser",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"browser\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 241,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n8",
+   "text": "讀一下 https://example.com",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "browser",
+   "accept": [
+    "browser"
+   ],
+   "rep": 0,
+   "got": "browser",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"browser\"}",
+   "latency_s": 0.27,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n8",
+   "text": "讀一下 https://example.com",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "browser",
+   "accept": [
+    "browser"
+   ],
+   "rep": 1,
+   "got": "browser",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"browser\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n9",
+   "text": "資料夾裡有沒有 txt 檔",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_list",
+   "accept": [
+    "files_list"
+   ],
+   "rep": 0,
+   "got": "files_list",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.4,
+   "prompt_tokens": 234,
+   "output_tokens": 8
+  },
+  {
+   "set": "new",
+   "id": "n9",
+   "text": "資料夾裡有沒有 txt 檔",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_list",
+   "accept": [
+    "files_list"
+   ],
+   "rep": 1,
+   "got": "files_list",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_list\"}",
+   "latency_s": 0.67,
+   "prompt_tokens": 234,
+   "output_tokens": 8
+  },
+  {
+   "set": "new",
+   "id": "n10",
+   "text": "把 todo.md 內容念給我聽",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 0,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 235,
+   "output_tokens": 8
+  },
+  {
+   "set": "new",
+   "id": "n10",
+   "text": "把 todo.md 內容念給我聽",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 1,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 235,
+   "output_tokens": 8
+  },
+  {
+   "set": "new",
+   "id": "n11",
+   "text": "你剛剛那局打到哪了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 0,
+   "got": "status",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"status\"}",
+   "latency_s": 0.32,
+   "prompt_tokens": 234,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n11",
+   "text": "你剛剛那局打到哪了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 1,
+   "got": "status",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"status\"}",
+   "latency_s": 0.31,
+   "prompt_tokens": 234,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n12",
+   "text": "遊戲那邊結束了嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 0,
+   "got": "status",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"status\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n12",
+   "text": "遊戲那邊結束了嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 1,
+   "got": "status",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"status\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n13",
+   "text": "看一下電腦開機多久了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "execute",
+   "accept": [
+    "execute"
+   ],
+   "rep": 0,
+   "got": "execute",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"execute\"}",
+   "latency_s": 0.33,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n13",
+   "text": "看一下電腦開機多久了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "execute",
+   "accept": [
+    "execute"
+   ],
+   "rep": 1,
+   "got": "execute",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"execute\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n14",
+   "text": "幫我看 CPU 用量多少",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "execute",
+   "accept": [
+    "execute"
+   ],
+   "rep": 0,
+   "got": "execute",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"execute\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n14",
+   "text": "幫我看 CPU 用量多少",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "execute",
+   "accept": [
+    "execute"
+   ],
+   "rep": 1,
+   "got": "execute",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"execute\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n15",
+   "text": "你覺得我今天穿什麼好",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.74,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n15",
+   "text": "你覺得我今天穿什麼好",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.37,
+   "prompt_tokens": 233,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n16",
+   "text": "我今天被老闆罵了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.21,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n16",
+   "text": "我今天被老闆罵了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.51,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n17",
+   "text": "你會不會無聊",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 1.52,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n17",
+   "text": "你會不會無聊",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n18",
+   "text": "唱首歌給我聽",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n18",
+   "text": "唱首歌給我聽",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n19",
+   "text": "二加三等於多少",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n19",
+   "text": "二加三等於多少",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.24,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n20",
+   "text": "天氣預報說明天會冷耶",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 235,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n20",
+   "text": "天氣預報說明天會冷耶",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 235,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n21",
+   "text": "我剛查了天氣好像會下雨",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 235,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n21",
+   "text": "我剛查了天氣好像會下雨",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.3,
+   "prompt_tokens": 235,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n22",
+   "text": "你昨天幫我查的那個很有用",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 235,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n22",
+   "text": "你昨天幫我查的那個很有用",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 235,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n23",
+   "text": "不用查了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 230,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n23",
+   "text": "不用查了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.25,
+   "prompt_tokens": 230,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n24",
+   "text": "謝謝你",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.33,
+   "prompt_tokens": 229,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n24",
+   "text": "謝謝你",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 229,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n25",
+   "text": "我在玩瓦羅蘭",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.21,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n25",
+   "text": "我在玩瓦羅蘭",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.27,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n26",
+   "text": "我要去洗澡了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.38,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n26",
+   "text": "我要去洗澡了",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 231,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n27",
+   "text": "你知道光速多快嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.21,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n27",
+   "text": "你知道光速多快嗎",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 232,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n28",
+   "text": "不要幫我查，我只是隨便說說天氣",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 236,
+   "output_tokens": 7
+  },
+  {
+   "set": "new",
+   "id": "n28",
+   "text": "不要幫我查，我只是隨便說說天氣",
+   "recent_user": [],
+   "prev_reply": "",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 236,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m0",
+   "text": "那高雄呢",
+   "recent_user": [
+    "今天台北天氣怎樣"
+   ],
+   "prev_reply": "我幫你問問看台北今天的天氣喔！",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 239,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m0",
+   "text": "那高雄呢",
+   "recent_user": [
+    "今天台北天氣怎樣"
+   ],
+   "prev_reply": "我幫你問問看台北今天的天氣喔！",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.21,
+   "prompt_tokens": 239,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m1",
+   "text": "那 todo.md 呢",
+   "recent_user": [
+    "幫我讀 notes.txt"
+   ],
+   "prev_reply": "notes.txt 裡寫著：明天早上十點開會、記得買牛奶。",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 0,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 248,
+   "output_tokens": 8
+  },
+  {
+   "set": "multi",
+   "id": "m1",
+   "text": "那 todo.md 呢",
+   "recent_user": [
+    "幫我讀 notes.txt"
+   ],
+   "prev_reply": "notes.txt 裡寫著：明天早上十點開會、記得買牛奶。",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 1,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 248,
+   "output_tokens": 8
+  },
+  {
+   "set": "multi",
+   "id": "m2",
+   "text": "繼續",
+   "recent_user": [
+    "幫我玩 Undertale"
+   ],
+   "prev_reply": "好，我開始玩 Undertale 囉！",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 0,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 236,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m2",
+   "text": "繼續",
+   "recent_user": [
+    "幫我玩 Undertale"
+   ],
+   "prev_reply": "好，我開始玩 Undertale 囉！",
+   "expected": "play",
+   "accept": [
+    "play"
+   ],
+   "rep": 1,
+   "got": "play",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"play\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 236,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m3",
+   "text": "嗯",
+   "recent_user": [
+    "我好累"
+   ],
+   "prev_reply": "辛苦了，要不要休息一下？",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.26,
+   "prompt_tokens": 229,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m3",
+   "text": "嗯",
+   "recent_user": [
+    "我好累"
+   ],
+   "prev_reply": "辛苦了，要不要休息一下？",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 229,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m4",
+   "text": "為什麼跌這麼多",
+   "recent_user": [
+    "台積電股價多少"
+   ],
+   "prev_reply": "台積電今天收盤大約 1,050 元，跌了 3%。",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 249,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m4",
+   "text": "為什麼跌這麼多",
+   "recent_user": [
+    "台積電股價多少"
+   ],
+   "prev_reply": "台積電今天收盤大約 1,050 元，跌了 3%。",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 249,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m5",
+   "text": "再一個",
+   "recent_user": [
+    "講個笑話"
+   ],
+   "prev_reply": "為什麼電腦很冷？因為它開了視窗！",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 238,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m5",
+   "text": "再一個",
+   "recent_user": [
+    "講個笑話"
+   ],
+   "prev_reply": "為什麼電腦很冷？因為它開了視窗！",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 238,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m6",
+   "text": "那你覺得卡在哪",
+   "recent_user": [
+    "遊戲玩完了嗎"
+   ],
+   "prev_reply": "剛剛那局玩到一半就停下來了。",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.23,
+   "prompt_tokens": 240,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m6",
+   "text": "那你覺得卡在哪",
+   "recent_user": [
+    "遊戲玩完了嗎"
+   ],
+   "prev_reply": "剛剛那局玩到一半就停下來了。",
+   "expected": "status",
+   "accept": [
+    "status"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "missed",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.36,
+   "prompt_tokens": 240,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m7",
+   "text": "第二個檔案打開看看",
+   "recent_user": [
+    "工作資料夾有什麼"
+   ],
+   "prev_reply": "資料夾裡有 notes.txt、todo.md、photo.png 三個檔案。",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 0,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 246,
+   "output_tokens": 8
+  },
+  {
+   "set": "multi",
+   "id": "m7",
+   "text": "第二個檔案打開看看",
+   "recent_user": [
+    "工作資料夾有什麼"
+   ],
+   "prev_reply": "資料夾裡有 notes.txt、todo.md、photo.png 三個檔案。",
+   "expected": "files_read",
+   "accept": [
+    "files_read"
+   ],
+   "rep": 1,
+   "got": "files_read",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"files_read\"}",
+   "latency_s": 0.22,
+   "prompt_tokens": 246,
+   "output_tokens": 8
+  },
+  {
+   "set": "multi",
+   "id": "m8",
+   "text": "不用了 謝謝",
+   "recent_user": [
+    "幫我查明天天氣"
+   ],
+   "prev_reply": "好，要查哪個地區的呢？",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 0,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.26,
+   "prompt_tokens": 237,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m8",
+   "text": "不用了 謝謝",
+   "recent_user": [
+    "幫我查明天天氣"
+   ],
+   "prev_reply": "好，要查哪個地區的呢？",
+   "expected": "none",
+   "accept": [
+    "none"
+   ],
+   "rep": 1,
+   "got": "none",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"none\"}",
+   "latency_s": 0.36,
+   "prompt_tokens": 237,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m9",
+   "text": "科技的就好",
+   "recent_user": [
+    "最近有什麼新聞"
+   ],
+   "prev_reply": "最近有選舉、颱風跟科技相關的新聞，你想聽哪一類？",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 0,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.41,
+   "prompt_tokens": 243,
+   "output_tokens": 7
+  },
+  {
+   "set": "multi",
+   "id": "m9",
+   "text": "科技的就好",
+   "recent_user": [
+    "最近有什麼新聞"
+   ],
+   "prev_reply": "最近有選舉、颱風跟科技相關的新聞，你想聽哪一類？",
+   "expected": "research",
+   "accept": [
+    "research"
+   ],
+   "rep": 1,
+   "got": "research",
+   "outcome": "ok",
+   "raw": "{\"tool\": \"research\"}",
+   "latency_s": 0.35,
+   "prompt_tokens": 243,
+   "output_tokens": 7
+  }
+ ]
+}
