@@ -230,16 +230,97 @@ svg text{{font-size:11px;fill:var(--muted)}} .grid{{stroke:var(--bar);stroke-wid
 {svg_chart(s["rows"], ["kl", "dur", "gen", "disc"], "其他 loss")}
 <div class="note">橫軸是步數；淡線是原始值（每 50 步一點），粗線是 9 點移動平均。暫停後續跑時重算的區段只保留最新的。</div>
 </div>
+<p style="margin:14px 0 0"><a href="samples.html" style="color:inherit">▶ 試聽測試句（每 5,000 步自動產生）</a></p>
 <footer>最後更新 {s["now"]:%Y-%m-%d %H:%M:%S}（台北）・每 5 秒自動重新整理・關掉網頁不影響訓練</footer>
 </main></body></html>"""
 
 
+def as_json(s: dict, run: str) -> dict:
+    """Everything the Windows monitor window shows; sample paths as \\\\wsl.localhost UNC paths."""
+    distro = os.environ.get("WSL_DISTRO_NAME", "Ubuntu")
+    unc = lambda p: "\\\\wsl.localhost\\" + distro + p.replace("/", "\\")  # noqa: E731
+    state = s["state"]
+    if not os.path.exists(os.path.join(run, "train.log")):
+        prep = subprocess.run(["pgrep", "-f", "[p]reprocess_text.py|[p]repare_mix.py"], capture_output=True)
+        state = "資料準備中" if prep.returncode == 0 else "尚未開始"
+    samples = []
+    for d in sorted(glob.glob(os.path.join(run, "samples", "G_*")),
+                    key=lambda d: int(re.findall(r"\d+", os.path.basename(d))[-1]), reverse=True):
+        try:
+            texts = open(os.path.join(d, "sentences.txt"), encoding="utf-8").read().splitlines()
+        except OSError:
+            texts = []
+        files = [os.path.join(d, f"{i}.wav") for i in (1, 2, 3)]
+        if all(os.path.exists(f) for f in files):
+            samples.append({"step": int(re.findall(r"\d+", os.path.basename(d))[-1]),
+                            "items": [{"text": texts[i] if i < len(texts) else f"第 {i + 1} 句",
+                                       "path": unc(f)} for i, f in enumerate(files)]})
+    return {
+        "now": f"{s['now']:%H:%M:%S}",
+        "state": state,
+        "step": s.get("step"),
+        "total": s.get("total"),
+        "lines": [[k, v] for k, v in lines(s) if k != "狀態"],
+        "rows": [[step, round(v[3], 3), round(v[5], 3), round(v[4], 3), round(v[1], 3), round(v[0], 3)]
+                 for _, step, v in s["rows"]],
+        "samples": samples,
+    }
+
+
+def write_samples_page(run: str, page_dir: str) -> None:
+    """samples.html (no auto refresh, so playback is not interrupted) + copies of the wavs."""
+    import shutil
+
+    src = os.path.join(run, "samples")
+    dirs = sorted(
+        (d for d in glob.glob(os.path.join(src, "G_*")) if os.path.exists(os.path.join(d, "3.wav"))),
+        key=lambda d: int(re.findall(r"\d+", os.path.basename(d))[-1]),
+        reverse=True,
+    )
+    blocks = []
+    for d in dirs:
+        name = os.path.basename(d)
+        dst = os.path.join(page_dir, "samples", name)
+        os.makedirs(dst, exist_ok=True)
+        try:
+            texts = open(os.path.join(d, "sentences.txt"), encoding="utf-8").read().splitlines()
+        except OSError:
+            texts = []
+        items = []
+        for i in (1, 2, 3):
+            if not os.path.exists(os.path.join(dst, f"{i}.wav")):
+                shutil.copyfile(os.path.join(d, f"{i}.wav"), os.path.join(dst, f"{i}.wav"))
+            label = html.escape(texts[i - 1]) if len(texts) >= i else f"第 {i} 句"
+            items.append(f'<div class="s">{label}<audio controls preload="none" src="samples/{name}/{i}.wav"></audio></div>')
+        step = int(re.findall(r"\d+", name)[-1])
+        blocks.append(f'<div class="card"><b>第 {step:,} 步</b>{"".join(items)}</div>')
+    body = "".join(blocks) or '<p class="muted">還沒有測試句。每 5,000 步的存檔出現後幾分鐘內會自動產生。</p>'
+    page = f"""<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>SIRO 測試句</title><style>
+:root{{color-scheme:light dark;--bg:#f6f6f4;--fg:#222;--card:#fff;--muted:#777}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#1b1b1d;--fg:#eee;--card:#26262a;--muted:#999}}}}
+body{{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,"Microsoft JhengHei",sans-serif}}
+main{{max-width:640px;margin:20px auto;padding:0 16px}} .card{{background:var(--card);border-radius:12px;padding:14px 18px;margin:12px 0}}
+.s{{margin-top:8px}} audio{{width:100%;display:block;margin-top:2px}} .muted{{color:var(--muted)}} a{{color:inherit}}</style></head>
+<body><main><p><a href="index.html">← 回訓練進度</a></p><h1 style="font-size:19px">SIRO 測試句（新的在上面）</h1>
+<p class="muted">每 5,000 步用 SIRO 的聲音念同樣 3 句，比較不同步數聽聽看有沒有越來越好。這頁不會自動重新整理，要看新的請按 F5。</p>
+{body}</main></body></html>"""
+    tmp = os.path.join(page_dir, "samples.html.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(page)
+    os.replace(tmp, os.path.join(page_dir, "samples.html"))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--run", default=os.path.expanduser("~/tts-train/runs/siro-sweet-b-v1"))
+    ap.add_argument("--run", default=os.path.expanduser("~/tts-train/runs/mix-v2"))
     ap.add_argument("--html", help="write an HTML page here instead of printing text")
+    ap.add_argument("--json", action="store_true", help="print one JSON object (for TrainingMonitor.ps1)")
     args = ap.parse_args()
     s = collect(args.run)
+    if args.json:
+        print(json.dumps(as_json(s, args.run), ensure_ascii=False))
+        return 0
     if args.html:
         tmp = args.html + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -254,6 +335,7 @@ def main() -> int:
                     f"{t:%Y-%m-%d %H:%M:%S},{step}," + ",".join(f"{x:.4f}" for x in v[:6]) + "\n"
                 )
         os.replace(csv + ".tmp", csv)
+        write_samples_page(args.run, os.path.dirname(args.html))
     else:
         print(f"SIRO 語音訓練　{s['now']:%Y-%m-%d %H:%M:%S}（台北）")
         for k, v in lines(s):
