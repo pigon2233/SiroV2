@@ -64,6 +64,8 @@ ESP32 的 MQTT broker 與 OTA 轉送只在這台電腦已經放好設定時才�
 
 桌面上預設只看得到角色。滑過或按右鍵才出現說話、停止與更多；雙擊角色或按 F2 打開對話，再雙擊就收起。控制台從系統匣、桌寵的「更多」，或 [SIRO](http://127.0.0.1:8000/?view=control) 開啟。缺少模型或角色時入口會明確停止。
 
+桌寵預設畫在內顯（例如 Intel UHD Graphics 770），把獨立顯卡留給語音與對話模型。畫質與幀率上限不變，透明視窗也不改成軟體繪製。要改回獨立顯卡，先完全退出，在同一個命令列視窗執行 `set SIRO_PET_GPU=high-performance`（`discrete` 相同）再啟動。`set SIRO_PET_GPU=default` 則把選擇交回 Windows／Chromium，而且不改登錄機碼。`set SIRO_PET_GPU=low-power` 或清掉這個變數後再啟動，會回到內顯；變數有寫明 `low-power` 時，即使先前登錄成獨立顯卡也會改回來。確認方式：工作管理員「效能」裡，角色在動時應是內顯的 3D 在動，RTX 在她沒說話、沒想事情時保持空閒；程序清單加上「GPU 引擎」欄，`electron.exe` 落在內顯。Chromium 自己的報告可在設定 `SIRO_DEBUG_PORT=9223` 後，用瀏覽器打開 `http://127.0.0.1:9223`，或另開同一個 `electron.exe` 載入 `chrome://gpu`，GL_RENDERER 應含 Intel。登錄位置是 `HKCU\Software\Microsoft\DirectX\UserGpuPreferences`，值名稱是 `desktop-win\node_modules\electron\dist\electron.exe` 的完整路徑，`GpuPreference=1` 是省電（內顯）、`2` 是高效能。
+
 需要 PID 管理可用 `scripts/start .siro-data/companion-service.pid`，停止用 `scripts/stop .siro-data/companion-service.pid`。這兩種正式入口使用同一個 launcher。
 
 開發用離線示範另用 `scripts/start /tmp/siro-demo.pid --demo` 或 `uv run siro-gateway`。低階 gateway 不讀 `.env.local` 或自動選角色；沒有明確模型／renderer 環境設定時，會使用固定示範回覆與替身，不是日常可用的 SIRO。下載的 Cubism Core、角色資產與授權接受紀錄不得提交 Git；準備方式見 `config/body-assets/README.md`。
