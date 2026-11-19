@@ -132,8 +132,14 @@ async def _provider(
 @pytest.mark.parametrize("continuation", [False, True])
 @pytest.mark.parametrize("ending", ["length", "bare_eof"])
 async def test_provider_incomplete_generation_never_dispatches_or_replays(
-    tmp_path: Path, profile: str, continuation: bool, ending: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    profile: str,
+    continuation: bool,
+    ending: str,
 ) -> None:
+    # Background auto-memory sends its own model request and would race the request counts.
+    monkeypatch.setenv("SIRO_AUTO_MEMORY", "0")
     responses = []
     if continuation:
         responses.append(
