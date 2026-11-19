@@ -8,7 +8,6 @@ import logging
 import os
 import re
 import secrets
-import shutil
 import time
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
@@ -116,6 +115,7 @@ from siro.services.presentation.desktop_settings import (
     save_desktop_settings,
 )
 from siro.services.presentation.system_stats import read_system_stats
+from siro.services.presentation.tool_catalog import build_tool_catalog, tool_readiness
 from siro.services.tools.claude import (
     CLAUDE_DEFINITION,
     CLAUDE_TOOL,
@@ -123,7 +123,6 @@ from siro.services.tools.claude import (
     claude_model,
     claude_ready,
 )
-from siro.services.tools.claude import TIMEOUT_SECONDS as CLAUDE_TIMEOUT_SECONDS
 from siro.services.tools.execution import (
     ExecutionCancelled,
     ExecutionCleanupError,
@@ -131,14 +130,8 @@ from siro.services.tools.execution import (
 )
 from siro.services.tools.orchestrator import (
     DEFAULT_MODEL_TOOLS,
-    AvailabilityReason,
-    AvailabilityState,
     ProposalState,
-    ToolAvailability,
-    ToolCatalog,
-    ToolDescriptor,
     ToolExecutor,
-    ToolMetadata,
     ToolOrchestrator,
     ToolProposal,
 )
@@ -3122,124 +3115,21 @@ def _run_gateway(
     if computer_runs is not None:
         definitions.update(computer_tool.DEFINITIONS)
 
-    def readiness(name: str) -> ToolAvailability:
-        if not state.kill_switches["tools"]:
-            return ToolAvailability(
-                AvailabilityState.UNAVAILABLE, AvailabilityReason.TOOLS_DISABLED
-            )
-        if name in computer_tool.COMPUTER_TOOL_NAMES:
-            ready = computer_runs is not None and computer_tool.computer_ready(computer_runs, name)
-            return ToolAvailability(
-                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
-                AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,
-            )
-        if name == WEB_SEARCH_TOOL:  # the query leaves this machine
-            ready = state.kill_switches["cloud"]
-            return ToolAvailability(
-                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
-                AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,
-            )
-        if name == CLAUDE_TOOL:
-            ready = state.kill_switches["cloud"] and claude_ready()
-            return ToolAvailability(
-                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
-                AvailabilityReason.READY if ready else AvailabilityReason.NOT_READY,
-            )
-        if name.startswith("filesystem."):
-            ready = workspace is not None and workspace.available
-            return ToolAvailability(
-                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
-                AvailabilityReason.READY if ready else AvailabilityReason.WORKSPACE_UNAVAILABLE,
-            )
-        if name.startswith("browser."):
-            ready = bool(shutil.which("google-chrome") or shutil.which("chromium"))
-            return ToolAvailability(
-                AvailabilityState.AVAILABLE if ready else AvailabilityState.UNAVAILABLE,
-                AvailabilityReason.READY
-                if ready
-                else AvailabilityReason.BROWSER_EXECUTABLE_MISSING,
-            )
-        # Target checks remain in existing handlers; this is not a successful action probe.
-        return ToolAvailability(AvailabilityState.AVAILABLE, AvailabilityReason.READY)
-
-    def tool_metadata(name: str) -> ToolMetadata:
-        labels = {
-            "computer.execute": "執行電腦任務",
-            "process.start": "啟動應用程式",
-            "browser.navigate+read": "開啟並閱讀網頁",
-            "browser.read": "閱讀目前網頁",
-            "browser.fill": "填寫網頁欄位",
-            "browser.click": "操作網頁按鈕",
-            "browser.close": "關閉目前網頁",
-            "filesystem.read": "讀取工作目錄文字檔",
-            "filesystem.list": "查看工作目錄檔案",
-            CLAUDE_TOOL: "請 Claude 幫忙查",
-            WEB_SEARCH_TOOL: "搜尋網路",
-            **computer_tool.LABELS,
-        }
-        read_only = name in computer_tool.READ_ONLY or name in {
-            CLAUDE_TOOL,
-            WEB_SEARCH_TOOL,
-            "browser.navigate+read",
-            "browser.read",
-            "filesystem.read",
-            "filesystem.list",
-        }
-        return ToolMetadata(
-            display_name=labels.get(name),
-            required_permissions=("tool_approval", "workspace_path_grant")
-            if name.startswith("filesystem.")
-            else ("tool_approval",),
-            risk_level="observe/read-only" if read_only else "computer",
-            version="siro-tool-contract-v1",
-            provenance="siro_builtin",
-            timeout_seconds=120
-            if name == "computer.execute"
-            else CLAUDE_TIMEOUT_SECONDS
-            if name == CLAUDE_TOOL
-            else (30 if name.startswith("browser.") and browser_sessions is not None else None),
-            failure_behavior="Failures produce failed observations. Unknown effects are not "
-            "automatically repeated. Availability is not proof of successful execution.",
-        )
-
+    readiness = partial(
+        tool_readiness,
+        kill_switch=lambda key: state.kill_switches[key],
+        computer_runs=computer_runs,
+        workspace=workspace,
+        claude_ready=claude_ready,
+    )
     catalog = (
-        ToolCatalog(
-            tuple(
-                ToolDescriptor(
-                    name,
-                    definitions.get(name),
-                    handler,
-                    available=partial(readiness, name),
-                    backend="rust.scoped"
-                    if name.startswith("filesystem.")
-                    else (
-                        "playwright"
-                        if name.startswith("browser.")
-                        else ("anthropic.api" if name == CLAUDE_TOOL else "python.argv")
-                    ),
-                    effect="read"
-                    if name in computer_tool.READ_ONLY
-                    or name
-                    in {
-                        CLAUDE_TOOL,
-                        WEB_SEARCH_TOOL,
-                        "browser.navigate+read",
-                        "browser.read",
-                        "filesystem.read",
-                        "filesystem.list",
-                    }
-                    else "computer",
-                    contextual_executor=execute_computer
-                    if name == "computer.execute"
-                    else (
-                        browser_contextual.get(name)
-                        or workspace_contextual.get(name)
-                        or claude_contextual.get(name)
-                    ),
-                    metadata=tool_metadata(name),
-                )
-                for name, handler in handlers.items()
-            )
+        build_tool_catalog(
+            handlers=handlers,
+            definitions=definitions,
+            execute_computer=execute_computer,
+            contextual=(browser_contextual, workspace_contextual, claude_contextual),
+            readiness=readiness,
+            browser_sessions_enabled=browser_sessions is not None,
         )
         if runtime_profile == "candidate"
         else None

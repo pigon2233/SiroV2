@@ -249,6 +249,7 @@ class WorkerSupervisor:
             "PATH": "/usr/bin:/bin",
             "LANG": "C.UTF-8",
             "PYTHONUNBUFFERED": "1",
+            "PYTHONPATH": str(source_root),
             "SIRO_SKILL_ROOT": "/skill",
             "SIRO_SKILL_ENTRYPOINT": skill.manifest.entrypoint,
             "SIRO_SKILL_REQUEST": "/request.json",
