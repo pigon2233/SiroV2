@@ -2,6 +2,7 @@
 # Stop the WSL backend used by the Windows pet.
 # siro-stop knows the machine install. The checkout pid file is the fallback.
 set -u
+bash "$(dirname "${BASH_SOURCE[0]}")/searxng" stop >/dev/null 2>&1
 stop_bin="${SIRO_STOP_BIN:-$HOME/.local/bin/siro-stop}"
 if [[ -x "$stop_bin" ]]; then
   exec "$stop_bin"

@@ -101,6 +101,9 @@ wait_ready() {
   return 1
 }
 
+# Local SearXNG for web.search: silent no-op when not installed; never blocks startup.
+bash "$root/scripts/searxng" start >/dev/null 2>&1 &
+
 if ready; then
   if [[ "$variant" == "candidate" ]]; then
     echo "後端仍在執行。請先完全退出，再預覽候選模型。" >&2

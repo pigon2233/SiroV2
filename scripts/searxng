@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Local SearXNG for SIRO web.search (SIRO_WEB_SEARCH=searxng). Runs in WSL.
+#   scripts/searxng start|stop|status|init
+# Silent no-op (exit 0) on start when SearXNG is not installed, so SIRO startup
+# is never blocked. Config lives outside the repo; it only binds 127.0.0.1.
+set -u
+venv="${SIRO_SEARXNG_VENV:-$HOME/.venvs/searxng}"
+src="${SIRO_SEARXNG_SRC:-$HOME/src/searxng}"
+cfg_dir="${SIRO_SEARXNG_CONFIG_DIR:-$HOME/.config/siro/searxng}"
+cfg="$cfg_dir/settings.yml"
+port="${SIRO_SEARXNG_PORT:-8888}"
+pidfile="$cfg_dir/searxng.pid"
+log="${SIRO_SEARXNG_LOG:-/tmp/siro-searxng.log}"
+
+up() { curl -s -m2 -o /dev/null "http://127.0.0.1:${port}/healthz"; }
+
+init() {
+  mkdir -p "$cfg_dir"
+  [[ -f "$cfg" ]] && return 0
+  umask 077
+  cat >"$cfg" <<EOF
+use_default_settings: true
+general:
+  instance_name: siro-searxng
+  debug: false
+search:
+  safe_search: 0
+  formats: [html, json]
+server:
+  bind_address: "127.0.0.1"
+  port: ${port}
+  secret_key: "$(openssl rand -hex 32)"
+  limiter: false
+  image_proxy: false
+  public_instance: false
+EOF
+}
+
+case "${1:-}" in
+  init) init ;;
+  start)
+    [[ -x "$venv/bin/python" && -d "$src/searx" ]] || exit 0
+    up && exit 0
+    init
+    cd "$src" || exit 0
+    setsid -f env SEARXNG_SETTINGS_PATH="$cfg" PYTHONPATH="$src" \
+      bash -c 'echo $$ > "$1"; exec "$2" -m searx.webapp' _ "$pidfile" "$venv/bin/python" \
+      >>"$log" 2>&1 </dev/null
+    for _ in $(seq 90); do up && exit 0; sleep 0.5; done
+    echo "searxng: 尚未就緒，請看 $log" >&2
+    exit 0
+    ;;
+  stop)
+    if [[ -f "$pidfile" ]]; then
+      pid="$(tr -d '[:space:]' <"$pidfile")"
+      if [[ "$pid" =~ ^[0-9]+$ ]] && grep -aq searx "/proc/$pid/cmdline" 2>/dev/null; then
+        kill "$pid" 2>/dev/null
+      fi
+      rm -f "$pidfile"
+    fi
+    exit 0
+    ;;
+  status) up && echo up || { echo down; exit 1; } ;;
+  *) echo "usage: scripts/searxng start|stop|status|init" >&2; exit 2 ;;
+esac
