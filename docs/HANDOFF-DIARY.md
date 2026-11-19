@@ -514,3 +514,11 @@ Owner 決定（經協調端與 owner 原話）：取消目前訓練與訓練監�
 - 完成後：`auto_choice.json`（每句字錯率最低的候選）、`spot_plan.json`＋`%LOCALAPPDATA%\siro-corpus\spot.html`（最佳候選仍有錯字的句子，最多 200 句，加隨機 50 句；owner 沒動的句子照自動選）。
 - 進度：雙擊 `Show-Corpus-Progress.cmd`（監測讀 `~/tts-train/data/siro-regen` → v2 資料夾）。
 - 注意：在 Windows 用 Python `write_text` 改 `.sh` 會變成 CRLF，正在跑的 bash 腳本被改到會壞（bash 依位元組位置續讀）。這次已改回原本的 LF 內容，只改動尚未執行到的尾段。
+
+## 2026-11-19 v2 語料完成並選定（尚未訓練）
+
+- 全量生成 04:23–09:20（7,809 候選，平均 2.27 秒／候選），打分到 11:45，無錯誤。每句最佳候選：零錯字 1,694／2,595（65%）、W+S CER ≤ 8% 2,115（82%）、> 20% 88 句；平均 Whisper 2.4%、SenseVoice 1.5%（v1 Whisper 中位數約 6%，且有語調問題）。
+- Owner：250 句抽聽太多 → 可疑的 480 句（最佳候選 W+S CER > 0.08）直接排除。`scripts/tts_train/select_final.py` → `~/.local/share/siro/tts-corpus/siro-sweet-b-v2/selected.csv`：
+  **2,172 句、2.44 小時**（自動 2,115＋owner 認可沿用 57）。抽聽通過句隨機 20 句（`%LOCALAPPDATA%\siro-corpus\v2check\listen.html`）→ owner：「全部 ok」。
+- 舊的 250 句抽聽清單留在 `spot_plan_250.json`、`spot.html`（未使用）。
+- 下一步（未開始）：方案 3 A（csmsc＋siro v2 多說話人一起訓練，siro 重複 3–4 次，從 zh-remapped G_0）；要做 siro v2 轉 44.1k＋ZH_MIX_EN（簡體文字給前端）＋合併 csmsc metadata＋preprocess_text 算 BERT。
