@@ -107,6 +107,7 @@ from siro.services.agent.resume import (
     resume_enabled,
 )
 from siro.services.agent.runs import AgentRunState, SQLiteAgentRunRepository
+from siro.services.agent.tool_decision import DecidedToolModel, ToolDecider, decided_tool_call
 from siro.services.computer_use.intent import unavailable_hint
 from siro.services.computer_use.router import recent_user_texts, route_tools
 from siro.services.presentation.gateway import GatewayHub
@@ -204,6 +205,8 @@ class IntegratedCompanion:
         self._event_streams: dict[str, str] = {}
         self._data_dir = data_dir
         self._model = model
+        self._tool_decider = ToolDecider.from_env() if runtime_profile == "candidate" else None
+        self._tool_turns: set[str] = set()
         self._hub = hub
         if runtime_profile == "candidate":
             self._hub.enable_terminal_fencing()
@@ -1191,22 +1194,26 @@ class IntegratedCompanion:
             tools = await route_tools(text, tools, recent_user_texts(recent_messages))
             if (hint := unavailable_hint(text, tools)) is not None:
                 verified_preferences += (hint,)
-            result = await self._core.respond(
-                session_id,
-                "siro",
-                text,
-                privacy=privacy,
-                on_delta=delta,
-                on_motion=self._emit_motion,
-                verified_context=verified_preferences,
-                tools=tools,
-                message_history=self._message_histories.get(agent_run.run_id),
-                on_messages_ready=self._checkpoint_callback(agent_run.run_id, capability_context),
-                recent_messages=recent_messages,
-                memory_route_privacy=EventPrivacy(privacy.value)
-                if self._runtime_profile == "candidate"
-                else None,
-            )
+            decided = await self._decide_tool(session_id, text, tools, recent_messages, privacy)
+            with decided_tool_call(decided):
+                result = await self._core.respond(
+                    session_id,
+                    "siro",
+                    text,
+                    privacy=privacy,
+                    on_delta=delta,
+                    on_motion=self._emit_motion,
+                    verified_context=verified_preferences,
+                    tools=tools,
+                    message_history=self._message_histories.get(agent_run.run_id),
+                    on_messages_ready=self._checkpoint_callback(
+                        agent_run.run_id, capability_context
+                    ),
+                    recent_messages=recent_messages,
+                    memory_route_privacy=EventPrivacy(privacy.value)
+                    if self._runtime_profile == "candidate"
+                    else None,
+                )
             if agent_run.run_id in self._terminated:
                 return
             if result.state is TurnState.COMPLETED and result.tool_calls:
@@ -1496,7 +1503,34 @@ class IntegratedCompanion:
                 )
             )
 
+    async def _decide_tool(
+        self,
+        session_id: str,
+        text: str,
+        tools: tuple[ToolDefinition, ...],
+        recent_messages: tuple[ModelMessage, ...] | None,
+        privacy: Privacy,
+    ) -> ToolCall | None:
+        """Optional decision step (SIRO_TOOL_DECISION); None keeps the turn unchanged."""
+        used_tool = session_id in self._tool_turns
+        self._tool_turns.discard(session_id)
+        if self._tool_decider is None or not tools:
+            return None
+        previous = next(
+            (m.content for m in reversed(recent_messages or ()) if m.role == "assistant"), ""
+        )
+        decision = await self._tool_decider.decide(
+            text,
+            tools,
+            recent_user=recent_user_texts(recent_messages),
+            prev_reply=previous,
+            last_turn_used_tool=used_tool,
+            cloud_allowed=privacy is Privacy.CLOUD_ALLOWED,
+        )
+        return decision.call
+
     async def _propose_tool_calls(self, session_id: str, calls: tuple[ToolCall, ...]) -> None:
+        self._tool_turns.add(session_id)
         orchestrator = self._tool_orchestrator
         if orchestrator is None:
             raise RuntimeError("model requested tools but the orchestrator is unavailable")
@@ -2004,7 +2038,7 @@ class IntegratedCompanion:
             # A reply cut at the model's output limit is shown as unfinished, so the cap is
             # generous; chatty or reasoning models can exceed the 512 default.
             self._conversation = ConversationEngine(
-                self._model,
+                self._model if self._tool_decider is None else DecidedToolModel(self._model),
                 SQLiteConversationRepository(store),
                 max_output_tokens=int(os.environ.get("SIRO_MODEL_MAX_OUTPUT_TOKENS", "1536")),
             )
