@@ -238,7 +238,13 @@ def test_stop_falls_back_to_the_companion_pid_file(tmp_path: Path) -> None:
 
 def test_user_facing_windows_launchers_are_the_vrm_win_pair() -> None:
     commands = sorted(path.name for path in ROOT.glob("*.cmd"))
-    assert commands == ["Play-SIRO.cmd", "Start-SIRO-VRM-Win.cmd", "Stop-SIRO-Win.cmd"]
+    # SIRO-Monitor.cmd opens the voice-training monitor (tools/siro-monitor), not SIRO itself.
+    assert commands == [
+        "Play-SIRO.cmd",
+        "SIRO-Monitor.cmd",
+        "Start-SIRO-VRM-Win.cmd",
+        "Stop-SIRO-Win.cmd",
+    ]
     legacy = sorted(path.name for path in (ROOT / "scripts/legacy").glob("*.cmd"))
     assert legacy == [
         "Start-ESP32-Broker.cmd",
