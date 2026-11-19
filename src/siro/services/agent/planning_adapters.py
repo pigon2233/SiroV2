@@ -54,12 +54,13 @@ class CloudPlannerModel:
 
 
 class ClaudePlannerModel:
-    """Planner/verifier/reporter through the Anthropic API (default Haiku 5.5)."""
+    """Planner/verifier/reporter through the Claude CLI, sharing the process budget."""
 
     JSON_PREFIX = "Follow the instructions below exactly. Output only what is asked.\n\n"
 
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, *, caller: str = "planner") -> None:
         self._model = model
+        self._caller = caller
 
     async def complete(self, role: str, prompt: str) -> ModelReply:
         result = await ask_claude(
@@ -69,6 +70,7 @@ class ClaudePlannerModel:
             prefix=self.JSON_PREFIX,
             limit=12_000,
             search=False,
+            caller=self._caller,
         )
         return ModelReply(str(result["answer"]), str(result.get("model", self._model)))
 

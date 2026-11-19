@@ -32,6 +32,8 @@ from siro.services.tools.orchestrator import PriorOutcomeUnknown, ToolOrchestrat
 SELF_SESSION = "siro.self"
 READ_TOOL = "browser.navigate+read"
 # Claude can also help with her own research; it is offered only while the cloud switch is on.
+# The claude.ask handler shares the process-wide Claude budget, so a background run
+# cannot spend the subscription outside that cap.
 SELF_TOOLS = frozenset({READ_TOOL, "claude.ask"})
 CLAUDE_TOOL = "claude.ask"
 # A link inside a Claude answer, up to the first space, bracket or CJK punctuation.

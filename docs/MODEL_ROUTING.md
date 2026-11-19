@@ -47,8 +47,12 @@ Claude 用這台電腦已經登入的 `claude` 指令，不另存 API 金鑰。�
 ## 額度
 
 `SIRO_CLAUDE_BUDGET_CALLS` 預設 10，計算滾動 5 小時內真正打到 Claude CLI 的次數，
-寫在資料目錄的 `claude-budget.json`（權限 0600）。重開機不會歸零。
-用完、額度檔讀不到，或 CLI 回報限流，會自動改走 Groq，再不行改本機。
+寫在資料目錄的 `claude-budget.json`（權限 0600）。重開機不會歸零。同一個行程裡，
+對話路由、`claude.ask`（含背景自習）、代理規劃、人物側寫和每日回顧共用這一筆帳。
+用完、額度檔讀不到，或任一處 CLI 回報限流，就不再啟動 `claude`。對話路由、
+工具、規劃和回顧會改走 Groq，再不行改本機；聽寫對象判斷和自動規劃則回到原本的
+規則。限流冷卻是共用的：任何一處先撞到，其他地方也先停。電腦操控的三處 Claude
+呼叫還沒接上，建議改法在 `docs/patches/claude-budget-computer-use.patch`，尚未套用。
 
 畫面上會出現一句話，例如 Claude 次數用完、改用哪一家、以及大約什麼時候可以再用。
 監控頁的「對話模型」會顯示 `model_actual`，並在還要等的時候顯示 `claude_available_at`。
@@ -56,4 +60,4 @@ Claude 用這台電腦已經登入的 `claude` 指令，不另存 API 金鑰。�
 
 ## 關掉
 
-`SIRO_MODEL_ROUTER=0`，或拿掉該行。已寫入的 `claude-budget.json` 可以留著，不會被讀。
+`SIRO_MODEL_ROUTER=0`，或拿掉該行，對話就回到單一模型。`claude.ask`、規劃、側寫和回顧仍會讀 `claude-budget.json`；要讓它們也不再呼叫 Claude，把 `SIRO_CLAUDE_BUDGET_CALLS` 設成 0，或拿掉 Claude CLI。
