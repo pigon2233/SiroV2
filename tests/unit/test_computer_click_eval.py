@@ -18,7 +18,7 @@ from siro.services.computer_use.decision import Decision
 from siro.services.computer_use.safety import InputAction
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-import computer_click_eval as bench
+import computer_click_eval as bench  # type: ignore[import-not-found]
 
 
 @pytest.fixture

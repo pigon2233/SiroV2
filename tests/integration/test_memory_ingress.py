@@ -392,12 +392,12 @@ async def test_explicit_remember_trigger_without_colon_and_empty_rejected(tmp_pa
         ("請記住我喜歡咖啡", "我喜歡咖啡"),
         ("記住 我養了一隻貓", "我養了一隻貓"),
         ("幫我記住明天要開會", "明天要開會"),
-        ("請記住：我住台中", "我住台中"),
+        ("請記住：我住台中", "我住台中"),  # noqa: RUF001
     ]:
         memory = await service.ingest_owner_request("siro", event(text))
         assert memory is not None and memory.text == saved
     for text in ["我記不住這個", "你記得我嗎", "remember me?"]:
         assert await service.ingest_owner_request("siro", event(text)) is None
-    for text in ["請記住", "記住：", "幫我記住  "]:
+    for text in ["請記住", "記住：", "幫我記住  "]:  # noqa: RUF001
         with pytest.raises(ValueError):
             await service.ingest_owner_request("siro", event(text))

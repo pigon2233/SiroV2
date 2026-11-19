@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -125,7 +126,7 @@ class TouchMemory:
         )
 
 
-_ENGLISH = {
+_ENGLISH: dict[str, Callable[[int], str]] = {
     "pat": lambda _count: "patted her head",
     "poke": lambda count: f"poked her {count} times",
     "carry": lambda _count: "picked her up and moved her across the screen",

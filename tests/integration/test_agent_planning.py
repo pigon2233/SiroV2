@@ -25,7 +25,12 @@ from siro.services.agent.planning_adapters import (
 from siro.services.agent.runs import SQLiteAgentRunRepository
 from siro.services.tools.orchestrator import SQLiteToolProposalRepository, ToolOrchestrator
 
-READ = {"file.read": {"type": "object"}}
+
+def _schema() -> dict[str, object]:
+    return {"type": "object"}
+
+
+READ: dict[str, dict[str, object]] = {"file.read": _schema()}
 
 
 def plan_json(*items: dict[str, object]) -> str:

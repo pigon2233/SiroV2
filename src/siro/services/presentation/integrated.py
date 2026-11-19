@@ -759,8 +759,8 @@ class IntegratedCompanion:
         # Hands-free: only lines meant for her are answered; "verified" lines may be learned from.
         verified_speech = False
         if input_mode == "speech" and addressee_enabled():
-            reply, verified_speech = await self._hear_speech(session_id, text)
-            if not reply:
+            addressed, verified_speech = await self._hear_speech(session_id, text)
+            if not addressed:
                 return
         if self._runtime_profile == "candidate" and session_id in self._run_ids:
             await self._finish_candidate(
@@ -1153,8 +1153,8 @@ class IntegratedCompanion:
             )
             tools, capability_context = self._model_capabilities()
             tools = await route_tools(text, tools, recent_user_texts(recent_messages))
-            if (hint := unavailable_hint(text, tools)) is not None:
-                verified_preferences += (hint,)
+            if (capability_hint := unavailable_hint(text, tools)) is not None:
+                verified_preferences += (capability_hint,)
             result = await self._core.respond(
                 session_id,
                 "siro",

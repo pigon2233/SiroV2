@@ -11,7 +11,7 @@ import secrets
 import shutil
 import time
 from collections import deque
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Mapping
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
@@ -46,7 +46,7 @@ from siro.config import ProactivitySettings
 from siro.contracts.events import Priority, Privacy, UserTextEvent, UserTextPayload
 from siro.core.consolidation import Consolidator
 from siro.core.memory import Memory, MemoryService
-from siro.core.profile import ProfileEntry, ProfileService
+from siro.core.profile import Completer, ProfileEntry, ProfileService
 from siro.core.releases import ReleaseLaunchError, VerifiedRelease
 from siro.core.sensor_reactions import (
     BRIGHT_LUX,
@@ -1272,7 +1272,7 @@ def create_app(
         connection and the client must discard the partial audio."""
         require_origin(request.headers.get("origin"))
         require_token(authorization)
-        if not speech_stream_enabled():
+        if not isinstance(text_to_speech, QwenReferenceTTS) or not speech_stream_enabled():
             raise HTTPException(status_code=501, detail="streaming speech is unavailable")
         started = time.monotonic()
         chunks = text_to_speech.render_stream(body.text)
@@ -2296,7 +2296,9 @@ def create_app(
                     ):
                         continue
                     # The reply runs beside the socket: a slow model never holds up the renderer.
-                    touch_task = asyncio.create_task(on_body_touch(*touch))
+                    touch_task = asyncio.create_task(
+                        cast(Coroutine[Any, Any, None], on_body_touch(*touch))
+                    )
                     touch_task.add_done_callback(_log_touch_failure)
             except WebSocketDisconnect:
                 pass
@@ -2835,7 +2837,7 @@ def _run_gateway(
         profile_source = SQLiteProfileSource(shared_store)
         profile_service = ProfileService(
             memory_service,
-            ClaudePlannerModel(claude_model()),
+            cast(Completer, ClaudePlannerModel(claude_model())),
         )
 
     from siro.services.tools.browser_session import BrowserSessions

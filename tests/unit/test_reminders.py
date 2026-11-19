@@ -61,7 +61,8 @@ def make(tmp_path: Path, clock: Clock, fired: list[tuple[str, bool]]) -> Reminde
 
 
 def test_add_list_cancel_and_persist(tmp_path: Path) -> None:
-    clock, fired = Clock(), []
+    clock = Clock()
+    fired: list[tuple[str, bool]] = []
     service = make(tmp_path, clock, fired)
     assert "我會提醒你" in (service.handle("30分鐘後提醒我倒垃圾") or "")
     assert "我會提醒你" in (service.handle("明天八點提醒我交報告") or "")
@@ -85,7 +86,8 @@ def test_past_time_is_refused(tmp_path: Path) -> None:
 
 
 def test_fires_once_when_due_and_flags_late(tmp_path: Path) -> None:
-    clock, fired = Clock(), []
+    clock = Clock()
+    fired: list[tuple[str, bool]] = []
     service = make(tmp_path, clock, fired)
     service.handle("10分鐘後提醒我喝水")
     assert asyncio.run(service.fire_due()) == 0
@@ -100,7 +102,8 @@ def test_fires_once_when_due_and_flags_late(tmp_path: Path) -> None:
 
 
 def test_overdue_by_more_than_a_day_is_dropped(tmp_path: Path) -> None:
-    clock, fired = Clock(), []
+    clock = Clock()
+    fired: list[tuple[str, bool]] = []
     service = make(tmp_path, clock, fired)
     service.handle("5分鐘後提醒我伸展")
     clock.now += timedelta(days=2)

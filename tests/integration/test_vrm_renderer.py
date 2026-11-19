@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -669,7 +670,7 @@ def test_gestures_make_soft_sounds_never_over_her_voice_and_can_be_muted(tmp_pat
             page.wait_for_function("window.__siroVrm.activity() === 'idle'", timeout=10000)
             page.wait_for_timeout(2600)  # the busy claim goes stale
             page.mouse.click(180, 320, button="right")
-            page.get_by_text("音效：開").click()
+            page.get_by_text("音效：開").click()  # noqa: RUF001
             assert page.evaluate("window.__siroVrm.sounds().enabled") is False
             assert page.evaluate("localStorage.getItem('siro.sfx')") == "off"
             before = len(page.evaluate(played))
@@ -759,7 +760,7 @@ def test_desktop_stroll_turns_walks_with_the_window_and_stops_when_called(tmp_pa
             head = page.evaluate("window.__siroVrm.head()")
             x, y = head["x"], head["y"] + 3 * head["radius"]
 
-            def menu_stroll() -> dict[str, object]:
+            def menu_stroll() -> Any:
                 count = page.evaluate(f"{WALK_REQUESTS}.length")
                 page.mouse.click(x, y, button="right")
                 page.locator("#gesture-menu button", has_text="散步").click()

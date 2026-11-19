@@ -233,8 +233,10 @@ def test_upper_arms_stay_below_overhead_where_the_jacket_tears() -> None:
         if name in OVERHEAD_EXEMPT:
             continue
         keys = rotation_keys(name)
-        clip = ({bone: np.array(frames) for bone, frames in keys.items()},)
-        clip = (*clip, np.tile(skeleton["hips"]["world"], (len(keys["hips"]), 1)))
+        clip = (
+            {bone: np.array(frames) for bone, frames in keys.items()},
+            np.tile(skeleton["hips"]["world"], (len(keys["hips"]), 1)),
+        )
         down = mocap.world_positions(clip, skeleton, "hips")
         down = down - mocap.world_positions(clip, skeleton, "upperChest")
         down /= np.linalg.norm(down, axis=1, keepdims=True)

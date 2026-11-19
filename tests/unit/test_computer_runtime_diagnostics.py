@@ -19,7 +19,7 @@ from siro.services.computer_use.runtime_info import RUNTIME_ENV, runtime_info
 from siro.services.computer_use.safety import ControlGate
 
 sys.path.insert(0, str(Path(__file__).parents[2] / "scripts"))
-import computer_runtime_check as preflight
+import computer_runtime_check as preflight  # type: ignore[import-not-found]
 
 
 def test_identity_default_off_and_actual_loaded_root() -> None:
@@ -159,7 +159,7 @@ def test_offline_verifier_probe_is_default_off(
 ) -> None:
     import asyncio
 
-    from computer_verify_eval import probe
+    from computer_verify_eval import probe  # type: ignore[import-not-found]
 
     monkeypatch.delenv("SIRO_COMPUTER_VERIFY_BENCH_ENABLED", raising=False)
     with pytest.raises(ValueError, match="offline verify probe off"):

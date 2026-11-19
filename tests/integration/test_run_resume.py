@@ -36,7 +36,12 @@ from siro.services.agent.resume import (
     make_checkpoint_hook,
 )
 
-READ = {"file.read": {"type": "object"}}
+
+def _schema() -> dict[str, object]:
+    return {"type": "object"}
+
+
+READ: dict[str, dict[str, object]] = {"file.read": _schema()}
 
 
 def _task(deps: list[str] | None = None) -> dict[str, object]:

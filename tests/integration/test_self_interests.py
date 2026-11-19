@@ -39,7 +39,7 @@ def test_choice_parsing_rejects_waiting_repeats_and_made_up_sources() -> None:
 
 async def setup(
     tmp_path: Path, picks: list[str], clock: list[datetime]
-) -> tuple[SelfActivityScheduler, SelfActivityOwner, ScriptedModel, object, object]:
+) -> tuple[SelfActivityScheduler, SelfActivityOwner, ScriptedModel, object, list[bool]]:
     async def read(arguments: dict[str, object], context: ExecutionContext) -> object:
         return {"url": arguments["url"], "title": "synthetic"}
 
@@ -59,7 +59,7 @@ async def setup(
         return ("探索與理解新事物",)
 
     picker = InterestPicker(store, picker_model, preferences)
-    foreground = [False]
+    foreground: list[bool] = [False]
     scheduler = SelfActivityScheduler(
         owner, picker, store, foreground=lambda: foreground[0], clock=lambda: clock[0]
     )
